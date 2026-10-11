@@ -1,0 +1,10 @@
+[package]
+name = "auth"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+shared = { path = "../shared" }
+axum.workspace = true
+serde.workspace = true
+tracing.workspace = true

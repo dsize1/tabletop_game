@@ -1,0 +1,9 @@
+{
+  "name": "tabletop-game-apps",
+  "private": true,
+  "workspaces": [
+    "qq-gateway",
+    "agent-gateway",
+    "web"
+  ]
+}

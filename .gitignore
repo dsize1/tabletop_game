@@ -1,0 +1,23 @@
+# Node
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Rust
+target/
+
+# 环境变量与密钥
+.env
+.env.*
+!.env.example
+
+# 日志与系统
+*.log
+.DS_Store
+Thumbs.db
+
+# SQLite 运行时数据
+data/
+*.db
+*.db-shm
+*.db-wal

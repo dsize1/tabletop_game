@@ -1,0 +1,8 @@
+[package]
+name = "las-vegas"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+game-engine-core = { path = "../../game-engine-core" }
+serde.workspace = true

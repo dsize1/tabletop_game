@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest", "--browser", "msedge", "--headless"],
+      "description": "浏览器自动化：打开网页、抓取/交互（使用系统 Edge，无需下载浏览器）"
+    }
+  }
+}

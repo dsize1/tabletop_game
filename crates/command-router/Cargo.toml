@@ -1,0 +1,9 @@
+[package]
+name = "command-router"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+shared = { path = "../shared" }
+game-engine-core = { path = "../game-engine-core" }
+tracing.workspace = true

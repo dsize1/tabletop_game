@@ -1,0 +1,14 @@
+[package]
+name = "bot-adapter"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+shared = { path = "../shared" }
+storage = { path = "../storage" }
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+redis.workspace = true
+tokio.workspace = true
+anyhow.workspace = true
