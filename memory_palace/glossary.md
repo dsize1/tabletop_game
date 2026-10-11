@@ -19,4 +19,4 @@
 | 事件溯源 | append-only `game_events` + `game_state` 快照（version 对齐） |
 | 置信度 | TypeSafe 公式 `(p_max − 1/n) / (1 − 1/n)`，用于阈值兜底 |
 | wide_choice | 决策模型单题超 26 选项时的两阶段分组机制 |
-| 被动回复 / 主动发送 | QQ 消息回复两种方式：带 msg_id 限时回复 / POST 主动推送（有日配额） |
+| 被动回复 / 主动发送 | QQ 消息回复两种方式：带 msg_id 回复（群聊 5 分钟、每条最多 5 次）/ POST 主动推送（群 1000 条/天） |

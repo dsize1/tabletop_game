@@ -21,3 +21,6 @@ data/
 *.db
 *.db-shm
 *.db-wal
+
+# playwright MCP 运行时
+.playwright-mcp/
