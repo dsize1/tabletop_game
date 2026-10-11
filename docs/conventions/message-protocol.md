@@ -26,6 +26,7 @@
 - **被动回复**（带 `msg_id`）：有效期 **5 分钟**（群聊；单聊 60 分钟），每条消息最多回复 **5 次**（递增 `msg_seq`）
 - **主动发送**（`POST /v2/groups/{group_openid}/messages`）：群 **1000 条/群/天**、未认证 30/qpm（企业/个人认证 60/qpm）、单关系 20/qpm、每秒最多 5 条，用于异步/补发
 - 分层回复见 `docs/architecture.md` §8
+- 数值约束来源与验证状态见 `docs/conventions/external-constraints.md`
 
 ## qq.raw 消息结构（实测）
 

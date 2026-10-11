@@ -23,6 +23,7 @@
 | 了解整体架构 | `docs/architecture.md` |
 | 内部消息事件协议 | `docs/conventions/message-protocol.md` |
 | 持久化 / 消息总线约定 | `docs/conventions/persistence.md` |
+| 外部约束事实登记表（频控/窗口/延迟） | `docs/conventions/external-constraints.md` |
 | 本地开发环境（Docker/Redis） | `docs/dev-environment.md` |
 | 编码规范 | `docs/conventions/coding-standards.md` |
 | 某模块职责/接口 | `docs/modules/<模块>.md` |

@@ -2,6 +2,19 @@
 
 > 记录项目关键节点与验证结果，按时间倒序。重大技术决策见 `decisions/`。
 
+## M6：决策模型接入（SystemOne 替代 mock 意图决策）✅（意图部分）
+
+- **日期**：2026-10-11
+- **完成**：
+  - decision-service 部署（llama-server + gguf_server；一键启动 `apps/scripts/start-decision-service.mjs`）
+  - agent-gateway 新增 `SystemOneClient`（HTTP `/v1/systemone`，超时可配/可注入）；`decideIntent` 改异步调真实模型，**mock 关键词彻底移除**
+  - criteria 中文；双通道兜底：决策 → 低置信 `#前缀` → 默认 chat；服务不可用 → 「服务繁忙」
+  - 配置：`SYSTEMONE_URL` / `SYSTEMONE_TIMEOUT_MS` / `DECISION_INTENT_THRESHOLD`
+  - 单测改注入桩（离线）+ 真实服务集成验证脚本
+  - 顺带修复既有前缀规则 bug（`#开发` 误判为 start_game）
+- **验证**：`tsc` build 通过；`npm run test:decision` 通过；`npm run test:decision:live` 5/5；「这局规则是什么」→ chat(0.649)、「猜拳怎么玩」→ chat(0.822)，不再误判开桌
+- **未做（后续）**：动作选择接入（架构 §6.1：先 `get_active_game`/`get_legal_actions` 再双问 `intent`+`action`）—— 留待拉斯维加斯引擎落地
+
 ## M3：架构重设计（双模型 + MCP 化 + 事件溯源，文档）✅
 
 - **日期**：2026-10-11
@@ -12,7 +25,7 @@
   - 权限/合法性由规则引擎确定性校验；置信度阈值配置化 + 兜底
   - 意图 + 动作合并为一次决策调用（单次前向多问题）
   - 事件溯源：`game_events` + `game_state` 快照；会话标识三类拆分
-  - 分层回复策略（游戏模板摘要被动 / 聊天限时 / 开发回执+异步）
+  - 分层回复策略（游戏模板摘要默认 + 可配置 LLM 情景叙述 / 聊天 LLM 叙述 / 开发回执+异步）
 - **详见**：`decisions/ADR-0002-dual-model-mcp-eventsourcing.md`
 
 ## M2：qq-gateway 接入（群 → qq.raw 链路跑通）✅
@@ -38,6 +51,6 @@
 
 ## 下一里程碑（待办）
 
-- **M5：聊天增强** — 异步主动发送（LLM 回复不走被动窗口，统一主动消息）+ 多轮对话（每群会话历史）
-- **M6：决策模型接入** — decision-service 部署（llama-server + gguf_server）→ SystemOne 替代 mock 关键词，解决「猜拳规则→开桌」等误判
+- **M5：聊天增强** — 多轮对话（每群会话历史）+ 游戏路径 LLM 情景叙述接入（`GAME_NARRATION_ENABLED` 开关，双条 `msg_seq` 1→2）
+- ~~M6：决策模型接入~~ ✅ 见上（意图部分完成；动作选择待拉斯维加斯引擎落地）
 - 之后：拉斯维加斯引擎 → 规则查询意图路径（mock 识别游戏交互 → MCP get_rules）→ 会话历史持久化

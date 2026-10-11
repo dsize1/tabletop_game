@@ -1,36 +1,73 @@
-// 决策层单测：前缀解析 + mock 决策 + 交叉验证 + 手势提取。
+// 决策层单测：SystemOne 客户端（注入桩，不依赖网络）+ 前缀解析 + 兜底 + 手势提取。
 // 运行：npx tsx test-decision.mts
 import assert from "node:assert";
-import { decideIntent, extractHand } from "./src/decision.js";
+import { decideIntent, parsePrefix, extractHand, INTENT_CRITERIA } from "./src/decision.js";
+import { stubClient, failingClient, hangingClient } from "./test-helpers.mts";
 
 // —— 前缀解析 ——
-assert.equal(decideIntent("#聊 你好").intent, "chat");
-assert.equal(decideIntent("#玩 猜拳").intent, "start_game");
-assert.equal(decideIntent("#开 猜拳").intent, "start_game");
-assert.equal(decideIntent("#play 猜拳").intent, "start_game");
-assert.equal(decideIntent("#start 猜拳").intent, "start_game");
-assert.equal(decideIntent("#开发 测试").intent, "dev");
-
-// —— mock 决策（关键词）——
-assert.equal(decideIntent("来玩猜拳").intent, "start_game");
-assert.equal(decideIntent("石头剪刀布").intent, "start_game");
-assert.equal(decideIntent("石头").intent, "game_action");
-assert.equal(decideIntent("开发个功能").intent, "dev");
-
-// —— 交叉验证：决策高置信 → via=decision ——
-assert.equal(decideIntent("来玩猜拳").via, "decision");
-
-// —— 低置信 + 前缀兜底 → via=prefix ——
-assert.equal(decideIntent("#聊 随便聊聊").via, "prefix");
-
-// —— 低置信 + 无前缀 → default chat ——
-assert.equal(decideIntent("随便说点啥").intent, "chat");
-assert.equal(decideIntent("随便说点啥").via, "default");
+assert.equal(parsePrefix("#聊 你好"), "chat");
+assert.equal(parsePrefix("#玩 猜拳"), "start_game");
+assert.equal(parsePrefix("#开 猜拳"), "start_game");
+assert.equal(parsePrefix("#play 猜拳"), "start_game");
+assert.equal(parsePrefix("#start 猜拳"), "start_game");
+assert.equal(parsePrefix("#开发 测试"), "dev"); // 回归：#开发 不应被 #开 抢先命中
+assert.equal(parsePrefix("随便说说"), null);
 
 // —— 手势提取 ——
 assert.equal(extractHand("来玩猜拳 石头"), "石头");
 assert.equal(extractHand("我出剪刀"), "剪刀");
 assert.equal(extractHand("布"), "布");
 assert.equal(extractHand("随便说点啥"), null);
+
+// —— 高置信 → via=decision ——
+{
+  const d = await decideIntent("来玩猜拳", stubClient("start_game", 0.92));
+  assert.equal(d.intent, "start_game");
+  assert.equal(d.via, "decision");
+  assert.equal(d.confidence, 0.92);
+}
+
+// —— 低置信 + 前缀 → via=prefix ——
+{
+  const d = await decideIntent("#聊 随便聊聊", stubClient("start_game", 0.3));
+  assert.equal(d.intent, "chat");
+  assert.equal(d.via, "prefix");
+}
+
+// —— 低置信 + 无前缀 → 默认 chat，via=default ——
+{
+  const d = await decideIntent("随便说点啥", stubClient("chat", 0.41));
+  assert.equal(d.intent, "chat");
+  assert.equal(d.via, "default");
+}
+
+// —— 阈值可配：同一置信度阈值调低则走 decision ——
+{
+  const d = await decideIntent("嗯", stubClient("dev", 0.5), { threshold: 0.4 });
+  assert.equal(d.intent, "dev");
+  assert.equal(d.via, "decision");
+}
+
+// —— 服务连不上 → via=unavailable（不降级为 chat）——
+{
+  const d = await decideIntent("来玩猜拳", failingClient());
+  assert.equal(d.via, "unavailable");
+}
+
+// —— 服务超时 → via=unavailable ——
+{
+  const d = await decideIntent("来玩猜拳", hangingClient(200));
+  assert.equal(d.via, "unavailable");
+}
+
+// —— 模型返回未知意图 → 走兜底 ——
+{
+  const d = await decideIntent("???", stubClient("nonsense", 0.99));
+  assert.equal(d.via, "default");
+  assert.equal(d.intent, "chat");
+}
+
+// —— 意图选项齐全 ——
+assert.deepEqual(Object.keys(INTENT_CRITERIA).sort(), ["chat", "dev", "game_action", "start_game"]);
 
 console.log("✅ decision 单测全部通过");

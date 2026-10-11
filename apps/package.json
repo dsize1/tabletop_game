@@ -1,6 +1,10 @@
 {
   "name": "tabletop-game-apps",
   "private": true,
+  "scripts": {
+    "check:decision": "node scripts/check-decision-service.mjs",
+    "test:agent-gateway": "npm --workspace @tabletop-game/agent-gateway run test"
+  },
   "workspaces": [
     "qq-gateway",
     "agent-gateway",

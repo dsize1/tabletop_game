@@ -24,3 +24,6 @@ data/
 
 # playwright MCP 运行时
 .playwright-mcp/
+
+# 本地模型权重（StartLux-Decision GGUF，CC BY-NC 4.0 非商用，勿提交）
+StartLux-Decision-v1-4B-Q8_0-GGUF/

@@ -69,3 +69,4 @@ description: 计划工作流（围栏→修正→执行→验收→harness loop�
 - 阶段 A 内任何 `edit/write`、非白名单 bash 都会被扩展拦截；不要尝试绕过围栏。
 - 解除围栏、发起 harness loop、任务终结这三个动作，**都必须由用户确认**。
 - 每一步的产物（计划、清单、完成状态、阶段）都要实时落到 `memory_palace/plan/{sessionId}.md`，保证跨会话可续。
+- 计划 / ADR 中的**数值型外部约束**（时间窗口、频控、延迟、上限）必须标注来源与验证状态；未经实测的结论标「待验证」，不得写死为实现约束。涉及外部约束先查 `docs/conventions/external-constraints.md`。

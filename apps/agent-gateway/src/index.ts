@@ -2,7 +2,8 @@ import "dotenv/config";
 import { Redis } from "ioredis";
 import { randomUUID } from "node:crypto";
 import { decideIntent, extractHand } from "./decision.js";
-import { chatReply } from "./chat.js";
+import { SystemOneClient } from "./systemone.js";
+import { chatReply, narrateGame } from "./chat.js";
 import { GameEngineClient } from "./mcp.js";
 
 const redisUrl = process.env.REDIS_URL ?? "redis://127.0.0.1:6379";
@@ -18,6 +19,14 @@ const DEV_WHITELIST = new Set(
     .map((s) => s.trim())
     .filter(Boolean),
 );
+
+// SystemOne 决策服务（本地 StartLux-Decision，/v1/systemone）
+const systemone = new SystemOneClient({
+  url: process.env.SYSTEMONE_URL ?? "http://127.0.0.1:8090",
+  timeoutMs: Number(process.env.SYSTEMONE_TIMEOUT_MS ?? 3000),
+});
+// 意图置信度阈值（低于 → #前缀 → 默认 chat）
+const INTENT_THRESHOLD = Number(process.env.DECISION_INTENT_THRESHOLD ?? 0.6);
 
 interface MessageGroupAt {
   type: "message_group_at";
@@ -82,15 +91,37 @@ function isDevAllowed(senderId: string): boolean {
   return DEV_WHITELIST.has(senderId);
 }
 
-async function pushReply(redis: Redis, event: MessageGroupAt, reply: string) {
+// 游戏路径 LLM 情景叙述开关：模板摘要必达；开启时追加一条 msg_seq=2 叙述（失败静默降级）
+const NARRATION_ENABLED = (process.env.GAME_NARRATION_ENABLED ?? "") === "1";
+
+async function pushReply(redis: Redis, event: MessageGroupAt, reply: string, msgSeq = 1) {
   const pushEvent = {
     event_id: randomUUID(),
     group_id: event.group_id,
     content: reply,
     reply_msg_id: event.message_id,
+    msg_seq: msgSeq,
     at_member_id: event.sender_id,
   };
   await redis.xadd(PUSH_STREAM, "MAXLEN", "~", "1000", "*", "event", JSON.stringify(pushEvent));
+}
+
+/** 游戏路径出站：模板摘要必达（msg_seq=1）；开关开启时追加 LLM 情景叙述（msg_seq=2），失败静默降级。 */
+async function sendGameReply(
+  redis: Redis,
+  event: MessageGroupAt,
+  template: string,
+  actionDesc?: string,
+) {
+  await pushReply(redis, event, template, 1);
+  if (NARRATION_ENABLED && actionDesc) {
+    try {
+      const narration = await narrateGame(actionDesc, template);
+      await pushReply(redis, event, narration, 2);
+    } catch (err) {
+      console.error("[agent-gateway] 情景叙述失败，静默降级为仅模板:", err);
+    }
+  }
 }
 
 async function handle(redis: Redis, engine: GameEngineClient, event: MessageGroupAt) {
@@ -102,31 +133,37 @@ async function handle(redis: Redis, engine: GameEngineClient, event: MessageGrou
     return;
   }
 
-  const { intent, via } = decideIntent(event.content);
+  const { intent, via } = await decideIntent(event.content, systemone, {
+    threshold: INTENT_THRESHOLD,
+  });
+  if (via === "unavailable") {
+    await pushReply(redis, event, "服务繁忙，请稍后重试");
+    console.log("[agent-gateway] 决策服务不可用，降级回执");
+    return;
+  }
 
-  let reply: string;
   try {
     switch (intent) {
       case "chat":
-        reply = await chatReply(event.content);
+        await pushReply(redis, event, await chatReply(event.content));
         break;
 
       case "start_game": {
         // 猜拳：开桌 + 立即出拳（一轮对话）
         const hand = extractHand(event.content);
         if (!hand) {
-          reply = "请出「石头/剪刀/布」，例如：来玩猜拳 石头";
+          await pushReply(redis, event, "请出「石头/剪刀/布」，例如：来玩猜拳 石头");
           break;
         }
         const stateJson = await engine.startGame("rps", event.group_id, [event.sender_id]);
         const state = parseJson<GameState>(stateJson, {});
         if (!state.room_id) {
-          reply = stateJson; // 开桌失败信息
+          await pushReply(redis, event, stateJson); // 开桌失败信息
           break;
         }
         const resultJson = await engine.executeAction(state.room_id, event.sender_id, hand);
         const result = parseJson<ActionResult>(resultJson, {});
-        reply = result.message ?? resultJson;
+        await sendGameReply(redis, event, result.message ?? resultJson, `玩家出了「${hand}」`);
         break;
       }
 
@@ -138,30 +175,33 @@ async function handle(redis: Redis, engine: GameEngineClient, event: MessageGrou
         if (active.room_id && hand) {
           const resultJson = await engine.executeAction(active.room_id, event.sender_id, hand);
           const result = parseJson<ActionResult>(resultJson, {});
-          reply = result.message ?? resultJson;
+          await sendGameReply(redis, event, result.message ?? resultJson, `玩家出了「${hand}」`);
         } else if (!hand) {
-          reply = "你想出什么？请说「石头/剪刀/布」";
+          await pushReply(redis, event, "你想出什么？请说「石头/剪刀/布」");
         } else {
-          reply = "当前没有进行中的对局，试试「来玩猜拳 石头」";
+          await pushReply(redis, event, "当前没有进行中的对局，试试「来玩猜拳 石头」");
         }
         break;
       }
 
       case "dev":
-        reply = isDevAllowed(event.sender_id)
-          ? "[开发] 已受理（白名单校验通过），开发任务子会话待接入"
-          : "[开发] 无权限：你不是开发白名单账号";
+        await pushReply(
+          redis,
+          event,
+          isDevAllowed(event.sender_id)
+            ? "[开发] 已受理（白名单校验通过），开发任务子会话待接入"
+            : "[开发] 无权限：你不是开发白名单账号",
+        );
         break;
 
       default:
-        reply = await chatReply(event.content);
+        await pushReply(redis, event, await chatReply(event.content));
     }
   } catch (err) {
     console.error(`[agent-gateway] 处理异常 intent=${intent}:`, err);
-    reply = "抱歉，处理你的消息时出错了，请稍后再试";
+    await pushReply(redis, event, "抱歉，处理你的消息时出错了，请稍后再试");
   }
 
-  await pushReply(redis, event, reply);
   console.log(`[agent-gateway] intent=${intent} via=${via} ← ${event.content}`);
 }
 

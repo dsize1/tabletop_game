@@ -57,18 +57,23 @@ async function ensureGroup() {
   }
 }
 
-/** 发送一条群消息：有 reply_msg_id 走被动回复，否则主动发送。 */
+/** 发送一条群消息：有 reply_msg_id 走被动回复（显式 msg_seq 递增），否则主动发送。 */
 async function sendGroupMessage(event: {
   group_id: string;
   content: string;
   reply_msg_id?: string | null;
+  msg_seq?: number;
 }) {
-  const target: { scope: "group"; targetId: string; msgId?: string } = {
-    scope: "group",
-    targetId: event.group_id,
-  };
-  if (event.reply_msg_id) target.msgId = event.reply_msg_id;
-  await bot.sendText(target, event.content);
+  if (event.reply_msg_id) {
+    // 被动回复：显式 msg_id + msg_seq（SDK sendText 的 msg_seq 为随机数，不满足多条递增）
+    await bot.send({
+      target: { scope: "group", targetId: event.group_id, msgId: event.reply_msg_id },
+      content: event.content,
+      extra: { msg_seq: event.msg_seq ?? 1 },
+    });
+    return;
+  }
+  await bot.sendText({ scope: "group", targetId: event.group_id }, event.content);
 }
 
 async function processPushEntries(results: unknown) {

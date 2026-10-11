@@ -100,3 +100,20 @@ export async function chatReply(content: string): Promise<string> {
     return fallback(content);
   }
 }
+
+const NARRATION_SYSTEM_PROMPT =
+  "你是桌游群里的游戏主持人。把玩家的操作与游戏结果润色成一句简短、有情景带入感的话，承上启下推进游戏进程。不要逐条复述所有结果（详情玩家会去网页看），只做承上启下 + 情景带入。中文，不超过 200 字，直接输出正文。";
+
+/** 游戏情景叙述：把动作 + 结果润色为承上启下、有带入感的短叙述。失败抛错（调用方静默降级为仅模板）。 */
+export async function narrateGame(action: string, result: string): Promise<string> {
+  if (!LLM_API_KEY) throw new Error("LLM 未配置，跳过情景叙述");
+  const text = await callLlm(
+    [
+      { role: "system", content: NARRATION_SYSTEM_PROMPT },
+      { role: "user", content: `玩家操作：${action}\n游戏结果：${result}` },
+    ],
+    2000,
+  );
+  if (!text) throw new Error("LLM 返回空");
+  return text.length <= MAX_REPLY_CHARS ? text : text.slice(0, MAX_REPLY_CHARS);
+}

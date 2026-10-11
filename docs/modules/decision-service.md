@@ -38,13 +38,17 @@ POST /v1/systemone
 - `choice` 置信度 = `(p_max − 1/n) / (1 − 1/n)`（TypeSafe 定义）
 - 阈值由 agent-gateway 配置化，低于阈值走兜底
 
-## 中文处理策略（待验证，暂不实现）
+## 中文处理策略（已实测：中文直传可用，暂不引入翻译）
 
-- StartLux-Decision 为英文微调，中文玩家消息是**零样本跨语言**，效果需在验证阶段实测。
-- 若验证阶段中文不理想，按以下顺序启用（**本次不实现，确认需要后再实施**）：
-  1. **本地 MT 小模型翻译**（NLLB / Qwen-MT 类，zh→en，~0.1–0.4s）：中文消息译成英文，**中英同时传入 `state`**；避免远程 LLM 翻译的 1–3s 延迟与额外隐私出站。
-  2. **低置信才翻译（两级路由）**：中文直传 → 置信度达标即返回（快路径）；低于阈值才翻译并重决策（慢路径，只在难样本）。
-- 翻译一律用**本地小模型**，不用远程 LLM（远程会拖慢游戏路径、威胁被动回复窗口）。
+- StartLux-Decision 虽为英文微调，但中文玩家消息的**零样本跳语言**表现经实测与英文持平（详见下方结果）。
+- **实测结论（2026-10，Q8_0 GGUF + 本机 RTX 5070 Ti）**：
+  - 意图分类（4 类，criteria 英文）：中文 6/7 正确，高置信项均在 0.90+；唯一错项（“这局规则是什么？”）中英文置信度均 < 0.6，会触发兜底，符合设计。
+  - 动作选择（中文局面 + 中文合法动作描述）：4/4 正确，置信度 0.96–0.97；“查看排行榜”类写操作 intent 置信度偏低（0.50），正好走兜底。
+  - `noul`（是/否）：方向正确且置信度分化明显（动作 0.82 / 非动作 0.01 / 开新局请求 0.99）。
+  - `score`（分级）：方向正确（明确消息 2.61 vs 含糊 0.73），但置信度偏低（0.34/0.46），阈值需按场景调低。
+  - criteria 也用中文（最坏情况）：3/3 正确，置信度 0.90–0.99。
+- **结论：当前阶段不引入本地 MT 翻译**，中文直接传入 `state` 即可；若后续出现特定难样本再评估。
+- （原备选方案，暂不实施）若未来需要：本地 MT 小模型翻译（NLLB / Qwen-MT，zh→en，~0.1–0.4s）或低置信才翻译的两级路由。翻译一律用**本地小模型**，不用远程 LLM（远程会拖慢游戏决策路径、增加隐私出站）。
 
 ## 部署要点
 
@@ -58,6 +62,21 @@ python -m startlux_decision.gguf_server --model-dir StartLux-Decision-4B-GGUF \
        --llama http://127.0.0.1:8081 --port 8090
 ```
 
+- **一键启动（推荐）**：`apps/scripts/start-decision-service.mjs` 按顺序拉起上两层服务、探活并转发日志（前台运行，Ctrl+C 一并停止）
+
+```bash
+# 前台运行（LLAMA_SERVER_BIN 未配时默认取 PATH 中的 llama-server）
+LLAMA_SERVER_BIN=/c/llm/llama.cpp-master/build/bin/Release/llama-server.exe \
+  node apps/scripts/start-decision-service.mjs
+
+# 后台常驻
+LLAMA_SERVER_BIN=/c/llm/llama.cpp-master/build/bin/Release/llama-server.exe \
+  nohup node apps/scripts/start-decision-service.mjs > /tmp/decision-svc.log 2>&1 &
+```
+
+  可覆盖的环境变量：`MODEL_DIR` / `LLAMA_SERVER_BIN` / `LLAMA_PORT` / `DECISION_PORT` / `NGL` / `CTX_SIZE` / `PARALLEL` / `PYTHON_BIN`（详见脚本头部注释）。
+- **健康探针**：`node apps/scripts/check-decision-service.mjs`（检查 llama-server + 决策服务 + 样例推理；健康 exit 0，异常 exit 1；`--json` 机读，`PROBE_SAMPLE=0` 跳过推理）
+- 模型权重（`StartLux-Decision-v1-4B-Q8_0-GGUF/`，约 4.5GB）**不入库**，已在根 `.gitignore` 忽略
 - 4B Q8_0 ≈ 4.3GB 显存；延迟远低于被动回复窗口，非瓶颈
 - GGUF 只读文本（视觉塔不可用）；本项目纯文本场景，够用
 
