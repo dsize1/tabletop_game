@@ -8,6 +8,8 @@ members = [
     "engines/las-vegas",
     "engines/rock-paper-scissors",
     "game-engine-mcp",
+    "dev-task",
+    "dev-task-mcp",
     "storage",
     "auth",
     "push",

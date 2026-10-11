@@ -59,21 +59,26 @@ async function callLlm(
   }
 }
 
-/** 聊天回复：正常 LLM 回复；超 1500 字符时再做一步摘要压缩。 */
-export async function chatReply(content: string): Promise<string> {
+/** 聊天历史单条（用于注入 LLM 上下文）。 */
+export interface ChatHistoryTurn {
+  role: "user" | "assistant";
+  content: string;
+}
+
+/** 聊天回复：正常 LLM 回复（带群历史）；超 1500 字符时再做一步摘要压缩。 */
+export async function chatReply(content: string, history: ChatHistoryTurn[] = []): Promise<string> {
   if (!LLM_API_KEY) {
     return fallback(content);
   }
 
   try {
+    const messages = [
+      { role: "system", content: SYSTEM_PROMPT },
+      ...history.map((h) => ({ role: h.role, content: h.content })),
+      { role: "user", content },
+    ];
     // 第一段：正常回复
-    const text = await callLlm(
-      [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content },
-      ],
-      LLM_MAX_TOKENS,
-    );
+    const text = await callLlm(messages, LLM_MAX_TOKENS);
     if (!text) return fallback(content);
     if (text.length <= MAX_REPLY_CHARS) return text;
 

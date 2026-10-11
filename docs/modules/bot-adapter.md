@@ -9,6 +9,7 @@
 - 将 QQ 群事件转换为内部统一消息事件（`crates/shared` 类型）
 - **过滤**：只保留 @机器人文本消息，其余忽略
 - 写入内部事件到 Redis Stream `internal`（供 agent-gateway 消费）
+- **出站归档**：订阅 `qq.push`，把我方发出的群消息留档到 `group_messages`（direction=out，与 qq-gateway 各用独立消费者组，event_id 幂等去重）
 
 ## 过滤规则
 

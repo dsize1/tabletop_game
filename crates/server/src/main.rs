@@ -37,6 +37,15 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
+    // 后台出站归档循环（qq.push → group_messages out）
+    let push_url = redis_url.clone();
+    let push_storage = storage.clone();
+    tokio::spawn(async move {
+        if let Err(e) = bot_adapter::run_push_archiver(&push_url, push_storage).await {
+            tracing::error!("push 归档循环退出: {e:#}");
+        }
+    });
+
     // 后台健康自检循环
     let hl_redis = redis_url.clone();
     let hl_sqlite = sqlite_path.clone();

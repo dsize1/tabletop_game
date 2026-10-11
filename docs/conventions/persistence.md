@@ -92,15 +92,26 @@ CREATE TABLE game_state (
     PRIMARY KEY (game_id, room_id)
 );
 
--- 开发任务子会话
+-- 开发任务子会话（session_id = pi 子会话 id = 计划文档 id）
 CREATE TABLE dev_tasks (
-    id              INTEGER PRIMARY KEY,
-    dev_session_id  TEXT NOT NULL,
-    group_id        TEXT NOT NULL,
-    qq_id           TEXT NOT NULL,           -- 发起者（需在白名单内）
-    plan_path       TEXT,                    -- memory_palace/plan/{sessionId}.md 相对路径
-    status          TEXT NOT NULL,           -- queued | running | done | failed
-    created_at      TEXT NOT NULL
+    session_id  TEXT PRIMARY KEY,           -- 统一键（= 计划文档 id = web 页标识）
+    group_id    TEXT NOT NULL,
+    qq_id       TEXT NOT NULL,              -- 发起者（需在白名单内）
+    title       TEXT,                        -- 子会话计划生成后回填
+    plan_path   TEXT,                        -- memory_palace/plan/{session_id}.md 相对路径
+    status      TEXT NOT NULL,               -- queued|planning|awaiting_confirm|running|verifying|done|failed|cancelled
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL
+);
+
+-- 聊天历史（SQLite 全量；MVP 热路径用 Redis 列表 chat:history:{group_id}，见下）
+CREATE TABLE chat_history (
+    id         INTEGER PRIMARY KEY,
+    group_id   TEXT NOT NULL,
+    role       TEXT NOT NULL,                -- user | assistant
+    qq_id      TEXT,
+    content    TEXT NOT NULL,
+    created_at TEXT NOT NULL
 );
 ```
 

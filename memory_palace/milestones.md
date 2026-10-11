@@ -2,6 +2,19 @@
 
 > 记录项目关键节点与验证结果，按时间倒序。重大技术决策见 `decisions/`。
 
+## M7：开发任务（多轮对话 + 子会话 plan-workflow 复用 + MCP 化）✅
+
+- **日期**：2026-10-11
+- **完成**：
+  - `crates/dev-task`（core）：确定性状态机（queued→planning→awaiting_confirm→running→verifying→done/failed/cancelled）+ 白名单校验；`crates/dev-task-mcp`（stdio MCP）：9 个读写原语 + `list_capabilities`
+  - `storage`：`dev_tasks` + `chat_history` 表落地
+  - `agent-gateway`：`dev-task-client.ts`（MCP 客户端）、`dev-session.ts`（pi-sdk 子会话创建/恢复，复用 plan-workflow）、`dev-command.ts`（固定前缀命令硬判断）、消息桥（被动回执/状态同步 + 主动推送计划）
+  - 聊天多轮：每群 Redis 热缓存最近 20 条（`CHAT_HISTORY_LIMIT` 可配）注入 `chatReply`
+  - **关键修正**：MCP SDK `StdioClientTransport` 默认只继承白名单环境变量，`SQLITE_PATH`/`DEV_WHITELIST` 需显式 `env` 传入
+- **验证**：Rust 单测 4/4；Node 命令解析单测；dev-task-mcp 集成验证；子会话 spawn 冒烟 + **计划工作流复用验证**（子会话生成 6 分区计划并落盘）
+- **详见**：`plan/01a12ba0-c415-75b9-a5a5-1f74888e401d.md`
+- **未做（后续）**：端到端 QQ 实测（需 Redis+LLM+QQ 在线）、web 页呈现（cloudflare tunnel）、聊天历史 SQLite 归档与 Redis 热缓存同步
+
 ## M6：决策模型接入（SystemOne 替代 mock 意图决策）✅（意图部分）
 
 - **日期**：2026-10-11
@@ -51,6 +64,7 @@
 
 ## 下一里程碑（待办）
 
-- **M5：聊天增强** — 多轮对话（每群会话历史）+ 游戏路径 LLM 情景叙述接入（`GAME_NARRATION_ENABLED` 开关，双条 `msg_seq` 1→2）
-- ~~M6：决策模型接入~~ ✅ 见上（意图部分完成；动作选择待拉斯维加斯引擎落地）
-- 之后：拉斯维加斯引擎 → 规则查询意图路径（mock 识别游戏交互 → MCP get_rules）→ 会话历史持久化
+- **M8：端到端实测** — 真机验证开发任务链路（受理→规划→确认→执行→进度查询）+ 聊天多轮
+- **M9：web 页呈现** — cloudflare tunnel（ADR-0003）+ web 页渲染计划文档（标识=sessionId），QQ 只推短链
+- **M5 残留**：聊天历史 SQLite 归档与 Redis 热缓存同步；游戏路径 LLM 情景叙述（`GAME_NARRATION_ENABLED`）
+- 之后：拉斯维加斯引擎 → 规则查询意图路径（mock 识别游戏交互 → MCP get_rules）

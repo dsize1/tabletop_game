@@ -16,6 +16,10 @@ const GROUP: &str = "bot-adapter";
 const CONSUMER: &str = "bot-adapter-1";
 const MAXLEN: usize = 1000;
 
+const PUSH_STREAM: &str = "qq.push";
+const PUSH_GROUP: &str = "bot-adapter-push";
+const PUSH_CONSUMER: &str = "bot-adapter-push-1";
+
 /// 启动 bot-adapter 消费循环（阻塞运行，直到进程退出）。
 pub async fn run(redis_url: &str, storage: Arc<Storage>) -> anyhow::Result<()> {
     let client = redis::Client::open(redis_url)?;
@@ -160,5 +164,117 @@ async fn write_internal(conn: &mut ConnectionManager, event: &InternalEvent) -> 
         &[("event", json.as_str())],
     )
     .await?;
+    Ok(())
+}
+
+/// 出站归档：订阅 `qq.push`，把我方发出的群消息留档到 group_messages（direction=out）。
+/// 与 qq-gateway（发送）各用独立消费者组，互不影响；event_id 幂等去重。
+pub async fn run_push_archiver(
+    redis_url: &str,
+    storage: Arc<Storage>,
+) -> anyhow::Result<()> {
+    let client = redis::Client::open(redis_url)?;
+    let mut conn = ConnectionManager::new(client).await?;
+
+    ensure_push_group(&mut conn).await?;
+    info!("push 归档已启动，订阅 {PUSH_STREAM} → group_messages(out)");
+
+    // 启动时重投 PEL 中未 ACK 的历史消息
+    match read_push_batch(&mut conn, "0").await {
+        Ok(pending) => {
+            for (id, raw_json) in pending {
+                if let Err(e) = archive_one(&storage, &raw_json).await {
+                    warn!("归档消息 {id} 失败: {e:#}");
+                }
+                if let Err(e) = conn
+                    .xack::<_, _, _, ()>(PUSH_STREAM, PUSH_GROUP, &[&id])
+                    .await
+                {
+                    warn!("ACK {id} 失败: {e:#}");
+                }
+            }
+        }
+        Err(e) => warn!("读取 push PEL 失败: {e:#}"),
+    }
+
+    loop {
+        match read_push_batch(&mut conn, ">").await {
+            Ok(entries) => {
+                for (id, raw_json) in entries {
+                    if let Err(e) = archive_one(&storage, &raw_json).await {
+                        warn!("归档消息 {id} 失败: {e:#}");
+                    }
+                    if let Err(e) = conn
+                        .xack::<_, _, _, ()>(PUSH_STREAM, PUSH_GROUP, &[&id])
+                        .await
+                    {
+                        warn!("ACK {id} 失败: {e:#}");
+                    }
+                }
+            }
+            Err(e) => {
+                if e.to_string().contains("NOGROUP") {
+                    if let Err(e2) = ensure_push_group(&mut conn).await {
+                        warn!("重建 push 消费者组失败: {e2:#}");
+                    }
+                }
+                warn!("读取 {PUSH_STREAM} 失败: {e:#}，1s 后重试");
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            }
+        }
+    }
+}
+
+async fn ensure_push_group(conn: &mut ConnectionManager) -> RedisResult<()> {
+    let res: RedisResult<()> = redis::cmd("XGROUP")
+        .arg("CREATE")
+        .arg(PUSH_STREAM)
+        .arg(PUSH_GROUP)
+        .arg("0")
+        .arg("MKSTREAM")
+        .query_async(conn)
+        .await;
+    match res {
+        Ok(()) => Ok(()),
+        Err(e) if e.to_string().contains("BUSYGROUP") => Ok(()),
+        Err(e) => Err(e),
+    }
+}
+
+async fn read_push_batch(
+    conn: &mut ConnectionManager,
+    id: &str,
+) -> RedisResult<Vec<(String, String)>> {
+    let mut opts = StreamReadOptions::default()
+        .group(PUSH_GROUP, PUSH_CONSUMER)
+        .count(100);
+    if id == ">" {
+        opts = opts.block(2000);
+    }
+    let reply: StreamReadReply = conn.xread_options(&[PUSH_STREAM], &[id], &opts).await?;
+
+    let mut out = Vec::new();
+    for key in reply.keys {
+        for entry in key.ids {
+            if let Some(redis::Value::Data(bytes)) = entry.map.get("event") {
+                if let Ok(s) = String::from_utf8(bytes.clone()) {
+                    out.push((entry.id, s));
+                }
+            }
+        }
+    }
+    Ok(out)
+}
+
+async fn archive_one(storage: &Arc<Storage>, raw_json: &str) -> anyhow::Result<()> {
+    let push: shared::PushEvent = serde_json::from_str(raw_json)?;
+    storage.insert_group_message(
+        &push.event_id,
+        "out",
+        &push.group_id,
+        None, // 机器人自身发出的消息，无发送者 openid
+        &push.content,
+        Some(raw_json),
+    )?;
     Ok(())
 }

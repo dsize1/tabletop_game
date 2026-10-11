@@ -1,0 +1,9 @@
+[package]
+name = "dev-task"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+storage = { path = "../storage" }
+serde.workspace = true
+thiserror.workspace = true

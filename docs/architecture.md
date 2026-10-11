@@ -97,7 +97,7 @@ web(Express) ──HTTP──> server/auth + 资源查询 ──> SQLite / Redis
 |---|---|---|
 | 游戏交互 | 规则引擎模板摘要（承上启下，<1s，`msg_seq=1`）+ 可选 LLM 情景叙述（`msg_seq=2`，配置开关，可静默降级） | LLM 只做承上启下/情景带入，不逐条复述结果（结果详情走 web 页） |
 | 聊天 | LLM 叙述 | 超过 5 分钟才需主动补发 |
-| 开发任务 | 回执（已受理/排队） | 结果异步主动推送 |
+| 开发任务 | 受理回执（含 sessionId）+ 状态同步/引导（被动） | 计划/结果异步主动推送（后期换 web 短链） |
 
 ## 9. 数据存储
 
@@ -115,3 +115,4 @@ web(Express) ──HTTP──> server/auth + 资源查询 ──> SQLite / Redis
 
 - 新增桌游引擎：`crates/engines/<name>/` 实现 EnginePlugin（映射到 MCP 统一原语），并在 server 注册
 - 统一原语见 `docs/modules/game-engine.md`
+- 开发任务：`crates/dev-task` + `crates/dev-task-mcp`（MCP 原语，状态机 + 白名单校验）；子会话编排/消息桥见 `docs/modules/dev-task.md`

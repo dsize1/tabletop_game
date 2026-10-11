@@ -10,6 +10,8 @@
 - 以 **pi-agent 会话**充当主持人：编排「意图 → 决策 → 执行 → 叙述」
 - 会话管理：每群一个共享聊天会话；开发任务用子会话
 - **MCP client**（stdio）：连接 game-engine MCP server
+- **MCP client**（stdio）：连接 dev-task MCP server（`dev-task-client.ts`）
+- **子会话管理**（pi-sdk）：`dev-session.ts` 创建/恢复开发任务子会话（`SessionManager.create/open` + `prompt`/`dispose`）
 - **decision-service client**（HTTP）：调用 `/v1/systemone`
 - 置信度阈值配置化 + 兜底
 - 出站：写 `qq.push`
@@ -20,6 +22,14 @@
 
 - 每群一个共享聊天会话；同一会话/对局的消息**串行**处理（per-session 队列），避免 pi-sdk 会话并发 prompt
 - 开发任务：独立子会话，与聊天会话隔离
+
+### 开发任务（dev）
+
+- 固定前缀命令硬判断（先于决策模型，`dev-command.ts`）：`#任务 [状态]` / `#进度 <id>` / `#确认 <id>` / `#取消 <id>` / `#能力`
+- dev 意图：白名单校验 → `create_task` → 受理回执（含 sessionId）→ 异步 `spawn` 子会话规划
+- 子会话（pi-sdk）跑 plan-workflow：生成计划 → `update_task_meta` 回填标题 → `transition awaiting_confirm` → 主动推送计划
+- `#确认` → `confirm_task` → 恢复子会话执行 → `transition verifying` → `#确认` 再验收 → `done`
+- 聊天多轮：每群 Redis 热缓存最近 20 条（`CHAT_HISTORY_LIMIT` 可配）注入 `chatReply`
 
 ### 编排流程
 
@@ -53,6 +63,8 @@
 - 写 `qq.push`（遵循 event_id / MAXLEN 约定）
 - 回复策略分层，见 `docs/architecture.md` §8
 - 游戏交互：默认回规则模板摘要（承上启下，`msg_seq=1`）；`GAME_NARRATION_ENABLED=1` 时追加主持人 LLM 情景叙述（`msg_seq=2`），失败/超时静默降级为仅模板
+- 开发任务：被动回执/状态同步（`pushReply`），计划/结果异步主动推送（`pushActive`，无 reply_msg_id）
+- MCP 环境变量显式传递：MCP SDK 默认只继承白名单环境变量，`SQLITE_PATH`/`DEV_WHITELIST` 需在 `env` 显式传入
 
 ## 依赖边界
 

@@ -7,12 +7,15 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
-    "test": "tsx test-decision.mts && tsx test-systemone.mts",
+    "test": "tsx test-decision.mts && tsx test-systemone.mts && tsx test-dev-command.mts",
     "test:decision": "tsx test-decision.mts",
     "test:systemone": "tsx test-systemone.mts",
+    "test:dev-command": "tsx test-dev-command.mts",
+    "test:dev-mcp": "tsx test-dev-mcp.mts",
     "test:decision:live": "tsx test-decision-live.mts"
   },
   "dependencies": {
+    "@earendil-works/pi-coding-agent": "^1.1.0",
     "@modelcontextprotocol/sdk": "^1.32.1",
     "dotenv": "^16.4.5",
     "ioredis": "^5.4.1"

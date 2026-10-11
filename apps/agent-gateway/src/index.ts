@@ -3,8 +3,17 @@ import { Redis } from "ioredis";
 import { randomUUID } from "node:crypto";
 import { decideIntent, extractHand } from "./decision.js";
 import { SystemOneClient } from "./systemone.js";
-import { chatReply, narrateGame } from "./chat.js";
+import { chatReply, narrateGame, type ChatHistoryTurn } from "./chat.js";
 import { GameEngineClient } from "./mcp.js";
+import { DevTaskClient } from "./dev-task-client.js";
+import { DevSessionManager, devTaskPrompt } from "./dev-session.js";
+import {
+  extractRequirement,
+  extractTitle,
+  formatCapabilities,
+  parseDevCommand,
+  type DevCommand,
+} from "./dev-command.js";
 
 const redisUrl = process.env.REDIS_URL ?? "redis://127.0.0.1:6379";
 const INTERNAL_STREAM = "internal";
@@ -48,6 +57,20 @@ interface ActionResult {
   finished?: boolean;
 }
 
+interface DevTaskRow {
+  session_id: string;
+  status: string;
+  title?: string | null;
+}
+
+interface DevProgress {
+  session_id: string;
+  status: string;
+  title?: string | null;
+  todo: { done: number; total: number };
+  verify: { done: number; total: number };
+}
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function ensureGroup(redis: Redis) {
@@ -68,7 +91,6 @@ function toMap(fields: string[]): Record<string, string> {
 function parseJson<T>(s: string, fallback: T): T {
   try {
     const v = JSON.parse(s);
-    // JSON.parse("null") 返回 null（不抛异常），需显式回退
     return v == null ? fallback : (v as T);
   } catch {
     return fallback;
@@ -94,6 +116,7 @@ function isDevAllowed(senderId: string): boolean {
 // 游戏路径 LLM 情景叙述开关：模板摘要必达；开启时追加一条 msg_seq=2 叙述（失败静默降级）
 const NARRATION_ENABLED = (process.env.GAME_NARRATION_ENABLED ?? "") === "1";
 
+/** 被动回复（带 reply_msg_id，5 分钟窗口内）。 */
 async function pushReply(redis: Redis, event: MessageGroupAt, reply: string, msgSeq = 1) {
   const pushEvent = {
     event_id: randomUUID(),
@@ -104,6 +127,53 @@ async function pushReply(redis: Redis, event: MessageGroupAt, reply: string, msg
     at_member_id: event.sender_id,
   };
   await redis.xadd(PUSH_STREAM, "MAXLEN", "~", "1000", "*", "event", JSON.stringify(pushEvent));
+}
+
+/** 主动发送（无 reply_msg_id，异步事件用，受主动消息配额约束）。 */
+async function pushActive(redis: Redis, event: MessageGroupAt, content: string) {
+  const pushEvent = {
+    event_id: randomUUID(),
+    group_id: event.group_id,
+    content,
+    at_member_id: event.sender_id,
+  };
+  await redis.xadd(PUSH_STREAM, "MAXLEN", "~", "1000", "*", "event", JSON.stringify(pushEvent));
+}
+
+// ---- 聊天历史（Redis 热缓存，最近 N 条；全量归档由 bot-adapter 写 SQLite group_messages） ----
+
+const CHAT_HISTORY_LIMIT = Number(process.env.CHAT_HISTORY_LIMIT ?? 20);
+const chatHistoryKey = (groupId: string) => `chat:history:${groupId}`;
+
+async function getChatHistory(redis: Redis, groupId: string): Promise<ChatHistoryTurn[]> {
+  const raw = await redis.lrange(chatHistoryKey(groupId), -CHAT_HISTORY_LIMIT, -1);
+  const out: ChatHistoryTurn[] = [];
+  for (const r of raw) {
+    const t = parseJson<ChatHistoryTurn>(r, { role: "user", content: r });
+    if (t.content) {
+      out.push({ role: t.role === "assistant" ? "assistant" : "user", content: t.content });
+    }
+  }
+  return out;
+}
+
+async function appendChatHistory(
+  redis: Redis,
+  groupId: string,
+  role: "user" | "assistant",
+  content: string,
+) {
+  await redis.rpush(chatHistoryKey(groupId), JSON.stringify({ role, content }));
+  await redis.ltrim(chatHistoryKey(groupId), -CHAT_HISTORY_LIMIT, -1);
+}
+
+/** 聊天流程：读历史 → LLM 回复 → 追加历史。 */
+async function chatFlow(redis: Redis, event: MessageGroupAt): Promise<string> {
+  const history = await getChatHistory(redis, event.group_id);
+  const reply = await chatReply(event.content, history);
+  await appendChatHistory(redis, event.group_id, "user", event.content);
+  await appendChatHistory(redis, event.group_id, "assistant", reply);
+  return reply;
 }
 
 /** 游戏路径出站：模板摘要必达（msg_seq=1）；开关开启时追加 LLM 情景叙述（msg_seq=2），失败静默降级。 */
@@ -124,12 +194,238 @@ async function sendGameReply(
   }
 }
 
-async function handle(redis: Redis, engine: GameEngineClient, event: MessageGroupAt) {
+// ==================== dev 任务（固定前缀命令 + 子会话编排） ====================
+
+/** 处理 #任务 / #进度 / #确认 / #取消 / #能力（白名单内）。 */
+async function handleDevCommand(
+  redis: Redis,
+  devTask: DevTaskClient,
+  devSessions: DevSessionManager,
+  event: MessageGroupAt,
+  cmd: DevCommand,
+) {
+  if (!isDevAllowed(event.sender_id)) {
+    await pushReply(redis, event, "[开发] 无权限：你不是开发白名单账号");
+    return;
+  }
+
+  switch (cmd.cmd) {
+    case "任务": {
+      try {
+        const json = await devTask.listTasks(cmd.arg);
+        const tasks = parseJson<DevTaskRow[]>(json, []);
+        if (!Array.isArray(tasks) || tasks.length === 0) {
+          await pushReply(redis, event, "暂无匹配的开发任务");
+          return;
+        }
+        const lines = tasks.map(
+          (t) => `${t.session_id} | ${t.status} | ${t.title ?? "（无标题）"}`,
+        );
+        await pushReply(redis, event, `开发任务列表（${tasks.length}）：\n` + lines.join("\n"));
+      } catch (err) {
+        console.error("[agent-gateway] 查询任务失败:", err);
+        await pushReply(redis, event, "[开发] 查询任务失败，请稍后重试");
+      }
+      break;
+    }
+    case "进度": {
+      if (!cmd.arg) {
+        await pushReply(redis, event, "用法：#进度 <sessionId>");
+        return;
+      }
+      try {
+        const json = await devTask.getProgress(cmd.arg);
+        const p = parseJson<DevProgress>(json, {} as DevProgress);
+        if (!p.session_id) {
+          await pushReply(redis, event, json);
+          return;
+        }
+        await pushReply(
+          redis,
+          event,
+          `任务 ${p.session_id}（${p.status}）\n标题：${p.title ?? "（无）"}\n待办 ${p.todo.done}/${p.todo.total} · 验证 ${p.verify.done}/${p.verify.total}`,
+        );
+      } catch (err) {
+        console.error("[agent-gateway] 查询进度失败:", err);
+        await pushReply(redis, event, "[开发] 查询进度失败，请稍后重试");
+      }
+      break;
+    }
+    case "确认": {
+      if (!cmd.arg) {
+        await pushReply(redis, event, "用法：#确认 <sessionId>");
+        return;
+      }
+      try {
+        const json = await devTask.confirmTask(cmd.arg, event.sender_id);
+        const task = parseJson<DevTaskRow>(json, {} as DevTaskRow);
+        if (task.status === "running") {
+          await pushReply(redis, event, `任务 ${cmd.arg} 已确认，开始执行（异步推进，完成后主动推送）`);
+          void runDevResume(
+            redis, devTask, devSessions, event, cmd.arg,
+            "用户已确认计划，请解除只读围栏（/plan）并按计划开始执行。",
+            "verifying",
+          );
+        } else if (task.status === "done") {
+          await pushReply(redis, event, `任务 ${cmd.arg} 验收通过，已完成`);
+          void runDevResume(
+            redis, devTask, devSessions, event, cmd.arg,
+            "用户已验收通过，任务完成。请收尾（可选 harness 优化）后终结。",
+            null,
+          );
+        } else {
+          await pushReply(redis, event, json);
+        }
+      } catch (err) {
+        console.error("[agent-gateway] 确认任务失败:", err);
+        await pushReply(redis, event, "[开发] 确认失败，请稍后重试");
+      }
+      break;
+    }
+    case "取消": {
+      if (!cmd.arg) {
+        await pushReply(redis, event, "用法：#取消 <sessionId>");
+        return;
+      }
+      try {
+        const json = await devTask.cancelTask(cmd.arg, event.sender_id);
+        await pushReply(redis, event, json);
+      } catch (err) {
+        console.error("[agent-gateway] 取消任务失败:", err);
+        await pushReply(redis, event, "[开发] 取消失败，请稍后重试");
+      }
+      break;
+    }
+    case "能力": {
+      try {
+        const json = await devTask.listCapabilities();
+        await pushReply(redis, event, formatCapabilities(json));
+      } catch (err) {
+        console.error("[agent-gateway] 查询能力失败:", err);
+        await pushReply(redis, event, "[开发] 查询能力失败，请稍后重试");
+      }
+      break;
+    }
+  }
+}
+
+/** dev 意图：白名单 → create_task → 受理回执（含 sessionId）→ 异步规划。 */
+async function handleDevCreate(
+  redis: Redis,
+  devTask: DevTaskClient,
+  devSessions: DevSessionManager,
+  event: MessageGroupAt,
+) {
+  if (!isDevAllowed(event.sender_id)) {
+    await pushReply(redis, event, "[开发] 无权限：你不是开发白名单账号");
+    return;
+  }
+  const sessionId = randomUUID();
+  try {
+    const json = await devTask.createTask(sessionId, event.group_id, event.sender_id);
+    const task = parseJson<DevTaskRow>(json, {} as DevTaskRow);
+    if (task.status !== "queued") {
+      await pushReply(redis, event, json);
+      return;
+    }
+    await devTask.transitionTask(sessionId, "planning");
+    await pushReply(redis, event, `[开发] 已受理，任务ID：${sessionId}\n（规划中，完成后主动推送计划）`);
+    void runDevCreate(redis, devTask, devSessions, event, sessionId, extractRequirement(event.content));
+  } catch (err) {
+    console.error("[agent-gateway] 创建开发任务失败:", err);
+    await pushReply(redis, event, "[开发] 创建任务失败，请稍后重试");
+  }
+}
+
+/** 异步：子会话首轮（规划）→ 回填标题 → awaiting_confirm → 主动推送计划。 */
+async function runDevCreate(
+  redis: Redis,
+  devTask: DevTaskClient,
+  devSessions: DevSessionManager,
+  event: MessageGroupAt,
+  sessionId: string,
+  requirement: string,
+) {
+  await devSessions.withLock(sessionId, async () => {
+    let output = "";
+    try {
+      const { session } = await devSessions.spawn(sessionId);
+      try {
+        await session.prompt(devTaskPrompt(requirement));
+        output = session.getLastAssistantText() ?? "";
+      } finally {
+        session.dispose();
+      }
+      await devTask.updateTaskMeta(
+        sessionId,
+        extractTitle(output, requirement),
+        `memory_palace/plan/${sessionId}.md`,
+      );
+      await devTask.transitionTask(sessionId, "awaiting_confirm");
+      await pushActive(
+        redis,
+        event,
+        `[开发] 计划已生成（任务 ${sessionId}）：\n${output.slice(0, 1500)}\n\n回复「#确认 ${sessionId}」开始执行，「#取消 ${sessionId}」放弃`,
+      );
+    } catch (err) {
+      console.error(`[agent-gateway] 开发任务规划失败 sessionId=${sessionId}:`, err);
+      await devTask.transitionTask(sessionId, "failed").catch(() => {});
+      await pushActive(redis, event, `[开发] 任务 ${sessionId} 规划失败，请稍后重试或「#取消 ${sessionId}」`);
+    }
+  });
+}
+
+/** 异步：恢复子会话跑一轮（确认后执行 / 验收收尾），可选迁移状态。 */
+async function runDevResume(
+  redis: Redis,
+  devTask: DevTaskClient,
+  devSessions: DevSessionManager,
+  event: MessageGroupAt,
+  sessionId: string,
+  message: string,
+  afterStatus: string | null,
+) {
+  await devSessions.withLock(sessionId, async () => {
+    try {
+      const { session } = await devSessions.resume(sessionId);
+      let output = "";
+      try {
+        await session.prompt(message);
+        output = session.getLastAssistantText() ?? "";
+      } finally {
+        session.dispose();
+      }
+      if (afterStatus) await devTask.transitionTask(sessionId, afterStatus);
+      await pushActive(redis, event, `[开发] 任务 ${sessionId}：\n${output.slice(0, 1500)}`);
+    } catch (err) {
+      console.error(`[agent-gateway] 开发任务执行失败 sessionId=${sessionId}:`, err);
+      await devTask.transitionTask(sessionId, "failed").catch(() => {});
+      await pushActive(redis, event, `[开发] 任务 ${sessionId} 执行失败，请查看日志`);
+    }
+  });
+}
+
+// ==================== 主编排 ====================
+
+async function handle(
+  redis: Redis,
+  engine: GameEngineClient,
+  devTask: DevTaskClient,
+  devSessions: DevSessionManager,
+  event: MessageGroupAt,
+) {
   // 健康降级：依赖 unhealthy 时给回执，不现场探测
   const healthStatus = await readHealth(redis);
   if (healthStatus && healthStatus !== "ok") {
     await pushReply(redis, event, "服务繁忙，请稍后重试");
     console.log(`[agent-gateway] 降级回执 health=${healthStatus}`);
+    return;
+  }
+
+  // 固定前缀 dev 命令：硬判断，先于决策模型
+  const devCmd = parseDevCommand(event.content);
+  if (devCmd) {
+    await handleDevCommand(redis, devTask, devSessions, event, devCmd);
     return;
   }
 
@@ -145,7 +441,7 @@ async function handle(redis: Redis, engine: GameEngineClient, event: MessageGrou
   try {
     switch (intent) {
       case "chat":
-        await pushReply(redis, event, await chatReply(event.content));
+        await pushReply(redis, event, await chatFlow(redis, event));
         break;
 
       case "start_game": {
@@ -185,17 +481,11 @@ async function handle(redis: Redis, engine: GameEngineClient, event: MessageGrou
       }
 
       case "dev":
-        await pushReply(
-          redis,
-          event,
-          isDevAllowed(event.sender_id)
-            ? "[开发] 已受理（白名单校验通过），开发任务子会话待接入"
-            : "[开发] 无权限：你不是开发白名单账号",
-        );
+        await handleDevCreate(redis, devTask, devSessions, event);
         break;
 
       default:
-        await pushReply(redis, event, await chatReply(event.content));
+        await pushReply(redis, event, await chatFlow(redis, event));
     }
   } catch (err) {
     console.error(`[agent-gateway] 处理异常 intent=${intent}:`, err);
@@ -205,14 +495,20 @@ async function handle(redis: Redis, engine: GameEngineClient, event: MessageGrou
   console.log(`[agent-gateway] intent=${intent} via=${via} ← ${event.content}`);
 }
 
-async function processEntries(redis: Redis, engine: GameEngineClient, results: unknown) {
+async function processEntries(
+  redis: Redis,
+  engine: GameEngineClient,
+  devTask: DevTaskClient,
+  devSessions: DevSessionManager,
+  results: unknown,
+) {
   for (const [, entries] of results as [string, [string, string[]][]][]) {
     for (const [id, fields] of entries) {
       const map = toMap(fields);
       const json = map["event"];
       if (!json) continue;
       try {
-        await handle(redis, engine, JSON.parse(json) as MessageGroupAt);
+        await handle(redis, engine, devTask, devSessions, JSON.parse(json) as MessageGroupAt);
         await redis.xack(INTERNAL_STREAM, GROUP, id);
       } catch (err) {
         console.error(`[agent-gateway] 处理失败 [${id}]:`, err);
@@ -221,7 +517,12 @@ async function processEntries(redis: Redis, engine: GameEngineClient, results: u
   }
 }
 
-async function consume(redis: Redis, engine: GameEngineClient) {
+async function consume(
+  redis: Redis,
+  engine: GameEngineClient,
+  devTask: DevTaskClient,
+  devSessions: DevSessionManager,
+) {
   // 启动时重投 PEL 中未 ACK 的历史消息
   try {
     const pending = (await redis.xreadgroup(
@@ -230,7 +531,7 @@ async function consume(redis: Redis, engine: GameEngineClient) {
       "STREAMS", INTERNAL_STREAM, "0",
     )) as unknown;
     if (pending) {
-      await processEntries(redis, engine, pending);
+      await processEntries(redis, engine, devTask, devSessions, pending);
       console.log("[agent-gateway] PEL 重投完成");
     }
   } catch (err) {
@@ -247,7 +548,7 @@ async function consume(redis: Redis, engine: GameEngineClient) {
         "STREAMS", INTERNAL_STREAM, ">",
       )) as unknown;
 
-      if (results) await processEntries(redis, engine, results);
+      if (results) await processEntries(redis, engine, devTask, devSessions, results);
     } catch (err) {
       const msg = String((err as Error)?.message ?? err);
       // group 被外部删除（如清理脚本）时重建，避免永久 NOGROUP
@@ -271,9 +572,14 @@ async function main() {
   const engine = new GameEngineClient();
   await engine.connect();
 
+  const devTask = new DevTaskClient();
+  await devTask.connect();
+
+  const devSessions = new DevSessionManager();
+
   await ensureGroup(redis);
   console.log(`[agent-gateway] 就绪，消费 ${INTERNAL_STREAM}（dev 白名单 ${DEV_WHITELIST.size} 人）`);
-  await consume(redis, engine);
+  await consume(redis, engine, devTask, devSessions);
 }
 
 main().catch((err) => {

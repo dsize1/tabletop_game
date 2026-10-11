@@ -21,6 +21,10 @@ export class GameEngineClient {
       command: enginePath,
       args: [],
       cwd: projectRoot, // 让 game-engine-mcp 的 SQLITE_PATH 与 server 一致
+      // MCP SDK 默认只继承白名单环境变量，需显式传递 SQLITE_PATH
+      env: {
+        SQLITE_PATH: process.env.SQLITE_PATH ?? "data/tabletop.db",
+      },
     });
     this.client = new Client({ name: "agent-gateway", version: "0.1.0" });
     await this.client.connect(transport);
