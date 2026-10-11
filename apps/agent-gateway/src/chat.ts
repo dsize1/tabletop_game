@@ -1,28 +1,32 @@
 //! 聊天分支：接入 DeepSeek LLM（OpenAI 兼容接口）。
-//! 超时/失败回退到回显桩，保证「必有反馈」。
+//! 回复限长 1500 字符：超长时模型多做一步「摘要压缩」，保证回复不超限。
 
 const LLM_BASE_URL = process.env.LLM_BASE_URL ?? "https://api.deepseek.com";
 const LLM_API_KEY = process.env.LLM_API_KEY ?? "";
-const LLM_MODEL = process.env.LLM_MODEL ?? "deepseek-v4-flash";
-const LLM_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS ?? 3000);
-const LLM_MAX_TOKENS = Number(process.env.LLM_MAX_TOKENS ?? 1000);
+const LLM_MODEL = process.env.LLM_MODEL ?? "deepseek-flash";
+const LLM_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS ?? 30000);
+const LLM_MAX_TOKENS = Number(process.env.LLM_MAX_TOKENS ?? 2000);
+
+/** 回复最大字符数（QQ 消息有长度限制，超限会报 40054007）。 */
+const MAX_REPLY_CHARS = 1500;
 
 const SYSTEM_PROMPT = "你是桌游群里的助手机器人，回复简洁、友好、口语化，用中文。";
+
+const SUMMARY_PROMPT =
+  "请把下面这段内容压缩成一段不超过 1500 字符的回复，保留核心信息和语气，直接输出压缩后的文本，不要任何解释或前缀。";
 
 /** 回显桩兜底：LLM 不可用时的降级回复。 */
 function fallback(content: string): string {
   return `[聊天桩] 收到：${content}`;
 }
 
-/** 聊天回复：优先 LLM，超时/失败回退回显。 */
-export async function chatReply(content: string): Promise<string> {
-  if (!LLM_API_KEY) {
-    return fallback(content);
-  }
-
+/** 底层 LLM 调用（带超时），返回正文（过滤 reasoning_content）。 */
+async function callLlm(
+  messages: Array<{ role: string; content: string }>,
+  maxTokens: number,
+): Promise<string> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
-
   try {
     const resp = await fetch(`${LLM_BASE_URL}/chat/completions`, {
       method: "POST",
@@ -32,11 +36,10 @@ export async function chatReply(content: string): Promise<string> {
       },
       body: JSON.stringify({
         model: LLM_MODEL,
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content },
-        ],
-        max_tokens: LLM_MAX_TOKENS,
+        messages,
+        max_tokens: maxTokens,
+        // 关闭思考模式：直接输出 content，不产生 reasoning_content（快、省 token）
+        thinking: { type: "disabled" },
         stream: false,
       }),
       signal: controller.signal,
@@ -44,19 +47,56 @@ export async function chatReply(content: string): Promise<string> {
 
     if (!resp.ok) {
       const body = await resp.text().catch(() => "");
-      console.error(`[chat] LLM HTTP ${resp.status}: ${body.slice(0, 200)}`);
-      return fallback(content);
+      throw new Error(`LLM HTTP ${resp.status}: ${body.slice(0, 200)}`);
     }
 
     const data = (await resp.json()) as {
       choices?: Array<{ message?: { content?: string } }>;
     };
-    const text = data.choices?.[0]?.message?.content?.trim();
-    return text || fallback(content);
+    return data.choices?.[0]?.message?.content?.trim() ?? "";
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** 聊天回复：正常 LLM 回复；超 1500 字符时再做一步摘要压缩。 */
+export async function chatReply(content: string): Promise<string> {
+  if (!LLM_API_KEY) {
+    return fallback(content);
+  }
+
+  try {
+    // 第一段：正常回复
+    const text = await callLlm(
+      [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content },
+      ],
+      LLM_MAX_TOKENS,
+    );
+    if (!text) return fallback(content);
+    if (text.length <= MAX_REPLY_CHARS) return text;
+
+    // 第二段：超长 → 摘要压缩到 1500 以内
+    console.log(`[chat] 回复超长（${text.length} 字符），触发摘要压缩`);
+    try {
+      const summary = await callLlm(
+        [
+          { role: "system", content: SUMMARY_PROMPT },
+          { role: "user", content: text },
+        ],
+        2000,
+      );
+      if (summary && summary.length <= MAX_REPLY_CHARS) return summary;
+      if (summary) return summary.slice(0, MAX_REPLY_CHARS);
+      // 摘要为空 → 截断原文
+      return text.slice(0, MAX_REPLY_CHARS);
+    } catch (err) {
+      console.error("[chat] 摘要失败，截断原文:", err);
+      return text.slice(0, MAX_REPLY_CHARS);
+    }
   } catch (err) {
     console.error("[chat] LLM 调用异常，回退回显:", err);
     return fallback(content);
-  } finally {
-    clearTimeout(timer);
   }
 }
