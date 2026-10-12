@@ -3,6 +3,8 @@
   "private": true,
   "scripts": {
     "check:decision": "node scripts/check-decision-service.mjs",
+    "dev:up": "node scripts/dev-up.mjs",
+    "dev:up:qq": "node scripts/dev-up.mjs --with-qq",
     "test:agent-gateway": "npm --workspace @tabletop-game/agent-gateway run test",
     "verify:push": "node verify-push.mjs"
   },

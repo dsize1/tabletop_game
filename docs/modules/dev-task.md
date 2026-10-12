@@ -69,5 +69,6 @@ queued → planning → awaiting_confirm → running → verifying → done
 ## 约定
 
 - 命令固定前缀：`#任务 [状态]` / `#进度 <id>` / `#确认 <id>` / `#取消 <id>` / `#能力`（硬判断，先于决策模型）
-- 被动回复：状态同步 + 引导人工推进（不展示计划内容）；主动推送：计划六分区正文（后期替换为 web 短链）
+- 被动回复：状态同步 + 引导人工推进（不展示计划内容）；主动推送：计划文档短链（标题 + `https://{域名}/dev_task/{sessionId}?token=xxx`，短期 token 鉴权）
+- 术语统一：`qq_id`（MCP 参数 / `dev_tasks` 列）存的是 `member_openid`（玩家身份 = openid，非 QQ 号），文档统一以「openid」指代
 - 子会话模型：复用主持人 LLM 凭据（DeepSeek），thinking 开启（`thinkingLevel: medium`）

@@ -11,6 +11,7 @@
     "test:decision": "tsx test-decision.mts",
     "test:systemone": "tsx test-systemone.mts",
     "test:dev-command": "tsx test-dev-command.mts",
+    "test:short-link": "tsx test-short-link.mts",
     "test:dev-mcp": "tsx test-dev-mcp.mts",
     "test:decision:live": "tsx test-decision-live.mts"
   },

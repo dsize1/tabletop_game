@@ -10,7 +10,8 @@
 | qq.push | Redis Stream：agent-gateway/push 写入、qq-gateway 消费的推送指令 |
 | EnginePlugin | game-engine-core 定义的引擎抽象 trait |
 | las-vegas | 首个桌游引擎「拉斯维加斯」 |
-| 短期 token | Web 鉴权用的短时效 token（个人资源访问） |
+| 短期 token | Web 鉴权用的短时效 token：uuid v4 + 绑定 openid + 资源范围；存 Redis，TTL 8 小时（局终态清除） |
+| openid（member_openid） | 玩家身份标识；QQ 官方仅给群内 openid（非 QQ 号）。统一术语：代码/文档以「openid」指代玩家身份，不再用「qq号/qqid」 |
 | 主持人（LLM） | 远程 LLM（型号待定），负责叙述、闲聊、开发任务、编排 |
 | SystemOne / 决策模型 | StartLux-Decision-4B（本地 GGUF），暴露 `/v1/systemone`，只建议不写状态 |
 | 规则引擎 | game-engine 的确定性校验与状态机（合法性/权限/执行/事件溯源） |

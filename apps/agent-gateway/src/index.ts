@@ -7,6 +7,7 @@ import { chatReply, narrateGame, type ChatHistoryTurn } from "./chat.js";
 import { GameEngineClient } from "./mcp.js";
 import { DevTaskClient } from "./dev-task-client.js";
 import { DevSessionManager, devTaskPrompt } from "./dev-session.js";
+import { AuthClient, buildPlanUrl } from "./auth-client.js";
 import {
   classifyDevMessage,
   extractRequirement,
@@ -22,6 +23,12 @@ const INTERNAL_STREAM = "internal";
 const PUSH_STREAM = "qq.push";
 const GROUP = "agent-gateway";
 const CONSUMER = "agent-gateway-1";
+
+// server 内部 HTTP（auth 签发 token）
+const SERVER_URL = process.env.SERVER_URL ?? "http://127.0.0.1:3000";
+// web 公网基址（cloudflared 域名）；未配置则退回长文推送
+const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL ?? "").replace(/\/+$/, "");
+const authClient = new AuthClient(SERVER_URL);
 
 // dev 白名单（member_openid 逗号分隔）
 const DEV_WHITELIST = new Set(
@@ -140,6 +147,18 @@ async function pushActive(redis: Redis, event: MessageGroupAt, content: string) 
     at_member_id: event.sender_id,
   };
   await redis.xadd(PUSH_STREAM, "MAXLEN", "~", "1000", "*", "event", JSON.stringify(pushEvent));
+}
+
+/** 生成计划文档短链：签发短期 token 后拼接 PUBLIC_BASE_URL。失败/未配置返回 null（降级为长文）。 */
+async function buildPlanLink(sessionId: string, openid: string): Promise<string | null> {
+  if (!PUBLIC_BASE_URL) return null;
+  try {
+    const issued = await authClient.issueToken(openid, `dev_task:${sessionId}`);
+    return buildPlanUrl(PUBLIC_BASE_URL, sessionId, issued.token);
+  } catch (err) {
+    console.error("[agent-gateway] 签发计划短链失败:", err);
+    return null;
+  }
 }
 
 // ---- 聊天历史（Redis 热缓存，最近 N 条；全量归档由 bot-adapter 写 SQLite group_messages） ----
@@ -443,10 +462,14 @@ async function runDevCreate(
         `memory_palace/plan/${sessionId}.md`,
       );
       await devTask.transitionTask(sessionId, "awaiting_confirm");
+      const link = await buildPlanLink(sessionId, event.sender_id);
+      const summary = link
+        ? `[开发] 计划已生成（任务 ${sessionId}）：\n${extractTitle(output, requirement)}\n计划文档：${link}`
+        : `[开发] 计划已生成（任务 ${sessionId}）：\n${output.slice(0, 1500)}`;
       await pushActive(
         redis,
         event,
-        `[开发] 计划已生成（任务 ${sessionId}）：\n${output.slice(0, 1500)}\n\n回复「#确认 ${sessionId}」开始执行，「#取消 ${sessionId}」放弃`,
+        `${summary}\n\n回复「#确认 ${sessionId}」开始执行，「#取消 ${sessionId}」放弃`,
       );
     } catch (err) {
       console.error(`[agent-gateway] 开发任务规划失败 sessionId=${sessionId}:`, err);

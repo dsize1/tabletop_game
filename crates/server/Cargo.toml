@@ -13,6 +13,8 @@ las-vegas = { path = "../engines/las-vegas" }
 auth = { path = "../auth" }
 push = { path = "../push" }
 axum.workspace = true
+serde.workspace = true
+uuid.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true

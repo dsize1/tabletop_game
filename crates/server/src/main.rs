@@ -3,10 +3,12 @@
 //! 组合 bot-adapter / game-engine-core / auth / push，
 //! 提供 Axum HTTP API（健康检查、资源查询），并消费 Redis Streams。
 
+mod auth_routes;
 mod health;
+mod resources_routes;
 
 use axum::extract::State;
-use axum::{routing::get, Json, Router};
+use axum::{routing::{get, post}, Json, Router};
 use serde_json::Value;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -15,6 +17,9 @@ use std::sync::Arc;
 struct AppState {
     redis_url: String,
     sqlite_path: String,
+    auth: auth::AuthService,
+    storage: Arc<storage::Storage>,
+    plan_dir: String,
 }
 
 #[tokio::main]
@@ -25,6 +30,12 @@ async fn main() -> anyhow::Result<()> {
         std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
     let sqlite_path =
         std::env::var("SQLITE_PATH").unwrap_or_else(|_| "data/tabletop.db".to_string());
+    let plan_dir =
+        std::env::var("PLAN_DIR").unwrap_or_else(|_| "memory_palace/plan".to_string());
+    let auth_ttl = std::env::var("AUTH_TOKEN_TTL")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(auth::DEFAULT_TTL_SECS);
 
     let storage = Arc::new(storage::Storage::open(&sqlite_path)?);
 
@@ -56,8 +67,20 @@ async fn main() -> anyhow::Result<()> {
     let state = AppState {
         redis_url: redis_url.clone(),
         sqlite_path: sqlite_path.clone(),
+        auth: auth::AuthService::new(&redis_url, auth_ttl).await?,
+        storage: storage.clone(),
+        plan_dir,
     };
-    let app = Router::new().route("/health", get(health)).with_state(state);
+    let app = Router::new()
+        .route("/health", get(health))
+        .route("/auth/issue", post(auth_routes::issue))
+        .route("/auth/verify", post(auth_routes::verify))
+        .route(
+            "/resources/dev_task/{session_id}/plan",
+            get(resources_routes::dev_task_plan),
+        )
+        .route("/resources/game/{game_id}", get(resources_routes::game_resource))
+        .with_state(state);
 
     let port: u16 = std::env::var("SERVER_PORT")
         .ok()

@@ -5,14 +5,26 @@
 
 ## 职责
 
-- 独立站点，单页整合展示游戏公共资源与玩家个人资源
+- 独立站点（BFF）：服务端调 `server` 鉴权 + 拉取资源，浏览器不直连 server / SQLite
 - 路由：
-  - `/tabletop_game/{gameId}/player/{qqid}?token=xxx`（同页展示全局资源 + 个人资源）
+  - `GET /dev_task/{sessionId}?token=xxx`：dev-task 计划文档页（校验 token → 拉 markdown → GFM 渲染 HTML）
+  - `GET /tabletop_game/{gameId}/player/{openid}?token=xxx`：游戏资源页（引擎未实现，占位「暂未开放」）
+  - `GET /health`：健康检查（cloudflared 探活）
+- markdown(GFM) 渲染：`src/render.ts`（marked，表格/复选框/代码块）。**后续** game/dev 引擎以 MCP 能力暴露统一的「web 渲染原语」，届时此层迁移为调用统一原语
 
 ## 约定
 
-- 经 `server` 的 auth HTTP API 校验短期 token
-- 资源数据经 `server` 的资源查询 API 获取（不直连 SQLite）
+- 经 `server` 的 auth HTTP API 校验短期 token（`POST /auth/verify`）
+- 资源数据经 `server` 的资源查询 API 获取（不直连 SQLite）：`GET /resources/dev_task/{sessionId}/plan`
+- token 绑定 openid（member_openid）+ 资源范围；越权 403、无效/过期 401、不存在 404、服务器不可用 503
+- `trust proxy`：经 cloudflared 反代后源站只见回环，真实 IP 取 `CF-Connecting-IP` / `X-Forwarded-For`
+
+## 环境变量
+
+| 变量 | 默认 | 说明 |
+|---|---|---|
+| `WEB_PORT` | `18080` | 监听端口（cloudflared ingress 反代到该端口） |
+| `SERVER_URL` | `http://127.0.0.1:3000` | server 内部 HTTP 地址 |
 
 ## 部署与公网可达
 

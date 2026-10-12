@@ -43,6 +43,8 @@
 | 开发任务 | `dev_session_id` | 子会话；存 `memory_palace/plan/{id}.md` 相对路径 |
 | 游戏对局 | `room_id`（配 `game_id`） | 对局；配合事件溯源 |
 
+> 术语统一：玩家身份标识为 **openid**（= QQ `member_openid`，非 QQ 号）。表中 `qq_id` 列与 MCP 参数 `qq_id` 均存该 openid。
+
 ### 表结构草案
 
 ```sql

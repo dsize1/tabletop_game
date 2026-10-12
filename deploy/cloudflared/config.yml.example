@@ -1,0 +1,15 @@
+# cloudflared 命名隧道配置模板
+# 用法：复制为 config.yml，替换 {子域}.{域名} 后：
+#   cloudflared tunnel --config config.yml run tabletop-web
+#
+# 详见 docs/dev-environment.md §cloudflared 与计划 ad7f436a 待办。
+# credentials.json / cert.pem 为敏感凭证，已加入 .gitignore，不入库。
+
+tunnel: tabletop-web
+credentials-file: ./credentials.json
+
+ingress:
+  - hostname: {子域}.{域名}
+    service: http://127.0.0.1:18080
+  # catch-all：未匹配的请求一律 404，避免暴露源站
+  - service: http_status:404

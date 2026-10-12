@@ -6,7 +6,7 @@
 
 - QQ **群**机器人（官方 bot.q.qq.com API v2 群事件能力）
 - Web **独立站点**，短期 token 鉴权
-  - 单页整合：`/tabletop_game/{gameId}/player/{qqid}?token=xxx`（同页展示全局资源与个人资源）
+  - 单页整合：`/tabletop_game/{gameId}/player/{openid}?token=xxx`（同页展示全局资源与个人资源）
 
 ## 2. 技术栈
 
@@ -107,7 +107,8 @@ web(Express) ──HTTP──> server/auth + 资源查询 ──> SQLite / Redis
 
 ## 10. 鉴权
 
-- `auth` 签发/校验短期 token；个人资源归属一致
+- `auth` 签发/校验短期 token：uuid v4 + 绑定 openid + 资源范围，存 Redis，TTL 8 小时（可配 `AUTH_TOKEN_TTL`），局终态清除
+- token 绑定玩家身份 = `member_openid`（openid，非 QQ 号）；个人资源归属一致（越权 403）
 - Web 不直连 SQLite，统一经 server 资源查询 API
 - 开发任务走管理员白名单（`member_openid`）
 

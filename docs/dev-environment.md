@@ -62,6 +62,18 @@ docker exec tabletop-game-redis redis-cli XRANGE qq.raw - +        # 查入站�
 
 ## 6. 启动顺序（跑通消息链路）
 
+### 一键启动（推荐）
+
+```bash
+npm run dev:up         # Redis + cargo build + server + decision + web + agent-gateway
+npm run dev:up:qq      # 追加 qq-gateway（需已配 QQBOT_APP_ID/QQBOT_APP_SECRET）
+```
+
+`apps/scripts/dev-up.mjs` 前台运行，Ctrl+C 停止全部子进程（含 MCP/llama-server 进程树）。
+可选参数：`--no-build`（跳过 cargo build）、`--no-decision`（不启动 4.5G 决策模型）。
+
+### 手动逐个启动（排查用）
+
 依赖：Redis 已起（§3）；Rust 二进制已编译（`cd crates && cargo build`）。
 
 | 顺序 | 进程 | 命令 | 职责 |
