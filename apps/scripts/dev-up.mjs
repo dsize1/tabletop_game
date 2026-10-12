@@ -1,24 +1,26 @@
 #!/usr/bin/env node
 // 一键启动开发服务链：
-//   Redis(探测/拉起) → cargo build(可选) → server → decision(可选) → web → agent-gateway → qq-gateway(可选)
+//   Redis(探测/拉起) → cargo build(可选) → server → decision(可选) → web → agent-gateway → qq-gateway(默认)
 //
 // 用法（在仓库根目录）：
-//   node apps/scripts/dev-up.mjs [--with-qq] [--no-decision] [--no-build]
-//   npm run dev:up            # 同上
-//   npm run dev:up:qq         # 含 qq-gateway
+//   node apps/scripts/dev-up.mjs [--no-qq] [--no-decision] [--no-build]
+//   npm run dev:up            # 默认含 qq-gateway（缺 QQBOT 凭证时自动跳过）
+//   npm run dev:up:noqq       # 不启动 qq-gateway
+//   npm run dev:up:qq         # 兼容旧命令，等价于 dev:up
 //
 // 前台运行，Ctrl+C 停止全部子进程（含 MCP / llama-server 等进程树）。
 
 import { spawn, spawnSync } from "node:child_process";
 import { createConnection } from "node:net";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const args = process.argv.slice(2);
 const FLAGS = {
-  qq: args.includes("--with-qq"),
+  // qq-gateway 默认启动：忘了加 --with-qq 会导致「QQ 群收不到/发不出消息」的静默故障
+  qq: !args.includes("--no-qq"),
   decision: !args.includes("--no-decision"),
   build: !args.includes("--no-build"),
 };
@@ -135,8 +137,27 @@ launch("agent", node, [tsxCli, "src/index.ts"], {
   cwd: resolve(repoRoot, "apps", "agent-gateway"),
 });
 
-// 7. qq-gateway（可选）
-if (FLAGS.qq) {
+// 7. qq-gateway（默认启动；缺凭证则跳过，避免子进程退出连带停掉整条链路）
+function qqCredsReady() {
+  const envPath = resolve(repoRoot, "apps", "qq-gateway", ".env");
+  try {
+    const txt = readFileSync(envPath, "utf8");
+    return (
+      /^\s*QQBOT_APP_ID\s*=\s*\S+/m.test(txt) &&
+      /^\s*QQBOT_APP_SECRET\s*=\s*\S+/m.test(txt)
+    );
+  } catch {
+    return false;
+  }
+}
+
+const startQQ = FLAGS.qq && qqCredsReady();
+if (FLAGS.qq && !startQQ) {
+  console.warn(
+    "[warn] 需要 qq-gateway，但 apps/qq-gateway/.env 缺 QQBOT_APP_ID/QQBOT_APP_SECRET，已跳过（配好凭证后重跑，或用 --no-qq 显式关闭）。",
+  );
+}
+if (startQQ) {
   launch("qq", node, [tsxCli, "src/index.ts"], { cwd: resolve(repoRoot, "apps", "qq-gateway") });
 }
 
@@ -145,7 +166,7 @@ const started = [
   ...(FLAGS.decision ? ["decision"] : []),
   "web",
   "agent",
-  ...(FLAGS.qq ? ["qq"] : []),
+  ...(startQQ ? ["qq"] : []),
 ].join(" / ");
 
 console.log(`

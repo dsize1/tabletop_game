@@ -65,12 +65,16 @@ docker exec tabletop-game-redis redis-cli XRANGE qq.raw - +        # 查入站�
 ### 一键启动（推荐）
 
 ```bash
-npm run dev:up         # Redis + cargo build + server + decision + web + agent-gateway
-npm run dev:up:qq      # 追加 qq-gateway（需已配 QQBOT_APP_ID/QQBOT_APP_SECRET）
+npm run dev:up         # Redis + cargo build + server + decision + web + agent-gateway + qq-gateway（默认含 QQ）
+npm run dev:up:noqq    # 不启动 qq-gateway
+npm run dev:up:qq      # 兼容旧命令，等价于 dev:up
 ```
 
 `apps/scripts/dev-up.mjs` 前台运行，Ctrl+C 停止全部子进程（含 MCP/llama-server 进程树）。
-可选参数：`--no-build`（跳过 cargo build）、`--no-decision`（不启动 4.5G 决策模型）。
+可选参数：`--no-qq`（不启动 qq-gateway）、`--no-build`（跳过 cargo build）、`--no-decision`（不启动 4.5G 决策模型）。
+
+> qq-gateway 需已配 `apps/qq-gateway/.env` 的 `QQBOT_APP_ID`/`QQBOT_APP_SECRET`；凭证缺失时脚本会打印告警并跳过，不影响其余服务。
+> 不带 qq-gateway 跑会导致「QQ 群收不到 / 发不出消息」的静默故障——排查时先看启动横幅里的 `已启动：... / qq`。
 
 ### 手动逐个启动（排查用）
 
