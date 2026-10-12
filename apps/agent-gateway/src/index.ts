@@ -8,6 +8,7 @@ import { GameEngineClient } from "./mcp.js";
 import { DevTaskClient } from "./dev-task-client.js";
 import { DevSessionManager, devTaskPrompt } from "./dev-session.js";
 import {
+  classifyDevMessage,
   extractRequirement,
   extractTitle,
   formatCapabilities,
@@ -197,6 +198,112 @@ async function sendGameReply(
 // ==================== dev 任务（固定前缀命令 + 子会话编排） ====================
 
 /** 处理 #任务 / #进度 / #确认 / #取消 / #能力（白名单内）。 */
+// ---- dev 子动作（固定前缀命令与自然语言语义共用） ----
+
+async function handleDevList(
+  redis: Redis,
+  devTask: DevTaskClient,
+  event: MessageGroupAt,
+  status?: string,
+) {
+  try {
+    const json = await devTask.listTasks(status);
+    const tasks = parseJson<DevTaskRow[]>(json, []);
+    if (!Array.isArray(tasks) || tasks.length === 0) {
+      await pushReply(redis, event, "暂无匹配的开发任务");
+      return;
+    }
+    const lines = tasks.map((t) => `${t.session_id} | ${t.status} | ${t.title ?? "（无标题）"}`);
+    await pushReply(redis, event, `开发任务列表（${tasks.length}）：\n` + lines.join("\n"));
+  } catch (err) {
+    console.error("[agent-gateway] 查询任务失败:", err);
+    await pushReply(redis, event, "[开发] 查询任务失败，请稍后重试");
+  }
+}
+
+async function handleDevQueryById(
+  redis: Redis,
+  devTask: DevTaskClient,
+  event: MessageGroupAt,
+  sessionId: string,
+) {
+  try {
+    const json = await devTask.getProgress(sessionId);
+    const p = parseJson<DevProgress>(json, {} as DevProgress);
+    if (!p.session_id) {
+      await pushReply(redis, event, json);
+      return;
+    }
+    await pushReply(
+      redis,
+      event,
+      `任务 ${p.session_id}（${p.status}）\n标题：${p.title ?? "（无）"}\n待办 ${p.todo.done}/${p.todo.total} · 验证 ${p.verify.done}/${p.verify.total}`,
+    );
+  } catch (err) {
+    console.error("[agent-gateway] 查询进度失败:", err);
+    await pushReply(redis, event, "[开发] 查询进度失败，请稍后重试");
+  }
+}
+
+async function handleDevConfirmById(
+  redis: Redis,
+  devTask: DevTaskClient,
+  devSessions: DevSessionManager,
+  event: MessageGroupAt,
+  sessionId: string,
+) {
+  try {
+    const json = await devTask.confirmTask(sessionId, event.sender_id);
+    const task = parseJson<DevTaskRow>(json, {} as DevTaskRow);
+    if (task.status === "running") {
+      await pushReply(redis, event, `任务 ${sessionId} 已确认，开始执行（异步推进，完成后主动推送）`);
+      void runDevResume(
+        redis, devTask, devSessions, event, sessionId,
+        "用户已确认计划，请解除只读围栏（/plan）并按计划开始执行。",
+        "verifying",
+      );
+    } else if (task.status === "done") {
+      await pushReply(redis, event, `任务 ${sessionId} 验收通过，已完成`);
+      void runDevResume(
+        redis, devTask, devSessions, event, sessionId,
+        "用户已验收通过，任务完成。请收尾（可选 harness 优化）后终结。",
+        null,
+      );
+    } else {
+      await pushReply(redis, event, json);
+    }
+  } catch (err) {
+    console.error("[agent-gateway] 确认任务失败:", err);
+    await pushReply(redis, event, "[开发] 确认失败，请稍后重试");
+  }
+}
+
+async function handleDevCancelById(
+  redis: Redis,
+  devTask: DevTaskClient,
+  event: MessageGroupAt,
+  sessionId: string,
+) {
+  try {
+    const json = await devTask.cancelTask(sessionId, event.sender_id);
+    await pushReply(redis, event, json);
+  } catch (err) {
+    console.error("[agent-gateway] 取消任务失败:", err);
+    await pushReply(redis, event, "[开发] 取消失败，请稍后重试");
+  }
+}
+
+async function handleDevCapabilities(redis: Redis, devTask: DevTaskClient, event: MessageGroupAt) {
+  try {
+    const json = await devTask.listCapabilities();
+    await pushReply(redis, event, formatCapabilities(json));
+  } catch (err) {
+    console.error("[agent-gateway] 查询能力失败:", err);
+    await pushReply(redis, event, "[开发] 查询能力失败，请稍后重试");
+  }
+}
+
+/** 固定前缀命令（人 = 决策模型，置信度 100%）。 */
 async function handleDevCommand(
   redis: Redis,
   devTask: DevTaskClient,
@@ -208,104 +315,59 @@ async function handleDevCommand(
     await pushReply(redis, event, "[开发] 无权限：你不是开发白名单账号");
     return;
   }
-
   switch (cmd.cmd) {
-    case "任务": {
-      try {
-        const json = await devTask.listTasks(cmd.arg);
-        const tasks = parseJson<DevTaskRow[]>(json, []);
-        if (!Array.isArray(tasks) || tasks.length === 0) {
-          await pushReply(redis, event, "暂无匹配的开发任务");
-          return;
-        }
-        const lines = tasks.map(
-          (t) => `${t.session_id} | ${t.status} | ${t.title ?? "（无标题）"}`,
-        );
-        await pushReply(redis, event, `开发任务列表（${tasks.length}）：\n` + lines.join("\n"));
-      } catch (err) {
-        console.error("[agent-gateway] 查询任务失败:", err);
-        await pushReply(redis, event, "[开发] 查询任务失败，请稍后重试");
-      }
+    case "任务":
+      await handleDevList(redis, devTask, event, cmd.arg);
       break;
-    }
-    case "进度": {
-      if (!cmd.arg) {
-        await pushReply(redis, event, "用法：#进度 <sessionId>");
-        return;
-      }
-      try {
-        const json = await devTask.getProgress(cmd.arg);
-        const p = parseJson<DevProgress>(json, {} as DevProgress);
-        if (!p.session_id) {
-          await pushReply(redis, event, json);
-          return;
-        }
-        await pushReply(
-          redis,
-          event,
-          `任务 ${p.session_id}（${p.status}）\n标题：${p.title ?? "（无）"}\n待办 ${p.todo.done}/${p.todo.total} · 验证 ${p.verify.done}/${p.verify.total}`,
-        );
-      } catch (err) {
-        console.error("[agent-gateway] 查询进度失败:", err);
-        await pushReply(redis, event, "[开发] 查询进度失败，请稍后重试");
-      }
+    case "进度":
+      if (!cmd.arg) { await pushReply(redis, event, "用法：#进度 <sessionId>"); return; }
+      await handleDevQueryById(redis, devTask, event, cmd.arg);
       break;
-    }
-    case "确认": {
-      if (!cmd.arg) {
-        await pushReply(redis, event, "用法：#确认 <sessionId>");
-        return;
-      }
-      try {
-        const json = await devTask.confirmTask(cmd.arg, event.sender_id);
-        const task = parseJson<DevTaskRow>(json, {} as DevTaskRow);
-        if (task.status === "running") {
-          await pushReply(redis, event, `任务 ${cmd.arg} 已确认，开始执行（异步推进，完成后主动推送）`);
-          void runDevResume(
-            redis, devTask, devSessions, event, cmd.arg,
-            "用户已确认计划，请解除只读围栏（/plan）并按计划开始执行。",
-            "verifying",
-          );
-        } else if (task.status === "done") {
-          await pushReply(redis, event, `任务 ${cmd.arg} 验收通过，已完成`);
-          void runDevResume(
-            redis, devTask, devSessions, event, cmd.arg,
-            "用户已验收通过，任务完成。请收尾（可选 harness 优化）后终结。",
-            null,
-          );
-        } else {
-          await pushReply(redis, event, json);
-        }
-      } catch (err) {
-        console.error("[agent-gateway] 确认任务失败:", err);
-        await pushReply(redis, event, "[开发] 确认失败，请稍后重试");
-      }
+    case "确认":
+      if (!cmd.arg) { await pushReply(redis, event, "用法：#确认 <sessionId>"); return; }
+      await handleDevConfirmById(redis, devTask, devSessions, event, cmd.arg);
       break;
-    }
-    case "取消": {
-      if (!cmd.arg) {
-        await pushReply(redis, event, "用法：#取消 <sessionId>");
-        return;
-      }
-      try {
-        const json = await devTask.cancelTask(cmd.arg, event.sender_id);
-        await pushReply(redis, event, json);
-      } catch (err) {
-        console.error("[agent-gateway] 取消任务失败:", err);
-        await pushReply(redis, event, "[开发] 取消失败，请稍后重试");
-      }
+    case "取消":
+      if (!cmd.arg) { await pushReply(redis, event, "用法：#取消 <sessionId>"); return; }
+      await handleDevCancelById(redis, devTask, event, cmd.arg);
       break;
-    }
-    case "能力": {
-      try {
-        const json = await devTask.listCapabilities();
-        await pushReply(redis, event, formatCapabilities(json));
-      } catch (err) {
-        console.error("[agent-gateway] 查询能力失败:", err);
-        await pushReply(redis, event, "[开发] 查询能力失败，请稍后重试");
-      }
+    case "能力":
+      await handleDevCapabilities(redis, devTask, event);
       break;
-    }
+  }
+}
+
+/** dev 意图语义路由：带 sessionId 的引用/能力/列表查询不再误建新任务。 */
+async function handleDevMessage(
+  redis: Redis,
+  devTask: DevTaskClient,
+  devSessions: DevSessionManager,
+  event: MessageGroupAt,
+) {
+  if (!isDevAllowed(event.sender_id)) {
+    await pushReply(redis, event, "[开发] 无权限：你不是开发白名单账号");
+    return;
+  }
+  const action = classifyDevMessage(event.content);
+  switch (action.type) {
+    case "query":
+      await handleDevQueryById(redis, devTask, event, action.sessionId);
+      break;
+    case "confirm":
+      await handleDevConfirmById(redis, devTask, devSessions, event, action.sessionId);
+      break;
+    case "cancel":
+      await handleDevCancelById(redis, devTask, event, action.sessionId);
+      break;
+    case "capabilities":
+      await handleDevCapabilities(redis, devTask, event);
+      break;
+    case "list":
+      await handleDevList(redis, devTask, event);
+      break;
+    case "create":
+      await handleDevCreate(redis, devTask, devSessions, event);
+      break;
   }
 }
 
@@ -481,7 +543,7 @@ async function handle(
       }
 
       case "dev":
-        await handleDevCreate(redis, devTask, devSessions, event);
+        await handleDevMessage(redis, devTask, devSessions, event);
         break;
 
       default:
