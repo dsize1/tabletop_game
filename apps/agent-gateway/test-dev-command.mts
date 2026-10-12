@@ -48,6 +48,11 @@ assert.equal(
   "b1314a38-f153-44a1-8f89-837fe5d26db3",
 );
 assert.equal(extractSessionId("没有 uuid 的消息"), null);
+// 命令参数带尾部文本时仍能提取 UUID（回归：#确认 <id>」开始执行 场景）
+assert.equal(
+  extractSessionId("cc842d21-0c4f-48e1-8849-8b06fd367ed6」开始执行"),
+  "cc842d21-0c4f-48e1-8849-8b06fd367ed6",
+);
 
 // —— 语义分类（回归：查询不得误判为新建）——
 assert.deepEqual(

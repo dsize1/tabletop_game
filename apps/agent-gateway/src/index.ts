@@ -10,6 +10,7 @@ import { DevSessionManager, devTaskPrompt } from "./dev-session.js";
 import {
   classifyDevMessage,
   extractRequirement,
+  extractSessionId,
   extractTitle,
   formatCapabilities,
   parseDevCommand,
@@ -321,15 +322,15 @@ async function handleDevCommand(
       break;
     case "进度":
       if (!cmd.arg) { await pushReply(redis, event, "用法：#进度 <sessionId>"); return; }
-      await handleDevQueryById(redis, devTask, event, cmd.arg);
+      await handleDevQueryById(redis, devTask, event, extractSessionId(cmd.arg) ?? cmd.arg);
       break;
     case "确认":
       if (!cmd.arg) { await pushReply(redis, event, "用法：#确认 <sessionId>"); return; }
-      await handleDevConfirmById(redis, devTask, devSessions, event, cmd.arg);
+      await handleDevConfirmById(redis, devTask, devSessions, event, extractSessionId(cmd.arg) ?? cmd.arg);
       break;
     case "取消":
       if (!cmd.arg) { await pushReply(redis, event, "用法：#取消 <sessionId>"); return; }
-      await handleDevCancelById(redis, devTask, event, cmd.arg);
+      await handleDevCancelById(redis, devTask, event, extractSessionId(cmd.arg) ?? cmd.arg);
       break;
     case "能力":
       await handleDevCapabilities(redis, devTask, event);
