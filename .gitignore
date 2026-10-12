@@ -28,6 +28,7 @@ data/
 # 本地模型权重（StartLux-Decision GGUF，CC BY-NC 4.0 非商用，勿提交）
 StartLux-Decision-v1-4B-Q8_0-GGUF/
 
-# cloudflared 隧道凭证（敏感，不入库）
+# cloudflared 隧道凭证与机器相关配置（敏感/不入库）
 deploy/cloudflared/credentials.json
 deploy/cloudflared/cert.pem
+deploy/cloudflared/config.yml

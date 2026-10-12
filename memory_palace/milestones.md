@@ -2,7 +2,7 @@
 
 > 记录项目关键节点与验证结果，按时间倒序。重大技术决策见 `decisions/`。
 
-## M9：web 页呈现（代码链路打通，cloudflared 待部署）🔄
+## M9：web 页呈现（代码链路 + cloudflared 公网可达打通）✅
 
 - **日期**：2026-10-12
 - **完成（代码侧）**：
@@ -12,7 +12,8 @@
   - `apps/agent-gateway`：`auth-client.ts` 调 server 签发 token，拼短链替换 >1500 字计划长文推送（`PUBLIC_BASE_URL` 未配置退回长文）
   - 术语统一：openid（= member_openid，非 QQ 号）；路由/文档 `{qqid}`→`{openid}`
 - **验证**：`cargo check --workspace` 通过；`cargo test -p auth` 8/8；server API 冒烟（issue→verify/401/403/400/占位）；web 本地 curl 冒烟（渲染/401/游戏占位）；agent-gateway `tsc` + `test:short-link` 通过
-- **未做（外部阻塞）**：cloudflared 隧道部署（账号/域名申请中，用户并行进行）；大陆可达性实测；端到端 QQ 实测
+- **cloudflared（已完成）**：域名 `20221219.xyz` 切 Cloudflare NS；`cloudflared tunnel login/create/route dns` 本地管理隧道 `tabletop-web`（tunnel id `562666ab-...`）；Windows 服务常驻（`deploy/cloudflared/install-service.ps1`，ImagePath `tunnel --config ... run`）；公网 HTTPS `https://tabletopgame.20221219.xyz/health` → 200（本机大陆网络实测可达）
+- **未做（后续）**：端到端 QQ 实测（#开发 → 计划生成 → 推短链 → 手机点开）；手机端大陆可达性复核
 - **详见**：`plan/ad7f436a-1443-49ad-b229-220c44c17e80.md`
 
 ## M8：主动推送测试（push 单测 + qq.push 出站验证脚本）✅
@@ -88,6 +89,6 @@
 ## 下一里程碑（待办）
 
 - **M8：端到端实测** — 真机验证开发任务链路（受理→规划→确认→执行→进度查询）+ 聊天多轮
-- **M9 残留**：cloudflared 隧道部署（账号/域名申请中）+ 大陆可达性实测 + 端到端 QQ 实测
+- **M9 残留**：端到端 QQ 实测（#开发 → 计划生成 → 推短链 → 手机点开）
 - **M5 残留**：聊天历史 SQLite 归档与 Redis 热缓存同步；游戏路径 LLM 情景叙述（`GAME_NARRATION_ENABLED`）
 - 之后：拉斯维加斯引擎 → 规则查询意图路径（mock 识别游戏交互 → MCP get_rules）
