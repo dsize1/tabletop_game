@@ -84,9 +84,12 @@
 - 连接 WebSocket 网关（SDK 自动处理 token / 心跳 / 重连）
 - 接收群 `GROUP_AT_MESSAGE_CREATE`（@消息）
 - 原始事件写入 Redis Stream `qq.raw`（`MAXLEN ~ 1000`，字段：`eventType` / `raw` / `receivedAt`）
+- 消费 `qq.push` 发送群消息：有 `reply_msg_id` 走被动回复（显式 `msg_seq`），否则 `sendText` 主动发送；发送成功 ACK 并记录返回 `msg_id`
 - SIGINT/SIGTERM 优雅退出
 
 待实现：
 
-- 消费 `qq.push` 发送群消息
 - 全量群消息 `GROUP_MESSAGE_CREATE`（需平台开启「接收所有消息」）
+- 主动消息频控/预算记账（qpm / 1000 群日配额，见 `docs/modules/push.md`）
+
+验证：`apps/verify-push.mjs` 注入主动推送指令到 `qq.push` 观察出站消费/ACK（详见 `docs/modules/push.md`「测试方式」）

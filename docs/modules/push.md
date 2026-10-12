@@ -24,3 +24,9 @@
 - 优先把通知**挂靠到被动回复**（玩家刚互动时顺带回复；被动消息每条可回复 5 次、有效期 5 分钟）
 - 主动推送做**合并/节流**，并对每个群/用户记账预算，避免打满 qpm 与每日上限
 - 发送失败（用户关闭开关 / 超限）需有兑底：记录失败，降级为下次被动回复时补发
+
+## 测试方式
+
+- **Rust 单测**：`crates/push` 的 `ensure_event_id`（空 event_id 自动补全 uuid v4）与 `PushEvent` 序列化 round-trip；`cargo test -p push`
+- **出站验证脚本**：`apps/verify-push.mjs` 向 `qq.push` 注入一条「主动消息」指令（`reply_msg_id=null`），观察 qq-gateway PEL/ACK 与消费者组信息；用法 `node apps/verify-push.mjs [group_openid] [content] [--no-cleanup]`
+- **真机（可选）**：传真实群 openid（`PUSH_TEST_GROUP` 或首个位置参数）发一条主动消息，需 Redis + qq-gateway（QQ 凭证 + 机器人加群 + WebSocket 在线）；会消耗主动消息日配额（1000/群/天）

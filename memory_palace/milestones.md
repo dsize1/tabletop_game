@@ -2,6 +2,16 @@
 
 > 记录项目关键节点与验证结果，按时间倒序。重大技术决策见 `decisions/`。
 
+## M8：主动推送测试（push 单测 + qq.push 出站验证脚本）✅
+
+- **日期**：2026-10-12
+- **完成**：
+  - `crates/push`：抽取 `ensure_event_id` 纯函数并补单测（event_id 自动补全 / 序列化 round-trip），`cargo test -p push` 3/3
+  - `apps/verify-push.mjs`：注入一条「主动消息」指令（`reply_msg_id=null`）到 `qq.push`，观察 qq-gateway PEL/ACK 与消费者组信息，支持 `--no-cleanup` / `PUSH_TEST_GROUP`
+  - `apps/qq-gateway`：`sendGroupMessage` 返回发送结果并在成功时记录 `msg_id`，便于验证主动/被动发送结果
+- **验证**：`cargo test -p push` 3/3；`apps/qq-gateway` `tsc --noEmit` 通过；`verify-push.mjs` `node --check` 通过
+- **未做（后续）**：真机向真实群发主动消息（需 Redis+QQ 在线+测试群 openid）；主动消息频控/预算记账（push.md 设计要求）；`at_member_id`(@提及) 出站使用、`PushEvent.msg_seq` 字段补齐
+
 ## M7：开发任务（多轮对话 + 子会话 plan-workflow 复用 + MCP 化）✅
 
 - **日期**：2026-10-11

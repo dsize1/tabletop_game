@@ -57,7 +57,7 @@ async function ensureGroup() {
   }
 }
 
-/** 发送一条群消息：有 reply_msg_id 走被动回复（显式 msg_seq 递增），否则主动发送。 */
+/** 发送一条群消息：有 reply_msg_id 走被动回复（显式 msg_seq 递增），否则主动发送。返回发送结果。 */
 async function sendGroupMessage(event: {
   group_id: string;
   content: string;
@@ -66,14 +66,14 @@ async function sendGroupMessage(event: {
 }) {
   if (event.reply_msg_id) {
     // 被动回复：显式 msg_id + msg_seq（SDK sendText 的 msg_seq 为随机数，不满足多条递增）
-    await bot.send({
+    return await bot.send({
       target: { scope: "group", targetId: event.group_id, msgId: event.reply_msg_id },
       content: event.content,
       extra: { msg_seq: event.msg_seq ?? 1 },
     });
-    return;
   }
-  await bot.sendText({ scope: "group", targetId: event.group_id }, event.content);
+  // 主动消息：无 msg_id，走 sendText
+  return await bot.sendText({ scope: "group", targetId: event.group_id }, event.content);
 }
 
 async function processPushEntries(results: unknown) {
@@ -87,9 +87,9 @@ async function processPushEntries(results: unknown) {
       if (!eventJson) continue;
 
       try {
-        await sendGroupMessage(JSON.parse(eventJson));
+        const res = await sendGroupMessage(JSON.parse(eventJson));
         await redis.xack(PUSH_STREAM, GROUP, id);
-        console.log(`[qq-gateway] ← ${PUSH_STREAM} 已发送 [${id}]`);
+        console.log(`[qq-gateway] ← ${PUSH_STREAM} 已发送 [${id}] msg_id=${res?.id ?? "?"}`);
       } catch (err) {
         console.error(`[qq-gateway] 发送失败 [${id}]，保留待重试:`, err);
         await new Promise((r) => setTimeout(r, 500));
