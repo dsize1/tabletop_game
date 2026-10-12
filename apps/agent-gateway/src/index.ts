@@ -368,6 +368,19 @@ async function handleDevMessage(
     case "create":
       await handleDevCreate(redis, devTask, devSessions, event);
       break;
+    case "unknown":
+      await pushReply(
+        redis,
+        event,
+        "无法识别的开发指令。可用命令：\n" +
+          "#开发 <需求> — 创建开发任务\n" +
+          "#任务 [状态] — 列出任务\n" +
+          "#进度 <sessionId> — 查询任务进度\n" +
+          "#确认 <sessionId> — 确认计划\n" +
+          "#取消 <sessionId> — 取消任务\n" +
+          "#能力 — 查看 MCP 能力清单",
+      );
+      break;
   }
 }
 
@@ -382,6 +395,11 @@ async function handleDevCreate(
     await pushReply(redis, event, "[开发] 无权限：你不是开发白名单账号");
     return;
   }
+  const requirement = extractRequirement(event.content);
+  if (!requirement) {
+    await pushReply(redis, event, "请提供开发需求，例如：#开发 帮我做一个 XXX 功能");
+    return;
+  }
   const sessionId = randomUUID();
   try {
     const json = await devTask.createTask(sessionId, event.group_id, event.sender_id);
@@ -392,7 +410,7 @@ async function handleDevCreate(
     }
     await devTask.transitionTask(sessionId, "planning");
     await pushReply(redis, event, `[开发] 已受理，任务ID：${sessionId}\n（规划中，完成后主动推送计划）`);
-    void runDevCreate(redis, devTask, devSessions, event, sessionId, extractRequirement(event.content));
+    void runDevCreate(redis, devTask, devSessions, event, sessionId, requirement);
   } catch (err) {
     console.error("[agent-gateway] 创建开发任务失败:", err);
     await pushReply(redis, event, "[开发] 创建任务失败，请稍后重试");

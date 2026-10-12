@@ -59,6 +59,11 @@ assert.deepEqual(
   { type: "capabilities" },
 );
 assert.deepEqual(classifyDevMessage("#开发 帮我加个功能"), { type: "create" });
+assert.deepEqual(classifyDevMessage("#开发"), { type: "create" });
+assert.deepEqual(classifyDevMessage("帮我加个功能"), { type: "unknown" });
+assert.deepEqual(classifyDevMessage("[开发]开发消息链路疑似异常"), { type: "unknown" });
+assert.equal(extractRequirement("#开发"), "");
+assert.equal(extractRequirement("#开发 做个功能"), "做个功能");
 assert.deepEqual(
   classifyDevMessage("确认执行 b1314a38-f153-44a1-8f89-837fe5d26db3"),
   { type: "confirm", sessionId: "b1314a38-f153-44a1-8f89-837fe5d26db3" },

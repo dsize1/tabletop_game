@@ -24,9 +24,10 @@ export type DevMessageAction =
   | { type: "cancel"; sessionId: string }
   | { type: "capabilities" }
   | { type: "list" }
-  | { type: "create" };
+  | { type: "create" }
+  | { type: "unknown" };
 
-/** 语义分类 dev 消息：带 sessionId 的引用 → 查询/确认/取消；能力/列表 → 查询；其余 → 新建。 */
+/** 语义分类 dev 消息：带 sessionId 的引用 → 查询/确认/取消；能力/列表 → 查询；显式 #开发 → 新建；其余 → 无法识别。 */
 export function classifyDevMessage(content: string): DevMessageAction {
   const sessionId = extractSessionId(content);
   if (sessionId) {
@@ -38,15 +39,17 @@ export function classifyDevMessage(content: string): DevMessageAction {
     return { type: "capabilities" };
   }
   if (/任务列表|全部任务|所有任务|列出.*任务/.test(content)) return { type: "list" };
-  return { type: "create" };
+  // 只有显式 #开发 前缀才创建任务，避免误建
+  if (/^#\s*(开发|dev|develop)/i.test(content)) return { type: "create" };
+  return { type: "unknown" };
 }
 
-/** 去掉 #开发 / [开发] 前缀取需求正文。 */
+/** 去掉 #开发 / [开发] 前缀取需求正文（无前缀或无正文时返回空串）。 */
 export function extractRequirement(content: string): string {
-  const stripped = content
+  return content
     .replace(/^#(开发|dev|develop)\s*[:：]?\s*/i, "")
-    .replace(/^\[(开发|dev|develop)\]\s*[:：]?\s*/i, "");
-  return stripped.trim() || content.trim();
+    .replace(/^\[(开发|dev|develop)\]\s*[:：]?\s*/i, "")
+    .trim();
 }
 
 /** 从子会话输出取标题（「标题：xxx」），否则用需求截断。 */
