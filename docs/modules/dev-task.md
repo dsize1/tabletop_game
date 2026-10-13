@@ -40,7 +40,9 @@ queued → planning → awaiting_confirm → running → verifying → done
 | `list_tasks(status?)` | 列出所有开发任务（可按状态过滤），返回 session_id/status/title/group_id/qq_id |
 | `get_task(session_id)` | 单个任务详情 |
 | `get_progress(session_id)` | 阶段 + 待办/验证完成度（读计划文档复选框） |
-| `list_capabilities()` | 本服务全部 MCP 能力（能力名/简述/使用方式/读写） |
+| `prepare_task_link(session_id, qq_id)` | 校验归属+非终态，返回计划短链资源 `dev_task:<id>`（**token 由网关签发**） |
+| `append_instruction(session_id, qq_id)` | 校验归属+非终态，授权把自由文本作为补充指令追加到已有子会话 |
+| `list_capabilities()` | 本服务全部 MCP 能力（描述符数组：`name/rw/description/usage/example`，见 `docs/conventions/mcp-primitives.md`） |
 
 ### 写入（受校验）
 
@@ -52,7 +54,7 @@ queued → planning → awaiting_confirm → running → verifying → done
 | `transition_task(session_id, status)` | 内容里程碑迁移（网关驱动） | 确定性迁移表 |
 | `update_task_meta(session_id, title?, plan_path?)` | 回填标题/计划路径 | — |
 
-读写属性标注在各 tool 的 `description` 前缀（`[读]`/`[写]`），供 `list_capabilities` 展示。
+读写属性标注在各 tool 的 `description` 前缀（`[读]`/`[写]`）。**能力描述符 schema、`example`（使用示例）字段与 QQ `#能力` 渲染格式见 `docs/conventions/mcp-primitives.md`**（MCP 统一原语规范）。
 
 ## 统一键 sessionId
 
@@ -68,7 +70,10 @@ queued → planning → awaiting_confirm → running → verifying → done
 
 ## 约定
 
-- 命令固定前缀：`#任务 [状态]` / `#进度 <id>` / `#确认 <id>` / `#取消 <id>` / `#能力`（硬判断，先于决策模型）
+- **命令固定前缀，禁用意图猜测**（2026-10-13 整改）：dev 引擎的所有对话一律走**显式命令 → MCP 原语**，禁止用正则/硬编码对自由文本判断意图（历史 `classifyDevMessage` 的 `确认|执行` 子串匹配曾误判「不要解除围栏开始执行」→ confirm）。命令：`#任务 [状态]` / `#进度 <id>` / `#确认 <id>` / `#取消 <id>` / `#能力` / `#发起 <需求>`（`#开发` 为别名）/ `#补充 <id> <正文>`。
+- **发起确认**：仅「发起」允许决策引擎识别为 dev；识别到但**无显式命令**时，网关只提示用户用 `#发起`，**不自动建任务**，防止决策引擎误判直接开任务。
+- **自由文本路由**：`#补充 <id> <正文>` 经 `append_instruction` 校验后，由网关 `runDevResume` 追加到已有子会话，不再落入通用 chat 兜底。
+- **token 重签**：`#进度/#查询` 命中非终态任务时调用 `prepare_task_link` 校验归属，再由网关签发新短链，解决原 token（TTL 8h）过期后无自助重取途径。
 - 被动回复：状态同步 + 引导人工推进（不展示计划内容）；主动推送：计划文档短链（标题 + `https://{域名}/dev_task/{sessionId}?token=xxx`，短期 token 鉴权）
 - 术语统一：`qq_id`（MCP 参数 / `dev_tasks` 列）存的是 `member_openid`（玩家身份 = openid，非 QQ 号），文档统一以「openid」指代
 - 子会话模型：复用主持人 LLM 凭据（DeepSeek），thinking 开启（`thinkingLevel: medium`）

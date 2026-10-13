@@ -94,15 +94,17 @@ fn count_plan_items(plan_path: Option<&str>, section: &str) -> (usize, usize) {
 /// 本服务全部 MCP 能力清单（能力名/简述/使用方式/读写），供 list_capabilities 展示。
 fn capabilities() -> serde_json::Value {
     serde_json::json!([
-        {"name": "list_tasks", "rw": "读", "description": "列出所有开发任务（可按状态过滤）", "usage": "list_tasks(status?)"},
-        {"name": "get_task", "rw": "读", "description": "查询单个任务详情", "usage": "get_task(session_id)"},
-        {"name": "get_progress", "rw": "读", "description": "查询任务进度（阶段 + 待办/验证完成度）", "usage": "get_progress(session_id)"},
-        {"name": "list_capabilities", "rw": "读", "description": "列出本服务全部 MCP 能力", "usage": "list_capabilities()"},
-        {"name": "create_task", "rw": "写", "description": "创建开发任务（白名单校验）", "usage": "create_task(session_id, group_id, qq_id)"},
-        {"name": "confirm_task", "rw": "写", "description": "人工确认计划并开始执行（白名单+归属校验）", "usage": "confirm_task(session_id, qq_id)"},
-        {"name": "cancel_task", "rw": "写", "description": "人工取消任务（白名单+归属校验）", "usage": "cancel_task(session_id, qq_id)"},
-        {"name": "transition_task", "rw": "写", "description": "任务状态迁移（内容里程碑，确定性迁移表校验）", "usage": "transition_task(session_id, status)"},
-        {"name": "update_task_meta", "rw": "写", "description": "回填任务标题/计划路径", "usage": "update_task_meta(session_id, title?, plan_path?)"}
+        {"name": "list_tasks", "rw": "读", "description": "列出所有开发任务（可按状态过滤）", "usage": "list_tasks(status?)", "example": "#任务 或 #任务 running"},
+        {"name": "get_task", "rw": "读", "description": "查询单个任务详情", "usage": "get_task(session_id)", "example": "（网关内部；用户用 #进度 <sessionId>）"},
+        {"name": "get_progress", "rw": "读", "description": "查询任务进度（阶段 + 待办/验证完成度）", "usage": "get_progress(session_id)", "example": "#进度 <sessionId>"},
+        {"name": "prepare_task_link", "rw": "读", "description": "校验归属+非终态，返回计划短链资源（token 由网关签发）", "usage": "prepare_task_link(session_id, qq_id)", "example": "（网关内部；#进度 自动重签短链）"},
+        {"name": "append_instruction", "rw": "写", "description": "校验归属+非终态，授权把自由文本追加到已有子会话", "usage": "append_instruction(session_id, qq_id)", "example": "#补充 <sessionId> <正文>"},
+        {"name": "list_capabilities", "rw": "读", "description": "列出本服务全部 MCP 能力", "usage": "list_capabilities()", "example": "#能力"},
+        {"name": "create_task", "rw": "写", "description": "创建开发任务（白名单校验）", "usage": "create_task(session_id, group_id, qq_id)", "example": "#发起 <需求>（#开发 为别名）"},
+        {"name": "confirm_task", "rw": "写", "description": "人工确认计划并开始执行（白名单+归属校验）", "usage": "confirm_task(session_id, qq_id)", "example": "#确认 <sessionId>"},
+        {"name": "cancel_task", "rw": "写", "description": "人工取消任务（白名单+归属校验）", "usage": "cancel_task(session_id, qq_id)", "example": "#取消 <sessionId>"},
+        {"name": "transition_task", "rw": "写", "description": "任务状态迁移（内容里程碑，确定性迁移表校验）", "usage": "transition_task(session_id, status)", "example": "（网关内部；子会话里程碑驱动）"},
+        {"name": "update_task_meta", "rw": "写", "description": "回填任务标题/计划路径", "usage": "update_task_meta(session_id, title?, plan_path?)", "example": "（网关内部回填）"}
     ])
 }
 
@@ -140,6 +142,32 @@ impl DevTaskServer {
                 }))
                 .unwrap_or_default()
             }
+            Err(e) => format!("错误: {e}"),
+        }
+    }
+
+    #[tool(name = "prepare_task_link", description = "[读] 校验任务归属+非终态，返回计划短链资源（网关据此签发 token）")]
+    async fn prepare_task_link(&self, Parameters(p): Parameters<OwnerRequest>) -> String {
+        match self.manager.check_active_owner(&p.session_id, &p.qq_id) {
+            Ok(t) => serde_json::to_string(&serde_json::json!({
+                "session_id": t.session_id,
+                "plan_path": t.plan_path,
+                "resource": format!("dev_task:{}", t.session_id),
+            }))
+            .unwrap_or_default(),
+            Err(e) => format!("错误: {e}"),
+        }
+    }
+
+    #[tool(name = "append_instruction", description = "[写] 校验归属+非终态，授权把自由文本作为补充指令追加到已有子会话")]
+    async fn append_instruction(&self, Parameters(p): Parameters<OwnerRequest>) -> String {
+        match self.manager.check_active_owner(&p.session_id, &p.qq_id) {
+            Ok(t) => serde_json::to_string(&serde_json::json!({
+                "session_id": t.session_id,
+                "status": t.status,
+                "plan_path": t.plan_path,
+            }))
+            .unwrap_or_default(),
             Err(e) => format!("错误: {e}"),
         }
     }

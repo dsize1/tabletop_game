@@ -9,12 +9,12 @@ import { DevTaskClient } from "./dev-task-client.js";
 import { DevSessionManager, devTaskPrompt } from "./dev-session.js";
 import { AuthClient, buildPlanUrl } from "./auth-client.js";
 import {
-  classifyDevMessage,
   extractRequirement,
   extractSessionId,
   extractTitle,
   formatCapabilities,
   parseDevCommand,
+  splitTaskRef,
   type DevCommand,
 } from "./dev-command.js";
 
@@ -149,16 +149,21 @@ async function pushActive(redis: Redis, event: MessageGroupAt, content: string) 
   await redis.xadd(PUSH_STREAM, "MAXLEN", "~", "1000", "*", "event", JSON.stringify(pushEvent));
 }
 
-/** 生成计划文档短链：签发短期 token 后拼接 PUBLIC_BASE_URL。失败/未配置返回 null（降级为长文）。 */
-async function buildPlanLink(sessionId: string, openid: string): Promise<string | null> {
+/** 用给定资源签发短期 token 并拼接短链。失败/未配置返回 null（降级为长文）。 */
+async function signPlanLink(sessionId: string, openid: string, resource: string): Promise<string | null> {
   if (!PUBLIC_BASE_URL) return null;
   try {
-    const issued = await authClient.issueToken(openid, `dev_task:${sessionId}`);
+    const issued = await authClient.issueToken(openid, resource);
     return buildPlanUrl(PUBLIC_BASE_URL, sessionId, issued.token);
   } catch (err) {
     console.error("[agent-gateway] 签发计划短链失败:", err);
     return null;
   }
+}
+
+/** 生成计划文档短链（默认资源 dev_task:<sessionId>）。 */
+async function buildPlanLink(sessionId: string, openid: string): Promise<string | null> {
+  return signPlanLink(sessionId, openid, `dev_task:${sessionId}`);
 }
 
 // ---- 聊天历史（Redis 热缓存，最近 N 条；全量归档由 bot-adapter 写 SQLite group_messages） ----
@@ -254,11 +259,17 @@ async function handleDevQueryById(
       await pushReply(redis, event, json);
       return;
     }
-    await pushReply(
-      redis,
-      event,
-      `任务 ${p.session_id}（${p.status}）\n标题：${p.title ?? "（无）"}\n待办 ${p.todo.done}/${p.todo.total} · 验证 ${p.verify.done}/${p.verify.total}`,
-    );
+    const lines = [
+      `任务 ${p.session_id}（${p.status}）`,
+      `标题：${p.title ?? "（无）"}`,
+      `待办 ${p.todo.done}/${p.todo.total} · 验证 ${p.verify.done}/${p.verify.total}`,
+    ];
+    // token 重签：经 MCP 原语校验归属后由网关签发新短链（原 token 过期后可自助重取）
+    if (!["done", "failed", "cancelled"].includes(p.status)) {
+      const link = await reissuePlanLink(devTask, sessionId, event.sender_id);
+      if (link) lines.push(`计划文档：${link}`);
+    }
+    await pushReply(redis, event, lines.join("\n"));
   } catch (err) {
     console.error("[agent-gateway] 查询进度失败:", err);
     await pushReply(redis, event, "[开发] 查询进度失败，请稍后重试");
@@ -354,53 +365,89 @@ async function handleDevCommand(
     case "能力":
       await handleDevCapabilities(redis, devTask, event);
       break;
+    case "发起":
+      await handleDevCreate(redis, devTask, devSessions, event, cmd.arg);
+      break;
+    case "补充":
+      if (!cmd.arg) {
+        await pushReply(redis, event, "用法：#补充 <sessionId> <正文>");
+        return;
+      }
+      await handleDevAppend(redis, devTask, devSessions, event, cmd.arg);
+      break;
   }
 }
 
-/** dev 意图语义路由：带 sessionId 的引用/能力/列表查询不再误建新任务。 */
-async function handleDevMessage(
+/** dev 意图但未命中显式命令：只提示，不自动建任务（防止决策引擎误判发起）。 */
+async function handleDevUnmatched(redis: Redis, event: MessageGroupAt) {
+  if (!isDevAllowed(event.sender_id)) {
+    await pushReply(redis, event, "[开发] 无权限：你不是开发白名单账号");
+    return;
+  }
+  await pushReply(
+    redis,
+    event,
+    "检测到可能是开发任务，但需要显式指令（dev 引擎只认命令、不猜意图）：\n" +
+      "#发起 <需求> — 创建开发任务\n" +
+      "#任务 [状态] — 列出任务\n" +
+      "#进度 <sessionId> — 查询任务进度（附新短链）\n" +
+      "#确认 <sessionId> — 确认计划\n" +
+      "#取消 <sessionId> — 取消任务\n" +
+      "#补充 <sessionId> <正文> — 给已有任务追加/修改内容\n" +
+      "#能力 — 查看 MCP 能力清单",
+  );
+}
+
+/** 追加自由文本到已有任务子会话（#补充）：经 MCP 原语校验后路由到子会话。 */
+async function handleDevAppend(
   redis: Redis,
   devTask: DevTaskClient,
   devSessions: DevSessionManager,
   event: MessageGroupAt,
+  arg: string,
 ) {
   if (!isDevAllowed(event.sender_id)) {
     await pushReply(redis, event, "[开发] 无权限：你不是开发白名单账号");
     return;
   }
-  const action = classifyDevMessage(event.content);
-  switch (action.type) {
-    case "query":
-      await handleDevQueryById(redis, devTask, event, action.sessionId);
-      break;
-    case "confirm":
-      await handleDevConfirmById(redis, devTask, devSessions, event, action.sessionId);
-      break;
-    case "cancel":
-      await handleDevCancelById(redis, devTask, event, action.sessionId);
-      break;
-    case "capabilities":
-      await handleDevCapabilities(redis, devTask, event);
-      break;
-    case "list":
-      await handleDevList(redis, devTask, event);
-      break;
-    case "create":
-      await handleDevCreate(redis, devTask, devSessions, event);
-      break;
-    case "unknown":
-      await pushReply(
-        redis,
-        event,
-        "无法识别的开发指令。可用命令：\n" +
-          "#开发 <需求> — 创建开发任务\n" +
-          "#任务 [状态] — 列出任务\n" +
-          "#进度 <sessionId> — 查询任务进度\n" +
-          "#确认 <sessionId> — 确认计划\n" +
-          "#取消 <sessionId> — 取消任务\n" +
-          "#能力 — 查看 MCP 能力清单",
-      );
-      break;
+  const { sessionId, content } = splitTaskRef(arg);
+  if (!sessionId) {
+    await pushReply(redis, event, "请提供任务 sessionId，例如：#补充 <id> <正文>");
+    return;
+  }
+  if (!content) {
+    await pushReply(redis, event, "请在任务号后附上要追加的正文");
+    return;
+  }
+  try {
+    const json = await devTask.appendInstruction(sessionId, event.sender_id);
+    const info = parseJson<{ session_id?: string }>(json, {});
+    if (!info.session_id) {
+      await pushReply(redis, event, json);
+      return;
+    }
+    await pushReply(redis, event, `任务 ${sessionId} 已收到补充，正在追加到执行会话…`);
+    void runDevResume(redis, devTask, devSessions, event, sessionId, content, null);
+  } catch (err) {
+    console.error("[agent-gateway] 追加补充失败:", err);
+    await pushReply(redis, event, "[开发] 追加补充失败，请稍后重试");
+  }
+}
+
+/** 经 dev-task MCP 校验归属+非终态后，由网关签发新的计划短链。 */
+async function reissuePlanLink(
+  devTask: DevTaskClient,
+  sessionId: string,
+  openid: string,
+): Promise<string | null> {
+  try {
+    const json = await devTask.prepareTaskLink(sessionId, openid);
+    const info = parseJson<{ resource?: string }>(json, {});
+    if (!info.resource) return null;
+    return await signPlanLink(sessionId, openid, info.resource);
+  } catch (err) {
+    console.error("[agent-gateway] 重签计划短链失败:", err);
+    return null;
   }
 }
 
@@ -410,12 +457,13 @@ async function handleDevCreate(
   devTask: DevTaskClient,
   devSessions: DevSessionManager,
   event: MessageGroupAt,
+  requirementArg?: string,
 ) {
   if (!isDevAllowed(event.sender_id)) {
     await pushReply(redis, event, "[开发] 无权限：你不是开发白名单账号");
     return;
   }
-  const requirement = extractRequirement(event.content);
+  const requirement = (requirementArg ?? extractRequirement(event.content)).trim();
   if (!requirement) {
     await pushReply(redis, event, "请提供开发需求，例如：#开发 帮我做一个 XXX 功能");
     return;
@@ -585,7 +633,8 @@ async function handle(
       }
 
       case "dev":
-        await handleDevMessage(redis, devTask, devSessions, event);
+        // 仅提示，不自动建任务（dev 只认显式命令，见上方 parseDevCommand）
+        await handleDevUnmatched(redis, event);
         break;
 
       default:

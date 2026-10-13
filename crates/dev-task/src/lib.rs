@@ -154,6 +154,22 @@ impl TaskManager {
         self.transition(session_id, DevTaskStatus::Cancelled)
     }
 
+    /// 白名单 + 归属 + 非终态校验（网关的「补充正文 / 重签链接」等动作共用）。
+    pub fn check_active_owner(
+        &self,
+        session_id: &str,
+        qq_id: &str,
+    ) -> Result<storage::DevTask, TaskError> {
+        self.check_owner(session_id, qq_id)?;
+        let task = self.get(session_id)?;
+        let status = DevTaskStatus::from_str(&task.status)
+            .ok_or_else(|| TaskError::Internal(format!("未知状态: {}", task.status)))?;
+        if status.is_terminal() {
+            return Err(TaskError::IllegalTransition(task.status, "active".to_string()));
+        }
+        Ok(task)
+    }
+
     /// 内容里程碑迁移（网关驱动，确定性迁移表校验）。
     pub fn transition(
         &self,
@@ -278,5 +294,19 @@ mod tests {
         assert_eq!(m.get("s1").unwrap().title.as_deref(), Some("做个新功能"));
         assert_eq!(m.cancel_task("s1", "dev1").unwrap().status, "cancelled");
         assert!(m.transition("s1", DevTaskStatus::Planning).is_err());
+    }
+
+    #[test]
+    fn check_active_owner_rules() {
+        let m = manager(&["dev1"]);
+        m.create_task("s1", "g1", "dev1").unwrap();
+        // 非白名单 / 非归属者被拒
+        assert!(m.check_active_owner("s1", "outsider").is_err());
+        assert!(m.check_active_owner("s1", "other").is_err());
+        // 非终态可访问
+        assert_eq!(m.check_active_owner("s1", "dev1").unwrap().status, "queued");
+        // 终态被拒
+        m.cancel_task("s1", "dev1").unwrap();
+        assert!(m.check_active_owner("s1", "dev1").is_err());
     }
 }

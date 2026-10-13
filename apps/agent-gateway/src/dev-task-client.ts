@@ -56,6 +56,16 @@ export class DevTaskClient {
     return this.call("get_progress", { session_id: sessionId });
   }
 
+  /** 校验归属+非终态，返回计划短链资源（token 由网关签发）。 */
+  async prepareTaskLink(sessionId: string, qqId: string): Promise<string> {
+    return this.call("prepare_task_link", { session_id: sessionId, qq_id: qqId });
+  }
+
+  /** 校验归属+非终态，授权把自由文本作为补充指令追加到已有子会话。 */
+  async appendInstruction(sessionId: string, qqId: string): Promise<string> {
+    return this.call("append_instruction", { session_id: sessionId, qq_id: qqId });
+  }
+
   async listCapabilities(): Promise<string> {
     return this.call("list_capabilities", {});
   }

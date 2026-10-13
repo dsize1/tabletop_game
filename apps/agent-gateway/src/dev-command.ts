@@ -1,15 +1,24 @@
 //! dev 固定前缀命令解析与纯函数（无副作用，便于单测）。
+//!
+//! 约定（2026-10-13 整改）：dev 引擎的所有对话一律走**显式命令 → MCP 原语**，
+//! 禁止用正则/硬编码对自由文本做意图猜测（历史上 `确认|执行` 子串匹配曾误判
+//! 「不要解除围栏开始执行」→ confirm）。未命中显式命令的开发类消息由网关提示
+//! 用户使用 `#发起`，**不自动建任务**。
 
 export interface DevCommand {
-  cmd: "任务" | "进度" | "确认" | "取消" | "能力";
+  cmd: "任务" | "进度" | "确认" | "取消" | "能力" | "发起" | "补充";
   arg?: string;
 }
 
-/** 固定前缀命令硬判断（人 = 决策模型，置信度 100%）。 */
+/**
+ * 固定前缀命令硬判断（**显式调用**，非意图猜测）。
+ * - `#开发` 作为 `#发起` 的等价别名（历史命令）。
+ */
 export function parseDevCommand(content: string): DevCommand | null {
-  const m = content.trim().match(/^#(任务|进度|确认|取消|能力)(?:[\s　]+(.+))?$/);
+  const m = content.trim().match(/^#(任务|进度|确认|取消|能力|发起|补充|开发)(?:[\s　]+([\s\S]+))?$/);
   if (!m) return null;
-  return { cmd: m[1] as DevCommand["cmd"], arg: m[2]?.trim() || undefined };
+  const cmd = (m[1] === "开发" ? "发起" : m[1]) as DevCommand["cmd"];
+  return { cmd, arg: m[2]?.trim() || undefined };
 }
 
 /** 从消息中提取 UUID（sessionId 引用）。 */
@@ -18,36 +27,24 @@ export function extractSessionId(content: string): string | null {
   return m ? m[0].toLowerCase() : null;
 }
 
-export type DevMessageAction =
-  | { type: "query"; sessionId: string }
-  | { type: "confirm"; sessionId: string }
-  | { type: "cancel"; sessionId: string }
-  | { type: "capabilities" }
-  | { type: "list" }
-  | { type: "create" }
-  | { type: "unknown" };
-
-/** 语义分类 dev 消息：带 sessionId 的引用 → 查询/确认/取消；能力/列表 → 查询；显式 #开发 → 新建；其余 → 无法识别。 */
-export function classifyDevMessage(content: string): DevMessageAction {
-  const sessionId = extractSessionId(content);
-  if (sessionId) {
-    if (/确认|开始执行|执行吧|验收/.test(content)) return { type: "confirm", sessionId };
-    if (/取消|放弃|停止|终止/.test(content)) return { type: "cancel", sessionId };
-    return { type: "query", sessionId };
-  }
-  if (/能力|capabilit/i.test(content) && /查询|列表|有哪些|清单/i.test(content)) {
-    return { type: "capabilities" };
-  }
-  if (/任务列表|全部任务|所有任务|列出.*任务/.test(content)) return { type: "list" };
-  // 只有显式 #开发 前缀才创建任务，避免误建
-  if (/^#\s*(开发|dev|develop)/i.test(content)) return { type: "create" };
-  return { type: "unknown" };
+/**
+ * 解析 `#补充 <引用> <正文>`：从参数中拆出 sessionId 与正文（正文可多行）。
+ * 支持 `#补充 <uuid> 正文`、`#补充 任务：<uuid>，正文` 等写法。
+ */
+export function splitTaskRef(arg: string): { sessionId: string | null; content: string } {
+  const sessionId = extractSessionId(arg);
+  let content = sessionId ? arg.replace(sessionId, "") : arg;
+  content = content
+    .replace(/^\s*任务\s*[：:，,]?/, "")
+    .replace(/^[：:，,、\s　]+/, "")
+    .trim();
+  return { sessionId, content };
 }
 
-/** 去掉 #开发 / [开发] 前缀取需求正文（无前缀或无正文时返回空串）。 */
+/** 去掉 `#发起` / `#开发` 前缀取需求正文（无正文时返回空串）。 */
 export function extractRequirement(content: string): string {
   return content
-    .replace(/^#(开发|dev|develop)\s*[:：]?\s*/i, "")
+    .replace(/^#(发起|开发|dev|develop)\s*[:：]?\s*/i, "")
     .replace(/^\[(开发|dev|develop)\]\s*[:：]?\s*/i, "")
     .trim();
 }
@@ -58,15 +55,19 @@ export function extractTitle(output: string, requirement: string): string {
   return (m?.[1] ?? requirement).trim().slice(0, 50);
 }
 
-/** 格式化能力清单 JSON 为 QQ 可读文本。 */
+/** 格式化能力清单 JSON 为 QQ 可读文本（含使用示例）。 */
 export function formatCapabilities(json: string): string {
-  let caps: Array<{ name: string; rw: string; description: string; usage: string }>;
+  let caps: Array<{ name: string; rw: string; description: string; usage: string; example?: string }>;
   try {
     caps = JSON.parse(json);
   } catch {
     return "无能力信息";
   }
   if (!Array.isArray(caps) || caps.length === 0) return "无能力信息";
-  const lines = caps.map((c) => `${c.name} [${c.rw}] ${c.description}\n  ${c.usage}`);
+  const lines = caps.map((c) => {
+    const head = `${c.name} [${c.rw}] ${c.description}`;
+    const usage = `  ${c.usage}`;
+    return c.example ? `${head}\n${usage}\n  示例：${c.example}` : `${head}\n${usage}`;
+  });
   return "开发任务 MCP 能力：\n" + lines.join("\n");
 }
