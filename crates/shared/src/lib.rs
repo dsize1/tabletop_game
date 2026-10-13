@@ -2,6 +2,8 @@
 //!
 //! 协议约定见 `docs/conventions/message-protocol.md`。
 
+pub mod docs_config;
+
 use serde::{Deserialize, Serialize};
 
 /// 生成全局唯一事件 ID（uuid v4 字符串）

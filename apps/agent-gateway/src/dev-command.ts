@@ -6,7 +6,7 @@
 //! 用户使用 `#发起`，**不自动建任务**。
 
 export interface DevCommand {
-  cmd: "任务" | "进度" | "确认" | "取消" | "能力" | "发起" | "补充";
+  cmd: "任务" | "进度" | "确认" | "取消" | "能力" | "发起" | "补充" | "文档";
   arg?: string;
 }
 
@@ -15,7 +15,7 @@ export interface DevCommand {
  * - `#开发` 作为 `#发起` 的等价别名（历史命令）。
  */
 export function parseDevCommand(content: string): DevCommand | null {
-  const m = content.trim().match(/^#(任务|进度|确认|取消|能力|发起|补充|开发)(?:[\s　]+([\s\S]+))?$/);
+  const m = content.trim().match(/^#(任务|进度|确认|取消|能力|发起|补充|开发|文档)(?:[\s　]+([\s\S]+))?$/);
   if (!m) return null;
   const cmd = (m[1] === "开发" ? "发起" : m[1]) as DevCommand["cmd"];
   return { cmd, arg: m[2]?.trim() || undefined };

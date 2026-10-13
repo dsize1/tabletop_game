@@ -9,7 +9,7 @@
 
 import "dotenv/config";
 import express from "express";
-import { renderErrorPage, renderMarkdown, renderPage } from "./render.js";
+import { renderDocsTree, renderErrorPage, renderMarkdown, renderPage, type DocsRootTree } from "./render.js";
 
 const SERVER_URL = process.env.SERVER_URL ?? "http://127.0.0.1:3000";
 const PORT = Number(process.env.WEB_PORT ?? process.env.PORT ?? 18080);
@@ -19,6 +19,9 @@ const app = express();
 app.set("trust proxy", true);
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// 开发文档预览：单 token 覆盖全部根（与 docs-mcp / server 约定一致）
+const DOCS_RESOURCE = "docs:all";
 
 interface VerifyResult {
   valid: boolean;
@@ -46,6 +49,26 @@ async function fetchPlan(sessionId: string, token: string): Promise<string | nul
   );
   if (r.status === 404) return null;
   if (!r.ok) throw new Error(`server plan ${r.status}`);
+  return await r.text();
+}
+
+/** 拉取开发文档树 JSON（全部根）。 */
+async function fetchDocsTree(token: string): Promise<DocsRootTree[]> {
+  const r = await fetch(
+    `${SERVER_URL}/resources/docs/tree?token=${encodeURIComponent(token)}`,
+  );
+  if (!r.ok) throw new Error(`server docs tree ${r.status}`);
+  return (await r.json()) as DocsRootTree[];
+}
+
+/** 拉取 .md 文件内容；404 → null。 */
+async function fetchDocsFile(root: string, filePath: string, token: string): Promise<string | null> {
+  const url =
+    `${SERVER_URL}/resources/docs/file?token=${encodeURIComponent(token)}` +
+    `&root=${encodeURIComponent(root)}&path=${encodeURIComponent(filePath)}`;
+  const r = await fetch(url);
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error(`server docs file ${r.status}`);
   return await r.text();
 }
 
@@ -85,6 +108,68 @@ app.get("/dev_task/:sessionId", async (req, res) => {
     res.send(renderPage(`任务 ${sessionId}`, renderMarkdown(md)));
   } catch (err) {
     console.error("[web] 拉取计划文档失败:", err);
+    res.status(503).send(renderErrorPage(503, "服务暂时不可用，请稍后重试"));
+  }
+});
+
+app.get("/dev_docs", async (req, res) => {
+  const token = typeof req.query.token === "string" ? req.query.token : "";
+  if (!token) {
+    res.status(401).send(renderErrorPage(401, "缺少访问 token"));
+    return;
+  }
+  try {
+    const v = await verifyToken(token);
+    if (!v.valid) {
+      res.status(401).send(renderErrorPage(401, "链接已失效或无效，请重新获取"));
+      return;
+    }
+    if (v.resource !== DOCS_RESOURCE) {
+      res.status(403).send(renderErrorPage(403, "无权访问该资源"));
+      return;
+    }
+    const roots = await fetchDocsTree(token);
+    res.send(renderPage("开发文档", `<div class="tree">${renderDocsTree(roots, token)}</div>`));
+  } catch (err) {
+    console.error("[web] 拉取文档树失败:", err);
+    res.status(503).send(renderErrorPage(503, "服务暂时不可用，请稍后重试"));
+  }
+});
+
+app.get("/dev_docs/file", async (req, res) => {
+  const token = typeof req.query.token === "string" ? req.query.token : "";
+  const root = typeof req.query.root === "string" ? req.query.root : "";
+  const filePath = typeof req.query.path === "string" ? req.query.path : "";
+  if (!token) {
+    res.status(401).send(renderErrorPage(401, "缺少访问 token"));
+    return;
+  }
+  if (!root || !filePath) {
+    res.status(400).send(renderErrorPage(400, "缺少文件参数"));
+    return;
+  }
+  try {
+    const v = await verifyToken(token);
+    if (!v.valid) {
+      res.status(401).send(renderErrorPage(401, "链接已失效或无效，请重新获取"));
+      return;
+    }
+    if (v.resource !== DOCS_RESOURCE) {
+      res.status(403).send(renderErrorPage(403, "无权访问该资源"));
+      return;
+    }
+    const content = await fetchDocsFile(root, filePath, token);
+    if (content === null) {
+      res.status(404).send(renderErrorPage(404, "文件不存在或不可预览"));
+      return;
+    }
+    const name = filePath.split("/").pop() ?? filePath;
+    const crumb =
+      `<div class="breadcrumb"><a href="/dev_docs?token=${encodeURIComponent(token)}">← 文档树</a>` +
+      ` · ${root}/${filePath}</div>`;
+    res.send(renderPage(name, crumb + renderMarkdown(content)));
+  } catch (err) {
+    console.error("[web] 拉取文档文件失败:", err);
     res.status(503).send(renderErrorPage(503, "服务暂时不可用，请稍后重试"));
   }
 });

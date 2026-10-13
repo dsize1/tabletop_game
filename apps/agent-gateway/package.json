@@ -7,12 +7,14 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
-    "test": "tsx test-decision.mts && tsx test-systemone.mts && tsx test-dev-command.mts",
+    "test": "tsx test-decision.mts && tsx test-systemone.mts && tsx test-dev-command.mts && tsx test-docs.mts",
     "test:decision": "tsx test-decision.mts",
     "test:systemone": "tsx test-systemone.mts",
     "test:dev-command": "tsx test-dev-command.mts",
     "test:short-link": "tsx test-short-link.mts",
     "test:dev-mcp": "tsx test-dev-mcp.mts",
+    "test:docs": "tsx test-docs.mts",
+    "test:docs-mcp": "tsx test-docs-mcp.mts",
     "test:decision:live": "tsx test-decision-live.mts"
   },
   "dependencies": {

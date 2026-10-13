@@ -17,3 +17,5 @@
 - [ADR-0001：Redis Streams 传输 + SQLite 真相源](./ADR-0001-redis-streams-sqlite.md)
 - [ADR-0002：双模型 + MCP 化游戏引擎 + 事件溯源](./ADR-0002-dual-model-mcp-eventsourcing.md)
 - [ADR-0003：web 公网可达 —— Cloudflare Tunnel 首选 + VPS 内网穿透兜底](./ADR-0003-web-public-access-tunnel-vps.md)
+- [ADR-0004：游戏状态序列化](./ADR-0004-game-state-serialization.md)
+- [ADR-0005：本地开发文档预览（独立 docs-mcp + 授权短链）](./ADR-0005-dev-docs-preview.md)

@@ -11,6 +11,7 @@
 - 会话管理：每群一个共享聊天会话；开发任务用子会话
 - **MCP client**（stdio）：连接 game-engine MCP server
 - **MCP client**（stdio）：连接 dev-task MCP server（`dev-task-client.ts`）
+- **MCP client**（stdio）：连接 docs MCP server（`docs-client.ts`，本地开发文档预览，只读）
 - **子会话管理**（pi-sdk）：`dev-session.ts` 创建/恢复开发任务子会话（`SessionManager.create/open` + `prompt`/`dispose`）
 - **decision-service client**（HTTP）：调用 `/v1/systemone`
 - **auth client**（HTTP）：`auth-client.ts` 调 server `/auth/issue` 签发短期 token，拼计划文档短链
@@ -26,7 +27,8 @@
 
 ### 开发任务（dev）
 
-- **显式命令硬判断**（先于决策模型，`dev-command.ts`）：`#任务 [状态]` / `#进度 <id>` / `#确认 <id>` / `#取消 <id>` / `#能力` / `#发起 <需求>`（`#开发` 别名）/ `#补充 <id> <正文>`。**禁止用正则/硬编码对自由文本判断意图**。
+- **显式命令硬判断**（先于决策模型，`dev-command.ts`）：`#任务 [状态]` / `#进度 <id>` / `#确认 <id>` / `#取消 <id>` / `#能力` / `#发起 <需求>`（`#开发` 别名）/ `#补充 <id> <正文>` / `#文档`。**禁止用正则/硬编码对自由文本判断意图**。
+- `#文档`：白名单 → `docs-mcp.prepare_docs_link` 校验 → 网关签发 `docs:all` 短期 token → 被动回复文档预览短链（`https://{域名}/dev_docs?token=xxx`）。
 - dev 意图：白名单校验 → `create_task` → 受理回执（含 sessionId）→ 异步 `spawn` 子会话规划；**仅显式 `#发起` 才建任务**，决策引擎判为 dev 但无显式命令时只提示，不自动建任务。
 - 子会话（pi-sdk）跑 plan-workflow：生成计划 → `update_task_meta` 回填标题 → `transition awaiting_confirm` → 签发短期 token（server `/auth/issue`）→ 主动推送计划文档短链
 - `#确认` → `confirm_task` → 恢复子会话执行 → `transition verifying` → `#确认` 再验收 → `done`
@@ -67,6 +69,7 @@
 |---|---|---|
 | `SERVER_URL` | `http://127.0.0.1:3000` | server 内部 HTTP（auth 签发） |
 | `PUBLIC_BASE_URL` | 空 | web 公网基址（cloudflared 域名）；留空则计划推送退回长文 |
+| `DOCS_MCP` | `crates/target/debug/docs-mcp(.exe)` | docs-mcp 二进制路径（本地开发文档预览） |
 
 ### 出站与回复
 
@@ -81,3 +84,5 @@
 - 主持人 LLM：远程 API（provider 可配，型号待定）
 - decision-service：本地 HTTP `/v1/systemone`
 - game-engine：MCP stdio
+- dev-task：MCP stdio（状态机 + 白名单）
+- docs-mcp：MCP stdio（本地开发文档预览，只读）

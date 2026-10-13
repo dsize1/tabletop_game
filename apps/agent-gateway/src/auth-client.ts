@@ -10,6 +10,11 @@ export function buildPlanUrl(baseUrl: string, sessionId: string, token: string):
   return `${baseUrl.replace(/\/+$/, "")}/dev_task/${sessionId}?token=${token}`;
 }
 
+/** 拼接开发文档预览短链（token 覆盖全部文档根 docs:all）。 */
+export function buildDocsUrl(baseUrl: string, token: string): string {
+  return `${baseUrl.replace(/\/+$/, "")}/dev_docs?token=${token}`;
+}
+
 export class AuthClient {
   constructor(private baseUrl: string) {}
 

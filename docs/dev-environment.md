@@ -89,6 +89,8 @@ npm run dev:up:qq      # 兼容旧命令，等价于 dev:up
 - `start` 默认会 `cargo build`；加 `--no-build` 跳过以加快启动。已在运行则不重复启动。
 - `stop` 默认停 Redis 容器（数据卷保留）；加 `--keep-redis` 只停应用。进程匹配按「命令行含项目根 / `dev-up.mjs`」+ 本项目下服务 exe，避免误杀同名进程。
 - 与 `npm run dev:up` 等价，只是改为后台运行 + 可一键停止；关机前建议先执行 `/apps-startup stop`。
+- 命令行等价物 `npm run dev:down [--keep-redis]`（`apps/scripts/dev-down.mjs`，按 `data/run/dev-up.pid` 结束整棵进程树）。
+- ⚠️ **不要**直接 `taskkill` 单个子进程（如 `server.exe`）：dev-up 视子进程意外退出为致命，会连带停掉 web/agent/qq/decision。停服一律走 `/apps-startup stop` 或 `npm run dev:down`。
 
 ### 手动逐个启动（排查用）
 
@@ -100,7 +102,7 @@ npm run dev:up:qq      # 兼容旧命令，等价于 dev:up
 | 2 | agent-gateway | `cd apps/agent-gateway && npm run dev` | 消费 internal → 决策 → 聊天/猜拳 → qq.push；spawn game-engine-mcp |
 | 3 | qq-gateway | `cd apps/qq-gateway && npm run dev` | QQ 入站（→qq.raw）+ 出站（qq.push→发群消息） |
 
-> `game-engine-mcp` 由 agent-gateway 通过 MCP stdio 自动 spawn，无需手动启动；但需先 `cargo build` 编译出 `crates/target/debug/game-engine-mcp(.exe)`。
+> `game-engine-mcp` / `dev-task-mcp` / `docs-mcp` 均由 agent-gateway 通过 MCP stdio 自动 spawn，无需手动启动；但需先 `cargo build` 编译出 `crates/target/debug/*-mcp(.exe)`。
 
 ### 环境变量
 
@@ -111,6 +113,9 @@ npm run dev:up:qq      # 兼容旧命令，等价于 dev:up
 | `SERVER_PORT` | `3000` | server HTTP 端口 |
 | `DEV_WHITELIST` | 空 | 开发白名单 member_openid，逗号分隔（agent-gateway） |
 | `GAME_ENGINE_MCP` | `crates/target/debug/game-engine-mcp(.exe)` | game-engine-mcp 二进制路径（agent-gateway） |
+| `DOCS_MCP` | `crates/target/debug/docs-mcp(.exe)` | docs-mcp 二进制路径（agent-gateway） |
+| `DOCS_CONFIG` | `config/dev-docs.json` | 开发文档预览配置（roots + exclude；docs-mcp / server 共读） |
+| `PUBLIC_BASE_URL` | 空 | web 公网基址（短链拼接；agent-gateway） |
 | `QQBOT_APP_ID` / `QQBOT_APP_SECRET` | 空 | QQ 机器人凭证（qq-gateway） |
 
 ### 健康检查

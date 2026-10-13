@@ -117,3 +117,4 @@ web(Express) ──HTTP──> server/auth + 资源查询 ──> SQLite / Redis
 - 新增桌游引擎：`crates/engines/<name>/` 实现 EnginePlugin（映射到 MCP 统一原语），并在 server 注册
 - 统一原语见 `docs/modules/game-engine.md`
 - 开发任务：`crates/dev-task` + `crates/dev-task-mcp`（MCP 原语，状态机 + 白名单校验）；子会话编排/消息桥见 `docs/modules/dev-task.md`
+- 开发文档预览：`crates/docs-mcp`（只读 MCP 原语）+ `config/dev-docs.json` + server `/resources/docs/*` + web `/dev_docs`；见 `docs/modules/docs-mcp.md`

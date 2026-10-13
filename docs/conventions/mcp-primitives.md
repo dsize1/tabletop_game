@@ -1,6 +1,6 @@
 # MCP 统一原语规范
 
-> 状态：生效（2026-10-13）。适用于所有以 MCP（stdio）暴露统一原语的服务：当前 `game-engine-mcp`、`dev-task-mcp`。
+> 状态：生效（2026-10-13）。适用于所有以 MCP（stdio）暴露统一原语的服务：当前 `game-engine-mcp`、`dev-task-mcp`、`docs-mcp`。
 > 目的：统一「原语定义 → 能力描述符 → 能力查询」三层写法，避免各服务各写各的。
 > 关联：`docs/modules/game-engine.md`、`docs/modules/dev-task.md`、`docs/modules/agent-gateway.md`。
 
@@ -67,4 +67,5 @@
 | 服务 | `list_capabilities` | `example` | 备注 |
 |---|---|---|---|
 | `dev-task-mcp` | ✅（11 项：5 读 + 6 写） | ✅ | QQ `#能力`，约 1027 字符 |
+| `docs-mcp` | ✅（2 项：2 读） | ✅ | 只读文档预览（`prepare_docs_link` / `list_capabilities`） |
 | `game-engine-mcp` | ❌ | — | 如需对外自述能力，按本规范补齐 |

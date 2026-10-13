@@ -4,9 +4,11 @@
   "scripts": {
     "check:decision": "node scripts/check-decision-service.mjs",
     "dev:up": "node scripts/dev-up.mjs",
+    "dev:down": "node scripts/dev-down.mjs",
     "dev:up:qq": "node scripts/dev-up.mjs --with-qq",
     "dev:up:noqq": "node scripts/dev-up.mjs --no-qq",
     "test:agent-gateway": "npm --workspace @tabletop-game/agent-gateway run test",
+    "test:web": "npm --workspace @tabletop-game/web run test",
     "verify:push": "node verify-push.mjs"
   },
   "workspaces": [

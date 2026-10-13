@@ -1,0 +1,9 @@
+{
+  "roots": [
+    { "name": "docs", "path": "docs" },
+    { "name": "memory_palace", "path": "memory_palace" },
+    { "name": "prompts", "path": ".pi/prompts" },
+    { "name": "skills", "path": ".pi/skills" }
+  ],
+  "exclude": ["memory_palace/artifacts"]
+}

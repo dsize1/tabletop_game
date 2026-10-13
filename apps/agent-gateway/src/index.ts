@@ -6,8 +6,9 @@ import { SystemOneClient } from "./systemone.js";
 import { chatReply, narrateGame, type ChatHistoryTurn } from "./chat.js";
 import { GameEngineClient } from "./mcp.js";
 import { DevTaskClient } from "./dev-task-client.js";
+import { DocsClient } from "./docs-client.js";
 import { DevSessionManager, devTaskPrompt } from "./dev-session.js";
-import { AuthClient, buildPlanUrl } from "./auth-client.js";
+import { AuthClient, buildDocsUrl, buildPlanUrl } from "./auth-client.js";
 import {
   extractRequirement,
   extractSessionId,
@@ -29,6 +30,9 @@ const SERVER_URL = process.env.SERVER_URL ?? "http://127.0.0.1:3000";
 // web 公网基址（cloudflared 域名）；未配置则退回长文推送
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL ?? "").replace(/\/+$/, "");
 const authClient = new AuthClient(SERVER_URL);
+
+// docs-mcp（本地开发文档预览）；在 main() 中 connect
+const docsClient = new DocsClient();
 
 // dev 白名单（member_openid 逗号分隔）
 const DEV_WHITELIST = new Set(
@@ -164,6 +168,33 @@ async function signPlanLink(sessionId: string, openid: string, resource: string)
 /** 生成计划文档短链（默认资源 dev_task:<sessionId>）。 */
 async function buildPlanLink(sessionId: string, openid: string): Promise<string | null> {
   return signPlanLink(sessionId, openid, `dev_task:${sessionId}`);
+}
+
+/** #文档：docs-mcp 白名单校验 → 网关签发 docs:all token → 返回文档预览短链。 */
+async function handleDocsLink(redis: Redis, event: MessageGroupAt) {
+  if (!isDevAllowed(event.sender_id)) {
+    await pushReply(redis, event, "[文档] 无权限：你不是开发白名单账号");
+    return;
+  }
+  if (!PUBLIC_BASE_URL) {
+    await pushReply(redis, event, "[文档] 未配置 PUBLIC_BASE_URL，无法生成链接");
+    return;
+  }
+  try {
+    const json = await docsClient.prepareDocsLink(event.sender_id);
+    const info = parseJson<{ resource?: string; roots?: string[] }>(json, {});
+    if (!info.resource) {
+      await pushReply(redis, event, json);
+      return;
+    }
+    const issued = await authClient.issueToken(event.sender_id, info.resource);
+    const url = buildDocsUrl(PUBLIC_BASE_URL, issued.token);
+    const roots = (info.roots ?? []).join(" / ");
+    await pushReply(redis, event, `开发文档预览（${roots}）：\n${url}`);
+  } catch (err) {
+    console.error("[agent-gateway] 生成文档链接失败:", err);
+    await pushReply(redis, event, "[文档] 生成链接失败，请稍后重试");
+  }
 }
 
 // ---- 聊天历史（Redis 热缓存，最近 N 条；全量归档由 bot-adapter 写 SQLite group_messages） ----
@@ -394,6 +425,7 @@ async function handleDevUnmatched(redis: Redis, event: MessageGroupAt) {
       "#确认 <sessionId> — 确认计划\n" +
       "#取消 <sessionId> — 取消任务\n" +
       "#补充 <sessionId> <正文> — 给已有任务追加/修改内容\n" +
+      "#文档 — 获取本地开发文档预览链接\n" +
       "#能力 — 查看 MCP 能力清单",
   );
 }
@@ -577,6 +609,10 @@ async function handle(
   // 固定前缀 dev 命令：硬判断，先于决策模型
   const devCmd = parseDevCommand(event.content);
   if (devCmd) {
+    if (devCmd.cmd === "文档") {
+      await handleDocsLink(redis, event);
+      return;
+    }
     await handleDevCommand(redis, devTask, devSessions, event, devCmd);
     return;
   }
@@ -727,6 +763,8 @@ async function main() {
 
   const devTask = new DevTaskClient();
   await devTask.connect();
+
+  await docsClient.connect();
 
   const devSessions = new DevSessionManager();
 

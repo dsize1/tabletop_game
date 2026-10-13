@@ -8,14 +8,22 @@
 - 独立站点（BFF）：服务端调 `server` 鉴权 + 拉取资源，浏览器不直连 server / SQLite
 - 路由：
   - `GET /dev_task/{sessionId}?token=xxx`：dev-task 计划文档页（校验 token → 拉 markdown → GFM 渲染 HTML）
+  - `GET /dev_docs?token=xxx`：开发文档预览树页（校验 token → server 拉树 JSON → `<details>` 折叠；仅 `.md` 可点）
+  - `GET /dev_docs/file?token=xxx&root=<name>&path=<rel>`：文档内容页（仅 `.md`，marked 渲染）
   - `GET /tabletop_game/{gameId}/player/{openid}?token=xxx`：游戏资源页（引擎未实现，占位「暂未开放」）
   - `GET /health`：健康检查（cloudflared 探活）
 - markdown(GFM) 渲染：`src/render.ts`（marked，表格/复选框/代码块）。**后续** game/dev 引擎以 MCP 能力暴露统一的「web 渲染原语」，届时此层迁移为调用统一原语
 
+### 统一「web 渲染原语」评估（2026-10-13）
+
+- docs 预览本期已按「MCP 原语（`docs-mcp`：授权 + 范围校验）→ server 资源 API → web 渲染」分层落地。
+- 结论：**暂不抽象**独立的渲染原语；待 game 资源页接入时，再评估把「资源 → 渲染」下沉为引擎侧统一原语（届时 `render.ts` 迁移为调用该原语）。避免现在为单一消费者过度抽象。
+- 纯函数渲染有单测：`apps/web/test-render.mts`（`npm --workspace @tabletop-game/web run test`）。
+
 ## 约定
 
 - 经 `server` 的 auth HTTP API 校验短期 token（`POST /auth/verify`）
-- 资源数据经 `server` 的资源查询 API 获取（不直连 SQLite）：`GET /resources/dev_task/{sessionId}/plan`
+- 资源数据经 `server` 的资源查询 API 获取（不直连 SQLite / 文件系统）：`GET /resources/dev_task/{sessionId}/plan`、`GET /resources/docs/tree`、`GET /resources/docs/file`
 - token 绑定 openid（member_openid）+ 资源范围；越权 403、无效/过期 401、不存在 404、服务器不可用 503
 - `trust proxy`：经 cloudflared 反代后源站只见回环，真实 IP 取 `CF-Connecting-IP` / `X-Forwarded-For`
 

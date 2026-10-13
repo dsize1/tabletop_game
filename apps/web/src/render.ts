@@ -5,6 +5,22 @@
 
 import { marked } from "marked";
 
+/** 文档树节点（path 为相对所属根的 `/` 分隔路径）。 */
+export interface DocsTreeNode {
+  name: string;
+  type: "dir" | "file";
+  path: string;
+  md?: boolean;
+  children?: DocsTreeNode[];
+}
+
+/** 一个文档根的子树。 */
+export interface DocsRootTree {
+  name: string;
+  path: string;
+  children: DocsTreeNode[];
+}
+
 const ESCAPE_MAP: Record<string, string> = {
   "&": "&amp;",
   "<": "&lt;",
@@ -20,6 +36,44 @@ function escapeHtml(s: string): string {
 /** 渲染 markdown（GFM：表格 / 复选框 / 代码块）。 */
 export function renderMarkdown(md: string): string {
   return marked.parse(md, { gfm: true, breaks: false, async: false }) as string;
+}
+
+function encodeQuery(s: string): string {
+  return encodeURIComponent(s);
+}
+
+function renderNodes(nodes: DocsTreeNode[], rootName: string, token: string): string {
+  const parts: string[] = [];
+  for (const node of nodes) {
+    if (node.type === "dir") {
+      const inner = node.children?.length ? renderNodes(node.children, rootName, token) : "";
+      parts.push(
+        `<details class="dir"><summary>${escapeHtml(node.name)}</summary>` +
+          `<div class="children">${inner}</div></details>`,
+      );
+    } else if (node.md) {
+      const href =
+        `/dev_docs/file?token=${encodeQuery(token)}` +
+        `&root=${encodeQuery(rootName)}&path=${encodeQuery(node.path)}`;
+      parts.push(`<div class="file"><a href="${href}">${escapeHtml(node.name)}</a></div>`);
+    } else {
+      // 仅 .md 可导航预览；其它类型只展示名称
+      parts.push(`<div class="file muted">${escapeHtml(node.name)}</div>`);
+    }
+  }
+  return parts.join("");
+}
+
+/** 文件树 body HTML：原生 <details> 折叠，.md 可点、其它仅显示名称。 */
+export function renderDocsTree(roots: DocsRootTree[], token: string): string {
+  if (!roots.length) return `<p class="error">暂无可用文档根</p>`;
+  return roots
+    .map(
+      (r) =>
+        `<details class="root" open><summary>${escapeHtml(r.name)}</summary>` +
+        `<div class="children">${renderNodes(r.children ?? [], r.name, token)}</div></details>`,
+    )
+    .join("");
 }
 
 /** 包裹为独立 HTML 页（移动端优先）。 */
@@ -73,6 +127,20 @@ export function renderPage(title: string, bodyHtml: string): string {
     border-left: 4px solid #d0d7de; background: #f6f8fa;
   }
   .markdown-body input[type="checkbox"] { margin-right: 6px; }
+  .tree {
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 10px;
+    padding: 12px 18px;
+  }
+  .tree details { margin: 2px 0; }
+  .tree summary { cursor: pointer; padding: 2px 0; font-weight: 600; }
+  .tree .children { margin-left: 18px; }
+  .tree .file { padding: 2px 0; }
+  .tree .file a { color: #0969da; text-decoration: none; }
+  .tree .file a:hover { text-decoration: underline; }
+  .tree .file.muted { color: #8b949e; }
+  .breadcrumb { margin-bottom: 12px; font-size: .9em; color: #57606a; }
+  .breadcrumb a { color: #0969da; text-decoration: none; }
+  .breadcrumb a:hover { text-decoration: underline; }
   .error { text-align: center; padding: 60px 20px; color: #57606a; }
   .error h1 { font-size: 4em; margin: 0; color: #cf222e; }
   @media (prefers-color-scheme: dark) {
@@ -83,6 +151,9 @@ export function renderPage(title: string, bodyHtml: string): string {
     .markdown-body th { background: #21262d; }
     .markdown-body th, .markdown-body td { border-color: #30363d; }
     .markdown-body blockquote { color: #8b949e; border-color: #30363d; background: #161b22; }
+    .tree { background: #161b22; border-color: #30363d; }
+    .tree .file a, .breadcrumb a { color: #58a6ff; }
+    .tree .file.muted, .breadcrumb { color: #8b949e; }
   }
 </style>
 </head>

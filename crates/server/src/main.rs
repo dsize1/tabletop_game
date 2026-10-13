@@ -4,6 +4,7 @@
 //! 提供 Axum HTTP API（健康检查、资源查询），并消费 Redis Streams。
 
 mod auth_routes;
+mod docs_routes;
 mod health;
 mod resources_routes;
 
@@ -20,6 +21,7 @@ struct AppState {
     auth: auth::AuthService,
     storage: Arc<storage::Storage>,
     plan_dir: String,
+    docs: shared::docs_config::DocsConfig,
 }
 
 #[tokio::main]
@@ -70,6 +72,7 @@ async fn main() -> anyhow::Result<()> {
         auth: auth::AuthService::new(&redis_url, auth_ttl).await?,
         storage: storage.clone(),
         plan_dir,
+        docs: shared::docs_config::load(),
     };
     let app = Router::new()
         .route("/health", get(health))
@@ -80,6 +83,8 @@ async fn main() -> anyhow::Result<()> {
             get(resources_routes::dev_task_plan),
         )
         .route("/resources/game/{game_id}", get(resources_routes::game_resource))
+        .route("/resources/docs/tree", get(docs_routes::docs_tree))
+        .route("/resources/docs/file", get(docs_routes::docs_file))
         .with_state(state);
 
     let port: u16 = std::env::var("SERVER_PORT")
