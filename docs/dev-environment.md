@@ -70,9 +70,13 @@ npm run dev:up:noqq    # 不启动 qq-gateway
 npm run dev:up:qq      # 兼容旧命令，等价于 dev:up
 ```
 
+> 以上命令在**仓库根目录**执行（仓库根 `package.json` 仅做转发，真正的 npm workspaces 根在 `apps/`）。
+> 也可等价地用 `cd apps && npm run dev:up`，或直接 `node apps/scripts/dev-up.mjs`。
+
 `apps/scripts/dev-up.mjs` 前台运行，Ctrl+C 停止全部子进程（含 MCP/llama-server 进程树）。
 可选参数：`--no-qq`（不启动 qq-gateway）、`--no-build`（跳过 cargo build）、`--no-decision`（不启动 4.5G 决策模型）。
 
+> **Redis 是硬依赖**：脚本先探活 127.0.0.1:6379，不可达时自动尝试 `docker compose up -d`；若仍不可达则**直接报错退出（exit 1）**，不再启动后续服务（否则 server 会因连接被拒秒退，导致「已启动」后整条链路连带消失）。请先启动 Docker Desktop 并按 §1/§3 确认 Redis。
 > qq-gateway 需已配 `apps/qq-gateway/.env` 的 `QQBOT_APP_ID`/`QQBOT_APP_SECRET`；凭证缺失时脚本会打印告警并跳过，不影响其余服务。
 > 不带 qq-gateway 跑会导致「QQ 群收不到 / 发不出消息」的静默故障——排查时先看启动横幅里的 `已启动：... / qq`。
 
@@ -124,3 +128,5 @@ npm run dev:up:qq      # 兼容旧命令，等价于 dev:up
 curl http://127.0.0.1:3000/health   # server 聚合状态（读缓存，10s 周期自检）
 node apps/scripts/status.mjs        # 探针脚本（等同 /health）
 ```
+
+> 也可在仓库根执行 `npm run status`。Redis 不可达时探针会打印可读提示并以 exit 1 结束（而非 ioredis 未处理异常堆栈）。

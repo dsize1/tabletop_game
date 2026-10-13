@@ -34,6 +34,19 @@
 国内拉镜像前先配镜像加速，详见 `docs/dev-environment.md`。
 
 ```bash
+# 一键启动（推荐）：Redis + cargo build + server + decision + web + agent-gateway + qq-gateway
+npm run dev:up
+
+# 停止（含 Redis 容器；加 --keep-redis 只停应用）
+npm run dev:down
+```
+
+> 以上在**仓库根目录**执行。也可 `cd apps && npm run dev:up`，或直接 `node apps/scripts/dev-up.mjs`。
+> 启动前需先启动 Docker Desktop（Redis 为硬依赖，不可达时脚本会直接报错退出）。
+
+以下是逐个启动的手动步骤（排查用）：
+
+```bash
 # 1. 起 Redis
 docker compose up -d
 docker exec tabletop-game-redis redis-cli ping   # 应返回 PONG

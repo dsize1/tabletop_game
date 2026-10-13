@@ -103,7 +103,15 @@ if (!(await redisUp())) {
   console.log("[redis] 未运行，尝试 docker compose up -d ...");
   oneShot("docker", "docker", ["compose", "up", "-d"], { cwd: repoRoot });
   if (!(await redisUp())) {
-    console.warn("[warn] Redis 仍不可达（127.0.0.1:6379）。请确认 Docker Desktop 已启动，否则 server/agent-gateway 无法工作。");
+    // 快速失败：Redis 是 server/agent-gateway/qq-gateway 的硬依赖。
+    // 若继续启动，server 会立刻因连接被拒而退出，dev-up 视其为致命并连带停掉整条链路，
+    // 表现为「已启动」后随即全部消失的迷惑故障。这里直接给出可操作指引并退出。
+    console.error(
+      "[error] Redis 不可达（127.0.0.1:6379），且 docker compose up -d 未能拉起。\n" +
+        "        请先启动 Docker Desktop，确认 `docker compose up -d` 成功（`docker exec tabletop-game-redis redis-cli ping` 应返回 PONG）后重试。\n" +
+        "        详见 docs/dev-environment.md §1/§3。",
+    );
+    process.exit(1);
   }
 } else {
   console.log("[redis] 已运行");

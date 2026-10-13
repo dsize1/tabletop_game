@@ -1,0 +1,17 @@
+{
+  "name": "tabletop-game",
+  "version": "0.0.0",
+  "private": true,
+  "description": "仓库根脚本入口（真正的 npm workspaces 根在 apps/）。仅做命令转发，勿在此安装依赖。",
+  "scripts": {
+    "dev:up": "node apps/scripts/dev-up.mjs",
+    "dev:up:qq": "node apps/scripts/dev-up.mjs",
+    "dev:up:noqq": "node apps/scripts/dev-up.mjs --no-qq",
+    "dev:down": "node apps/scripts/dev-down.mjs",
+    "status": "node apps/scripts/status.mjs",
+    "check:decision": "node apps/scripts/check-decision-service.mjs",
+    "verify:push": "node apps/verify-push.mjs",
+    "test:agent-gateway": "npm --prefix apps run test:agent-gateway",
+    "test:web": "npm --prefix apps run test:web"
+  }
+}

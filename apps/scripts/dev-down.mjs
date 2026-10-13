@@ -14,6 +14,15 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const pidFile = join(repoRoot, "data", "run", "dev-up.pid");
 const keepRedis = process.argv.includes("--keep-redis");
 
+function isAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function killTree(pid) {
   if (process.platform === "win32") {
     spawnSync("taskkill", ["/F", "/T", "/PID", String(pid)], { stdio: "ignore" });
@@ -33,9 +42,12 @@ function killTree(pid) {
 const stopped = [];
 if (existsSync(pidFile)) {
   const pid = Number(readFileSync(pidFile, "utf8").trim());
-  if (Number.isFinite(pid) && pid > 0) {
+  // 只结束仍存活的 PID：避免旧 PID 文件 + PID 复用误杀无关进程树。
+  if (Number.isFinite(pid) && pid > 0 && isAlive(pid)) {
     killTree(pid);
     stopped.push(`dev-up(${pid})`);
+  } else {
+    console.log(`[dev-down] PID 文件中的 dev-up(${pid}) 已不在运行，仅清理 PID 文件`);
   }
   try {
     unlinkSync(pidFile);
