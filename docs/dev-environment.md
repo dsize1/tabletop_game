@@ -76,6 +76,20 @@ npm run dev:up:qq      # 兼容旧命令，等价于 dev:up
 > qq-gateway 需已配 `apps/qq-gateway/.env` 的 `QQBOT_APP_ID`/`QQBOT_APP_SECRET`；凭证缺失时脚本会打印告警并跳过，不影响其余服务。
 > 不带 qq-gateway 跑会导致「QQ 群收不到 / 发不出消息」的静默故障——排查时先看启动横幅里的 `已启动：... / qq`。
 
+### Pi TUI 一键起停（`/apps-startup`）
+
+在 Pi TUI 中直接起停整条服务链（扩展：`.pi/extensions/apps-startup/`）：
+
+| 命令 | 作用 |
+|---|---|
+| `/apps-startup start [--no-build] [--no-qq]` | 后台（detached）启动 `dev-up`，PID 写入 `data/run/dev-up.pid`，日志 `logs/dev-up.log` |
+| `/apps-startup stop [--keep-redis]` | 结束 dev-up 进程树 + 独立 qq-gateway + 残留服务；默认连 Redis 容器一起停 |
+| `/apps-startup status` | 列出 dev-up PID 文件与相关服务进程 |
+
+- `start` 默认会 `cargo build`；加 `--no-build` 跳过以加快启动。已在运行则不重复启动。
+- `stop` 默认停 Redis 容器（数据卷保留）；加 `--keep-redis` 只停应用。进程匹配按「命令行含项目根 / `dev-up.mjs`」+ 本项目下服务 exe，避免误杀同名进程。
+- 与 `npm run dev:up` 等价，只是改为后台运行 + 可一键停止；关机前建议先执行 `/apps-startup stop`。
+
 ### 手动逐个启动（排查用）
 
 依赖：Redis 已起（§3）；Rust 二进制已编译（`cd crates && cargo build`）。
