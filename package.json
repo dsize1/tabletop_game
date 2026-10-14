@@ -2,6 +2,7 @@
   "name": "tabletop-game",
   "version": "0.0.0",
   "private": true,
+  "license": "MIT",
   "description": "仓库根脚本入口（真正的 npm workspaces 根在 apps/）。仅做命令转发，勿在此安装依赖。",
   "scripts": {
     "dev:up": "node apps/scripts/dev-up.mjs",

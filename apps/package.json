@@ -1,6 +1,7 @@
 {
   "name": "tabletop-game-apps",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "check:decision": "node scripts/check-decision-service.mjs",
     "dev:up": "node scripts/dev-up.mjs",

@@ -75,3 +75,15 @@ node apps/scripts/status.mjs
 ## 开发约定
 
 见 `AGENTS.md`、`docs/`、`.pi/prompts/`、`.pi/skills/`。
+
+## 许可证
+
+本项目采用 **MIT License**，全文见 [`LICENSE`](LICENSE)。
+
+- 你可自由使用、修改、分发、商用，只需保留版权与许可声明。
+- 提交贡献前请阅读 [`CONTRIBUTING.md`](CONTRIBUTING.md)（含贡献再许可条款）。
+
+> **例外**：本地运行时依赖的决策模型 `StartLux-Decision-v1-4B-Q8_0-GGUF/` 为
+> **CC BY-NC 4.0（非商用）**，未纳入本仓库版本控制（见 `.gitignore`）。若将本项目用于
+> 商业用途，请自行替换为可商用模型或另行取得模型授权；本项目自身的 MIT 许可不改变该模型的许可限制。
+

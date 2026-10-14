@@ -2,6 +2,7 @@
 name = "game-engine-mcp"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [[bin]]
 name = "game-engine-mcp"
