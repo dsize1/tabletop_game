@@ -43,6 +43,7 @@
 - 判断：调 SystemOne `noul`（是/否）题型「这条消息里的链接，需要抓取网页内容才能回答用户吗？」→ 只返回 P(true)，阈值化（默认 `>=0.5`）。
 - 抓取：命中后抓一次链接正文（仅 https；防 SSRF 字面量：拒绝 localhost/内网 IP/带凭据；手动跟随重定向逐跳校验；限时/限长）→ 抽纯文本 → 作为 `[链接内容摘录 …]` 追加进本轮用户消息上下文，再走 `chatReply`。
 - 降级：SystemOne 不可用/超时、URL 不安全、非 2xx、非文本、抓取失败 → 一律静默按普通聊天处理（历史里存的仍是原始消息，不存摘录）。
+- 日志：判断命中/跳过（`[agent-gateway] 链接抓取判断：抓取|跳过（P=…）`）与抓取成功（`[agent-gateway] 链接正文已注入（N 字符）`）均打印，便于核验。
 - 新增文件：`src/link-fetch.ts`（`isSafePublicHttpsUrl` / `htmlToText` / `fetchLinkText`）；`decision.ts` 新增 `extractHttpsLinks` / `decideLinkFetch`。
 
 | 变量 | 默认 | 说明 |
@@ -60,6 +61,7 @@
 
 - `src/systemone.ts`：`SystemOneClient`，POST `${SYSTEMONE_URL}/v1/systemone`（默认 `http://127.0.0.1:8090`），超时 `SYSTEMONE_TIMEOUT_MS`（默认 3000ms）；`fetchImpl` 可注入便于单测
 - `src/decision.ts`：`decideIntent(content, client, { threshold })` **异步**；`intent ∈ {chat, start_game, game_action, dev}`，criteria 中文（实测零样本可用）
+- **分类前屏蔽 URL**：送模型的 `state.message` 把 `http(s)://…` 换成 `[链接]`（`maskUrls`）——链接文本本身是强 dev 信号（如 `/dev_docs`），中英文均会被误判为 dev；`#前缀` 兜底与链接抓取判断仍用原文
 - 状态：目前 `state = { message }`；架构 §6.1 的 `get_active_game`/`get_legal_actions` 与动作选择**尚未接入**（待拉斯维加斯引擎）
 
 ### 置信度兜底

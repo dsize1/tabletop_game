@@ -49,6 +49,14 @@ export function extractHand(content: string): string | null {
   return m ? m[0] : null;
 }
 
+/**
+ * 意图分类前屏蔽 URL：链接文本（如 `/dev_docs`）会被决策模型当作强 dev 信号，导致误判。
+ * 仅用于送模型的 state；`#前缀` 兜底与链接抓取判断仍用原文。
+ */
+export function maskUrls(content: string): string {
+  return content.replace(/https?:\/\/[^\s<>"'）)】\]，。；：！？、（）【】《》]+/gi, "[链接]");
+}
+
 export interface DecideOptions {
   /** 置信度阈值，低于则走前缀/默认兜底。 */
   threshold?: number;
@@ -127,7 +135,7 @@ export async function decideIntent(
   let answer: { choice: Intent; confidence: number } | null = null;
   try {
     const res = await client.decide(
-      { message: content },
+      { message: maskUrls(content) },
       {
         intent: {
           type: "choice",

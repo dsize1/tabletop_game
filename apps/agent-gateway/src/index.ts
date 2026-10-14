@@ -238,12 +238,16 @@ async function augmentWithLink(content: string): Promise<string> {
   if (links.length === 0) return content;
   try {
     const d = await decideLinkFetch(content, links, systemone, { threshold: LINK_FETCH_THRESHOLD });
+    console.log(
+      `[agent-gateway] 链接抓取判断：${d.fetch ? "抓取" : "跳过"}（P=${d.probability.toFixed(2)}）${links[0]}`,
+    );
     if (!d.fetch) return content;
     const text = await fetchLinkText(links[0], {
       timeoutMs: LINK_FETCH_TIMEOUT_MS,
       maxChars: LINK_FETCH_MAX_CHARS,
     });
     if (!text) return content;
+    console.log(`[agent-gateway] 链接正文已注入（${text.length} 字符）${links[0]}`);
     return `${content}\n\n[链接内容摘录 ${links[0]}]\n${text}`;
   } catch (err) {
     console.error("[agent-gateway] 链接抓取判断失败，按普通聊天处理:", err);

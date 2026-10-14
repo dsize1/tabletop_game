@@ -1,7 +1,8 @@
 // 决策层单测：SystemOne 客户端（注入桩，不依赖网络）+ 前缀解析 + 兜底 + 手势提取。
 // 运行：npx tsx test-decision.mts
 import assert from "node:assert";
-import { decideIntent, parsePrefix, extractHand, INTENT_CRITERIA } from "./src/decision.js";
+import { decideIntent, parsePrefix, extractHand, maskUrls, INTENT_CRITERIA } from "./src/decision.js";
+import { SystemOneClient } from "./src/systemone.js";
 import { stubClient, failingClient, hangingClient } from "./test-helpers.mts";
 
 // —— 前缀解析 ——
@@ -69,5 +70,25 @@ assert.equal(extractHand("随便说点啥"), null);
 
 // —— 意图选项齐全 ——
 assert.deepEqual(Object.keys(INTENT_CRITERIA).sort(), ["chat", "dev", "game_action", "start_game"]);
+
+// —— 意图分类前屏蔽 URL（避免 /dev_docs 等链接文本污染意图）——
+assert.equal(maskUrls("介绍下 https://x.com/dev_docs 该链接"), "介绍下 [链接] 该链接");
+assert.equal(maskUrls("看这个 http://a.cn/x。"), "看这个 [链接]。");
+assert.equal(maskUrls("无链接"), "无链接");
+{
+  let sent = "";
+  const fetchImpl = (async (_url: string, init?: RequestInit) => {
+    sent = JSON.parse(String(init?.body)).state.message;
+    return new Response(
+      JSON.stringify({ answers: { intent: { type: "choice", choice: "chat", confidence: 0.9 } } }),
+      { status: 200 },
+    );
+  }) as unknown as typeof fetch;
+  const c = new SystemOneClient({ url: "http://stub", timeoutMs: 1000, fetchImpl });
+  const d = await decideIntent("介绍下 https://x.com/dev_docs 内容", c);
+  assert.equal(d.intent, "chat");
+  assert.ok(!sent.includes("dev_docs"), `送模型的消息不应含 URL：${sent}`);
+  assert.ok(sent.includes("[链接]"), `送模型的消息应含占位符：${sent}`);
+}
 
 console.log("✅ decision 单测全部通过");
