@@ -16,6 +16,16 @@ export function stubClient(choice: string, confidence: number): SystemOneClient 
   return new SystemOneClient({ url: "http://stub", timeoutMs: 1000, fetchImpl });
 }
 
+/** 返回固定 P(true) 的 noul（是/否）桩客户端。 */
+export function noulClient(probability: number): SystemOneClient {
+  const fetchImpl = (async () =>
+    new Response(
+      JSON.stringify({ answers: { need_fetch: { type: "noul", noul: probability } } }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    )) as unknown as typeof fetch;
+  return new SystemOneClient({ url: "http://stub", timeoutMs: 1000, fetchImpl });
+}
+
 /** 请求即失败的桩客户端（模拟连不上）。 */
 export function failingClient(): SystemOneClient {
   const fetchImpl = (async () => {

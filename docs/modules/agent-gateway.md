@@ -30,11 +30,27 @@
 - **显式命令硬判断**（先于决策模型，`dev-command.ts`）：`#任务 [状态]` / `#进度 <id>` / `#确认 <id>` / `#取消 <id>` / `#能力` / `#发起 <需求>`（`#开发` 别名）/ `#补充 <id> <正文>` / `#文档`。**禁止用正则/硬编码对自由文本判断意图**。
 - `#文档`：白名单 → `docs-mcp.prepare_docs_link` 校验 → 网关签发 `docs:all` 短期 token → 被动回复文档预览短链（`https://{域名}/dev_docs?token=xxx`）。
 - dev 意图：白名单校验 → `create_task` → 受理回执（含 sessionId）→ 异步 `spawn` 子会话规划；**仅显式 `#发起` 才建任务**，决策引擎判为 dev 但无显式命令时只提示，不自动建任务。
-- 子会话（pi-sdk）跑 plan-workflow：生成计划 → `update_task_meta` 回填标题 → `transition awaiting_confirm` → 签发短期 token（server `/auth/issue`）→ 主动推送计划文档短链
+- 子会话（pi-sdk）跑 plan-workflow：生成计划 → `update_task_meta` 回填标题 → `transition awaiting_confirm` → 签发短期 token（server `/auth/issue`）→ 主动推送计划文档短链；子会话挂 pi MCP 扩展（`.pi/mcp.json`），可用 playwright 等 MCP 工具联网
+- **LLM 思考模式**：chat / 游戏叙述默认开启（`LLM_THINKING_ENABLED=1`，不传 `thinking`），`=0` 显式关闭；源起「3s 被动超时」误判，见 ADR-0002 修订
 - `#确认` → `confirm_task` → 恢复子会话执行 → `transition verifying` → `#确认` 再验收 → `done`
 - `#进度`：经 `prepare_task_link` 校验归属后**重签新短链**（原 token 过期可自助重取）
 - `#补充 <id> <正文>`：经 `append_instruction` 校验后 `runDevResume` 追加到已有子会话（不落 chat 兜底）
 - 聊天多轮：每群 Redis 热缓存最近 20 条（`CHAT_HISTORY_LIMIT` 可配）注入 `chatReply`
+
+### 聊天联网（Plan B 链接抓取）
+
+- 触发：聊天消息包含 `https://` 链接（**必须有协议头**，`http://` 不算）时才走判断；无链接不做任何额外调用。
+- 判断：调 SystemOne `noul`（是/否）题型「这条消息里的链接，需要抓取网页内容才能回答用户吗？」→ 只返回 P(true)，阈值化（默认 `>=0.5`）。
+- 抓取：命中后抓一次链接正文（仅 https；防 SSRF 字面量：拒绝 localhost/内网 IP/带凭据；手动跟随重定向逐跳校验；限时/限长）→ 抽纯文本 → 作为 `[链接内容摘录 …]` 追加进本轮用户消息上下文，再走 `chatReply`。
+- 降级：SystemOne 不可用/超时、URL 不安全、非 2xx、非文本、抓取失败 → 一律静默按普通聊天处理（历史里存的仍是原始消息，不存摘录）。
+- 新增文件：`src/link-fetch.ts`（`isSafePublicHttpsUrl` / `htmlToText` / `fetchLinkText`）；`decision.ts` 新增 `extractHttpsLinks` / `decideLinkFetch`。
+
+| 变量 | 默认 | 说明 |
+|---|---|---|
+| `CHAT_LINK_FETCH_ENABLED` | `1` | 聊天链接抓取总开关（`0` 关闭） |
+| `CHAT_LINK_FETCH_THRESHOLD` | `0.5` | `noul` P(true) 阈值（≥ 则抓取） |
+| `CHAT_LINK_TIMEOUT_MS` | `10000` | 抓取超时（覆盖重定向链） |
+| `CHAT_LINK_MAX_CHARS` | `2000` | 抽取文本最大字符数 |
 
 ### 编排流程
 

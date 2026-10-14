@@ -6,6 +6,9 @@ const LLM_API_KEY = process.env.LLM_API_KEY ?? "";
 const LLM_MODEL = process.env.LLM_MODEL ?? "deepseek-flash";
 const LLM_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS ?? 30000);
 const LLM_MAX_TOKENS = Number(process.env.LLM_MAX_TOKENS ?? 2000);
+// 思考模式默认开启：被动回复窗口实为 5 分钟（见 docs/conventions/external-constraints.md），
+// 之前的「3s 超时」系误判，不再为省延迟默认关闭。LLM_THINKING_ENABLED=0 可显式关闭。
+const LLM_THINKING_ENABLED = (process.env.LLM_THINKING_ENABLED ?? "1") === "1";
 
 /** 回复最大字符数（QQ 消息有长度限制，超限会报 40054007）。 */
 const MAX_REPLY_CHARS = 1500;
@@ -38,8 +41,8 @@ async function callLlm(
         model: LLM_MODEL,
         messages,
         max_tokens: maxTokens,
-        // 关闭思考模式：直接输出 content，不产生 reasoning_content（快、省 token）
-        thinking: { type: "disabled" },
+        // 开启时不传 thinking（由模型默认行为决定）；关闭时显式 disabled（快、省 token）
+        ...(LLM_THINKING_ENABLED ? {} : { thinking: { type: "disabled" } }),
         stream: false,
       }),
       signal: controller.signal,

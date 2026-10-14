@@ -21,6 +21,7 @@
 | 你要做什么 | 先读 |
 |---|---|
 | 了解整体架构 | `docs/architecture.md` |
+| LLM 思考开关 / 联网形式（chat / game / dev-task） | `docs/architecture.md` §3.1 |
 | 内部消息事件协议 | `docs/conventions/message-protocol.md` |
 | 持久化 / 消息总线约定 | `docs/conventions/persistence.md` |
 | 外部约束事实登记表（频控/窗口/延迟） | `docs/conventions/external-constraints.md` |

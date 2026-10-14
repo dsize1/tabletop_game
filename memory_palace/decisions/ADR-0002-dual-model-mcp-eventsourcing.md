@@ -4,6 +4,8 @@
 - 日期：2026-10-11
 
 > 修订（2026-10-11）：原决策 10 与「延迟可控」理由以「被动回复窗口 3s 超时」为依据，实为误解（群聊被动窗口 5 分钟 / 5 次，见 `docs/modules/qq-gateway.md`）。已修订为「模板摘要默认 + 可配置 LLM 情景叙述」。
+>
+> 修订（2026-10-14）：同一误判曾导致 chat/game 叙述的 LLM 思考被默认关闭。现恢复默认开启（`LLM_THINKING_ENABLED=1`，chat.ts 不传 `thinking`）；开发子会话保持 thinking 开启（`thinkingLevel: medium`，对 `deepseek-v4-pro` 实际夹到 `high`）。
 
 ## 背景
 
@@ -40,5 +42,6 @@
   - StartLux-Decision 权重 **CC BY-NC 4.0 非商用**，商用需单独授权；
   - StartLux-Decision 为英文微调，中文消息是零样本跨语言，需在验证阶段实测；若不理想，启用「本地 MT 小模型翻译 + 低置信才翻译」两级兜底（**暂不实现**，见 `docs/modules/decision-service.md`）；
   - 被动回复窗口（群聊 5 分钟 / 5 次）已按官方口径确认；聊天/游戏叙述均可在窗口内完成，仅开发结果需异步主动推送。
+  - 思考模式默认开启（此前因「3s 超时」误判被关闭，已于 2026-10-14 恢复）；叙述延迟仍受 `LLM_TIMEOUT_MS`（默认 30s）兜底。
 
 - 详见：`docs/architecture.md`、`docs/modules/agent-gateway.md`、`docs/modules/decision-service.md`、`docs/modules/game-engine.md`、`docs/conventions/persistence.md`

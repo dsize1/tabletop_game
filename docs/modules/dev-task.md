@@ -76,4 +76,5 @@ queued → planning → awaiting_confirm → running → verifying → done
 - **token 重签**：`#进度/#查询` 命中非终态任务时调用 `prepare_task_link` 校验归属，再由网关签发新短链，解决原 token（TTL 8h）过期后无自助重取途径。
 - 被动回复：状态同步 + 引导人工推进（不展示计划内容）；主动推送：计划文档短链（标题 + `https://{域名}/dev_task/{sessionId}?token=xxx`，短期 token 鉴权）
 - 术语统一：`qq_id`（MCP 参数 / `dev_tasks` 列）存的是 `member_openid`（玩家身份 = openid，非 QQ 号），文档统一以「openid」指代
-- 子会话模型：复用主持人 LLM 凭据（DeepSeek），thinking 开启（`thinkingLevel: medium`）
+- 子会话模型：复用主持人 LLM 凭据（DeepSeek），thinking 开启（`thinkingLevel: medium`；`deepseek-v4-pro` 的 `thinkingLevelMap` 中 `medium=null`，会被 pi 夹到 `high`，实际以 high 运行）
+- 子会话工具：`dev-session.ts` 挂载 pi MCP 扩展（读 `.pi/mcp.json`），`bindExtensions` 后可用 **playwright**（联网抓取/浏览器自动化）；`codemode`/`tool_search` 已激活（MCP 工具默认 codemode 暴露）

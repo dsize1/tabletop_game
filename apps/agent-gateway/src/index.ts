@@ -1,9 +1,10 @@
 import "dotenv/config";
 import { Redis } from "ioredis";
 import { randomUUID } from "node:crypto";
-import { decideIntent, extractHand } from "./decision.js";
+import { decideIntent, decideLinkFetch, extractHand, extractHttpsLinks } from "./decision.js";
 import { SystemOneClient } from "./systemone.js";
 import { chatReply, narrateGame, type ChatHistoryTurn } from "./chat.js";
+import { fetchLinkText } from "./link-fetch.js";
 import { GameEngineClient } from "./mcp.js";
 import { DevTaskClient } from "./dev-task-client.js";
 import { DocsClient } from "./docs-client.js";
@@ -129,6 +130,12 @@ function isDevAllowed(senderId: string): boolean {
 // 游戏路径 LLM 情景叙述开关：模板摘要必达；开启时追加一条 msg_seq=2 叙述（失败静默降级）
 const NARRATION_ENABLED = (process.env.GAME_NARRATION_ENABLED ?? "") === "1";
 
+// 聊天链接抓取（Plan B）：消息含 https:// 时先用 SystemOne（noul 是/否）判断是否抓取该链接
+const LINK_FETCH_ENABLED = (process.env.CHAT_LINK_FETCH_ENABLED ?? "1") === "1";
+const LINK_FETCH_THRESHOLD = Number(process.env.CHAT_LINK_FETCH_THRESHOLD ?? 0.5);
+const LINK_FETCH_TIMEOUT_MS = Number(process.env.CHAT_LINK_TIMEOUT_MS ?? 10000);
+const LINK_FETCH_MAX_CHARS = Number(process.env.CHAT_LINK_MAX_CHARS ?? 2000);
+
 /** 被动回复（带 reply_msg_id，5 分钟窗口内）。 */
 async function pushReply(redis: Redis, event: MessageGroupAt, reply: string, msgSeq = 1) {
   const pushEvent = {
@@ -224,10 +231,31 @@ async function appendChatHistory(
   await redis.ltrim(chatHistoryKey(groupId), -CHAT_HISTORY_LIMIT, -1);
 }
 
-/** 聊天流程：读历史 → LLM 回复 → 追加历史。 */
+/** 消息含 https:// 链接时：SystemOne 判断是否需要抓取 → 抓取正文追加到上下文（任何失败静默降级）。 */
+async function augmentWithLink(content: string): Promise<string> {
+  if (!LINK_FETCH_ENABLED) return content;
+  const links = extractHttpsLinks(content);
+  if (links.length === 0) return content;
+  try {
+    const d = await decideLinkFetch(content, links, systemone, { threshold: LINK_FETCH_THRESHOLD });
+    if (!d.fetch) return content;
+    const text = await fetchLinkText(links[0], {
+      timeoutMs: LINK_FETCH_TIMEOUT_MS,
+      maxChars: LINK_FETCH_MAX_CHARS,
+    });
+    if (!text) return content;
+    return `${content}\n\n[链接内容摘录 ${links[0]}]\n${text}`;
+  } catch (err) {
+    console.error("[agent-gateway] 链接抓取判断失败，按普通聊天处理:", err);
+    return content;
+  }
+}
+
+/** 聊天流程：读历史 →（如需）抓链接正文注入 → LLM 回复 → 追历史。 */
 async function chatFlow(redis: Redis, event: MessageGroupAt): Promise<string> {
   const history = await getChatHistory(redis, event.group_id);
-  const reply = await chatReply(event.content, history);
+  const userContent = await augmentWithLink(event.content);
+  const reply = await chatReply(userContent, history);
   await appendChatHistory(redis, event.group_id, "user", event.content);
   await appendChatHistory(redis, event.group_id, "assistant", reply);
   return reply;

@@ -5,10 +5,14 @@
 
 import {
   createAgentSession,
+  createCodemodeExtension,
+  createMcpExtension,
+  createToolSearchExtension,
   DefaultResourceLoader,
   getAgentDir,
   ModelRuntime,
   SessionManager,
+  SettingsManager,
   type AgentSession,
 } from "@earendil-works/pi-coding-agent";
 import path from "node:path";
@@ -26,6 +30,7 @@ interface Services {
   modelRuntime: ModelRuntime;
   model: any;
   resourceLoader: DefaultResourceLoader;
+  settingsManager: SettingsManager;
 }
 
 export interface SubSession {
@@ -61,9 +66,18 @@ export class DevSessionManager {
     const resourceLoader = new DefaultResourceLoader({
       cwd: PROJECT_ROOT,
       agentDir: getAgentDir(),
+      // SDK 不加载内置扩展：手动挂 MCP（读 .pi/mcp.json，本项目已信任）+ codemode/tool_search
+      extensionFactories: [
+        createMcpExtension(),
+        createCodemodeExtension({ mode: "on" }),
+        createToolSearchExtension(),
+      ],
     });
     await resourceLoader.reload();
-    this.services = { modelRuntime, model, resourceLoader };
+    // MCP 工具默认 codemode 暴露，需显式激活 codemode/tool_search（+ 表示在默认工具上追加）
+    const settingsManager = SettingsManager.create(PROJECT_ROOT);
+    settingsManager.applyOverrides({ defaultTools: ["+codemode", "+tool_search"] });
+    this.services = { modelRuntime, model, resourceLoader, settingsManager };
     return this.services;
   }
 
@@ -77,8 +91,11 @@ export class DevSessionManager {
       model: svc.model,
       thinkingLevel: "medium",
       resourceLoader: svc.resourceLoader,
+      settingsManager: svc.settingsManager,
       sessionManager: SessionManager.create(PROJECT_ROOT, SESSION_DIR, { id: sessionId }),
     });
+    // 触发 session_start，MCP 服务器才开始连接（playwright 等）
+    await session.bindExtensions({});
     return { session, sessionId };
   }
 
@@ -95,8 +112,10 @@ export class DevSessionManager {
       model: svc.model,
       thinkingLevel: "medium",
       resourceLoader: svc.resourceLoader,
+      settingsManager: svc.settingsManager,
       sessionManager: SessionManager.open(info.path),
     });
+    await session.bindExtensions({});
     return { session, sessionId };
   }
 
