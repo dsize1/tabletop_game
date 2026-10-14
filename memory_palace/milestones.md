@@ -2,6 +2,22 @@
 
 > 记录项目关键节点与验证结果，按时间倒序。重大技术决策见 `decisions/`。
 
+## M10：chat 联网（Plan B 链接抓取）+ LLM 思考默认开启 + dev 子会话接入 MCP ✅
+
+- **日期**：2026-10-15
+- **完成**：
+  - `apps/agent-gateway/src/chat.ts`：chat / game 叙述 thinking **默认开启**（`LLM_THINKING_ENABLED=1`，`callLlm` 不传 `thinking`；`=0` 显式关闭）——纠正如期（「被动回复 3s 超时」误判，实为 5 分钟）
+  - chat 联网（Plan B）：仅消息含 `https://` 时触发 → SystemOne `noul`（是/否）判断是否抓取该链接 → 命中则 `fetch` 抽正文注入（`src/link-fetch.ts`：仅 https / 防 SSRF 字面量 / 手动跟随重定向逐跳校验 / 超时限长）；失败静默降级；判断命中与抓取成功均有日志
+  - **意图分类前屏蔽 URL**：`decideIntent` 送模型的消息把 `http(s)://…` → `[链接]`（`maskUrls`），修掉链接文本（如 `/dev_docs`）把意图带偏为 dev、绕过 chat 抓取的问题
+  - dev 子会话（`dev-session.ts`）接入 pi MCP：`createMcpExtension` + `codemode`/`tool_search` + `bindExtensions`，可用 playwright（`mcp__playwright__browser_*`）与 `bash`
+  - 文档：`docs/architecture.md` §3.1 LLM 能力矩阵（思考/联网）+ agent-gateway/dev-task/decision-service 模块文档 + ADR-0002 修订
+- **验证**：`tsc --noEmit` 通过；`npm test` 通过（新增 `test-link-fetch`，`test-decision` 补 `maskUrls` 断言）；真实决策服务实测：原误判消息 `chat 0.821`、英文版 `chat 0.824`、真 dev 带链接 `dev 0.951`；真机群消息端到端跑通（`intent=chat` → 链接抓取判断命中 → 正文注入 → 回复）
+- **关键结论**：
+  - 决策模型对 **URL 文本**高度敏感：含 `dev_docs` 的链接中英文均被判 dev（英文 0.90/0.97，比中文更极端）——**与语言无关，翻译无用**；屏蔽 URL 即解决
+  - chat 抓取用**朴素 `fetch`**（轻量、单跳）；playwright 留给 dev 子会话（重、按需）
+- **未做（后续）**：目标站点 JS 渲染/反爬时 `fetch` 抓不到 → 再评估 chat 改走 playwright；观察 chat thinking 的延迟/成本（必要时 `LLM_THINKING_ENABLED=0` 回退）
+- **提交**：`579664c`、`1073132`
+
 ## M9：web 页呈现（代码链路 + cloudflared 公网可达打通）✅
 
 - **日期**：2026-10-12
