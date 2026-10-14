@@ -14,7 +14,9 @@
 
 ## 贡献许可确认（必填）
 
-提交本 PR 即表示你已阅读并同意 [`CONTRIBUTING.md`](../CONTRIBUTING.md) 中的「贡献许可」条款：
+> 本 PR 会由 CI 校验下方**前两项**已勾选（见 [`.github/workflows/contribution-license.yml`](.github/workflows/contribution-license.yml)）；未勾选将阻断合并。
+
+提交本 PR 即表示你已阅读并同意 [`CONTRIBUTING.md`](CONTRIBUTING.md) 中的「贡献许可」条款：
 
 - [ ] 我保留本次贡献的著作权，并授予本项目维护者及其继承者、受让人一项全球范围、非独占、永久、不可撤销、免版税的著作权许可，允许其复制、修改、分发、公开传播该贡献，并可按本项目当前许可**或任何其他许可（包括专有/商业许可）**向第三方再许可。
 - [ ] 我确认本次贡献系我原创，或我已取得提交所需的全部权利与授权。

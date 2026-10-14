@@ -16,4 +16,5 @@
 > 说明：上述第 2 条中的「或任何其他许可（包括专有/商业许可）」是维护者日后调整项目许可
 > （含改为专有/商业许可）所必需的授权。若你不同意该条款，请在提交前与维护者联系。
 >
-> 提交 PR 时，请在 PR 模板中勾选确认本条款（见 `.github/pull_request_template.md`）。
+> 提交 PR 时，请在 PR 模板中勾选确认本条款（见 `.github/pull_request_template.md`）；
+> CI 会校验前两项已勾选，未勾选将阻断合并（见 `.github/workflows/contribution-license.yml`）。

@@ -1,0 +1,48 @@
+name: contribution-license
+
+# 校验 PR 描述中的「贡献许可确认」是否已勾选。
+# 目的：把 CONTRIBUTING.md 的默示同意，升级为可阻断合并的显式确认。
+# 触发：PR 创建 / 编辑（勾选后自动重跑）/ 重开 / 推送新提交。
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  check-acceptance:
+    name: 贡献许可确认
+    runs-on: ubuntu-latest
+    # 机器人 PR（如 dependabot）不适用人工确认，跳过
+    if: github.actor != 'dependabot[bot]' && github.actor != 'renovate[bot]'
+    steps:
+      - name: 校验 PR 描述中的贡献许可勾选
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -uo pipefail
+
+          # 必须已勾选的确认项（正则；兼容 - / * 与 x / X）
+          REQUIRED=(
+            "[-*] \[[xX]\] 我保留本次贡献的著作权"
+            "[-*] \[[xX]\] 我确认本次贡献系我原创"
+          )
+
+          missing=0
+          for pattern in "${REQUIRED[@]}"; do
+            if printf '%s\n' "${PR_BODY:-(空)}" | grep -qE "$pattern"; then
+              echo "OK: $pattern"
+            else
+              echo "::error::PR 描述缺少已勾选的贡献许可确认项（匹配：$pattern）。请阅读 CONTRIBUTING.md，并在 PR 模板中勾选对应条目。"
+              missing=1
+            fi
+          done
+
+          if [ "$missing" -ne 0 ]; then
+            echo "::error::贡献许可确认未通过：请在 PR 描述中勾选确认项后，编辑描述以重新触发本检查。"
+            exit 1
+          fi
+
+          echo "贡献许可确认通过。"
