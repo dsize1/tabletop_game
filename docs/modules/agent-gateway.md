@@ -64,12 +64,38 @@
 - **分类前屏蔽 URL**：送模型的 `state.message` 把 `http(s)://…` 换成 `[链接]`（`maskUrls`）——链接文本本身是强 dev 信号（如 `/dev_docs`），中英文均会被误判为 dev；`#前缀` 兜底与链接抓取判断仍用原文
 - 状态：目前 `state = { message }`；架构 §6.1 的 `get_active_game`/`get_legal_actions` 与动作选择**尚未接入**（待拉斯维加斯引擎）
 
-### 置信度兜底
+### 置信度兜底（三档 + 意图确认）
 
-- `conf(intent)` 决定走哪条支路；`conf(action)` 决定是否自动执行
-- **双通道**：决策模型为主 → 低于 `DECISION_INTENT_THRESHOLD`（默认 0.6）→ `#前缀` → 默认 `chat`
+决策模型输出 `choice + confidence`，按**双阈值**分三档（`decision.ts` `confidenceBand`，约定 `[low, high)` 为 confirm）：
+
+| 档位 | 处理 | via |
+|---|---|---|
+| `conf ≥ DECISION_INTENT_THRESHOLD_HIGH`（默认 0.8） | 直接按决策结果路由 | `decision` |
+| `[DECISION_INTENT_THRESHOLD, DECISION_INTENT_THRESHOLD_HIGH)` | **人工二次确认**：回 y=按**原消息**执行候选意图；n=原消息走低阈值兜底；候选=chat 免确认（等同兜底） | `confirm` |
+| `conf < DECISION_INTENT_THRESHOLD`（默认 0.6） | `#前缀` → 默认 `chat` | `prefix` / `default` |
+
+- **意图确认**（与 dev 的 `#确认` 计划确认区分）：未决状态存 Redis `intent:pending:{group_id}:{openid}`，TTL `INTENT_CONFIRM_TTL_SEC`（默认 300s，对齐群被动回复窗口）；按 openid 隔离，同 openid 再来中带请求则**覆盖**，旧「原消息+确认消息」写入异常记录（`[意图确认][异常]` 结构化日志）；回复非 y/n → 追问一次，仍非 y/n → 判 n。
+- **一轮确认 = 2 次被动对话**（并非一次回复内完成）：
+
+  | 轮 | 入站 | 出站 | 语义 |
+  |---|---|---|---|
+  | ① | 原问题 A | 确认提示（`reply_msg_id=A`） | **原问题的答复就是二次确认提示** |
+  | ② | y/n（消息 B） | 按**原问题 A**执行的答复（`reply_msg_id=B`） | y 的答复为执行结果；n 时为低阈值兜底结果 |
+
+  内容层面可在 `group_messages` 完整还原（两对 in/out；`raw_payload.reply_msg_id` 可证配对）；`chat_history`（LLM 上下文）**不记**确认提示与 y/n，仅记「原问题 + 执行答复」，保持对话语义干净。
+- **日志可回溯**：两轮用原问题 `message_id` 作关联 id `cid` 串联；每条消息的终结行统一带决策模型原始输出 `model=<候选意图>:<置信度>`（无模型回答时 `-`）——**由 `via` + `model` 即可反推是否进过确认带**（`via=confirm*` 必在中带；`via=decision` 在高带；`via=prefix|default` 在低带）。`cid` 后置于 `←` 之前，正文仍在 `←` 之后：
+  - 发起：`intent=<候选> via=confirm model=<候选>:<conf> cid=A`
+  - 通过：`intent=<候选> via=confirm_yes model=<候选>:<conf> cid=A`
+  - 否决/判否：`intent=<低阈值结果> via=confirm_no fallback=prefix|default model=<候选>:<conf> cid=A`
+  - 高带/低带：`intent=<最终> via=decision|prefix|default model=<候选>:<conf> cid=A`
+  - 追问/判否：`意图确认=unknown|n cid=A`（异常另落 `[意图确认][异常]`）
+  - dev `#前缀` 硬路由：`intent=dev via=prefix cmd=… model=- cid=…`
+
+  答复正文不入 agent 日志（真相在 `group_messages` / `qq.log`）。
+- **阈值标定**：基于 205 条历史回放（与线上 `intent=` 日志一致率 100%）——非 chat 正确预测 `conf=0.840~0.965`，非 chat 错判 `conf=0.388~0.815`（≥0.6 的 11 条落在 0.610~0.815）；确认集 `[0.6,0.8)` 内非 chat 预测 9 条 9 错（精确率 100%）。引擎可自带双阈值（dev 建议 0.9、game 0.80，缺省回落全局）。
+- `conf(action)` 决定游戏动作是否自动执行
 - **服务不可用**（超时/连不上/非 2xx）：`via="unavailable"` → 回「服务繁忙，请稍后重试」，不降级为 chat（避免服务故障时乱聊）
-- 无效消息至少回一条
+- 无效消息至少回一条；确认轨迹日志：`意图确认=y|n|unknown`，每条终结行带 `model=<候选>:<置信度>`
 
 ### 决策层配置
 
@@ -77,7 +103,9 @@
 |---|---|---|
 | `SYSTEMONE_URL` | `http://127.0.0.1:8090` | 决策服务根地址（部署见 `docs/modules/decision-service.md`） |
 | `SYSTEMONE_TIMEOUT_MS` | `3000` | 单次决策超时 |
-| `DECISION_INTENT_THRESHOLD` | `0.6` | 意图置信度阈值 |
+| `DECISION_INTENT_THRESHOLD` | `0.6` | 意图置信度低阈值（低于 → `#前缀` → 默认 chat） |
+| `DECISION_INTENT_THRESHOLD_HIGH` | `0.8` | 意图置信度高阈值（`[低, 高)` 走「意图确认」；必须 ≥ 低阈值，倒挂自动夹紧） |
+| `INTENT_CONFIRM_TTL_SEC` | `300` | 未决「意图确认」存活时长（秒），对齐群被动回复窗口 |
 
 - 测试：`npm run test`（离线，含决策层 + 客户端层）；`npm run test:decision:live`（需本地决策服务在线）；健康探针 `node apps/scripts/check-decision-service.mjs`
 

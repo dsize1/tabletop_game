@@ -7,12 +7,44 @@ export type Intent = "chat" | "start_game" | "game_action" | "dev";
 export interface Decision {
   intent: Intent;
   confidence: number;
-  /** 最终意图来源：decision=决策模型 / prefix=前缀兜底 / default=默认 / unavailable=决策服务不可用 */
-  via: "decision" | "prefix" | "default" | "unavailable";
+  /**
+   * 最终意图来源：
+   * - decision=决策模型（≥ 高阈值，直接采用）
+   * - confirm=中带置信度，待人工确认（候选见 `model`；`intent` 与 `model.intent` 一致，调用方须先用 `via` 分流）
+   * - prefix=前缀兜底 / default=默认 / unavailable=决策服务不可用
+   */
+  via: "decision" | "confirm" | "prefix" | "default" | "unavailable";
+  /**
+   * 决策模型的原始输出（有回答时）：候选意图 + 置信度。
+   * 不论最终走哪条支路都保留，用于日志「结果 + 置信度」回溯与是否进过确认阶段的推断。
+   */
+  model?: { intent: Intent; confidence: number };
 }
 
-/** 意图置信度默认阈值（可被 `DecideOptions.threshold` 覆盖）。 */
+/** 意图置信度默认低阈值（低于 → `#前缀` → 默认 chat；可被 `DecideOptions.threshold` 覆盖）。 */
 export const DEFAULT_CONFIDENCE_THRESHOLD = 0.6;
+/** 意图置信度默认高阈值（≥ 直接采用；`[低, 高)` 走人工确认；可被 `DecideOptions.thresholdHigh` 覆盖）。 */
+export const DEFAULT_CONFIDENCE_THRESHOLD_HIGH = 0.8;
+
+export type ConfidenceBand = "high" | "confirm" | "low";
+
+/** 置信度分档：约定 `[low, high)` 为 confirm（左闭右开）。 */
+export function confidenceBand(confidence: number, low: number, high: number): ConfidenceBand {
+  if (confidence >= high) return "high";
+  if (confidence >= low) return "confirm";
+  return "low";
+}
+
+/** 规整阈值：非数值回退默认；高阈值倒挂时夹紧为低阈值并告警。 */
+export function normalizeThresholds(low: number, high: number): { low: number; high: number } {
+  const lo = Number.isFinite(low) ? low : DEFAULT_CONFIDENCE_THRESHOLD;
+  let hi = Number.isFinite(high) ? high : DEFAULT_CONFIDENCE_THRESHOLD_HIGH;
+  if (hi < lo) {
+    console.warn(`[decision] 高阈值(${hi}) < 低阈值(${lo})，已夹紧为 ${lo}`);
+    hi = lo;
+  }
+  return { low: lo, high: hi };
+}
 
 // 前缀词表：#play / #start 对猜拳等价 → start_game（引擎需注意）。
 // 注意顺序：「#开发」同时命中「开」，故 dev 规则须排在 start_game 之前。
@@ -58,8 +90,10 @@ export function maskUrls(content: string): string {
 }
 
 export interface DecideOptions {
-  /** 置信度阈值，低于则走前缀/默认兜底。 */
+  /** 低置信度阈值，低于则走前缀/默认兜底。 */
   threshold?: number;
+  /** 高置信度阈值，`[threshold, thresholdHigh)` 视为待人工确认。 */
+  thresholdHigh?: number;
   /** 覆盖意图选项描述（默认 `INTENT_CRITERIA`）。 */
   intentCriteria?: Record<Intent, string>;
 }
@@ -130,7 +164,10 @@ export async function decideIntent(
   client: SystemOneClient,
   opts: DecideOptions = {},
 ): Promise<Decision> {
-  const threshold = opts.threshold ?? DEFAULT_CONFIDENCE_THRESHOLD;
+  const { low, high } = normalizeThresholds(
+    opts.threshold ?? DEFAULT_CONFIDENCE_THRESHOLD,
+    opts.thresholdHigh ?? DEFAULT_CONFIDENCE_THRESHOLD_HIGH,
+  );
 
   let answer: { choice: Intent; confidence: number } | null = null;
   try {
@@ -153,12 +190,21 @@ export async function decideIntent(
     return { intent: "chat", confidence: 0, via: "unavailable" };
   }
 
-  if (answer && answer.confidence >= threshold) {
-    return { intent: answer.choice, confidence: answer.confidence, via: "decision" };
+  if (answer) {
+    const model = { intent: answer.choice, confidence: answer.confidence };
+    const band = confidenceBand(answer.confidence, low, high);
+    if (band === "high") {
+      return { intent: answer.choice, confidence: answer.confidence, via: "decision", model };
+    }
+    // 中带且候选非 chat：交调用方人工确认（候选=chat 时确认无意义，等同低阈值兜底）。
+    if (band === "confirm" && answer.choice !== "chat") {
+      return { intent: answer.choice, confidence: answer.confidence, via: "confirm", model };
+    }
   }
+  const model = answer ? { intent: answer.choice, confidence: answer.confidence } : undefined;
   const prefix = parsePrefix(content);
   if (prefix) {
-    return { intent: prefix, confidence: answer?.confidence ?? 0, via: "prefix" };
+    return { intent: prefix, confidence: answer?.confidence ?? 0, via: "prefix", model };
   }
-  return { intent: "chat", confidence: answer?.confidence ?? 0, via: "default" };
+  return { intent: "chat", confidence: answer?.confidence ?? 0, via: "default", model };
 }

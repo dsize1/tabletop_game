@@ -1,7 +1,15 @@
 // 决策层单测：SystemOne 客户端（注入桩，不依赖网络）+ 前缀解析 + 兜底 + 手势提取。
 // 运行：npx tsx test-decision.mts
 import assert from "node:assert";
-import { decideIntent, parsePrefix, extractHand, maskUrls, INTENT_CRITERIA } from "./src/decision.js";
+import {
+  decideIntent,
+  parsePrefix,
+  extractHand,
+  maskUrls,
+  confidenceBand,
+  normalizeThresholds,
+  INTENT_CRITERIA,
+} from "./src/decision.js";
 import { SystemOneClient } from "./src/systemone.js";
 import { stubClient, failingClient, hangingClient } from "./test-helpers.mts";
 
@@ -44,9 +52,42 @@ assert.equal(extractHand("随便说点啥"), null);
 
 // —— 阈值可配：同一置信度阈值调低则走 decision ——
 {
-  const d = await decideIntent("嗯", stubClient("dev", 0.5), { threshold: 0.4 });
+  const d = await decideIntent("嗯", stubClient("dev", 0.5), { threshold: 0.4, thresholdHigh: 0.4 });
   assert.equal(d.intent, "dev");
   assert.equal(d.via, "decision");
+}
+
+// —— 置信度分档：[low, high) 为 confirm（左闭右开）——
+assert.equal(confidenceBand(0.9, 0.6, 0.8), "high");
+assert.equal(confidenceBand(0.8, 0.6, 0.8), "high");
+assert.equal(confidenceBand(0.6, 0.6, 0.8), "confirm");
+assert.equal(confidenceBand(0.799, 0.6, 0.8), "confirm");
+assert.equal(confidenceBand(0.599, 0.6, 0.8), "low");
+
+// —— 阈值规整：倒挂夹紧、非数值回退默认 ——
+assert.deepEqual(normalizeThresholds(0.6, 0.8), { low: 0.6, high: 0.8 });
+assert.deepEqual(normalizeThresholds(0.7, 0.5), { low: 0.7, high: 0.7 });
+assert.deepEqual(normalizeThresholds(Number.NaN, Number.NaN), { low: 0.6, high: 0.8 });
+
+// —— 中带 + 非 chat 候选 → via=confirm + model ——
+{
+  const d = await decideIntent("帮评估下复杂度", stubClient("dev", 0.72));
+  assert.equal(d.via, "confirm");
+  assert.equal(d.intent, "dev");
+  assert.deepEqual(d.model, { intent: "dev", confidence: 0.72 });
+}
+// —— 中带 + 候选=chat → 免确认，走默认兜底（仍保留 model 供日志回溯）——
+{
+  const d = await decideIntent("随便说说", stubClient("chat", 0.7));
+  assert.equal(d.via, "default");
+  assert.equal(d.intent, "chat");
+  assert.deepEqual(d.model, { intent: "chat", confidence: 0.7 });
+}
+// —— 低阈值分支仍走前缀/默认（回归）——
+{
+  const d = await decideIntent("#玩 猜拳", stubClient("dev", 0.5));
+  assert.equal(d.via, "prefix");
+  assert.equal(d.intent, "start_game");
 }
 
 // —— 服务连不上 → via=unavailable（不降级为 chat）——

@@ -71,6 +71,7 @@ export interface ChatHistoryTurn {
 /** 聊天回复：正常 LLM 回复（带群历史）；超 1500 字符时再做一步摘要压缩。 */
 export async function chatReply(content: string, history: ChatHistoryTurn[] = []): Promise<string> {
   if (!LLM_API_KEY) {
+    console.error("[chat] 回退桩：未配置 LLM_API_KEY");
     return fallback(content);
   }
 
@@ -82,7 +83,13 @@ export async function chatReply(content: string, history: ChatHistoryTurn[] = []
     ];
     // 第一段：正常回复
     const text = await callLlm(messages, LLM_MAX_TOKENS);
-    if (!text) return fallback(content);
+    if (!text) {
+      // 静默回退的根因多在此：思考模式开启时正文可能被 reasoning 占满而返回空。
+      console.error(
+        `[chat] 回退桩：LLM 返回空正文（model=${LLM_MODEL} thinking=${LLM_THINKING_ENABLED ? "on" : "off"}）`,
+      );
+      return fallback(content);
+    }
     if (text.length <= MAX_REPLY_CHARS) return text;
 
     // 第二段：超长 → 摘要压缩到 1500 以内
@@ -104,7 +111,10 @@ export async function chatReply(content: string, history: ChatHistoryTurn[] = []
       return text.slice(0, MAX_REPLY_CHARS);
     }
   } catch (err) {
-    console.error("[chat] LLM 调用异常，回退回显:", err);
+    console.error(
+      `[chat] 回退桩：LLM 调用异常（model=${LLM_MODEL} timeout=${LLM_TIMEOUT_MS}ms）`,
+      err,
+    );
     return fallback(content);
   }
 }

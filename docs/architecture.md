@@ -76,6 +76,7 @@ web(Express) ──HTTP──> server/auth + 资源查询 ──> SQLite / Redis
 - 无对局：一次决策调用（单问）`intent ∈ {chat, dev, start_game}`
 - 有对局：先查 `get_state` + `get_legal_actions`，再一次决策调用（双问）`intent ∈ {chat, dev, game_action}` + `action ∈ {合法动作}`
 - 决策调用 = `/v1/systemone` **单次请求多问题**（单次前向），意图与动作针对同一份 state 快照
+- **置信度三档**：`≥ 高阈值` 直接采用决策结果；`[低阈值, 高阈值)` 走「意图确认」（人工 y/n，y=按原消息执行、n=回落低阈值）；`< 低阈值` 走 `#前缀` → 默认 chat。阈值与状态机见 `docs/modules/agent-gateway.md`「置信度兜底（三档 + 意图确认）」
 
 ### 6.2 分支配
 

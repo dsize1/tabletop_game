@@ -1,7 +1,22 @@
 import "dotenv/config";
 import { Redis } from "ioredis";
 import { randomUUID } from "node:crypto";
-import { decideIntent, decideLinkFetch, extractHand, extractHttpsLinks } from "./decision.js";
+import {
+  decideIntent,
+  decideLinkFetch,
+  extractHand,
+  extractHttpsLinks,
+  parsePrefix,
+  type Intent,
+} from "./decision.js";
+import {
+  clearPending,
+  loadPending,
+  matchConfirmReply,
+  recordAnomaly,
+  savePending,
+  type PendingIntent,
+} from "./intent-confirm.js";
 import { SystemOneClient } from "./systemone.js";
 import { chatReply, narrateGame, type ChatHistoryTurn } from "./chat.js";
 import { fetchLinkText } from "./link-fetch.js";
@@ -48,8 +63,11 @@ const systemone = new SystemOneClient({
   url: process.env.SYSTEMONE_URL ?? "http://127.0.0.1:8090",
   timeoutMs: Number(process.env.SYSTEMONE_TIMEOUT_MS ?? 3000),
 });
-// 意图置信度阈值（低于 → #前缀 → 默认 chat）
+// 意图置信度双阈值：≥ 高阈值直接路由；[低, 高) 走人工「意图确认」；< 低阈值走 #前缀 → 默认 chat
 const INTENT_THRESHOLD = Number(process.env.DECISION_INTENT_THRESHOLD ?? 0.6);
+const INTENT_THRESHOLD_HIGH = Number(process.env.DECISION_INTENT_THRESHOLD_HIGH ?? 0.8);
+// 未决「意图确认」在 Redis 的存活时长（秒）
+const INTENT_CONFIRM_TTL_SEC = Number(process.env.INTENT_CONFIRM_TTL_SEC ?? 300);
 
 interface MessageGroupAt {
   type: "message_group_at";
@@ -256,11 +274,15 @@ async function augmentWithLink(content: string): Promise<string> {
 }
 
 /** 聊天流程：读历史 →（如需）抓链接正文注入 → LLM 回复 → 追历史。 */
-async function chatFlow(redis: Redis, event: MessageGroupAt): Promise<string> {
+async function chatFlow(
+  redis: Redis,
+  event: MessageGroupAt,
+  content: string = event.content,
+): Promise<string> {
   const history = await getChatHistory(redis, event.group_id);
-  const userContent = await augmentWithLink(event.content);
+  const userContent = await augmentWithLink(content);
   const reply = await chatReply(userContent, history);
-  await appendChatHistory(redis, event.group_id, "user", event.content);
+  await appendChatHistory(redis, event.group_id, "user", content);
   await appendChatHistory(redis, event.group_id, "assistant", reply);
   return reply;
 }
@@ -621,6 +643,219 @@ async function runDevResume(
   });
 }
 
+// ==================== 意图确认（中带置信度的人工二次确认） ====================
+
+const INTENT_LABEL: Record<Intent, string> = {
+  chat: "普通聊天",
+  start_game: "开启新对局",
+  game_action: "游戏动作",
+  dev: "开发任务",
+};
+
+/** 决策模型原始输出（候选意图:置信度）的日志片段；无模型回答时为 `-`。 */
+const fmtModel = (m?: { intent: Intent; confidence: number }): string =>
+  m ? `${m.intent}:${m.confidence.toFixed(3)}` : "-";
+
+/** 中带确认提示：明确 y/n。 */
+function confirmPrompt(intent: Intent, confidence: number, ttlSec: number): string {
+  const label = INTENT_LABEL[intent];
+  return (
+    `我不太确定你的意图：最可能是「${label}」（置信度 ${confidence.toFixed(2)}）。\n` +
+    `回复 y 按「${label}」处理；回复 n 按普通聊天处理。\n` +
+    `（${Math.round(ttlSec / 60)} 分钟内有效）`
+  );
+}
+
+/** 执行意图分支（高置信 / 确认通过 / 兜底共用）；`content` 为实际要处理的消息内容。 */
+async function executeIntent(
+  redis: Redis,
+  engine: GameEngineClient,
+  event: MessageGroupAt,
+  intent: Intent,
+  content: string,
+) {
+  switch (intent) {
+    case "chat":
+      await pushReply(redis, event, await chatFlow(redis, event, content));
+      break;
+
+    case "start_game": {
+      // 猜拳：开桌 + 立即出拳（一轮对话）
+      const hand = extractHand(content);
+      if (!hand) {
+        await pushReply(redis, event, "请出「石头/剪刀/布」，例如：来玩猜拳 石头");
+        break;
+      }
+      const stateJson = await engine.startGame("rps", event.group_id, [event.sender_id]);
+      const state = parseJson<GameState>(stateJson, {});
+      if (!state.room_id) {
+        await pushReply(redis, event, stateJson); // 开桌失败信息
+        break;
+      }
+      const resultJson = await engine.executeAction(state.room_id, event.sender_id, hand);
+      const result = parseJson<ActionResult>(resultJson, {});
+      await sendGameReply(redis, event, result.message ?? resultJson, `玩家出了「${hand}」`);
+      break;
+    }
+
+    case "game_action": {
+      // 已有活跃对局时出拳
+      const hand = extractHand(content);
+      const activeJson = await engine.getActiveGame(event.group_id);
+      const active = parseJson<GameState>(activeJson, {});
+      if (active.room_id && hand) {
+        const resultJson = await engine.executeAction(active.room_id, event.sender_id, hand);
+        const result = parseJson<ActionResult>(resultJson, {});
+        await sendGameReply(redis, event, result.message ?? resultJson, `玩家出了「${hand}」`);
+      } else if (!hand) {
+        await pushReply(redis, event, "你想出什么？请说「石头/剪刀/布」");
+      } else {
+        await pushReply(redis, event, "当前没有进行中的对局，试试「来玩猜拳 石头」");
+      }
+      break;
+    }
+
+    case "dev":
+      // 仅提示，不自动建任务（dev 只认显式命令，见上方 parseDevCommand）
+      await handleDevUnmatched(redis, event);
+      break;
+
+    default:
+      await pushReply(redis, event, await chatFlow(redis, event, content));
+  }
+}
+
+/** 低阈值兜底：`#前缀` → 默认 chat（对给定消息内容）。 */
+async function fallbackLowThreshold(
+  redis: Redis,
+  engine: GameEngineClient,
+  event: MessageGroupAt,
+  content: string,
+  cid: string,
+  via: "confirm_no" | "default" = "default",
+  model?: { intent: Intent; confidence: number },
+) {
+  const prefix = parsePrefix(content);
+  const intent: Intent = prefix ?? "chat";
+  await executeIntent(redis, engine, event, intent, content);
+  console.log(
+    `[agent-gateway] intent=${intent} via=${via} fallback=${prefix ? "prefix" : "default"} model=${fmtModel(model)} cid=${cid} ← ${content}`,
+  );
+}
+
+/** 发起中带确认：同 openid 已有未决确认则覆盖（旧「原消息+确认消息」静默进异常记录）。 */
+async function raisePendingConfirm(
+  redis: Redis,
+  event: MessageGroupAt,
+  model: { intent: Intent; confidence: number },
+): Promise<void> {
+  const existing = await loadPending(redis, event.group_id, event.sender_id);
+  if (existing) {
+    recordAnomaly("未决确认被同 openid 覆盖", {
+      group_id: event.group_id,
+      sender_id: event.sender_id,
+      prev_cid: existing.cid,
+      prev_intent: existing.intent,
+      prev_confidence: existing.confidence,
+      prev_content: existing.content,
+      prev_ts: existing.ts,
+      new_cid: event.message_id,
+      new_intent: model.intent,
+      new_confidence: model.confidence,
+      new_content: event.content,
+    });
+  }
+  const pending: PendingIntent = {
+    intent: model.intent,
+    confidence: model.confidence,
+    content: event.content,
+    cid: event.message_id,
+    reasked: false,
+    ts: Date.now(),
+  };
+  await savePending(redis, event.group_id, event.sender_id, pending, INTENT_CONFIRM_TTL_SEC);
+  await pushReply(redis, event, confirmPrompt(model.intent, model.confidence, INTENT_CONFIRM_TTL_SEC));
+  console.log(
+    `[agent-gateway] intent=${model.intent} via=confirm model=${fmtModel(model)} cid=${event.message_id} ← ${event.content}`,
+  );
+}
+
+/**
+ * 未决「意图确认」处理：
+ * - y → 按候选意图执行**原消息**；n → 按**原消息**走低阈值兜底；
+ * - 非 y/n 且再次判为中带 → 覆盖（同 openid，记异常）；
+ * - 其余非 y/n → 首次追问一次，再次仍非 y/n 判 n（记异常）。
+ */
+async function handlePendingConfirm(
+  redis: Redis,
+  engine: GameEngineClient,
+  event: MessageGroupAt,
+  pending: PendingIntent,
+): Promise<void> {
+  const verdict = matchConfirmReply(event.content);
+  if (verdict === "yes") {
+    await clearPending(redis, event.group_id, event.sender_id);
+    await executeIntent(redis, engine, event, pending.intent, pending.content);
+    // 终止行：确认通过→按原问题执行（cid 关联到原问题，与发起确认那一行成对）
+    console.log(
+      `[agent-gateway] intent=${pending.intent} via=confirm_yes model=${pending.intent}:${pending.confidence.toFixed(3)} cid=${pending.cid} ← ${pending.content}`,
+    );
+    return;
+  }
+  if (verdict === "no") {
+    await clearPending(redis, event.group_id, event.sender_id);
+    await fallbackLowThreshold(redis, engine, event, pending.content, pending.cid, "confirm_no", {
+      intent: pending.intent,
+      confidence: pending.confidence,
+    });
+    return;
+  }
+
+  // 非 y/n：若这条本身就是又一次中带请求 → 同 openid 覆盖（点 4）
+  const decision = await decideIntent(event.content, systemone, {
+    threshold: INTENT_THRESHOLD,
+    thresholdHigh: INTENT_THRESHOLD_HIGH,
+  });
+  if (decision.via === "unavailable") {
+    await pushReply(redis, event, "服务繁忙，请稍后重试");
+    console.log("[agent-gateway] 决策服务不可用（确认回复），降级回执");
+    return;
+  }
+  if (decision.via === "confirm" && decision.model) {
+    await raisePendingConfirm(redis, event, decision.model);
+    return;
+  }
+
+  if (!pending.reasked) {
+    await savePending(
+      redis,
+      event.group_id,
+      event.sender_id,
+      { ...pending, reasked: true },
+      INTENT_CONFIRM_TTL_SEC,
+    );
+    await pushReply(redis, event, "未识别，请只回复 y 或 n（仍不回复 y/n 将按 n 处理）。");
+    console.log(`[agent-gateway] 意图确认=unknown cid=${pending.cid} → 追问一次 ← ${event.content}`);
+    return;
+  }
+
+  await clearPending(redis, event.group_id, event.sender_id);
+  recordAnomaly("未决确认追问后仍非 y/n，判 n", {
+    group_id: event.group_id,
+    sender_id: event.sender_id,
+    cid: pending.cid,
+    pending_intent: pending.intent,
+    pending_confidence: pending.confidence,
+    pending_content: pending.content,
+    reply: event.content,
+  });
+  console.log(`[agent-gateway] 意图确认=n（追问后仍非 y/n）cid=${pending.cid}`);
+  await fallbackLowThreshold(redis, engine, event, pending.content, pending.cid, "confirm_no", {
+    intent: pending.intent,
+    confidence: pending.confidence,
+  });
+}
+
 // ==================== 主编排 ====================
 
 async function handle(
@@ -638,9 +873,13 @@ async function handle(
     return;
   }
 
-  // 固定前缀 dev 命令：硬判断，先于决策模型
+  // 1) 固定前缀 dev 命令：硬判断（人=100% 置信度），先于一切；命中即清未决确认
   const devCmd = parseDevCommand(event.content);
   if (devCmd) {
+    await clearPending(redis, event.group_id, event.sender_id);
+    console.log(
+      `[agent-gateway] intent=dev via=prefix cmd=${devCmd.cmd} model=- cid=${event.message_id} ← ${event.content}`,
+    );
     if (devCmd.cmd === "文档") {
       await handleDocsLink(redis, event);
       return;
@@ -649,71 +888,38 @@ async function handle(
     return;
   }
 
-  const { intent, via } = await decideIntent(event.content, systemone, {
+  // 2) 未决「意图确认」：本轮先交确认流程（y/n 直接消费；非 y/n 按规则追问/覆盖）
+  const pending = await loadPending(redis, event.group_id, event.sender_id);
+  if (pending) {
+    await handlePendingConfirm(redis, engine, event, pending);
+    return;
+  }
+
+  // 3) 决策模型三档：≥ 高阈值直接路由；中带发起确认；低阈值走前缀/默认兜底
+  const { intent, via, model } = await decideIntent(event.content, systemone, {
     threshold: INTENT_THRESHOLD,
+    thresholdHigh: INTENT_THRESHOLD_HIGH,
   });
   if (via === "unavailable") {
     await pushReply(redis, event, "服务繁忙，请稍后重试");
     console.log("[agent-gateway] 决策服务不可用，降级回执");
     return;
   }
+  if (via === "confirm" && model) {
+    await raisePendingConfirm(redis, event, model);
+    return;
+  }
 
   try {
-    switch (intent) {
-      case "chat":
-        await pushReply(redis, event, await chatFlow(redis, event));
-        break;
-
-      case "start_game": {
-        // 猜拳：开桌 + 立即出拳（一轮对话）
-        const hand = extractHand(event.content);
-        if (!hand) {
-          await pushReply(redis, event, "请出「石头/剪刀/布」，例如：来玩猜拳 石头");
-          break;
-        }
-        const stateJson = await engine.startGame("rps", event.group_id, [event.sender_id]);
-        const state = parseJson<GameState>(stateJson, {});
-        if (!state.room_id) {
-          await pushReply(redis, event, stateJson); // 开桌失败信息
-          break;
-        }
-        const resultJson = await engine.executeAction(state.room_id, event.sender_id, hand);
-        const result = parseJson<ActionResult>(resultJson, {});
-        await sendGameReply(redis, event, result.message ?? resultJson, `玩家出了「${hand}」`);
-        break;
-      }
-
-      case "game_action": {
-        // 已有活跃对局时出拳
-        const hand = extractHand(event.content);
-        const activeJson = await engine.getActiveGame(event.group_id);
-        const active = parseJson<GameState>(activeJson, {});
-        if (active.room_id && hand) {
-          const resultJson = await engine.executeAction(active.room_id, event.sender_id, hand);
-          const result = parseJson<ActionResult>(resultJson, {});
-          await sendGameReply(redis, event, result.message ?? resultJson, `玩家出了「${hand}」`);
-        } else if (!hand) {
-          await pushReply(redis, event, "你想出什么？请说「石头/剪刀/布」");
-        } else {
-          await pushReply(redis, event, "当前没有进行中的对局，试试「来玩猜拳 石头」");
-        }
-        break;
-      }
-
-      case "dev":
-        // 仅提示，不自动建任务（dev 只认显式命令，见上方 parseDevCommand）
-        await handleDevUnmatched(redis, event);
-        break;
-
-      default:
-        await pushReply(redis, event, await chatFlow(redis, event));
-    }
+    await executeIntent(redis, engine, event, intent, event.content);
   } catch (err) {
     console.error(`[agent-gateway] 处理异常 intent=${intent}:`, err);
     await pushReply(redis, event, "抱歉，处理你的消息时出错了，请稍后再试");
   }
 
-  console.log(`[agent-gateway] intent=${intent} via=${via} ← ${event.content}`);
+  console.log(
+    `[agent-gateway] intent=${intent} via=${via} model=${fmtModel(model)} cid=${event.message_id} ← ${event.content}`,
+  );
 }
 
 async function processEntries(
