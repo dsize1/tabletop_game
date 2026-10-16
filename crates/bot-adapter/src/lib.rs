@@ -20,6 +20,10 @@ const PUSH_STREAM: &str = "qq.push";
 const PUSH_GROUP: &str = "bot-adapter-push";
 const PUSH_CONSUMER: &str = "bot-adapter-push-1";
 
+const CHAT_LOG_STREAM: &str = "chat.log";
+const CHAT_LOG_GROUP: &str = "server-chat-log";
+const CHAT_LOG_CONSUMER: &str = "server-chat-log-1";
+
 /// 启动 bot-adapter 消费循环（阻塞运行，直到进程退出）。
 pub async fn run(redis_url: &str, storage: Arc<Storage>) -> anyhow::Result<()> {
     let client = redis::Client::open(redis_url)?;
@@ -275,6 +279,118 @@ async fn archive_one(storage: &Arc<Storage>, raw_json: &str) -> anyhow::Result<(
         None, // 机器人自身发出的消息，无发送者 openid
         &push.content,
         Some(raw_json),
+    )?;
+    Ok(())
+}
+
+/// 对话归档：订阅 `chat.log`，把 agent-gateway 发出的 per-user 对话落 `chat_history`
+/// （chat + game 分支；画像蒸馏数据源，ADR-0007）。独立消费者组；event_id 幂等去重。
+pub async fn run_chat_log_archiver(
+    redis_url: &str,
+    storage: Arc<Storage>,
+) -> anyhow::Result<()> {
+    let client = redis::Client::open(redis_url)?;
+    let mut conn = ConnectionManager::new(client).await?;
+
+    ensure_chat_log_group(&mut conn).await?;
+    info!("对话归档已启动，订阅 {CHAT_LOG_STREAM} → chat_history");
+
+    // 启动时重投 PEL 中未 ACK 的历史消息
+    match read_chat_log_batch(&mut conn, "0").await {
+        Ok(pending) => {
+            for (id, raw_json) in pending {
+                if let Err(e) = archive_chat_log(&storage, &raw_json).await {
+                    warn!("归档对话 {id} 失败: {e:#}");
+                }
+                if let Err(e) = conn
+                    .xack::<_, _, _, ()>(CHAT_LOG_STREAM, CHAT_LOG_GROUP, &[&id])
+                    .await
+                {
+                    warn!("ACK {id} 失败: {e:#}");
+                }
+            }
+        }
+        Err(e) => warn!("读取 chat.log PEL 失败: {e:#}"),
+    }
+
+    loop {
+        match read_chat_log_batch(&mut conn, ">").await {
+            Ok(entries) => {
+                for (id, raw_json) in entries {
+                    if let Err(e) = archive_chat_log(&storage, &raw_json).await {
+                        warn!("归档对话 {id} 失败: {e:#}");
+                    }
+                    if let Err(e) = conn
+                        .xack::<_, _, _, ()>(CHAT_LOG_STREAM, CHAT_LOG_GROUP, &[&id])
+                        .await
+                    {
+                        warn!("ACK {id} 失败: {e:#}");
+                    }
+                }
+            }
+            Err(e) => {
+                if e.to_string().contains("NOGROUP") {
+                    if let Err(e2) = ensure_chat_log_group(&mut conn).await {
+                        warn!("重建 chat.log 消费者组失败: {e2:#}");
+                    }
+                }
+                warn!("读取 {CHAT_LOG_STREAM} 失败: {e:#}，1s 后重试");
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            }
+        }
+    }
+}
+
+async fn ensure_chat_log_group(conn: &mut ConnectionManager) -> RedisResult<()> {
+    let res: RedisResult<()> = redis::cmd("XGROUP")
+        .arg("CREATE")
+        .arg(CHAT_LOG_STREAM)
+        .arg(CHAT_LOG_GROUP)
+        .arg("0")
+        .arg("MKSTREAM")
+        .query_async(conn)
+        .await;
+    match res {
+        Ok(()) => Ok(()),
+        Err(e) if e.to_string().contains("BUSYGROUP") => Ok(()),
+        Err(e) => Err(e),
+    }
+}
+
+async fn read_chat_log_batch(
+    conn: &mut ConnectionManager,
+    id: &str,
+) -> RedisResult<Vec<(String, String)>> {
+    let mut opts = StreamReadOptions::default()
+        .group(CHAT_LOG_GROUP, CHAT_LOG_CONSUMER)
+        .count(100);
+    if id == ">" {
+        opts = opts.block(2000);
+    }
+    let reply: StreamReadReply = conn.xread_options(&[CHAT_LOG_STREAM], &[id], &opts).await?;
+
+    let mut out = Vec::new();
+    for key in reply.keys {
+        for entry in key.ids {
+            if let Some(redis::Value::Data(bytes)) = entry.map.get("event") {
+                if let Ok(s) = String::from_utf8(bytes.clone()) {
+                    out.push((entry.id, s));
+                }
+            }
+        }
+    }
+    Ok(out)
+}
+
+async fn archive_chat_log(storage: &Arc<Storage>, raw_json: &str) -> anyhow::Result<()> {
+    let ev: shared::ChatLogEvent = serde_json::from_str(raw_json)?;
+    storage.insert_chat_message(
+        &ev.event_id,
+        &ev.openid,
+        &ev.group_id,
+        &ev.role,
+        &ev.content,
+        &ev.created_at,
     )?;
     Ok(())
 }

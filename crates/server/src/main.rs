@@ -5,6 +5,7 @@
 
 mod auth_routes;
 mod docs_routes;
+mod internal_routes;
 mod health;
 mod resources_routes;
 
@@ -59,6 +60,15 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
+    // 后台对话归档循环（chat.log → chat_history；画像蒸馏数据源，ADR-0007）
+    let chatlog_url = redis_url.clone();
+    let chatlog_storage = storage.clone();
+    tokio::spawn(async move {
+        if let Err(e) = bot_adapter::run_chat_log_archiver(&chatlog_url, chatlog_storage).await {
+            tracing::error!("chat.log 归档循环退出: {e:#}");
+        }
+    });
+
     // 后台健康自检循环
     let hl_redis = redis_url.clone();
     let hl_sqlite = sqlite_path.clone();
@@ -85,6 +95,13 @@ async fn main() -> anyhow::Result<()> {
         .route("/resources/game/{game_id}", get(resources_routes::game_resource))
         .route("/resources/docs/tree", get(docs_routes::docs_tree))
         .route("/resources/docs/file", get(docs_routes::docs_file))
+        .route("/internal/chat/window", get(internal_routes::chat_window))
+        .route(
+            "/internal/chat/active_openids",
+            get(internal_routes::active_openids),
+        )
+        .route("/internal/profile/{openid}", get(internal_routes::get_profile))
+        .route("/internal/profile", post(internal_routes::upsert_profile))
         .with_state(state);
 
     let port: u16 = std::env::var("SERVER_PORT")

@@ -23,6 +23,9 @@ impl Storage {
              PRAGMA busy_timeout=5000;
              PRAGMA foreign_keys=ON;",
         )?;
+        // 迁移：chat_history 旧结构（群级，无 openid/event_id）→ 新 per-user 结构。
+        // 旧表无任何写入方，安全重建（数据不作保留）。
+        migrate_chat_history(&conn)?;
         conn.execute_batch(CREATE_TABLES)?;
         Ok(Self {
             conn: Mutex::new(conn),
@@ -186,45 +189,106 @@ impl Storage {
         Ok(out)
     }
 
-    // ---- chat_history ----
+    // ---- chat_history（per-user 对话，画像蒸馏数据源；ADR-0007） ----
 
-    /// 追加一条聊天历史（role: user / assistant）。
-    pub fn insert_chat_history(
+    /// 追加一条 per-user 对话（event_id 幂等去重；role: user / assistant）。
+    pub fn insert_chat_message(
         &self,
+        event_id: &str,
+        openid: &str,
         group_id: &str,
         role: &str,
-        qq_id: Option<&str>,
         content: &str,
+        created_at: &str,
     ) -> anyhow::Result<()> {
         let conn = self.lock();
         conn.execute(
-            "INSERT INTO chat_history (group_id, role, qq_id, content, created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![group_id, role, qq_id, content, now_secs()],
+            "INSERT OR IGNORE INTO chat_history
+             (event_id, openid, group_id, role, content, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![event_id, openid, group_id, role, content, created_at],
         )?;
         Ok(())
     }
 
-    /// 读取群最近 N 条聊天历史（时间升序）。
-    pub fn get_chat_history(
+    /// 读窗口内对话（`[from, to)`，ISO8601 字符串区间），按 openid、时间升序。
+    pub fn get_chat_window(
         &self,
-        group_id: &str,
-        limit: i64,
-    ) -> anyhow::Result<Vec<ChatTurn>> {
+        from: &str,
+        to: &str,
+    ) -> anyhow::Result<Vec<ChatMessageRow>> {
         let conn = self.lock();
         let mut stmt = conn.prepare(
-            "SELECT role, content FROM chat_history
-             WHERE group_id=?1 ORDER BY id DESC LIMIT ?2",
+            "SELECT openid, group_id, role, content, created_at FROM chat_history
+             WHERE created_at >= ?1 AND created_at < ?2
+             ORDER BY openid, created_at",
         )?;
-        let rows = stmt.query_map(params![group_id, limit], |row| {
-            Ok(ChatTurn {
-                role: row.get(0)?,
-                content: row.get(1)?,
+        let rows = stmt.query_map(params![from, to], |row| {
+            Ok(ChatMessageRow {
+                openid: row.get(0)?,
+                group_id: row.get(1)?,
+                role: row.get(2)?,
+                content: row.get(3)?,
+                created_at: row.get(4)?,
             })
         })?;
-        let mut out: Vec<ChatTurn> = rows.collect::<rusqlite::Result<_>>()?;
-        out.reverse();
-        Ok(out)
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    /// 窗口内出现过的 openid（画像蒸馏的活跃集合），去重升序。
+    pub fn list_active_openids(&self, from: &str, to: &str) -> anyhow::Result<Vec<String>> {
+        let conn = self.lock();
+        let mut stmt = conn.prepare(
+            "SELECT DISTINCT openid FROM chat_history
+             WHERE created_at >= ?1 AND created_at < ?2
+             ORDER BY openid",
+        )?;
+        let rows = stmt.query_map(params![from, to], |row| row.get::<_, String>(0))?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    // ---- user_profile（全局人物画像，跨群；ADR-0007 决策 9-16） ----
+
+    /// 写入/更新一条画像（`distilled_at` 兼作增量游标）。
+    pub fn upsert_profile(
+        &self,
+        openid: &str,
+        profile_text: &str,
+        distilled_at: Option<&str>,
+        updated_at: &str,
+    ) -> anyhow::Result<()> {
+        let conn = self.lock();
+        conn.execute(
+            "INSERT INTO user_profile (openid, profile_text, distilled_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT(openid) DO UPDATE SET
+               profile_text = excluded.profile_text,
+               distilled_at = excluded.distilled_at,
+               updated_at  = excluded.updated_at",
+            params![openid, profile_text, distilled_at, updated_at],
+        )?;
+        Ok(())
+    }
+
+    /// 读一条画像（无 → None）。
+    pub fn get_profile(&self, openid: &str) -> anyhow::Result<Option<UserProfile>> {
+        let conn = self.lock();
+        let mut stmt = conn.prepare(
+            "SELECT openid, profile_text, distilled_at, updated_at
+             FROM user_profile WHERE openid = ?1",
+        )?;
+        let mut rows = stmt.query_map(params![openid], |row| {
+            Ok(UserProfile {
+                openid: row.get(0)?,
+                profile_text: row.get(1)?,
+                distilled_at: row.get(2)?,
+                updated_at: row.get(3)?,
+            })
+        })?;
+        match rows.next() {
+            Some(r) => Ok(Some(r?)),
+            None => Ok(None),
+        }
     }
 }
 
@@ -241,11 +305,24 @@ pub struct DevTask {
     pub updated_at: String,
 }
 
-/// 聊天历史单条（用于注入 LLM 上下文）。
+/// 对话单条（chat_history 表行；用于画像蒸馏）。
 #[derive(Debug, Clone, serde::Serialize)]
-pub struct ChatTurn {
+pub struct ChatMessageRow {
+    pub openid: String,
+    pub group_id: String,
     pub role: String,
     pub content: String,
+    pub created_at: String,
+}
+
+/// 全局人物画像（user_profile 表行；跨群，ADR-0007）。
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct UserProfile {
+    pub openid: String,
+    pub profile_text: String,
+    /// 上次蒸馏时刻（增量游标）
+    pub distilled_at: Option<String>,
+    pub updated_at: String,
 }
 
 fn map_dev_task(row: &rusqlite::Row<'_>) -> rusqlite::Result<DevTask> {
@@ -275,6 +352,28 @@ fn now_secs() -> String {
         .unwrap_or_default()
         .as_secs()
         .to_string()
+}
+
+/// 迁移：chat_history 旧结构（群级，缺 `openid`/`event_id`）→ 新 per-user 结构。
+/// 旧表无任何写入方（历史遗留），发现旧结构则直接重建，数据不作保留。
+fn migrate_chat_history(conn: &Connection) -> anyhow::Result<()> {
+    let table_exists: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='chat_history'",
+        [],
+        |r| r.get(0),
+    )?;
+    if table_exists == 0 {
+        return Ok(());
+    }
+    let has_openid: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('chat_history') WHERE name='openid'",
+        [],
+        |r| r.get(0),
+    )?;
+    if has_openid == 0 {
+        conn.execute_batch("DROP TABLE chat_history;")?;
+    }
+    Ok(())
 }
 
 const CREATE_TABLES: &str = "
@@ -318,10 +417,120 @@ CREATE TABLE IF NOT EXISTS dev_tasks (
 );
 CREATE TABLE IF NOT EXISTS chat_history (
     id         INTEGER PRIMARY KEY,
-    group_id   TEXT NOT NULL,
-    role       TEXT NOT NULL,
-    qq_id      TEXT,
-    content    TEXT NOT NULL,
-    created_at TEXT NOT NULL
+    event_id   TEXT    NOT NULL UNIQUE,
+    openid     TEXT    NOT NULL,
+    group_id   TEXT    NOT NULL,
+    role       TEXT    NOT NULL,
+    content    TEXT    NOT NULL,
+    created_at TEXT    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_chat_history_openid_time ON chat_history(openid, created_at);
+CREATE TABLE IF NOT EXISTS user_profile (
+    openid       TEXT PRIMARY KEY,
+    profile_text TEXT NOT NULL,
+    distilled_at TEXT,
+    updated_at   TEXT NOT NULL
 );
 ";
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn tmp_db(tag: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!("tt_{}_{}.db", tag, std::process::id()))
+    }
+
+    #[test]
+    fn chat_history_insert_idempotent_and_window() {
+        let s = Storage::open(":memory:").unwrap();
+        s.insert_chat_message("e1", "u1", "g1", "user", "你好", "2026-02-14T00:00:00Z")
+            .unwrap();
+        s.insert_chat_message("e2", "u1", "g1", "assistant", "回复", "2026-02-14T00:00:01Z")
+            .unwrap();
+        // 幂等：同 event_id 重复插入不增加
+        s.insert_chat_message("e1", "u1", "g1", "user", "你好", "2026-02-14T00:00:00Z")
+            .unwrap();
+        let rows = s
+            .get_chat_window("2026-02-14T00:00:00Z", "2026-02-15T00:00:00Z")
+            .unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].openid, "u1");
+        assert_eq!(rows[0].role, "user");
+        assert_eq!(rows[1].role, "assistant");
+        // 窗口外（右开区间）
+        let none = s
+            .get_chat_window("2026-02-15T00:00:00Z", "2026-02-16T00:00:00Z")
+            .unwrap();
+        assert_eq!(none.len(), 0);
+    }
+
+    #[test]
+    fn migrates_legacy_chat_history() {
+        let path = tmp_db("mig");
+        let _ = std::fs::remove_file(&path);
+        // 先建旧结构（缺 openid/event_id）
+        {
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE chat_history (
+                    id INTEGER PRIMARY KEY,
+                    group_id TEXT NOT NULL,
+                    role TEXT NOT NULL,
+                    qq_id TEXT,
+                    content TEXT NOT NULL,
+                    created_at TEXT NOT NULL);",
+            )
+            .unwrap();
+        }
+        // open 触发迁移（旧表被重建为新结构）
+        let s = Storage::open(path.to_str().unwrap()).unwrap();
+        s.insert_chat_message("e1", "u1", "g1", "user", "hi", "2026-02-14T00:00:00Z")
+            .unwrap();
+        let rows = s
+            .get_chat_window("2026-02-13T00:00:00Z", "2026-02-15T00:00:00Z")
+            .unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].content, "hi");
+        drop(s);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn profile_upsert_get_and_active_openids() {
+        let s = Storage::open(":memory:").unwrap();
+        s.insert_chat_message("e1", "u1", "g1", "user", "a", "2026-02-14T01:00:00Z")
+            .unwrap();
+        s.insert_chat_message("e2", "u2", "g1", "user", "b", "2026-02-14T02:00:00Z")
+            .unwrap();
+        s.insert_chat_message("e3", "u1", "g1", "user", "c", "2026-02-14T03:00:00Z")
+            .unwrap();
+        let ids = s
+            .list_active_openids("2026-02-14T00:00:00Z", "2026-02-15T00:00:00Z")
+            .unwrap();
+        assert_eq!(ids, vec!["u1".to_string(), "u2".to_string()]);
+
+        assert!(s.get_profile("u1").unwrap().is_none());
+        s.upsert_profile(
+            "u1",
+            "喜欢竞技",
+            Some("2026-02-14T04:00:00Z"),
+            "2026-02-14T04:00:00Z",
+        )
+        .unwrap();
+        let p = s.get_profile("u1").unwrap().unwrap();
+        assert_eq!(p.profile_text, "喜欢竞技");
+        assert_eq!(p.distilled_at.as_deref(), Some("2026-02-14T04:00:00Z"));
+        // upsert 覆盖
+        s.upsert_profile(
+            "u1",
+            "喜欢合作",
+            Some("2026-02-15T04:00:00Z"),
+            "2026-02-15T04:00:00Z",
+        )
+        .unwrap();
+        let p2 = s.get_profile("u1").unwrap().unwrap();
+        assert_eq!(p2.profile_text, "喜欢合作");
+        assert_eq!(p2.distilled_at.as_deref(), Some("2026-02-15T04:00:00Z"));
+    }
+}

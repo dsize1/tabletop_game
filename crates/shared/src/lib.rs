@@ -99,3 +99,22 @@ pub struct PushEvent {
     /// 需要 @ 的玩家 member_openid（可选）
     pub at_member_id: Option<String>,
 }
+
+// ============ chat.log Stream（agent-gateway → server） ============
+
+/// 单条对话（写入 Redis Stream `chat.log`，由 server 落 SQLite `chat_history`）。
+///
+/// 收 **chat + game** 两条分支的用户轮与助手轮（不含 dev），是人物画像蒸馏的数据源
+/// （ADR-0007）；`event_id` 幂等去重（at-least-once）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChatLogEvent {
+    pub event_id: String,
+    /// 用户 openid（画像跨群主键）
+    pub openid: String,
+    pub group_id: String,
+    /// user | assistant
+    pub role: String,
+    pub content: String,
+    /// ISO8601 UTC 写入时刻
+    pub created_at: String,
+}
