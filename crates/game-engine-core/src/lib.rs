@@ -115,9 +115,12 @@ pub struct SeededRng {
 
 impl SeededRng {
     pub fn new(seed: u64) -> Self {
-        Self {
-            state: seed | 1,
-        }
+        // splitmix64 初始化：避免相邻种子（如 2/3）因 `| 1` 塔缩成同序列。
+        let mut z = seed.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        z ^= z >> 31;
+        Self { state: z | 1 }
     }
 }
 
@@ -164,6 +167,36 @@ pub fn pick_index(rng: &mut dyn RandomSource, n: usize) -> usize {
         0
     } else {
         (rng.next_u64() % n as u64) as usize
+    }
+}
+
+/// 决策策略：在给定合法动作中选一个动作 id（测试 AI；AlphaZero 可替换实现）。
+pub trait Policy: Send + Sync {
+    /// 返回选中的动作 id；`None` 表示不做选择（调用方自行回退）。
+    fn choose(
+        &self,
+        state: &GameState,
+        player_id: &str,
+        legal_actions: &[Action],
+        rng: &mut dyn RandomSource,
+    ) -> Option<String>;
+}
+
+/// 随机策略（基线，用于对比启发式效果）。
+pub struct RandomPolicy;
+
+impl Policy for RandomPolicy {
+    fn choose(
+        &self,
+        _state: &GameState,
+        _player_id: &str,
+        legal_actions: &[Action],
+        rng: &mut dyn RandomSource,
+    ) -> Option<String> {
+        if legal_actions.is_empty() {
+            return None;
+        }
+        Some(legal_actions[pick_index(rng, legal_actions.len())].id.clone())
     }
 }
 
@@ -534,6 +567,15 @@ mod tests {
         let xb: Vec<u64> = (0..8).map(|_| b.next_u64()).collect();
         assert_eq!(xa, xb);
         assert_ne!(xa[0], xa[1]);
+    }
+
+    #[test]
+    fn seeded_rng_adjacent_seeds_differ() {
+        let mut a = SeededRng::new(2);
+        let mut b = SeededRng::new(3);
+        let xa: Vec<u64> = (0..4).map(|_| a.next_u64()).collect();
+        let xb: Vec<u64> = (0..4).map(|_| b.next_u64()).collect();
+        assert_ne!(xa, xb, "相邻种子不应塔缩为同序列");
     }
 
     #[test]

@@ -39,3 +39,15 @@ node apps/verify-las-vegas.mjs
 > 注：若 `crates/target/debug/game-engine-mcp.exe` 正被 dev 服务占用，可改用
 > `CARGO_TARGET_DIR=target-smoke cargo build -p game-engine-mcp`，
 > 再 `node apps/verify-las-vegas.mjs crates/target-smoke/debug/game-engine-mcp.exe`。
+
+## 测试 AI（阶段 6）
+
+- `game-engine-core::Policy`：策略抽象（状态 + 合法动作 → 动作 id）；AlphaZero（阶段 7，待定）可替换实现。
+- `las-vegas::ai::HeuristicPolicy`：启发式贪心，按攻略「期望分/骰」（基准 **2 分/骰**，1 分 = $1 万）对 `place:n`、`reroll`、`sg:*` 打分；钞票面额隐藏，故用**牌库分布**估第一/第二期望分。
+- `las-vegas::ai::run_self_play(players, policies, seed, max_steps)`：自对弈驱动（固定种子可复现），返回终局 winners/scores/steps/事件数。
+- 基线：`game-engine-core::RandomPolicy`；单测 `heuristic_beats_random_over_games` 断言启发式显著占优。
+
+```bash
+# 自对弈示例：5 局、4 人
+cargo run -p las-vegas --example selfplay -- 5 4
+```

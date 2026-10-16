@@ -118,3 +118,9 @@
 - **MCP 原语**：agent-gateway / 主持人 / 决策模型的**运行时**入口（规则查询、lobby 生命周期、开桌、状态、合法动作、执行）。
 - **server HTTP 资源 API**：web 站点的**展示**入口（规则文件、道具目录、对局公共视图），不经 MCP、不直连 SQLite。
 - 道具/规则文件放公共目录（`docs/games/<game_id>/`），web 经 server 资源 API 读取（根路径待确认）。
+
+## 测试 AI 与策略抽象（阶段 6）
+
+- `game-engine-core::Policy`：状态 + 合法动作 → 动作 id；`RandomPolicy` 为基线；后续 AlphaZero 以同接口替换（阶段 7，待定）。
+- `las-vegas::ai::HeuristicPolicy`：启发式贪心，按攻略「期望分/骰」（基准 2 分/骰）对 `place:n`/`reroll`/`sg:*` 打分；`run_self_play(players, policies, seed, max_steps)` 为自对弈驱动（固定种子可复现）。示例：`cargo run -p las-vegas --example selfplay -- 5 4`。
+- 引擎侧不感知策略；策略输出的动作仍经 `execute_action` **无条件重校验**。

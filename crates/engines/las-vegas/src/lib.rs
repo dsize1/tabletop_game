@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::BTreeMap;
 
+pub mod ai;
 pub mod sg;
 use sg::SgState;
 
@@ -231,26 +232,51 @@ impl LasVegasEngine {
     }
 
     /// 回合开始：为当前玩家掷出手中全部骰子。
+    ///
+    /// 边界：若掷出的点数**全部**被 E1 禁止且玩家无筹码可重试，则免费重掷（否则无法行动）。
     fn begin_turn(&self, st: &mut LasVegasState, rng: &mut dyn RandomSource) -> Vec<EngineEvent> {
         st.phase = Phase::TurnRoll;
-        let Some(seat) = st.seats.get(st.turn) else {
-            return vec![];
-        };
-        let small: Vec<u8> = (0..seat.small_remaining).map(|_| roll_die(rng)).collect();
-        let big = if seat.big_remaining > 0 {
-            Some(roll_die(rng))
-        } else {
-            None
-        };
-        let player_id = seat.player_id.clone();
-        st.roll = Roll {
-            small: small.clone(),
-            big,
-        };
-        vec![EngineEvent::new(
-            "dice_rolled",
-            json!({ "player_id": player_id, "small": small, "big": big }),
-        )]
+        let mut events = Vec::new();
+        for _ in 0..100 {
+            let Some(seat) = st.seats.get(st.turn) else {
+                return events;
+            };
+            let (small_remaining, big_remaining, player_id, chips) = (
+                seat.small_remaining,
+                seat.big_remaining,
+                seat.player_id.clone(),
+                seat.chips,
+            );
+            let small: Vec<u8> = (0..small_remaining).map(|_| roll_die(rng)).collect();
+            let big = if big_remaining > 0 {
+                Some(roll_die(rng))
+            } else {
+                None
+            };
+            st.roll = Roll {
+                small: small.clone(),
+                big,
+            };
+            events.push(EngineEvent::new(
+                "dice_rolled",
+                json!({ "player_id": player_id, "small": small, "big": big }),
+            ));
+            let banned = st.sg.banned;
+            let can_place = st
+                .roll
+                .points()
+                .iter()
+                .any(|p| banned != Some((*p - 1) as usize));
+            if can_place || chips >= 1 {
+                break;
+            }
+            // 全部点数被禁止且无筹码 → 免费重掷，避免死锁
+            events.push(EngineEvent::new(
+                "dice_rerolled_free",
+                json!({ "player_id": player_id }),
+            ));
+        }
+        events
     }
 
     /// 动作后推进到下一位仍有骰子的玩家；若全部用尽返回 `true`（进入结算）。

@@ -11,6 +11,9 @@
 | EnginePlugin | game-engine-core 定义的引擎抽象 trait（产出事件序列 + RNG 注入 + public_state/player_view） |
 | EngineEvent | 引擎产出的事件记录（event_type/actor/payload）；写入 game_events，快照 version 对齐 seq |
 | RandomSource | 可注入随机源 trait（SeededRng 测试确定性 / SystemRng 默认） |
+| Policy | 决策策略 trait（状态+合法动作 → 动作 id；测试 AI 与后续 AlphaZero 通用） |
+| HeuristicPolicy | 拉斯维加斯启发式贪心 AI（按攻略「期望分/骰」基准 2 分打分） |
+| 自对弈 / run_self_play | 用策略驱动一局（lobby→终局），固定种子可复现，供测试/回归 |
 | las-vegas | 首个桌游引擎「拉斯维加斯」 |
 | 短期 token | Web 鉴权用的短时效 token：uuid v4 + 绑定 openid + 资源范围；存 Redis，TTL 8 小时（局终态清除） |
 | openid（member_openid） | 玩家身份标识；QQ 官方仅给群内 openid（非 QQ 号）。统一术语：代码/文档以「openid」指代玩家身份，不再用「qq号/qqid」 |
