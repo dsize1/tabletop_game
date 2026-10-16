@@ -5,7 +5,9 @@ import {
   parseGameCommand,
   gameActionId,
   lobbyPrompt,
+  formatActionList,
   GAME_ACTION_HINT,
+  GAME_ACTION_CHOICE_LIMIT,
 } from "./src/game-command.js";
 
 // —— 命令解析（显式前缀） ——
@@ -58,5 +60,16 @@ assert.ok(prompt.includes("甲"), "引导应含发起人");
 assert.ok(prompt.includes("#开始"), "引导应含开赛命令");
 assert.ok(prompt.includes("#加入"), "引导应含加入命令");
 assert.ok(GAME_ACTION_HINT.includes("#放"), "在局引导应含下注命令");
+
+// —— 合法动作清单渲染（阶段 4b 兑底） ——
+assert.equal(formatActionList([]), "当前没有可执行的动作。");
+const list = formatActionList([
+  { id: "place:3", description: "把 3 点全部放到 3 号赌场" },
+  { id: "reroll", description: "支付 1 筹码弃回合" },
+]);
+assert.ok(list.includes("1) 把 3 点全部放到 3 号赌场"), list);
+assert.ok(list.includes("2) 支付 1 筹码弃回合"), list);
+assert.ok(list.includes("#放 3"), list);
+assert.equal(GAME_ACTION_CHOICE_LIMIT, 26);
 
 console.log("✅ test-game-command 通过");

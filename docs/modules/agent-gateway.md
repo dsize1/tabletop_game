@@ -55,7 +55,8 @@
 | `#重投` / `#弃` | `reroll` | 当前玩家、筹码 ≥ 1 |
 | `#局面` / `#牌面` | `state_summary` | 任意 |
 
-- **自然语言路径**：`start_game` 意图（无猜拳手势时）→ 创建拉斯维加斯 lobby（引导文案含上表命令）；`game_action` 意图 → 回显命令引导（动作选择后续接决策模型）。猜拳 `rps` 保留为显式手势玩具路径。
+- **自然语言路径**：`start_game` 意图（无猜拳手势时）→ 创建拉斯维加斯 lobby（引导文案含上表命令）。猜拳 `rps` 保留为显式手势玩具路径。
+- **动作选择（阶段 4b）**：`game_action` 意图 → `get_legal_actions(room, sender)` → SystemOne `choice`（≤26 个动作）选一个 → `execute_action`；动作数 >26 或决策不可用时回显编号清单兜底（`formatActionList`）。小游戏交互态的合法动作归 `pending.actor`，非该玩家无动作。
 - 命令 → 动作串映射与解析单测见 `src/game-command.ts` / `test-game-command.mts`。
 
 ### 人物画像（全局层，ADR-0007）

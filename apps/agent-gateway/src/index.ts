@@ -63,8 +63,11 @@ import {
   parseGameCommand,
   gameActionId,
   lobbyPrompt,
+  formatActionList,
   GAME_ACTION_HINT,
+  GAME_ACTION_CHOICE_LIMIT,
   type GameCommand,
+  type LegalAction,
 } from "./game-command.js";
 
 const redisUrl = process.env.REDIS_URL ?? "redis://127.0.0.1:6379";
@@ -786,7 +789,31 @@ async function executeIntent(
         });
         await sendGameReply(redis, event, result.message ?? resultJson, `玩家出了「${hand}」`, summary);
       } else if (active.room_id) {
-        await pushReply(redis, event, GAME_ACTION_HINT);
+        // 阶段 4b：合法动作 → 决策模型选择 → 执行；不可选则回清单兜底
+        const legalRaw = await engine.getLegalActions(active.room_id, event.sender_id);
+        const legal = parseJson<LegalAction[]>(legalRaw, []);
+        if (!Array.isArray(legal) || legal.length === 0) {
+          await pushReply(redis, event, "现在还没轮到你操作。" + GAME_ACTION_HINT);
+          break;
+        }
+        const chosen = await chooseGameAction(content, legal);
+        if (!chosen) {
+          await pushReply(redis, event, formatActionList(legal));
+          break;
+        }
+        const resultJson = await engine.executeAction(active.room_id, event.sender_id, chosen.id);
+        const result = parseJson<ActionResult>(resultJson, {});
+        await emitChatLog(redis, { openid: event.sender_id, groupId: event.group_id, role: "user", content });
+        await emitChatLog(redis, {
+          openid: event.sender_id,
+          groupId: event.group_id,
+          role: "assistant",
+          content: result.message ?? resultJson,
+        });
+        await pushReply(redis, event, result.message ?? resultJson);
+        console.log(
+          `[agent-gateway] game_action via=decision model=${chosen.id}:${chosen.confidence.toFixed(3)} ← ${content}`,
+        );
       } else {
         await pushReply(redis, event, "当前没有进行中的对局，试试「#开局」发起一局拉斯维加斯。");
       }
@@ -937,6 +964,32 @@ async function handlePendingConfirm(
 // ==================== 拉斯维加斯游戏命令（显式前缀，确定性路由） ====================
 
 const LAS_VEGAS_GAME_ID = "las-vegas";
+
+/**
+ * 用决策模型在合法动作里选一个（阶段 4b）：`get_legal_actions` → SystemOne `choice`。
+ * 仅当动作数 ≤ `GAME_ACTION_CHOICE_LIMIT` 时单题选择；否则返回 null（调用方走清单兜底）。
+ */
+async function chooseGameAction(
+  content: string,
+  legal: LegalAction[],
+): Promise<{ id: string; confidence: number } | null> {
+  if (legal.length === 0 || legal.length > GAME_ACTION_CHOICE_LIMIT) return null;
+  const criteria: Record<string, string> = {};
+  for (const a of legal) criteria[a.id] = a.description;
+  try {
+    const res = await systemone.decide(
+      { message: content },
+      { action: { type: "choice", instructions: "玩家想执行哪个动作？", criteria } },
+    );
+    const ans = res.answers?.action;
+    if (ans && ans.type === "choice" && legal.some((a) => a.id === ans.choice)) {
+      return { id: ans.choice, confidence: ans.confidence };
+    }
+  } catch (err) {
+    console.error("[agent-gateway] 游戏动作决策失败:", (err as Error)?.message ?? err);
+  }
+  return null;
+}
 
 /** 处理显式游戏命令：create/board 之外统一走 MCP execute_action（引擎无条件重校验）。 */
 async function handleGameCommand(

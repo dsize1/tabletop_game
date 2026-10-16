@@ -120,3 +120,24 @@ export function lobbyPrompt(host: string, count: number, n: number): string {
 /** 有对局但用户用了自由文本（game_action 意图）时的引导。 */
 export const GAME_ACTION_HINT =
   "本群拉斯维加斯对局进行中。请用：#放 <点数> 下注 / #重投 弃回合 / #局面 查看局势。";
+
+/** 可选的合法动作（MCP `get_legal_actions` 的元素）。 */
+export interface LegalAction {
+  id: string;
+  description: string;
+}
+
+/** 决策模型在合法动作里选一个的上限（超过则不做单题选择，改用清单兜底）。 */
+export const GAME_ACTION_CHOICE_LIMIT = 26;
+
+/** 把合法动作列表渲染为给用户的编号清单（决策兜底/提示）。 */
+export function formatActionList(actions: LegalAction[]): string {
+  if (actions.length === 0) {
+    return "当前没有可执行的动作。";
+  }
+  const lines = actions.map((a, i) => `${i + 1}) ${a.description}`);
+  return (
+    `可选动作：\n${lines.join("\n")}\n` +
+    "（也可用显式命令，如 #放 3 / #重投 / #局面）"
+  );
+}
