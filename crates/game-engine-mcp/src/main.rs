@@ -1,6 +1,6 @@
 //! game-engine-mcp：把 EnginePlugin 映射为 MCP 统一原语，以 stdio 暴露给 agent-gateway。
 //!
-//! 统一原语：get_rules / start_game / get_active_game / get_state / get_legal_actions / execute_action。
+//! 统一原语：get_rules / start_game / get_active_game / get_state / get_legal_actions / state_summary / execute_action。
 //! 所有写入路径由 GameManager → EnginePlugin 无条件重校验（合法性 + 权限）。
 
 use game_engine_core::{EngineRegistry, GameManager, GameState, GameStatus};
@@ -118,6 +118,14 @@ impl EngineServer {
     async fn get_legal_actions(&self, Parameters(p): Parameters<LegalActionsRequest>) -> String {
         match self.manager.legal_actions(&p.room_id, &p.player_id) {
             Ok(actions) => serde_json::to_string(&actions).unwrap_or_default(),
+            Err(e) => format!("错误: {e}"),
+        }
+    }
+
+    #[tool(name = "state_summary", description = "查询对局局面摘要（紧凑文本，给主持人）")]
+    async fn state_summary(&self, Parameters(p): Parameters<StateRequest>) -> String {
+        match self.manager.state_summary(&p.room_id) {
+            Ok(s) => s,
             Err(e) => format!("错误: {e}"),
         }
     }

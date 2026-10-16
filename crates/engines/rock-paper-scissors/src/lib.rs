@@ -133,6 +133,25 @@ impl EnginePlugin for RpsEngine {
             finished: true,
         })
     }
+
+    fn summarize(&self, state: &GameState) -> String {
+        match state.status {
+            GameStatus::Active => "猜拳（一轮）：等待玩家出拳".to_string(),
+            GameStatus::Finished => {
+                let hand = state
+                    .data
+                    .get("player_hand")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("未知");
+                let result = state
+                    .data
+                    .get("result")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("未知");
+                format!("猜拳：玩家出【{hand}】，结果 {result}")
+            }
+        }
+    }
 }
 
 fn random_hand() -> Hand {
@@ -228,5 +247,14 @@ mod tests {
         let state = new_state();
         let actions = engine.legal_actions(&state, "p1");
         assert_eq!(actions.len(), 3);
+    }
+
+    #[test]
+    fn summarize_reports_hand_and_result() {
+        let engine = RpsEngine;
+        let state = new_state();
+        let result = engine.execute_action(&state, "p1", "石头").unwrap();
+        let sum = engine.summarize(&result.state);
+        assert!(sum.contains("玩家出【石头】"), "{sum}");
     }
 }

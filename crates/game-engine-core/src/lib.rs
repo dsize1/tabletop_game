@@ -32,6 +32,19 @@ pub enum GameStatus {
     Finished,
 }
 
+/// 局面摘要送入主持人 LLM 的默认字符上限；超出由 `GameManager::state_summary` 截断。
+pub const SUMMARY_MAX_CHARS: usize = 300;
+
+/// 按「字符」截断（UTF-8 安全），超限追加省略号。
+pub fn truncate_chars(s: &str, max: usize) -> String {
+    if s.chars().count() <= max {
+        return s.to_string();
+    }
+    let mut out: String = s.chars().take(max.saturating_sub(1)).collect();
+    out.push('…');
+    out
+}
+
 /// 引擎错误。
 #[derive(Debug, thiserror::Error)]
 pub enum EngineError {
@@ -69,6 +82,19 @@ pub trait EnginePlugin: Send + Sync {
         player_id: &str,
         action: &str,
     ) -> Result<ActionResult, EngineError>;
+
+    /// 局面摘要：给主持人 LLM 的**紧凑文本视图**（不要 JSON）。
+    ///
+    /// 默认实现只给「游戏 + 状态 + 玩家人数」；引擎应覆盖为更贴切的摘要
+    /// （谁在等谁、关键资源/分数等）。由 `GameManager::state_summary` 统一截断到
+    /// `SUMMARY_MAX_CHARS`。
+    fn summarize(&self, state: &GameState) -> String {
+        let status = match state.status {
+            GameStatus::Active => "进行中",
+            GameStatus::Finished => "已结束",
+        };
+        format!("{}（{}）：玩家 {} 人", self.game_id(), status, state.players.len())
+    }
 }
 
 /// 引擎注册表。
@@ -214,5 +240,80 @@ impl GameManager {
                 .remove(&state.group_id);
         }
         Ok(result)
+    }
+
+    /// 局面摘要（给主持人）：引擎自定义 `summarize`，此处统一截断到 `SUMMARY_MAX_CHARS`。
+    pub fn state_summary(&self, room_id: &str) -> Result<String, EngineError> {
+        let state = self
+            .get_state(room_id)
+            .ok_or_else(|| EngineError::NotFound(format!("对局 {room_id}")))?;
+        let engine = self
+            .registry
+            .get(&state.game_id)
+            .ok_or_else(|| EngineError::NotFound(format!("游戏 {}", state.game_id)))?;
+        Ok(truncate_chars(&engine.summarize(&state), SUMMARY_MAX_CHARS))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct LongEngine;
+    impl EnginePlugin for LongEngine {
+        fn game_id(&self) -> &'static str {
+            "long"
+        }
+        fn rules(&self) -> String {
+            String::new()
+        }
+        fn new_game(&self, room_id: &str, group_id: &str, players: Vec<String>) -> GameState {
+            GameState {
+                game_id: "long".into(),
+                room_id: room_id.into(),
+                group_id: group_id.into(),
+                status: GameStatus::Active,
+                players,
+                data: serde_json::json!({}),
+            }
+        }
+        fn legal_actions(&self, _s: &GameState, _p: &str) -> Vec<Action> {
+            vec![]
+        }
+        fn execute_action(
+            &self,
+            _s: &GameState,
+            _p: &str,
+            _a: &str,
+        ) -> Result<ActionResult, EngineError> {
+            Err(EngineError::Internal("n/a".into()))
+        }
+        fn summarize(&self, _s: &GameState) -> String {
+            "甲".repeat(400)
+        }
+    }
+
+    #[test]
+    fn truncate_chars_is_utf8_safe() {
+        assert_eq!(truncate_chars("abc", 5), "abc");
+        let s = truncate_chars(&"甲".repeat(400), SUMMARY_MAX_CHARS);
+        assert_eq!(s.chars().count(), SUMMARY_MAX_CHARS);
+        assert!(s.ends_with('…'));
+    }
+
+    #[test]
+    fn state_summary_truncates_engine_output() {
+        let mut reg = EngineRegistry::new();
+        reg.register(LongEngine);
+        let mgr = GameManager::new(reg);
+        let st = mgr.start_game("long", "g", vec!["p1".into()]).unwrap();
+        let sum = mgr.state_summary(&st.room_id).unwrap();
+        assert_eq!(sum.chars().count(), SUMMARY_MAX_CHARS);
+    }
+
+    #[test]
+    fn state_summary_missing_room_errors() {
+        let mgr = GameManager::new(EngineRegistry::new());
+        assert!(mgr.state_summary("nope").is_err());
     }
 }

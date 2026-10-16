@@ -20,6 +20,7 @@
 | `get_rules(game_id)` | 游戏规则 |
 | `get_active_game(group_id)` | 当前群活跃对局（无则空） |
 | `get_state(game_id, room_id)` | 当前对局状态 |
+| `state_summary(room_id)` | **局面摘要**（紧凑文本视图，给主持人叙述；引擎自定义 `summarize` + 统一截断 `SUMMARY_MAX_CHARS=300`） |
 | `get_legal_actions(game_id, room_id, player_id)` | 玩家合法动作列表 |
 
 ### 写入（受校验）
