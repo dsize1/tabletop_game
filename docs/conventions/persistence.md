@@ -45,6 +45,12 @@
 
 > 术语统一：玩家身份标识为 **openid**（= QQ `member_openid`，非 QQ 号）。表中 `qq_id` 列与 MCP 参数 `qq_id` 均存该 openid。
 
+### 时间戳约定
+
+- 存储层一律用 **ISO 8601 UTC**（`YYYY-MM-DDTHH:MM:SSZ`，即 `new Date().toISOString()`）；展示/注入模型时才按 `CHAT_TZ`（默认 `Asia/Shanghai`）转换。
+- 进程内比较用 **epoch ms**（如 Redis 热缓存的 `chat:history` 条目 `ts`），避免字符串时区歧义。
+- 容器默认时区是 UTC：**不得依赖宿主本地时区做日期/星期计算**，文案类时间格式统一走 `apps/agent-gateway/src/time-context.ts`（`CHAT_TZ` 单点）。
+
 ### 表结构草案
 
 ```sql
@@ -107,6 +113,7 @@ CREATE TABLE dev_tasks (
 );
 
 -- 聊天历史（SQLite 全量；MVP 热路径用 Redis 列表 chat:history:{group_id}，见下）
+-- 热缓存条目为 {role, content, ts, boundary?}：ts/boundary 是内部元数据，只进 LLM 上下文，不进出站消息
 CREATE TABLE chat_history (
     id         INTEGER PRIMARY KEY,
     group_id   TEXT NOT NULL,

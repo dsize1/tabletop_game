@@ -75,7 +75,9 @@ web(Express) ──HTTP──> server/auth + 资源查询 ──> SQLite / Redis
 - 主持人先**确定性**查 MCP：`get_active_game`（是否有活跃对局）
 - 无对局：一次决策调用（单问）`intent ∈ {chat, dev, start_game}`
 - 有对局：先查 `get_state` + `get_legal_actions`，再一次决策调用（双问）`intent ∈ {chat, dev, game_action}` + `action ∈ {合法动作}`
+- **话题门控（条件性追加问）**：距上次对话 ≥ `TOPIC_GAP_MINUTES`（默认 30）时，在**同一次请求**里追加 `topic_switch`（`noul`，`state.previous_message` = 上一条用户消息）——仍是「单次请求多问题」，不增加往返延迟；`P(true) ≥ TOPIC_SWITCH_THRESHOLD`（默认 0.7）则在本轮历史标记 `--- 话题切换 ---`（见 `docs/modules/agent-gateway.md`「时间上下文与话题切换」）
 - 决策调用 = `/v1/systemone` **单次请求多问题**（单次前向），意图与动作针对同一份 state 快照
+- **时间上下文**：聊天路径把「现在 + 距上次对话」作为**独立 system 条目**注入 LLM，历史轮次带时间锚点；时间只作上下文私有层，不入出站消息、不入历史归档（同上文档）
 - **置信度三档**：`≥ 高阈值` 直接采用决策结果；`[低阈值, 高阈值)` 走「意图确认」（人工 y/n，y=按原消息执行、n=回落低阈值）；`< 低阈值` 走 `#前缀` → 默认 chat。阈值与状态机见 `docs/modules/agent-gateway.md`「置信度兜底（三档 + 意图确认）」
 
 ### 6.2 分支配

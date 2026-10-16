@@ -7,6 +7,8 @@ import {
   extractHand,
   extractHttpsLinks,
   parsePrefix,
+  DEFAULT_TOPIC_SWITCH_THRESHOLD,
+  isTopicSwitch,
   type Intent,
 } from "./decision.js";
 import {
@@ -19,6 +21,20 @@ import {
 } from "./intent-confirm.js";
 import { SystemOneClient } from "./systemone.js";
 import { chatReply, narrateGame, type ChatHistoryTurn } from "./chat.js";
+import {
+  appendChatHistory,
+  boundaryDisposition,
+  clearPendingBoundary,
+  consumePendingBoundary,
+  getChatHistory,
+  markPendingBoundary,
+} from "./chat-history.js";
+import {
+  chatGapMs,
+  formatGap,
+  isStaleGap,
+  lastUserContent,
+} from "./time-context.js";
 import { fetchLinkText } from "./link-fetch.js";
 import { GameEngineClient } from "./mcp.js";
 import { DevTaskClient } from "./dev-task-client.js";
@@ -68,6 +84,13 @@ const INTENT_THRESHOLD = Number(process.env.DECISION_INTENT_THRESHOLD ?? 0.6);
 const INTENT_THRESHOLD_HIGH = Number(process.env.DECISION_INTENT_THRESHOLD_HIGH ?? 0.8);
 // 未决「意图确认」在 Redis 的存活时长（秒）
 const INTENT_CONFIRM_TTL_SEC = Number(process.env.INTENT_CONFIRM_TTL_SEC ?? 300);
+// 话题切换：距上次对话 ≥ 该间隔才做「是否新话题」判定（经验值，非外部约束，可配）
+const TOPIC_GAP_MINUTES = Number(process.env.TOPIC_GAP_MINUTES ?? 30);
+const TOPIC_GAP_MS = Math.max(0, TOPIC_GAP_MINUTES) * 60 * 1000;
+// 话题切换阈值：P(true) ≥ 阈值才判新话题（经验值，可配）
+const TOPIC_SWITCH_THRESHOLD = Number(
+  process.env.TOPIC_SWITCH_THRESHOLD ?? DEFAULT_TOPIC_SWITCH_THRESHOLD,
+);
 
 interface MessageGroupAt {
   type: "message_group_at";
@@ -222,32 +245,7 @@ async function handleDocsLink(redis: Redis, event: MessageGroupAt) {
   }
 }
 
-// ---- 聊天历史（Redis 热缓存，最近 N 条；全量归档由 bot-adapter 写 SQLite group_messages） ----
-
-const CHAT_HISTORY_LIMIT = Number(process.env.CHAT_HISTORY_LIMIT ?? 20);
-const chatHistoryKey = (groupId: string) => `chat:history:${groupId}`;
-
-async function getChatHistory(redis: Redis, groupId: string): Promise<ChatHistoryTurn[]> {
-  const raw = await redis.lrange(chatHistoryKey(groupId), -CHAT_HISTORY_LIMIT, -1);
-  const out: ChatHistoryTurn[] = [];
-  for (const r of raw) {
-    const t = parseJson<ChatHistoryTurn>(r, { role: "user", content: r });
-    if (t.content) {
-      out.push({ role: t.role === "assistant" ? "assistant" : "user", content: t.content });
-    }
-  }
-  return out;
-}
-
-async function appendChatHistory(
-  redis: Redis,
-  groupId: string,
-  role: "user" | "assistant",
-  content: string,
-) {
-  await redis.rpush(chatHistoryKey(groupId), JSON.stringify({ role, content }));
-  await redis.ltrim(chatHistoryKey(groupId), -CHAT_HISTORY_LIMIT, -1);
-}
+// ---- 聊天历史（Redis 热缓存，见 `chat-history.ts`；ioredis 结构上满足 `ListStore`）----
 
 /** 消息含 https:// 链接时：SystemOne 判断是否需要抓取 → 抓取正文追加到上下文（任何失败静默降级）。 */
 async function augmentWithLink(content: string): Promise<string> {
@@ -273,16 +271,18 @@ async function augmentWithLink(content: string): Promise<string> {
   }
 }
 
-/** 聊天流程：读历史 →（如需）抓链接正文注入 → LLM 回复 → 追历史。 */
+/** 聊天流程：读历史 →（如需）抓链接正文注入 → LLM 回复 → 追历史（时间只入上下文，不入库）。 */
 async function chatFlow(
   redis: Redis,
   event: MessageGroupAt,
   content: string = event.content,
+  meta: { boundary?: boolean; history?: ChatHistoryTurn[] } = {},
 ): Promise<string> {
-  const history = await getChatHistory(redis, event.group_id);
+  // 上游已读过历史则复用（避免同一轮重复 LRANGE）；否则自行读取
+  const history = meta.history ?? (await getChatHistory(redis, event.group_id));
   const userContent = await augmentWithLink(content);
   const reply = await chatReply(userContent, history);
-  await appendChatHistory(redis, event.group_id, "user", content);
+  await appendChatHistory(redis, event.group_id, "user", content, meta);
   await appendChatHistory(redis, event.group_id, "assistant", reply);
   return reply;
 }
@@ -673,10 +673,11 @@ async function executeIntent(
   event: MessageGroupAt,
   intent: Intent,
   content: string,
+  meta: { boundary?: boolean; history?: ChatHistoryTurn[] } = {},
 ) {
   switch (intent) {
     case "chat":
-      await pushReply(redis, event, await chatFlow(redis, event, content));
+      await pushReply(redis, event, await chatFlow(redis, event, content, meta));
       break;
 
     case "start_game": {
@@ -721,7 +722,7 @@ async function executeIntent(
       break;
 
     default:
-      await pushReply(redis, event, await chatFlow(redis, event, content));
+      await pushReply(redis, event, await chatFlow(redis, event, content, meta));
   }
 }
 
@@ -888,17 +889,35 @@ async function handle(
     return;
   }
 
-  // 2) 未决「意图确认」：本轮先交确认流程（y/n 直接消费；非 y/n 按规则追问/覆盖）
+  // 2) 时间上下文（仅记录 + 判据，不注入此路径）：距上次对话间隔驱动「话题切换」与 pending 失效
+  const history = await getChatHistory(redis, event.group_id);
+  const gapMs = chatGapMs(history);
+  // 门控可整体关闭（`TOPIC_GAP_MINUTES=0`），此时不做话题判定也不使 pending 失效
+  const staleGap = isStaleGap(gapMs, TOPIC_GAP_MS);
+  const askTopicSwitch = staleGap;
+
+  // 3) 未决「意图确认」：本轮先交确认流程（y/n 直接消费；非 y/n 按规则追问/覆盖）
   const pending = await loadPending(redis, event.group_id, event.sender_id);
   if (pending) {
-    await handlePendingConfirm(redis, engine, event, pending);
-    return;
+    // C：跨越 ≥ TOPIC_GAP_MINUTES 的 pending 已失去语境（确认提示的有效期 = 该间隔），确定性丢弃。
+    if (staleGap) {
+      await clearPending(redis, event.group_id, event.sender_id);
+      console.log(
+        `[agent-gateway] pending 失效丢弃 gap=${formatGap(gapMs!)} >= ${TOPIC_GAP_MINUTES}min cid=${pending.cid} intent=${pending.intent}`,
+      );
+    } else {
+      await handlePendingConfirm(redis, engine, event, pending);
+      return;
+    }
   }
 
-  // 3) 决策模型三档：≥ 高阈值直接路由；中带发起确认；低阈值走前缀/默认兜底
-  const { intent, via, model } = await decideIntent(event.content, systemone, {
+  // 4) 决策模型三档：≥ 高阈值直接路由；中带发起确认；低阈值走前缀/默认兜底
+  //    `askTopicSwitch` 时额外一问，但仍在**同一次** HTTP 请求内（不增加往返延迟）
+  const { intent, via, model, topicSwitch } = await decideIntent(event.content, systemone, {
     threshold: INTENT_THRESHOLD,
     thresholdHigh: INTENT_THRESHOLD_HIGH,
+    askTopicSwitch,
+    previousMessage: lastUserContent(history),
   });
   if (via === "unavailable") {
     await pushReply(redis, event, "服务繁忙，请稍后重试");
@@ -910,8 +929,31 @@ async function handle(
     return;
   }
 
+  // A：判定为新话题 → 在**本轮** history 条目上打边界标记（决策一次、长期复用）
+  //    门控命中时以本次判定为准（丢弃旧暂存）；未命中时取用之前暂存的边界
+  let boundary = askTopicSwitch && isTopicSwitch(topicSwitch, TOPIC_SWITCH_THRESHOLD);
+  if (askTopicSwitch) {
+    await clearPendingBoundary(redis, event.group_id);
+    console.log(
+      `[agent-gateway] 话题切换判定 gap=${formatGap(gapMs!)} P=${topicSwitch?.toFixed(2) ?? "-"} → ${boundary ? "新话题" : "延续"}`,
+    );
+  } else if (await consumePendingBoundary(redis, event.group_id)) {
+    boundary = true;
+    console.log("[agent-gateway] 话题切换：取用待落位边界（上一条非 chat 消息上检出）");
+  }
+
+  // 边界去向：chat 分支直接落 history；其它分支不写 history → 暂存等下一条 chat 消息补落
+  const where = boundaryDisposition(boundary, intent);
+  if (where === "stash") {
+    await markPendingBoundary(redis, event.group_id);
+    console.log(`[agent-gateway] 话题边界暂存（intent=${intent} 不写 history）`);
+  }
+
   try {
-    await executeIntent(redis, engine, event, intent, event.content);
+    await executeIntent(redis, engine, event, intent, event.content, {
+      boundary: where === "history",
+      history,
+    });
   } catch (err) {
     console.error(`[agent-gateway] 处理异常 intent=${intent}:`, err);
     await pushReply(redis, event, "抱歉，处理你的消息时出错了，请稍后再试");

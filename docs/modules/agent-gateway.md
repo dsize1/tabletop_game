@@ -35,7 +35,7 @@
 - `#确认` → `confirm_task` → 恢复子会话执行 → `transition verifying` → `#确认` 再验收 → `done`
 - `#进度`：经 `prepare_task_link` 校验归属后**重签新短链**（原 token 过期可自助重取）
 - `#补充 <id> <正文>`：经 `append_instruction` 校验后 `runDevResume` 追加到已有子会话（不落 chat 兜底）
-- 聊天多轮：每群 Redis 热缓存最近 20 条（`CHAT_HISTORY_LIMIT` 可配）注入 `chatReply`
+- 聊天多轮：每群 Redis 热缓存最近 20 条（`CHAT_HISTORY_LIMIT` 可配）注入 `chatReply`；条目随消息存 `ts`（写入时刻）与 `boundary`（话题切换边界），旧条目无这两个字段时降级为「时间未知、无边界」。读写见 `src/chat-history.ts`，渲染见 `src/time-context.ts`
 
 ### 聊天联网（Plan B 链接抓取）
 
@@ -53,6 +53,26 @@
 | `CHAT_LINK_TIMEOUT_MS` | `10000` | 抓取超时（覆盖重定向链） |
 | `CHAT_LINK_MAX_CHARS` | `2000` | 抽取文本最大字符数 |
 
+### 时间上下文与话题切换
+
+**时间只作为「上下文私有层」**：让主持人知道「现在几点 / 距上次对话多久」，但它**不是消息内容**。
+
+| 约束 | 实现 |
+|---|---|
+| 入模型上下文 | `chat.ts` `buildChatMessages`：`system` 人设 → 历史（簇首带 `[MM-DD HH:mm]` 锚点、带边界者前置 `--- 话题切换 ---`）→ **独立 `system` 时间块** → 当前用户消息 |
+| 不落归档 | 时间块与锚点是**组装时临时渲染**，`chat:history` 存的仍是原始 `content`（与链接摘录同一模式） |
+| 不出站 | 时间文本不会出现在 `qq.push` 正文；`SYSTEM_PROMPT` 另约束「用户主动问才提时间」 |
+
+- 时区单点：`CHAT_TZ`（默认 `Asia/Shanghai`；容器默认 UTC，故显式固定）。间隔为纯数字紧凑格式（`刚刚` / `32m` / `14h32m` / `1d14h`），**不做「昨晚 / 该睡了」这类内容推断**。
+- `handle` 开头统一读一次 `chat:history`（算 gap 供门控与 pending 失效用），并传给 `chatFlow` 复用，**同一轮不重复 LRANGE**。
+- 同一「发言簇」（间隔 < `CLUSTER_GAP_MS` = 5min）只在簇首打时间锚点。
+- **话题切换（A）**：距上次对话 ≥ `TOPIC_GAP_MINUTES`（默认 30）时，在**同一次** `decideIntent` 请求里追加第 2 问 `topic_switch`（`noul`，`state.previous_message` = 上一条用户消息）——**零额外 RTT**。`P(true) ≥ TOPIC_SWITCH_THRESHOLD`（默认 0.7）→ 在本轮 history 条目上写 `boundary: true`（决策一次、可复用，前缀稳定），后续渲染出 `--- 话题切换 ---`。
+- **边界落位（非 chat 分支）**：`chat:history` 只在 chat 分支写入，所以被路由为 game/dev 的那条消息只能把边界暂存到 `chat:boundary:{group_id}`（TTL 1h），由「空档后第一条进入聊天历史的用户消息」取用并落位。因为 `gap` 取 `chat:history` 最后一条的 `ts`，未写入时门控会持续命中（同一次请求内，无额外 RTT）而自愈。门控命中时以**本次**判定为准，丢弃旧暂存。
+- **pending 失效（C）**：同一门控命中时，先**确定性丢弃**该 `(group_id, openid)` 的未决意图确认——确认提示的语境有效期就等于这个间隔，否则跨 30 分钟的一句「早」会被当成 `y/n` 消费。
+- 门控可整体关闭：`TOPIC_GAP_MINUTES=0`（此时不做话题判定，也不使 pending 失效）；`SystemOne` 不可用时 `topicSwitch` 为 `undefined` → 按「未切换」安全降级。
+- 仅 **chat 路径**注入时间上下文；`narrateGame`（游戏情景叙述）不带。
+- 日志：`话题切换判定 gap=14h32m P=0.88 → 新话题|延续`、`话题边界暂存（intent=… 不写 history）`、`话题切换：取用待落位边界`、`pending 失效丢弃 gap=… cid=… intent=…`。
+
 ### 编排流程
 
 见 `docs/architecture.md` §6。
@@ -62,7 +82,7 @@
 - `src/systemone.ts`：`SystemOneClient`，POST `${SYSTEMONE_URL}/v1/systemone`（默认 `http://127.0.0.1:8090`），超时 `SYSTEMONE_TIMEOUT_MS`（默认 3000ms）；`fetchImpl` 可注入便于单测
 - `src/decision.ts`：`decideIntent(content, client, { threshold })` **异步**；`intent ∈ {chat, start_game, game_action, dev}`，criteria 中文（实测零样本可用）
 - **分类前屏蔽 URL**：送模型的 `state.message` 把 `http(s)://…` 换成 `[链接]`（`maskUrls`）——链接文本本身是强 dev 信号（如 `/dev_docs`），中英文均会被误判为 dev；`#前缀` 兜底与链接抓取判断仍用原文
-- 状态：目前 `state = { message }`；架构 §6.1 的 `get_active_game`/`get_legal_actions` 与动作选择**尚未接入**（待拉斯维加斯引擎）
+- 状态：`state = { message }`；启用话题门控时额外带 `previous_message`（当前用户消息仍走 `maskUrls`）。架构 §6.1 的 `get_active_game`/`get_legal_actions` 与动作选择**尚未接入**（待拉斯维加斯引擎）
 
 ### 置信度兜底（三档 + 意图确认）
 
@@ -106,8 +126,11 @@
 | `DECISION_INTENT_THRESHOLD` | `0.6` | 意图置信度低阈值（低于 → `#前缀` → 默认 chat） |
 | `DECISION_INTENT_THRESHOLD_HIGH` | `0.8` | 意图置信度高阈值（`[低, 高)` 走「意图确认」；必须 ≥ 低阈值，倒挂自动夹紧） |
 | `INTENT_CONFIRM_TTL_SEC` | `300` | 未决「意图确认」存活时长（秒），对齐群被动回复窗口 |
+| `TOPIC_GAP_MINUTES` | `30` | 话题切换门控：距上次对话 ≥ 该间隔才做判定（`0` 关闭门控）。**经验值，非外部约束** |
+| `TOPIC_SWITCH_THRESHOLD` | `0.7` | `topic_switch` 的 P(true) 阈值（≥ 判新话题）。**经验值，非外部约束** |
+| `CHAT_TZ` | `Asia/Shanghai` | 时间上下文时区（容器默认 UTC，故显式固定） |
 
-- 测试：`npm run test`（离线，含决策层 + 客户端层）；`npm run test:decision:live`（需本地决策服务在线）；健康探针 `node apps/scripts/check-decision-service.mjs`
+- 测试：`npm run test`（离线，统一 runner `test-all.mts`：显式清单 + 逐文件计时 + 汇总，失败/超时非零退出；新增测试需在列或入 EXCLUDED 附原因）；`npm run test:decision:live`（需本地决策服务在线）；健康探针 `node apps/scripts/check-decision-service.mjs`
 
 ### web 短链配置
 

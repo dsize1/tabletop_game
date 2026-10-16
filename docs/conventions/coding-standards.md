@@ -17,6 +17,14 @@
 - 修改架构先更新 `docs/architecture.md`
 - 重大决策记 ADR 到 `memory_palace/decisions/`
 
+## 时间与时区
+
+- **不得依赖宿主本地时区**：容器默认 UTC。日历计算/格式化只允许两种写法——UTC 系列（`getUTCDay()` 等）或 `Intl.DateTimeFormat({ timeZone })`。本地时区 API（`getHours` / `getDate` / `toLocaleString` …）在源码中一律禁用，由 `apps/agent-gateway/test-time-guards.mts` 扫描护栏。
+- **时区单点**：展示/注入模型的时区统一走 `apps/agent-gateway/src/time-context.ts` 的 `CHAT_TZ`（默认 `Asia/Shanghai`）；不要把时区字符串散落各处。
+- **存储用绝对时间**：落库用 ISO 8601 UTC（`toISOString()`），进程内比较用 epoch ms（见 `docs/conventions/persistence.md`「时间戳约定」）。
+- **时钟可注入**：任何依赖「当前时间」的函数都要接受可选 `now` / `opts.now`（默认 `Date.now()`），便于假时钟单测。不要在被调函数内部直接 `Date.now()` 后又无法覆盖。
+- **内部时间信息不得出站**：用于模型推理的时间/边界标记（如 `[时间]`、`--- 话题切换 ---`）只存在于 LLM 上下文，断言工具 `assertNoInternalMarkers`（`apps/agent-gateway/test-helpers.mts`）。
+
 ## 事实 vs 假设（外部约束）
 
 - 进入 ADR / 架构文档的**数值型约束**（时间窗口、频控、延迟、上限、配额）必须标注**来源**（官方文档 / 实测记录）+ **验证状态**（已验证 / 待验证）。

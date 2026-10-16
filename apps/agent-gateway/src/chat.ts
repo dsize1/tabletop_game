@@ -1,5 +1,13 @@
 //! 聊天分支：接入 DeepSeek LLM（OpenAI 兼容接口）。
 //! 回复限长 1500 字符：超长时模型多做一步「摘要压缩」，保证回复不超限。
+//! 时间上下文（当前时间 + 历史时间锚点）只注入 LLM，不落库、不出站，见 `time-context.ts`。
+
+import {
+  formatTimeBlock,
+  lastTurnTs,
+  renderHistory,
+  type TimedTurn,
+} from "./time-context.js";
 
 const LLM_BASE_URL = process.env.LLM_BASE_URL ?? "https://api.deepseek.com";
 const LLM_API_KEY = process.env.LLM_API_KEY ?? "";
@@ -13,7 +21,11 @@ const LLM_THINKING_ENABLED = (process.env.LLM_THINKING_ENABLED ?? "1") === "1";
 /** 回复最大字符数（QQ 消息有长度限制，超限会报 40054007）。 */
 const MAX_REPLY_CHARS = 1500;
 
-const SYSTEM_PROMPT = "你是桌游群里的助手机器人，回复简洁、友好、口语化，用中文。";
+// 时间只作为上下文私有层：模型据此判断对话间隔，但不得主动报时（用户没问就不提）。
+const SYSTEM_PROMPT =
+  "你是桌游群里的助手机器人，回复简洁、友好、口语化，用中文。" +
+  "除非用户主动问，不要在回复里提时间（不要说现在几点、今天几号）；" +
+  "上下文里出现的时间信息只用于你自己判断对话隔了多久。";
 
 const SUMMARY_PROMPT =
   "请把下面这段内容压缩成一段不超过 1500 字符的回复，保留核心信息和语气，直接输出压缩后的文本，不要任何解释或前缀。";
@@ -62,25 +74,49 @@ async function callLlm(
   }
 }
 
-/** 聊天历史单条（用于注入 LLM 上下文）。 */
-export interface ChatHistoryTurn {
-  role: "user" | "assistant";
-  content: string;
+/** 聊天历史单条（用于注入 LLM 上下文）：带 `ts` / `boundary` 以支持时间锚点与话题边界。 */
+export type ChatHistoryTurn = TimedTurn;
+
+export interface ChatMessagesOptions {
+  /** 当前时刻（epoch ms），便于测试注入假时钟。 */
+  now?: number;
+  /** 时区覆盖（默认 `time-context.CHAT_TZ`）。 */
+  tz?: string;
 }
 
-/** 聊天回复：正常 LLM 回复（带群历史）；超 1500 字符时再做一步摘要压缩。 */
-export async function chatReply(content: string, history: ChatHistoryTurn[] = []): Promise<string> {
+/**
+ * 组装送 LLM 的 messages（纯函数，便于单测）：
+ * `system` 人设 → 历史（簇首带时间锚点、边界带话题切换标记）→ `system` 时间块 → 当前用户消息。
+ *
+ * 注意「时间只入上下文」：时间块是独立条目，用户消息与历史 `content` 均原样不改写。
+ */
+export function buildChatMessages(
+  content: string,
+  history: readonly ChatHistoryTurn[] = [],
+  opts: ChatMessagesOptions = {},
+): Array<{ role: string; content: string }> {
+  const now = opts.now ?? Date.now();
+  return [
+    { role: "system", content: SYSTEM_PROMPT },
+    ...renderHistory(history, { tz: opts.tz }),
+    { role: "system", content: formatTimeBlock(now, lastTurnTs(history), opts.tz) },
+    { role: "user", content },
+  ];
+}
+
+/** 聊天回复：正常 LLM 回复（带群历史 + 时间上下文）；超 1500 字符时再做一步摘要压缩。 */
+export async function chatReply(
+  content: string,
+  history: ChatHistoryTurn[] = [],
+  opts: ChatMessagesOptions = {},
+): Promise<string> {
   if (!LLM_API_KEY) {
     console.error("[chat] 回退桩：未配置 LLM_API_KEY");
     return fallback(content);
   }
 
   try {
-    const messages = [
-      { role: "system", content: SYSTEM_PROMPT },
-      ...history.map((h) => ({ role: h.role, content: h.content })),
-      { role: "user", content },
-    ];
+    const messages = buildChatMessages(content, history, opts);
     // 第一段：正常回复
     const text = await callLlm(messages, LLM_MAX_TOKENS);
     if (!text) {

@@ -1,6 +1,6 @@
 //! 意图决策：决策模型 SystemOne 为主，`#前缀` / 默认 chat 兜底。
 //! SystemOne 不可用（超时/连不上/报错）单独标记 `via="unavailable"`，由调用方回「服务繁忙」。
-import type { SystemOneClient } from "./systemone.js";
+import type { Question, SystemOneClient } from "./systemone.js";
 
 export type Intent = "chat" | "start_game" | "game_action" | "dev";
 
@@ -19,6 +19,11 @@ export interface Decision {
    * 不论最终走哪条支路都保留，用于日志「结果 + 置信度」回溯与是否进过确认阶段的推断。
    */
   model?: { intent: Intent; confidence: number };
+  /**
+   * 话题切换的 P(true)（仅在 `askTopicSwitch` 时请求；0~1）。
+   * 门控与阈值判定在调用方（`index.ts`）；`undefined` 表示未询问 / 无有效回答 / 决策服务不可用。
+   */
+  topicSwitch?: number;
 }
 
 /** 意图置信度默认低阈值（低于 → `#前缀` → 默认 chat；可被 `DecideOptions.threshold` 覆盖）。 */
@@ -96,6 +101,13 @@ export interface DecideOptions {
   thresholdHigh?: number;
   /** 覆盖意图选项描述（默认 `INTENT_CRITERIA`）。 */
   intentCriteria?: Record<Intent, string>;
+  /**
+   * 是否追加 `topic_switch` 问题（由调用方按「距上次对话间隔」门控）。
+   * 追加后仍是**同一次** HTTP 请求 / 同一次前向，不增加往返延迟。
+   */
+  askTopicSwitch?: boolean;
+  /** 上一条用户消息内容（`topic_switch` 判定用；无则不传）。 */
+  previousMessage?: string;
 }
 
 /** 提取消息中的 https:// 链接（必须有协议头；剔除尾部中英文标点，去重）。 */
@@ -111,6 +123,28 @@ export function extractHttpsLinks(content: string): string[] {
 
 /** 链接抓取判断的默认阈值（P(true) ≥ 阈值则抓取）。 */
 export const DEFAULT_LINK_FETCH_THRESHOLD = 0.5;
+
+/** 话题切换阈值：P(true) ≥ 阈值才判「新话题」（保守取值，宁少标、不误切）。 */
+export const DEFAULT_TOPIC_SWITCH_THRESHOLD = 0.7;
+
+/** 话题切换问题（`noul` 是/否；并入 `decideIntent` 的同一次前向，零额外 RTT）。 */
+export const TOPIC_SWITCH_INSTRUCTIONS = "当前这条消息是在开启一个新话题，还是在延续上一次的对话？";
+export const TOPIC_SWITCH_CRITERIA: { true: string; false: string } = {
+  true: "新话题：与上一次内容无关，或明显是隔了一段时间后的新对话（打招呼、换事情）",
+  false: "延续：仍在接着上一次的内容说",
+};
+
+/** 话题切换判定：P(true) ≥ 阈值算新话题；未询问 / 无有效回答 → false。 */
+export function isTopicSwitch(
+  topicSwitch: number | undefined,
+  threshold: number = DEFAULT_TOPIC_SWITCH_THRESHOLD,
+): boolean {
+  return (
+    typeof topicSwitch === "number" &&
+    Number.isFinite(topicSwitch) &&
+    topicSwitch >= threshold
+  );
+}
 
 export interface LinkFetchDecision {
   /** 是否需要抓取链接内容 */
@@ -170,21 +204,33 @@ export async function decideIntent(
   );
 
   let answer: { choice: Intent; confidence: number } | null = null;
+  let topicSwitch: number | undefined;
   try {
-    const res = await client.decide(
-      { message: maskUrls(content) },
-      {
-        intent: {
-          type: "choice",
-          instructions: "玩家的意图是什么？",
-          criteria: opts.intentCriteria ?? INTENT_CRITERIA,
-        },
+    // 意图与话题切换在**同一次**请求里多问（单次前向），不额外增加 RTT。
+    const questions: Record<string, Question> = {
+      intent: {
+        type: "choice",
+        instructions: "玩家的意图是什么？",
+        criteria: opts.intentCriteria ?? INTENT_CRITERIA,
       },
-    );
+    };
+    const state: Record<string, unknown> = { message: maskUrls(content) };
+    if (opts.askTopicSwitch) {
+      if (opts.previousMessage) state.previous_message = maskUrls(opts.previousMessage);
+      questions.topic_switch = {
+        type: "noul",
+        instructions: TOPIC_SWITCH_INSTRUCTIONS,
+        criteria: TOPIC_SWITCH_CRITERIA,
+      };
+    }
+
+    const res = await client.decide(state, questions);
     const a = res.answers?.intent;
     if (a && a.type === "choice" && isIntent(a.choice)) {
       answer = { choice: a.choice, confidence: a.confidence };
     }
+    const t = res.answers?.topic_switch;
+    if (t && t.type === "noul" && typeof t.noul === "number") topicSwitch = t.noul;
   } catch (err) {
     console.error("[decision] SystemOne 调用失败:", (err as Error)?.message ?? err);
     return { intent: "chat", confidence: 0, via: "unavailable" };
@@ -194,17 +240,17 @@ export async function decideIntent(
     const model = { intent: answer.choice, confidence: answer.confidence };
     const band = confidenceBand(answer.confidence, low, high);
     if (band === "high") {
-      return { intent: answer.choice, confidence: answer.confidence, via: "decision", model };
+      return { intent: answer.choice, confidence: answer.confidence, via: "decision", model, topicSwitch };
     }
     // 中带且候选非 chat：交调用方人工确认（候选=chat 时确认无意义，等同低阈值兜底）。
     if (band === "confirm" && answer.choice !== "chat") {
-      return { intent: answer.choice, confidence: answer.confidence, via: "confirm", model };
+      return { intent: answer.choice, confidence: answer.confidence, via: "confirm", model, topicSwitch };
     }
   }
   const model = answer ? { intent: answer.choice, confidence: answer.confidence } : undefined;
   const prefix = parsePrefix(content);
   if (prefix) {
-    return { intent: prefix, confidence: answer?.confidence ?? 0, via: "prefix", model };
+    return { intent: prefix, confidence: answer?.confidence ?? 0, via: "prefix", model, topicSwitch };
   }
-  return { intent: "chat", confidence: answer?.confidence ?? 0, via: "default", model };
+  return { intent: "chat", confidence: answer?.confidence ?? 0, via: "default", model, topicSwitch };
 }

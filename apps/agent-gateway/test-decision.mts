@@ -11,7 +11,7 @@ import {
   INTENT_CRITERIA,
 } from "./src/decision.js";
 import { SystemOneClient } from "./src/systemone.js";
-import { stubClient, failingClient, hangingClient } from "./test-helpers.mts";
+import { stubClient, failingClient, hangingClient, recordingClient } from "./test-helpers.mts";
 
 // —— 前缀解析 ——
 assert.equal(parsePrefix("#聊 你好"), "chat");
@@ -111,6 +111,22 @@ assert.deepEqual(normalizeThresholds(Number.NaN, Number.NaN), { low: 0.6, high: 
 
 // —— 意图选项齐全 ——
 assert.deepEqual(Object.keys(INTENT_CRITERIA).sort(), ["chat", "dev", "game_action", "start_game"]);
+
+// —— 话题切换问题并入同一次请求（详见 test-topic-switch.mts）——
+{
+  const { client, calls } = recordingClient({
+    intent: { type: "choice", choice: "chat", confidence: 0.9 },
+    topic_switch: { type: "noul", noul: 0.75 },
+  });
+  const d = await decideIntent("早", client, { askTopicSwitch: true, previousMessage: "今天先到这" });
+  assert.equal(d.topicSwitch, 0.75);
+  assert.equal(calls.length, 1, "不因追加问题而多一次 HTTP 往返");
+}
+// 未请求时不应出现 topicSwitch
+{
+  const d = await decideIntent("随便说说", stubClient("chat", 0.9));
+  assert.equal(d.topicSwitch, undefined);
+}
 
 // —— 意图分类前屏蔽 URL（避免 /dev_docs 等链接文本污染意图）——
 assert.equal(maskUrls("介绍下 https://x.com/dev_docs 该链接"), "介绍下 [链接] 该链接");
