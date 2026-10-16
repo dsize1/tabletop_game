@@ -14,6 +14,7 @@
 | Policy | 决策策略 trait（状态+合法动作 → 动作 id；测试 AI 与后续 AlphaZero 通用） |
 | HeuristicPolicy | 拉斯维加斯启发式贪心 AI（按攻略「期望分/骰」基准 2 分打分） |
 | 自对弈 / run_self_play | 用策略驱动一局（lobby→终局），固定种子可复现，供测试/回归 |
+| 机器人补位 | `Seat.is_bot`；房主 `lobby:add_bot` 入局，内置启发式 AI 自动行动（`#单人`/`#加机器人`） |
 | las-vegas | 首个桌游引擎「拉斯维加斯」 |
 | 短期 token | Web 鉴权用的短时效 token：uuid v4 + 绑定 openid + 资源范围；存 Redis，TTL 8 小时（局终态清除） |
 | openid（member_openid） | 玩家身份标识；QQ 官方仅给群内 openid（非 QQ 号）。统一术语：代码/文档以「openid」指代玩家身份，不再用「qq号/qqid」 |

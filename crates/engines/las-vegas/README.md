@@ -51,3 +51,9 @@ node apps/verify-las-vegas.mjs
 # 自对弈示例：5 局、4 人
 cargo run -p las-vegas --example selfplay -- 5 4
 ```
+
+### 机器人补位（一个人也能测）
+
+- 引擎：`Seat.is_bot`；房主动作 `lobby:add_bot` 加入机器人（id `botN`）。
+- MCP：新增原语 `bot_action(room_id, player_id)`——用 `HeuristicPolicy` 替机器人选并执行动作。
+- QQ：`#单人 [n]`（默认 3 个机器人）一键 create+补位+开赛；`#加机器人 [n]` 手动补位；agent-gateway 在人类动作后自动驱动机器人直到人类回合/终局。

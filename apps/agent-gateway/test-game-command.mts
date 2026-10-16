@@ -26,6 +26,13 @@ assert.deepEqual(parseGameCommand("#重投"), { cmd: "reroll" });
 assert.deepEqual(parseGameCommand("#弃"), { cmd: "reroll" });
 assert.deepEqual(parseGameCommand("#局面"), { cmd: "board" });
 assert.deepEqual(parseGameCommand("  #加入  "), { cmd: "join" });
+// 机器人补位";
+assert.deepEqual(parseGameCommand("#加机器人"), { cmd: "addbot", n: 1 });
+assert.deepEqual(parseGameCommand("#加机器人 2"), { cmd: "addbot", n: 2 });
+assert.deepEqual(parseGameCommand("#机器人 3"), { cmd: "addbot", n: 3 });
+assert.deepEqual(parseGameCommand("#单人"), { cmd: "solo", n: 3 });
+assert.deepEqual(parseGameCommand("#单人 2"), { cmd: "solo", n: 2 });
+assert.equal(parseGameCommand("#单人 9"), null);
 
 // —— 非法参数 → null（回落决策模型，不误发动作） ——
 assert.equal(parseGameCommand("#放 0"), null);
@@ -51,6 +58,8 @@ assert.equal(gameActionId({ cmd: "kick", target: "u1" }), "lobby:kick:u1");
 assert.equal(gameActionId({ cmd: "smallgames", n: 5 }), "lobby:set_small_game_count:5");
 assert.equal(gameActionId({ cmd: "place", point: 6 }), "place:6");
 assert.equal(gameActionId({ cmd: "reroll" }), "reroll");
+assert.equal(gameActionId({ cmd: "addbot", n: 2 }), "lobby:add_bot");
+assert.equal(gameActionId({ cmd: "solo", n: 3 }), null);
 assert.equal(gameActionId({ cmd: "create" }), null);
 assert.equal(gameActionId({ cmd: "board" }), null);
 

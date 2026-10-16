@@ -92,6 +92,9 @@ pub struct Seat {
     pub big_remaining: u8,
     pub chips: u32,
     pub banknotes: Vec<u32>,
+    /// 是否为机器人（测试补位；由内置启发式 AI 自动行动）。
+    #[serde(default)]
+    pub is_bot: bool,
 }
 
 impl Seat {
@@ -102,7 +105,14 @@ impl Seat {
             big_remaining: BIG_DICE,
             chips: INITIAL_CHIPS,
             banknotes: Vec::new(),
+            is_bot: false,
         }
+    }
+
+    fn new_bot(player_id: String) -> Self {
+        let mut s = Self::new(player_id);
+        s.is_bot = true;
+        s
     }
 
     fn has_dice(&self) -> bool {
@@ -479,6 +489,12 @@ impl EnginePlugin for LasVegasEngine {
                                 description: "开始游戏".into(),
                             });
                         }
+                        if st.seats.len() < MAX_PLAYERS {
+                            out.push(Action {
+                                id: "lobby:add_bot".into(),
+                                description: "加入机器人".into(),
+                            });
+                        }
                         out.push(Action {
                             id: "lobby:abort".into(),
                             description: "中断本局（不结算）".into(),
@@ -571,6 +587,22 @@ impl EnginePlugin for LasVegasEngine {
                         json!({ "player_id": player_id }),
                     ));
                     message = format!("{player_id} 加入了游戏");
+                }
+                "add_bot" => {
+                    if player_id != st.host {
+                        return Err(EngineError::PermissionDenied("仅发起人可加机器人".into()));
+                    }
+                    if st.seats.len() >= MAX_PLAYERS {
+                        return Err(EngineError::IllegalAction("人数已满".into()));
+                    }
+                    let n = st.seats.iter().filter(|s| s.is_bot).count() + 1;
+                    let id = format!("bot{n}");
+                    st.seats.push(Seat::new_bot(id.clone()));
+                    events.push(EngineEvent::new(
+                        "bot_added",
+                        json!({ "player_id": id }),
+                    ));
+                    message = format!("机器人 {id} 已加入");
                 }
                 "leave" => {
                     if !st.seats.iter().any(|s| s.player_id == player_id) {
@@ -1039,6 +1071,22 @@ mod tests {
         assert!(out.finished);
         assert_eq!(data(&out.state).phase, Phase::Aborted);
         assert!(mgr.get_active_game("group-1").is_none());
+    }
+
+    #[test]
+    fn host_can_add_bot() {
+        let mgr = manager(11);
+        let st = new_lobby(&mgr, "host");
+        let out = mgr
+            .execute_action(&st.room_id, "host", "lobby:add_bot")
+            .unwrap();
+        let d = data(&out.state);
+        assert_eq!(d.seats.len(), 2);
+        assert!(d.seats[1].is_bot);
+        assert!(matches!(
+            mgr.execute_action(&st.room_id, "p2", "lobby:add_bot"),
+            Err(EngineError::PermissionDenied(_))
+        ));
     }
 
     #[test]

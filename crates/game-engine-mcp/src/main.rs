@@ -5,7 +5,9 @@
 //! 所有写入路径由 GameManager → EnginePlugin 无条件重校验（合法性 + 权限）；
 //! 引擎产出的事件逐条落 `game_events`，快照 `version` 对齐最后事件 seq（ADR-0004/0008）。
 
-use game_engine_core::{EngineEvent, EngineRegistry, GameManager, GameState, GameStatus};
+use game_engine_core::{
+    EngineEvent, EngineRegistry, GameManager, GameState, GameStatus, Policy, RandomPolicy, SeededRng,
+};
 use rmcp::{
     ServerHandler, ServiceExt,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
@@ -177,6 +179,39 @@ impl EngineServer {
     async fn state_summary(&self, Parameters(p): Parameters<StateRequest>) -> String {
         match self.manager.state_summary(&p.room_id) {
             Ok(s) => s,
+            Err(e) => format!("错误: {e}"),
+        }
+    }
+
+    #[tool(
+        name = "bot_action",
+        description = "让内置 AI（拉斯维加斯启发式）替指定玩家行动（测试/机器人补位）"
+    )]
+    async fn bot_action(&self, Parameters(p): Parameters<LegalActionsRequest>) -> String {
+        let Some(state) = self.manager.get_state(&p.room_id) else {
+            return "错误: 未找到对局".to_string();
+        };
+        let actions = match self.manager.legal_actions(&p.room_id, &p.player_id) {
+            Ok(a) => a,
+            Err(e) => return format!("错误: {e}"),
+        };
+        if actions.is_empty() {
+            return "错误: 该玩家当前没有合法动作".to_string();
+        }
+        let mut rng = SeededRng::new(0);
+        let chosen = if state.game_id == "las-vegas" {
+            las_vegas::ai::HeuristicPolicy.choose(&state, &p.player_id, &actions, &mut rng)
+        } else {
+            RandomPolicy.choose(&state, &p.player_id, &actions, &mut rng)
+        };
+        let Some(action) = chosen else {
+            return "错误: 无可用动作".to_string();
+        };
+        match self.manager.execute_action(&p.room_id, &p.player_id, &action) {
+            Ok(result) => {
+                self.persist(&result.state, &result.events);
+                serde_json::to_string(&result).unwrap_or_default()
+            }
             Err(e) => format!("错误: {e}"),
         }
     }

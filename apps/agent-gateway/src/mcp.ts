@@ -58,6 +58,11 @@ export class GameEngineClient {
     return this.call("get_legal_actions", { room_id: roomId, player_id: playerId });
   }
 
+  /** 让内置 AI 替指定玩家行动（bot_action，机器人补位）。 */
+  async botAction(roomId: string, playerId: string): Promise<string> {
+    return this.call("bot_action", { room_id: roomId, player_id: playerId });
+  }
+
   async executeAction(roomId: string, playerId: string, action: string): Promise<string> {
     return this.call("execute_action", { room_id: roomId, player_id: playerId, action });
   }

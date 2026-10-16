@@ -112,6 +112,47 @@ try {
   const active = await call("get_active_game", { group_id: "smoke-group" });
   assert(active === "null", "终局后群内不应有活跃对局");
 
+  // —— 机器人补位：create → 加 3 机器人 → start → 人类 + bot_action 自动行动 → finished ——
+  const room2 = JSON.parse(
+    await call("create_game", { game_id: "las-vegas", group_id: "smoke-bots", host_id: "host" }),
+  ).room_id;
+  assert(room2, "create_game(bots) 失败");
+  for (let i = 0; i < 3; i++) {
+    const raw = await call("execute_action", { room_id: room2, player_id: "host", action: "lobby:add_bot" });
+    assert(!raw.startsWith("错误"), `add_bot 失败: ${raw}`);
+  }
+  let s2 = JSON.parse(
+    await call("execute_action", { room_id: room2, player_id: "host", action: "lobby:start" }),
+  ).state;
+  assert(s2.status === "active", "机器人局开赛失败");
+  assert(s2.data.seats.filter((x) => x.is_bot).length === 3, "应有 3 个机器人");
+  let guard2 = 0;
+  while (s2.status !== "finished") {
+    guard2 += 1;
+    assert(guard2 < 3000, "机器人局异常（死循环）");
+    const d = s2.data;
+    const actor = d.phase === "small_game" ? d.sg?.pending?.actor : d.seats[d.turn]?.player_id;
+    assert(actor, `第 ${guard2} 步无操作者`);
+    const seat = d.seats.find((x) => x.player_id === actor);
+    if (seat?.is_bot) {
+      const raw = await call("bot_action", { room_id: room2, player_id: actor });
+      assert(!raw.startsWith("错误"), `bot_action 失败: ${raw}`);
+      s2 = JSON.parse(raw).state;
+    } else {
+      const legal = JSON.parse(await call("get_legal_actions", { room_id: room2, player_id: actor }));
+      assert(legal.length > 0, "人类无合法动作");
+      const place = legal.find((a) => a.id.startsWith("place:"));
+      const raw = await call("execute_action", {
+        room_id: room2,
+        player_id: actor,
+        action: place ? place.id : legal[0].id,
+      });
+      assert(!raw.startsWith("错误"), `人类动作失败: ${raw}`);
+      s2 = JSON.parse(raw).state;
+    }
+  }
+  console.log(`[las-vegas] 机器人补位局通过（steps=${guard2}，winners=${s2.data.winners.join(",")}）`);
+
   console.log("[las-vegas] ✅ MCP 端到端冒烟通过");
 } catch (err) {
   console.error(`[las-vegas] ❌ 冒烟失败: ${err.message}`);

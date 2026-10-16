@@ -23,6 +23,8 @@ export type GameCommand =
   | { cmd: "smallgames"; n: number }
   | { cmd: "place"; point: number }
   | { cmd: "reroll" }
+  | { cmd: "addbot"; n: number }
+  | { cmd: "solo"; n: number }
   | { cmd: "board" };
 
 const COMMAND_WORDS: Record<string, GameCommand["cmd"]> = {
@@ -38,6 +40,10 @@ const COMMAND_WORDS: Record<string, GameCommand["cmd"]> = {
   放: "place",
   重投: "reroll",
   弃: "reroll",
+  加机器人: "addbot",
+  机器人: "addbot",
+  单人: "solo",
+  单机: "solo",
   局面: "board",
   牌面: "board",
 };
@@ -78,6 +84,14 @@ export function parseGameCommand(content: string): GameCommand | null {
       const n = Number(arg);
       return Number.isInteger(n) && n >= 1 && n <= 6 ? { cmd, point: n } : null;
     }
+    case "addbot": {
+      const n = arg ? Number(arg) : 1;
+      return Number.isInteger(n) && n >= 1 && n <= 5 ? { cmd, n } : null;
+    }
+    case "solo": {
+      const n = arg ? Number(arg) : 3;
+      return Number.isInteger(n) && n >= 1 && n <= 5 ? { cmd, n } : null;
+    }
     default:
       return { cmd };
   }
@@ -102,6 +116,8 @@ export function gameActionId(cmd: GameCommand): string | null {
       return `place:${cmd.point}`;
     case "reroll":
       return "reroll";
+    case "addbot":
+      return "lobby:add_bot";
     default:
       return null;
   }
@@ -112,6 +128,7 @@ export function lobbyPrompt(host: string, count: number, n: number): string {
   return [
     `🎲 ${host} 发起了一局「拉斯维加斯」！`,
     `其他玩家 @我 发「#加入」入局（当前 ${count} 人，2–6 人可开赛）。`,
+    `一个人测：发「#单人」直接和 3 个机器人开赛；或发「#加机器人」补位。`,
     `房主发「#开始」开赛；可在开赛前发「#小游戏 3~6」设置小游戏数量（当前 ${n}）。`,
     `开赛后：发「#放 <点数>」下注、「#重投」付 1 筹码弃回合、「#局面」看局势。`,
   ].join("\n");

@@ -53,7 +53,11 @@
 | `#小游戏 <3~6>` | `lobby:set_small_game_count:<n>` | 房主 |
 | `#放 <1~6>`（也支持 `#放3`） | `place:<n>` | 当前玩家 |
 | `#重投` / `#弃` | `reroll` | 当前玩家、筹码 ≥ 1 |
-| `#局面` / `#牌面` | `state_summary` | 任意 |
+| `#加机器人 [n]` | `lobby:add_bot` × n | 房主（lobby） |
+| `#单人 [n]`（默认 3 个机器人） | create + add_bot×n + start | 群内无 Active |
+| `#局面` / `#牌面` | `state_summary`（+ 牌面短链） | 任意 |
+
+- **机器人补位（一个人也能测）**：`#单人` 一键创建 1 人 + N 机器人并开赛；`#加机器人` 手动补位。机器人由引擎内置启发式 AI 驱动——agent-gateway 在人类动作后循环调 MCP `bot_action`（含小游戏交互）直到人类回合/终局，并通过 `state.seats[].is_bot` 判定。
 
 - **自然语言路径**：`start_game` 意图（无猜拳手势时）→ 创建拉斯维加斯 lobby（引导文案含上表命令）。猜拳 `rps` 保留为显式手势玩具路径。
 - **动作选择（阶段 4b）**：`game_action` 意图 → `get_legal_actions(room, sender)` → SystemOne `choice`（≤26 个动作）选一个 → `execute_action`；动作数 >26 或决策不可用时回显编号清单兜底（`formatActionList`）。小游戏交互态的合法动作归 `pending.actor`，非该玩家无动作。

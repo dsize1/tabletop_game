@@ -140,10 +140,12 @@ interface GameState {
   status?: string;
   data?: {
     phase?: string;
-    seats?: unknown[];
+    turn?: number;
+    seats?: Array<{ player_id: string; is_bot?: boolean }>;
     small_game_count?: number;
     winners?: string[];
     scores?: Record<string, number>;
+    sg?: { pending?: { actor?: string } };
   };
 }
 
@@ -811,6 +813,12 @@ async function executeIntent(
           content: result.message ?? resultJson,
         });
         await pushReply(redis, event, result.message ?? resultJson);
+        if (!result.finished) {
+          const { moves, summary } = await driveBots(engine, active.room_id);
+          if (moves > 0) {
+            await pushReply(redis, event, `🤖 机器人行动 ${moves} 步。\n${summary ?? ""}`);
+          }
+        }
         console.log(
           `[agent-gateway] game_action via=decision model=${chosen.id}:${chosen.confidence.toFixed(3)} ← ${content}`,
         );
@@ -966,6 +974,31 @@ async function handlePendingConfirm(
 const LAS_VEGAS_GAME_ID = "las-vegas";
 
 /**
+ * 机器人自动行动：轮到机器人（含小游戏交互）时，反复调 `bot_action` 直到人类回合或终局。
+ * 返回机器人行动步数与最新局面摘要。
+ */
+async function driveBots(
+  engine: GameEngineClient,
+  roomId: string,
+): Promise<{ moves: number; summary?: string }> {
+  let moves = 0;
+  for (let i = 0; i < 500; i++) {
+    const st = parseJson<GameState>(await engine.getState(roomId), {});
+    if (!st.room_id || st.status !== "active" || !st.data) break;
+    const d = st.data;
+    const actor =
+      d.phase === "small_game" ? d.sg?.pending?.actor : d.seats?.[d.turn ?? -1]?.player_id;
+    const seat = (d.seats ?? []).find((s) => s.player_id === actor);
+    if (!actor || !seat?.is_bot) break;
+    const raw = await engine.botAction(roomId, actor);
+    if (raw.startsWith("错误")) break;
+    moves++;
+  }
+  const summary = (await fetchStateSummary(engine, roomId)) ?? undefined;
+  return { moves, summary };
+}
+
+/**
  * 用决策模型在合法动作里选一个（阶段 4b）：`get_legal_actions` → SystemOne `choice`。
  * 仅当动作数 ≤ `GAME_ACTION_CHOICE_LIMIT` 时单题选择；否则返回 null（调用方走清单兜底）。
  */
@@ -1019,8 +1052,55 @@ async function handleGameCommand(
     return;
   }
 
+  if (cmd.cmd === "addbot") {
+    if (!roomId) {
+      await pushReply(redis, event, "本群没有进行中的对局。先发「#开局」（或「#单人」直接开）。");
+      return;
+    }
+    let ok = 0;
+    for (let i = 0; i < cmd.n; i++) {
+      const raw = await engine.executeAction(roomId, event.sender_id, "lobby:add_bot");
+      if (raw.startsWith("错误")) {
+        await pushReply(redis, event, raw);
+        break;
+      }
+      ok++;
+    }
+    if (ok > 0) await pushReply(redis, event, `已加入 ${ok} 个机器人。发「#开始」开赛。`);
+    return;
+  }
+
+  if (cmd.cmd === "solo") {
+    if (roomId) {
+      await pushReply(redis, event, "本群已有进行中的对局。先「#中断」或打完。");
+      return;
+    }
+    const stateJson = await engine.createGame(LAS_VEGAS_GAME_ID, event.group_id, event.sender_id);
+    const st = parseJson<GameState>(stateJson, {});
+    if (!st.room_id) {
+      await pushReply(redis, event, stateJson);
+      return;
+    }
+    for (let i = 0; i < cmd.n; i++) {
+      const raw = await engine.executeAction(st.room_id, event.sender_id, "lobby:add_bot");
+      if (raw.startsWith("错误")) break;
+    }
+    const startJson = await engine.executeAction(st.room_id, event.sender_id, "lobby:start");
+    const result = parseJson<ActionResult>(startJson, {});
+    await pushReply(
+      redis,
+      event,
+      `🎲 单人局开始（你 + ${cmd.n} 个机器人）。\n${result.message ?? startJson}`,
+    );
+    const { moves, summary } = await driveBots(engine, st.room_id);
+    if (moves > 0) {
+      await pushReply(redis, event, `🤖 机器人行动 ${moves} 步。\n${summary ?? ""}`);
+    }
+    return;
+  }
+
   if (!roomId) {
-    await pushReply(redis, event, "本群没有进行中的对局。发「#开局」发起一局拉斯维加斯吧。");
+    await pushReply(redis, event, "本群没有进行中的对局。发「#开局」（或「#单人」一人开）吧。");
     return;
   }
 
@@ -1056,6 +1136,11 @@ async function handleGameCommand(
   await pushReply(redis, event, result.message ?? resultJson);
   if (result.finished) {
     await pushReply(redis, event, (await fetchStateSummary(engine, roomId)) ?? "（本局结束）");
+  } else {
+    const { moves, summary } = await driveBots(engine, roomId);
+    if (moves > 0) {
+      await pushReply(redis, event, `🤖 机器人行动 ${moves} 步。\n${summary ?? ""}`);
+    }
   }
 }
 

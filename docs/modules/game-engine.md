@@ -30,7 +30,8 @@
 |---|---|
 | `create_game(game_id, group_id, host_id)` | 创建对局（进入 `lobby`，发起人自动入局；群内已有 Active 则拒绝） |
 | `start_game(game_id, group_id, players)` | 直接开桌（无 lobby 的简单引擎，如 rps；保留向后兼容） |
-| `execute_action(room_id, player_id, action)` | 执行动作（**无条件重校验**）；lobby 生命周期统一走 `action=lobby:*` |
+| `execute_action(room_id, player_id, action)` | 执行动作（**无条件重校验**）；lobby 生命周期统一走 `action=lobby:*`（含 `lobby:add_bot`） |
+| `bot_action(room_id, player_id)` | 内置 AI（拉斯维加斯 `HeuristicPolicy`，其它引擎 `RandomPolicy`）替该玩家选并执行动作（机器人补位/测试） |
 | `handle_player_message(...)` | 预留：整条消息交给引擎（如需引擎侧编排） |
 
 ## 校验链（写入路径，确定性）
