@@ -164,6 +164,23 @@ impl Storage {
         Ok(out)
     }
 
+    /// 读取指定对局的快照 state JSON（game_state 真相源）。
+    pub fn get_game_snapshot(
+        &self,
+        game_id: &str,
+        room_id: &str,
+    ) -> anyhow::Result<Option<String>> {
+        let conn = self.lock();
+        let mut stmt =
+            conn.prepare("SELECT state FROM game_state WHERE game_id = ?1 AND room_id = ?2")?;
+        let mut rows = stmt.query(params![game_id, room_id])?;
+        if let Some(r) = rows.next()? {
+            Ok(Some(r.get(0)?))
+        } else {
+            Ok(None)
+        }
+    }
+
     /// 读取指定对局快照的 version（应等于最后已应用事件的 seq）。
     pub fn game_snapshot_version(
         &self,

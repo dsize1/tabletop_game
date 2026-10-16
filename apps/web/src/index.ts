@@ -9,7 +9,15 @@
 
 import "dotenv/config";
 import express from "express";
-import { renderDocsTree, renderErrorPage, renderMarkdown, renderPage, type DocsRootTree } from "./render.js";
+import {
+  renderDocsTree,
+  renderErrorPage,
+  renderGamePage,
+  renderMarkdown,
+  renderPage,
+  type DocsRootTree,
+  type GameView,
+} from "./render.js";
 
 const SERVER_URL = process.env.SERVER_URL ?? "http://127.0.0.1:3000";
 const PORT = Number(process.env.WEB_PORT ?? process.env.PORT ?? 18080);
@@ -50,6 +58,16 @@ async function fetchPlan(sessionId: string, token: string): Promise<string | nul
   if (r.status === 404) return null;
   if (!r.ok) throw new Error(`server plan ${r.status}`);
   return await r.text();
+}
+
+/** 拉取游戏资源视图（server `/resources/game/{gameId}`）；404 → null。 */
+async function fetchGameView(gameId: string, token: string): Promise<GameView | null> {
+  const r = await fetch(
+    `${SERVER_URL}/resources/game/${encodeURIComponent(gameId)}?token=${encodeURIComponent(token)}`,
+  );
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error(`server game ${r.status}`);
+  return (await r.json()) as GameView;
 }
 
 /** 拉取开发文档树 JSON（全部根）。 */
@@ -174,8 +192,28 @@ app.get("/dev_docs/file", async (req, res) => {
   }
 });
 
-app.get("/tabletop_game/:gameId/player/:openid", (_req, res) => {
-  res.send(renderPage("游戏资源", "<p>暂未开放</p>"));
+app.get("/tabletop_game/:gameId/player/:openid", async (req, res) => {
+  const token = typeof req.query.token === "string" ? req.query.token : "";
+  if (!token) {
+    res.status(401).send(renderErrorPage(401, "缺少访问 token"));
+    return;
+  }
+  try {
+    const v = await verifyToken(token);
+    if (!v.valid) {
+      res.status(401).send(renderErrorPage(401, "链接已失效或无效，请重新获取"));
+      return;
+    }
+    const view = await fetchGameView(req.params.gameId, token);
+    if (view === null) {
+      res.status(404).send(renderErrorPage(404, "对局不存在或已结束"));
+      return;
+    }
+    res.send(renderGamePage(view));
+  } catch (err) {
+    console.error("[web] 拉取游戏资源失败:", err);
+    res.status(503).send(renderErrorPage(503, "服务暂时不可用，请稍后重试"));
+  }
 });
 
 app.listen(PORT, () => {

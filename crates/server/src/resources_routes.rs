@@ -63,11 +63,55 @@ async fn read_plan_markdown(state: &AppState, session_id: &str) -> Result<String
         .map_err(|_| StatusCode::NOT_FOUND)
 }
 
-/// game 资源占位（引擎未实现）。
-pub async fn game_resource(Path(game_id): Path<String>) -> Json<serde_json::Value> {
-    Json(serde_json::json!({
-        "status": "not_open",
+/// game 资源：返回对局的**公共视图** + **玩家个人视图**（引擎脱敏）。
+/// 安全约束：
+/// - token 必填且有效（401）；
+/// - token 资源范围必须为 `game:{room_id}`（越权 → 403），room_id 由资源范围解析；
+/// - 对局快照不存在 → 404。
+pub async fn game_resource(
+    State(state): State<AppState>,
+    Path(game_id): Path<String>,
+    Query(q): Query<TokenQuery>,
+) -> Result<Response, StatusCode> {
+    let token = q.token.ok_or(StatusCode::UNAUTHORIZED)?;
+    let rec = state.auth.verify(&token).await.map_err(|e| match e {
+        auth::AuthError::Invalid => StatusCode::UNAUTHORIZED,
+        _ => StatusCode::INTERNAL_SERVER_ERROR,
+    })?;
+    let room_id = rec
+        .resource
+        .strip_prefix("game:")
+        .ok_or(StatusCode::FORBIDDEN)?
+        .to_string();
+
+    let snapshot = state
+        .storage
+        .get_game_snapshot(&game_id, &room_id)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .ok_or(StatusCode::NOT_FOUND)?;
+    let game_state: game_engine_core::GameState =
+        serde_json::from_str(&snapshot).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // 引擎脱敏（目前仅 las-vegas；其它引擎直接返回原状态）。
+    use game_engine_core::EnginePlugin;
+    let engine = las_vegas::LasVegasEngine;
+    let engine: &dyn EnginePlugin = &engine;
+    let (public, player) = if game_state.game_id == engine.game_id() {
+        (
+            serde_json::to_value(engine.public_state(&game_state)).unwrap_or_default(),
+            serde_json::to_value(engine.player_view(&game_state, &rec.openid)).unwrap_or_default(),
+        )
+    } else {
+        let v = serde_json::to_value(&game_state).unwrap_or_default();
+        (v.clone(), v)
+    };
+
+    Ok(Json(serde_json::json!({
         "game_id": game_id,
-        "message": "暂未开放",
+        "room_id": room_id,
+        "openid": rec.openid,
+        "public": public,
+        "player": player,
     }))
+    .into_response())
 }

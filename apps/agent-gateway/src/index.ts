@@ -43,7 +43,7 @@ import { GameEngineClient } from "./mcp.js";
 import { DevTaskClient } from "./dev-task-client.js";
 import { DocsClient } from "./docs-client.js";
 import { DevSessionManager, devTaskPrompt } from "./dev-session.js";
-import { AuthClient, buildDocsUrl, buildPlanUrl } from "./auth-client.js";
+import { AuthClient, buildDocsUrl, buildGameUrl, buildPlanUrl } from "./auth-client.js";
 import { ProfileClient } from "./profile/client.js";
 import { ProfileCache } from "./profile/inject.js";
 import { LocalLlm, withLocalLlm } from "./profile/local-llm.js";
@@ -1025,7 +1025,17 @@ async function handleGameCommand(
   }
 
   if (cmd.cmd === "board") {
-    await pushReply(redis, event, (await fetchStateSummary(engine, roomId)) ?? "（暂无局面摘要）");
+    let text = (await fetchStateSummary(engine, roomId)) ?? "（暂无局面摘要）";
+    if (PUBLIC_BASE_URL) {
+      try {
+        const issued = await authClient.issueToken(event.sender_id, `game:${roomId}`);
+        const gameId = active.game_id ?? LAS_VEGAS_GAME_ID;
+        text += `\n牌面页：${buildGameUrl(PUBLIC_BASE_URL, gameId, event.sender_id, issued.token)}`;
+      } catch (err) {
+        console.error("[agent-gateway] 签发游戏 token 失败:", (err as Error)?.message ?? err);
+      }
+    }
+    await pushReply(redis, event, text);
     return;
   }
 

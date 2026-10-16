@@ -15,6 +15,20 @@ export function buildDocsUrl(baseUrl: string, token: string): string {
   return `${baseUrl.replace(/\/+$/, "")}/dev_docs?token=${token}`;
 }
 
+/** 拼接游戏牌面短链（token 绑定 `game:{room_id}`）。 */
+export function buildGameUrl(
+  baseUrl: string,
+  gameId: string,
+  openid: string,
+  token: string,
+): string {
+  const base = baseUrl.replace(/\/+$/, "");
+  return (
+    `${base}/tabletop_game/${encodeURIComponent(gameId)}` +
+    `/player/${encodeURIComponent(openid)}?token=${encodeURIComponent(token)}`
+  );
+}
+
 export class AuthClient {
   constructor(private baseUrl: string) {}
 

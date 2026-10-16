@@ -167,6 +167,97 @@ ${bodyHtml}
 </html>`;
 }
 
+/** 游戏资源视图（server `/resources/game/{gameId}` 返回）。 */
+export interface GameView {
+  game_id: string;
+  room_id: string;
+  openid: string;
+  public: { status?: string; players?: string[]; data?: GameData };
+  player: { status?: string; players?: string[]; data?: GameData };
+}
+
+interface GameData {
+  phase?: string;
+  round?: number;
+  turn?: number;
+  start_player?: string;
+  seats?: Array<{
+    player_id: string;
+    small_remaining?: number;
+    big_remaining?: number;
+    chips?: number;
+    banknotes?: number[];
+  }>;
+  casinos?: Array<{
+    dice?: Record<string, number>;
+    banknotes?: number[];
+    small_games?: string[];
+  }>;
+  winners?: string[];
+  scores?: Record<string, number>;
+}
+
+/** 渲染拉斯维加斯牌面页（公共视图 + 个人资源）。数据缺失时安全降级。 */
+export function renderGamePage(view: GameView): string {
+  const d = view.public?.data ?? {};
+  const seats = Array.isArray(d.seats) ? d.seats : [];
+  const casinos = Array.isArray(d.casinos) ? d.casinos : [];
+  const cur = seats[d.turn ?? -1]?.player_id;
+
+  const casinoRows = casinos
+    .map((c, i) => {
+      const dice = c.dice ?? {};
+      const total = Object.values(dice).reduce((a, b) => a + Number(b), 0);
+      const detail = Object.entries(dice)
+        .map(([p, n]) => `${escapeHtml(p)}×${n}`)
+        .join("、");
+      const notes = Array.isArray(c.banknotes) ? c.banknotes.length : 0;
+      const sgs = Array.isArray(c.small_games) ? c.small_games.join("/") : "";
+      return (
+        `<tr><td>${i + 1}</td><td>${total}` +
+        `${detail ? `<div class="muted">${detail}</div>` : ""}</td>` +
+        `<td>${notes} 张</td><td>${escapeHtml(sgs)}</td></tr>`
+      );
+    })
+    .join("");
+
+  const seatRows = seats
+    .map((s) => {
+      const notes = Array.isArray(s.banknotes) ? s.banknotes : [];
+      const sum = notes.reduce((a, b) => a + b, 0);
+      const isMe = s.player_id === view.openid;
+      const isTurn = s.player_id === cur;
+      return (
+        `<tr${isMe ? ' style="font-weight:600"' : ""}>` +
+        `<td>${escapeHtml(String(s.player_id))}${isMe ? "（我）" : ""}${isTurn ? " ⏳" : ""}</td>` +
+        `<td>${s.small_remaining ?? "-"} 小 / ${s.big_remaining ?? "-"} 大</td>` +
+        `<td>${s.chips ?? 0}</td>` +
+        `<td>${notes.length} 张（${sum / 10000} 万）</td></tr>`
+      );
+    })
+    .join("");
+
+  const finished = d.phase === "finished" || view.public?.status === "finished";
+  const result = finished
+    ? `<h3>终局</h3><p>胜者：${escapeHtml((d.winners ?? []).join("、"))}</p>`
+    : "";
+
+  const body = `
+    <h2>🎲 拉斯维加斯 · 第 ${d.round ?? "-"} 轮</h2>
+    <p class="muted">阶段 ${escapeHtml(String(d.phase ?? view.public?.status ?? "-"))}｜当前 ${
+      escapeHtml(String(cur ?? "-"))
+    }</p>
+    <h3>赌场</h3>
+    <table><thead><tr><th>#</th><th>骰子</th><th>钞票</th><th>小游戏</th></tr></thead>
+    <tbody>${casinoRows}</tbody></table>
+    <h3>玩家</h3>
+    <table><thead><tr><th>玩家</th><th>手中骰</th><th>筹码</th><th>已得钞票</th></tr></thead>
+    <tbody>${seatRows}</tbody></table>
+    ${result}
+  `;
+  return renderPage("拉斯维加斯 · 牌面", body);
+}
+
 /** 统一错误页（401/403/404/410）。 */
 export function renderErrorPage(status: number, message: string): string {
   return renderPage(
