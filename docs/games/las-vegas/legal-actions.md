@@ -41,27 +41,24 @@
 - 例：掷出 `[1,1,3,6]` → 合法 = `{place:1, place:3, place:6, reroll?}`。
 - 禁止赌场（E1 禁止标记）对应的 `place:n` 不合法。
 
-### C. 小游戏（small_game / round_end）
+### C. 小游戏（small_game / turn_roll）
 
-按用户规则的 16 个编号定义分支（示例，完整前缀见 §4）：
+**已实现（阶段 3b）**，`get_legal_actions` 只返回当前确实可选的完整动作：
 
-| 动作 id 模式 | 说明 |
-|---|---|
-| `sg:A1:guess:{0..k}` | 幸运之拳：左手玩家猜标记数 |
-| `sg:A2:roll` | 大奖挑战：投 2 黑骰 |
-| `sg:B2:guess:{high\|low}` / `sg:B2:take` / `sg:B2:again` | 50% 的机会 |
-| `sg:D1:take` | 发薪愉快：结算奖励 |
-| `sg:D2:use` | 权力优势：使用特权标记指定点数放骰（配合 `point` 参数） |
-| `sg:E1:ban:{casino}` / `sg:E1:arrow` | 禁止进入 |
-| `sg:E2:take` | 醉倒了吗：收回酒吧骰子 |
-| `sg:F1:move:{cell}:{casino}` | 阻止他：移动某格全部骰子 |
-| `sg:F2:{chip\|money\|place\|recall\|pass}` | 危机就是转机：四选一/放弃 |
-| `sg:G1:pick:{0\|1}` | 黑色摸彩箱：二选一 |
-| `sg:G2:move` | 双倍颁奖：移入游戏场（仅一次） |
-| `sg:H1:move:{source}` | 好骰难求：移动 1 颗骰子到格子 |
-| `sg:H2:choose:{1..6}` | 我的抉择：选择黑骰点数 |
+| 动作 id | 触发/归属 | 说明 |
+|---|---|---|
+| `sg:A1:guess:{1..6}` | pending（左手玩家） | 幸运之拳：猜标记数 |
+| `sg:B2:guess:{high\|low}` | pending（触发者） | 50% 的机会：猜大小 |
+| `sg:E1:ban:{casino}` / `sg:E1:pass` | pending（触发者） | 禁止进入：改禁止标记（改则箭头移动得奖） |
+| `sg:F1:move:{group}:{casino}` | pending（触发者） | 阻止他：把某组灰骰放入赌场 |
+| `sg:F2:take:{casino}:{chip\|money}` / `sg:F2:pass` | pending（触发者） | 危机就是转机：取灰骰换奖/放弃 |
+| `sg:G1:split:{0..total}` → `sg:G1:pick:{0\|1}` | pending（左手分堆 → 赢家选） | 黑色摸彩箱：二选一 |
+| `sg:H2:choose:{1..6}` | pending（触发者） | 我的抉择：选黑骰点数 |
+| `sg:D2:use:{1..6}` | turn_roll（特权持有者） | 权力优势：跳过投掷放 1 颗 |
+| `sg:G2:move:{casino}` | turn_roll（每轮一次） | 双倍颁奖：移入游戏场 |
+| `sg:H1:move:{slot}` | turn_roll（可选） | 好骰难求：移 1 颗骰到格 |
 
-> 含参数的动作用 `:` 分隔；引擎在 `get_legal_actions` 中只返回**当前确实可选**的完整动作（含参数枚举）。
+> `A2`（大奖挑战）与 `E2`（醉倒了吗）为**自动结算**（无交互动作）；`C1`/`C2`/`B1` 为结算钩子。含参数的动作用 `:` 分隔。
 
 ## 3. 合法性判定（何时哪些动作合法）
 

@@ -1,7 +1,7 @@
 # 拉斯维加斯数据结构设计
 
 > 状态：定稿 v1.0（2026-10-16，用户裁定）。序列化方案裁定见 `memory_palace/decisions/ADR-0004-*.md`。
-> 本期（阶段 0–2）实现 `schema_version = 1`：仅主流程字段；小游戏子状态（灰骰/金框/游戏场/酒吧/摸彩等）留待阶段 3 以 `schema_version = 2` 扩展。
+> 当前实现 `schema_version = 2`：主流程 + 小游戏子状态（`sg`：灰骰/摸彩/指示物/大奖/特权/酒吧/游戏场/金框/禁止/箭头/pending）。
 
 ## 1. 分层结构
 
@@ -22,7 +22,7 @@ GameState（通用信封）
 
 ```jsonc
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "phase": "lobby",                 // lobby | setup | turn_roll | small_game | round_end | settling | finished | aborted
   "host": "openid",                 // 发起人/房主
   "round": 1,                       // 1..3
@@ -66,7 +66,8 @@ GameState（通用信封）
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
-| `schema_version` | u32 | 私有结构 schema 版本（v1：主流程；v2 预留小游戏） |
+| `schema_version` | u32 | 私有结构 schema 版本（v2：主流程 + 小游戏 `sg`） |
+| `sg` | object | 小游戏子状态（见 `sg.rs`：`gray/gray_groups/bars/game_field/gold_frame/banned/arrow/lottery/indicator/grand_prize/privilege/h1_slots/g2_used/pending`） |
 | `phase` | enum | 见 `state-machine.md` |
 | `host` | string | 发起人/房主（abort/start 权限） |
 | `seats[]` | array | 座位；含大小骰、筹码、已得钞票、标记 |

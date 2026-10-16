@@ -13,8 +13,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::BTreeMap;
 
+pub mod sg;
+use sg::SgState;
+
 /// 私有结构 schema 版本（v1：主流程；v2 预留小游戏）。
-pub const SCHEMA_VERSION: u32 = 1;
+pub const SCHEMA_VERSION: u32 = 2;
 /// 轮数。
 pub const ROUNDS: u32 = 3;
 /// 每人小骰 / 大骰。
@@ -148,6 +151,9 @@ pub struct LasVegasState {
     pub roll: Roll,
     pub casinos: Vec<Casino>,
     pub small_game_count: u32,
+    /// 小游戏子状态（阶段 3a 起；schema v2）。
+    #[serde(default)]
+    pub sg: SgState,
     #[serde(default)]
     pub scores: BTreeMap<String, i64>,
     #[serde(default)]
@@ -214,6 +220,8 @@ impl LasVegasEngine {
         for (i, t) in tiles.iter().enumerate() {
             st.casinos[i % 3].small_games.push(t.clone());
         }
+        // 小游戏设置阶段：灰骰/摸彩/指示物按抽中的小游戏重摆。
+        st.sg.setup_round(&tiles);
 
         json!({
             "round": round,
@@ -265,13 +273,21 @@ impl LasVegasEngine {
     fn settle_round(&self, st: &mut LasVegasState, rng: &mut dyn RandomSource) -> (Vec<EngineEvent>, bool) {
         st.phase = Phase::Settling;
         let mut events = Vec::new();
+        // B1 主场时间：分配前，对应赌场将获最大面额者投 2 黑骰加骰。
+        sg::b1_pre_settle(st, rng, &mut events);
         let mut logs = Vec::new();
         let mut top_winners: Vec<Option<String>> = vec![None; CASINOS];
         for ci in 0..CASINOS {
+            // C2 厄运降临：移除平手前，最少骰子者（含 0）付 $5 万。
+            sg::c2_pre_casino(st, ci, &mut events);
             let (log, top) = settle_casino(&mut st.casinos[ci], &mut st.seats);
             top_winners[ci] = top;
             logs.push(json!({ "casino": ci + 1, "allocations": log }));
         }
+        // C1 掌声响起：大奖标记兑换 $10 万钞票。
+        sg::post_settle(st, &mut events);
+        // G2 游戏场 / H2 金框 / H1 格位。
+        sg::settle_extras(st, &mut events);
         let settled_round = st.round;
         events.push(EngineEvent::new(
             "round_settled",
@@ -390,6 +406,7 @@ impl EnginePlugin for LasVegasEngine {
             roll: Roll::default(),
             casinos: (0..CASINOS).map(|_| Casino::empty()).collect(),
             small_game_count: DEFAULT_SMALL_GAMES,
+            sg: SgState::default(),
             scores: BTreeMap::new(),
             winners: Vec::new(),
         };
@@ -467,10 +484,12 @@ impl EnginePlugin for LasVegasEngine {
                 if cur.player_id != player_id {
                     return Vec::new();
                 }
+                let banned = st.sg.banned;
                 let mut out: Vec<Action> = st
                     .roll
                     .points()
                     .into_iter()
+                    .filter(|n| banned != Some((*n - 1) as usize))
                     .map(|n| Action {
                         id: format!("place:{n}"),
                         description: format!("把本轮所有 {n} 点骰子放到 {n} 号赌场"),
@@ -482,8 +501,12 @@ impl EnginePlugin for LasVegasEngine {
                         description: "支付 1 枚筹码，弃本回合".into(),
                     });
                 }
+                // 回合内小游戏动作（D2 特权 / G2 移游戏场 / H1 移格）
+                out.extend(sg::legal_turn_sg(&st, player_id));
                 out
             }
+            // 小游戏交互：仅 pending.actor 可动
+            Phase::SmallGame => sg::legal_for_pending(&st, player_id),
             _ => Vec::new(),
         }
     }
@@ -645,6 +668,9 @@ impl EnginePlugin for LasVegasEngine {
                     "本轮未掷出 {n} 点"
                 )));
             }
+            if st.sg.banned == Some((n - 1) as usize) {
+                return Err(EngineError::IllegalAction("该赌场被禁止进入".into()));
+            }
 
             let matched_small = st.roll.small.iter().filter(|&&v| v == n).count() as u32;
             let big_matched = st.roll.big == Some(n);
@@ -668,10 +694,20 @@ impl EnginePlugin for LasVegasEngine {
                 "dice_placed",
                 json!({ "player_id": player_id, "point": n, "weight": weight, "casino": n }),
             ));
-            let (mut chain, fin) = self.after_action(&mut st, rng);
-            events.append(&mut chain);
-            finished = fin;
-            message = format!("你把 {n} 点的 {weight} 个骰子放到了 {n} 号赌场");
+            // 下注后触发的小游戏（自动 + 交互；交互类挂 pending 暂停回合）。
+            sg::on_place(&mut st, (n - 1) as usize, player_id, rng, &mut events);
+            if let Some(pending) = st.sg.pending.clone() {
+                st.phase = Phase::SmallGame;
+                message = format!(
+                    "你把 {n} 点的 {weight} 个骰子放到 {n} 号赌场；触发小游戏 {}，等待 {} 操作",
+                    pending.game, pending.actor
+                );
+            } else {
+                let (mut chain, fin) = self.after_action(&mut st, rng);
+                events.append(&mut chain);
+                finished = fin;
+                message = format!("你把 {n} 点的 {weight} 个骰子放到了 {n} 号赌场");
+            }
         } else if action == "reroll" {
             if st.phase != Phase::TurnRoll {
                 return Err(EngineError::IllegalAction("当前阶段不能弃回合".into()));
@@ -696,6 +732,37 @@ impl EnginePlugin for LasVegasEngine {
             events.append(&mut chain);
             finished = fin;
             message = "你支付了 1 枚筹码，跳过本回合".to_string();
+        } else if action.starts_with("sg:") {
+            if st.phase == Phase::SmallGame {
+                let (done, mut ev, m) = sg::resolve(&mut st, action, player_id, rng)?;
+                events.append(&mut ev);
+                message = m;
+                if done {
+                    st.sg.pending = None;
+                    st.phase = Phase::TurnRoll;
+                    let (mut chain, fin) = self.after_action(&mut st, rng);
+                    events.append(&mut chain);
+                    finished = fin;
+                }
+            } else {
+                match sg::resolve_turn_sg(&mut st, action, player_id, rng) {
+                    Some(Ok((mut ev, m, advance))) => {
+                        events.append(&mut ev);
+                        message = m;
+                        if advance {
+                            let (mut chain, fin) = self.after_action(&mut st, rng);
+                            events.append(&mut chain);
+                            finished = fin;
+                        }
+                    }
+                    Some(Err(e)) => return Err(e),
+                    None => {
+                        return Err(EngineError::IllegalAction(format!(
+                            "无法识别的动作: {action}"
+                        )))
+                    }
+                }
+            }
         } else {
             return Err(EngineError::IllegalAction(format!(
                 "无法识别的动作: {action}"
@@ -719,6 +786,8 @@ impl EnginePlugin for LasVegasEngine {
         for c in &mut st.casinos {
             c.banknotes = vec![0u32; c.banknotes.len()];
         }
+        // G1 摸彩标记内容隐藏（保留数量）。
+        st.sg.lottery = vec![0u32; st.sg.lottery.len()];
         Self::build_state(state, &st)
     }
 
@@ -866,6 +935,28 @@ mod tests {
         serde_json::from_value(state.data.clone()).unwrap()
     }
 
+    /// 若处于小游戏交互，替 pending.actor 选第一个合法 sg 动作，直到退出交互态。
+    fn resolve_pending(mgr: &GameManager, mut st: GameState) -> GameState {
+        loop {
+            let d = data(&st);
+            if d.phase != Phase::SmallGame {
+                return st;
+            }
+            let actor = d
+                .sg
+                .pending
+                .as_ref()
+                .map(|p| p.actor.clone())
+                .unwrap_or_default();
+            let actions = mgr.legal_actions(&st.room_id, &actor).unwrap();
+            let action = actions
+                .first()
+                .map(|a| a.id.clone())
+                .expect("pending 应有合法动作");
+            st = mgr.execute_action(&st.room_id, &actor, &action).unwrap().state;
+        }
+    }
+
     #[test]
     fn lobby_create_join_start() {
         let mgr = manager(1);
@@ -941,7 +1032,8 @@ mod tests {
         let out = mgr
             .execute_action(&st.room_id, &cur, &format!("place:{point}"))
             .unwrap();
-        let d2 = data(&out.state);
+        let st2 = resolve_pending(&mgr, out.state);
+        let d2 = data(&st2);
         let placed: u32 = d2.casinos[(point - 1) as usize].dice.values().sum();
         assert!(placed > 0);
         // 回合已推进到另一名玩家
@@ -1062,12 +1154,22 @@ mod tests {
         let mgr = manager(9);
         let mut st = start_two(&mgr, "host", "p2");
         let mut guard = 0;
-        while data(&st).phase == Phase::TurnRoll {
+        while data(&st).phase != Phase::Finished {
             guard += 1;
-            assert!(guard < 1000, "回合数异常");
+            assert!(guard < 5000, "回合数异常");
+            st = resolve_pending(&mgr, st);
             let d = data(&st);
+            if d.phase == Phase::Finished {
+                break;
+            }
             let cur = d.seats[d.turn].player_id.clone();
-            let point = d.roll.points()[0];
+            let points = d.roll.points();
+            let banned = d.sg.banned;
+            let point = points
+                .iter()
+                .find(|p| banned != Some((**p - 1) as usize))
+                .copied()
+                .unwrap_or(points[0]);
             st = mgr
                 .execute_action(&st.room_id, &cur, &format!("place:{point}"))
                 .unwrap()

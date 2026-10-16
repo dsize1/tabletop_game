@@ -84,20 +84,21 @@ try {
   let turns = 0;
   while (state.status !== "finished") {
     guard += 1;
-    assert(guard < 2000, "回合数异常，疑似死循环");
+    assert(guard < 4000, "回合数异常，疑似死循环");
     const d = state.data;
-    const cur = d.seats[d.turn]?.player_id;
-    assert(cur, `第 ${guard} 步找不到当前玩家`);
-    const legalJson = await call("get_legal_actions", { room_id: roomId, player_id: cur });
+    // 小游戏交互态：动作归属 pending.actor（不一定是当前回合玩家）
+    const actor =
+      d.phase === "small_game" ? d.sg?.pending?.actor : d.seats[d.turn]?.player_id;
+    assert(actor, `第 ${guard} 步找不到操作者（phase=${d.phase}）`);
+    const legalJson = await call("get_legal_actions", { room_id: roomId, player_id: actor });
     const legal = JSON.parse(legalJson);
-    assert(Array.isArray(legal) && legal.length > 0, `玩家 ${cur} 无合法动作（phase=${d.phase}）`);
-    // 优先下注；无下注则 reroll
+    assert(Array.isArray(legal) && legal.length > 0, `玩家 ${actor} 无合法动作（phase=${d.phase}）`);
+    // 优先下注；小游戏交互用 sg:*；否则第一个合法动作
     const place = legal.find((a) => a.id.startsWith("place:"));
     const action = place ? place.id : legal[0].id;
-    const res = JSON.parse(
-      await call("execute_action", { room_id: roomId, player_id: cur, action }),
-    );
-    state = res.state;
+    const raw = await call("execute_action", { room_id: roomId, player_id: actor, action });
+    assert(!raw.startsWith("错误"), `execute_action ${action} 失败: ${raw}`);
+    state = JSON.parse(raw).state;
     turns += 1;
   }
   const d = state.data;
