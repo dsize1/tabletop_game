@@ -22,6 +22,7 @@ import {
   chatHistoryKey,
   clearPendingBoundary,
   consumePendingBoundary,
+  cropToCurrentPhase,
   getChatHistory,
   markPendingBoundary,
   pendingBoundaryKey,
@@ -123,14 +124,15 @@ assert.equal(isTopicSwitch(Number.NaN, 0.7), false);
 {
   const store = memListStore();
   const G = "g1";
+  const U = "u1";
 
   // 旧格式条目（无 ts/boundary）→ 降级为「时间未知」，不抛错
-  await store.rpush(chatHistoryKey(G), JSON.stringify({ role: "user", content: "旧消息" }));
+  await store.rpush(chatHistoryKey(G, U), JSON.stringify({ role: "user", content: "旧消息" }));
   // 新格式：带 ts + boundary
-  await appendChatHistory(store, G, "user", "早", { ts: NOW, boundary: true }, 20);
-  await appendChatHistory(store, G, "assistant", "早上好", { ts: NOW + 1000 }, 20);
+  await appendChatHistory(store, G, U, "user", "早", { ts: NOW, boundary: true }, 20);
+  await appendChatHistory(store, G, U, "assistant", "早上好", { ts: NOW + 1000 }, 20);
 
-  const history = await getChatHistory(store, G, 20);
+  const history = await getChatHistory(store, G, U, 20);
   assert.equal(history.length, 3);
   assert.equal(history[0]!.ts, undefined, "旧条目 ts 应缺失");
   assert.equal(history[0]!.boundary, undefined);
@@ -140,7 +142,7 @@ assert.equal(isTopicSwitch(Number.NaN, 0.7), false);
   assert.equal(history[2]!.boundary, undefined);
 
   // 存储的 content 必须是原始消息，不含时间锚点 / 内部标记 / 时间块（时间只入上下文）
-  const raw = store.map.get(chatHistoryKey(G))!;
+  const raw = store.map.get(chatHistoryKey(G, U))!;
   for (const r of raw) assertNoInternalMarkers(r, "chat:history 条目");
   assert.deepEqual(
     raw.map((r) => JSON.parse(r).content),
@@ -155,9 +157,9 @@ assert.equal(isTopicSwitch(Number.NaN, 0.7), false);
 {
   const store = memListStore();
   for (let i = 0; i < 5; i++) {
-    await appendChatHistory(store, "g2", "user", `m${i}`, { ts: NOW + i }, 3);
+    await appendChatHistory(store, "g2", "u2", "user", `m${i}`, { ts: NOW + i }, 3);
   }
-  const history = await getChatHistory(store, "g2", 3);
+  const history = await getChatHistory(store, "g2", "u2", 3);
   assert.deepEqual(history.map((t) => t.content), ["m2", "m3", "m4"]);
 }
 
@@ -183,31 +185,85 @@ assert.equal(boundaryDisposition(true, "dev"), "stash");
 {
   const kv = memKVStore();
   const G = "g-boundary";
+  const U = "u-b";
 
   // 未暂存时取用为空
-  assert.equal(await consumePendingBoundary(kv, G), false);
+  assert.equal(await consumePendingBoundary(kv, G, U), false);
 
   // 暂存后取用一次为真，且被清除（不重复落位）
-  await markPendingBoundary(kv, G);
-  assert.equal(kv.map.has(pendingBoundaryKey(G)), true);
-  assert.equal(await consumePendingBoundary(kv, G), true);
-  assert.equal(await consumePendingBoundary(kv, G), false);
-  assert.equal(kv.map.has(pendingBoundaryKey(G)), false);
+  await markPendingBoundary(kv, G, U);
+  assert.equal(kv.map.has(pendingBoundaryKey(G, U)), true);
+  assert.equal(await consumePendingBoundary(kv, G, U), true);
+  assert.equal(await consumePendingBoundary(kv, G, U), false);
+  assert.equal(kv.map.has(pendingBoundaryKey(G, U)), false);
 
   // 门控重新判定时以本次为准 → 丢弃旧暂存
-  await markPendingBoundary(kv, G);
-  await clearPendingBoundary(kv, G);
-  assert.equal(await consumePendingBoundary(kv, G), false);
+  await markPendingBoundary(kv, G, U);
+  await clearPendingBoundary(kv, G, U);
+  assert.equal(await consumePendingBoundary(kv, G, U), false);
 
   // 端到端（list + kv）：非 chat 轮暂存 → 下一条 chat 轮落位到 history
   const store = memListStore();
-  await appendChatHistory(store, G, "user", "今天先到这", { ts: NOW - 15 * 3600_000 });
-  if (boundaryDisposition(true, "start_game") === "stash") await markPendingBoundary(kv, G);
-  const carried = await consumePendingBoundary(kv, G);
+  await appendChatHistory(store, G, U, "user", "今天先到这", { ts: NOW - 15 * 3600_000 });
+  if (boundaryDisposition(true, "start_game") === "stash") await markPendingBoundary(kv, G, U);
+  const carried = await consumePendingBoundary(kv, G, U);
   assert.equal(carried, true);
-  await appendChatHistory(store, G, "user", "早", { ts: NOW, boundary: carried }, 20);
-  const rendered = renderHistory(await getChatHistory(store, G, 20));
+  await appendChatHistory(store, G, U, "user", "早", { ts: NOW, boundary: carried }, 20);
+  const rendered = renderHistory(await getChatHistory(store, G, U, 20));
   assert.equal(rendered[1]!.content, `${TOPIC_BOUNDARY_MARK}\n[02-14 09:12] 早`);
+}
+
+// ==================== 9) 会话隔离：同群不同用户各自独立 key（ADR-0007 决策 3）====================
+{
+  const store = memListStore();
+  const G = "g-iso";
+  await appendChatHistory(store, G, "alice", "user", "我是 alice", { ts: NOW });
+  await appendChatHistory(store, G, "bob", "user", "我是 bob", { ts: NOW + 1 });
+  const ha = await getChatHistory(store, G, "alice", 20);
+  const hb = await getChatHistory(store, G, "bob", 20);
+  assert.deepEqual(ha.map((t) => t.content), ["我是 alice"], "alice 不应看到 bob 的历史");
+  assert.deepEqual(hb.map((t) => t.content), ["我是 bob"], "bob 不应看到 alice 的历史");
+  assert.notEqual(chatHistoryKey(G, "alice"), chatHistoryKey(G, "bob"));
+}
+
+// ==================== 10) 阶段裁剪（a1）：只保留最近 boundary 之后的轮次 ====================
+{
+  const turns: TimedTurn[] = [
+    { role: "user", content: "旧话题", ts: 1 },
+    { role: "assistant", content: "旧答", ts: 2 },
+    { role: "user", content: "新话题", ts: 3, boundary: true },
+    { role: "assistant", content: "新答", ts: 4 },
+  ];
+  assert.deepEqual(
+    cropToCurrentPhase(turns).map((t) => t.content),
+    ["新话题", "新答"],
+    "应裁掉 boundary 之前的旧话题",
+  );
+  // 无 boundary（新会话 / 无切换）→ 原样全取
+  const noBoundary = turns.map((t) => ({ ...t, boundary: undefined }));
+  assert.deepEqual(cropToCurrentPhase(noBoundary).map((t) => t.content), [
+    "旧话题",
+    "旧答",
+    "新话题",
+    "新答",
+  ]);
+  // 多条 boundary → 取最后一条
+  const multi: TimedTurn[] = [
+    { role: "user", content: "a", ts: 1, boundary: true },
+    { role: "user", content: "b", ts: 2 },
+    { role: "user", content: "c", ts: 3, boundary: true },
+    { role: "user", content: "d", ts: 4 },
+  ];
+  assert.deepEqual(cropToCurrentPhase(multi).map((t) => t.content), ["c", "d"]);
+  // 首位即 boundary → 全取；空 → 空
+  assert.deepEqual(
+    cropToCurrentPhase([
+      { role: "user", content: "a", ts: 1, boundary: true },
+      { role: "user", content: "b", ts: 2 },
+    ]).map((t) => t.content),
+    ["a", "b"],
+  );
+  assert.deepEqual(cropToCurrentPhase([]), []);
 }
 
 console.log("✅ topic-switch 单测全部通过");

@@ -1,13 +1,14 @@
 //! 聊天分支：接入 DeepSeek LLM（OpenAI 兼容接口）。
 //! 回复限长 1500 字符：超长时模型多做一步「摘要压缩」，保证回复不超限。
-//! 时间上下文（当前时间 + 历史时间锚点）只注入 LLM，不落库、不出站，见 `time-context.ts`。
+//! 上下文组装（人格/画像/历史/时间/局面）见 `context.ts`（按线抽象）。
 
 import {
-  formatTimeBlock,
-  lastTurnTs,
-  renderHistory,
-  type TimedTurn,
-} from "./time-context.js";
+  GAME_NARRATION_SYSTEM_PROMPT,
+  buildChatContext,
+  buildGameNarrationInput,
+  type ChatContextOptions,
+} from "./context.js";
+import type { TimedTurn } from "./time-context.js";
 
 const LLM_BASE_URL = process.env.LLM_BASE_URL ?? "https://api.deepseek.com";
 const LLM_API_KEY = process.env.LLM_API_KEY ?? "";
@@ -20,12 +21,6 @@ const LLM_THINKING_ENABLED = (process.env.LLM_THINKING_ENABLED ?? "1") === "1";
 
 /** 回复最大字符数（QQ 消息有长度限制，超限会报 40054007）。 */
 const MAX_REPLY_CHARS = 1500;
-
-// 时间只作为上下文私有层：模型据此判断对话间隔，但不得主动报时（用户没问就不提）。
-const SYSTEM_PROMPT =
-  "你是桌游群里的助手机器人，回复简洁、友好、口语化，用中文。" +
-  "除非用户主动问，不要在回复里提时间（不要说现在几点、今天几号）；" +
-  "上下文里出现的时间信息只用于你自己判断对话隔了多久。";
 
 const SUMMARY_PROMPT =
   "请把下面这段内容压缩成一段不超过 1500 字符的回复，保留核心信息和语气，直接输出压缩后的文本，不要任何解释或前缀。";
@@ -77,32 +72,11 @@ async function callLlm(
 /** 聊天历史单条（用于注入 LLM 上下文）：带 `ts` / `boundary` 以支持时间锚点与话题边界。 */
 export type ChatHistoryTurn = TimedTurn;
 
-export interface ChatMessagesOptions {
-  /** 当前时刻（epoch ms），便于测试注入假时钟。 */
-  now?: number;
-  /** 时区覆盖（默认 `time-context.CHAT_TZ`）。 */
-  tz?: string;
-}
+/** chat 线上下文组装选项（别名，实现见 `context.ts`）。 */
+export type ChatMessagesOptions = ChatContextOptions;
 
-/**
- * 组装送 LLM 的 messages（纯函数，便于单测）：
- * `system` 人设 → 历史（簇首带时间锚点、边界带话题切换标记）→ `system` 时间块 → 当前用户消息。
- *
- * 注意「时间只入上下文」：时间块是独立条目，用户消息与历史 `content` 均原样不改写。
- */
-export function buildChatMessages(
-  content: string,
-  history: readonly ChatHistoryTurn[] = [],
-  opts: ChatMessagesOptions = {},
-): Array<{ role: string; content: string }> {
-  const now = opts.now ?? Date.now();
-  return [
-    { role: "system", content: SYSTEM_PROMPT },
-    ...renderHistory(history, { tz: opts.tz }),
-    { role: "system", content: formatTimeBlock(now, lastTurnTs(history), opts.tz) },
-    { role: "user", content },
-  ];
-}
+/** 组装送 LLM 的 messages（别名，实现见 `context.ts` 的 `buildChatContext`）。 */
+export const buildChatMessages = buildChatContext;
 
 /** 聊天回复：正常 LLM 回复（带群历史 + 时间上下文）；超 1500 字符时再做一步摘要压缩。 */
 export async function chatReply(
@@ -155,16 +129,22 @@ export async function chatReply(
   }
 }
 
-const NARRATION_SYSTEM_PROMPT =
-  "你是桌游群里的游戏主持人。把玩家的操作与游戏结果润色成一句简短、有情景带入感的话，承上启下推进游戏进程。不要逐条复述所有结果（详情玩家会去网页看），只做承上启下 + 情景带入。中文，不超过 200 字，直接输出正文。";
-
-/** 游戏情景叙述：把动作 + 结果润色为承上启下、有带入感的短叙述。失败抛错（调用方静默降级为仅模板）。 */
-export async function narrateGame(action: string, result: string): Promise<string> {
+/** 游戏情景叙述：把动作 + 结果（+ 局面摘要 + 玩家画像）润色为承上启下、有带入感的短叙述。失败抛错（调用方静默降级为仅模板）。 */
+export async function narrateGame(
+  action: string,
+  result: string,
+  stateSummary?: string,
+  profileText?: string,
+): Promise<string> {
   if (!LLM_API_KEY) throw new Error("LLM 未配置，跳过情景叙述");
+  // 背景组装见 `context.ts`（game 线：局面 + 画像 + 操作 + 结果）
   const text = await callLlm(
     [
-      { role: "system", content: NARRATION_SYSTEM_PROMPT },
-      { role: "user", content: `玩家操作：${action}\n游戏结果：${result}` },
+      { role: "system", content: GAME_NARRATION_SYSTEM_PROMPT },
+      {
+        role: "user",
+        content: buildGameNarrationInput({ action, result, stateSummary, profileText }),
+      },
     ],
     2000,
   );

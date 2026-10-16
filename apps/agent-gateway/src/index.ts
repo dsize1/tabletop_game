@@ -21,15 +21,18 @@ import {
 } from "./intent-confirm.js";
 import { SystemOneClient } from "./systemone.js";
 import { chatReply, narrateGame, type ChatHistoryTurn } from "./chat.js";
+import { emitChatLog } from "./chat-log.js";
 import {
   appendChatHistory,
   boundaryDisposition,
   clearPendingBoundary,
   consumePendingBoundary,
+  cropToCurrentPhase,
   getChatHistory,
   markPendingBoundary,
 } from "./chat-history.js";
 import {
+  CHAT_TZ,
   chatGapMs,
   formatGap,
   isStaleGap,
@@ -41,6 +44,12 @@ import { DevTaskClient } from "./dev-task-client.js";
 import { DocsClient } from "./docs-client.js";
 import { DevSessionManager, devTaskPrompt } from "./dev-session.js";
 import { AuthClient, buildDocsUrl, buildPlanUrl } from "./auth-client.js";
+import { ProfileClient } from "./profile/client.js";
+import { ProfileCache } from "./profile/inject.js";
+import { LocalLlm, withLocalLlm } from "./profile/local-llm.js";
+import { startDailyScheduler } from "./profile/scheduler.js";
+import { runDistillJob } from "./profile/distill.js";
+import { makeSystemOneGate } from "./profile/gate.js";
 import {
   extractRequirement,
   extractSessionId,
@@ -62,6 +71,19 @@ const SERVER_URL = process.env.SERVER_URL ?? "http://127.0.0.1:3000";
 // web 公网基址（cloudflared 域名）；未配置则退回长文推送
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL ?? "").replace(/\/+$/, "");
 const authClient = new AuthClient(SERVER_URL);
+
+// 全局人物画像（跨群，ADR-0007）：经 server /internal/* 读写；带 TTL 内存缓存避免每轮打 server
+const profileClient = new ProfileClient({ baseUrl: SERVER_URL });
+const PROFILE_CACHE_TTL_MS = Number(process.env.PROFILE_CACHE_TTL_MS ?? 600_000);
+const profileCache = new ProfileCache(profileClient, PROFILE_CACHE_TTL_MS);
+
+// 画像日批（ADR-0007 决策 13）：默认关闭；PROFILE_DISTILL_ENABLED=1 开启
+const PROFILE_DISTILL_ENABLED = (process.env.PROFILE_DISTILL_ENABLED ?? "0") === "1";
+const PROFILE_DISTILL_HOUR = Number(process.env.PROFILE_DISTILL_HOUR ?? 4);
+// SystemOne 把关阈值：P(值得写入) ≥ 阈值才保留（经验值，可配）
+const PROFILE_GATE_THRESHOLD = Number(process.env.PROFILE_GATE_THRESHOLD ?? 0.5);
+// 本地 9B GGUF 路径（固定位置，不迁移；env 必填，缺失则跳过并告警）
+const PROFILE_LLM_MODEL = process.env.PROFILE_LLM_MODEL ?? "";
 
 // docs-mcp（本地开发文档预览）；在 main() 中 connect
 const docsClient = new DocsClient();
@@ -279,25 +301,49 @@ async function chatFlow(
   meta: { boundary?: boolean; history?: ChatHistoryTurn[] } = {},
 ): Promise<string> {
   // 上游已读过历史则复用（避免同一轮重复 LRANGE）；否则自行读取
-  const history = meta.history ?? (await getChatHistory(redis, event.group_id));
+  // 阶段裁剪（a1）：只把当前话题阶段（最近 boundary 之后）注入 LLM（ADR-0007 决策 6）
+  const history = cropToCurrentPhase(
+    meta.history ?? (await getChatHistory(redis, event.group_id, event.sender_id)),
+  );
   const userContent = await augmentWithLink(content);
-  const reply = await chatReply(userContent, history);
-  await appendChatHistory(redis, event.group_id, "user", content, meta);
-  await appendChatHistory(redis, event.group_id, "assistant", reply);
+  const profile = await profileCache.get(event.sender_id);
+  const reply = await chatReply(userContent, history, { profile });
+  await appendChatHistory(redis, event.group_id, event.sender_id, "user", content, meta);
+  await appendChatHistory(redis, event.group_id, event.sender_id, "assistant", reply);
+  // 冷存归档（chat.log → SQLite chat_history；画像蒸馏数据源）
+  await emitChatLog(redis, { openid: event.sender_id, groupId: event.group_id, role: "user", content });
+  await emitChatLog(redis, { openid: event.sender_id, groupId: event.group_id, role: "assistant", content: reply });
   return reply;
 }
 
-/** 游戏路径出站：模板摘要必达（msg_seq=1）；开关开启时追加 LLM 情景叙述（msg_seq=2），失败静默降级。 */
+/** 取回对局局面摘要（失败/非文本/错误串 → undefined，不影响模板必达）。 */
+async function fetchStateSummary(
+  engine: GameEngineClient,
+  roomId: string,
+): Promise<string | undefined> {
+  try {
+    const s = await engine.getStateSummary(roomId);
+    if (!s || s.startsWith("错误")) return undefined;
+    return s;
+  } catch (err) {
+    console.error("[agent-gateway] 取局面摘要失败，叙述不带局面:", err);
+    return undefined;
+  }
+}
+
+/** 游戏路径出站：模板摘要必达（msg_seq=1）；开关开启时追加 LLM 情景叙述（msg_seq=2，带局面摘要），失败静默降级。 */
 async function sendGameReply(
   redis: Redis,
   event: MessageGroupAt,
   template: string,
   actionDesc?: string,
+  stateSummary?: string,
 ) {
   await pushReply(redis, event, template, 1);
   if (NARRATION_ENABLED && actionDesc) {
     try {
-      const narration = await narrateGame(actionDesc, template);
+      const profile = await profileCache.get(event.sender_id);
+      const narration = await narrateGame(actionDesc, template, stateSummary, profile);
       await pushReply(redis, event, narration, 2);
     } catch (err) {
       console.error("[agent-gateway] 情景叙述失败，静默降级为仅模板:", err);
@@ -695,7 +741,15 @@ async function executeIntent(
       }
       const resultJson = await engine.executeAction(state.room_id, event.sender_id, hand);
       const result = parseJson<ActionResult>(resultJson, {});
-      await sendGameReply(redis, event, result.message ?? resultJson, `玩家出了「${hand}」`);
+      const summary = await fetchStateSummary(engine, state.room_id);
+      await emitChatLog(redis, { openid: event.sender_id, groupId: event.group_id, role: "user", content });
+      await emitChatLog(redis, {
+        openid: event.sender_id,
+        groupId: event.group_id,
+        role: "assistant",
+        content: result.message ?? resultJson,
+      });
+      await sendGameReply(redis, event, result.message ?? resultJson, `玩家出了「${hand}」`, summary);
       break;
     }
 
@@ -707,7 +761,15 @@ async function executeIntent(
       if (active.room_id && hand) {
         const resultJson = await engine.executeAction(active.room_id, event.sender_id, hand);
         const result = parseJson<ActionResult>(resultJson, {});
-        await sendGameReply(redis, event, result.message ?? resultJson, `玩家出了「${hand}」`);
+        const summary = await fetchStateSummary(engine, active.room_id);
+        await emitChatLog(redis, { openid: event.sender_id, groupId: event.group_id, role: "user", content });
+        await emitChatLog(redis, {
+          openid: event.sender_id,
+          groupId: event.group_id,
+          role: "assistant",
+          content: result.message ?? resultJson,
+        });
+        await sendGameReply(redis, event, result.message ?? resultJson, `玩家出了「${hand}」`, summary);
       } else if (!hand) {
         await pushReply(redis, event, "你想出什么？请说「石头/剪刀/布」");
       } else {
@@ -890,7 +952,8 @@ async function handle(
   }
 
   // 2) 时间上下文（仅记录 + 判据，不注入此路径）：距上次对话间隔驱动「话题切换」与 pending 失效
-  const history = await getChatHistory(redis, event.group_id);
+  //    会话键按 (群, 用户) 隔离（ADR-0007 决策 3）；gap/lastUserContent 基于未裁剪的完整窗口
+  const history = await getChatHistory(redis, event.group_id, event.sender_id);
   const gapMs = chatGapMs(history);
   // 门控可整体关闭（`TOPIC_GAP_MINUTES=0`），此时不做话题判定也不使 pending 失效
   const staleGap = isStaleGap(gapMs, TOPIC_GAP_MS);
@@ -933,11 +996,11 @@ async function handle(
   //    门控命中时以本次判定为准（丢弃旧暂存）；未命中时取用之前暂存的边界
   let boundary = askTopicSwitch && isTopicSwitch(topicSwitch, TOPIC_SWITCH_THRESHOLD);
   if (askTopicSwitch) {
-    await clearPendingBoundary(redis, event.group_id);
+    await clearPendingBoundary(redis, event.group_id, event.sender_id);
     console.log(
       `[agent-gateway] 话题切换判定 gap=${formatGap(gapMs!)} P=${topicSwitch?.toFixed(2) ?? "-"} → ${boundary ? "新话题" : "延续"}`,
     );
-  } else if (await consumePendingBoundary(redis, event.group_id)) {
+  } else if (await consumePendingBoundary(redis, event.group_id, event.sender_id)) {
     boundary = true;
     console.log("[agent-gateway] 话题切换：取用待落位边界（上一条非 chat 消息上检出）");
   }
@@ -945,7 +1008,7 @@ async function handle(
   // 边界去向：chat 分支直接落 history；其它分支不写 history → 暂存等下一条 chat 消息补落
   const where = boundaryDisposition(boundary, intent);
   if (where === "stash") {
-    await markPendingBoundary(redis, event.group_id);
+    await markPendingBoundary(redis, event.group_id, event.sender_id);
     console.log(`[agent-gateway] 话题边界暂存（intent=${intent} 不写 history）`);
   }
 
@@ -1034,6 +1097,57 @@ async function consume(
   }
 }
 
+// ==================== 人物画像日批（ADR-0007） ====================
+
+/** 把关（SystemOne）：候选事实是否写入长期画像；失败降级为保留（不因把关故障丢信息）。 */
+const profileGate = makeSystemOneGate(systemone, PROFILE_GATE_THRESHOLD);
+
+/** 启动画像日批调度（默认关闭；PROFILE_DISTILL_ENABLED=1 开启）。 */
+function startProfileScheduler(redis: Redis): void {
+  if (!PROFILE_DISTILL_ENABLED) {
+    console.log("[agent-gateway] 画像日批未启用（PROFILE_DISTILL_ENABLED=0）");
+    return;
+  }
+  if (!PROFILE_LLM_MODEL) {
+    console.error(
+      "[agent-gateway] 画像日批已启用但未配置 PROFILE_LLM_MODEL（本地 9B GGUF 路径），跳过",
+    );
+    return;
+  }
+  const llm = new LocalLlm({
+    modelPath: PROFILE_LLM_MODEL,
+    llamaBin: process.env.PROFILE_LLM_BIN ?? "llama-server",
+    port: Number(process.env.PROFILE_LLM_PORT ?? 8082),
+    ngl: process.env.PROFILE_LLM_NGL ?? "99",
+    ctx: process.env.PROFILE_LLM_CTX ?? "8192",
+  });
+  const stop = startDailyScheduler({
+    hour: PROFILE_DISTILL_HOUR,
+    run: async () => {
+      await withLocalLlm(llm, async (l) => {
+        const res = await runDistillJob({
+          client: profileClient,
+          generate: (msgs) => l.generate(msgs),
+          gate: profileGate,
+          kv: redis,
+          onProgress: (m) => console.log(`[profile] ${m}`),
+        });
+        profileCache.invalidateAll();
+        console.log(
+          `[profile] 蒸馏完成：活跃 ${res.activeOpenids}，更新 ${res.updated}，跳过 ${res.skipped}`,
+        );
+      });
+    },
+  });
+  console.log(
+    `[agent-gateway] 画像日批已启用（每日 ${PROFILE_DISTILL_HOUR}:00 ${CHAT_TZ}；模型 ${PROFILE_LLM_MODEL}）`,
+  );
+  process.once("SIGINT", () => {
+    stop();
+    process.exit(0);
+  });
+}
+
 async function main() {
   const redis = new Redis(redisUrl);
   redis.on("error", (e) => console.error("[agent-gateway] redis error:", e.message));
@@ -1047,6 +1161,8 @@ async function main() {
   await docsClient.connect();
 
   const devSessions = new DevSessionManager();
+
+  startProfileScheduler(redis);
 
   await ensureGroup(redis);
   console.log(`[agent-gateway] 就绪，消费 ${INTERNAL_STREAM}（dev 白名单 ${DEV_WHITELIST.size} 人）`);

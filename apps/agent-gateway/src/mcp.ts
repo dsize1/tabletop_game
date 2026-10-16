@@ -51,6 +51,11 @@ export class GameEngineClient {
     return this.call("get_active_game", { group_id: groupId });
   }
 
+  /** 对局局面摘要（紧凑文本，给主持人叙述用）。 */
+  async getStateSummary(roomId: string): Promise<string> {
+    return this.call("state_summary", { room_id: roomId });
+  }
+
   async getRules(gameId: string): Promise<string> {
     return this.call("get_rules", { game_id: gameId });
   }

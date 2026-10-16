@@ -19,6 +19,12 @@ const INCLUDED = [
   "test-time-context.mts",
   "test-topic-switch.mts",
   "test-time-guards.mts",
+  "test-chat-log.mts",
+  "test-profile-scheduler.mts",
+  "test-profile-distill.mts",
+  "test-profile-inject.mts",
+  "test-profile-local-llm.mts",
+  "test-context.mts",
 ];
 
 /** 显式排除（附原因）。 */
