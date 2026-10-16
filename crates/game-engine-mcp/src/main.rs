@@ -1,9 +1,11 @@
 //! game-engine-mcp：把 EnginePlugin 映射为 MCP 统一原语，以 stdio 暴露给 agent-gateway。
 //!
-//! 统一原语：get_rules / start_game / get_active_game / get_state / get_legal_actions / state_summary / execute_action。
-//! 所有写入路径由 GameManager → EnginePlugin 无条件重校验（合法性 + 权限）。
+//! 统一原语：get_rules / get_active_game / get_state / get_player_view / state_summary /
+//! get_legal_actions / create_game / start_game / execute_action。
+//! 所有写入路径由 GameManager → EnginePlugin 无条件重校验（合法性 + 权限）；
+//! 引擎产出的事件逐条落 `game_events`，快照 `version` 对齐最后事件 seq（ADR-0004/0008）。
 
-use game_engine_core::{EngineRegistry, GameManager, GameState, GameStatus};
+use game_engine_core::{EngineEvent, EngineRegistry, GameManager, GameState, GameStatus};
 use rmcp::{
     ServerHandler, ServiceExt,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
@@ -23,6 +25,13 @@ struct GroupRequest {
 }
 
 #[derive(Debug, serde::Deserialize, rmcp::schemars::JsonSchema)]
+struct CreateGameRequest {
+    game_id: String,
+    group_id: String,
+    host_id: String,
+}
+
+#[derive(Debug, serde::Deserialize, rmcp::schemars::JsonSchema)]
 struct StartGameRequest {
     game_id: String,
     group_id: String,
@@ -32,6 +41,12 @@ struct StartGameRequest {
 #[derive(Debug, serde::Deserialize, rmcp::schemars::JsonSchema)]
 struct StateRequest {
     room_id: String,
+}
+
+#[derive(Debug, serde::Deserialize, rmcp::schemars::JsonSchema)]
+struct PlayerViewRequest {
+    room_id: String,
+    player_id: String,
 }
 
 #[derive(Debug, serde::Deserialize, rmcp::schemars::JsonSchema)]
@@ -62,6 +77,33 @@ impl EngineServer {
             storage,
         }
     }
+
+    /// 把引擎产出的事件逐条写入 `game_events`，快照 version 对齐最后 seq。
+    fn persist(&self, state: &GameState, events: &[EngineEvent]) {
+        let state_json = serde_json::to_string(state).unwrap_or_default();
+        let event_ids: Vec<String> = events.iter().map(|_| shared::new_event_id()).collect();
+        let payloads: Vec<String> = events
+            .iter()
+            .map(|e| serde_json::to_string(&e.payload).unwrap_or_else(|_| "null".into()))
+            .collect();
+        let records: Vec<storage::GameEventRecord<'_>> = events
+            .iter()
+            .enumerate()
+            .map(|(i, e)| storage::GameEventRecord {
+                event_id: &event_ids[i],
+                event_type: &e.event_type,
+                actor: e.actor.as_deref(),
+                payload: &payloads[i],
+            })
+            .collect();
+        match self
+            .storage
+            .append_game_events(&state.game_id, &state.room_id, &records, &state_json)
+        {
+            Ok(seq) => tracing::debug!("已写入 {} 条引擎事件，version={seq}", records.len()),
+            Err(e) => tracing::warn!("写 game_events 失败: {e:#}"),
+        }
+    }
 }
 
 #[tool_router(router = tool_router)]
@@ -74,31 +116,32 @@ impl EngineServer {
         }
     }
 
-    #[tool(name = "start_game", description = "开桌（确定性），返回对局状态")]
-    async fn start_game(&self, Parameters(p): Parameters<StartGameRequest>) -> String {
-        match self.manager.start_game(&p.game_id, &p.group_id, p.players) {
-            Ok(state) => {
-                let state_json = serde_json::to_string(&state).unwrap_or_default();
-                let payload = serde_json::json!({ "game_id": p.game_id, "group_id": p.group_id }).to_string();
-                if let Err(e) = self.storage.record_game_transition(
-                    &shared::new_event_id(),
-                    &state.game_id,
-                    &state.room_id,
-                    "game_started",
-                    None,
-                    &payload,
-                    &state_json,
-                    1,
-                ) {
-                    tracing::warn!("写 game_events 失败: {e:#}");
-                }
-                state_json
+    #[tool(
+        name = "create_game",
+        description = "创建对局（进入 lobby，发起人自动入局；群内已有 Active 则拒绝）"
+    )]
+    async fn create_game(&self, Parameters(p): Parameters<CreateGameRequest>) -> String {
+        match self.manager.create_game(&p.game_id, &p.group_id, &p.host_id) {
+            Ok((state, events)) => {
+                self.persist(&state, &events);
+                serde_json::to_string(&state).unwrap_or_default()
             }
             Err(e) => format!("错误: {e}"),
         }
     }
 
-    #[tool(name = "get_active_game", description = "查询群内当前活跃对局（无则返回 null）")]
+    #[tool(name = "start_game", description = "直接开桌（无 lobby 的简单引擎），返回对局状态")]
+    async fn start_game(&self, Parameters(p): Parameters<StartGameRequest>) -> String {
+        match self.manager.start_game(&p.game_id, &p.group_id, p.players) {
+            Ok((state, events)) => {
+                self.persist(&state, &events);
+                serde_json::to_string(&state).unwrap_or_default()
+            }
+            Err(e) => format!("错误: {e}"),
+        }
+    }
+
+    #[tool(name = "get_active_game", description = "查询群内当前活跃对局（含 lobby；无则返回 null）")]
     async fn get_active_game(&self, Parameters(p): Parameters<GroupRequest>) -> String {
         match self.manager.get_active_game(&p.group_id) {
             Some(s) => serde_json::to_string(&s).unwrap_or_default(),
@@ -106,11 +149,19 @@ impl EngineServer {
         }
     }
 
-    #[tool(name = "get_state", description = "查询对局状态（无则返回 null）")]
+    #[tool(name = "get_state", description = "查询对局状态（公共视图，已脱敏；无则返回 null）")]
     async fn get_state(&self, Parameters(p): Parameters<StateRequest>) -> String {
-        match self.manager.get_state(&p.room_id) {
-            Some(s) => serde_json::to_string(&s).unwrap_or_default(),
-            None => "null".to_string(),
+        match self.manager.public_state(&p.room_id) {
+            Ok(s) => serde_json::to_string(&s).unwrap_or_default(),
+            Err(_) => "null".to_string(),
+        }
+    }
+
+    #[tool(name = "get_player_view", description = "查询玩家个人视图（默认与公共视图一致）")]
+    async fn get_player_view(&self, Parameters(p): Parameters<PlayerViewRequest>) -> String {
+        match self.manager.player_view(&p.room_id, &p.player_id) {
+            Ok(s) => serde_json::to_string(&s).unwrap_or_default(),
+            Err(_) => "null".to_string(),
         }
     }
 
@@ -134,20 +185,7 @@ impl EngineServer {
     async fn execute_action(&self, Parameters(p): Parameters<ExecuteActionRequest>) -> String {
         match self.manager.execute_action(&p.room_id, &p.player_id, &p.action) {
             Ok(result) => {
-                let state_json = serde_json::to_string(&result.state).unwrap_or_default();
-                let payload = serde_json::json!({ "action": p.action, "message": result.message }).to_string();
-                if let Err(e) = self.storage.record_game_transition(
-                    &shared::new_event_id(),
-                    &result.state.game_id,
-                    &result.state.room_id,
-                    "action_executed",
-                    Some(&p.player_id),
-                    &payload,
-                    &state_json,
-                    2,
-                ) {
-                    tracing::warn!("写 game_events 失败: {e:#}");
-                }
+                self.persist(&result.state, &result.events);
                 serde_json::to_string(&result).unwrap_or_default()
             }
             Err(e) => format!("错误: {e}"),
@@ -171,6 +209,7 @@ async fn main() -> anyhow::Result<()> {
 
     let mut registry = EngineRegistry::new();
     registry.register(rock_paper_scissors::RpsEngine);
+    registry.register(las_vegas::LasVegasEngine);
     let manager = Arc::new(GameManager::new(registry));
 
     // 从 SQLite 恢复活跃对局（引擎重启后内存丢失）

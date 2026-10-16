@@ -7,3 +7,4 @@ license.workspace = true
 [dependencies]
 game-engine-core = { path = "../../game-engine-core" }
 serde.workspace = true
+serde_json.workspace = true

@@ -18,17 +18,19 @@
 | 工具 | 说明 |
 |---|---|
 | `get_rules(game_id)` | 游戏规则 |
-| `get_active_game(group_id)` | 当前群活跃对局（无则空） |
-| `get_state(game_id, room_id)` | 当前对局状态 |
+| `get_active_game(group_id)` | 当前群活跃对局（含 lobby；无则空） |
+| `get_state(room_id)` | 当前对局**公共视图**（引擎 `public_state` 脱敏，如隐藏钞票面额） |
+| `get_player_view(room_id, player_id)` | 玩家个人视图（默认与公共视图相同） |
 | `state_summary(room_id)` | **局面摘要**（紧凑文本视图，给主持人叙述；引擎自定义 `summarize` + 统一截断 `SUMMARY_MAX_CHARS=300`） |
-| `get_legal_actions(game_id, room_id, player_id)` | 玩家合法动作列表 |
+| `get_legal_actions(room_id, player_id)` | 玩家合法动作列表（含 lobby 阶段） |
 
 ### 写入（受校验）
 
 | 工具 | 说明 |
 |---|---|
-| `start_game(game_id, group_id, players)` | 开桌（确定性） |
-| `execute_action(game_id, room_id, player_id, action)` | 执行动作（**无条件重校验**） |
+| `create_game(game_id, group_id, host_id)` | 创建对局（进入 `lobby`，发起人自动入局；群内已有 Active 则拒绝） |
+| `start_game(game_id, group_id, players)` | 直接开桌（无 lobby 的简单引擎，如 rps；保留向后兼容） |
+| `execute_action(room_id, player_id, action)` | 执行动作（**无条件重校验**）；lobby 生命周期统一走 `action=lobby:*` |
 | `handle_player_message(...)` | 预留：整条消息交给引擎（如需引擎侧编排） |
 
 ## 校验链（写入路径，确定性）
@@ -55,11 +57,14 @@
 
 ## MCP 统一原语评估（针对拉斯维加斯，v0.2）
 
-> 状态：草案 v0.2（据用户裁定规则重写）。评估时机：规则/动作/状态机定稿后进行。
+> 状态：定稿 v1.0（2026-10-16，用户裁定）。评估时机：规则/动作/状态机定稿后进行。
 
-### 结论：保留现有原语 + **新增开局大厅（lobby）相关原语**
+### 结论（已裁定）
 
-拉斯维加斯引入「开局前游戏设置阶段」（用户需求），需要一组**对局生命周期**原语（创建/加入/退出/开赛/中止）。其余原语保留。
+1. **保留**现有原语；**新增** `create_game`（bootstrap）与 `get_player_view`。
+2. **lobby 生命周期统一走 `execute_action(action=lobby:join|leave|kick|set_small_game_count|start|abort)`**，不再单独新增 join/leave/start/abort/kick 原语（唯一例外：房间尚未创建时的 `create_game`）。
+3. `get_state` 统一返回**公共视图**（脱敏）；个人资源走 `get_player_view`。
+4. 事件溯源对齐：写入原语把引擎返回的事件序列落 `game_events`，`game_state.version = 最后事件 seq`（ADR-0004）；废弃硬编码 1/2。
 
 ### 1. 文档与实现签名不一致（需统一）
 
@@ -78,7 +83,8 @@
 | get_active_game | 查群内活跃对局 | 保留 |
 | get_state | 返回对局状态；钞票面额脱敏 | 保留，补「玩家视图脱敏」说明 |
 | get_legal_actions | lobby + place:n + reroll + 小游戏分支 | 保留；**>26 时需 wide_choice/分组** |
-| start_game | 由 lobby 阶段派生（不再直接开桌） | 增强：改为「lobby → start」两步 |
+| create_game | 无 room 时创建 lobby | **新增（独立原语）** |
+| start_game | 由 lobby 阶段派生（拉斯维加斯不再直接开桌） | 保留给无 lobby 的简单引擎（如 rps） |
 | execute_action | 无条件重校验 + 执行 + 事件溯源 | 保留（lobby 动作也走此通道） |
 | handle_player_message | 预留 | 暂不启用 |
 
@@ -87,24 +93,25 @@
 | 新原语 | 说明 | 校验 |
 |---|---|---|
 | `create_game(game_id, group_id, host_id)` | 群内无 Active 对局时创建，进入 `lobby` | 无竞争对局 |
-| `join_game(room_id, player_id)` | @bot 加入游戏列表 | 群成员、未在列表 |
-| `leave_game(room_id, player_id)` | 退出（仅开赛前） | 在列表且 `phase=lobby` |
-| `start_game_from_lobby(room_id, host_id)` | 发起人开赛，进入 `setup`/首轮 | 发起人、人数达标 |
-| `abort_game(room_id, host_id)` | 房主中断结束，**不结算**直接终结 | 房主/发起人 |
-| `kick_player(room_id, host_id, target_id)` | 房主踢出某玩家（仅 lobby） | 房主/发起人 |
+| `execute_action(room_id, player_id, "lobby:join")` | 加入游戏列表 | 群成员、未在列表 |
+| `execute_action(..., "lobby:leave")` | 退出（仅开赛前；发起人退出→本局废弃） | 在列表且 `phase=lobby` |
+| `execute_action(..., "lobby:set_small_game_count:<N>")` | 房主设定小游戏数 N∈3–6 | 房主 |
+| `execute_action(..., "lobby:start")` | 发起人开赛，进入 `setup`/首轮 | 房主、人数 2–6 |
+| `execute_action(..., "lobby:abort")` | 房主中断结束，**不结算**直接终结 | 房主 |
+| `execute_action(..., "lobby:kick:<target>")` | 房主踢出某玩家（仅 lobby） | 房主 |
 
-> 注：上述原语也可统一并入 `execute_action(action=lobby:*)`；本表按「生命周期原语」列出，便于网关/主持人调用。
+> 已裁定：除 `create_game` 外，lobby 生命周期统一并入 `execute_action(action=lobby:*)`（与 `legal-actions.md` 一致）。
 > 与 dev-task 的「token 重签」无关；游戏侧 token 由 `auth` 签发，见 `docs/modules/auth.md`。
 
 ### 4. 缺口与处置（待确认）
 
 | 缺口 | 影响 | 处置建议 |
 |---|---|---|
-| 无 get_player_view | 骰子公开、钞票隐藏；其余公开 | 先以 get_state 脱敏实现；未来隐藏手牌引擎再抽象 |
-| 无 resign/弃局 | 开赛后不允许退出；仅房主 abort | **新增 `abort_game`（房主，不结算）**；玩家 resign【待确认】 |
+| 无 get_player_view | 骰子公开、钞票隐藏；其余公开 | **已裁定：`get_state` 统一脱敏 + 新增 `get_player_view`**；引擎 `public_state` 实现 |
+| 无 resign/弃局 | 开赛后不允许退出；仅房主 abort | **已裁定：`lobby:abort`（房主，不结算）**；玩家 resign 不做 |
 | 无对局超时/挂起 | 玩家长时间不动作 | **不设超时、无离线概念**；群消息持久化，中断后从可恢复点恢复 |
-| 随机结果不入事件（RNG 不可注入） | 复盘无法确定性重放 | ADR-0004 裁定：随机结果入事件、RNG 可注入（实现阶段做） |
-| version 硬编码 1/2 | 多轮对局快照 version 错乱 | ADR-0004 裁定：对齐 game_events.seq（实现阶段修） |
+| 随机结果不入事件（RNG 不可注入） | 复盘无法确定性重放 | **本轮实现**：随机结果入事件、RNG 可注入（ADR-0004/ADR-0008） |
+| version 硬编码 1/2 | 多轮对局快照 version 错乱 | **本轮实现**：对齐 game_events.seq（ADR-0004） |
 
 ### 5. 两类出口边界（明确）
 

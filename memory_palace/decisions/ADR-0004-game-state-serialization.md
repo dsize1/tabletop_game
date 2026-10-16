@@ -1,6 +1,6 @@
 # ADR-0004：游戏状态序列化方案与 version 对齐
 
-- 状态：提议中（Proposed，待用户确认）
+- 状态：已接受（Accepted，2026-10-16 用户确认执行）
 - 日期：2026-10-12
 - 关联：ADR-0002（事件溯源）、`docs/conventions/persistence.md`、`docs/games/las-vegas/data-structure.md`
 

@@ -8,7 +8,9 @@
 | qq.raw | Redis Stream：qq-gateway 写入的原始 QQ 群事件 |
 | internal | Redis Stream：bot-adapter 写入、agent-gateway 消费的归一化事件 |
 | qq.push | Redis Stream：agent-gateway/push 写入、qq-gateway 消费的推送指令 |
-| EnginePlugin | game-engine-core 定义的引擎抽象 trait |
+| EnginePlugin | game-engine-core 定义的引擎抽象 trait（产出事件序列 + RNG 注入 + public_state/player_view） |
+| EngineEvent | 引擎产出的事件记录（event_type/actor/payload）；写入 game_events，快照 version 对齐 seq |
+| RandomSource | 可注入随机源 trait（SeededRng 测试确定性 / SystemRng 默认） |
 | las-vegas | 首个桌游引擎「拉斯维加斯」 |
 | 短期 token | Web 鉴权用的短时效 token：uuid v4 + 绑定 openid + 资源范围；存 Redis，TTL 8 小时（局终态清除） |
 | openid（member_openid） | 玩家身份标识；QQ 官方仅给群内 openid（非 QQ 号）。统一术语：代码/文档以「openid」指代玩家身份，不再用「qq号/qqid」 |
@@ -22,13 +24,13 @@
 | wide_choice | 决策模型单题超 26 选项时的两阶段分组机制 |
 | 被动回复 / 主动发送 | QQ 消息回复两种方式：带 msg_id 回复（群聊 5 分钟、每条最多 5 次）/ POST 主动推送（群 1000 条/天） |
 | casino / 赌场 | 拉斯维加斯编号 1–6 的落骰/堆钞牌 |
-| banknote / 钞票 | 拉斯维加斯奖池货币，每组 2 张，结算前背面朝上隐藏；终局按总金额计分 |
+| banknote / 钞票 | 拉斯维加斯奖池货币，面额 $3–$10 万（张数 11/11/13/15/13/11/9/7，共 90 张），每轮重洗抽 6 组×2 张；结算前背面朝上隐藏；终局按总金额计分（1 筹码=1 分=1 万） |
 | chip / 筹码 | 拉斯维加斯资源货币；初始 2/人、每轮 +2；终局 ×$1 万计分；可用于支付弃回合/小游戏 |
 | big die / 大骰 | 每人 1 枚；**仅赌场**中 1 大骰 = 2 小骰，其他情况（酒吧/小游戏区/金框/游戏场）一律算 1 |
 | small die / 小骰 | 每人 7 枚；投掷后按点数整组下注 |
 | gray die / 灰色骰 | 视为虚拟玩家，参与「移除平手」「权力优势」；由 F1/F2 小游戏决定初始摆放 |
 | black die / 黑色骰 | 触发类小游戏投掷用（每次 2 颗）：A2/B1/B2/H2 |
-| small game / 小游戏 | A1–H2 板块，每轮抽 3 块挂到 1–3 号赌场下；对应赌场下注后可激活 |
+| small game / 小游戏 | A1–H2 板块，每轮重新 16→8→N（N 默认 3，房主可设 3–6）抽 N 块，从 1 号赌场起依次挂到 1–3 号；对应赌场下注后可激活 |
 | lobby / 游戏设置阶段 | 开赛前阶段：任何人可发起，群成员 @bot 加入/退出，发起人开赛；开赛后不可退 |
 | host / 房主（发起人） | 创建对局者（自动入局）；唯一有权 `start` 开赛、`abort` 中断结束（不结算）、`kick` 踢人 |
 | abort / 中断结束 | 房主中止对局：`aborted`，**不结算**，直接终结该群对局生命周期 |

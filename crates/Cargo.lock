@@ -462,6 +462,7 @@ dependencies = [
 name = "game-engine-core"
 version = "0.1.0"
 dependencies = [
+ "rand 0.8.8",
  "serde",
  "serde_json",
  "shared",
@@ -475,6 +476,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "game-engine-core",
+ "las-vegas",
  "rmcp",
  "rock-paper-scissors",
  "schemars",
@@ -782,6 +784,7 @@ version = "0.1.0"
 dependencies = [
  "game-engine-core",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

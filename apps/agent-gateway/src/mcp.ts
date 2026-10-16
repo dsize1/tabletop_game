@@ -43,6 +43,21 @@ export class GameEngineClient {
     return this.call("start_game", { game_id: gameId, group_id: groupId, players });
   }
 
+  /** 创建对局（进入 lobby；群内已有 Active 则返回「错误: ...」）。 */
+  async createGame(gameId: string, groupId: string, hostId: string): Promise<string> {
+    return this.call("create_game", { game_id: gameId, group_id: groupId, host_id: hostId });
+  }
+
+  /** 对局状态（公共视图，已脱敏）。 */
+  async getState(roomId: string): Promise<string> {
+    return this.call("get_state", { room_id: roomId });
+  }
+
+  /** 玩家当前合法动作。 */
+  async getLegalActions(roomId: string, playerId: string): Promise<string> {
+    return this.call("get_legal_actions", { room_id: roomId, player_id: playerId });
+  }
+
   async executeAction(roomId: string, playerId: string, action: string): Promise<string> {
     return this.call("execute_action", { room_id: roomId, player_id: playerId, action });
   }

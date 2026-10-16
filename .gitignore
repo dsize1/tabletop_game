@@ -5,6 +5,7 @@ dist/
 
 # Rust
 target/
+target-*/
 
 # 环境变量与密钥
 .env

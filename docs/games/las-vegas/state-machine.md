@@ -1,7 +1,8 @@
 # 拉斯维加斯状态机设计
 
-> 状态：草案 v0.2（据用户裁定规则重写，含开局前 lobby）。
+> 状态：定稿 v1.0（2026-10-16，用户裁定）。
 > 通用信封 `GameState.status ∈ { Active, Finished }`；引擎内部 `phase` 更细。
+> 本期范围：主流程（lobby/setup/turn/round_end/settling/finished/aborted）；小游戏仅抽取挂载、效果占位。
 
 ## 1. 阶段（phase）
 
@@ -57,7 +58,7 @@ lobby / 任意 Active 阶段 ──host: abort──▶ aborted（不结算，�
 | `lobby` | `join` | 未在对局列表/未被禁入 | `lobby` |
 | `lobby` | `leave` | 在对局列表且未开赛；**发起人退出 → `aborted`（本局废弃）** | `lobby` / `aborted` |
 | `lobby` | `kick` | 发起人/房主 + 目标在列表 | `lobby`（移除目标） |
-| `lobby` | `set_small_game_count` | 发起人 + 指定 N∈3–6（可选） | `lobby` |
+| `lobby` | `set_small_game_count` | 发起人 + 指定 N∈3–6（默认 3，可选） | `lobby` |
 | `lobby` | `start` | 发起人 + 人数 2–6 + 已选小游戏 | `setup` |
 | `lobby` | `abort` | 发起人/房主 | `aborted` |
 | `setup` | （自动完成） | — | `turn_roll` |
@@ -89,8 +90,9 @@ lobby / 任意 Active 阶段 ──host: abort──▶ aborted（不结算，�
 - **人数/去重**：`start` 在引擎内校验人数 **2–6** 与 openid 去重。
 - **lobby 消息驱动**：设置阶段的开赛询问等仍由群消息驱动，不经 agent 处理。
 
-## 7. 待确认
+## 7. 已裁定与待确认
 
-- 发起人退出/房主是否可转移（已确认：**发起人退出 → 本局废弃**）。
-- 各小游戏与主体结算的精确交错顺序（实现阶段讨论）。
-- 每轮从已选小游戏池（16→8→N）中如何分配挂到 1–3 号赌场（实现阶段讨论）。
+- 【已确认】发起人退出 → 本局废弃（`aborted`）。
+- 【用户裁定 2026-10-16】每轮 `setup` 重新 16→8→N 抽小游戏；第 i 块挂到 `((i-1) mod 3)+1` 号赌场（N>3 可叠放）。
+- 【阶段 3 前裁定】各小游戏与主体结算的精确交错顺序（C2/B1/C1/D1）。
+- 【阶段 3 前裁定】F1 九格图案、各小游戏奖励数值档位。

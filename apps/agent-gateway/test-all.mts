@@ -14,6 +14,7 @@ const INCLUDED = [
   "test-intent-confirm.mts",
   "test-systemone.mts",
   "test-dev-command.mts",
+  "test-game-command.mts",
   "test-docs.mts",
   "test-link-fetch.mts",
   "test-time-context.mts",

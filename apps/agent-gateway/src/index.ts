@@ -59,6 +59,13 @@ import {
   splitTaskRef,
   type DevCommand,
 } from "./dev-command.js";
+import {
+  parseGameCommand,
+  gameActionId,
+  lobbyPrompt,
+  GAME_ACTION_HINT,
+  type GameCommand,
+} from "./game-command.js";
 
 const redisUrl = process.env.REDIS_URL ?? "redis://127.0.0.1:6379";
 const INTERNAL_STREAM = "internal";
@@ -127,6 +134,14 @@ interface MessageGroupAt {
 interface GameState {
   room_id?: string;
   game_id?: string;
+  status?: string;
+  data?: {
+    phase?: string;
+    seats?: unknown[];
+    small_game_count?: number;
+    winners?: string[];
+    scores?: Record<string, number>;
+  };
 }
 
 interface ActionResult {
@@ -727,10 +742,10 @@ async function executeIntent(
       break;
 
     case "start_game": {
-      // 猜拳：开桌 + 立即出拳（一轮对话）
+      // 猜拳（显式手势）：旧行为保留；否则发起拉斯维加斯对局（进入 lobby）
       const hand = extractHand(content);
       if (!hand) {
-        await pushReply(redis, event, "请出「石头/剪刀/布」，例如：来玩猜拳 石头");
+        await handleGameCommand(redis, engine, event, { cmd: "create" });
         break;
       }
       const stateJson = await engine.startGame("rps", event.group_id, [event.sender_id]);
@@ -754,11 +769,11 @@ async function executeIntent(
     }
 
     case "game_action": {
-      // 已有活跃对局时出拳
+      // 猜拳活跃对局 + 显式手势：旧行为保留；否则引导用显式游戏命令
       const hand = extractHand(content);
       const activeJson = await engine.getActiveGame(event.group_id);
       const active = parseJson<GameState>(activeJson, {});
-      if (active.room_id && hand) {
+      if (active.room_id && hand && active.game_id === "rps") {
         const resultJson = await engine.executeAction(active.room_id, event.sender_id, hand);
         const result = parseJson<ActionResult>(resultJson, {});
         const summary = await fetchStateSummary(engine, active.room_id);
@@ -770,10 +785,10 @@ async function executeIntent(
           content: result.message ?? resultJson,
         });
         await sendGameReply(redis, event, result.message ?? resultJson, `玩家出了「${hand}」`, summary);
-      } else if (!hand) {
-        await pushReply(redis, event, "你想出什么？请说「石头/剪刀/布」");
+      } else if (active.room_id) {
+        await pushReply(redis, event, GAME_ACTION_HINT);
       } else {
-        await pushReply(redis, event, "当前没有进行中的对局，试试「来玩猜拳 石头」");
+        await pushReply(redis, event, "当前没有进行中的对局，试试「#开局」发起一局拉斯维加斯。");
       }
       break;
     }
@@ -919,6 +934,68 @@ async function handlePendingConfirm(
   });
 }
 
+// ==================== 拉斯维加斯游戏命令（显式前缀，确定性路由） ====================
+
+const LAS_VEGAS_GAME_ID = "las-vegas";
+
+/** 处理显式游戏命令：create/board 之外统一走 MCP execute_action（引擎无条件重校验）。 */
+async function handleGameCommand(
+  redis: Redis,
+  engine: GameEngineClient,
+  event: MessageGroupAt,
+  cmd: GameCommand,
+): Promise<void> {
+  const activeJson = await engine.getActiveGame(event.group_id);
+  const active = parseJson<GameState>(activeJson, {});
+  const roomId = active.room_id;
+
+  if (cmd.cmd === "create") {
+    if (roomId) {
+      await pushReply(redis, event, "本群已有进行中的对局，先打完或由房主「#中断」再来。");
+      return;
+    }
+    const stateJson = await engine.createGame(LAS_VEGAS_GAME_ID, event.group_id, event.sender_id);
+    const st = parseJson<GameState>(stateJson, {});
+    if (!st.room_id) {
+      await pushReply(redis, event, stateJson);
+      return;
+    }
+    const seats = st.data?.seats?.length ?? 1;
+    const n = st.data?.small_game_count ?? 3;
+    await pushReply(redis, event, lobbyPrompt(event.sender_name || event.sender_id, seats, n));
+    return;
+  }
+
+  if (!roomId) {
+    await pushReply(redis, event, "本群没有进行中的对局。发「#开局」发起一局拉斯维加斯吧。");
+    return;
+  }
+
+  if (cmd.cmd === "board") {
+    await pushReply(redis, event, (await fetchStateSummary(engine, roomId)) ?? "（暂无局面摘要）");
+    return;
+  }
+
+  const action = gameActionId(cmd);
+  if (!action) {
+    await pushReply(redis, event, GAME_ACTION_HINT);
+    return;
+  }
+  const resultJson = await engine.executeAction(roomId, event.sender_id, action);
+  const result = parseJson<ActionResult>(resultJson, {});
+  await emitChatLog(redis, { openid: event.sender_id, groupId: event.group_id, role: "user", content: event.content });
+  await emitChatLog(redis, {
+    openid: event.sender_id,
+    groupId: event.group_id,
+    role: "assistant",
+    content: result.message ?? resultJson,
+  });
+  await pushReply(redis, event, result.message ?? resultJson);
+  if (result.finished) {
+    await pushReply(redis, event, (await fetchStateSummary(engine, roomId)) ?? "（本局结束）");
+  }
+}
+
 // ==================== 主编排 ====================
 
 async function handle(
@@ -948,6 +1025,17 @@ async function handle(
       return;
     }
     await handleDevCommand(redis, devTask, devSessions, event, devCmd);
+    return;
+  }
+
+  // 1.5) 显式游戏命令（拉斯维加斯）：确定性路由（先于决策模型）
+  const gameCmd = parseGameCommand(event.content);
+  if (gameCmd) {
+    await clearPending(redis, event.group_id, event.sender_id);
+    console.log(
+      `[agent-gateway] intent=game via=prefix cmd=${gameCmd.cmd} model=- cid=${event.message_id} ← ${event.content}`,
+    );
+    await handleGameCommand(redis, engine, event, gameCmd);
     return;
   }
 

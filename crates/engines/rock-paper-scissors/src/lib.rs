@@ -3,8 +3,10 @@
 //! 玩家开桌后出拳，引擎随机出拳判定输赢，返回结果文案。
 //! 手势解析由引擎内「模拟决策」完成（本次不接 SystemOne）。
 
-use game_engine_core::{Action, ActionResult, EngineError, EnginePlugin, GameState, GameStatus};
-use rand::Rng;
+use game_engine_core::{
+    roll_die, Action, ActionResult, EngineError, EngineEvent, EnginePlugin, GameState, GameStatus,
+    RandomSource,
+};
 use serde_json::json;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -54,15 +56,22 @@ impl EnginePlugin for RpsEngine {
         "猜拳：一轮定胜负。玩家出「石头/剪刀/布」，机器人随机出拳判定。".to_string()
     }
 
-    fn new_game(&self, room_id: &str, group_id: &str, players: Vec<String>) -> GameState {
-        GameState {
+    fn new_game(
+        &self,
+        room_id: &str,
+        group_id: &str,
+        players: Vec<String>,
+        _rng: &mut dyn RandomSource,
+    ) -> (GameState, Vec<EngineEvent>) {
+        let state = GameState {
             game_id: self.game_id().to_string(),
             room_id: room_id.to_string(),
             group_id: group_id.to_string(),
             status: GameStatus::Active,
             players,
             data: json!({ "player_hand": null, "bot_hand": null, "result": null }),
-        }
+        };
+        (state, vec![EngineEvent::new("game_started", json!({}))])
     }
 
     fn legal_actions(&self, state: &GameState, _player_id: &str) -> Vec<Action> {
@@ -81,6 +90,7 @@ impl EnginePlugin for RpsEngine {
         state: &GameState,
         player_id: &str,
         action: &str,
+        rng: &mut dyn RandomSource,
     ) -> Result<ActionResult, EngineError> {
         // —— 无条件重校验：合法性 + 权限 ——
         if state.status == GameStatus::Finished {
@@ -97,7 +107,7 @@ impl EnginePlugin for RpsEngine {
             .ok_or_else(|| EngineError::IllegalAction(format!("无法识别手势: {action}")))?;
 
         // 引擎随机出拳（模拟对手）
-        let bot_hand = random_hand();
+        let bot_hand = random_hand(rng);
 
         let result = if player_hand == bot_hand {
             "平局 🤝"
@@ -127,10 +137,22 @@ impl EnginePlugin for RpsEngine {
             }),
         };
 
+        let events = vec![EngineEvent::new(
+            "hand_played",
+            json!({
+                "player_id": player_id,
+                "player_hand": player_hand.name(),
+                "bot_hand": bot_hand.name(),
+                "result": result,
+            }),
+        )
+        .with_actor(player_id)];
+
         Ok(ActionResult {
             state: new_state,
             message,
             finished: true,
+            events,
         })
     }
 
@@ -154,9 +176,9 @@ impl EnginePlugin for RpsEngine {
     }
 }
 
-fn random_hand() -> Hand {
-    let mut rng = rand::thread_rng();
-    match rng.gen_range(0..3) {
+/// 随机出拳：用注入的随机源（`roll_die % 3`）。
+fn random_hand(rng: &mut dyn RandomSource) -> Hand {
+    match roll_die(rng) % 3 {
         0 => Hand::Rock,
         1 => Hand::Paper,
         _ => Hand::Scissors,
@@ -166,7 +188,7 @@ fn random_hand() -> Hand {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use game_engine_core::{EngineError, GameState, GameStatus};
+    use game_engine_core::{EngineError, GameState, GameStatus, SeededRng};
     use serde_json::json;
 
     fn new_state() -> GameState {
@@ -178,6 +200,10 @@ mod tests {
             players: vec!["p1".into()],
             data: json!({ "player_hand": null, "bot_hand": null, "result": null }),
         }
+    }
+
+    fn rng() -> SeededRng {
+        SeededRng::new(1)
     }
 
     #[test]
@@ -208,7 +234,9 @@ mod tests {
     fn invalid_hand_rejected() {
         let engine = RpsEngine;
         let state = new_state();
-        let err = engine.execute_action(&state, "p1", "无效手势").unwrap_err();
+        let err = engine
+            .execute_action(&state, "p1", "无效手势", &mut rng())
+            .unwrap_err();
         assert!(matches!(err, EngineError::IllegalAction(_)));
     }
 
@@ -216,7 +244,7 @@ mod tests {
     fn non_player_rejected() {
         let engine = RpsEngine;
         let state = new_state();
-        let err = engine.execute_action(&state, "p2", "石头").unwrap_err();
+        let err = engine.execute_action(&state, "p2", "石头", &mut rng()).unwrap_err();
         assert!(matches!(err, EngineError::PermissionDenied(_)));
     }
 
@@ -225,7 +253,7 @@ mod tests {
         let engine = RpsEngine;
         let mut state = new_state();
         state.status = GameStatus::Finished;
-        let err = engine.execute_action(&state, "p1", "石头").unwrap_err();
+        let err = engine.execute_action(&state, "p1", "石头", &mut rng()).unwrap_err();
         assert!(matches!(err, EngineError::IllegalAction(_)));
     }
 
@@ -233,12 +261,14 @@ mod tests {
     fn execute_returns_finished_with_message() {
         let engine = RpsEngine;
         let state = new_state();
-        let result = engine.execute_action(&state, "p1", "石头").unwrap();
+        let result = engine.execute_action(&state, "p1", "石头", &mut rng()).unwrap();
         assert!(result.finished);
         assert!(result.message.contains("你出【石头】"));
         assert_eq!(result.state.status, GameStatus::Finished);
         assert!(result.state.data["player_hand"].is_string());
         assert!(result.state.data["bot_hand"].is_string());
+        assert_eq!(result.events.len(), 1);
+        assert_eq!(result.events[0].event_type, "hand_played");
     }
 
     #[test]
@@ -253,7 +283,7 @@ mod tests {
     fn summarize_reports_hand_and_result() {
         let engine = RpsEngine;
         let state = new_state();
-        let result = engine.execute_action(&state, "p1", "石头").unwrap();
+        let result = engine.execute_action(&state, "p1", "石头", &mut rng()).unwrap();
         let sum = engine.summarize(&result.state);
         assert!(sum.contains("玩家出【石头】"), "{sum}");
     }

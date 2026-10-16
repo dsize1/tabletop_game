@@ -40,6 +40,24 @@
 - `#补充 <id> <正文>`：经 `append_instruction` 校验后 `runDevResume` 追加到已有子会话（不落 chat 兜底）
 - 聊天多轮：**按 `(group, openid)` 隔离**的 Redis 热缓存最近 20 条（`CHAT_HISTORY_LIMIT` 可配）注入 `chatReply`；条目随消息存 `ts`（写入时刻）与 `boundary`（话题切换边界），旧条目无这两个字段时降级为「时间未知、无边界」。读写见 `src/chat-history.ts`，渲染见 `src/time-context.ts`，上下文组装见 `src/context.ts`
 
+### 游戏（拉斯维加斯，显式命令）
+
+- **显式命令硬判断**（先于决策模型，`game-command.ts`）：确定性前缀 → MCP `execute_action`，**不经决策模型**（与「lobby 消息驱动」一致；禁止用正则猜自由文本意图）。
+
+| 命令 | 动作 | 权限 |
+|---|---|---|
+| `#开局` / `#拉斯维加斯` | `create_game(las-vegas, group, sender)` | 群内无 Active |
+| `#加入` / `#退出` | `lobby:join` / `lobby:leave` | 群成员 |
+| `#开始` / `#中断` | `lobby:start` / `lobby:abort` | 房主 |
+| `#踢 <openid>` | `lobby:kick:<openid>` | 房主 |
+| `#小游戏 <3~6>` | `lobby:set_small_game_count:<n>` | 房主 |
+| `#放 <1~6>`（也支持 `#放3`） | `place:<n>` | 当前玩家 |
+| `#重投` / `#弃` | `reroll` | 当前玩家、筹码 ≥ 1 |
+| `#局面` / `#牌面` | `state_summary` | 任意 |
+
+- **自然语言路径**：`start_game` 意图（无猜拳手势时）→ 创建拉斯维加斯 lobby（引导文案含上表命令）；`game_action` 意图 → 回显命令引导（动作选择后续接决策模型）。猜拳 `rps` 保留为显式手势玩具路径。
+- 命令 → 动作串映射与解析单测见 `src/game-command.ts` / `test-game-command.mts`。
+
 ### 人物画像（全局层，ADR-0007）
 
 - **跨群共享**（键 = `openid`），作为全局 system 块注入 chat（`context.ts` 的 `buildChatContext`）与 game 叙述（`buildGameNarrationInput`）；**为空则跳过**

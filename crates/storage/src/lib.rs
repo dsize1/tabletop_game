@@ -6,6 +6,14 @@
 use rusqlite::{params, Connection};
 use std::sync::Mutex;
 
+/// 单条待写入的引擎事件（借用避免克隆）。
+pub struct GameEventRecord<'a> {
+    pub event_id: &'a str,
+    pub event_type: &'a str,
+    pub actor: Option<&'a str>,
+    pub payload: &'a str,
+}
+
 pub struct Storage {
     conn: Mutex<Connection>,
 }
@@ -87,6 +95,63 @@ impl Storage {
         Ok(())
     }
 
+    /// 批量写入引擎事件 + 更新快照（同一事务）；返回最后一条事件的自增 seq。
+    /// 无事件时保持原 version。
+    pub fn append_game_events(
+        &self,
+        game_id: &str,
+        room_id: &str,
+        events: &[GameEventRecord<'_>],
+        state_json: &str,
+    ) -> anyhow::Result<i64> {
+        let mut conn = self.lock();
+        let tx = conn.transaction()?;
+        let mut last_seq = 0i64;
+        for e in events {
+            tx.execute(
+                "INSERT OR IGNORE INTO game_events
+                 (event_id, game_id, room_id, event_type, actor, payload, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                params![
+                    e.event_id,
+                    game_id,
+                    room_id,
+                    e.event_type,
+                    e.actor,
+                    e.payload,
+                    now_secs()
+                ],
+            )?;
+            let seq: i64 = tx.query_row(
+                "SELECT seq FROM game_events WHERE event_id = ?1",
+                params![e.event_id],
+                |row| row.get(0),
+            )?;
+            if seq > last_seq {
+                last_seq = seq;
+            }
+        }
+        // 无事件时保持原 version（不把快照 version 拉回 0）。
+        if events.is_empty() {
+            last_seq = tx
+                .query_row(
+                    "SELECT version FROM game_state WHERE game_id = ?1 AND room_id = ?2",
+                    params![game_id, room_id],
+                    |row| row.get(0),
+                )
+                .unwrap_or(0);
+        }
+        tx.execute(
+            "INSERT INTO game_state (game_id, room_id, state, version, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(game_id, room_id) DO UPDATE SET
+               state=excluded.state, version=excluded.version, updated_at=excluded.updated_at",
+            params![game_id, room_id, state_json, last_seq, now_secs()],
+        )?;
+        tx.commit()?;
+        Ok(last_seq)
+    }
+
     /// 读取所有对局快照（state JSON），用于引擎重启后恢复活跃对局。
     pub fn load_game_snapshots(&self) -> anyhow::Result<Vec<String>> {
         let conn = self.lock();
@@ -97,6 +162,24 @@ impl Storage {
             out.push(r?);
         }
         Ok(out)
+    }
+
+    /// 读取指定对局快照的 version（应等于最后已应用事件的 seq）。
+    pub fn game_snapshot_version(
+        &self,
+        game_id: &str,
+        room_id: &str,
+    ) -> anyhow::Result<Option<i64>> {
+        let conn = self.lock();
+        let mut stmt = conn.prepare(
+            "SELECT version FROM game_state WHERE game_id = ?1 AND room_id = ?2",
+        )?;
+        let mut rows = stmt.query(params![game_id, room_id])?;
+        if let Some(r) = rows.next()? {
+            Ok(Some(r.get(0)?))
+        } else {
+            Ok(None)
+        }
     }
 
     // ---- dev_tasks ----
@@ -494,6 +577,53 @@ mod tests {
         assert_eq!(rows[0].content, "hi");
         drop(s);
         let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn append_game_events_aligns_version_to_last_seq() {
+        let s = Storage::open(":memory:").unwrap();
+        let e1 = GameEventRecord {
+            event_id: "ev1",
+            event_type: "game_created",
+            actor: None,
+            payload: "{}",
+        };
+        let seq1 = s
+            .append_game_events("las-vegas", "room1", &[e1], "{\"a\":1}")
+            .unwrap();
+        assert_eq!(seq1, 1);
+        assert_eq!(s.game_snapshot_version("las-vegas", "room1").unwrap(), Some(1));
+
+        let e2 = GameEventRecord {
+            event_id: "ev2",
+            event_type: "dice_rolled",
+            actor: Some("p1"),
+            payload: "{}",
+        };
+        let e3 = GameEventRecord {
+            event_id: "ev3",
+            event_type: "dice_placed",
+            actor: Some("p1"),
+            payload: "{}",
+        };
+        let seq2 = s
+            .append_game_events("las-vegas", "room1", &[e2, e3], "{\"a\":2}")
+            .unwrap();
+        assert_eq!(seq2, seq1 + 2);
+        assert_eq!(s.game_snapshot_version("las-vegas", "room1").unwrap(), Some(seq2));
+
+        // 幂等：重复 event_id 不新增事件，version 不回退
+        let dup = GameEventRecord {
+            event_id: "ev3",
+            event_type: "dice_placed",
+            actor: Some("p1"),
+            payload: "{}",
+        };
+        let seq3 = s
+            .append_game_events("las-vegas", "room1", &[dup], "{\"a\":3}")
+            .unwrap();
+        assert_eq!(seq3, seq2);
+        assert_eq!(s.game_snapshot_version("las-vegas", "room1").unwrap(), Some(seq2));
     }
 
     #[test]
