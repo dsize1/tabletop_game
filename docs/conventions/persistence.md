@@ -17,6 +17,7 @@
 | `qq.raw` | qq-gateway | bot-adapter | 入站原始 QQ 群事件 | `MAXLEN ~ 1000`（消费后即裁） |
 | `internal` | bot-adapter | agent-gateway | 归一化内部事件 | 短保留 |
 | `qq.push` | agent-gateway / push | qq-gateway | 出站推送指令 | `MAXLEN ~ 1000` |
+| `chat.log` | agent-gateway | server | per-user 对话归档（chat + game 分支，画像蒸馏数据源，ADR-0007） | `MAXLEN ~ 1000` |
 
 - 消费模式：**消费者组**（consumer group），`XREADGROUP >`
 - ACK 时机：**处理并写 SQLite 成功后**再 `XACK`
@@ -39,7 +40,7 @@
 
 | 场景 | 标识 | 说明 |
 |---|---|---|
-| 聊天 | `chat_session_id`（= `group_id`） | 每群一个共享会话 |
+| 聊天 | `chat_session_id`（= `group_id:openid`） | 每人一条独立会话线（ADR-0007 决策 3） |
 | 开发任务 | `dev_session_id` | 子会话；存 `memory_palace/plan/{id}.md` 相对路径 |
 | 游戏对局 | `room_id`（配 `game_id`） | 对局；配合事件溯源 |
 
@@ -112,15 +113,27 @@ CREATE TABLE dev_tasks (
     updated_at  TEXT NOT NULL
 );
 
--- 聊天历史（SQLite 全量；MVP 热路径用 Redis 列表 chat:history:{group_id}，见下）
+-- 聊天历史（per-user 对话；画像蒸馏的数据源，ADR-0007）
+-- 实时上下文热路径：Redis 列表 `chat:history:{group_id}:{openid}`（每人一条，最近 N 条）
 -- 热缓存条目为 {role, content, ts, boundary?}：ts/boundary 是内部元数据，只进 LLM 上下文，不进出站消息
+-- 全量冷存由 agent-gateway 发 `chat.log` → server 消费落库（chat + game；不含 dev）
 CREATE TABLE chat_history (
     id         INTEGER PRIMARY KEY,
-    group_id   TEXT NOT NULL,
-    role       TEXT NOT NULL,                -- user | assistant
-    qq_id      TEXT,
-    content    TEXT NOT NULL,
-    created_at TEXT NOT NULL
+    event_id   TEXT    NOT NULL UNIQUE,      -- 幂等（at-least-once）
+    openid     TEXT    NOT NULL,             -- 用户（画像跨群主键）
+    group_id   TEXT    NOT NULL,             -- 来源群
+    role       TEXT    NOT NULL,             -- user | assistant
+    content    TEXT    NOT NULL,
+    created_at TEXT    NOT NULL              -- ISO8601 UTC
+);
+CREATE INDEX idx_chat_history_openid_time ON chat_history(openid, created_at);
+
+-- 全局人物画像（跨群；ADR-0007）；distilled_at 兼作日批增量游标
+CREATE TABLE user_profile (
+    openid       TEXT PRIMARY KEY,
+    profile_text TEXT NOT NULL,              -- 纯文本画像
+    distilled_at TEXT,                       -- 上次蒸馏时刻
+    updated_at   TEXT NOT NULL
 );
 ```
 
@@ -138,10 +151,17 @@ QQ 群事件进
         ├─ 过滤（只 @文本）
         ├─ 写 SQLite group_messages（event_id 去重）
         ├─ 归一化 → internal → agent-gateway 消费
-        │     ├─ 聊天   → 写 group_messages（+ 共享会话关联）
+        │     ├─ 聊天   → 写 group_messages（+ 按 (group,openid) 隔离的会话线）
         │     ├─ 开发   → 写 dev_tasks + plan 文件
         │     └─ 游戏   → MCP execute_action → 写 game_events + game_state（同事务）
         └─ XACK
+
+对话归档（chat + game；不含 dev）
+  agent-gateway → chat.log (MAXLEN) → server 消费 → 写 SQLite chat_history
+
+人物画像（跨群）
+  日批：server /internal/chat/* 读窗口 → 本地蒸馏模型（生成）+ SystemOne（把关）
+        → server /internal/profile upsert 写 user_profile；注入时经 /internal/profile 读
 
 回复 → qq.push (MAXLEN) → qq-gateway 消费
         ├─ 写 SQLite group_messages（我方发出的也留档）

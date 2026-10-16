@@ -68,4 +68,4 @@
 |---|---|---|---|
 | `dev-task-mcp` | ✅（11 项：5 读 + 6 写） | ✅ | QQ `#能力`，约 1027 字符 |
 | `docs-mcp` | ✅（2 项：2 读） | ✅ | 只读文档预览（`prepare_docs_link` / `list_capabilities`） |
-| `game-engine-mcp` | ❌ | — | 如需对外自述能力，按本规范补齐 |
+| `game-engine-mcp` | ❌ | — | 原语：`get_rules`/`start_game`/`get_active_game`/`get_state`/`state_summary`/`get_legal_actions`/`execute_action`（见 `docs/modules/game-engine.md`）；如需对外自述能力，按本规范补齐 |

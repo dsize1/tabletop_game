@@ -28,13 +28,14 @@
 
 ### 3.1 LLM 能力矩阵（思考 / 联网）
 
-> 三类 LLM 路径集中在 `apps/agent-gateway`。此处固定「思考开关」与「联网形式」，避免遗忘（思考曾被「被动回复 3s 超时」误判关闭，实为 5 分钟，见 `docs/conventions/external-constraints.md`、ADR-0002）。
+> 四类 LLM 路径集中在 `apps/agent-gateway`。此处固定「思考开关」与「联网形式」，避免遗忘（思考曾被「被动回复 3s 超时」误判关闭，实为 5 分钟，见 `docs/conventions/external-constraints.md`、ADR-0002）。
 
 | LLM 路径 | 实现 | 思考（thinking） | 联网形式 |
 |---|---|---|---|
 | **chat**（闲聊/摘要压缩） | `chat.ts` `callLlm`（裸 HTTP DeepSeek） | **默认开启**：`LLM_THINKING_ENABLED=1`（不传 `thinking`）；`=0` 显式关闭 | **需用户主动提供链接**：消息含 `https://` 时，SystemOne `noul`（是/否）判断是否抓取该链接，命中则朴素 `fetch` 抽正文注入（Plan B 单跳）。**无链接不联网、不支持自主搜索** |
 | **game**（游戏情景叙述） | `chat.ts` `narrateGame`（复用 `callLlm`） | **默认开启**（同 `LLM_THINKING_ENABLED`） | **不支持**（纯文本润色，无链接/浏览器） |
 | **dev-task**（开发子会话） | `dev-session.ts`（pi-sdk 会话） | **开启**：`thinkingLevel: "medium"`（对 `deepseek-v4-pro` 实际夹到 `high`） | **playwright MCP 由模型自行选择抓取**：pi MCP 扩展读 `.pi/mcp.json`，`bindExtensions` 后可用 25 个 `mcp__playwright__browser_*`（codemode 暴露）；另有 `bash` 可 `curl` |
+| **profile**（人物画像蒸馏，日批） | `profile/local-llm.ts`（**本地 Qwen2.5-3B**，`llama-server` 按需起停） | **关闭**（非思考型小模型；经实测 9B 思考型不适合） | **不支持**（本地）；生成归 3B，**把关归 SystemOne**（`noul`）；见 ADR-0007 |
 
 - 配置项与触发细节见 `docs/modules/agent-gateway.md`（聊天联网）、`docs/modules/dev-task.md`（子会话工具）。
 - 切换抓取源（如 chat 改用 playwright）时，同步更新本矩阵。
@@ -53,7 +54,9 @@ QQ 群 ──> qq-gateway(Node) ──> Redis Stream[qq.raw] ──> server(Rust
                                                  │  ├─ MCP(stdio) ──> game-engine(Rust, MCP server)
                                                  │  │                    └─ 规则引擎校验 + 状态机 + 事件溯源 ──> SQLite
                                                  │  ├─ HTTP ──> decision-service(/v1/systemone, StartLux-4B GGUF)
-                                                 │  └─ 出站：写 Redis Stream[qq.push] ──> qq-gateway ──> QQ 群
+                                                 │  ├─ 出站：写 Redis Stream[qq.push] ──> qq-gateway ──> QQ 群
+                                                 │  ├─ 对话归档：写 Redis Stream[chat.log] ──> server ──> SQLite chat_history
+                                                 │  └─ 人物画像：server /internal/*（读窗口/读写画像）↔ 本地蒸馏模型（日批）
                                                  ▼
                                             SQLite（真相源）
 
@@ -64,9 +67,10 @@ web(Express) ──HTTP──> server/auth + 资源查询 ──> SQLite / Redis
 
 1. QQ 群事件 → `qq-gateway` 写入 `qq.raw`
 2. `bot-adapter` 订阅 `qq.raw`：**只保留 @机器人文本消息**（`GROUP_AT_MESSAGE_CREATE` + `message_type=0`），归一化为内部事件写入 `internal`
-3. `agent-gateway` 消费 `internal`，按会话排队（per-session 串行）
+3. `agent-gateway` 消费 `internal`，按会话排队（per-session 串行；chat 按 `(group, openid)` 隔离）
 4. 主持人编排（见 §6 决策流程）
 5. 出站回复写入 `qq.push` → `qq-gateway` 调 QQ API 发群消息
+6. 对话归档：chat/game 分支写 `chat.log` → `server` 落 SQLite `chat_history`（画像数据源）
 
 ## 6. 决策流程（agent 编排）
 
@@ -117,8 +121,8 @@ web(Express) ──HTTP──> server/auth + 资源查询 ──> SQLite / Redis
 
 ## 9. 数据存储
 
-- **Redis**：Streams 传输缓冲（`qq.raw` / `internal` / `qq.push`）+ 热缓存
-- **SQLite**：真相源。聊天/开发/游戏三类会话 + 游戏事件溯源，见 `docs/conventions/persistence.md`
+- **Redis**：Streams 传输缓冲（`qq.raw` / `internal` / `qq.push` / `chat.log`）+ 热缓存（`chat:history:{group}:{openid}` 等）
+- **SQLite**：真相源。聊天（`chat_history`，per-user）/ 开发（`dev_tasks`）/ 游戏（事件溯源）/ 全局人物画像（`user_profile`），见 `docs/conventions/persistence.md`
 - 分工与 ACK/幂等/裁剪见 `docs/conventions/persistence.md`、`docs/conventions/message-protocol.md`
 
 ## 10. 鉴权

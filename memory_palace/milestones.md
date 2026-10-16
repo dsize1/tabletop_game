@@ -2,6 +2,20 @@
 
 > 记录项目关键节点与验证结果，按时间倒序。重大技术决策见 `decisions/`。
 
+## M11：会话隔离 + 全局人物画像层（ADR-0007）✅
+
+- **日期**：2026-10-16
+- **完成**：
+  - **chat 会话按 `(group_id, openid)` 隔离**（Redis `chat:history:{group}:{openid}` / `chat:boundary:{group}:{openid}`）；组装前**按 `boundary` 裁到当前阶段（a1）**（`chat-history.ts::cropToCurrentPhase`）
+  - **game 局面摘要**：`game-engine-core` `EnginePlugin::summarize` + `SUMMARY_MAX_CHARS=300` + `GameManager::state_summary`；`game-engine-mcp` 新增 `state_summary` 原语；`narrateGame` 注入局面（+玩家画像）
+  - **对话冷存**：agent-gateway chat/game 分支发 `chat.log` → `server` 消费落 `chat_history`（per-user，`event_id` 幂等）；`chat_history` 由群级迁移为 per-user
+  - **全局人物画像**（跨群，`openid`）：`user_profile` 表 + `/internal/*` API；**日批蒸馏**（`PROFILE_DISTILL_HOUR=4` `CHAT_TZ`，增量游标）——**生成归本地小模型、把关归 SystemOne**；画像作全局层注入 chat/game
+  - **本地蒸馏模型**：实测 9B 思考型不适合（想不停/复读）→ 改用 **Qwen2.5-3B-Instruct（few-shot 抽取）**；`llama-server` 按需起停 + **进程级释放确认**（PID/端口/健康）
+  - 上下文来源**按线抽象**（`src/context.ts`）；文档同步（persistence / architecture / agent-gateway / game-engine / decision-service / mcp-primitives）
+- **验证**：`tsc` 通过；`npm test` 15/15；`cargo test --workspace` 全绿；真机 bootstrap：全量 417 条 → 2 份画像落库并经 `/internal/profile` 读回；9B/3B 释放确认通过（显存回落基线）
+- **未做（后续）**：非 @ 采集、群层记忆、会话摘要压缩（T3）、向量召回（T4）；未来「砍 chat + 放开非 @ → 两线合并」（`context.ts` 已留口子）
+- **详见**：`decisions/ADR-0007-session-isolation-user-profile.md`、`plan/01a14523-d6ba-778c-95d5-b210991ba8e3.md`
+
 ## M10：chat 联网（Plan B 链接抓取）+ LLM 思考默认开启 + dev 子会话接入 MCP ✅
 
 - **日期**：2026-10-15

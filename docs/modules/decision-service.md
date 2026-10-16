@@ -32,7 +32,7 @@ POST /v1/systemone
 
 - **单次前向支持多问题**：意图 + 动作可合一为一次调用
 - **单题选项上限 26**（A~Z 字母 token 读出）；超限自动走 `wide_choice` 两阶段（25 个一组、留 3）
-- `noul`（是/否）**固定 true/false 两项**（渲染为 yes/no），返回 `{ type:"noul", noul: P(true) }`，**无 confidence/probabilities**，需调用方阈值化；`bool` 是 `noul` 的别名。现用于聊天链接抓取判断（`decideLinkFetch`，见 `docs/modules/agent-gateway.md`）
+- `noul`（是/否）**固定 true/false 两项**（渲染为 yes/no），返回 `{ type:"noul", noul: P(true) }`，**无 confidence/probabilities**，需调用方阈值化；`bool` 是 `noul` 的别名。现用于聊天链接抓取判断（`decideLinkFetch`，见 `docs/modules/agent-gateway.md`）与**人物画像把关**（`profile/gate.ts`：候选事实是否写入长期画像，ADR-0007）
 
 ## 置信度
 

@@ -20,3 +20,4 @@
 - [ADR-0004：游戏状态序列化](./ADR-0004-game-state-serialization.md)
 - [ADR-0005：本地开发文档预览（独立 docs-mcp + 授权短链）](./ADR-0005-dev-docs-preview.md)
 - [ADR-0006：时间感知与话题切换（上下文私有层 + 确定性门控）](./ADR-0006-time-awareness-topic-switch.md)
+- [ADR-0007：会话隔离与全局人物画像层（三线内容隔离 + 日批蒸馏）](./ADR-0007-session-isolation-user-profile.md)

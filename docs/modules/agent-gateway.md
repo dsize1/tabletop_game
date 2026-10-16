@@ -8,21 +8,24 @@
 
 - 消费 Redis Stream `internal`（bot-adapter 归一化后的内部事件）
 - 以 **pi-agent 会话**充当主持人：编排「意图 → 决策 → 执行 → 叙述」
-- 会话管理：每群一个共享聊天会话；开发任务用子会话
+- 会话管理：**chat 按 `(group_id, openid)` 隔离**（每人一条独立会话线，ADR-0007）；开发任务用子会话；**人物画像跨群共享**
 - **MCP client**（stdio）：连接 game-engine MCP server
 - **MCP client**（stdio）：连接 dev-task MCP server（`dev-task-client.ts`）
 - **MCP client**（stdio）：连接 docs MCP server（`docs-client.ts`，本地开发文档预览，只读）
 - **子会话管理**（pi-sdk）：`dev-session.ts` 创建/恢复开发任务子会话（`SessionManager.create/open` + `prompt`/`dispose`）
 - **decision-service client**（HTTP）：调用 `/v1/systemone`
 - **auth client**（HTTP）：`auth-client.ts` 调 server `/auth/issue` 签发短期 token，拼计划文档短链
+- **profile client**（HTTP）：`profile/client.ts` 调 server `/internal/*` 读写对话窗口与人物画像（`profile/`）
+- **本地蒸馏模型生命周期**：`profile/local-llm.ts` 按需起停 `llama-server`（Qwen2.5-3B）+ 进程级释放确认
 - 置信度阈值配置化 + 兜底
-- 出站：写 `qq.push`
+- 出站：写 `qq.push`；对话归档写 `chat.log`（chat + game）
 
 ## 关键行为
 
 ### 会话与队列
 
-- 每群一个共享聊天会话；同一会话/对局的消息**串行**处理（per-session 队列），避免 pi-sdk 会话并发 prompt
+- chat：**每人一条线**（`chat:history:{group_id}:{openid}`）；同一会话/对局的消息**串行**处理（per-session 队列），避免 pi-sdk 会话并发 prompt
+- **阶段裁剪（a1）**：注入前只取热窗口（最近 20 条）中**最近一条 `boundary` 之后**的轮次（`chat-history.ts` 的 `cropToCurrentPhase`）；无 boundary 则全取。20 条以外不保留
 - 开发任务：独立子会话，与聊天会话隔离
 
 ### 开发任务（dev）
@@ -35,7 +38,20 @@
 - `#确认` → `confirm_task` → 恢复子会话执行 → `transition verifying` → `#确认` 再验收 → `done`
 - `#进度`：经 `prepare_task_link` 校验归属后**重签新短链**（原 token 过期可自助重取）
 - `#补充 <id> <正文>`：经 `append_instruction` 校验后 `runDevResume` 追加到已有子会话（不落 chat 兜底）
-- 聊天多轮：每群 Redis 热缓存最近 20 条（`CHAT_HISTORY_LIMIT` 可配）注入 `chatReply`；条目随消息存 `ts`（写入时刻）与 `boundary`（话题切换边界），旧条目无这两个字段时降级为「时间未知、无边界」。读写见 `src/chat-history.ts`，渲染见 `src/time-context.ts`
+- 聊天多轮：**按 `(group, openid)` 隔离**的 Redis 热缓存最近 20 条（`CHAT_HISTORY_LIMIT` 可配）注入 `chatReply`；条目随消息存 `ts`（写入时刻）与 `boundary`（话题切换边界），旧条目无这两个字段时降级为「时间未知、无边界」。读写见 `src/chat-history.ts`，渲染见 `src/time-context.ts`，上下文组装见 `src/context.ts`
+
+### 人物画像（全局层，ADR-0007）
+
+- **跨群共享**（键 = `openid`），作为全局 system 块注入 chat（`context.ts` 的 `buildChatContext`）与 game 叙述（`buildGameNarrationInput`）；**为空则跳过**
+- **读取**：`profile/inject.ts` 的 `ProfileCache`（TTL 内存缓存，默认 `PROFILE_CACHE_TTL_MS=600000`）→ server `/internal/profile/{openid}`；失败静默不注入
+- **日批蒸馏**（默认关；`PROFILE_DISTILL_ENABLED=1` 开启，`profile/scheduler.ts` 每日 `PROFILE_DISTILL_HOUR`（默认 4）按 `CHAT_TZ` 触发）：
+  - 窗口 = `[Redis 游标 profile:distill:cursor, now)`（失败重跑不漏窗）；`server /internal/chat/*` 读活跃 openid 与对话
+  - **按 openid 分开**；同一人**按字符分块 map-reduce**（`PROFILE_CHUNK_CHARS`，默认小模型用 2000），逐块生成候选事实 → 合并去重
+  - **生成归本地小模型**（`profile/local-llm.ts`，Qwen2.5-3B，非思考型），**把关归 SystemOne**（`profile/gate.ts` 的 `noul`，阈值 `PROFILE_GATE_THRESHOLD`）
+  - 素材只用**用户轮**发言（剔除 assistant；丢弃含 `<|…|>` 模板控制符/超长消息，防注入）；发言数 < `PROFILE_MIN_USER_MESSAGES` 则跳过
+  - 组装纯文本（限 `PROFILE_MAX_CHARS`）→ server `/internal/profile` upsert；日批后缓存整体失效
+  - **模型生命周期**：按需 `spawn llama-server` → 探活 → 生成 → 关闭 → **释放确认**（PID 消失 + 端口释放 + 健康探针不可达）
+- 一次性全量 bootstrap（可覆盖全部历史、不写库/不推进游标）：`scripts/profile-bootstrap.mts`
 
 ### 聊天联网（Plan B 链接抓取）
 
@@ -130,6 +146,26 @@
 | `TOPIC_SWITCH_THRESHOLD` | `0.7` | `topic_switch` 的 P(true) 阈值（≥ 判新话题）。**经验值，非外部约束** |
 | `CHAT_TZ` | `Asia/Shanghai` | 时间上下文时区（容器默认 UTC，故显式固定） |
 
+### 人物画像配置（ADR-0007）
+
+| 变量 | 默认 | 说明 |
+|---|---|---|
+| `PROFILE_CACHE_TTL_MS` | `600000` | 画像内存缓存 TTL（ms） |
+| `PROFILE_DISTILL_ENABLED` | `0` | 日批蒸馏总开关（`1` 开启） |
+| `PROFILE_DISTILL_HOUR` | `4` | 日批触发小时（按 `CHAT_TZ`） |
+| `PROFILE_LLM_MODEL` | 空 | 本地蒸馏模型 GGUF 路径（固定位置，不迁移）；未配则跳过 |
+| `PROFILE_LLM_BIN` | `llama-server` | llama-server 可执行文件 |
+| `PROFILE_LLM_PORT` | `8082` | 蒸馏服务的 llama-server 端口 |
+| `PROFILE_LLM_NGL` / `PROFILE_LLM_CTX` | `99` / `8192` | GPU 层数 / 上下文长度 |
+| `PROFILE_LLM_TEMPERATURE` | `0.2` | 生成温度 |
+| `PROFILE_LLM_DISABLE_THINKING` | `0` | `1` 禁用思考（仅对支持 `enable_thinking` 的模型生效） |
+| `PROFILE_LLM_MAX_TOKENS` | `4096` | 单次生成 token 上限 |
+| `PROFILE_CHUNK_CHARS` | `6000` | 分块字符上限（小模型建议 2000） |
+| `PROFILE_MIN_USER_MESSAGES` | `3` | 低于该用户发言条数不蒸馏 |
+| `PROFILE_GATE_THRESHOLD` | `0.5` | SystemOne 把关阈值（P(值得写入) ≥ 阈值才保留） |
+| `PROFILE_MAX_CHARS` | `1200` | 画像文本上限（字符） |
+| `CHAT_LOG_MAXLEN` | `1000` | `chat.log` 归档条数上限 |
+
 - 测试：`npm run test`（离线，统一 runner `test-all.mts`：显式清单 + 逐文件计时 + 汇总，失败/超时非零退出；新增测试需在列或入 EXCLUDED 附原因）；`npm run test:decision:live`（需本地决策服务在线）；健康探针 `node apps/scripts/check-decision-service.mjs`
 
 ### web 短链配置
@@ -144,13 +180,14 @@
 
 - 写 `qq.push`（遵循 event_id / MAXLEN 约定）
 - 回复策略分层，见 `docs/architecture.md` §8
-- 游戏交互：默认回规则模板摘要（承上启下，`msg_seq=1`）；`GAME_NARRATION_ENABLED=1` 时追加主持人 LLM 情景叙述（`msg_seq=2`），失败/超时静默降级为仅模板
+- 游戏交互：默认回规则模板摘要（承上启下，`msg_seq=1`）；`GAME_NARRATION_ENABLED=1` 时追加主持人 LLM 情景叙述（`msg_seq=2`，注入**局面摘要**（引擎 `state_summary`）+ **玩家画像**，见 `context.ts`），失败/超时静默降级为仅模板
 - 开发任务：被动回执/状态同步（`pushReply`），计划/结果异步主动推送（`pushActive`，无 reply_msg_id）；计划推送用「标题 + 短链」替换 >1500 字长文（未配置 `PUBLIC_BASE_URL` 时退回长文）
 - MCP 环境变量显式传递：MCP SDK 默认只继承白名单环境变量，`SQLITE_PATH`/`DEV_WHITELIST` 需在 `env` 显式传入
 
 ## 依赖边界
 
 - 主持人 LLM：远程 API（provider 可配，型号待定）
+- 蒸馏模型：本地 `llama-server` + Qwen2.5-3B GGUF（按需起停）
 - decision-service：本地 HTTP `/v1/systemone`
 - game-engine：MCP stdio
 - dev-task：MCP stdio（状态机 + 白名单）
