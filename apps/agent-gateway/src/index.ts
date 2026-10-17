@@ -146,6 +146,7 @@ interface GameState {
     winners?: string[];
     scores?: Record<string, number>;
     sg?: { pending?: { actor?: string } };
+    roll?: { small?: number[]; big?: number | null };
   };
 }
 
@@ -1041,6 +1042,18 @@ async function recordPlayerName(redis: Redis, event: MessageGroupAt): Promise<vo
   await redis.hset(`names:${event.group_id}`, event.sender_id, name);
 }
 
+/** 掷骰结果的紧凑文案：小[1,2,3] 大5。 */
+function formatRoll(roll?: { small?: number[]; big?: number | null }): string {
+  if (!roll) return "";
+  const small = roll.small ?? [];
+  const hasBig = roll.big !== null && roll.big !== undefined;
+  if (small.length === 0 && !hasBig) return "";
+  const parts: string[] = [];
+  if (small.length) parts.push(`小[${small.join(",")}]`);
+  if (hasBig) parts.push(`大${roll.big}`);
+  return parts.join(" ");
+}
+
 /** 加载展示名：群昵称缓存 + 机器人「机器人N」。 */
 async function loadNames(
   redis: Redis,
@@ -1116,9 +1129,11 @@ async function buildGuidance(
   const descs = Array.isArray(legal) ? legal.slice(0, 10).map((a) => a.description) : [];
   const who = actor === openid ? "轮到你" : `轮到 ${actor}`;
   const phaseTag = d.phase === "small_game" ? "处理小游戏" : "下注";
+  const rollText = phaseTag === "下注" ? formatRoll(d.roll) : "";
+  const rollPrefix = rollText ? `｜掷出 ${rollText}` : "";
   return descs.length
-    ? `🎯 ${who}${phaseTag}，可用动作：\n${descs.map((x, i) => `${i + 1}) ${x}`).join("\n")}`
-    : `🎯 ${who}${phaseTag}`;
+    ? `🎯 ${who}${phaseTag}${rollPrefix}，可用动作：\n${descs.map((x, i) => `${i + 1}) ${x}`).join("\n")}`
+    : `🎯 ${who}${phaseTag}${rollPrefix}`;
 }
 
 /** 构造一次动作后的完整反馈：结果 + 局面 + 下一步指引 + 牌面页。 */
@@ -1202,8 +1217,11 @@ async function driveBots(
       break;
     }
     const result = parseJson<ActionResult>(raw, {});
-    lines.push(`🤖 ${actor}：${result.message ?? ""}`);
-    acts.push(`${actor} ${result.message ?? ""}`);
+    // 机器人自己的回合才展示它的掷骰（小游戏交互沿用上一位的 roll）
+    const rollText = d.phase === "turn_roll" ? formatRoll(d.roll) : "";
+    const prefix = rollText ? ` 掷出 ${rollText}` : "";
+    lines.push(`🤖 ${actor}${prefix} → ${result.message ?? ""}`);
+    acts.push(`${actor}${prefix} ${result.message ?? ""}`);
   }
   if (lines.length === 0) return;
   // 一回合内所有 AI 动作合并为**一条**消息（结果逐行 + 最终局面 + 下一步指引 + 牌面页）。

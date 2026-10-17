@@ -25,6 +25,7 @@ export type GameCommand =
   | { cmd: "reroll" }
   | { cmd: "addbot"; n: number }
   | { cmd: "solo"; n: number }
+  | { cmd: "sg"; id: string }
   | { cmd: "board" };
 
 const COMMAND_WORDS: Record<string, GameCommand["cmd"]> = {
@@ -44,6 +45,8 @@ const COMMAND_WORDS: Record<string, GameCommand["cmd"]> = {
   机器人: "addbot",
   单人: "solo",
   单机: "solo",
+  动作: "sg",
+  sg: "sg",
   局面: "board",
   牌面: "board",
 };
@@ -92,6 +95,8 @@ export function parseGameCommand(content: string): GameCommand | null {
       const n = arg ? Number(arg) : 3;
       return Number.isInteger(n) && n >= 1 && n <= 5 ? { cmd, n } : null;
     }
+    case "sg":
+      return arg ? { cmd, id: arg } : null;
     default:
       return { cmd };
   }
@@ -118,6 +123,8 @@ export function gameActionId(cmd: GameCommand): string | null {
       return "reroll";
     case "addbot":
       return "lobby:add_bot";
+    case "sg":
+      return `sg:${cmd.id}`;
     default:
       return null;
   }
@@ -152,9 +159,9 @@ export function formatActionList(actions: LegalAction[]): string {
   if (actions.length === 0) {
     return "当前没有可执行的动作。";
   }
-  const lines = actions.map((a, i) => `${i + 1}) ${a.description}`);
+  const lines = actions.map((a, i) => `${i + 1}) ${a.description}（${a.id}）`);
   return (
     `可选动作：\n${lines.join("\n")}\n` +
-    "（也可用显式命令，如 #放 3 / #重投 / #局面）"
+    "（也可用显式命令：#放 3 / #重投 / #局面；小游戏动作超限时用 #动作 <id>）"
   );
 }

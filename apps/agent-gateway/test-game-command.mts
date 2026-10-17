@@ -32,6 +32,9 @@ assert.deepEqual(parseGameCommand("#加机器人 2"), { cmd: "addbot", n: 2 });
 assert.deepEqual(parseGameCommand("#机器人 3"), { cmd: "addbot", n: 3 });
 assert.deepEqual(parseGameCommand("#单人"), { cmd: "solo", n: 3 });
 assert.deepEqual(parseGameCommand("#单人 2"), { cmd: "solo", n: 2 });
+// 通用小游戏动作兜底
+assert.deepEqual(parseGameCommand("#动作 F1:move:0:3"), { cmd: "sg", id: "F1:move:0:3" });
+assert.deepEqual(parseGameCommand("#sg sg:A1:guess:5"), { cmd: "sg", id: "sg:A1:guess:5" });
 assert.equal(parseGameCommand("#单人 9"), null);
 
 // —— 非法参数 → null（回落决策模型，不误发动作） ——
@@ -59,6 +62,7 @@ assert.equal(gameActionId({ cmd: "smallgames", n: 5 }), "lobby:set_small_game_co
 assert.equal(gameActionId({ cmd: "place", point: 6 }), "place:6");
 assert.equal(gameActionId({ cmd: "reroll" }), "reroll");
 assert.equal(gameActionId({ cmd: "addbot", n: 2 }), "lobby:add_bot");
+assert.equal(gameActionId({ cmd: "sg", id: "F1:move:0:3" }), "sg:F1:move:0:3");
 assert.equal(gameActionId({ cmd: "solo", n: 3 }), null);
 assert.equal(gameActionId({ cmd: "create" }), null);
 assert.equal(gameActionId({ cmd: "board" }), null);
