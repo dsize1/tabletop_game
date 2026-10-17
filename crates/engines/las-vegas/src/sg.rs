@@ -91,6 +91,9 @@ pub struct SgState {
     /// 大厅指定的开局小游戏（仅第 1 轮生效；start 后清空）。
     #[serde(default)]
     pub small_games_override: Option<Vec<String>>,
+    /// H1：本回合是否已用「移 1 颗骰到格」（规则每回合 1 颗）。
+    #[serde(default)]
+    pub h1_used_turn: bool,
     /// 待处理交互（3b）。
     #[serde(default)]
     pub pending: Option<SgPending>,
@@ -378,7 +381,7 @@ pub(crate) fn trigger_interactive(
             // H1 好骰难求：刚在该场下注后，可选择把 1 颗已下注骰移入格子（可选，可跳过）。
             "H1" => {
                 let c = st.casinos[casino].dice.get(player).copied().unwrap_or(0);
-                if c > 0 {
+                if c > 0 && !st.sg.h1_used_turn {
                     Some(SgPending {
                         game: "H1".into(),
                         casino,
@@ -740,6 +743,7 @@ pub(crate) fn resolve(
                 *d -= 1;
             }
             h1_slot_put(st, player, slot);
+            st.sg.h1_used_turn = true;
             events.push(EngineEvent::new(
                 "small_game",
                 json!({ "game": "H1", "player": player, "slot": slot, "source": "bet" }),
@@ -776,7 +780,10 @@ pub(crate) fn legal_turn_sg(st: &LasVegasState, player: &str) -> Vec<Action> {
             }
         }
     }
-    if st.casinos.iter().any(|c| c.small_games.iter().any(|g| g == "H1")) && cur.small_remaining > 0 {
+    if st.casinos.iter().any(|c| c.small_games.iter().any(|g| g == "H1"))
+        && cur.small_remaining > 0
+        && !st.sg.h1_used_turn
+    {
         for slot in 1..=6 {
             out.push(Action { id: format!("sg:H1:move:{slot}"), description: format!("移 1 颗骰到 {slot} 号格") });
         }
@@ -840,6 +847,7 @@ pub(crate) fn resolve_turn_sg(
         }
         seat.small_remaining -= 1;
         h1_slot_put(st, player, slot);
+        st.sg.h1_used_turn = true; // 每回合最多 1 颗
         events.push(EngineEvent::new("small_game", json!({ "game": "H1", "player": player, "slot": slot })));
         return Some(Ok((events, format!("移 1 颗骰到 {slot} 号格"), false)));
     }

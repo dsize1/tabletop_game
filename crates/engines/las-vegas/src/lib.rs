@@ -253,6 +253,7 @@ impl LasVegasEngine {
     /// 边界：若掷出的点数**全部**被 E1 禁止且玩家无筹码可重试，则免费重掷（否则无法行动）。
     fn begin_turn(&self, st: &mut LasVegasState, rng: &mut dyn RandomSource) -> Vec<EngineEvent> {
         st.phase = Phase::TurnRoll;
+        st.sg.h1_used_turn = false; // H1 每回合限 1 颗
         let mut events = Vec::new();
         for _ in 0..100 {
             let Some(seat) = st.seats.get(st.turn) else {
@@ -1418,6 +1419,47 @@ mod tests {
         assert_eq!(
             tiles,
             vec!["H1".to_string(), "G1".to_string(), "F1".to_string()]
+        );
+    }
+
+    #[test]
+    fn h1_turn_move_limited_to_once_per_turn() {
+        let engine = LasVegasEngine;
+        let mut casinos: Vec<Casino> = (0..CASINOS).map(|_| Casino::empty()).collect();
+        casinos[0].small_games.push("H1".into());
+        let st = LasVegasState {
+            schema_version: SCHEMA_VERSION,
+            phase: Phase::TurnRoll,
+            host: "h".into(),
+            round: 1,
+            start_player: Some("h".into()),
+            turn: 0,
+            seats: vec![Seat::new("h".into()), Seat::new("bot1".into())],
+            roll: Roll { small: vec![1, 1], big: None },
+            casinos,
+            small_game_count: 3,
+            sg: SgState::default(),
+            scores: BTreeMap::new(),
+            winners: Vec::new(),
+        };
+        let gs = GameState {
+            game_id: "las-vegas".into(),
+            room_id: "r".into(),
+            group_id: "g".into(),
+            status: GameStatus::Active,
+            players: vec!["h".into(), "bot1".into()],
+            data: serde_json::to_value(&st).unwrap(),
+        };
+        let acts = engine.legal_actions(&gs, "h");
+        assert!(acts.iter().any(|a| a.id == "sg:H1:move:1"));
+        let mut rng = SeededRng::new(1);
+        let out = engine
+            .execute_action(&gs, "h", "sg:H1:move:1", &mut rng)
+            .unwrap();
+        let acts2 = engine.legal_actions(&out.state, "h");
+        assert!(
+            !acts2.iter().any(|a| a.id.starts_with("sg:H1:move")),
+            "同一回合不应再提供 H1 移骰"
         );
     }
 
