@@ -27,6 +27,7 @@
 | `lobby:leave` | 退出游戏设置 | 在列表且未开赛 |
 | `lobby:kick` | 踢出某玩家 | 发起人/房主 |
 | `lobby:set_small_game_count` | 指定小游戏数量 N∈3–6（默认 3；每轮 setup 据此重抽） | 发起人/房主 |
+| `lobby:set_small_games:<csv>` | 指定**开局（第 1 轮）**小游戏列表，如 `H1,G1,F1`（须不同字母组、3–6 个） | 发起人/房主 |
 | `lobby:start` | 发起游戏（结束设置阶段） | 发起人/房主，人数 2–6 |
 | `lobby:abort` | 中断结束游戏（不结算） | 发起人/房主 |
 

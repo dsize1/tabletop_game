@@ -226,8 +226,15 @@ impl LasVegasEngine {
             st.casinos[CASINOS - 1 - rank].banknotes = pair.clone();
         }
 
-        // 小游戏：16→8→N（每字母组取 1），从 1 号赌场起依次挂载。
-        let tiles = draw_small_games(st.small_game_count, rng);
+        // 小游戏：第 1 轮可用 lobby:set_small_games 覆盖；之后每轮重新 16→8→N。
+        let tiles = if round == 1 {
+            match &st.sg.small_games_override {
+                Some(list) if !list.is_empty() => list.clone(),
+                _ => draw_small_games(st.small_game_count, rng),
+            }
+        } else {
+            draw_small_games(st.small_game_count, rng)
+        };
         for (i, t) in tiles.iter().enumerate() {
             st.casinos[i % 3].small_games.push(t.clone());
         }
@@ -640,6 +647,39 @@ impl EnginePlugin for LasVegasEngine {
                         json!({ "host": player_id, "target": target }),
                     ));
                     message = format!("已踢出 {target}");
+                }
+                _ if rest.starts_with("set_small_games:") => {
+                    if player_id != st.host {
+                        return Err(EngineError::PermissionDenied("仅发起人可设置".into()));
+                    }
+                    let csv = rest.trim_start_matches("set_small_games:");
+                    let ids: Vec<String> = csv
+                        .split(|c| c == ',' || c == '，' || c == '/' || c == ' ')
+                        .filter(|s| !s.trim().is_empty())
+                        .map(|s| s.trim().to_ascii_uppercase())
+                        .collect();
+                    if !(MIN_SMALL_GAMES as usize..=MAX_SMALL_GAMES as usize).contains(&ids.len()) {
+                        return Err(EngineError::IllegalAction("小游戏数量须 3–6".into()));
+                    }
+                    let mut letters = std::collections::BTreeSet::new();
+                    for id in &ids {
+                        if sg::rule_text(id).is_none() {
+                            return Err(EngineError::IllegalAction(format!("未知小游戏 {id}")));
+                        }
+                        let letter = id.chars().next().unwrap_or('?');
+                        if !letters.insert(letter) {
+                            return Err(EngineError::IllegalAction(format!(
+                                "同一字母组只能选 1 个：{id}"
+                            )));
+                        }
+                    }
+                    st.small_game_count = ids.len() as u32;
+                    st.sg.small_games_override = Some(ids.clone());
+                    events.push(EngineEvent::new(
+                        "small_games_set",
+                        json!({ "tiles": ids }),
+                    ));
+                    message = format!("开局小游戏已设为 {}", ids.join(","));
                 }
                 _ if rest.starts_with("set_small_game_count:") => {
                     if player_id != st.host {
@@ -1356,6 +1396,29 @@ mod tests {
         assert!(d2.sg.pending.is_none());
         assert_eq!(d2.sg.h1_slots[2], Some(("h".to_string(), 1)));
         assert_eq!(d2.casinos[0].dice.get("h").copied(), None, "1 颗已移入格子");
+    }
+
+    #[test]
+    fn lobby_can_override_opening_small_games() {
+        let mgr = manager(14);
+        let st = new_lobby(&mgr, "host");
+        mgr.execute_action(&st.room_id, "p2", "lobby:join").unwrap();
+        let out = mgr
+            .execute_action(&st.room_id, "host", "lobby:set_small_games:H1,G1,F1")
+            .unwrap();
+        assert!(out.message.contains("H1"));
+        let started = mgr.execute_action(&st.room_id, "host", "lobby:start").unwrap();
+        let d = data(&started.state);
+        let tiles: Vec<String> = d
+            .casinos
+            .iter()
+            .take(3)
+            .map(|c| c.small_games.join("/"))
+            .collect();
+        assert_eq!(
+            tiles,
+            vec!["H1".to_string(), "G1".to_string(), "F1".to_string()]
+        );
     }
 
     #[test]

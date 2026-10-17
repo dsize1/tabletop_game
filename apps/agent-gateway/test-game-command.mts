@@ -38,6 +38,9 @@ assert.deepEqual(parseGameCommand("#动作 F1:move:0:3"), { cmd: "sg", id: "F1:m
 assert.deepEqual(parseGameCommand("#小游戏#f1"), { cmd: "sgrule", id: "f1" });
 assert.deepEqual(parseGameCommand("#小游戏#F1"), { cmd: "sgrule", id: "F1" });
 assert.deepEqual(parseGameCommand("#规则 f2"), { cmd: "sgrule", id: "f2" });
+// 指定开局小游戏
+assert.deepEqual(parseGameCommand("#指定小游戏 H1,G1,F1"), { cmd: "setsg", ids: "H1,G1,F1" });
+assert.equal(gameActionId({ cmd: "setsg", ids: "H1,G1,F1" }), "lobby:set_small_games:H1,G1,F1");
 assert.deepEqual(parseGameCommand("#小游戏 4"), { cmd: "smallgames", n: 4 });
 assert.deepEqual(parseGameCommand("#sg sg:A1:guess:5"), { cmd: "sg", id: "sg:A1:guess:5" });
 assert.equal(parseGameCommand("#单人 9"), null);

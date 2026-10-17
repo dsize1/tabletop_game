@@ -88,6 +88,9 @@ pub struct SgState {
     /// G2：本回合是否已移入游戏场。
     #[serde(default)]
     pub g2_used: bool,
+    /// 大厅指定的开局小游戏（仅第 1 轮生效；start 后清空）。
+    #[serde(default)]
+    pub small_games_override: Option<Vec<String>>,
     /// 待处理交互（3b）。
     #[serde(default)]
     pub pending: Option<SgPending>,

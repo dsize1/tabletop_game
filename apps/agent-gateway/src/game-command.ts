@@ -27,6 +27,7 @@ export type GameCommand =
   | { cmd: "solo"; n: number }
   | { cmd: "sg"; id: string }
   | { cmd: "sgrule"; id: string }
+  | { cmd: "setsg"; ids: string }
   | { cmd: "board" };
 
 const COMMAND_WORDS: Record<string, GameCommand["cmd"]> = {
@@ -49,6 +50,8 @@ const COMMAND_WORDS: Record<string, GameCommand["cmd"]> = {
   动作: "sg",
   sg: "sg",
   规则: "sgrule",
+  指定小游戏: "setsg",
+  小游戏池: "setsg",
   局面: "board",
   牌面: "board",
 };
@@ -106,6 +109,8 @@ export function parseGameCommand(content: string): GameCommand | null {
       return arg ? { cmd, id: arg } : null;
     case "sgrule":
       return arg ? { cmd, id: arg } : null;
+    case "setsg":
+      return arg ? { cmd, ids: arg } : null;
     default:
       return { cmd };
   }
@@ -134,6 +139,8 @@ export function gameActionId(cmd: GameCommand): string | null {
       return "lobby:add_bot";
     case "sg":
       return `sg:${cmd.id}`;
+    case "setsg":
+      return `lobby:set_small_games:${cmd.ids}`;
     default:
       return null;
   }
