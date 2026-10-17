@@ -75,6 +75,7 @@ const view: GameView = {
     },
   },
   player: { data: {} },
+  names: { u1: "轮子总比困难多", u2: "机器人1" },
 };
 const gameHtml = renderGamePage(view);
 assert.ok(gameHtml.includes("拉斯维加斯"), "牌面页应含标题");
@@ -83,6 +84,9 @@ assert.ok(gameHtml.includes("（我）"), "牌面页应标记本人");
 assert.ok(gameHtml.includes("C1"), "牌面页应含小游戏");
 assert.ok(gameHtml.includes("1 张（3 万）"), "个人资源应含已得钞票金额");
 assert.ok(gameHtml.includes("⏳"), "应标记当前回合玩家");
+assert.ok(gameHtml.includes("轮子总比困难多"), "应显示群昵称而非 openid");
+assert.ok(gameHtml.includes("机器人1"), "应显示机器人昵称");
+assert.ok(!gameHtml.includes(">u1（我）<" ), "不应直接用 openid 作显示名");
 
 // 终局页
 const winHtml = renderGamePage({

@@ -174,6 +174,8 @@ export interface GameView {
   openid: string;
   public: { status?: string; players?: string[]; data?: GameData };
   player: { status?: string; players?: string[]; data?: GameData };
+  /** openid → 群昵称（server 从 Redis `names:{group_id}` 读取）。 */
+  names?: Record<string, string>;
 }
 
 interface GameData {
@@ -209,7 +211,7 @@ export function renderGamePage(view: GameView): string {
       const dice = c.dice ?? {};
       const total = Object.values(dice).reduce((a, b) => a + Number(b), 0);
       const detail = Object.entries(dice)
-        .map(([p, n]) => `${escapeHtml(p)}×${n}`)
+        .map(([p, n]) => `${escapeHtml(view.names?.[p] ?? p)}×${n}`)
         .join("、");
       const notes = Array.isArray(c.banknotes) ? c.banknotes.length : 0;
       const sgs = Array.isArray(c.small_games) ? c.small_games.join("/") : "";
@@ -227,9 +229,10 @@ export function renderGamePage(view: GameView): string {
       const sum = notes.reduce((a, b) => a + b, 0);
       const isMe = s.player_id === view.openid;
       const isTurn = s.player_id === cur;
+      const display = view.names?.[s.player_id] ?? String(s.player_id);
       return (
         `<tr${isMe ? ' style="font-weight:600"' : ""}>` +
-        `<td>${escapeHtml(String(s.player_id))}${isMe ? "（我）" : ""}${isTurn ? " ⏳" : ""}</td>` +
+        `<td>${escapeHtml(display)}${isMe ? "（我）" : ""}${isTurn ? " ⏳" : ""}</td>` +
         `<td>${s.small_remaining ?? "-"} 小 / ${s.big_remaining ?? "-"} 大</td>` +
         `<td>${s.chips ?? 0}</td>` +
         `<td>${notes.length} 张（${sum / 10000} 万）</td></tr>`
@@ -245,7 +248,7 @@ export function renderGamePage(view: GameView): string {
   const body = `
     <h2>🎲 拉斯维加斯 · 第 ${d.round ?? "-"} 轮</h2>
     <p class="muted">阶段 ${escapeHtml(String(d.phase ?? view.public?.status ?? "-"))}｜当前 ${
-      escapeHtml(String(cur ?? "-"))
+      escapeHtml(cur ? (view.names?.[cur] ?? cur) : "-")
     }</p>
     <h3>赌场</h3>
     <table><thead><tr><th>#</th><th>骰子</th><th>钞票</th><th>小游戏</th></tr></thead>

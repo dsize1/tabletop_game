@@ -92,6 +92,9 @@ pub async fn game_resource(
     let game_state: game_engine_core::GameState =
         serde_json::from_str(&snapshot).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
+    // 群昵称：agent-gateway 在每次 @消息 时写入 Redis hash `names:{group_id}`。
+    let names = load_names(&state.redis_url, &game_state.group_id).await;
+
     // 引擎脱敏（目前仅 las-vegas；其它引擎直接返回原状态）。
     use game_engine_core::EnginePlugin;
     let engine = las_vegas::LasVegasEngine;
@@ -112,6 +115,30 @@ pub async fn game_resource(
         "openid": rec.openid,
         "public": public,
         "player": player,
+        "names": names,
     }))
     .into_response())
+}
+
+/// 读取群昵称映射（openid → nickname）；Redis 不可用/无数据时返回空。
+async fn load_names(
+    redis_url: &str,
+    group_id: &str,
+) -> serde_json::Map<String, serde_json::Value> {
+    let mut out = serde_json::Map::new();
+    let Ok(client) = redis::Client::open(redis_url) else {
+        return out;
+    };
+    let Ok(mut conn) = redis::aio::ConnectionManager::new(client).await else {
+        return out;
+    };
+    let key = format!("names:{group_id}");
+    let map: redis::RedisResult<std::collections::HashMap<String, String>> =
+        redis::cmd("HGETALL").arg(key).query_async(&mut conn).await;
+    if let Ok(m) = map {
+        for (k, v) in m {
+            out.insert(k, serde_json::Value::String(v));
+        }
+    }
+    out
 }

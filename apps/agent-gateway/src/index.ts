@@ -152,6 +152,7 @@ interface GameState {
 interface ActionResult {
   message?: string;
   finished?: boolean;
+  state?: GameState;
 }
 
 interface DevTaskRow {
@@ -847,6 +848,7 @@ async function executeIntent(
           content: result.message ?? resultJson,
         });
         const boardUrl = await makeBoardUrl(active.room_id, event.sender_id);
+        const names = await loadNames(redis, event.group_id, result.state ?? {});
         const fb = await buildTurnFeedback(
           engine,
           active.room_id,
@@ -854,7 +856,15 @@ async function executeIntent(
           event.sender_id,
           boardUrl,
         );
-        await pushGameFeedback(redis, event, fb.text, `玩家动作 ${chosen.id}`, result.message ?? resultJson, fb.summary);
+        await pushGameFeedback(
+          redis,
+          event,
+          fb.text,
+          `玩家动作 ${chosen.id}`,
+          result.message ?? resultJson,
+          fb.summary,
+          names,
+        );
         if (!result.finished) {
           await driveBots(redis, engine, event, active.room_id, event.sender_id, boardUrl);
         }
@@ -1024,6 +1034,55 @@ async function makeBoardUrl(roomId: string, openid: string): Promise<string | un
   }
 }
 
+/** 记录发送者昵称（每次 @bot 消息都刷新）。 */
+async function recordPlayerName(redis: Redis, event: MessageGroupAt): Promise<void> {
+  const name = (event.sender_name ?? "").trim();
+  if (!name) return;
+  await redis.hset(`names:${event.group_id}`, event.sender_id, name);
+}
+
+/** 加载展示名：群昵称缓存 + 机器人「机器人N」。 */
+async function loadNames(
+  redis: Redis,
+  groupId: string,
+  st: GameState,
+): Promise<Record<string, string>> {
+  const names: Record<string, string> = {};
+  try {
+    const h = await redis.hgetall(`names:${groupId}`);
+    for (const [k, v] of Object.entries(h ?? {})) if (k && v) names[k] = v;
+  } catch {
+    /* ignore */
+  }
+  let botIdx = 0;
+  for (const s of st.data?.seats ?? []) {
+    if (s.is_bot) {
+      botIdx += 1;
+      names[s.player_id] = `机器人${botIdx}`;
+    }
+  }
+  return names;
+}
+
+/**
+ * 把文本中的 openid/机器人 id 替换为展示名（长键优先，避免部分重叠）。
+ * **跳过 URL**：牌面/短链里必须保留真实 openid 与 token，不能被昵称污染。
+ */
+function applyNames(text: string, names: Record<string, string>): string {
+  const pairs = Object.entries(names)
+    .filter(([id, name]) => id && name)
+    .sort((a, b) => b[0].length - a[0].length);
+  return text
+    .split(/(https?:\/\/\S+)/g)
+    .map((part) => {
+      if (/^https?:\/\//.test(part)) return part;
+      let out = part;
+      for (const [id, name] of pairs) out = out.split(id).join(name);
+      return out;
+    })
+    .join("");
+}
+
 /** 下一步流程指引：谁在等、该做什么、可用动作（启下）。 */
 async function buildGuidance(
   engine: GameEngineClient,
@@ -1088,7 +1147,9 @@ async function pushGameFeedback(
   actionDesc?: string,
   resultMessage?: string,
   summary?: string,
+  names?: Record<string, string>,
 ) {
+  const sub = (s: string) => applyNames(s, names ?? {});
   // 错误 / 中断（行政动作）不做 LLM 情景叙述。
   const skipNarrate =
     (resultMessage ?? feedback).startsWith("错误") ||
@@ -1097,13 +1158,19 @@ async function pushGameFeedback(
   if (NARRATION_ENABLED && actionDesc && !skipNarrate) {
     try {
       const profile = await profileCache.get(event.sender_id);
-      narration = await narrateGame(actionDesc, resultMessage ?? feedback, summary, profile);
+      narration = await narrateGame(
+        sub(actionDesc),
+        sub(resultMessage ?? feedback),
+        summary ? sub(summary) : undefined,
+        profile,
+      );
     } catch (err) {
       console.error("[agent-gateway] 情景叙述失败，静默降级:", err);
     }
   }
   // 每个动作合并为**一条**回复（模板 + 叙事），减少被动回复次数。
-  const merged = narration ? `${feedback}\n\n${narration}` : feedback;
+  const body = sub(feedback);
+  const merged = narration ? `${body}\n\n${narration}` : body;
   await pushReply(redis, event, capText(merged, 1400));
 }
 
@@ -1119,6 +1186,8 @@ async function driveBots(
   openid: string,
   boardUrl?: string,
 ): Promise<void> {
+  const st0 = parseJson<GameState>(await engine.getState(roomId), {});
+  const names = await loadNames(redis, event.group_id, st0);
   for (let i = 0; i < 200; i++) {
     const st = parseJson<GameState>(await engine.getState(roomId), {});
     if (!st.room_id || st.status !== "active" || !st.data) break;
@@ -1136,7 +1205,7 @@ async function driveBots(
     const { text, summary } = await buildTurnFeedback(
       engine,
       roomId,
-      `🤖 机器人 ${actor}：${result.message ?? ""}`,
+      `🤖 ${actor}：${result.message ?? ""}`,
       openid,
       boardUrl,
     );
@@ -1144,9 +1213,10 @@ async function driveBots(
       redis,
       event,
       text,
-      `机器人 ${actor} ${result.message ?? ""}`,
+      `${actor} ${result.message ?? ""}`,
       result.message ?? raw,
       summary,
+      names,
     );
   }
 }
@@ -1241,6 +1311,7 @@ async function handleGameCommand(
     const startJson = await engine.executeAction(st.room_id, event.sender_id, "lobby:start");
     const result = parseJson<ActionResult>(startJson, {});
     const boardUrl = await makeBoardUrl(st.room_id, event.sender_id);
+    const names = await loadNames(redis, event.group_id, result.state ?? st);
     const fb = await buildTurnFeedback(
       engine,
       st.room_id,
@@ -1248,7 +1319,15 @@ async function handleGameCommand(
       event.sender_id,
       boardUrl,
     );
-    await pushGameFeedback(redis, event, fb.text, "单人局开始", result.message ?? startJson, fb.summary);
+    await pushGameFeedback(
+      redis,
+      event,
+      fb.text,
+      "单人局开始",
+      result.message ?? startJson,
+      fb.summary,
+      names,
+    );
     await driveBots(redis, engine, event, st.room_id, event.sender_id, boardUrl);
     return;
   }
@@ -1261,10 +1340,11 @@ async function handleGameCommand(
   if (cmd.cmd === "board") {
     const boardUrl = await makeBoardUrl(roomId, event.sender_id);
     const st = parseJson<GameState>(await engine.getState(roomId), {});
+    const names = await loadNames(redis, event.group_id, st);
     const guidance = await buildGuidance(engine, roomId, st, event.sender_id);
     const summary = (await fetchStateSummary(engine, roomId)) ?? "（暂无局面摘要）";
     const parts = [summary, guidance, boardUrl ? `📄 牌面页：${boardUrl}` : ""].filter(Boolean);
-    await pushReply(redis, event, parts.join("\n"));
+    await pushReply(redis, event, applyNames(parts.join("\n"), names));
     return;
   }
 
@@ -1288,6 +1368,7 @@ async function handleGameCommand(
     content: result.message ?? resultJson,
   });
   const boardUrl = await makeBoardUrl(roomId, event.sender_id);
+  const names = await loadNames(redis, event.group_id, result.state ?? {});
   const fb = await buildTurnFeedback(
     engine,
     roomId,
@@ -1295,7 +1376,15 @@ async function handleGameCommand(
     event.sender_id,
     boardUrl,
   );
-  await pushGameFeedback(redis, event, fb.text, `玩家动作 ${action}`, result.message ?? resultJson, fb.summary);
+  await pushGameFeedback(
+    redis,
+    event,
+    fb.text,
+    `玩家动作 ${action}`,
+    result.message ?? resultJson,
+    fb.summary,
+    names,
+  );
   if (!result.finished) {
     await driveBots(redis, engine, event, roomId, event.sender_id, boardUrl);
   }
@@ -1310,6 +1399,9 @@ async function handle(
   devSessions: DevSessionManager,
   event: MessageGroupAt,
 ) {
+  // 记录发送者昵称（用于把 openid 渲染为群昵称）
+  await recordPlayerName(redis, event).catch(() => {});
+
   // 健康降级：依赖 unhealthy 时给回执，不现场探测
   const healthStatus = await readHealth(redis);
   if (healthStatus && healthStatus !== "ok") {
