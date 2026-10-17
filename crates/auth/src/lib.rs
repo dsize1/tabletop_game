@@ -57,6 +57,18 @@ impl AuthService {
     /// 签发：uuid v4 token，绑定 openid + 资源范围，TTL 可配。
     /// 同时维护 `auth:resource:{resource}` 索引，便于局终态按资源清空。
     pub async fn issue(&self, openid: &str, resource: &str) -> Result<IssuedToken, AuthError> {
+        self.issue_with_ttl(openid, resource, self.ttl_secs).await
+    }
+
+    /// 签发（自定义 TTL，秒）：用于「加密选项页」等短时效场景。
+    /// TTL 会被夹到 `1..=self.ttl_secs`，不会超过实例默认值。
+    pub async fn issue_with_ttl(
+        &self,
+        openid: &str,
+        resource: &str,
+        ttl_secs: u64,
+    ) -> Result<IssuedToken, AuthError> {
+        let ttl_secs = ttl_secs.clamp(1, self.ttl_secs);
         if openid.trim().is_empty() {
             return Err(AuthError::EmptyOpenid);
         }
@@ -72,16 +84,17 @@ impl AuthService {
         let json = serde_json::to_string(&record).map_err(|_| AuthError::Invalid)?;
 
         let mut conn = self.conn.clone();
-        let _: () = conn.set_ex(token_key(&token), &json, self.ttl_secs).await?;
+        let _: () = conn.set_ex(token_key(&token), &json, ttl_secs).await?;
         let _: () = conn.sadd(resource_key(resource), &token).await?;
+        // 资源索引取较长 TTL，避免短 TTL token 把整个资源索引提前淘汰。
         let _: () = conn
             .expire(resource_key(resource), self.ttl_secs as i64)
             .await?;
 
-        tracing::debug!(%token, %openid, %resource, ttl = self.ttl_secs, "签发短期 token");
+        tracing::debug!(%token, %openid, %resource, ttl = ttl_secs, "签发短期 token");
         Ok(IssuedToken {
             token,
-            expires_in_secs: self.ttl_secs,
+            expires_in_secs: ttl_secs,
         })
     }
 

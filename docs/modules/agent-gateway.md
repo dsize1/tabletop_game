@@ -4,6 +4,11 @@
 - **位置**：`apps/agent-gateway`
 - **依赖**：pi-sdk（`@earendil-works/pi-coding-agent`）
 
+## 命令与恢复原语（2026-10-17）
+
+- `#选 <代码>`：小游戏**加密选项**（A1）——代码来自本人牌面页，群里只发代码。
+- `#恢复` / `#继续` / `#提示`：**恢复原语**，引擎返回 `resume`（不改状态）→ 重发「当前该谁做什么」，并随消息**重新签发**牌面页链接（加密选项场景 300 秒短 TTL，`/auth/issue` 支持可选 `ttl_secs`）。
+
 ## 职责
 
 - 消费 Redis Stream `internal`（bot-adapter 归一化后的内部事件）

@@ -1,7 +1,7 @@
 # 拉斯维加斯数据结构设计
 
 > 状态：定稿 v1.0（2026-10-16，用户裁定）。序列化方案裁定见 `memory_palace/decisions/ADR-0004-*.md`。
-> 当前实现 `schema_version = 2`：主流程 + 小游戏子状态（`sg`：灰骰/摸彩/指示物/大奖/特权/酒吧/游戏场/金框/禁止/箭头/pending）。
+> 当前实现 `schema_version = 6`：主流程 + 小游戏子状态（`sg`：F2 九格/摸彩/指示物/大奖/特权/酒吧/游戏场/金框/禁止/箭头/pending）+ 赌场大骰追踪（`casinos[].big_dice`）。
 
 ## 1. 分层结构
 
@@ -22,7 +22,7 @@ GameState（通用信封）
 
 ```jsonc
 {
-  "schema_version": 2,
+  "schema_version": 6,
   "phase": "lobby",                 // lobby | setup | turn_roll | small_game | round_end | settling | finished | aborted
   "host": "openid",                 // 发起人/房主
   "round": 1,                       // 1..3
@@ -43,6 +43,7 @@ GameState（通用信封）
   "casinos": [
     {
       "dice": { "openid": 3, "gray": 2 },   // 等效骰数（大骰权重 2）
+      "big_dice": { "openid": 1 },           // 其中大骰颗数（H1 取骰不拆大骰）
       "banknotes": [30000, 30000],           // 2 张一组；结算前对玩家视图脱敏为张数
       "small_games": ["A2"]                  // 仅 1-3 号可能非空；N>3 可多块
     }
@@ -66,13 +67,14 @@ GameState（通用信封）
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
-| `schema_version` | u32 | 私有结构 schema 版本（v2：主流程 + 小游戏 `sg`） |
-| `sg` | object | 小游戏子状态（见 `sg.rs`：`gray/gray_groups/bars/game_field/gold_frame/banned/arrow/lottery/indicator/grand_prize/privilege/h1_slots/g2_used/pending`） |
+| `schema_version` | u32 | 私有结构 schema 版本（v6：主流程 + 小游戏 `sg` + 大骰追踪 + F2 九格 + E2 酒吧/H2 金框按骰型） |
+| `sg` | object | 小游戏子状态（见 `sg.rs`：`f2_slots/gray_groups/bars/game_field/gold_frame/banned/arrow/lottery/indicator/c1_winner/privilege/h1_slots/g2_used/pending`）。`f2_slots: Vec<Option<u8>>` = F2 九格（`Some(来源赌场号)`；组 a=0–1、b=2–4、c=5–8，容量 2/3/4）；原 `sg.gray` 已在 v4 移除（灰骰直接落在 `casinos[].dice["gray"]`）。`pending.data` 中 A1 的 `perm`/`count` 在公共视图被抹除；`sg.pending_options`（`{game,stage,options:[{code,count,reward}]}`）**只出现在 `player_view`**，公共视图恒为 `null`；B1 的 `pending.data = {black:[a,b]}` |
 | `phase` | enum | 见 `state-machine.md` |
 | `host` | string | 发起人/房主（abort/start 权限） |
 | `seats[]` | array | 座位；含大小骰、筹码、已得钞票、标记 |
 | `roll` | object | 当前投掷（小骰点数数组 + 大骰点数） |
 | `casinos[].dice` | map | 各玩家/灰色骰等效骰数（大骰权重 2） |
+| `casinos[].big_dice` | map | 各玩家在该赌场的**大骰颗数**（已在 `dice` 中计入 2 点权重；H1 取骰时用，schema v3） |
 | `casinos[].banknotes` | Vec<u32> | 每赌场 2 张钞票面额（**结算前脱敏为张数**） |
 | `casinos[].small_games` | Vec<SmallGameId> | 挂载的小游戏（仅 1–3 号；N>3 可多块） |
 | `pools` | object | 游戏场/酒吧/金框/灰骰/黑骰 |
@@ -115,5 +117,5 @@ GameState（通用信封）
 
 1. 快照 = 完整 `GameState` JSON（信封 + `data`）。
 2. `game_state.version` 对齐 `game_events.seq`；修正现有硬编码 version=1/2。
-3. `data.schema_version` 提供私有结构迁移入口（v1 = lobby/主流程/筹码；v2 = 小游戏子状态）。
+3. `data.schema_version` 提供私有结构迁移入口（v1 = lobby/主流程/筹码；v2 = 小游戏子状态；v3 = 赌场大骰追踪；v4 = F2 九格、`sg.gray` 移除；v5 = E2 酒吧改 `{small,big}`；v6 = H2 金框改 `GoldFrame{owner,small,big}`）。
 4. round-trip：`LasVegasState ↔ JSON` 无损往返；恢复 = 反序列化快照。

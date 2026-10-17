@@ -1031,10 +1031,17 @@ async function handlePendingConfirm(
 const LAS_VEGAS_GAME_ID = "las-vegas";
 
 /** 签发该玩家的牌面短链（未配置 PUBLIC_BASE_URL 则无）。 */
-async function makeBoardUrl(roomId: string, openid: string): Promise<string | undefined> {
+/** 加密选项页的有效期（秒）：超时后玩家发「#恢复」会重新签发。 */
+const SECRET_OPTION_TTL_SECS = 300;
+
+async function makeBoardUrl(
+  roomId: string,
+  openid: string,
+  ttlSecs?: number,
+): Promise<string | undefined> {
   if (!PUBLIC_BASE_URL) return undefined;
   try {
-    const issued = await authClient.issueToken(openid, `game:${roomId}`);
+    const issued = await authClient.issueToken(openid, `game:${roomId}`, ttlSecs);
     return buildGameUrl(PUBLIC_BASE_URL, LAS_VEGAS_GAME_ID, openid, issued.token);
   } catch (err) {
     console.error("[agent-gateway] 签发游戏 token 失败:", (err as Error)?.message ?? err);
@@ -1446,7 +1453,14 @@ async function handleGameCommand(
     role: "assistant",
     content: result.message ?? resultJson,
   });
-  const boardUrl = await makeBoardUrl(roomId, event.sender_id);
+  const needsSecret =
+    result.state?.data?.sg?.pending?.game === "A1" &&
+    result.state?.data?.sg?.pending?.actor === event.sender_id;
+  const boardUrl = await makeBoardUrl(
+    roomId,
+    event.sender_id,
+    needsSecret ? SECRET_OPTION_TTL_SECS : undefined,
+  );
   const names = await loadNames(redis, event.group_id, result.state ?? {});
   const fb = await buildTurnFeedback(
     engine,

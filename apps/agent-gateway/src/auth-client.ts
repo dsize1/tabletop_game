@@ -33,11 +33,11 @@ export class AuthClient {
   constructor(private baseUrl: string) {}
 
   /** 签发短期 token（绑定 openid + 资源范围）。 */
-  async issueToken(openid: string, resource: string): Promise<IssuedToken> {
+  async issueToken(openid: string, resource: string, ttlSecs?: number): Promise<IssuedToken> {
     const r = await fetch(`${this.baseUrl}/auth/issue`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ openid, resource }),
+      body: JSON.stringify(ttlSecs ? { openid, resource, ttl_secs: ttlSecs } : { openid, resource }),
     });
     if (!r.ok) throw new Error(`auth/issue ${r.status}`);
     return (await r.json()) as IssuedToken;

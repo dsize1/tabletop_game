@@ -14,6 +14,10 @@ use crate::AppState;
 pub struct IssueRequest {
     pub openid: String,
     pub resource: String,
+    /// 可选：短时效（秒）。缺省用 auth 实例默认 TTL（8 小时）。
+    /// 用于「加密选项页」：5 分钟即可，过期后玩家发「#恢复」重新签发。
+    #[serde(default)]
+    pub ttl_secs: Option<u64>,
 }
 
 #[derive(Debug, Serialize)]
@@ -39,7 +43,11 @@ pub async fn issue(
     State(state): State<AppState>,
     Json(req): Json<IssueRequest>,
 ) -> Result<Json<IssueResponse>, StatusCode> {
-    match state.auth.issue(&req.openid, &req.resource).await {
+    let issued = match req.ttl_secs {
+        Some(t) => state.auth.issue_with_ttl(&req.openid, &req.resource, t).await,
+        None => state.auth.issue(&req.openid, &req.resource).await,
+    };
+    match issued {
         Ok(t) => Ok(Json(IssueResponse {
             token: t.token,
             expires_in_secs: t.expires_in_secs,

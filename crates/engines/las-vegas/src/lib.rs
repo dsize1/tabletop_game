@@ -17,8 +17,9 @@ pub mod ai;
 pub mod sg;
 use sg::SgState;
 
-/// 私有结构 schema 版本（v1：主流程；v2 预留小游戏）。
-pub const SCHEMA_VERSION: u32 = 2;
+/// 私有结构 schema 版本（v1：主流程；v2：小游戏；v3：大骰位置追踪；v4：F2 重做；
+/// v5：E2 酒吧改为按大小骰分别记录；v6：H2 金框改为 `GoldFrame`）。
+pub const SCHEMA_VERSION: u32 = 6;
 /// 轮数。
 pub const ROUNDS: u32 = 3;
 /// 每人小骰 / 大骰。
@@ -129,6 +130,10 @@ pub struct Casino {
     /// 各玩家（含灰色骰虚拟玩家 `"gray"`）在此的等效骰数（大骰权重 2）。
     #[serde(default)]
     pub dice: BTreeMap<String, u32>,
+    /// 各玩家在此的**大骰**数量（每颗已在 `dice` 中计入 2 点权重）。
+    /// 仅用于需要区分大小骰的小游戏（H1 取骰时不拆大骰）。
+    #[serde(default)]
+    pub big_dice: BTreeMap<String, u32>,
     /// 2 张钞票面额；结算前公共视图脱敏为 `0`（未知）。
     #[serde(default)]
     pub banknotes: Vec<u32>,
@@ -141,6 +146,7 @@ impl Casino {
     fn empty() -> Self {
         Self {
             dice: BTreeMap::new(),
+            big_dice: BTreeMap::new(),
             banknotes: Vec::new(),
             small_games: Vec::new(),
         }
@@ -208,6 +214,7 @@ impl LasVegasEngine {
         }
         for c in &mut st.casinos {
             c.dice.clear();
+            c.big_dice.clear();
             c.banknotes.clear();
             c.small_games.clear();
         }
@@ -239,7 +246,7 @@ impl LasVegasEngine {
             st.casinos[i % 3].small_games.push(t.clone());
         }
         // 小游戏设置阶段：灰骰/摸彩/指示物按抽中的小游戏重摆。
-        st.sg.setup_round(&tiles);
+        st.sg.setup_round(&tiles, &mut st.casinos);
 
         json!({
             "round": round,
@@ -255,6 +262,19 @@ impl LasVegasEngine {
         st.phase = Phase::TurnRoll;
         st.sg.h1_used_turn = false; // H1 每回合限 1 颗
         let mut events = Vec::new();
+        // D2 权力优势（用户裁定 2026-10-17）：持有特权标记的玩家**不掷骰**，
+        // 改为手动选 1 颗手中骰子放到自选赌场（放置后会正常触发该赌场小游戏）。
+        if let Some(seat) = st.seats.get(st.turn) {
+            if st.sg.privilege.as_deref() == Some(seat.player_id.as_str()) {
+                let player_id = seat.player_id.clone();
+                st.roll = Roll::default();
+                events.push(EngineEvent::new(
+                    "small_game",
+                    json!({ "game": "D2", "player": player_id, "skip_roll": true }),
+                ));
+                return events;
+            }
+        }
         for _ in 0..100 {
             let Some(seat) = st.seats.get(st.turn) else {
                 return events;
@@ -317,24 +337,18 @@ impl LasVegasEngine {
     fn settle_round(&self, st: &mut LasVegasState, rng: &mut dyn RandomSource) -> (Vec<EngineEvent>, bool) {
         st.phase = Phase::Settling;
         let mut events = Vec::new();
-        // B1 主场时间：分配前，对应赌场将获最大面额者投 2 黑骰加骰（本轮只一次）。
-        sg::b1_pre_settle(st, rng, &mut events);
-
-        // G1 黑色摸彩箱：本轮结算前执行一次；分堆/选堆交互完成后恢复结算。
-        if !st.sg.g1_done {
-            st.sg.g1_done = true;
-            if let Some((casino, winner, total)) = sg::g1_prepare(st) {
-                sg::start_g1_pending(st, casino, &winner, total, &mut events);
-                st.phase = Phase::SmallGame;
-                return (events, false);
-            }
+        // 结算阶段第一步（用户裁定 2026-10-17）：按赌场顺序 1→6，先跑「结算阶段进入」的小游戏
+        // （B1 加骰 / C2 罚金），全部跑完才正式逐场结算。
+        if sg::pre_settle_pass(st, rng, &mut events) {
+            st.phase = Phase::SmallGame;
+            return (events, false);
         }
 
         let mut logs = Vec::new();
         let mut top_winners: Vec<Option<String>> = vec![None; CASINOS];
         for ci in 0..CASINOS {
             // C2 厄运降临：移除平手前，最少骰子者（含 0）付 $5 万。
-            sg::c2_pre_casino(st, ci, &mut events);
+            sg::pre_settle_casino(st, ci, &mut events);
             let (log, top) = settle_casino(&mut st.casinos[ci], &mut st.seats);
             top_winners[ci] = top;
             logs.push(json!({ "casino": ci + 1, "allocations": log }));
@@ -420,6 +434,23 @@ impl LasVegasEngine {
             (events, finished)
         } else {
             (events, false)
+        }
+    }
+}
+
+/// 公共视图脱敏：钞票面额、G1 摸彩内容、A1 的选项↔枚数映射。
+fn mask_public(st: &mut LasVegasState) {
+    for c in &mut st.casinos {
+        c.banknotes = vec![0u32; c.banknotes.len()];
+    }
+    st.sg.lottery = vec![0u32; st.sg.lottery.len()];
+    if let Some(p) = st.sg.pending.as_mut() {
+        if p.game == "A1" {
+            if let Some(o) = p.data.as_object_mut() {
+                o.remove("perm");
+                o.remove("count");
+                o.remove("n");
+            }
         }
     }
 }
@@ -556,7 +587,8 @@ impl EnginePlugin for LasVegasEngine {
                         description: format!("把本轮所有 {n} 点骰子放到 {n} 号赌场"),
                     })
                     .collect();
-                if cur.chips >= 1 {
+                // D2 特权回合没有投掷结果 → 不提供「弃回合」。
+                if cur.chips >= 1 && !st.roll.points().is_empty() {
                     out.push(Action {
                         id: "reroll".into(),
                         description: "支付 1 枚筹码，弃本回合".into(),
@@ -582,6 +614,16 @@ impl EnginePlugin for LasVegasEngine {
         let mut st = Self::parse(&state.data)?;
         if st.phase.is_over() {
             return Err(EngineError::IllegalAction("对局已结束".into()));
+        }
+
+        // 恢复原语：不改状态，只重新生成「当前该谁做什么」的提示（配合 web 加密选项/超时重发）。
+        if action == "resume" || action == "hint" {
+            return Ok(ActionResult {
+                state: Self::build_state(state, &st),
+                message: sg::resume_message(&st),
+                finished: false,
+                events: Vec::new(),
+            });
         }
 
         let mut events: Vec<EngineEvent> = Vec::new();
@@ -796,6 +838,12 @@ impl EnginePlugin for LasVegasEngine {
                     .dice
                     .entry(player_id.to_string())
                     .or_insert(0) += weight;
+                if big_matched {
+                    *st.casinos[(n - 1) as usize]
+                        .big_dice
+                        .entry(player_id.to_string())
+                        .or_insert(0) += 1;
+                }
                 // 若已无骰子则清空本轮投掷结果
                 if !seat.has_dice() {
                     st.roll = Roll::default();
@@ -823,6 +871,15 @@ impl EnginePlugin for LasVegasEngine {
                     }
                 }
                 let mut parts: Vec<String> = Vec::new();
+                // 自动类小游戏（A2/D1/C1 等）直接给出「掷了什么、得了什么」的可读提示；
+                // 未实现摘要的编号退化为「触发小游戏 X」。
+                let mut detailed: Vec<String> = sg::event_summaries(&events[events_before..]);
+                let covered: std::collections::BTreeSet<&str> = detailed
+                    .iter()
+                    .filter_map(|l| l.split_whitespace().next())
+                    .collect();
+                triggered.retain(|g| !covered.contains(g.as_str()));
+                parts.append(&mut detailed);
                 if !triggered.is_empty() {
                     parts.push(format!("触发小游戏 {}", triggered.join("/")));
                 }
@@ -848,6 +905,12 @@ impl EnginePlugin for LasVegasEngine {
         } else if action == "reroll" {
             if st.phase != Phase::TurnRoll {
                 return Err(EngineError::IllegalAction("当前阶段不能弃回合".into()));
+            }
+            // D2 特权持有者本回合不掷骰，没有可弃的投掷结果。
+            if st.roll.points().is_empty() {
+                return Err(EngineError::IllegalAction(
+                    "本轮没有投掷结果（D2 特权回合），请用特权放骰".into(),
+                ));
             }
             let cur = st
                 .seats
@@ -882,6 +945,19 @@ impl EnginePlugin for LasVegasEngine {
                         .map(|p| p.game == "G1")
                         .unwrap_or(false);
                     st.sg.pending = None;
+                    // 同一次下注可能触发多个交互：队列里还有就继续处理（不推进回合）。
+                    if let Some((game, actor)) = sg::promote_queued_pending(&mut st) {
+                        st.phase = Phase::SmallGame;
+                        let next_msg =
+                            format!("{message}；接下来是小游戏 {game}，等待 {actor} 操作");
+                        let new_state = Self::build_state(state, &st);
+                        return Ok(ActionResult {
+                            state: new_state,
+                            message: next_msg,
+                            finished: false,
+                            events,
+                        });
+                    }
                     if was_g1 {
                         // G1 属于结算前钩子：完成后恢复结算（而非推进回合）
                         let (mut chain, fin) = self.settle_round(&mut st, rng);
@@ -932,12 +1008,27 @@ impl EnginePlugin for LasVegasEngine {
         let Ok(mut st) = Self::parse(&state.data) else {
             return state.clone();
         };
-        // 结算前钞票背面朝上：保留张数（长度），面额脱敏为 0。
-        for c in &mut st.casinos {
-            c.banknotes = vec![0u32; c.banknotes.len()];
-        }
-        // G1 摸彩标记内容隐藏（保留数量）。
-        st.sg.lottery = vec![0u32; st.sg.lottery.len()];
+        mask_public(&mut st);
+        Self::build_state(state, &st)
+    }
+
+    /// 个人视图：公共脱敏 + 只给本人的加密选项（A1 代码 ↔ 枚数）。
+    ///
+    /// 代码本身可以公开（群里能看到代码，但没有对应关系就推不出枚数），
+    /// 因此 `codes` 保留在公共视图，`perm/count` 只走个人视图。
+    fn player_view(&self, state: &GameState, viewer: &str) -> GameState {
+        let Ok(mut st) = Self::parse(&state.data) else {
+            return self.public_state(state);
+        };
+        // 必须在脱敏**之前**取出私有选项（脱敏会删掉 perm）。
+        let opts = st
+            .sg
+            .pending
+            .as_ref()
+            .filter(|p| p.actor == viewer)
+            .and_then(|p| sg::private_options(p, &st.sg.lottery));
+        mask_public(&mut st);
+        st.sg.pending_options = opts;
         Self::build_state(state, &st)
     }
 
@@ -1077,6 +1168,7 @@ fn settle_casino(casino: &mut Casino, seats: &mut [Seat]) -> (Vec<serde_json::Va
         logs.push(json!({ "player_id": p, "dice": c, "note": note }));
     }
     casino.dice.clear();
+    casino.big_dice.clear();
     (logs, top)
 }
 
@@ -1249,6 +1341,8 @@ mod tests {
         let engine = LasVegasEngine;
         let mut casinos: Vec<Casino> = (0..CASINOS).map(|_| Casino::empty()).collect();
         casinos[0].small_games.push("F2".into());
+        // F2 要求场上至少有 1 颗灰骰（重做版）。
+        casinos[0].dice.insert("gray".into(), 1);
         let st = LasVegasState {
             schema_version: SCHEMA_VERSION,
             phase: Phase::TurnRoll,
@@ -1260,7 +1354,10 @@ mod tests {
             roll: Roll { small: vec![1], big: None },
             casinos,
             small_game_count: 3,
-            sg: SgState { gray: vec![3; CASINOS], ..Default::default() },
+            sg: SgState {
+                f2_slots: vec![None; sg::F2_SLOTS],
+                ..Default::default()
+            },
             scores: BTreeMap::new(),
             winners: Vec::new(),
         };
@@ -1385,7 +1482,7 @@ mod tests {
     }
 
     #[test]
-    fn h1_offers_post_bet_slot_move() {
+    fn h1_source_and_slot_are_player_choices() {
         let engine = LasVegasEngine;
         let mut casinos: Vec<Casino> = (0..CASINOS).map(|_| Casino::empty()).collect();
         casinos[0].small_games.push("H1".into());
@@ -1417,18 +1514,191 @@ mod tests {
         let mut rng = SeededRng::new(1);
         let out = engine.execute_action(&gs, "h", "place:1", &mut rng).unwrap();
         let d: LasVegasState = serde_json::from_value(out.state.data.clone()).unwrap();
-        assert_eq!(d.phase, Phase::SmallGame, "下注后应提供 H1 可选交互");
+        assert_eq!(d.phase, Phase::SmallGame);
         assert_eq!(d.sg.pending.as_ref().unwrap().game, "H1");
+        assert_eq!(d.sg.pending.as_ref().unwrap().stage, "source");
         let acts = engine.legal_actions(&out.state, "h");
-        assert!(acts.iter().any(|a| a.id == "sg:H1:skip"));
-        assert!(acts.iter().any(|a| a.id == "sg:H1:move:1"));
-        let res = engine
-            .execute_action(&out.state, "h", "sg:H1:move:3", &mut rng)
+        assert!(acts.iter().any(|a| a.id == "sg:H1:take:casino"));
+        assert!(!acts.iter().any(|a| a.id.starts_with("sg:H1:slot:")));
+
+        // 选来源（该赌场骰子）→ 进入格位选择
+        let step = engine
+            .execute_action(&out.state, "h", "sg:H1:take:casino", &mut rng)
             .unwrap();
-        let d2: LasVegasState = serde_json::from_value(res.state.data.clone()).unwrap();
-        assert!(d2.sg.pending.is_none());
-        assert_eq!(d2.sg.h1_slots[2], Some(("h".to_string(), 1)));
-        assert_eq!(d2.casinos[0].dice.get("h").copied(), None, "1 颗已移入格子");
+        let d2: LasVegasState = serde_json::from_value(step.state.data.clone()).unwrap();
+        assert_eq!(d2.sg.pending.as_ref().unwrap().stage, "slot");
+        let slot_acts = engine.legal_actions(&step.state, "h");
+        assert_eq!(slot_acts.len(), 6, "格位由玩家自选 1–6");
+
+        // 选 5 号格 → 结算按 5 号格给 $5 万（格位自选）
+        let res = engine
+            .execute_action(&step.state, "h", "sg:H1:slot:5", &mut rng)
+            .unwrap();
+        let d3: LasVegasState = serde_json::from_value(res.state.data.clone()).unwrap();
+        assert!(d3.sg.pending.is_none());
+        assert_eq!(d3.sg.h1_slots[4].as_ref().unwrap().owner, "h");
+        assert_eq!(d3.casinos[0].dice.get("h").copied(), None, "骰子已移入格位");
+    }
+
+    #[test]
+    fn h1_slot_rewards_follow_ladder() {
+        // 1 格 → 1 筹码；2 格 → 2 筹码；3–6 格 → $3/4/5/6 万 钞票（多颗叠加）。
+        let mut st = LasVegasState {
+            schema_version: SCHEMA_VERSION,
+            phase: Phase::Settling,
+            host: "a".into(),
+            round: 1,
+            start_player: Some("a".into()),
+            turn: 0,
+            seats: vec![Seat::new("a".into()), Seat::new("b".into())],
+            roll: Roll::default(),
+            casinos: (0..CASINOS).map(|_| Casino::empty()).collect(),
+            small_game_count: 3,
+            sg: SgState::default(),
+            scores: BTreeMap::new(),
+            winners: Vec::new(),
+        };
+        st.casinos[0].small_games.push("H1".into());
+        st.sg.h1_slots = vec![None; 6];
+        let slot = |owner: &str, dice: u32, big: u32| {
+            Some(crate::sg::H1Slot {
+                owner: owner.into(),
+                dice,
+                big,
+            })
+        };
+        st.sg.h1_slots[1] = slot("a", 2, 0); // 2 格 × 2 颗 → 4 筹码
+        st.sg.h1_slots[3] = slot("b", 1, 0); // 4 格 → $4 万
+        st.sg.h1_slots[5] = slot("a", 2, 1); // 6 格：1 小 + 1 大（大骰也只算 1 颗）→ 2 张 $6 万
+        let mut events = Vec::new();
+        crate::sg::settle_extras(&mut st, &mut events);
+        assert_eq!(st.seats[0].chips, INITIAL_CHIPS + 4);
+        assert_eq!(st.seats[1].banknotes, vec![40_000]);
+        assert_eq!(st.seats[0].banknotes, vec![60_000, 60_000]);
+        assert!(st.sg.h1_slots.iter().all(|s| s.is_none()), "结算后清空格位");
+    }
+
+    #[test]
+    fn h1_kick_returns_dice_to_slot_casino_without_small_game() {
+        // 3 号格已被 b 占（2 小 + 1 大）→ a 挤入后：b 的骰子整批回 3 号赌场（权重 1+1+2=4，大骰 1 颗）。
+        let mut st = LasVegasState {
+            schema_version: SCHEMA_VERSION,
+            phase: Phase::SmallGame,
+            host: "a".into(),
+            round: 1,
+            start_player: Some("a".into()),
+            turn: 0,
+            seats: vec![Seat::new("a".into()), Seat::new("b".into())],
+            roll: Roll::default(),
+            casinos: (0..CASINOS).map(|_| Casino::empty()).collect(),
+            small_game_count: 3,
+            sg: SgState::default(),
+            scores: BTreeMap::new(),
+            winners: Vec::new(),
+        };
+        // 3 号赌场：b 原有 1 颗小骰，挂 C1 + D2。
+        st.casinos[2].small_games = vec!["C1".into(), "D2".into()];
+        st.casinos[2].dice.insert("b".into(), 1);
+        st.sg.h1_slots = vec![None; 6];
+        st.sg.h1_slots[2] = Some(crate::sg::H1Slot {
+            owner: "b".into(),
+            dice: 3,
+            big: 1,
+        });
+        let mut events = Vec::new();
+        crate::sg::h1_slot_put(&mut st, "a", 3, false, &mut events);
+
+        assert_eq!(
+            st.casinos[2].dice.get("b").copied(),
+            Some(5),
+            "1 颗原有 + 挤回的 2 小 + 大骰 2 权重 = 5"
+        );
+        assert_eq!(st.casinos[2].big_dice.get("b").copied(), Some(1));
+        assert!(
+            st.sg.c1_winner.is_none(),
+            "挤出加骰到第 5 颗不得触发 C1（规则：不触发该赌场小游戏）"
+        );
+        assert!(
+            st.sg.privilege.is_none(),
+            "D2 只在主动下注时判定 → 挤出加骰不重算特权（保持原状：无）"
+        );
+        let s = st.sg.h1_slots[2].clone().unwrap();
+        assert_eq!((s.owner.as_str(), s.dice, s.big), ("a", 1, 0));
+        assert!(
+            events.iter().any(|e| e
+                .payload
+                .get("kicked_player")
+                .map(|v| v == "b")
+                .unwrap_or(false)),
+            "挤出应入事件（可复盘）"
+        );
+    }
+
+    #[test]
+    fn h1_prefers_small_die_and_never_halves_big() {
+        let engine = LasVegasEngine;
+        let run = |dice: u32, big: u32| -> LasVegasState {
+            let mut casinos: Vec<Casino> = (0..CASINOS).map(|_| Casino::empty()).collect();
+            casinos[0].small_games.push("H1".into());
+            casinos[0].dice.insert("h".into(), dice);
+            if big > 0 {
+                casinos[0].big_dice.insert("h".into(), big);
+            }
+            let st = LasVegasState {
+                schema_version: SCHEMA_VERSION,
+                phase: Phase::SmallGame,
+                host: "h".into(),
+                round: 1,
+                start_player: Some("h".into()),
+                turn: 0,
+                seats: vec![Seat::new("h".into()), Seat::new("bot1".into())],
+                roll: Roll::default(),
+                casinos,
+                small_game_count: 3,
+                sg: SgState {
+                    pending: Some(sg::SgPending {
+                        game: "H1".into(),
+                        casino: 0,
+                        actor: "h".into(),
+                        stage: "source".into(),
+                        data: json!({}),
+                    }),
+                    ..Default::default()
+                },
+                scores: BTreeMap::new(),
+                winners: Vec::new(),
+            };
+            let gs = GameState {
+                game_id: "las-vegas".into(),
+                room_id: "r".into(),
+                group_id: "g".into(),
+                status: GameStatus::Active,
+                players: vec!["h".into(), "bot1".into()],
+                data: serde_json::to_value(&st).unwrap(),
+            };
+            let mut rng = SeededRng::new(7);
+            let step = engine
+                .execute_action(&gs, "h", "sg:H1:take:casino", &mut rng)
+                .unwrap();
+            let out = engine
+                .execute_action(&step.state, "h", "sg:H1:slot:2", &mut rng)
+                .unwrap();
+            serde_json::from_value(out.state.data.clone()).unwrap()
+        };
+
+        // 既有小骰又有大骰（1 小 + 1 大 = 权重 3）：优先取小骰。
+        let d = run(3, 1);
+        assert_eq!(d.casinos[0].dice.get("h").copied(), Some(2), "取走的是小骰");
+        assert_eq!(d.casinos[0].big_dice.get("h").copied(), Some(1));
+        let s = d.sg.h1_slots[1].as_ref().unwrap();
+        assert_eq!((s.dice, s.big), (1, 0));
+
+        // 只剩大骰（权重 2）：整颗取走，不留半个；格内只算 1 颗。
+        let d = run(2, 1);
+        assert_eq!(d.casinos[0].dice.get("h").copied(), None, "大骰不可拆");
+        assert_eq!(d.casinos[0].big_dice.get("h").copied(), None);
+        let s = d.sg.h1_slots[1].as_ref().unwrap();
+        assert_eq!((s.dice, s.big), (1, 1), "大骰进格与小骰同价（只算 1 颗）");
     }
 
     #[test]
@@ -1494,7 +1764,7 @@ mod tests {
         // 下注 1 号（H1 赌场）后才出现 H1
         let out = engine.execute_action(&gs, "h", "place:1", &mut rng).unwrap();
         let after = engine.legal_actions(&out.state, "h");
-        assert!(after.iter().any(|a| a.id == "sg:H1:move:1"));
+        assert!(after.iter().any(|a| a.id == "sg:H1:take:casino"));
         assert!(after.iter().any(|a| a.id == "sg:H1:skip"));
     }
 
@@ -1541,8 +1811,10 @@ mod tests {
             players: vec!["h".into(), "bot1".into()],
             data: serde_json::to_value(&st).unwrap(),
         };
+        // 多选：从牌面页拿到的代码里选 1 个（这里用 pending 里的第 3 个代码）
+        let codes = sg::pending_codes(st.sg.pending.as_ref().unwrap());
         let split = engine
-            .execute_action(&gs, "bot1", "sg:G1:split:6", &mut rng)
+            .execute_action(&gs, "bot1", &format!("sg:G1:split:{}", codes[2]), &mut rng)
             .unwrap();
         let d: LasVegasState = serde_json::from_value(split.state.data.clone()).unwrap();
         assert_eq!(d.sg.pending.as_ref().unwrap().actor, "h");
@@ -1695,6 +1967,236 @@ mod tests {
     }
 
     #[test]
+    fn d2_privilege_holder_skips_roll_and_triggers_small_game() {
+        let engine = LasVegasEngine;
+        let mut casinos: Vec<Casino> = (0..CASINOS).map(|_| Casino::empty()).collect();
+        casinos[0].small_games = vec!["D2".into()];
+        // 5 号赌场挂 H1，并已有 h 的 1 颗骰（D2 放进去 → 触发 H1 的「刚下注」分支）
+        casinos[4].small_games = vec!["H1".into()];
+        casinos[4].dice.insert("h".into(), 1);
+        let mut st = LasVegasState {
+            schema_version: SCHEMA_VERSION,
+            phase: Phase::TurnRoll,
+            host: "h".into(),
+            round: 1,
+            start_player: Some("h".into()),
+            turn: 0,
+            seats: vec![Seat::new("h".into()), Seat::new("p2".into())],
+            roll: Roll::default(),
+            casinos,
+            small_game_count: 3,
+            sg: SgState {
+                privilege: Some("h".into()),
+                ..Default::default()
+            },
+            scores: BTreeMap::new(),
+            winners: Vec::new(),
+        };
+        let mut rng = SeededRng::new(9);
+        // 特权持有者回合：不掷骰
+        let ev = engine.begin_turn(&mut st, &mut rng);
+        assert!(st.roll.points().is_empty(), "D2 持有者不掷骰");
+        assert!(ev
+            .iter()
+            .any(|e| e.payload.get("skip_roll").and_then(|v| v.as_bool()).unwrap_or(false)));
+
+        // 合法动作只有 D2 放置（6 个）
+        let acts = engine.legal_actions(
+            &GameState {
+                game_id: "las-vegas".into(),
+                room_id: "r".into(),
+                group_id: "g".into(),
+                status: GameStatus::Active,
+                players: vec!["h".into(), "p2".into()],
+                data: serde_json::to_value(&st).unwrap(),
+            },
+            "h",
+        );
+        assert_eq!(acts.len(), CASINOS);
+        assert!(acts.iter().all(|a| a.id.starts_with("sg:D2:use:")));
+
+        // 放到 5 号赌场 → 触发 H1（挂 pending 并暂停回合）
+        let gs = GameState {
+            game_id: "las-vegas".into(),
+            room_id: "r".into(),
+            group_id: "g".into(),
+            status: GameStatus::Active,
+            players: vec!["h".into(), "p2".into()],
+            data: serde_json::to_value(&st).unwrap(),
+        };
+        let out = engine.execute_action(&gs, "h", "sg:D2:use:5", &mut rng).unwrap();
+        let d: LasVegasState = serde_json::from_value(out.state.data.clone()).unwrap();
+        assert_eq!(d.casinos[4].dice.get("h").copied(), Some(2), "5 号赌场 +1 颗");
+        assert_eq!(d.phase, Phase::SmallGame, "放入会触发该赌场小游戏");
+        assert_eq!(d.sg.pending.as_ref().unwrap().game, "H1");
+    }
+
+    // ================= 跨板块集成测试（2026-10-17） =================
+
+    fn base_state(tiles: &[&str]) -> LasVegasState {
+        let mut casinos: Vec<Casino> = (0..CASINOS).map(|_| Casino::empty()).collect();
+        for (i, t) in tiles.iter().enumerate() {
+            casinos[i % 3].small_games.push((*t).to_string());
+        }
+        LasVegasState {
+            schema_version: SCHEMA_VERSION,
+            phase: Phase::TurnRoll,
+            host: "h".into(),
+            round: 1,
+            start_player: Some("h".into()),
+            turn: 0,
+            seats: vec![Seat::new("h".into()), Seat::new("p2".into())],
+            roll: Roll::default(),
+            casinos,
+            small_game_count: 3,
+            sg: SgState::default(),
+            scores: BTreeMap::new(),
+            winners: Vec::new(),
+        }
+    }
+
+    fn gs_of(st: &LasVegasState) -> GameState {
+        GameState {
+            game_id: "las-vegas".into(),
+            room_id: "r".into(),
+            group_id: "g".into(),
+            status: GameStatus::Active,
+            players: st.seats.iter().map(|s| s.player_id.clone()).collect(),
+            data: serde_json::to_value(st).unwrap(),
+        }
+    }
+
+    #[test]
+    fn integration_g2_move_then_field_settles() {
+        // 下注 → G2 交互 → 移 2 颗进游戏场 → 结算时按第七赌场发 $6 万
+        let engine = LasVegasEngine;
+        let mut st = base_state(&["G2", "X", "Y"]);
+        st.casinos[0].banknotes = vec![50_000, 30_000];
+        st.seats[0].small_remaining = 1;
+        st.roll = Roll { small: vec![1], big: None };
+        let mut rng = SeededRng::new(21);
+        let out = engine
+            .execute_action(&gs_of(&st), "h", "place:1", &mut rng)
+            .unwrap();
+        let d: LasVegasState = serde_json::from_value(out.state.data.clone()).unwrap();
+        assert_eq!(d.phase, Phase::SmallGame);
+        assert_eq!(d.sg.pending.as_ref().unwrap().game, "G2");
+        // 移 1 颗进游戏场
+        let step = engine
+            .execute_action(&out.state, "h", "sg:G2:move:1", &mut rng)
+            .unwrap();
+        let mut d2: LasVegasState = serde_json::from_value(step.state.data.clone()).unwrap();
+        assert_eq!(d2.sg.game_field.get("h").copied(), Some(1));
+        // 强制结算（此时全场手里无骰）
+        d2.seats.iter_mut().for_each(|s| {
+            s.small_remaining = 0;
+            s.big_remaining = 0;
+        });
+        let (ev, _fin) = engine.settle_round(&mut d2, &mut rng);
+        assert!(ev.iter().any(|e| e.payload.get("game").and_then(|v| v.as_str()) == Some("G2")));
+        let h = d2.seats.iter().find(|s| s.player_id == "h").unwrap();
+        // 游戏场：h 有 1 颗且唯一 → 第一 $6 万；原赌场 1 颗骰仍拿钞票
+        assert!(h.banknotes.contains(&60_000), "游戏场第一名 $6 万: {:?}", h.banknotes);
+        assert!(d2.sg.game_field.is_empty(), "结算后清空游戏场");
+    }
+
+    #[test]
+    fn integration_pending_queue_keeps_both_bet_games() {
+        // 同一赌场同时挂 G2 与 H1：同一次下注应先把 G2 处理完，再自动接到 H1
+        let engine = LasVegasEngine;
+        let mut st = base_state(&["G2"]);
+        st.casinos[0].small_games.push("H1".into());
+        st.seats[0].small_remaining = 2;
+        st.roll = Roll { small: vec![1], big: None };
+        let mut rng = SeededRng::new(4);
+        let out = engine
+            .execute_action(&gs_of(&st), "h", "place:1", &mut rng)
+            .unwrap();
+        let d: LasVegasState = serde_json::from_value(out.state.data.clone()).unwrap();
+        assert_eq!(d.sg.pending.as_ref().unwrap().game, "G2", "先触发 G2");
+        let step = engine
+            .execute_action(&out.state, "h", "sg:G2:move:0", &mut rng)
+            .unwrap();
+        let d2: LasVegasState = serde_json::from_value(step.state.data.clone()).unwrap();
+        assert_eq!(d2.phase, Phase::SmallGame, "队列里还有 H1");
+        assert_eq!(d2.sg.pending.as_ref().unwrap().game, "H1", "第二个交互不被吞掉");
+        assert_eq!(d2.sg.pending.as_ref().unwrap().stage, "source");
+    }
+
+    #[test]
+    fn integration_b1_black_dice_feed_c2_penalty() {
+        // B1 在 1 号、C2 在 3 号：B1 加的黑骰先落地，C2 判定看得到
+        let engine = LasVegasEngine;
+        let mut st = base_state(&["B1", "X", "C2"]);
+        st.casinos[0].small_games = vec!["B1".into()];
+        st.casinos[2].small_games = vec!["C2".into()];
+        st.casinos[0].dice.insert("h".into(), 3);
+        st.casinos[2].dice.insert("h".into(), 1);
+        st.casinos[2].dice.insert("p2".into(), 2);
+        st.seats[1].chips = 3;
+        let mut rng = SeededRng::new(6);
+        let mut ev = Vec::new();
+        // 第一次 pass 停在 B1（交互）
+        assert!(sg::pre_settle_pass(&mut st, &mut rng, &mut ev), "B1 应挂 pending");
+        let p = st.sg.pending.clone().unwrap();
+        let black: Vec<u32> = serde_json::from_value(p.data.get("black").unwrap().clone()).unwrap();
+        // 把黑骰放到 3 号赌场（若点数不匹配则等于放 0 颗，仍然验证顺序）
+        let k = black.iter().filter(|d| **d == 3).count() as u32;
+        let before_p2 = st.seats[1].chips;
+        let mut ev2 = Vec::new();
+        // 手工结算 B1（直接调 resolve）
+        sg::resolve(&mut st, "sg:B1:put:3", "h", &mut rng).unwrap();
+        assert!(!sg::pre_settle_pass(&mut st, &mut rng, &mut ev2), "第二次 pass 不再挂 B1");
+        // C2 已执行：最少者 p2 付 5 万（先钞票再筹码）
+        assert!(st.sg.c2_done.contains(&2), "C2 已在 3 号赌场执行");
+        assert!(st.seats[1].chips <= before_p2, "C2 罚金不会让筹码变多");
+        if k > 0 {
+            assert!(st.casinos[2].dice.get("h").copied().unwrap_or(0) > 1, "B1 加骰已入 3 号");
+        }
+        let _ = engine;
+    }
+
+    #[test]
+    fn integration_resume_does_not_mutate_state() {
+        let engine = LasVegasEngine;
+        let mut st = base_state(&["A1"]);
+        st.sg.pending = Some(sg::SgPending {
+            game: "A1".into(),
+            casino: 0,
+            actor: "h".into(),
+            stage: "hide".into(),
+            data: json!({ "initiator": "h", "perm": [1, 2, 3], "codes": ["AAAA", "BBBB", "CCCC"] }),
+        });
+        st.phase = Phase::SmallGame;
+        let before = serde_json::to_string(&st).unwrap();
+        let out = engine.execute_action(&gs_of(&st), "h", "resume", &mut SeededRng::new(1)).unwrap();
+        let after: LasVegasState = serde_json::from_value(out.state.data.clone()).unwrap();
+        assert_eq!(serde_json::to_string(&after).unwrap(), before, "resume 不改状态");
+        assert!(out.message.contains("A1"), "提示应指明小游戏: {}", out.message);
+        assert!(out.events.is_empty(), "resume 不产生事件");
+    }
+
+    #[test]
+    fn integration_c1_big_die_counts_as_one_piece() {
+        // C1：4 小 + 1 大 = 5 颗 → 立即 $10 万（颗数口径）
+        let engine = LasVegasEngine;
+        let mut st = base_state(&["C1", "X", "Y"]);
+        st.casinos[0].dice.insert("h".into(), 4);
+        st.seats[0].small_remaining = 1;
+        st.seats[0].big_remaining = 1;
+        st.roll = Roll { small: vec![1], big: Some(1) };
+        let mut rng = SeededRng::new(8);
+        let out = engine
+            .execute_action(&gs_of(&st), "h", "place:1", &mut rng)
+            .unwrap();
+        let d: LasVegasState = serde_json::from_value(out.state.data.clone()).unwrap();
+        assert_eq!(d.sg.c1_winner.as_deref(), Some("h"));
+        let h = d.seats.iter().find(|s| s.player_id == "h").unwrap();
+        assert!(h.banknotes.contains(&100_000), "颗数达 5 立即 $10 万");
+        assert!(out.message.contains("C1"), "回复应含 C1 提示: {}", out.message);
+    }
+
+    #[test]
     fn three_rounds_reach_finished() {
         let mgr = manager(9);
         let mut st = start_two(&mgr, "host", "p2");
@@ -1710,13 +2212,19 @@ mod tests {
             let cur = d.seats[d.turn].player_id.clone();
             let points = d.roll.points();
             let banned = d.sg.banned;
-            let point = points
-                .iter()
-                .find(|p| banned != Some((**p - 1) as usize))
-                .copied()
-                .unwrap_or(points[0]);
+            // D2 特权持有者不掷骰（roll 为空）→ 用特权放 1 颗。
+            let action = if points.is_empty() {
+                "sg:D2:use:1".to_string()
+            } else {
+                let point = points
+                    .iter()
+                    .find(|p| banned != Some((**p - 1) as usize))
+                    .copied()
+                    .unwrap_or(points[0]);
+                format!("place:{point}")
+            };
             st = mgr
-                .execute_action(&st.room_id, &cur, &format!("place:{point}"))
+                .execute_action(&st.room_id, &cur, &action)
                 .unwrap()
                 .state;
         }

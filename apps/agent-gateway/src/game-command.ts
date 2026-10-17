@@ -26,6 +26,8 @@ export type GameCommand =
   | { cmd: "addbot"; n: number }
   | { cmd: "solo"; n: number; ids?: string }
   | { cmd: "pick"; n: number }
+  | { cmd: "pickcode"; code: string }
+  | { cmd: "resume" }
   | { cmd: "sg"; id: string }
   | { cmd: "sgrule"; id: string }
   | { cmd: "setsg"; ids: string }
@@ -52,6 +54,9 @@ const COMMAND_WORDS: Record<string, GameCommand["cmd"]> = {
   sg: "sg",
   选: "pick",
   选项: "pick",
+  恢复: "resume",
+  继续: "resume",
+  提示: "resume",
   规则: "sgrule",
   指定小游戏: "setsg",
   小游戏池: "setsg",
@@ -121,6 +126,15 @@ export function parseGameCommand(content: string): GameCommand | null {
       return ids ? { cmd, n, ids } : { cmd, n };
     }
     case "pick": {
+      if (!arg) return null;
+      // 多选/单选加密选项代码（如 #选 K7Q2 或 #选 K7Q2，9FX3）：逗号（中/英）分隔。
+      const parts = arg
+        .split(/[,，、\s]+/)
+        .map((t) => t.trim())
+        .filter(Boolean);
+      if (parts.length > 0 && parts.every((t) => /^[A-Za-z0-9]{3,10}$/.test(t) && !/^\d+$/.test(t))) {
+        return { cmd: "pickcode", code: parts.map((t) => t.toUpperCase()).join(",") };
+      }
       const n = Number(arg);
       return Number.isInteger(n) && n >= 1 ? { cmd, n } : null;
     }
@@ -130,6 +144,10 @@ export function parseGameCommand(content: string): GameCommand | null {
       return arg ? { cmd, id: arg } : null;
     case "setsg":
       return arg ? { cmd, ids: arg } : null;
+    case "pickcode":
+      return null; // 只经 `#选 <代码>` 进入（上面已处理）
+    case "resume":
+      return { cmd: "resume" };
     default:
       return { cmd };
   }
@@ -158,6 +176,10 @@ export function gameActionId(cmd: GameCommand): string | null {
       return "lobby:add_bot";
     case "sg":
       return `sg:${cmd.id}`;
+    case "pickcode":
+      return `sg:code:${cmd.code}`;
+    case "resume":
+      return "resume";
     case "setsg":
       return `lobby:set_small_games:${cmd.ids}`;
     default:

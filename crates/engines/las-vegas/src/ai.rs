@@ -64,11 +64,57 @@ pub fn score_action(st: &LasVegasState, player: &str, id: &str) -> f64 {
             return score_add_dice(st, player, (n - 1) as usize, 1);
         }
     }
-    if id.starts_with("sg:G2:move:") {
-        return 4.0;
+    if let Some(k) = id
+        .strip_prefix("sg:G2:move:")
+        .and_then(|s| s.parse::<u32>().ok())
+    {
+        // G2：该场领先 → 留骰子争钞票；落后 → 移入游戏场搏 $6 万/$3 万。
+        let Some(p) = st.sg.pending.as_ref() else {
+            return 0.0;
+        };
+        let mine = st.casinos[p.casino]
+            .dice
+            .get(player)
+            .copied()
+            .unwrap_or(0);
+        // 该场前两名还能拿钞票（次名期望 ≈ $4.4 万 > 游戏场次名 $3 万）→
+        // 只有「至少 2 人比自己多（拿不到任何钞票）」才值得把骰子搬去游戏场搏一把。
+        let ahead = st.casinos[p.casino]
+            .dice
+            .iter()
+            .filter(|(q, c)| q.as_str() != player && **c >= mine)
+            .count();
+        return if ahead >= 2 {
+            if k == 0 {
+                0.0
+            } else {
+                1.5 + 0.1 * f64::from(k)
+            }
+        } else if k == 0 {
+            2.0
+        } else {
+            0.5
+        };
     }
-    if id.starts_with("sg:H1:move:") {
-        return 0.8;
+    if id.starts_with("sg:H1:") {
+        if id == "sg:H1:skip" {
+            return 0.0;
+        }
+        // 选来源：优先用「该赌场已下注的骰子」（手里骰还能下注）。
+        if id == "sg:H1:take:casino" {
+            return 2.0;
+        }
+        if id == "sg:H1:take:hand" {
+            return 1.0;
+        }
+        // 格位自选：越高越好（6 格 = $6 万）。
+        if let Some(n) = id
+            .strip_prefix("sg:H1:slot:")
+            .and_then(|s| s.parse::<usize>().ok())
+        {
+            return 0.5 + 0.5 * n as f64;
+        }
+        return 1.0;
     }
     if id.starts_with("sg:E1:ban:") {
         return 2.0;
@@ -78,7 +124,20 @@ pub fn score_action(st: &LasVegasState, player: &str, id: &str) -> f64 {
         return 2.0;
     }
     if id.starts_with("sg:F2:take:") {
-        return if id.ends_with("money") { 3.0 } else { 1.0 };
+        // 取灰骰：来源不影响奖励（奖励由组决定），中性偏好。
+        return 1.0;
+    }
+    if let Some(g) = id.strip_prefix("sg:F2:group:") {
+        // b 组 $3 万最划算；a 组 1 筹码；c 组放入/收回价值中等。
+        return match g {
+            "b" => 3.0,
+            "c" => 1.5,
+            _ => 1.0,
+        };
+    }
+    if id.starts_with("sg:F2:") {
+        // put / takeback / put:{n} / takeback:{c}：均为推进动作。
+        return 1.0;
     }
     if let Some(d) = id
         .strip_prefix("sg:H2:choose:")
@@ -107,7 +166,16 @@ pub fn score_action(st: &LasVegasState, player: &str, id: &str) -> f64 {
             return piles.get(i).copied().unwrap_or(0) as f64;
         }
     }
-    // A1 猜数 / B2 猜大小 / G1 分堆 / E1:pass / F2:pass 等：中性。
+    if id == "sg:B2:quit" {
+        // 弃权：按当前格奖励给分（越往后越高）。
+        let pos = st.sg.b2_pos;
+        return 1.5 + pos as f64;
+    }
+    if id.starts_with("sg:B2:guess:") {
+        // 猜大/小各 ~50%，赢则前进一格（收益随格位上升）→ 给正分鼓励继续。
+        return 1.0 + st.sg.b2_pos as f64;
+    }
+    // A1 猜数 / G1 分堆 / E1:pass / F2:pass 等：中性。
     0.0
 }
 
@@ -297,7 +365,8 @@ mod tests {
         let mut r_wins = 0;
         let mut h_total = 0i64;
         let mut r_total = 0i64;
-        for seed in 1..=20u64 {
+        // 规则改动会改变强弱平衡，取样放大到 60 局以降低方差。
+        for seed in 1..=60u64 {
             let players = ["h", "r"];
             let policies: Vec<&dyn Policy> = vec![&h, &rnd];
             let res = run_self_play(&players, &policies, seed, 5000);

@@ -25,6 +25,9 @@
 | 内部消息事件协议 | `docs/conventions/message-protocol.md` |
 | 持久化 / 消息总线约定 | `docs/conventions/persistence.md` |
 | 外部约束事实登记表（频控/窗口/延迟） | `docs/conventions/external-constraints.md` |
+| 小游戏 16 块速查总览（最终口径） | `docs/games/las-vegas/small-games-overview.md` |
+| 小游戏奖励期望值评估（平衡） | `docs/games/las-vegas/balance-evaluation.md` |
+| 小游戏 16 阶段对齐计划 / 进度 | `docs/games/las-vegas/small-games-alignment.md` |
 | MCP 统一原语 / 能力描述符规范 | `docs/conventions/mcp-primitives.md` |
 | 本地开发环境（Docker/Redis） | `docs/dev-environment.md` |
 | 编码规范 | `docs/conventions/coding-standards.md` |

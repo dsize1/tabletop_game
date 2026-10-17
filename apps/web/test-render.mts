@@ -69,12 +69,41 @@ const view: GameView = {
         { player_id: "u2", small_remaining: 0, big_remaining: 0, chips: 4, banknotes: [] },
       ],
       casinos: [
-        { dice: { u1: 3, gray: 2 }, banknotes: [0, 0], small_games: ["C1"] },
-        { dice: {}, banknotes: [0, 0], small_games: [] },
+        { dice: { u1: 3, gray: 2 }, big_dice: { u1: 1 }, banknotes: [0, 0], small_games: ["C1", "F2"] },
+        { dice: {}, banknotes: [0, 0], small_games: ["H1", "G2", "H2"] },
       ],
+      sg: {
+        f2_slots: [1, null, 2, null, null, 3, null, null, null],
+        h1_slots: [{ owner: "u1", dice: 2, big: 0 }, null, null, null, null, null],
+        game_field: { u2: 2 },
+        gold_frame: { owner: "u2", small: 1, big: 0 },
+        bars: { u1: { small: 1, big: 0 } },
+        gray_groups: [3, 2, 2],
+        lottery: [0, 0],
+        indicator: 2,
+        banned: null,
+        arrow: 1,
+        c1_winner: "u1",
+        privilege: "u2",
+      },
     },
   },
-  player: { data: {} },
+  player: {
+    data: {
+      sg: {
+        pending_options: {
+          game: "A1",
+          stage: "hide",
+          multi: false,
+          options: [
+            { code: "K7Q2", count: 1, reward: "2 筹码" },
+            { code: "9FX3", count: 2, reward: "$3万" },
+            { code: "M4AB", count: 3, reward: "$4万" },
+          ],
+        },
+      },
+    },
+  },
   names: { u1: "轮子总比困难多", u2: "机器人1" },
 };
 const gameHtml = renderGamePage(view);
@@ -82,6 +111,17 @@ assert.ok(gameHtml.includes("拉斯维加斯"), "牌面页应含标题");
 assert.ok(gameHtml.includes("第 2 轮"), "牌面页应含轮次");
 assert.ok(gameHtml.includes("（我）"), "牌面页应标记本人");
 assert.ok(gameHtml.includes("C1"), "牌面页应含小游戏");
+assert.ok(gameHtml.includes("含大骰 1"), "应标出等效骰数中的大骰颗数");
+assert.ok(gameHtml.includes("小游戏状态"), "应含小游戏状态模块");
+assert.ok(gameHtml.includes("你的加密选项"), "个人视图应渲染加密选项");
+assert.ok(gameHtml.includes("K7Q2") && gameHtml.includes("藏 2 颗标记"), "应显示代码与含义");
+assert.ok(gameHtml.includes("#选 K7Q2"), "应提示用代码回复");
+assert.ok(gameHtml.includes("危机就是转机"), "F2 应显示名称");
+assert.ok(gameHtml.includes("（1/2）") && gameHtml.includes("（1/3）") && gameHtml.includes("（1/4）"), "F2 应显示各组占格数");
+assert.ok(gameHtml.includes("场上灰骰：1 号×2"), "F2 应显示场上灰骰分布");
+assert.ok(gameHtml.includes("好骰难求") && gameHtml.includes("轮子总比困难多×2"), "H1 应显示格位占用");
+assert.ok(!gameHtml.includes("游戏场空") && gameHtml.includes("机器人1×2"), "G2 游戏场应显示");
+assert.ok(gameHtml.includes("金框：机器人1（小×1）"), "H2 金框应显示");
 assert.ok(gameHtml.includes("1 张（3 万）"), "个人资源应含已得钞票金额");
 assert.ok(gameHtml.includes("⏳"), "应标记当前回合玩家");
 assert.ok(gameHtml.includes("轮子总比困难多"), "应显示群昵称而非 openid");
