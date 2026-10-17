@@ -1423,10 +1423,12 @@ mod tests {
     }
 
     #[test]
-    fn h1_turn_move_limited_to_once_per_turn() {
+    fn h1_actions_only_after_betting_at_h1_casino() {
         let engine = LasVegasEngine;
         let mut casinos: Vec<Casino> = (0..CASINOS).map(|_| Casino::empty()).collect();
         casinos[0].small_games.push("H1".into());
+        let mut h = Seat::new("h".into());
+        h.small_remaining = 1;
         let st = LasVegasState {
             schema_version: SCHEMA_VERSION,
             phase: Phase::TurnRoll,
@@ -1434,8 +1436,8 @@ mod tests {
             round: 1,
             start_player: Some("h".into()),
             turn: 0,
-            seats: vec![Seat::new("h".into()), Seat::new("bot1".into())],
-            roll: Roll { small: vec![1, 1], big: None },
+            seats: vec![h, Seat::new("bot1".into())],
+            roll: Roll { small: vec![1], big: None },
             casinos,
             small_game_count: 3,
             sg: SgState::default(),
@@ -1450,17 +1452,18 @@ mod tests {
             players: vec!["h".into(), "bot1".into()],
             data: serde_json::to_value(&st).unwrap(),
         };
-        let acts = engine.legal_actions(&gs, "h");
-        assert!(acts.iter().any(|a| a.id == "sg:H1:move:1"));
-        let mut rng = SeededRng::new(1);
-        let out = engine
-            .execute_action(&gs, "h", "sg:H1:move:1", &mut rng)
-            .unwrap();
-        let acts2 = engine.legal_actions(&out.state, "h");
+        // 下注前：不提供 H1 动作
+        let before = engine.legal_actions(&gs, "h");
         assert!(
-            !acts2.iter().any(|a| a.id.starts_with("sg:H1:move")),
-            "同一回合不应再提供 H1 移骰"
+            !before.iter().any(|a| a.id.starts_with("sg:H1:")),
+            "下注前不应出现 H1 动作"
         );
+        let mut rng = SeededRng::new(1);
+        // 下注 1 号（H1 赌场）后才出现 H1
+        let out = engine.execute_action(&gs, "h", "place:1", &mut rng).unwrap();
+        let after = engine.legal_actions(&out.state, "h");
+        assert!(after.iter().any(|a| a.id == "sg:H1:move:1"));
+        assert!(after.iter().any(|a| a.id == "sg:H1:skip"));
     }
 
     #[test]

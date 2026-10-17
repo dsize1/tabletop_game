@@ -780,14 +780,6 @@ pub(crate) fn legal_turn_sg(st: &LasVegasState, player: &str) -> Vec<Action> {
             }
         }
     }
-    if st.casinos.iter().any(|c| c.small_games.iter().any(|g| g == "H1"))
-        && cur.small_remaining > 0
-        && !st.sg.h1_used_turn
-    {
-        for slot in 1..=6 {
-            out.push(Action { id: format!("sg:H1:move:{slot}"), description: format!("移 1 颗骰到 {slot} 号格") });
-        }
-    }
     out
 }
 
@@ -833,23 +825,6 @@ pub(crate) fn resolve_turn_sg(
         st.sg.g2_used = true;
         events.push(EngineEvent::new("small_game", json!({ "game": "G2", "player": player, "casino": c, "count": cnt })));
         return Some(Ok((events, format!("把 {cnt} 颗骰子移入游戏场（结算 $6万/$3万）"), false)));
-    }
-    if let Some(sstr) = rest.strip_prefix("H1:move:") {
-        let slot: usize = sstr.parse().ok().unwrap_or(0);
-        if !(1..=6).contains(&slot) {
-            return Some(Err(EngineError::IllegalAction("H1 格位非法".into())));
-        }
-        let Some(seat) = st.seats.get_mut(st.turn) else {
-            return Some(Err(EngineError::Internal("回合下标越界".into())));
-        };
-        if seat.small_remaining == 0 {
-            return Some(Err(EngineError::IllegalAction("没有可用骰子".into())));
-        }
-        seat.small_remaining -= 1;
-        h1_slot_put(st, player, slot);
-        st.sg.h1_used_turn = true; // 每回合最多 1 颗
-        events.push(EngineEvent::new("small_game", json!({ "game": "H1", "player": player, "slot": slot })));
-        return Some(Ok((events, format!("移 1 颗骰到 {slot} 号格"), false)));
     }
     None
 }
