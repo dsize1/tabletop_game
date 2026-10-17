@@ -219,14 +219,29 @@ const LINK_FETCH_THRESHOLD = Number(process.env.CHAT_LINK_FETCH_THRESHOLD ?? 0.5
 const LINK_FETCH_TIMEOUT_MS = Number(process.env.CHAT_LINK_TIMEOUT_MS ?? 10000);
 const LINK_FETCH_MAX_CHARS = Number(process.env.CHAT_LINK_MAX_CHARS ?? 2000);
 
-/** 被动回复（带 reply_msg_id，5 分钟窗口内）。 */
-async function pushReply(redis: Redis, event: MessageGroupAt, reply: string, msgSeq = 1) {
+/**
+ * 被动回复（带 reply_msg_id，5 分钟窗口内）。
+ *
+ * QQ 限制：同一条消息最多被动回复 **5 次**，且 `msg_seq` 需**递增**。
+ * 这里按 `message_id` 用 Redis 计数器递增；超过 5 次自动降级为**主动消息**（不消耗回复次数）。
+ */
+async function pushReply(redis: Redis, event: MessageGroupAt, reply: string, _msgSeq = 1) {
+  const key = `msgseq:${event.message_id}`;
+  const seq = await redis.incr(key);
+  await redis.expire(key, 420);
+  if (seq > 5) {
+    console.warn(
+      `[agent-gateway] 被动回复已满 5 次（seq=${seq}），转主动消息 cid=${event.message_id}`,
+    );
+    await pushActive(redis, event, reply);
+    return;
+  }
   const pushEvent = {
     event_id: randomUUID(),
     group_id: event.group_id,
     content: reply,
     reply_msg_id: event.message_id,
-    msg_seq: msgSeq,
+    msg_seq: seq,
     at_member_id: event.sender_id,
   };
   await redis.xadd(PUSH_STREAM, "MAXLEN", "~", "1000", "*", "event", JSON.stringify(pushEvent));
@@ -804,6 +819,10 @@ async function executeIntent(
           break;
         }
         const resultJson = await engine.executeAction(active.room_id, event.sender_id, chosen.id);
+        if (resultJson.startsWith("错误")) {
+          await pushReply(redis, event, resultJson);
+          break;
+        }
         const result = parseJson<ActionResult>(resultJson, {});
         await emitChatLog(redis, { openid: event.sender_id, groupId: event.group_id, role: "user", content });
         await emitChatLog(redis, {
@@ -1056,7 +1075,11 @@ async function pushGameFeedback(
   summary?: string,
 ) {
   await pushReply(redis, event, feedback, 1);
-  if (NARRATION_ENABLED && actionDesc) {
+  // 错误 / 中断（行政动作）不做 LLM 情景叙述，避免多余的第二条回复。
+  const skipNarrate =
+    (resultMessage ?? feedback).startsWith("错误") ||
+    (actionDesc ?? "").includes("lobby:abort");
+  if (NARRATION_ENABLED && actionDesc && !skipNarrate) {
     try {
       const profile = await profileCache.get(event.sender_id);
       const narration = await narrateGame(actionDesc, resultMessage ?? feedback, summary, profile);
@@ -1234,6 +1257,11 @@ async function handleGameCommand(
     return;
   }
   const resultJson = await engine.executeAction(roomId, event.sender_id, action);
+  if (resultJson.startsWith("错误")) {
+    // 校验失败：只回错误本身（不叙事、不附局面，避免误导）
+    await pushReply(redis, event, resultJson);
+    return;
+  }
   const result = parseJson<ActionResult>(resultJson, {});
   await emitChatLog(redis, { openid: event.sender_id, groupId: event.group_id, role: "user", content: event.content });
   await emitChatLog(redis, {

@@ -570,7 +570,8 @@ impl EnginePlugin for LasVegasEngine {
         let mut finished = false;
 
         if let Some(rest) = action.strip_prefix("lobby:") {
-            if st.phase != Phase::Lobby {
+            // 房主可在**任意 Active 阶段**中断（规则 §8.6）；其余大厅动作仅限 lobby。
+            if st.phase != Phase::Lobby && rest != "abort" {
                 return Err(EngineError::IllegalAction("当前阶段不可执行大厅动作".into()));
             }
             match rest {
@@ -1158,6 +1159,23 @@ mod tests {
         assert!(d.seats[1].is_bot);
         assert!(matches!(
             mgr.execute_action(&st.room_id, "p2", "lobby:add_bot"),
+            Err(EngineError::PermissionDenied(_))
+        ));
+    }
+
+    #[test]
+    fn host_can_abort_during_play() {
+        let mgr = manager(12);
+        let st = start_two(&mgr, "host", "p2");
+        let out = mgr.execute_action(&st.room_id, "host", "lobby:abort").unwrap();
+        assert!(out.finished);
+        assert_eq!(data(&out.state).phase, Phase::Aborted);
+        assert!(mgr.get_active_game("group-1").is_none());
+        // 非房主不可中断
+        let mgr2 = manager(13);
+        let st2 = start_two(&mgr2, "host", "p2");
+        assert!(matches!(
+            mgr2.execute_action(&st2.room_id, "p2", "lobby:abort"),
             Err(EngineError::PermissionDenied(_))
         ));
     }
