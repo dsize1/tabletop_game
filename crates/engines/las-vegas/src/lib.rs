@@ -754,37 +754,40 @@ impl EnginePlugin for LasVegasEngine {
                 json!({ "player_id": player_id, "point": n, "weight": weight, "casino": n }),
             ));
             // 下注后触发的小游戏（自动 + 交互；交互类挂 pending 暂停回合）。
+            let events_before = events.len();
             sg::on_place(&mut st, (n - 1) as usize, player_id, rng, &mut events);
             if let Some(pending) = st.sg.pending.clone() {
                 st.phase = Phase::SmallGame;
-                // 若交互归真人，附上可用动作描述（方便直接用自然语言回复）
-                let is_bot = st
-                    .seats
-                    .iter()
-                    .any(|s| s.player_id == pending.actor && s.is_bot);
-                let hint = if is_bot {
-                    String::new()
-                } else {
-                    let tmp = Self::build_state(state, &st);
-                    let acts = self.legal_actions(&tmp, &pending.actor);
-                    if acts.is_empty() {
-                        String::new()
-                    } else {
-                        let list = acts
-                            .iter()
-                            .take(8)
-                            .map(|a| a.description.clone())
-                            .collect::<Vec<_>>()
-                            .join(" / ");
-                        format!("；可用动作：{list}")
-                    }
-                };
                 message = format!(
-                    "你把 {n} 点的 {weight} 个骰子放到 {n} 号赌场；触发小游戏 {}，等待 {} 操作{hint}",
+                    "你把 {n} 点的 {weight} 个骰子放到 {n} 号赌场；触发小游戏 {}，等待 {} 操作",
                     pending.game, pending.actor
                 );
             } else {
-                let note = small_game_note(&st, (n - 1) as usize, None);
+                // 只对**实际触发**的小游戏给出提示（避免 C1 未到第 5 颗却显示“触发”）。
+                let mut triggered: Vec<String> = Vec::new();
+                for e in &events[events_before..] {
+                    if let Some(g) = e.payload.get("game").and_then(|v| v.as_str()) {
+                        triggered.push(g.to_string());
+                    }
+                }
+                let mut parts: Vec<String> = Vec::new();
+                if !triggered.is_empty() {
+                    parts.push(format!("触发小游戏 {}", triggered.join("/")));
+                }
+                let settle: Vec<String> = st.casinos[(n - 1) as usize]
+                    .small_games
+                    .iter()
+                    .filter(|t| t.as_str() == "B1" || t.as_str() == "C2")
+                    .cloned()
+                    .collect();
+                if !settle.is_empty() {
+                    parts.push(format!("{} 结算前触发", settle.join("/")));
+                }
+                let note = if parts.is_empty() {
+                    String::new()
+                } else {
+                    format!("（{}）", parts.join("；"))
+                };
                 let (mut chain, fin) = self.after_action(&mut st, rng);
                 events.append(&mut chain);
                 finished = fin;
@@ -997,36 +1000,6 @@ fn banknote_deck() -> Vec<u32> {
     deck
 }
 
-/// 下注后的小游戏提示：区分「下注后触发」与「结算前触发（B1/C2）」。
-fn small_game_note(st: &LasVegasState, casino: usize, pending: Option<&str>) -> String {
-    let tiles = &st.casinos[casino].small_games;
-    if tiles.is_empty() {
-        return String::new();
-    }
-    let settle: Vec<&str> = tiles
-        .iter()
-        .filter(|t| matches!(t.as_str(), "B1" | "C2"))
-        .map(|s| s.as_str())
-        .collect();
-    let now: Vec<&str> = tiles
-        .iter()
-        .filter(|t| !matches!(t.as_str(), "B1" | "C2"))
-        .map(|s| s.as_str())
-        .collect();
-    let mut parts = Vec::new();
-    if pending.is_none() && !now.is_empty() {
-        parts.push(format!("触发小游戏 {}", now.join("/")));
-    }
-    if !settle.is_empty() {
-        parts.push(format!("{} 结算前触发", settle.join("/")));
-    }
-    if parts.is_empty() {
-        String::new()
-    } else {
-        format!("（{}）", parts.join("；"))
-    }
-}
-
 /// 16→8→N：每字母组 A–H 取 1 个 → 洗牌取 N 个。
 fn draw_small_games(n: u32, rng: &mut dyn RandomSource) -> Vec<String> {
     const LETTERS: [char; 8] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
@@ -1178,6 +1151,43 @@ mod tests {
             mgr2.execute_action(&st2.room_id, "p2", "lobby:abort"),
             Err(EngineError::PermissionDenied(_))
         ));
+    }
+
+    #[test]
+    fn human_place_with_interactive_small_game_waits() {
+        let engine = LasVegasEngine;
+        let mut casinos: Vec<Casino> = (0..CASINOS).map(|_| Casino::empty()).collect();
+        casinos[0].small_games.push("F2".into());
+        let st = LasVegasState {
+            schema_version: SCHEMA_VERSION,
+            phase: Phase::TurnRoll,
+            host: "h".into(),
+            round: 1,
+            start_player: Some("h".into()),
+            turn: 0,
+            seats: vec![Seat::new("h".into()), Seat::new("bot1".into())],
+            roll: Roll { small: vec![1], big: None },
+            casinos,
+            small_game_count: 3,
+            sg: SgState { gray: vec![3; CASINOS], ..Default::default() },
+            scores: BTreeMap::new(),
+            winners: Vec::new(),
+        };
+        let gs = GameState {
+            game_id: "las-vegas".into(),
+            room_id: "r".into(),
+            group_id: "g".into(),
+            status: GameStatus::Active,
+            players: vec!["h".into(), "bot1".into()],
+            data: serde_json::to_value(&st).unwrap(),
+        };
+        let mut rng = SeededRng::new(1);
+        let out = engine.execute_action(&gs, "h", "place:1", &mut rng).unwrap();
+        let d: LasVegasState = serde_json::from_value(out.state.data.clone()).unwrap();
+        assert_eq!(d.phase, Phase::SmallGame, "应停在小游戏交互");
+        assert_eq!(d.sg.pending.as_ref().unwrap().actor, "h", "应由真人操作");
+        assert_eq!(d.seats[d.turn].player_id, "h", "回合不应推进");
+        assert!(!out.finished);
     }
 
     #[test]

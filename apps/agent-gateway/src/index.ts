@@ -1110,7 +1110,7 @@ async function buildGuidance(
   if (!actor) return "";
   const seat = (d.seats ?? []).find((s) => s.player_id === actor);
   if (seat?.is_bot) {
-    return `轮到机器人 ${actor} 行动…`;
+    return `轮到 ${actor} 行动…`;
   }
   const legal = parseJson<LegalAction[]>(await engine.getLegalActions(roomId, actor), []);
   const descs = Array.isArray(legal) ? legal.slice(0, 10).map((a) => a.description) : [];
@@ -1186,8 +1186,8 @@ async function driveBots(
   openid: string,
   boardUrl?: string,
 ): Promise<void> {
-  const st0 = parseJson<GameState>(await engine.getState(roomId), {});
-  const names = await loadNames(redis, event.group_id, st0);
+  const lines: string[] = [];
+  const acts: string[] = [];
   for (let i = 0; i < 200; i++) {
     const st = parseJson<GameState>(await engine.getState(roomId), {});
     if (!st.room_id || st.status !== "active" || !st.data) break;
@@ -1202,23 +1202,30 @@ async function driveBots(
       break;
     }
     const result = parseJson<ActionResult>(raw, {});
-    const { text, summary } = await buildTurnFeedback(
-      engine,
-      roomId,
-      `🤖 ${actor}：${result.message ?? ""}`,
-      openid,
-      boardUrl,
-    );
-    await pushGameFeedback(
-      redis,
-      event,
-      text,
-      `${actor} ${result.message ?? ""}`,
-      result.message ?? raw,
-      summary,
-      names,
-    );
+    lines.push(`🤖 ${actor}：${result.message ?? ""}`);
+    acts.push(`${actor} ${result.message ?? ""}`);
   }
+  if (lines.length === 0) return;
+  // 一回合内所有 AI 动作合并为**一条**消息（结果逐行 + 最终局面 + 下一步指引 + 牌面页）。
+  const st = parseJson<GameState>(await engine.getState(roomId), {});
+  const names = await loadNames(redis, event.group_id, st);
+  const summary = (await fetchStateSummary(engine, roomId)) ?? undefined;
+  const guidance = await buildGuidance(engine, roomId, st, openid);
+  const parts = [
+    lines.join("\n"),
+    summary,
+    guidance,
+    boardUrl ? `📄 牌面页：${boardUrl}` : "",
+  ].filter((x): x is string => typeof x === "string" && x.trim().length > 0);
+  await pushGameFeedback(
+    redis,
+    event,
+    parts.join("\n"),
+    acts.join("；"),
+    lines.join("\n"),
+    summary,
+    names,
+  );
 }
 
 /**
