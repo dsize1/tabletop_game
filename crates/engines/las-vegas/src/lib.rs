@@ -317,8 +317,19 @@ impl LasVegasEngine {
     fn settle_round(&self, st: &mut LasVegasState, rng: &mut dyn RandomSource) -> (Vec<EngineEvent>, bool) {
         st.phase = Phase::Settling;
         let mut events = Vec::new();
-        // B1 主场时间：分配前，对应赌场将获最大面额者投 2 黑骰加骰。
+        // B1 主场时间：分配前，对应赌场将获最大面额者投 2 黑骰加骰（本轮只一次）。
         sg::b1_pre_settle(st, rng, &mut events);
+
+        // G1 黑色摸彩箱：本轮结算前执行一次；分堆/选堆交互完成后恢复结算。
+        if !st.sg.g1_done {
+            st.sg.g1_done = true;
+            if let Some((casino, winner, total)) = sg::g1_prepare(st) {
+                sg::start_g1_pending(st, casino, &winner, total, &mut events);
+                st.phase = Phase::SmallGame;
+                return (events, false);
+            }
+        }
+
         let mut logs = Vec::new();
         let mut top_winners: Vec<Option<String>> = vec![None; CASINOS];
         for ci in 0..CASINOS {
@@ -864,11 +875,24 @@ impl EnginePlugin for LasVegasEngine {
                 events.append(&mut ev);
                 message = m;
                 if done {
+                    let was_g1 = st
+                        .sg
+                        .pending
+                        .as_ref()
+                        .map(|p| p.game == "G1")
+                        .unwrap_or(false);
                     st.sg.pending = None;
-                    st.phase = Phase::TurnRoll;
-                    let (mut chain, fin) = self.after_action(&mut st, rng);
-                    events.append(&mut chain);
-                    finished = fin;
+                    if was_g1 {
+                        // G1 属于结算前钩子：完成后恢复结算（而非推进回合）
+                        let (mut chain, fin) = self.settle_round(&mut st, rng);
+                        events.append(&mut chain);
+                        finished = fin;
+                    } else {
+                        st.phase = Phase::TurnRoll;
+                        let (mut chain, fin) = self.after_action(&mut st, rng);
+                        events.append(&mut chain);
+                        finished = fin;
+                    }
                 }
             } else {
                 match sg::resolve_turn_sg(&mut st, action, player_id, rng) {
@@ -1030,16 +1054,24 @@ fn settle_casino(casino: &mut Casino, seats: &mut [Seat]) -> (Vec<serde_json::Va
     let mut notes = casino.banknotes.clone();
     notes.sort_unstable_by(|a, b| b.cmp(a));
 
+    // 灰骰参与排名但不领钞票：钞票按 kept 中的**玩家**顺序发放（最多 2 张）。
     let mut logs = Vec::new();
-    let mut top = None;
-    for (i, (p, c)) in kept.iter().take(2).enumerate() {
-        let note = notes.get(i).copied();
+    let mut top: Option<String> = None;
+    let mut note_idx = 0usize;
+    for (p, c) in &kept {
+        let note = if p != "gray" && note_idx < notes.len() {
+            let n = notes[note_idx];
+            note_idx += 1;
+            Some(n)
+        } else {
+            None
+        };
         if let Some(n) = note {
             if let Some(seat) = seats.iter_mut().find(|s| &s.player_id == p) {
                 seat.banknotes.push(n);
             }
         }
-        if i == 0 {
+        if top.is_none() && p != "gray" {
             top = Some(p.clone());
         }
         logs.push(json!({ "player_id": p, "dice": c, "note": note }));
@@ -1467,6 +1499,68 @@ mod tests {
     }
 
     #[test]
+    fn g1_runs_before_settlement_and_resumes() {
+        let engine = LasVegasEngine;
+        let mut casinos: Vec<Casino> = (0..CASINOS).map(|_| Casino::empty()).collect();
+        casinos[0].small_games.push("G1".into());
+        casinos[0].banknotes = vec![70_000, 20_000];
+        casinos[0].dice.insert("h".into(), 3);
+        casinos[0].dice.insert("bot1".into(), 1);
+        let mut st = LasVegasState {
+            schema_version: SCHEMA_VERSION,
+            phase: Phase::TurnRoll,
+            host: "h".into(),
+            round: 1,
+            start_player: Some("h".into()),
+            turn: 0,
+            seats: vec![Seat::new("h".into()), Seat::new("bot1".into())],
+            roll: Roll::default(),
+            casinos,
+            small_game_count: 3,
+            sg: SgState { lottery: vec![2, 2, 6, 0, 0, 0], ..Default::default() },
+            scores: BTreeMap::new(),
+            winners: Vec::new(),
+        };
+        let mut rng = SeededRng::new(1);
+        let (events, finished) = engine.settle_round(&mut st, &mut rng);
+        assert!(!finished);
+        assert_eq!(st.phase, Phase::SmallGame, "结算前应先停 G1");
+        let p = st.sg.pending.as_ref().unwrap();
+        assert_eq!(p.game, "G1");
+        assert_eq!(p.stage, "split");
+        assert_eq!(p.actor, "bot1", "左手玩家分堆");
+        assert_eq!(p.data["winner"], "h");
+        assert_eq!(p.data["total"], 10);
+        assert!(!events.is_empty());
+
+        let gs = GameState {
+            game_id: "las-vegas".into(),
+            room_id: "r".into(),
+            group_id: "g".into(),
+            status: GameStatus::Active,
+            players: vec!["h".into(), "bot1".into()],
+            data: serde_json::to_value(&st).unwrap(),
+        };
+        let split = engine
+            .execute_action(&gs, "bot1", "sg:G1:split:6", &mut rng)
+            .unwrap();
+        let d: LasVegasState = serde_json::from_value(split.state.data.clone()).unwrap();
+        assert_eq!(d.sg.pending.as_ref().unwrap().actor, "h");
+        assert_eq!(d.sg.pending.as_ref().unwrap().stage, "pick");
+
+        let pick = engine
+            .execute_action(&split.state, "h", "sg:G1:pick:0", &mut rng)
+            .unwrap();
+        let d2: LasVegasState = serde_json::from_value(pick.state.data.clone()).unwrap();
+        assert!(d2.sg.pending.is_none());
+        let hseat = d2.seats.iter().find(|s| s.player_id == "h").unwrap();
+        assert!(hseat.banknotes.contains(&60_000), "G1 奖励入账");
+        assert!(hseat.banknotes.contains(&70_000), "结算最高面额入账");
+        // 结算已恢复（本轮结束 → 第 2 轮 setup 或终局）
+        assert!(d2.round >= 2 || d2.phase == Phase::Finished);
+    }
+
+    #[test]
     fn duplicate_create_rejected() {
         let mgr = manager(4);
         new_lobby(&mgr, "host");
@@ -1572,16 +1666,16 @@ mod tests {
     }
 
     #[test]
-    fn gray_dice_award_no_note() {
+    fn gray_dice_rank_but_no_note() {
         let mut casino = Casino::empty();
         casino.banknotes = vec![70_000, 20_000];
         casino.dice.insert("gray".into(), 3);
         casino.dice.insert("solo".into(), 1);
         let mut seats = vec![Seat::new("solo".into())];
         let (logs, top) = settle_casino(&mut casino, &mut seats);
-        assert_eq!(top.as_deref(), Some("gray"));
-        // gray 参与排名但不拿钞票：solo 拿剩余那张
-        assert_eq!(seats[0].banknotes, vec![20_000]);
+        // gray 参与排名但不领钞票：solo（最高名次玩家）拿最高那张，top 也应是 solo
+        assert_eq!(top.as_deref(), Some("solo"));
+        assert_eq!(seats[0].banknotes, vec![70_000]);
         assert_eq!(logs.len(), 2);
     }
 

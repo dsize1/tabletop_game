@@ -94,6 +94,12 @@ pub struct SgState {
     /// H1：本回合是否已用「移 1 颗骰到格」（规则每回合 1 颗）。
     #[serde(default)]
     pub h1_used_turn: bool,
+    /// B1：本轮结算前是否已执行（防暂停/恢复时重复加骰）。
+    #[serde(default)]
+    pub b1_done: bool,
+    /// G1：本轮结算前是否已执行（每轮只执行一次）。
+    #[serde(default)]
+    pub g1_done: bool,
     /// 待处理交互（3b）。
     #[serde(default)]
     pub pending: Option<SgPending>,
@@ -348,20 +354,6 @@ pub(crate) fn trigger_interactive(
                         actor: player.to_string(),
                         stage: "take".into(),
                         data: json!({}),
-                    })
-                } else {
-                    None
-                }
-            }
-            "G1" => {
-                let total: u32 = st.sg.lottery.iter().sum();
-                if total > 0 {
-                    Some(SgPending {
-                        game: "G1".into(),
-                        casino,
-                        actor: left_player(st, player),
-                        stage: "split".into(),
-                        data: json!({ "winner": player, "total": total }),
                     })
                 } else {
                     None
@@ -879,6 +871,10 @@ pub(crate) fn b1_pre_settle(
     rng: &mut dyn RandomSource,
     events: &mut Vec<EngineEvent>,
 ) {
+    if st.sg.b1_done {
+        return;
+    }
+    st.sg.b1_done = true;
     for ci in 0..CASINOS {
         if !st.casinos[ci].small_games.iter().any(|g| g == "B1") {
             continue;
@@ -899,6 +895,64 @@ pub(crate) fn b1_pre_settle(
             json!({ "game": "B1", "casino": ci + 1, "player": winner, "black": [a, b] }),
         ));
     }
+}
+
+/// G1 结算前准备：找 G1 所在赌场，按「移除平手后」排名取**最高名次玩家**（灰骰不领奖）作为赢家。
+/// 返回（赌场下标，赢家，摸彩总额万）。
+pub(crate) fn g1_prepare(st: &LasVegasState) -> Option<(usize, String, u32)> {
+    let total: u32 = st.sg.lottery.iter().sum();
+    if total == 0 {
+        return None;
+    }
+    for ci in 0..CASINOS {
+        if !st.casinos[ci].small_games.iter().any(|g| g == "G1") {
+            continue;
+        }
+        let mut by_value: BTreeMap<u32, Vec<String>> = BTreeMap::new();
+        for (p, c) in &st.casinos[ci].dice {
+            if *c > 0 {
+                by_value.entry(*c).or_default().push(p.clone());
+            }
+        }
+        let mut kept: Vec<(String, u32)> = st.casinos[ci]
+            .dice
+            .iter()
+            .filter(|(p, c)| {
+                **c > 0
+                    && *p != "gray"
+                    && by_value.get(c).map(|v| v.len() == 1).unwrap_or(false)
+            })
+            .map(|(p, c)| (p.clone(), *c))
+            .collect();
+        kept.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+        if let Some((winner, _)) = kept.first() {
+            return Some((ci, winner.clone(), total));
+        }
+        return None;
+    }
+    None
+}
+
+/// 启动 G1 交互（结算前）：左手玩家分堆。
+pub(crate) fn start_g1_pending(
+    st: &mut LasVegasState,
+    casino: usize,
+    winner: &str,
+    total: u32,
+    events: &mut Vec<EngineEvent>,
+) {
+    let splitter = left_player(st, winner);
+    st.sg.pending = Some(SgPending {
+        game: "G1".into(),
+        casino,
+        actor: splitter.clone(),
+        stage: "split".into(),
+        data: json!({ "winner": winner, "total": total }),
+    });
+    events.push(EngineEvent::new(
+        "small_game_pending",
+        json!({ "game": "G1", "actor": splitter, "casino": casino + 1, "winner": winner, "total": total }),
+    ));
 }
 
 /// 单个赌场结算前（移除平手前）的 C2 厄运降临：最少骰子者（含 0）付 $5 万，不足付全部资产。
