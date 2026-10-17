@@ -26,3 +26,8 @@
 
 - 「被动回复有 **3s 超时**」→ **错误**。实际群聊被动窗口为 **5 分钟**。曾据此废弃「游戏引擎结果 LLM 丰富叙事」、并计划「聊天改仅异步主动发送」。
   - 已纠正：恢复 LLM 情景叙述（模板默认 + 配置开关），见 ADR-0002 修订、`docs/architecture.md` §8、`docs/modules/agent-gateway.md`。
+
+## 主动消息使用门禁（2026-10-17）
+
+- 主动消息（无 `reply_msg_id`）默认**禁用**；运行时被动回复超限默认丢弃（`PROACTIVE_MESSAGES_ENABLED=0`）。
+- 落地方案/计划含主动消息时，必须**人工确认**并写入标记 `【主动消息已人工确认】`，用 `npm run check:proactive-gate` 校验。详见 `docs/conventions/coding-standards.md`、ADR-0009。

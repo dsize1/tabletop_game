@@ -4,6 +4,7 @@
   "license": "MIT",
   "scripts": {
     "check:decision": "node scripts/check-decision-service.mjs",
+    "check:proactive-gate": "node scripts/check-proactive-gate.mjs",
     "dev:up": "node scripts/dev-up.mjs",
     "dev:down": "node scripts/dev-down.mjs",
     "dev:up:qq": "node scripts/dev-up.mjs --with-qq",

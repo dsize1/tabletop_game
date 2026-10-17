@@ -60,7 +60,8 @@
 - **机器人补位（一个人也能测）**：`#单人` 一键创建 1 人 + N 机器人并开赛；`#加机器人` 手动补位。机器人由引擎内置启发式 AI 驱动——agent-gateway 在人类动作后循环调 MCP `bot_action`（含小游戏交互）直到人类回合/终局，并通过 `state.seats[].is_bot` 判定。
 - **动作后反馈（承上启下）**：每次动作（含**每个机器人**动作）输出「结果 + 局面摘要 + 下一步指引（谁在等 / 可用动作）+ 牌面页短链」；模板 `msg_seq=1` 必达，`GAME_NARRATION_ENABLED=1` 时追加 LLM 主持人情景叙事 `msg_seq=2`（失败静默降级）。正常局引擎执行后要么提示下一位玩家、要么提示当前玩家未完成的小游戏/动作。
 - `#局面` 同样输出摘要 + 下一步指引 + 牌面短链；局面摘要含每号赌场的小游戏标签（如 `3号2骰(B1)`），并区分「下注后触发」与「B1/C2 结算前触发」。
-- **出站限额**（`external-constraints.md`）：同一条用户消息最多**被动回复 5 次**、`msg_seq` 递增。网关用 Redis 计数器 `msgseq:{message_id}` 递增；超过 5 条自动转**主动消息**（不消耗回复次数，受主动配额约束）。错误/中断（`lobby:abort`）不做 LLM 叙事，避免多余回复。
+- **出站限额**（`external-constraints.md`）：同一条用户消息最多**被动回复 5 次**、`msg_seq` 递增。网关用 Redis 计数器 `msgseq:{message_id}` 递增；每个动作的「模板 + LLM 叙事」合并为**一条**回复。超过 5 条时**默认丢弃并告警**，仅 `PROACTIVE_MESSAGES_ENABLED=1`（需通过主动消息门禁）才降级为主动消息。错误/中断（`lobby:abort`）不做 LLM 叙事。
+- **主动消息门禁**（ADR-0009）：默认禁用；方案含主动消息须人工确认并写 `【主动消息已人工确认】`，`npm run check:proactive-gate` 校验。
 
 - **自然语言路径**：`start_game` 意图（无猜拳手势时）→ 创建拉斯维加斯 lobby（引导文案含上表命令）。猜拳 `rps` 保留为显式手势玩具路径。
 - **动作选择（阶段 4b）**：`game_action` 意图 → `get_legal_actions(room, sender)` → SystemOne `choice`（≤26 个动作）选一个 → `execute_action`；动作数 >26 或决策不可用时回显编号清单兜底（`formatActionList`）。小游戏交互态的合法动作归 `pending.actor`，非该玩家无动作。

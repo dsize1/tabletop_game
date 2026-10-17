@@ -41,3 +41,4 @@
 - 修改架构先更新 `docs/architecture.md` 与相关 `docs/modules/` 文档
 - 重大技术决策记入 `memory_palace/decisions/`（ADR）
 - 新增桌游引擎：在 `crates/engines/<name>/` 建 crate，并在 `crates/server` 注册
+- **主动消息门禁**：方案含主动消息（proactive / `pushActive` / 无 `reply_msg_id`）必须**人工确认**并写入 `【主动消息已人工确认】`，`npm run check:proactive-gate` 校验（见 `docs/conventions/coding-standards.md`、ADR-0009）

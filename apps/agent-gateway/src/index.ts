@@ -210,8 +210,12 @@ function isDevAllowed(senderId: string): boolean {
   return DEV_WHITELIST.has(senderId);
 }
 
-// 游戏路径 LLM 情景叙述开关：模板摘要必达；开启时追加一条 msg_seq=2 叙述（失败静默降级）
+// 游戏路径 LLM 情景叙述开关（与模板合并为一条回复，失败静默降级）
 const NARRATION_ENABLED = (process.env.GAME_NARRATION_ENABLED ?? "") === "1";
+
+// 主动消息默认禁用：开发门禁要求方案含主动消息时先人工确认（见 coding-standards）。
+// 仅当显式置为 1 时，被动回复超限才降级为主动消息。
+const PROACTIVE_MESSAGES_ENABLED = (process.env.PROACTIVE_MESSAGES_ENABLED ?? "0") === "1";
 
 // 聊天链接抓取（Plan B）：消息含 https:// 时先用 SystemOne（noul 是/否）判断是否抓取该链接
 const LINK_FETCH_ENABLED = (process.env.CHAT_LINK_FETCH_ENABLED ?? "1") === "1";
@@ -225,15 +229,26 @@ const LINK_FETCH_MAX_CHARS = Number(process.env.CHAT_LINK_MAX_CHARS ?? 2000);
  * QQ 限制：同一条消息最多被动回复 **5 次**，且 `msg_seq` 需**递增**。
  * 这里按 `message_id` 用 Redis 计数器递增；超过 5 次自动降级为**主动消息**（不消耗回复次数）。
  */
+/** 按字符截断（避免超过 QQ 单条 1500 字符）。 */
+function capText(s: string, max: number): string {
+  return s.length <= max ? s : s.slice(0, max - 1) + "…";
+}
+
 async function pushReply(redis: Redis, event: MessageGroupAt, reply: string, _msgSeq = 1) {
   const key = `msgseq:${event.message_id}`;
   const seq = await redis.incr(key);
   await redis.expire(key, 420);
   if (seq > 5) {
-    console.warn(
-      `[agent-gateway] 被动回复已满 5 次（seq=${seq}），转主动消息 cid=${event.message_id}`,
-    );
-    await pushActive(redis, event, reply);
+    if (PROACTIVE_MESSAGES_ENABLED) {
+      console.warn(
+        `[agent-gateway] 被动回复已满 5 次（seq=${seq}），转主动消息（已启用）cid=${event.message_id}`,
+      );
+      await pushActive(redis, event, reply);
+    } else {
+      console.warn(
+        `[agent-gateway] 被动回复已满 5 次（seq=${seq}），主动消息未启用→丢弃 cid=${event.message_id}`,
+      );
+    }
     return;
   }
   const pushEvent = {
@@ -1074,20 +1089,22 @@ async function pushGameFeedback(
   resultMessage?: string,
   summary?: string,
 ) {
-  await pushReply(redis, event, feedback, 1);
-  // 错误 / 中断（行政动作）不做 LLM 情景叙述，避免多余的第二条回复。
+  // 错误 / 中断（行政动作）不做 LLM 情景叙述。
   const skipNarrate =
     (resultMessage ?? feedback).startsWith("错误") ||
     (actionDesc ?? "").includes("lobby:abort");
+  let narration: string | undefined;
   if (NARRATION_ENABLED && actionDesc && !skipNarrate) {
     try {
       const profile = await profileCache.get(event.sender_id);
-      const narration = await narrateGame(actionDesc, resultMessage ?? feedback, summary, profile);
-      await pushReply(redis, event, narration, 2);
+      narration = await narrateGame(actionDesc, resultMessage ?? feedback, summary, profile);
     } catch (err) {
       console.error("[agent-gateway] 情景叙述失败，静默降级:", err);
     }
   }
+  // 每个动作合并为**一条**回复（模板 + 叙事），减少被动回复次数。
+  const merged = narration ? `${feedback}\n\n${narration}` : feedback;
+  await pushReply(redis, event, capText(merged, 1400));
 }
 
 /**

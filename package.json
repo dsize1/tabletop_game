@@ -11,6 +11,7 @@
     "dev:down": "node apps/scripts/dev-down.mjs",
     "status": "node apps/scripts/status.mjs",
     "check:decision": "node apps/scripts/check-decision-service.mjs",
+    "check:proactive-gate": "node apps/scripts/check-proactive-gate.mjs",
     "verify:push": "node apps/verify-push.mjs",
     "test:agent-gateway": "npm --prefix apps run test:agent-gateway",
     "test:web": "npm --prefix apps run test:web"
