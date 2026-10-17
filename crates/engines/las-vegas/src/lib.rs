@@ -756,15 +756,38 @@ impl EnginePlugin for LasVegasEngine {
             sg::on_place(&mut st, (n - 1) as usize, player_id, rng, &mut events);
             if let Some(pending) = st.sg.pending.clone() {
                 st.phase = Phase::SmallGame;
+                // 若交互归真人，附上可用动作描述（方便直接用自然语言回复）
+                let is_bot = st
+                    .seats
+                    .iter()
+                    .any(|s| s.player_id == pending.actor && s.is_bot);
+                let hint = if is_bot {
+                    String::new()
+                } else {
+                    let tmp = Self::build_state(state, &st);
+                    let acts = self.legal_actions(&tmp, &pending.actor);
+                    if acts.is_empty() {
+                        String::new()
+                    } else {
+                        let list = acts
+                            .iter()
+                            .take(8)
+                            .map(|a| a.description.clone())
+                            .collect::<Vec<_>>()
+                            .join(" / ");
+                        format!("；可用动作：{list}")
+                    }
+                };
                 message = format!(
-                    "你把 {n} 点的 {weight} 个骰子放到 {n} 号赌场；触发小游戏 {}，等待 {} 操作",
+                    "你把 {n} 点的 {weight} 个骰子放到 {n} 号赌场；触发小游戏 {}，等待 {} 操作{hint}",
                     pending.game, pending.actor
                 );
             } else {
+                let note = small_game_note(&st, (n - 1) as usize, None);
                 let (mut chain, fin) = self.after_action(&mut st, rng);
                 events.append(&mut chain);
                 finished = fin;
-                message = format!("你把 {n} 点的 {weight} 个骰子放到了 {n} 号赌场");
+                message = format!("你把 {n} 点的 {weight} 个骰子放到了 {n} 号赌场{note}");
             }
         } else if action == "reroll" {
             if st.phase != Phase::TurnRoll {
@@ -874,6 +897,18 @@ impl EnginePlugin for LasVegasEngine {
                 format!("拉斯维加斯（已结束）：胜者 {winners}；比分 {:?}", st.scores)
             }
             Phase::Aborted => "拉斯维加斯：本局已废弃（不结算）".to_string(),
+            Phase::SmallGame => {
+                let (actor, game) = st
+                    .sg
+                    .pending
+                    .as_ref()
+                    .map(|p| (p.actor.clone(), p.game.clone()))
+                    .unwrap_or_else(|| ("-".to_string(), "-".to_string()));
+                format!(
+                    "拉斯维加斯 第 {}/{} 轮，等待 {} 处理小游戏 {}",
+                    st.round, ROUNDS, actor, game
+                )
+            }
             _ => {
                 let cur = st
                     .seats
@@ -886,7 +921,15 @@ impl EnginePlugin for LasVegasEngine {
                     })
                     .unwrap_or_else(|| "-".to_string());
                 let placed: Vec<String> = (0..CASINOS)
-                    .map(|i| format!("{}号{}骰", i + 1, st.casinos[i].dice.values().sum::<u32>()))
+                    .map(|i| {
+                        let sg = st.casinos[i].small_games.join("/");
+                        let tag = if sg.is_empty() {
+                            String::new()
+                        } else {
+                            format!("({sg})")
+                        };
+                        format!("{}号{}骰{}", i + 1, st.casinos[i].dice.values().sum::<u32>(), tag)
+                    })
                     .collect();
                 format!(
                     "拉斯维加斯 第 {}/{} 轮，等待 {} 下注；赌场骰数 [{}]",
@@ -951,6 +994,36 @@ fn banknote_deck() -> Vec<u32> {
         }
     }
     deck
+}
+
+/// 下注后的小游戏提示：区分「下注后触发」与「结算前触发（B1/C2）」。
+fn small_game_note(st: &LasVegasState, casino: usize, pending: Option<&str>) -> String {
+    let tiles = &st.casinos[casino].small_games;
+    if tiles.is_empty() {
+        return String::new();
+    }
+    let settle: Vec<&str> = tiles
+        .iter()
+        .filter(|t| matches!(t.as_str(), "B1" | "C2"))
+        .map(|s| s.as_str())
+        .collect();
+    let now: Vec<&str> = tiles
+        .iter()
+        .filter(|t| !matches!(t.as_str(), "B1" | "C2"))
+        .map(|s| s.as_str())
+        .collect();
+    let mut parts = Vec::new();
+    if pending.is_none() && !now.is_empty() {
+        parts.push(format!("触发小游戏 {}", now.join("/")));
+    }
+    if !settle.is_empty() {
+        parts.push(format!("{} 结算前触发", settle.join("/")));
+    }
+    if parts.is_empty() {
+        String::new()
+    } else {
+        format!("（{}）", parts.join("；"))
+    }
 }
 
 /// 16→8→N：每字母组 A–H 取 1 个 → 洗牌取 N 个。

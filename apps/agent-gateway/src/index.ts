@@ -812,12 +812,17 @@ async function executeIntent(
           role: "assistant",
           content: result.message ?? resultJson,
         });
-        await pushReply(redis, event, result.message ?? resultJson);
+        const boardUrl = await makeBoardUrl(active.room_id, event.sender_id);
+        const fb = await buildTurnFeedback(
+          engine,
+          active.room_id,
+          result.message ?? resultJson,
+          event.sender_id,
+          boardUrl,
+        );
+        await pushGameFeedback(redis, event, fb.text, `玩家动作 ${chosen.id}`, result.message ?? resultJson, fb.summary);
         if (!result.finished) {
-          const { moves, summary } = await driveBots(engine, active.room_id);
-          if (moves > 0) {
-            await pushReply(redis, event, `🤖 机器人行动 ${moves} 步。\n${summary ?? ""}`);
-          }
+          await driveBots(redis, engine, event, active.room_id, event.sender_id, boardUrl);
         }
         console.log(
           `[agent-gateway] game_action via=decision model=${chosen.id}:${chosen.confidence.toFixed(3)} ← ${content}`,
@@ -973,16 +978,108 @@ async function handlePendingConfirm(
 
 const LAS_VEGAS_GAME_ID = "las-vegas";
 
-/**
- * 机器人自动行动：轮到机器人（含小游戏交互）时，反复调 `bot_action` 直到人类回合或终局。
- * 返回机器人行动步数与最新局面摘要。
- */
-async function driveBots(
+/** 签发该玩家的牌面短链（未配置 PUBLIC_BASE_URL 则无）。 */
+async function makeBoardUrl(roomId: string, openid: string): Promise<string | undefined> {
+  if (!PUBLIC_BASE_URL) return undefined;
+  try {
+    const issued = await authClient.issueToken(openid, `game:${roomId}`);
+    return buildGameUrl(PUBLIC_BASE_URL, LAS_VEGAS_GAME_ID, openid, issued.token);
+  } catch (err) {
+    console.error("[agent-gateway] 签发游戏 token 失败:", (err as Error)?.message ?? err);
+    return undefined;
+  }
+}
+
+/** 下一步流程指引：谁在等、该做什么、可用动作（启下）。 */
+async function buildGuidance(
   engine: GameEngineClient,
   roomId: string,
-): Promise<{ moves: number; summary?: string }> {
-  let moves = 0;
-  for (let i = 0; i < 500; i++) {
+  st: GameState,
+  openid: string,
+): Promise<string> {
+  const d = st.data;
+  if (st.status === "finished" || d?.phase === "finished" || d?.phase === "aborted") {
+    const winners = d?.winners ?? [];
+    const scores = d?.scores ?? {};
+    const scoreText = Object.entries(scores)
+      .map(([p, v]) => `${p.slice(0, 8)}:${Math.round(v / 10000)}万`)
+      .join(" ");
+    return winners.length
+      ? `🏁 本局结束，胜者：${winners.join("、")}${scoreText ? `（${scoreText}）` : ""}`
+      : "🏁 本局结束";
+  }
+  if (!d) return "";
+  if (d.phase === "lobby") {
+    return "等待房主「#开始」开赛；其他人可「#加入」，房主可「#加机器人」。";
+  }
+  const actor =
+    d.phase === "small_game" ? d.sg?.pending?.actor : d.seats?.[d.turn ?? -1]?.player_id;
+  if (!actor) return "";
+  const seat = (d.seats ?? []).find((s) => s.player_id === actor);
+  if (seat?.is_bot) {
+    return `轮到机器人 ${actor} 行动…`;
+  }
+  const legal = parseJson<LegalAction[]>(await engine.getLegalActions(roomId, actor), []);
+  const descs = Array.isArray(legal) ? legal.slice(0, 10).map((a) => a.description) : [];
+  const who = actor === openid ? "轮到你" : `轮到 ${actor}`;
+  const phaseTag = d.phase === "small_game" ? "处理小游戏" : "下注";
+  return descs.length
+    ? `🎯 ${who}${phaseTag}，可用动作：\n${descs.map((x, i) => `${i + 1}) ${x}`).join("\n")}`
+    : `🎯 ${who}${phaseTag}`;
+}
+
+/** 构造一次动作后的完整反馈：结果 + 局面 + 下一步指引 + 牌面页。 */
+async function buildTurnFeedback(
+  engine: GameEngineClient,
+  roomId: string,
+  template: string,
+  openid: string,
+  boardUrl?: string,
+): Promise<{ text: string; summary?: string }> {
+  const summary = (await fetchStateSummary(engine, roomId)) ?? undefined;
+  const st = parseJson<GameState>(await engine.getState(roomId), {});
+  const guidance = await buildGuidance(engine, roomId, st, openid);
+  const parts = [template, summary, guidance].filter(
+    (x): x is string => typeof x === "string" && x.trim().length > 0,
+  );
+  if (boardUrl) parts.push(`📄 牌面页：${boardUrl}`);
+  return { text: parts.join("\n"), summary };
+}
+
+/** 模板必达（msg_seq=1）；开启时追加 LLM 主持人情景叙述（msg_seq=2，失败静默降级）。 */
+async function pushGameFeedback(
+  redis: Redis,
+  event: MessageGroupAt,
+  feedback: string,
+  actionDesc?: string,
+  resultMessage?: string,
+  summary?: string,
+) {
+  await pushReply(redis, event, feedback, 1);
+  if (NARRATION_ENABLED && actionDesc) {
+    try {
+      const profile = await profileCache.get(event.sender_id);
+      const narration = await narrateGame(actionDesc, resultMessage ?? feedback, summary, profile);
+      await pushReply(redis, event, narration, 2);
+    } catch (err) {
+      console.error("[agent-gateway] 情景叙述失败，静默降级:", err);
+    }
+  }
+}
+
+/**
+ * 机器人自动行动：逐个机器人像正常玩家一样播报（结果 + 局面 + 下一步指引 + 牌面页），
+ * 直到人类回合或终局。
+ */
+async function driveBots(
+  redis: Redis,
+  engine: GameEngineClient,
+  event: MessageGroupAt,
+  roomId: string,
+  openid: string,
+  boardUrl?: string,
+): Promise<void> {
+  for (let i = 0; i < 200; i++) {
     const st = parseJson<GameState>(await engine.getState(roomId), {});
     if (!st.room_id || st.status !== "active" || !st.data) break;
     const d = st.data;
@@ -991,11 +1088,27 @@ async function driveBots(
     const seat = (d.seats ?? []).find((s) => s.player_id === actor);
     if (!actor || !seat?.is_bot) break;
     const raw = await engine.botAction(roomId, actor);
-    if (raw.startsWith("错误")) break;
-    moves++;
+    if (raw.startsWith("错误")) {
+      console.error("[agent-gateway] bot_action 失败:", raw);
+      break;
+    }
+    const result = parseJson<ActionResult>(raw, {});
+    const { text, summary } = await buildTurnFeedback(
+      engine,
+      roomId,
+      `🤖 机器人 ${actor}：${result.message ?? ""}`,
+      openid,
+      boardUrl,
+    );
+    await pushGameFeedback(
+      redis,
+      event,
+      text,
+      `机器人 ${actor} ${result.message ?? ""}`,
+      result.message ?? raw,
+      summary,
+    );
   }
-  const summary = (await fetchStateSummary(engine, roomId)) ?? undefined;
-  return { moves, summary };
 }
 
 /**
@@ -1087,15 +1200,16 @@ async function handleGameCommand(
     }
     const startJson = await engine.executeAction(st.room_id, event.sender_id, "lobby:start");
     const result = parseJson<ActionResult>(startJson, {});
-    await pushReply(
-      redis,
-      event,
-      `🎲 单人局开始（你 + ${cmd.n} 个机器人）。\n${result.message ?? startJson}`,
+    const boardUrl = await makeBoardUrl(st.room_id, event.sender_id);
+    const fb = await buildTurnFeedback(
+      engine,
+      st.room_id,
+      `🎲 单人局开始（你 + ${cmd.n} 个机器人）。${result.message ?? ""}`,
+      event.sender_id,
+      boardUrl,
     );
-    const { moves, summary } = await driveBots(engine, st.room_id);
-    if (moves > 0) {
-      await pushReply(redis, event, `🤖 机器人行动 ${moves} 步。\n${summary ?? ""}`);
-    }
+    await pushGameFeedback(redis, event, fb.text, "单人局开始", result.message ?? startJson, fb.summary);
+    await driveBots(redis, engine, event, st.room_id, event.sender_id, boardUrl);
     return;
   }
 
@@ -1105,17 +1219,12 @@ async function handleGameCommand(
   }
 
   if (cmd.cmd === "board") {
-    let text = (await fetchStateSummary(engine, roomId)) ?? "（暂无局面摘要）";
-    if (PUBLIC_BASE_URL) {
-      try {
-        const issued = await authClient.issueToken(event.sender_id, `game:${roomId}`);
-        const gameId = active.game_id ?? LAS_VEGAS_GAME_ID;
-        text += `\n牌面页：${buildGameUrl(PUBLIC_BASE_URL, gameId, event.sender_id, issued.token)}`;
-      } catch (err) {
-        console.error("[agent-gateway] 签发游戏 token 失败:", (err as Error)?.message ?? err);
-      }
-    }
-    await pushReply(redis, event, text);
+    const boardUrl = await makeBoardUrl(roomId, event.sender_id);
+    const st = parseJson<GameState>(await engine.getState(roomId), {});
+    const guidance = await buildGuidance(engine, roomId, st, event.sender_id);
+    const summary = (await fetchStateSummary(engine, roomId)) ?? "（暂无局面摘要）";
+    const parts = [summary, guidance, boardUrl ? `📄 牌面页：${boardUrl}` : ""].filter(Boolean);
+    await pushReply(redis, event, parts.join("\n"));
     return;
   }
 
@@ -1133,14 +1242,17 @@ async function handleGameCommand(
     role: "assistant",
     content: result.message ?? resultJson,
   });
-  await pushReply(redis, event, result.message ?? resultJson);
-  if (result.finished) {
-    await pushReply(redis, event, (await fetchStateSummary(engine, roomId)) ?? "（本局结束）");
-  } else {
-    const { moves, summary } = await driveBots(engine, roomId);
-    if (moves > 0) {
-      await pushReply(redis, event, `🤖 机器人行动 ${moves} 步。\n${summary ?? ""}`);
-    }
+  const boardUrl = await makeBoardUrl(roomId, event.sender_id);
+  const fb = await buildTurnFeedback(
+    engine,
+    roomId,
+    result.message ?? resultJson,
+    event.sender_id,
+    boardUrl,
+  );
+  await pushGameFeedback(redis, event, fb.text, `玩家动作 ${action}`, result.message ?? resultJson, fb.summary);
+  if (!result.finished) {
+    await driveBots(redis, engine, event, roomId, event.sender_id, boardUrl);
   }
 }
 
