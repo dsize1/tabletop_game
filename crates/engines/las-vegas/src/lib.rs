@@ -935,8 +935,26 @@ impl EnginePlugin for LasVegasEngine {
                         format!("{}号{}骰{}", i + 1, st.casinos[i].dice.values().sum::<u32>(), tag)
                     })
                     .collect();
+                // 展示本轮掷骰结果（先掷后选）：人类/主持人都能看到具体点数与颗数。
+                let roll = if st.roll.small.is_empty() && st.roll.big.is_none() {
+                    "（尚未掷骰）".to_string()
+                } else {
+                    let small = st
+                        .roll
+                        .small
+                        .iter()
+                        .map(|d| d.to_string())
+                        .collect::<Vec<_>>()
+                        .join(",");
+                    let big = st
+                        .roll
+                        .big
+                        .map(|b| b.to_string())
+                        .unwrap_or_else(|| "-".to_string());
+                    format!("掷出 小[{small}] 大{big}；")
+                };
                 format!(
-                    "拉斯维加斯 第 {}/{} 轮，等待 {} 下注；赌场骰数 [{}]",
+                    "拉斯维加斯 第 {}/{} 轮，等待 {} 下注；{roll}赌场骰数 [{}]",
                     st.round,
                     ROUNDS,
                     cur,
@@ -1188,6 +1206,51 @@ mod tests {
         assert_eq!(d.sg.pending.as_ref().unwrap().actor, "h", "应由真人操作");
         assert_eq!(d.seats[d.turn].player_id, "h", "回合不应推进");
         assert!(!out.finished);
+    }
+
+    #[test]
+    fn place_only_allows_rolled_points() {
+        let engine = LasVegasEngine;
+        let casinos: Vec<Casino> = (0..CASINOS).map(|_| Casino::empty()).collect();
+        let mut h = Seat::new("h".into());
+        h.small_remaining = 3; // 与 roll 的 3 颗一致
+        let st = LasVegasState {
+            schema_version: SCHEMA_VERSION,
+            phase: Phase::TurnRoll,
+            host: "h".into(),
+            round: 1,
+            start_player: Some("h".into()),
+            turn: 0,
+            seats: vec![h, Seat::new("bot1".into())],
+            roll: Roll {
+                small: vec![1, 1, 3],
+                big: None,
+            },
+            casinos,
+            small_game_count: 3,
+            sg: SgState::default(),
+            scores: BTreeMap::new(),
+            winners: Vec::new(),
+        };
+        let gs = GameState {
+            game_id: "las-vegas".into(),
+            room_id: "r".into(),
+            group_id: "g".into(),
+            status: GameStatus::Active,
+            players: vec!["h".into(), "bot1".into()],
+            data: serde_json::to_value(&st).unwrap(),
+        };
+        let mut rng = SeededRng::new(1);
+        // 未掷出的点数不可下注
+        assert!(matches!(
+            engine.execute_action(&gs, "h", "place:2", &mut rng),
+            Err(EngineError::IllegalAction(_))
+        ));
+        // 已掷出的 1 点：2 颗全部放入 1 号赌场
+        let out = engine.execute_action(&gs, "h", "place:1", &mut rng).unwrap();
+        let d: LasVegasState = serde_json::from_value(out.state.data.clone()).unwrap();
+        assert_eq!(d.casinos[0].dice.get("h").copied(), Some(2));
+        assert_eq!(d.seats[0].small_remaining, 1, "未放置的 3 点留在手中");
     }
 
     #[test]
