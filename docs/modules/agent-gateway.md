@@ -54,9 +54,10 @@
 | `#放 <1~6>`（也支持 `#放3`） | `place:<n>` | 当前玩家 |
 | `#重投` / `#弃` | `reroll` | 当前玩家、筹码 ≥ 1 |
 | `#加机器人 [n]` | `lobby:add_bot` × n | 房主（lobby） |
-| `#单人 [n]`（默认 3 个机器人） | create + add_bot×n + start | 群内无 Active |
+| `#单人 [n] [小游戏列表]`（默认 3 机器人） | create + `set_small_games` + add_bot×n + start | 群内无 Active |
 | `#指定小游戏 H1,G1,F1`（或 `#小游戏池 …`） | `lobby:set_small_games:<csv>`（仅第 1 轮） | 房主（lobby） |
-| `#小游戏#<id>` / `#规则 <id>`（大小写不敏感） | `get_small_game_rules` | 任意 |
+| `#选 <N>` | 按当前合法动作列表第 N 项**确定性**选择（与提示编号一致） | 有该动作的玩家 |
+| `#小游戏#<id>` / `#规则 <id>`（大小写不敏感，非法编号报错不落闲聊） | `get_small_game_rules` | 任意 |
 | `#动作 <id>` | `execute_action("sg:<id>")`（小游戏动作 >26 时的兑底） | pending.actor |
 | `#局面` / `#牌面` | `state_summary`（+ 牌面短链） | 任意 |
 

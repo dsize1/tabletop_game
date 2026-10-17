@@ -145,7 +145,14 @@ interface GameState {
     small_game_count?: number;
     winners?: string[];
     scores?: Record<string, number>;
-    sg?: { pending?: { actor?: string; game?: string } };
+    sg?: {
+      pending?: {
+        actor?: string;
+        game?: string;
+        stage?: string;
+        data?: { winner?: string; total?: number; group?: number };
+      };
+    };
     roll?: { small?: number[]; big?: number | null };
   };
 }
@@ -1126,16 +1133,30 @@ async function buildGuidance(
     return `轮到 ${actor} 行动…`;
   }
   const legal = parseJson<LegalAction[]>(await engine.getLegalActions(roomId, actor), []);
-  const descs = Array.isArray(legal) ? legal.slice(0, 10).map((a) => a.description) : [];
+  const descs = Array.isArray(legal) ? legal.slice(0, 12).map((a) => a.description) : [];
   const who = actor === openid ? "轮到你" : `轮到 ${actor}`;
   const phaseTag = d.phase === "small_game" ? "处理小游戏" : "下注";
   const rollText = phaseTag === "下注" ? formatRoll(d.roll) : "";
   const rollPrefix = rollText ? `｜掷出 ${rollText}` : "";
-  const sgId = d.phase === "small_game" ? d.sg?.pending?.game : undefined;
+  const sg = d.phase === "small_game" ? d.sg?.pending : undefined;
+  const sgId = sg?.game;
   const ruleHint = sgId ? `\n📖 规则：#小游戏#${sgId.toLowerCase()}` : "";
+  // 两段式/多人分工说明（避免玩家不清楚自己为什么被点名）
+  let sgNote = "";
+  if (sgId === "G1" && sg?.stage === "split") {
+    sgNote = `（你是左手玩家：请把 6 个摸彩标记分成两堆；分完后由赢家 ${sg.data?.winner ?? "?"} 选堆）`;
+  } else if (sgId === "G1" && sg?.stage === "pick") {
+    sgNote = "（你是赢家：请选一堆领取）";
+  } else if (sgId === "F1" && sg?.stage === "group") {
+    sgNote = "（第一步：选一组灰骰）";
+  } else if (sgId === "F1" && sg?.stage === "casino") {
+    sgNote = "（第二步：选放入哪个赌场）";
+  }
   return descs.length
-    ? `🎯 ${who}${phaseTag}${rollPrefix}，可用动作：\n${descs.map((x, i) => `${i + 1}) ${x}`).join("\n")}${ruleHint}`
-    : `🎯 ${who}${phaseTag}${rollPrefix}${ruleHint}`;
+    ? `🎯 ${who}${phaseTag}${rollPrefix}，可用动作：\n${sgNote ? sgNote + "\n" : ""}${descs
+        .map((x, i) => `${i + 1}) ${x}`)
+        .join("\n")}${ruleHint}`
+    : `🎯 ${who}${phaseTag}${rollPrefix}${sgNote ? "\n" + sgNote : ""}${ruleHint}`;
 }
 
 /** 构造一次动作后的完整反馈：结果 + 局面 + 下一步指引 + 牌面页。 */
@@ -1331,6 +1352,17 @@ async function handleGameCommand(
       await pushReply(redis, event, stateJson);
       return;
     }
+    if (cmd.ids) {
+      const raw = await engine.executeAction(
+        st.room_id,
+        event.sender_id,
+        `lobby:set_small_games:${cmd.ids}`,
+      );
+      if (raw.startsWith("错误")) {
+        await pushReply(redis, event, raw);
+        return;
+      }
+    }
     for (let i = 0; i < cmd.n; i++) {
       const raw = await engine.executeAction(st.room_id, event.sender_id, "lobby:add_bot");
       if (raw.startsWith("错误")) break;
@@ -1380,7 +1412,22 @@ async function handleGameCommand(
     return;
   }
 
-  const action = gameActionId(cmd);
+  let action: string | null;
+  if (cmd.cmd === "pick") {
+    // `#选 <N>`：按当前合法动作列表的第 N 项确定性选择（与提示里的编号一致）。
+    const legal = parseJson<LegalAction[]>(await engine.getLegalActions(roomId, event.sender_id), []);
+    if (!Array.isArray(legal) || legal.length === 0) {
+      await pushReply(redis, event, "现在没有可选动作。发「#局面」查看。");
+      return;
+    }
+    if (cmd.n < 1 || cmd.n > legal.length) {
+      await pushReply(redis, event, `编号超出范围（当前 1–${legal.length}）。`);
+      return;
+    }
+    action = legal[cmd.n - 1].id;
+  } else {
+    action = gameActionId(cmd);
+  }
   if (!action) {
     await pushReply(redis, event, GAME_ACTION_HINT);
     return;

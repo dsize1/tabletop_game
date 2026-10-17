@@ -24,7 +24,8 @@ export type GameCommand =
   | { cmd: "place"; point: number }
   | { cmd: "reroll" }
   | { cmd: "addbot"; n: number }
-  | { cmd: "solo"; n: number }
+  | { cmd: "solo"; n: number; ids?: string }
+  | { cmd: "pick"; n: number }
   | { cmd: "sg"; id: string }
   | { cmd: "sgrule"; id: string }
   | { cmd: "setsg"; ids: string }
@@ -49,6 +50,8 @@ const COMMAND_WORDS: Record<string, GameCommand["cmd"]> = {
   单机: "solo",
   动作: "sg",
   sg: "sg",
+  选: "pick",
+  选项: "pick",
   规则: "sgrule",
   指定小游戏: "setsg",
   小游戏池: "setsg",
@@ -63,8 +66,8 @@ const COMMAND_WORDS: Record<string, GameCommand["cmd"]> = {
 export function parseGameCommand(content: string): GameCommand | null {
   const trimmed = content.trim();
 
-  // 优先：`#小游戏#f1`（大小写不敏感），避免被数字后缀规则拆成 `小游戏#f` + `1`。
-  const rule = trimmed.match(/^#小游戏[#＃]\s*([A-Za-z]\d?)$/);
+  // 优先：`#小游戏#f1`（大小写不敏感）；非法编号也交给规则查询报错（不落闲聊）。
+  const rule = trimmed.match(/^#小游戏[#＃]\s*(\S+)$/);
   if (rule) return { cmd: "sgrule", id: rule[1] };
 
   let word: string | undefined;
@@ -102,8 +105,24 @@ export function parseGameCommand(content: string): GameCommand | null {
       return Number.isInteger(n) && n >= 1 && n <= 5 ? { cmd, n } : null;
     }
     case "solo": {
-      const n = arg ? Number(arg) : 3;
-      return Number.isInteger(n) && n >= 1 && n <= 5 ? { cmd, n } : null;
+      // #单人 [机器人数] [小游戏列表]（如 #单人 3 H1,G1,F1 / #单人 H1,G1,F1）
+      const toks = arg.split(/\s+/).filter(Boolean);
+      let n = 3;
+      let ids: string | undefined;
+      if (toks.length > 0) {
+        if (/^\d+$/.test(toks[0])) {
+          n = Number(toks[0]);
+          ids = toks.slice(1).join(" ").trim() || undefined;
+        } else {
+          ids = toks.join(" ");
+        }
+      }
+      if (!Number.isInteger(n) || n < 1 || n > 5) return null;
+      return ids ? { cmd, n, ids } : { cmd, n };
+    }
+    case "pick": {
+      const n = Number(arg);
+      return Number.isInteger(n) && n >= 1 ? { cmd, n } : null;
     }
     case "sg":
       return arg ? { cmd, id: arg } : null;

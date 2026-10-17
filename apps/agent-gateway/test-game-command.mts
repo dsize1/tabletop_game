@@ -32,6 +32,13 @@ assert.deepEqual(parseGameCommand("#加机器人 2"), { cmd: "addbot", n: 2 });
 assert.deepEqual(parseGameCommand("#机器人 3"), { cmd: "addbot", n: 3 });
 assert.deepEqual(parseGameCommand("#单人"), { cmd: "solo", n: 3 });
 assert.deepEqual(parseGameCommand("#单人 2"), { cmd: "solo", n: 2 });
+// 单人开局直接指定小游戏（调试用）
+assert.deepEqual(parseGameCommand("#单人 H1,G1,F1"), { cmd: "solo", n: 3, ids: "H1,G1,F1" });
+assert.deepEqual(parseGameCommand("#单人 2 H1,G1,F1"), { cmd: "solo", n: 2, ids: "H1,G1,F1" });
+// 按列表编号确定性选择
+assert.deepEqual(parseGameCommand("#选 3"), { cmd: "pick", n: 3 });
+// 非法小游戏编号也走规则查询（不落闲聊）
+assert.deepEqual(parseGameCommand("#小游戏#1"), { cmd: "sgrule", id: "1" });
 // 通用小游戏动作兜底
 assert.deepEqual(parseGameCommand("#动作 F1:move:0:3"), { cmd: "sg", id: "F1:move:0:3" });
 // 小游戏规则查询（大小写不敏感）
@@ -40,6 +47,7 @@ assert.deepEqual(parseGameCommand("#小游戏#F1"), { cmd: "sgrule", id: "F1" })
 assert.deepEqual(parseGameCommand("#规则 f2"), { cmd: "sgrule", id: "f2" });
 // 指定开局小游戏
 assert.deepEqual(parseGameCommand("#指定小游戏 H1,G1,F1"), { cmd: "setsg", ids: "H1,G1,F1" });
+assert.equal(gameActionId({ cmd: "pick", n: 3 }), null);
 assert.equal(gameActionId({ cmd: "setsg", ids: "H1,G1,F1" }), "lobby:set_small_games:H1,G1,F1");
 assert.deepEqual(parseGameCommand("#小游戏 4"), { cmd: "smallgames", n: 4 });
 assert.deepEqual(parseGameCommand("#sg sg:A1:guess:5"), { cmd: "sg", id: "sg:A1:guess:5" });
