@@ -50,7 +50,7 @@
 | `sg:A1:guess:{1..6}` | pending（左手玩家） | 幸运之拳：猜标记数 |
 | `sg:B2:guess:{high\|low}` | pending（触发者） | 50% 的机会：猜大小 |
 | `sg:E1:ban:{casino}` / `sg:E1:pass` | pending（触发者） | 禁止进入：改禁止标记（改则箭头移动得奖） |
-| `sg:F1:move:{group}:{casino}` | pending（触发者） | 阻止他：把某组灰骰放入赌场 |
+| `sg:F1:group:{g}` → `sg:F1:move:{g}:{c}` | pending（触发者，**两轮**） | 阻止他：先选组、再选赌场（避免 5×6 共 30 选项） |
 | `sg:F2:take:{casino}:{chip\|money}` / `sg:F2:pass` | pending（触发者） | 危机就是转机：取灰骰换奖/放弃 |
 | `sg:G1:split:{0..total}` → `sg:G1:pick:{0\|1}` | pending（左手分堆 → 赢家选） | 黑色摸彩箱：二选一 |
 | `sg:H2:choose:{1..6}` | pending（触发者） | 我的抉择：选黑骰点数 |

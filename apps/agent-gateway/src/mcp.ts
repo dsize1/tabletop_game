@@ -63,6 +63,11 @@ export class GameEngineClient {
     return this.call("bot_action", { room_id: roomId, player_id: playerId });
   }
 
+  /** 查询小游戏规则（A1–H2，大小写不敏感）。 */
+  async getSmallGameRules(smallGameId: string): Promise<string> {
+    return this.call("get_small_game_rules", { small_game_id: smallGameId });
+  }
+
   async executeAction(roomId: string, playerId: string, action: string): Promise<string> {
     return this.call("execute_action", { room_id: roomId, player_id: playerId, action });
   }

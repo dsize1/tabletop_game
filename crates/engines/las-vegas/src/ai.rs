@@ -73,7 +73,8 @@ pub fn score_action(st: &LasVegasState, player: &str, id: &str) -> f64 {
     if id.starts_with("sg:E1:ban:") {
         return 2.0;
     }
-    if id.starts_with("sg:F1:move:") {
+    if id.starts_with("sg:F1:") {
+        // 两轮：group / move 均给中性正分，保证持续推进
         return 2.0;
     }
     if id.starts_with("sg:F2:take:") {

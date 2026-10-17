@@ -26,6 +26,7 @@ export type GameCommand =
   | { cmd: "addbot"; n: number }
   | { cmd: "solo"; n: number }
   | { cmd: "sg"; id: string }
+  | { cmd: "sgrule"; id: string }
   | { cmd: "board" };
 
 const COMMAND_WORDS: Record<string, GameCommand["cmd"]> = {
@@ -47,6 +48,7 @@ const COMMAND_WORDS: Record<string, GameCommand["cmd"]> = {
   单机: "solo",
   动作: "sg",
   sg: "sg",
+  规则: "sgrule",
   局面: "board",
   牌面: "board",
 };
@@ -57,6 +59,11 @@ const COMMAND_WORDS: Record<string, GameCommand["cmd"]> = {
  */
 export function parseGameCommand(content: string): GameCommand | null {
   const trimmed = content.trim();
+
+  // 优先：`#小游戏#f1`（大小写不敏感），避免被数字后缀规则拆成 `小游戏#f` + `1`。
+  const rule = trimmed.match(/^#小游戏[#＃]\s*([A-Za-z]\d?)$/);
+  if (rule) return { cmd: "sgrule", id: rule[1] };
+
   let word: string | undefined;
   let arg = "";
 
@@ -96,6 +103,8 @@ export function parseGameCommand(content: string): GameCommand | null {
       return Number.isInteger(n) && n >= 1 && n <= 5 ? { cmd, n } : null;
     }
     case "sg":
+      return arg ? { cmd, id: arg } : null;
+    case "sgrule":
       return arg ? { cmd, id: arg } : null;
     default:
       return { cmd };

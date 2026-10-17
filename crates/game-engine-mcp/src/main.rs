@@ -58,6 +58,11 @@ struct LegalActionsRequest {
 }
 
 #[derive(Debug, serde::Deserialize, rmcp::schemars::JsonSchema)]
+struct SmallGameRuleRequest {
+    small_game_id: String,
+}
+
+#[derive(Debug, serde::Deserialize, rmcp::schemars::JsonSchema)]
 struct ExecuteActionRequest {
     room_id: String,
     player_id: String,
@@ -110,6 +115,18 @@ impl EngineServer {
 
 #[tool_router(router = tool_router)]
 impl EngineServer {
+    #[tool(
+        name = "get_small_game_rules",
+        description = "查询拉斯维加斯小游戏规则（A1–H2，大小写不敏感）"
+    )]
+    async fn get_small_game_rules(&self, Parameters(p): Parameters<SmallGameRuleRequest>) -> String {
+        let id = p.small_game_id.trim().to_ascii_uppercase();
+        match las_vegas::sg::rule_text(&id) {
+            Some(t) => format!("{id}：{t}"),
+            None => format!("错误: 未知小游戏 {}（可用 A1–H2）", p.small_game_id),
+        }
+    }
+
     #[tool(name = "get_rules", description = "获取指定游戏的规则说明")]
     async fn get_rules(&self, Parameters(p): Parameters<GameIdRequest>) -> String {
         match self.manager.registry().get(&p.game_id) {

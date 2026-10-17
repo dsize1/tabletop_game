@@ -1254,6 +1254,64 @@ mod tests {
     }
 
     #[test]
+    fn f1_two_step_group_then_casino() {
+        let engine = LasVegasEngine;
+        let mut casinos: Vec<Casino> = (0..CASINOS).map(|_| Casino::empty()).collect();
+        casinos[0].small_games.push("F1".into());
+        let mut h = Seat::new("h".into());
+        h.small_remaining = 1;
+        let st = LasVegasState {
+            schema_version: SCHEMA_VERSION,
+            phase: Phase::TurnRoll,
+            host: "h".into(),
+            round: 1,
+            start_player: Some("h".into()),
+            turn: 0,
+            seats: vec![h, Seat::new("bot1".into())],
+            roll: Roll { small: vec![1], big: None },
+            casinos,
+            small_game_count: 3,
+            sg: SgState { gray_groups: sg::F1_GROUPS.to_vec(), ..Default::default() },
+            scores: BTreeMap::new(),
+            winners: Vec::new(),
+        };
+        let gs = GameState {
+            game_id: "las-vegas".into(),
+            room_id: "r".into(),
+            group_id: "g".into(),
+            status: GameStatus::Active,
+            players: vec!["h".into(), "bot1".into()],
+            data: serde_json::to_value(&st).unwrap(),
+        };
+        let mut rng = SeededRng::new(1);
+        let out = engine.execute_action(&gs, "h", "place:1", &mut rng).unwrap();
+        let d: LasVegasState = serde_json::from_value(out.state.data.clone()).unwrap();
+        assert_eq!(d.phase, Phase::SmallGame);
+        assert_eq!(d.sg.pending.as_ref().unwrap().game, "F1");
+        assert_eq!(d.sg.pending.as_ref().unwrap().stage, "group");
+        // 第一轮：只返回「选组」
+        let acts = engine.legal_actions(&out.state, "h");
+        assert!(acts.iter().all(|a| a.id.starts_with("sg:F1:group:")));
+        assert_eq!(acts.len(), 5);
+        let step1 = engine
+            .execute_action(&out.state, "h", "sg:F1:group:0", &mut rng)
+            .unwrap();
+        let d1: LasVegasState = serde_json::from_value(step1.state.data.clone()).unwrap();
+        assert_eq!(d1.sg.pending.as_ref().unwrap().stage, "casino");
+        // 第二轮：只返回「选赌场」
+        let acts2 = engine.legal_actions(&step1.state, "h");
+        assert!(acts2.iter().all(|a| a.id.starts_with("sg:F1:move:0:")));
+        assert_eq!(acts2.len(), CASINOS);
+        let step2 = engine
+            .execute_action(&step1.state, "h", "sg:F1:move:0:3", &mut rng)
+            .unwrap();
+        let d2: LasVegasState = serde_json::from_value(step2.state.data.clone()).unwrap();
+        assert!(d2.sg.pending.is_none());
+        assert_eq!(d2.casinos[2].dice.get("gray").copied(), Some(sg::F1_GROUPS[0]));
+        assert_eq!(d2.sg.gray_groups[0], 0);
+    }
+
+    #[test]
     fn duplicate_create_rejected() {
         let mgr = manager(4);
         new_lobby(&mgr, "host");

@@ -34,6 +34,11 @@ assert.deepEqual(parseGameCommand("#单人"), { cmd: "solo", n: 3 });
 assert.deepEqual(parseGameCommand("#单人 2"), { cmd: "solo", n: 2 });
 // 通用小游戏动作兜底
 assert.deepEqual(parseGameCommand("#动作 F1:move:0:3"), { cmd: "sg", id: "F1:move:0:3" });
+// 小游戏规则查询（大小写不敏感）
+assert.deepEqual(parseGameCommand("#小游戏#f1"), { cmd: "sgrule", id: "f1" });
+assert.deepEqual(parseGameCommand("#小游戏#F1"), { cmd: "sgrule", id: "F1" });
+assert.deepEqual(parseGameCommand("#规则 f2"), { cmd: "sgrule", id: "f2" });
+assert.deepEqual(parseGameCommand("#小游戏 4"), { cmd: "smallgames", n: 4 });
 assert.deepEqual(parseGameCommand("#sg sg:A1:guess:5"), { cmd: "sg", id: "sg:A1:guess:5" });
 assert.equal(parseGameCommand("#单人 9"), null);
 

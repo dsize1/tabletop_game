@@ -55,6 +55,8 @@
 | `#重投` / `#弃` | `reroll` | 当前玩家、筹码 ≥ 1 |
 | `#加机器人 [n]` | `lobby:add_bot` × n | 房主（lobby） |
 | `#单人 [n]`（默认 3 个机器人） | create + add_bot×n + start | 群内无 Active |
+| `#小游戏#<id>` / `#规则 <id>`（大小写不敏感） | `get_small_game_rules` | 任意 |
+| `#动作 <id>` | `execute_action("sg:<id>")`（小游戏动作 >26 时的兑底） | pending.actor |
 | `#局面` / `#牌面` | `state_summary`（+ 牌面短链） | 任意 |
 
 - **机器人补位（一个人也能测）**：`#单人` 一键创建 1 人 + N 机器人并开赛；`#加机器人` 手动补位。机器人由引擎内置启发式 AI 驱动——agent-gateway 在人类动作后循环调 MCP `bot_action`（含小游戏交互）直到人类回合/终局，并通过 `state.seats[].is_bot` 判定。

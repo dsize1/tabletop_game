@@ -309,7 +309,8 @@ pub(crate) fn trigger_interactive(
                         game: "F1".into(),
                         casino,
                         actor: player.to_string(),
-                        stage: "move".into(),
+                        // 两轮交互：先选组（group），再选赌场（casino）
+                        stage: "group".into(),
                         data: json!({}),
                     })
                 } else {
@@ -425,18 +426,27 @@ pub(crate) fn legal_for_pending(st: &LasVegasState, player: &str) -> Vec<Action>
             v
         }
         "F1" => {
-            let mut v = vec![];
-            for (g, cnt) in st.sg.gray_groups.iter().enumerate() {
-                if *cnt > 0 {
-                    for c in 1..=CASINOS {
-                        v.push(Action {
-                            id: format!("sg:F1:move:{g}:{c}"),
-                            description: format!("把第 {} 组 {cnt} 颗灰骰放到 {c} 号赌场", g + 1),
-                        });
-                    }
-                }
+            if p.stage == "group" {
+                st.sg
+                    .gray_groups
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, c)| **c > 0)
+                    .map(|(g, c)| Action {
+                        id: format!("sg:F1:group:{g}"),
+                        description: format!("选第 {} 组（{c} 颗灰骰）", g + 1),
+                    })
+                    .collect()
+            } else {
+                let g = p.data.get("group").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+                let cnt = st.sg.gray_groups.get(g).copied().unwrap_or(0);
+                (1..=CASINOS)
+                    .map(|c| Action {
+                        id: format!("sg:F1:move:{g}:{c}"),
+                        description: format!("把第 {} 组的 {cnt} 颗灰骰放到 {c} 号赌场", g + 1),
+                    })
+                    .collect()
             }
-            v
         }
         "F2" => {
             let mut v = vec![];
@@ -548,6 +558,30 @@ pub(crate) fn resolve(
             }
         }
         "F1" => {
+            // 第一轮：选组 → 进入第二轮（选赌场）
+            if let Some(gstr) = rest.strip_prefix("F1:group:") {
+                let g: usize = gstr
+                    .parse()
+                    .map_err(|_| EngineError::IllegalAction("F1 组号错误".into()))?;
+                if g >= st.sg.gray_groups.len() || st.sg.gray_groups[g] == 0 {
+                    return Err(EngineError::IllegalAction("该组灰骰不存在或已空".into()));
+                }
+                let mut data = p.data.clone();
+                data["group"] = json!(g);
+                st.sg.pending = Some(SgPending {
+                    game: "F1".into(),
+                    casino: p.casino,
+                    actor: p.actor.clone(),
+                    stage: "casino".into(),
+                    data,
+                });
+                let cnt = st.sg.gray_groups[g];
+                return Ok((
+                    false,
+                    events,
+                    format!("已选第 {} 组（{cnt} 颗），请选择要放入的赌场", g + 1),
+                ));
+            }
             let parts: Vec<&str> = rest.trim_start_matches("F1:move:").split(':').collect();
             let g: usize = parts.first().and_then(|s| s.parse().ok()).unwrap_or(usize::MAX);
             let c: usize = parts.get(1).and_then(|s| s.parse().ok()).unwrap_or(0);
@@ -930,6 +964,30 @@ pub(crate) fn pay_assets(st: &mut LasVegasState, player: &str, amount: i64) -> i
     amount - owed
 }
 
+/// 小游戏规则文本（A1–H2，大小写不敏感）。
+pub fn rule_text(id: &str) -> Option<&'static str> {
+    let id = id.trim().to_ascii_uppercase();
+    Some(match id.as_str() {
+        "A1" => "幸运之拳：下注后，你左边的玩家猜你手中标记数；猜错你按标记数得奖励，猜对无奖励。",
+        "A2" => "大奖挑战：投 2 黑骰，和为 7 或点数相同 → 领指示物奖励并回位；否则指示物前进一格。",
+        "B1" => "主场时间：每轮分配钞票前，将获该场最大面额者投 2 黑骰，按点数加骰后再结算。",
+        "B2" => "50% 的机会：投 2 黑骰猜高于/低于上次结果；猜对得奖，猜错无奖励。",
+        "C1" => "掌声响起：在该场放第 5 颗骰子者得大奖标记，结算时兑换 $10 万。",
+        "C2" => "厄运降临：结算移除平手前，该场骰子最少者（含 0 颗）付 $5 万，不足付全部资产。",
+        "D1" => "发薪愉快：下注后按你有骰子的赌场数：1→1 筹码、2→2 筹码、≥3→数量×$1 万钞票。",
+        "D2" => "权力优势：该场骰数最多者得特权标记；可跳过投掷，放 1 颗指定点数骰。",
+        "E1" => "禁止进入：下注后可改禁止标记（除当前场）并移动箭头得奖；被禁场不能放入/拿回骰子。",
+        "E2" => "醉倒了吗：其他玩家各放 1 颗入手骰进酒吧（每人上限 2），你可收回自己酒吧骰。",
+        "F1" => "阻止他：设置阶段放灰骰（5 组）；下注后先选 1 组、再选赌场放入；灰骰作为虚拟玩家参与排名。",
+        "F2" => "危机就是转机：设置阶段 1–3 各 1、4–6 各 2 灰骰；下注后取 1 颗灰骰换奖励或放弃。",
+        "G1" => "黑色摸彩箱：赢得该场最大面额者，由左手玩家把 6 个摸彩标记分 2 堆，你二选一领奖。",
+        "G2" => "双倍颁奖：你的回合可把该场自己骰子移入游戏场（仅一次）；结算最多者 $6 万、第二 $3 万。",
+        "H1" => "好骰难求：投掷/下注后移 1 颗骰到对应格；结算按格位得奖励。",
+        "H2" => "我的抉择：下注后投 2 黑骰选 1 颗：1/2→筹码、3→$3 万、4→触发其他小游戏、5→放/收 1 颗、6→金框 $6 万。",
+        _ => return None,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1020,6 +1078,15 @@ mod tests {
         assert_eq!(p2.banknotes, vec![30_000]); // 50k note 支付 50k? 支付 20k 后剩余？
         // h 有骰子（非最少）不付
         assert_eq!(st.seats[0].chips, crate::INITIAL_CHIPS);
+    }
+
+    #[test]
+    fn rule_text_case_insensitive() {
+        assert!(rule_text("f1").is_some());
+        assert!(rule_text("F1").is_some());
+        assert_eq!(rule_text("f1"), rule_text("F1"));
+        assert!(rule_text("H2").unwrap().contains("金框"));
+        assert!(rule_text("Z9").is_none());
     }
 
     #[test]

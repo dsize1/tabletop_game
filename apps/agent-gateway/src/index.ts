@@ -145,7 +145,7 @@ interface GameState {
     small_game_count?: number;
     winners?: string[];
     scores?: Record<string, number>;
-    sg?: { pending?: { actor?: string } };
+    sg?: { pending?: { actor?: string; game?: string } };
     roll?: { small?: number[]; big?: number | null };
   };
 }
@@ -1131,9 +1131,11 @@ async function buildGuidance(
   const phaseTag = d.phase === "small_game" ? "处理小游戏" : "下注";
   const rollText = phaseTag === "下注" ? formatRoll(d.roll) : "";
   const rollPrefix = rollText ? `｜掷出 ${rollText}` : "";
+  const sgId = d.phase === "small_game" ? d.sg?.pending?.game : undefined;
+  const ruleHint = sgId ? `\n📖 规则：#小游戏#${sgId.toLowerCase()}` : "";
   return descs.length
-    ? `🎯 ${who}${phaseTag}${rollPrefix}，可用动作：\n${descs.map((x, i) => `${i + 1}) ${x}`).join("\n")}`
-    : `🎯 ${who}${phaseTag}${rollPrefix}`;
+    ? `🎯 ${who}${phaseTag}${rollPrefix}，可用动作：\n${descs.map((x, i) => `${i + 1}) ${x}`).join("\n")}${ruleHint}`
+    : `🎯 ${who}${phaseTag}${rollPrefix}${ruleHint}`;
 }
 
 /** 构造一次动作后的完整反馈：结果 + 局面 + 下一步指引 + 牌面页。 */
@@ -1354,6 +1356,11 @@ async function handleGameCommand(
       names,
     );
     await driveBots(redis, engine, event, st.room_id, event.sender_id, boardUrl);
+    return;
+  }
+
+  if (cmd.cmd === "sgrule") {
+    await pushReply(redis, event, await engine.getSmallGameRules(cmd.id));
     return;
   }
 
