@@ -1312,6 +1312,53 @@ mod tests {
     }
 
     #[test]
+    fn h1_offers_post_bet_slot_move() {
+        let engine = LasVegasEngine;
+        let mut casinos: Vec<Casino> = (0..CASINOS).map(|_| Casino::empty()).collect();
+        casinos[0].small_games.push("H1".into());
+        let mut h = Seat::new("h".into());
+        h.small_remaining = 1;
+        let st = LasVegasState {
+            schema_version: SCHEMA_VERSION,
+            phase: Phase::TurnRoll,
+            host: "h".into(),
+            round: 1,
+            start_player: Some("h".into()),
+            turn: 0,
+            seats: vec![h, Seat::new("bot1".into())],
+            roll: Roll { small: vec![1], big: None },
+            casinos,
+            small_game_count: 3,
+            sg: SgState::default(),
+            scores: BTreeMap::new(),
+            winners: Vec::new(),
+        };
+        let gs = GameState {
+            game_id: "las-vegas".into(),
+            room_id: "r".into(),
+            group_id: "g".into(),
+            status: GameStatus::Active,
+            players: vec!["h".into(), "bot1".into()],
+            data: serde_json::to_value(&st).unwrap(),
+        };
+        let mut rng = SeededRng::new(1);
+        let out = engine.execute_action(&gs, "h", "place:1", &mut rng).unwrap();
+        let d: LasVegasState = serde_json::from_value(out.state.data.clone()).unwrap();
+        assert_eq!(d.phase, Phase::SmallGame, "下注后应提供 H1 可选交互");
+        assert_eq!(d.sg.pending.as_ref().unwrap().game, "H1");
+        let acts = engine.legal_actions(&out.state, "h");
+        assert!(acts.iter().any(|a| a.id == "sg:H1:skip"));
+        assert!(acts.iter().any(|a| a.id == "sg:H1:move:1"));
+        let res = engine
+            .execute_action(&out.state, "h", "sg:H1:move:3", &mut rng)
+            .unwrap();
+        let d2: LasVegasState = serde_json::from_value(res.state.data.clone()).unwrap();
+        assert!(d2.sg.pending.is_none());
+        assert_eq!(d2.sg.h1_slots[2], Some(("h".to_string(), 1)));
+        assert_eq!(d2.casinos[0].dice.get("h").copied(), None, "1 颗已移入格子");
+    }
+
+    #[test]
     fn duplicate_create_rejected() {
         let mgr = manager(4);
         new_lobby(&mgr, "host");

@@ -157,6 +157,23 @@ fn add_casino_dice(st: &mut LasVegasState, casino: usize, p: &str, w: u32) {
     *st.casinos[casino].dice.entry(p.to_string()).or_insert(0) += w;
 }
 
+/// H1：占用某格（格内他人骰子移到对应点数赌场）。
+fn h1_slot_put(st: &mut LasVegasState, player: &str, slot: usize) {
+    if st.sg.h1_slots.len() < 6 {
+        st.sg.h1_slots = vec![None; 6];
+    }
+    match st.sg.h1_slots[slot - 1].clone() {
+        Some((o, n)) if o == player => {
+            st.sg.h1_slots[slot - 1] = Some((o, n + 1));
+        }
+        Some((o, n)) => {
+            add_casino_dice(st, slot - 1, &o, n);
+            st.sg.h1_slots[slot - 1] = Some((player.to_string(), 1));
+        }
+        None => st.sg.h1_slots[slot - 1] = Some((player.to_string(), 1)),
+    }
+}
+
 /// D2 权力优势：某赌场唯一最多者持有特权标记；并列则回场。
 fn update_privilege(st: &mut LasVegasState, casino: usize) {
     if !st.casinos[casino].small_games.iter().any(|g| g == "D2") {
@@ -355,6 +372,21 @@ pub(crate) fn trigger_interactive(
                     data: json!({ "dice": [a, b] }),
                 })
             }
+            // H1 好骰难求：刚在该场下注后，可选择把 1 颗已下注骰移入格子（可选，可跳过）。
+            "H1" => {
+                let c = st.casinos[casino].dice.get(player).copied().unwrap_or(0);
+                if c > 0 {
+                    Some(SgPending {
+                        game: "H1".into(),
+                        casino,
+                        actor: player.to_string(),
+                        stage: "post_bet".into(),
+                        data: json!({}),
+                    })
+                } else {
+                    None
+                }
+            }
             _ => None,
         };
         if let Some(p) = pending {
@@ -481,6 +513,16 @@ pub(crate) fn legal_for_pending(st: &LasVegasState, player: &str) -> Vec<Action>
             dice.into_iter()
                 .map(|d| Action { id: format!("sg:H2:choose:{d}"), description: format!("选点数 {d}") })
                 .collect()
+        }
+        "H1" => {
+            let mut v: Vec<Action> = (1..=6)
+                .map(|slot| Action {
+                    id: format!("sg:H1:move:{slot}"),
+                    description: format!("移 1 颗已下注骰到 {slot} 号格"),
+                })
+                .collect();
+            v.push(Action { id: "sg:H1:skip".into(), description: "跳过好骰难求".into() });
+            v
         }
         _ => vec![],
     }
@@ -673,6 +715,34 @@ pub(crate) fn resolve(
             events.push(EngineEvent::new("small_game", json!({ "game": "H2", "choose": d })));
             Ok((true, events, msg))
         }
+        "H1" => {
+            if rest == "H1:skip" {
+                events.push(EngineEvent::new("small_game", json!({ "game": "H1", "player": player, "skip": true })));
+                return Ok((true, events, "跳过好骰难求".into()));
+            }
+            let slot: usize = rest
+                .strip_prefix("H1:move:")
+                .and_then(|s| s.parse().ok())
+                .ok_or_else(|| EngineError::IllegalAction("H1 参数错误".into()))?;
+            if !(1..=6).contains(&slot) {
+                return Err(EngineError::IllegalAction("H1 格位非法".into()));
+            }
+            let cnt = st.casinos[p.casino].dice.get(player).copied().unwrap_or(0);
+            if cnt == 0 {
+                return Err(EngineError::IllegalAction("该赌场没有你的骰子".into()));
+            }
+            if cnt == 1 {
+                st.casinos[p.casino].dice.remove(player);
+            } else if let Some(d) = st.casinos[p.casino].dice.get_mut(player) {
+                *d -= 1;
+            }
+            h1_slot_put(st, player, slot);
+            events.push(EngineEvent::new(
+                "small_game",
+                json!({ "game": "H1", "player": player, "slot": slot, "source": "bet" }),
+            ));
+            Ok((true, events, format!("移 1 颗已下注骰到 {slot} 号格")))
+        }
         _ => Err(EngineError::IllegalAction("未知小游戏交互".into())),
     }
 }
@@ -766,19 +836,7 @@ pub(crate) fn resolve_turn_sg(
             return Some(Err(EngineError::IllegalAction("没有可用骰子".into())));
         }
         seat.small_remaining -= 1;
-        if st.sg.h1_slots.len() < 6 {
-            st.sg.h1_slots = vec![None; 6];
-        }
-        match st.sg.h1_slots[slot - 1].clone() {
-            Some((o, n)) if o == player => {
-                st.sg.h1_slots[slot - 1] = Some((o, n + 1));
-            }
-            Some((o, n)) => {
-                add_casino_dice(st, slot - 1, &o, n);
-                st.sg.h1_slots[slot - 1] = Some((player.to_string(), 1));
-            }
-            None => st.sg.h1_slots[slot - 1] = Some((player.to_string(), 1)),
-        }
+        h1_slot_put(st, player, slot);
         events.push(EngineEvent::new("small_game", json!({ "game": "H1", "player": player, "slot": slot })));
         return Some(Ok((events, format!("移 1 颗骰到 {slot} 号格"), false)));
     }
