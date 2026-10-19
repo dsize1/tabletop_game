@@ -141,6 +141,41 @@ export function sgStateHtml(id: string, dat: GameData, names?: Record<string, st
   }
 }
 
+
+/**
+ * 加密选项区块（只在本人页出现；群聊里只发代码）。
+ * 版图态与文本态共用 —— 玩家默认落在版图，也必须能立刻看到自己的代码。
+ */
+export function renderSecretOptions(view: GameView): string {
+  const mine = (view.player?.data ?? {}) as GameData;
+  const opts = mine.sg?.pending_options;
+  const codes = opts?.options ?? [];
+  const multi = Boolean(opts?.multi);
+  if (!codes.length) return "";
+  return (
+    `<h3>🔐 你的加密选项${opts?.game ? `（${escapeHtml(opts.game)}）` : ""}</h3>` +
+    `<table><thead><tr><th>代码</th><th>含义</th>${multi ? "" : "<th>奖励</th>"}</tr></thead><tbody>` +
+    codes
+      .map((o) => {
+        const meaning =
+          o.count !== undefined
+            ? `藏 ${o.count} 颗标记`
+            : escapeHtml(o.label ?? "${" + String(o.value ?? 0) + "} 万");
+        const reward = o.reward !== undefined ? `<td>${escapeHtml(o.reward)}</td>` : "";
+        return `<tr><td><b>${escapeHtml(o.code)}</b></td><td>${meaning}</td>${reward}</tr>`;
+      })
+      .join("") +
+    `</tbody></table>` +
+    `<blockquote>${
+      multi
+        ? `把想放进 <b>A 堆</b> 的代码发到群里（<b>可多选</b>，逗号分隔），如：<code>#选 ${escapeHtml(
+            codes[0]?.code ?? "代码",
+          )}，${escapeHtml(codes[1]?.code ?? "代码")}</code>；未选的进 B 堆。`
+        : `把想用的<b>代码</b>发到群里即可（如：<code>#选 ${escapeHtml(codes[0]?.code ?? "代码")}</code>）。`
+    }代码 5 分钟内有效；过期或链接失效时，在群里发「#恢复」重新获取。</blockquote>`
+  );
+}
+
 /** 渲染拉斯维加斯文本态 body（公共视图 + 个人资源）。数据缺失时安全降级。 */
 export function renderGameTextBody(view: GameView): string {
   const d = view.public?.data ?? {};
@@ -208,32 +243,7 @@ export function renderGameTextBody(view: GameView): string {
       }),
     )
     .join("");
-  // 加密选项：只在本人页出现（群里只发代码）。
-  const opts = sgMine.pending_options;
-  const codes = opts?.options ?? [];
-  const multi = Boolean(opts?.multi);
-  const secretBox = codes.length
-    ? `<h3>🔐 你的加密选项${opts?.game ? `（${escapeHtml(opts.game)}）` : ""}</h3>` +
-      `<table><thead><tr><th>代码</th><th>含义</th>${multi ? "" : "<th>奖励</th>"}</tr></thead><tbody>` +
-      codes
-        .map((o) => {
-          const meaning =
-            o.count !== undefined
-              ? `藏 ${o.count} 颗标记`
-              : escapeHtml(o.label ?? "${" + String(o.value ?? 0) + "} 万");
-          const reward = o.reward !== undefined ? `<td>${escapeHtml(o.reward)}</td>` : "";
-          return `<tr><td><b>${escapeHtml(o.code)}</b></td><td>${meaning}</td>${reward}</tr>`;
-        })
-        .join("") +
-      `</tbody></table>` +
-      `<blockquote>${
-        multi
-          ? `把想放进 <b>A 堆</b> 的代码发到群里（<b>可多选</b>，逗号分隔），如：<code>#选 ${escapeHtml(
-              codes[0]?.code ?? "代码",
-            )}，${escapeHtml(codes[1]?.code ?? "代码")}</code>；未选的进 B 堆。`
-          : `把想用的<b>代码</b>发到群里即可（如：<code>#选 ${escapeHtml(codes[0]?.code ?? "代码")}</code>）。`
-      }代码 5 分钟内有效；过期或链接失效时，在群里发「#恢复」重新获取。</blockquote>`
-    : "";
+  const secretBox = renderSecretOptions(view);
 
   const smallGames = sgRows
     ? `<h3>小游戏状态</h3>` +

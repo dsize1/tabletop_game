@@ -7,7 +7,7 @@
 // - 轮询与切换由 `/assets/app.js` 接管（见 `src/client/main.ts`）。
 
 import type { GameView } from "./types.js";
-import { renderGameTextBody } from "./text.js";
+import { renderGameTextBody, renderSecretOptions } from "./text.js";
 import { buildBoardScene, phaseLabel } from "./board/scene.js";
 import { renderBoardSvg, renderPreloadLinks } from "./board/svg.js";
 import { escapeHtml } from "./format.js";
@@ -50,6 +50,8 @@ main[data-view="text"] #text-view { display: block; }
 .board-svg { width: 100%; max-width: 100%; height: auto; display: block; border-radius: 14px; background: #0b0f14; }
 .panel { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 14px 16px; }
 .panel h2 { font-size: 1.25em; margin: .2em 0 .5em; }
+.panel.secret { margin-top: 12px; border-color: #e3b341; }
+.panel.secret h3 { margin-top: .2em; }
 .panel h3 { font-size: 1.05em; margin: 1em 0 .4em; }
 .panel table { border-collapse: collapse; width: 100%; margin: .4em 0 1em; font-size: 14px; }
 .panel th, .panel td { border: 1px solid #30363d; padding: 6px 8px; text-align: left; vertical-align: top; }
@@ -78,6 +80,12 @@ export interface AppPageOpts {
   token: string;
   /** 初始模式（首屏 SSR 决定，默认 board）。 */
   mode?: "board" | "text";
+}
+
+/** 版图态下的加密选项区块（无选项时返回空串）。 */
+export function renderSecretPanel(view: GameView): string {
+  const html = renderSecretOptions(view);
+  return html ? `<div class="panel secret">${html}</div>` : "";
 }
 
 /** 渲染双模式游戏页（SSR 首屏 + bootstrap JSON + 客户端 bundle）。 */
@@ -121,7 +129,7 @@ ${renderPreloadLinks(scene)}
     <span class="grow" id="updated">—</span>
   </div>
   <main id="app" data-view="${mode}">
-    <section id="board-view" aria-label="版图">${renderBoardSvg(scene)}</section>
+    <section id="board-view" aria-label="版图">${renderBoardSvg(scene)}${renderSecretPanel(view)}</section>
     <section id="text-view" class="panel" aria-label="文本牌面">${renderGameTextBody(view)}</section>
   </main>
 </div>

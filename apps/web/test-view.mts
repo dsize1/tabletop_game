@@ -194,6 +194,9 @@ const page = renderAppPage(view, { gameId: "las-vegas", token: "tok-1", mode: "b
 assert.ok(page.includes('data-view="board"'), "默认版图");
 assert.ok(page.includes('id="board-view"') && page.includes('id="text-view"'), "两种视图都在首屏");
 assert.ok(page.includes("F1") && page.includes("K7Q2"), "首屏同时含版图与文本内容");
+// 版图态也要能看到自己的加密代码（默认落在版图，不能只藏在文本态）
+assert.ok(page.includes('class="panel secret"'), "版图态应包含加密选项区块");
+assert.ok(page.includes("你的加密选项"), "加密选项标题出现在版图态");
 assert.ok(page.includes('data-mode="text"'), "有切换按钮");
 assert.ok(page.includes('id="bootstrap"'), "有 bootstrap JSON");
 assert.ok(page.includes("/assets/app.js"), "引用客户端 bundle");

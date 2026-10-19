@@ -5,7 +5,7 @@
 
 import { buildBoardScene, phaseLabel } from "../view/board/scene.js";
 import { renderBoardSvg } from "../view/board/svg.js";
-import { renderGameTextBody } from "../view/text.js";
+import { renderGameTextBody, renderSecretOptions } from "../view/text.js";
 import type { GameView, ViewMode } from "../view/types.js";
 
 interface Bootstrap {
@@ -67,7 +67,10 @@ function render(view: GameView): void {
   }
   const board = q<HTMLElement>("#board-view");
   const text = q<HTMLElement>("#text-view");
-  if (board) board.innerHTML = boardHtml;
+  if (board) {
+    const secret = renderSecretOptions(view);
+    board.innerHTML = boardHtml + (secret ? `<div class="panel secret">${secret}</div>` : "");
+  }
   if (text) text.innerHTML = textHtml;
   lastPayload = payload;
 
