@@ -1,0 +1,97 @@
+{
+  "A1-幸运之拳.jpg": {
+    "id": "A1",
+    "rot": 180,
+    "guess": true,
+    "note": "Lucky Punch / 幸运一击 → A1 幸运之拳"
+  },
+  "A2-大奖挑战.jpg": {
+    "id": "A2",
+    "rot": 90,
+    "guess": true,
+    "note": "Play It Big / 黄金时刻 → A2 大奖挑战（待确认）"
+  },
+  "B1-主场时间.jpg": {
+    "id": "B1",
+    "rot": 90,
+    "note": "Prime Time / 黄金时段 → B1 主场时间"
+  },
+  "B2-50%的机会.jpg": {
+    "id": "B2",
+    "rot": 270,
+    "note": "50/50 → B2 50% 的机会"
+  },
+  "C1-掌声响起.jpg": {
+    "id": "C1",
+    "rot": 270,
+    "note": "High Five / 击掌庆祝 → C1 掌声响起"
+  },
+  "C2-厄运降临.jpg": {
+    "id": "C2",
+    "rot": 180,
+    "note": "Bad Luck / 霉运 → C2 厄运降临"
+  },
+  "D1-发薪愉快.jpg": {
+    "id": "D1",
+    "rot": 270,
+    "note": "Pay Day / 发薪日 → D1 发薪愉快"
+  },
+  "D2-权力优势.jpg": {
+    "id": "D2",
+    "rot": 90,
+    "guess": true,
+    "note": "Power Play / 数量优势 → D2 权力优势（待确认）"
+  },
+  "E1-禁止进入.jpg": {
+    "id": "E1",
+    "rot": 270,
+    "note": "No Entry / 禁止进入 → E1"
+  },
+  "E2-醉倒了吗.jpg": {
+    "id": "E2",
+    "rot": 270,
+    "guess": true,
+    "note": "Handycap / 让赛 → E2 醉倒了吗（待确认）"
+  },
+  "F1-阻止他.jpg": {
+    "id": "F1",
+    "rot": 180,
+    "note": "Block It! / 攔截它 → F1 阻止他（板面印 F1）"
+  },
+  "F2-危机就是转机.jpg": {
+    "id": "F2",
+    "rot": 270,
+    "guess": true,
+    "note": "Knockdown / 恰似大亨 → F2 危机就是转机（待确认）"
+  },
+  "G1-黑色摸彩箱.jpg": {
+    "id": "G1",
+    "rot": 180,
+    "note": "Break Box / 黑盒 → G1 黑色摸彩箱"
+  },
+  "G2-双倍颁奖.jpg": {
+    "id": "G2",
+    "rot": 270,
+    "note": "Double Down / 双倍下注 → G2 双倍颁奖"
+  },
+  "H1-好骰难求.jpg": {
+    "id": "H1",
+    "rot": 180,
+    "note": "Nice Dice / 好骰难求 → H1"
+  },
+  "H2-我的抉择.jpg": {
+    "id": "H2",
+    "rot": 270,
+    "note": "My Choice / 任君选择 → H2 我的抉择"
+  },
+  "cover.jpg": {
+    "id": "cover",
+    "rot": 0,
+    "note": "封面"
+  },
+  "board.png": {
+    "id": "board",
+    "rot": 0,
+    "note": "ComfyUI 四次清理（去残膜，最终版）"
+  }
+}

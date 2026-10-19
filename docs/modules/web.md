@@ -10,14 +10,24 @@
   - `GET /dev_task/{sessionId}?token=xxx`：dev-task 计划文档页（校验 token → 拉 markdown → GFM 渲染 HTML）
   - `GET /dev_docs?token=xxx`：开发文档预览树页（校验 token → server 拉树 JSON → `<details>` 折叠；仅 `.md` 可点）
   - `GET /dev_docs/file?token=xxx&root=<name>&path=<rel>`：文档内容页（仅 `.md`，marked 渲染）
-  - `GET /tabletop_game/{gameId}/player/{openid}?token=xxx`：游戏资源页（**已实现**：经 server `/resources/game/{gameId}` 拉公共视图 + 个人视图，`renderGamePage` 渲染牌面：赌场表 / 玩家表 / **小游戏状态表**）
+  - `GET /tabletop_game/{gameId}/player/{openid}?token=xxx`：游戏资源页（**双模式**：默认**版图**，页内 `#board` / `#text` 切换；服务端 SSR 首屏 + 客户端 bundle，见 `docs/modules/board-view.md`）
+  - `GET /tabletop_game/{gameId}/state?token=xxx`：**状态 JSON**（页面轮询用；同一套 token 校验，401/404/503 语义同页面）
+  - `GET /board-assets/*`：版图素材（公开静态，文件名带内容哈希 → `immutable`）；`GET /assets/*`：页面 runtime bundle
   - `GET /health`：健康检查（cloudflared 探活）
 - markdown(GFM) 渲染：`src/render.ts`（marked，表格/复选框/代码块）。**后续** game/dev 引擎以 MCP 能力暴露统一的「web 渲染原语」，届时此层迁移为调用统一原语
+
+### 页面运行时（2026-10-18 起）
+
+- **双模式**：`?view=text` 仅用于首屏直出文本态（向后兼容）；正常链接不带参数，默认版图。切换用 hash（`#board` / `#text`）+ `history.replaceState`，**不跳转、不丢 token**。
+- **轮询**：可见时 10s 拉 `/state`；`document.hidden` 暂停；`visibilitychange` / `focus` / `pageshow(bfcache)` / `online` 立即刷新；失败指数退避 10→20→40→60s，页脚显示「连接中断」与「更新于 HH:MM:SS」。
+- **降级**：禁用 JS 时 `<noscript>` 强制显示文本态（SSR 已含完整文本）。
+- **缓存**：页面与 `/state` 一律 `Cache-Control: no-store`；`/board-assets` `immutable` 一年，可被 Cloudflare 边缘缓存（Cache Rule：`path startswith /board-assets/`）。
+- 渲染函数在 `src/view/`（纯函数，服务端与 bundle 共用），页面骨架在 `src/view/page.ts`，`src/render.ts` 只保留文档预览/错误页/文本态独立页。
 
 ### 统一「web 渲染原语」评估（2026-10-13）
 
 - docs 预览本期已按「MCP 原语（`docs-mcp`：授权 + 范围校验）→ server 资源 API → web 渲染」分层落地。
-- 现状：game 资源页已接入——**脱敏在 server 侧**（读 `game_state` 快照 → `las_vegas` 引擎 `public_state`/`player_view`），web 只渲染 JSON（`renderGamePage`：赌场、玩家、**加密选项**、小游戏状态四张表）；加密选项来自 `player_view` 的 `sg.a1_options`，公共视图不含。token 资源范围为 `game:{room_id}`，room_id 由资源范围解析。后续如需多引擎统一渲染，再评估下沉为引擎侧「web 渲染原语」。
+- 现状：game 资源页已接入——**脱敏在 server 侧**（读 `game_state` 快照 → `las_vegas` 引擎 `public_state`/`player_view`），web 只渲染 JSON（`src/view/text.ts`：赌场、玩家、**加密选项**、小游戏状态四张表；`src/view/board/scene.ts`：版图场景）；加密选项来自 `player_view`，公共视图不含。token 资源范围为 `game:{room_id}`，room_id 由资源范围解析。后续如需多引擎统一渲染，再评估下沉为引擎侧「web 渲染原语」。
 - 纯函数渲染有单测：`apps/web/test-render.mts`（`npm --workspace @tabletop-game/web run test`）。
 
 ## 约定

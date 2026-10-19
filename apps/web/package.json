@@ -5,19 +5,22 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "tsc -p tsconfig.json",
+    "dev": "npm run build:client && tsx watch src/index.ts",
+    "build:client": "esbuild src/client/main.ts --bundle --format=esm --target=es2020 --minify --outfile=public/assets/app.js",
+    "build": "npm run build:client && tsc -p tsconfig.json",
     "start": "node dist/index.js",
-    "test": "tsx test-render.mts"
+    "test": "tsx test-render.mts && tsx test-view.mts && tsx test-view-rn.mts"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
     "express": "^4.19.0",
-    "marked": "^12.0.2"
+    "marked": "^12.0.2",
+    "sharp": "^0.35.5"
   },
   "devDependencies": {
     "@types/express": "^4.17.0",
     "@types/node": "^22.0.0",
+    "esbuild": "^0.21.0",
     "tsx": "^4.0.0",
     "typescript": "^5.5.0"
   }

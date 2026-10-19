@@ -22,4 +22,4 @@
 - [ADR-0006：时间感知与话题切换（上下文私有层 + 确定性门控）](./ADR-0006-time-awareness-topic-switch.md)
 - [ADR-0007：会话隔离与全局人物画像层（三线内容隔离 + 日批蒸馏）](./ADR-0007-session-isolation-user-profile.md)
 - [ADR-0008：引擎事件模型、RNG 注入与 lobby/视图原语](./ADR-0008-engine-events-rng-lobby.md)
-- [ADR-0009：主动消息开发门禁（proactive 须人工确认）](./ADR-0009-proactive-message-gate.md)
+- [ADR-0010：版图渲染、页内双模式与素材加工](./ADR-0010-board-rendering-dualmode-assets.md)

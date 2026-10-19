@@ -8,16 +8,18 @@
 // 服务端调 server（内部 127.0.0.1）鉴权 + 拉取；浏览器不直连 server / SQLite。
 
 import "dotenv/config";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import express from "express";
 import {
   renderDocsTree,
   renderErrorPage,
-  renderGamePage,
   renderMarkdown,
   renderPage,
   type DocsRootTree,
   type GameView,
 } from "./render.js";
+import { renderAppPage } from "./view/page.js";
 
 const SERVER_URL = process.env.SERVER_URL ?? "http://127.0.0.1:3000";
 const PORT = Number(process.env.WEB_PORT ?? process.env.PORT ?? 18080);
@@ -25,6 +27,23 @@ const PORT = Number(process.env.WEB_PORT ?? process.env.PORT ?? 18080);
 // cloudflared 反代后源站只见回环，真实 IP 取 CF-Connecting-IP / X-Forwarded-For
 const app = express();
 app.set("trust proxy", true);
+
+// 静态资源（同域，走 Cloudflare 边缘缓存）
+// - /board-assets：版图素材，文件名带内容哈希 → immutable 长缓存
+// - /assets：页面 runtime bundle，未做哈希 → 短缓存
+const PUBLIC_DIR = fileURLToPath(new URL("../public/", import.meta.url));
+app.use(
+  "/board-assets",
+  express.static(path.join(PUBLIC_DIR, "board"), { immutable: true, maxAge: "365d", fallthrough: true }),
+);
+app.use(
+  "/assets",
+  express.static(path.join(PUBLIC_DIR, "assets"), {
+    etag: true,
+    maxAge: 0,
+    setHeaders: (res) => res.setHeader("Cache-Control", "no-cache"),
+  }),
+);
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -209,10 +228,44 @@ app.get("/tabletop_game/:gameId/player/:openid", async (req, res) => {
       res.status(404).send(renderErrorPage(404, "对局不存在或已结束"));
       return;
     }
-    res.send(renderGamePage(view));
+    // 双模式页（版图默认 / 文本可切；?view=text 仅用于首屏直出旧行为）
+    const mode = req.query.view === "text" ? "text" : "board";
+    res.setHeader("Cache-Control", "no-store");
+    res.send(renderAppPage(view, { gameId: req.params.gameId, token, mode }));
   } catch (err) {
     console.error("[web] 拉取游戏资源失败:", err);
     res.status(503).send(renderErrorPage(503, "服务暂时不可用，请稍后重试"));
+  }
+});
+
+/**
+ * 状态 JSON（页面轮询用）。
+ *
+ * 鉴权与原页面完全一致：缺 token 401、无效 401、不存在 404、server 异常 503。
+ * 不缓存（token 在 query 中）。
+ */
+app.get("/tabletop_game/:gameId/state", async (req, res) => {
+  const token = typeof req.query.token === "string" ? req.query.token : "";
+  res.setHeader("Cache-Control", "no-store");
+  if (!token) {
+    res.status(401).json({ error: "missing_token" });
+    return;
+  }
+  try {
+    const v = await verifyToken(token);
+    if (!v.valid) {
+      res.status(401).json({ error: "invalid_token" });
+      return;
+    }
+    const view = await fetchGameView(req.params.gameId, token);
+    if (view === null) {
+      res.status(404).json({ error: "not_found" });
+      return;
+    }
+    res.json({ ...view, server_time: new Date().toISOString() });
+  } catch (err) {
+    console.error("[web] 拉取状态失败:", err);
+    res.status(503).json({ error: "upstream_unavailable" });
   }
 });
 

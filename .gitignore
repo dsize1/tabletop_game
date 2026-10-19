@@ -33,3 +33,13 @@ StartLux-Decision-v1-4B-Q8_0-GGUF/
 deploy/cloudflared/credentials.json
 deploy/cloudflared/cert.pem
 deploy/cloudflared/config.yml
+
+# web 构建产物（客户端 bundle / 版图素材由脚本生成）
+apps/web/public/assets/
+apps/web/public/board/
+assets-src/derived/
+# 原始照片含摄影师水印，仅本机加工用，不入库
+assets-src/las/*.jpg
+assets-src/las/*.jpeg
+assets-src/las/*.png
+models/

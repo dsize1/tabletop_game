@@ -32,6 +32,7 @@
 | 本地开发环境（Docker/Redis） | `docs/dev-environment.md` |
 | 编码规范 | `docs/conventions/coding-standards.md` |
 | 某模块职责/接口 | `docs/modules/<模块>.md` |
+| 版图页 / 素材流水线 | `docs/modules/board-view.md`、`docs/games/las-vegas/props/asset-mapping.md`、`board-layout.md` |
 | 长期记忆 / 计划 / 决策 | `memory_palace/README.md` |
 | 当前计划与验收清单 | `memory_palace/plan/` |
 | 开发进度 / 里程碑 | `memory_palace/milestones.md` |

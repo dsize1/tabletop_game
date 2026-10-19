@@ -7,6 +7,7 @@
 - QQ **群**机器人（官方 bot.q.qq.com API v2 群事件能力）
 - Web **独立站点**，短期 token 鉴权
   - 单页整合：`/tabletop_game/{gameId}/player/{openid}?token=xxx`（同页展示全局资源与个人资源）
+  - 页内双模式：默认**版图**（六边形还原实物）/ `#text` 文本表；轮询 `GET /tabletop_game/{gameId}/state`（同套 token 校验）自动刷新；见 `docs/modules/board-view.md`、ADR-0010
 
 ## 2. 技术栈
 
