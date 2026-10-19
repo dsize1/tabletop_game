@@ -71,5 +71,19 @@ node apps/scripts/board-assets.mjs build --check-budget   # 超预算即 exit 1
 
 - 发布：`board-hex-*.webp`（760×760，≈40KB），裁六边形 + 掏空中央骰盘；开口按木框内沿**外扩 6%**，用来吃掉 AI 残留的黑色六边形与压边残膜。
 - 标定：`apps/scripts/board-hex.mjs` 的 `CALIB[文件名]`（`outer` / `inner` / `rot`）。换底图时用 900px 网格图重量一次（可临时生成 `assets-src/derived/board-*-grid.jpg`）。
-- 工作流：ComfyUI 遮罩/impaint 编排存于 `assets-src/comfyUI_workflow/遮罩.json`（图文流程见本项目 `docs/modules/board-view.md`）。
+- 工作流：ComfyUI 遮罩/inpaint 编排存于 `assets-src/comfyUI_workflow/遮罩.json`。
+
+### ComfyUI 环境（按需启停，**不常驻**）
+
+| 项 | 值 |
+|---|---|
+| 安装位置 | `C:\llm\ComfyUI`（不入库），venv `C:\llm\comfy-venv` |
+| 运行时 | PyTorch 2.11.0+cu128 / torchvision 0.26.0（RTX 5070 Ti, sm_120） |
+| 模型 | `models/checkpoints/sd-v1-5-inpainting.ckpt`（4.27GB） |
+
+```bash
+# 启动（用完即关；常驻会占 ~2GB 显存）
+cd C:/llm/ComfyUI && ../comfy-venv/Scripts/python main.py --listen 127.0.0.1 --port 8188
+# 停止：Ctrl+C，或 netstat -ano | findstr :8188 → taskkill /PID <pid> /F
+```
 - 显示：`USE_BOARD_TEXTURE = true`，`opacity 0.5` 压在卡牌下方；照片自带霓虹店名**保留**（全不透明会与卡牌叠字）。
