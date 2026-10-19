@@ -2,7 +2,7 @@
 
 - **位置**：`apps/web/src/view/`（纯 TS，禁 import express / node:fs / DOM）
 - **形态**：`GameView`（server `/resources/game/{id}` 的 JSON）→ `BoardScene`（平台无关图元 IR）→ 宿主渲染
-- **现状**：Web 端服务端直出 SVG + 浏览器 bundle 复用同一 scene；RN 端按本文件的映射表接 `react-native-svg`
+- **现状**：Web 端服务端直出 SVG + 浏览器 bundle 复用同一 scene；移动端按 ADR-0011 走 **PWA → Tauri 2 壳（WebView 复用同一页）**，RN 延后；RN 路线若重启，按下文映射表接 `react-native-svg`
 
 ## 分层
 
@@ -48,6 +48,8 @@ type SceneNode =
 4. 素材 URL 只能以 `/board-assets/` 开头。
 
 ## RN 映射表（react-native-svg）
+
+> **当前非路线**（ADR-0011：移动端为 PWA → Tauri 2 壳，RN 延后）。此表作为**通用跨宿主映射参考**保留：IR 仍禁平台属性，任何新宿主（RN / 其他原生渲染器）照此 1:1 映射。
 
 | SceneNode | react-native-svg |
 |---|---|
@@ -95,6 +97,8 @@ const S = { width: 760, height: scene.h };
 - 标定参考图：`assets-src/derived/tile-anchors3.jpg`（每块板块带 0.1–0.9 网格）。
 
 ## RN 契约守卫
+
+> 与 RN 映射表同属**跨宿主通用约束**（当前不建 RN 工程也保持全绿）：IR 平台无关是壳方案（WebView / 未来任何宿主）可替换的前提，见 ADR-0011。
 
 `apps/web/test-view-rn.mts`（已并入 `npm run test:web`）断言：
 

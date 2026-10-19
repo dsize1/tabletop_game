@@ -24,6 +24,19 @@
 - **缓存**：页面与 `/state` 一律 `Cache-Control: no-store`；`/board-assets` `immutable` 一年，可被 Cloudflare 边缘缓存（Cache Rule：`path startswith /board-assets/`）。
 - 渲染函数在 `src/view/`（纯函数，服务端与 bundle 共用），页面骨架在 `src/view/page.ts`，`src/render.ts` 只保留文档预览/错误页/文本态独立页。
 
+### 移动端形态（2026-10-19，ADR-0011）
+
+> 结论：**P0 不建原生 App（先 PWA）；P1 需要 App 图标/启动器时用 Tauri 2 壳；RN/Expo 延后**。取舍与触发条件见 ADR-0011。
+
+- **P0（PWA）**：移动端交付物 = 现有页 + manifest + 图标 + `display: standalone`；**不改鉴权、不改路由、不改渲染**。
+- **P1（App 壳）**：Tauri 2，Android 先行；壳加载线上域名（`PUBLIC_BASE_URL` 同源页），**不启用 IPC / Rust command** → 「改 web 即发布」，零发版更新。iOS 需 macOS 构建（阻塞项，见 ADR-0011 影响）。
+- **对 web 的壳化约束**（现状已满足，后续改动不得破坏）：
+  1. 页面在「无 IPC 的裸 WebView」中自洽：token 只走 URL query + `/state` 请求，**不依赖原生桥、不落 localStorage**（`src/client/main.ts`）；
+  2. 页面与 `/state` 保持 `no-store`；壳不做离线缓存，避免 token 落盘；
+  3. 不把核心功能押在浏览器专有能力（Service Worker / Notification 等）上；PWA 只用 manifest + 图标；
+  4. 需兼容老旧系统 WebView（国产 ROM 无 Play 长期不更新）→ 上线前评估 `build:client` 的 target 由 `es2020` 降到 `es2017`（**本期未改**）。
+- **未做（待立项）**：PWA manifest/图标、Tauri 工程、Android 工具链（JDK/SDK/NDK）、iOS 需求与上架意愿确认。
+
 ### 统一「web 渲染原语」评估（2026-10-13）
 
 - docs 预览本期已按「MCP 原语（`docs-mcp`：授权 + 范围校验）→ server 资源 API → web 渲染」分层落地。

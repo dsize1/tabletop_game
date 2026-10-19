@@ -8,6 +8,7 @@
 - Web **独立站点**，短期 token 鉴权
   - 单页整合：`/tabletop_game/{gameId}/player/{openid}?token=xxx`（同页展示全局资源与个人资源）
   - 页内双模式：默认**版图**（六边形还原实物）/ `#text` 文本表；轮询 `GET /tabletop_game/{gameId}/state`（同套 token 校验）自动刷新；见 `docs/modules/board-view.md`、ADR-0010
+  - 移动端形态：**先 PWA（不建原生 App）；需要 App 壳时用 Tauri 2（Android 先行、壳加载线上页、不启用 IPC）；RN/Expo 延后**；见 ADR-0011、`docs/modules/web.md`「移动端形态」
 
 ## 2. 技术栈
 
