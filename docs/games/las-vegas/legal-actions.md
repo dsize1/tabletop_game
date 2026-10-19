@@ -84,5 +84,27 @@
 
 - 动作 id 稳定、机器可解析；description 面向中文零样本决策模型保持口语化。
 - 小游戏分支多，id 必须带小游戏编号前缀，便于决策模型聚焦当前上下文。
+- 交互原语扩展时**只增不改**：`Action` 可追加 `#[serde(default)]` 字段（如交互描述符），但 `id` / `description` / 列表顺序与条数保持稳定（`#选 N` 依赖下标）。
 - wide_choice 分组：用户已同意（2026-10-13），**具体分组粒度待实现阶段讨论**。
 - 小游戏为 **16→8→N**（每字母组 A–H 各随机取 1 得 8，再随机取 N∈3–6；见 `props/small-games.md`）。参数动作 `sg:set_count:{N}` 用于设置阶段。
+
+## 6. 交互类型标注（端侧语义）
+
+> 定义与判定规则见 `docs/conventions/interaction-primitives.md`（已采纳 v1.0，2026-10-19，ADR-0012）。**Q 群侧不消费本表**（仍为编号清单 + `#选 N`）。
+
+| 动作 / 小游戏 | 类别 | 步类型 | 主体 |
+|---|---|---|---|
+| `place:n`、`reroll`、`sg:D2:use:n` | 单步 | one | 当前玩家 |
+| `sg:B2:guess`、`sg:E1:ban`、`sg:G2:move`、`sg:B1:put`、`sg:H1:slot` | 单步 | one | 触发者/胜者 |
+| `sg:F1:group` → `sg:F1:move` | **级联** | one → one | 同人 |
+| `sg:F2:take` → `group` → (`put` / `takeback`) → 目标 | **级联**（含条件步） | one ×3–4 | 同人 |
+| `sg:H1:take` → `slot` / `skip` | **级联** | one → one | 同人 |
+| `sg:H2:choose` → (`put` / `takeback`) → 目标 | **级联**（含循环边：4 点重掷） | one ×1–3 | 同人 |
+| `sg:code:{code}` → 猜 1–3 | **接力** | masked one → one | 不同人（下注者 → 左手玩家） |
+| `sg:G1:split:{codes}` → `sg:G1:pick:{0\|1}` | **接力** | masked **partition** → one | 不同人（左手玩家 → 赢家） |
+| `sg:B1:put`（`round_end` 前） | **异步等待** | one | 胜者 |
+| A2 / C1 / D1 / E2 / C2 | 无交互（自动结算） | — | — |
+
+- **级联** 仅限「同一主体 + 连续」；跨主体或异步一律拆为接力 / 异步等待（用户裁定 2026-10-19）。
+- **partition**（选中→A 堆、未选→B 堆）的唯一合适控件是**穿梭框**；不为 A/B 分别设置交互。
+- APP/WEB 侧若要用「一次提交」，需先补批量执行原语；在此之前端侧也只能逐步提交。

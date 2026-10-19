@@ -24,3 +24,4 @@
 - [ADR-0008：引擎事件模型、RNG 注入与 lobby/视图原语](./ADR-0008-engine-events-rng-lobby.md)
 - [ADR-0010：版图渲染、页内双模式与素材加工](./ADR-0010-board-rendering-dualmode-assets.md)
 - [ADR-0011：移动端形态 —— PWA 优先、Tauri 2 壳次之，RN/Expo 延后](./ADR-0011-mobile-app-form-pwa-tauri2-vs-rn.md)
+- [ADR-0012：交互原语分级（单选/多选/分区/级联/接力）与 Q 群消息侧冻结](./ADR-0012-interaction-primitives.md)

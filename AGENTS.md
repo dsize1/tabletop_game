@@ -23,6 +23,7 @@
 | 了解整体架构 | `docs/architecture.md` |
 | LLM 思考开关 / 联网形式（chat / game / dev-task） | `docs/architecture.md` §3.1 |
 | 内部消息事件协议 | `docs/conventions/message-protocol.md` |
+| 交互原语（单选/多选/分区/级联/接力，端侧交互语义） | `docs/conventions/interaction-primitives.md` |
 | 持久化 / 消息总线约定 | `docs/conventions/persistence.md` |
 | 外部约束事实登记表（频控/窗口/延迟） | `docs/conventions/external-constraints.md` |
 | 小游戏 16 块速查总览（最终口径） | `docs/games/las-vegas/small-games-overview.md` |

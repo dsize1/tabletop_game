@@ -50,11 +50,22 @@
 - 复盘 = 快照 + 重放其后 events；中断对局放宽到「最近操作可追溯」
 - 详见 `docs/conventions/persistence.md`
 
+## 交互语义（引擎侧定义 / 消费端实现）
+
+> 定义见 `docs/conventions/interaction-primitives.md`（已采纳 v1.0，2026-10-19，ADR-0012）。
+
+- 引擎侧**只描述**一次逻辑交互的结构：基数（`one` / `many` / `partition`）、可见性（`plain` / `masked`）、步数与主体（单步 / 级联 / 接力 / 异步等待）。
+- **控件与实现由消费端决定**：Q 群侧只消费编号清单 + `#选 N`（现状定稿，不随本语义改动）；WEB / APP 侧按原语选择控件（单选列表 / 复选列表 / 穿梭框 / 向导）。
+- **级联 = 同一主体 + 连续**（用户裁定 2026-10-19）；主体不同或异步一律拆为接力 / 异步等待，不可合并为一次提交。
+- 落地约束：`Action` 若扩展只能追加 `#[serde(default)]` 字段，**不得改动现有 `id` 与 `description`**，也不得改变 `legal_actions` 的顺序与条数（Q 侧 `#选 N` 依赖下标）。
+- 端侧「一次提交」需批量执行原语（`execute_actions`），当前**未实现**，列为端侧立项前置缺口。
+
 ## 约定
 
 - 新引擎放 `crates/engines/<name>/`，实现 EnginePlugin 并在 server 注册
 - 规则文档缺失时先补文档再实现
 - 动作空间 ≤ 26 直接映射；超 26 依赖 decision-service 的 wide_choice 或引擎侧分组
+- 交互形态变化（新增步/改主体/新增密文）需同步 `docs/conventions/interaction-primitives.md` 与本文件
 
 ## MCP 统一原语评估（针对拉斯维加斯，v0.2）
 
