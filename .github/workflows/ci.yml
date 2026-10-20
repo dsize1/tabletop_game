@@ -49,3 +49,7 @@ jobs:
       - run: uv sync --frozen --directory agents/dev_executor
       - run: uv run --directory agents/dev_executor python tests/test_planner.py
       - run: uv run --directory agents/dev_executor python tests/test_shadow.py
+      # 技能/MCP harness（需 agents extra：deepagents + langchain-mcp-adapters）
+      - run: uv sync --frozen --directory agents/dev_executor --extra agents
+      - run: uv run --directory agents/dev_executor python tests/test_harness.py
+      - run: uv run --directory agents/dev_executor python tests/test_agent_wiring.py
