@@ -11,7 +11,7 @@
 | 原语（桥） | `apps/dev-bridge`（Node，MCP stdio） | 对外契约；**不直连 SQLite**，全走 server；15+ 原语 |
 | 状态/审计 | `crates/server`（`/internal/dev/*`） | `dev_tasks`（投影）、`dev_task_events`、`dev_runs`、`dev_artifacts`；迁移表校验 + 白名单 |
 | 执行 | `agents/dev_executor`（Python + LangGraph） | 图 `plan → interrupt(approve) → execute → interrupt(verify) → summarize`；checkpoint 独立库 |
-| 驱动（未来） | n8n（`dev-shadow`，当前只读） | 触发/审批 UI/CI/部署（B9） |
+| 驱动（未来） | n8n（`dev-shadow`，当前只读） | 触发/审批 UI/CI/部署（B9）；Webhook 用 HMAC + ±300s 时间窗 |
 
 ```
 QQ → gateway（入口）→ 桥（原语）→ server（投影/审计/校验）

@@ -18,9 +18,14 @@ docker compose --profile n8n stop n8n
 docker compose --profile n8n down n8n         # 停止并删除容器（卷保留）
 ```
 
-环境：`DEV_WEBHOOK_TOKEN`（默认 `dev-token-change-me`，**生产必改**）、`DEV_SERVER_URL`（默认 `http://host.docker.internal:3000`）。
-> `N8N_BLOCK_ENV_ACCESS_IN_NODE=false` 必须开：工作流表达式要读 `$env`。
-> Code 节点禁止 `require('crypto')`（n8n 2.x sandbox）→ MVP 用**静态 token**，HMAC 留待加固（见下）。
+环境：`DEV_WEBHOOK_SECRET`（默认 `dev-secret-change-me`，**生产必改**）、`DEV_SERVER_URL`（默认 `http://host.docker.internal:3000`）。
+
+> 必须开的两个 n8n 开关：
+> - `N8N_BLOCK_ENV_ACCESS_IN_NODE=false`（表达式/Code 节点读 `$env`）
+> - `NODE_FUNCTION_ALLOW_BUILTIN=crypto`（Code 节点 `require('crypto')` 做 HMAC）
+
+**鉴权（HMAC + 重放窗口）**：`signature = HMAC-SHA256(secret, session_id + "." + timestamp)`，请求头：
+`x-dev-signature`（hex）、`x-dev-timestamp`（epoch 秒，与服务端差 > 300s 拒绝）。
 
 ## 工作流：`dev-shadow`
 
@@ -28,7 +33,7 @@ docker compose --profile n8n down n8n         # 停止并删除容器（卷保�
 
 ```
 Webhook(POST /webhook/dev-shadow)
-  → Verify token（x-dev-token == $env.DEV_WEBHOOK_TOKEN）
+  → Verify HMAC（签名校验 + 时间窗）
   → IF 签名通过 ──否──> Respond skip {shadow:true, reason}
         └─是→ GET $DEV_SERVER_URL/internal/dev_task/{session_id}
              → POST $DEV_SERVER_URL/internal/dev/permission {op:read, qq_id, session_id}
@@ -76,8 +81,9 @@ curl -s -X POST http://127.0.0.1:5678/webhook/dev-shadow \
 - 停 n8n 即可：QQ 侧受理 / `#任务` / `#进度` / `#取消` 全部走 server + 桥，**不依赖 n8n**。
 - 删除 `deploy/n8n`、`docker-compose.yml` 的 `n8n` 服务与 `n8n-data` 卷即完全移除。
 
-## 加固清单（未做）
+## 加固清单
 
-- [ ] HMAC-SHA256 签名替代静态 token：需 `NODE_FUNCTION_ALLOW_BUILTIN=crypto` 或在桥侧提供 `/internal/dev/verify` 校验端点（推荐后者：密钥不进 workflow）。
-- [ ] 重放防护：`event_id`/`nonce` + 时间窗。
-- [ ] 审批节点（`approve_plan` / `approve_deploy`）与 CI/部署工作流（B9）。
+- [x] HMAC-SHA256（`session_id.timestamp`）+ 时间窗 ±300s（重放防护第一层）
+- [ ] nonce/一次性签名（防窗口内重放；需要状态存储）
+- [ ] 审批节点（`approve_plan` / `approve_deploy`）与 CI/部署工作流（B9）
+- [ ] 密钥轮换流程

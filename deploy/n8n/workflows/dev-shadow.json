@@ -20,10 +20,10 @@
     },
     {
       "parameters": {
-        "jsCode": "// MVP：静态头 token 校验（x-dev-token = DEV_WEBHOOK_TOKEN）。\n// shadow：只读 payload + 权限判定，不推进状态、不通知。\nconst body = $json.body ?? {};\nconst headers = $json.headers || {};\nconst token = headers['x-dev-token'] || headers['X-Dev-Token'] || '';\nconst expect = $env.DEV_WEBHOOK_TOKEN || '';\nif (!token || !expect || token !== expect) {\n  return [{ json: { ok: false, reason: 'token_invalid' } }];\n}\nconst sessionId = body.session_id || '';\nif (!sessionId) return [{ json: { ok: false, reason: 'missing_session_id' } }];\nreturn [{ json: { ok: true, session_id: sessionId, qq_id: body.qq_id || '' } }];"
+        "jsCode": "// HMAC 校验：signature = HMAC-SHA256(secret, session_id + \".\" + timestamp)\n// 重放防护：timestamp 与服务器时间差 ≤ 300s。\nconst crypto = require('crypto');\nconst body = $json.body ?? {};\nconst headers = $json.headers || {};\nconst secret = $env.DEV_WEBHOOK_SECRET || '';\nconst sid = String(body.session_id || '');\nconst sig = String(headers['x-dev-signature'] || '').trim();\nconst ts = String(headers['x-dev-timestamp'] || '').trim();\nif (!secret) return [{ json: { ok: false, reason: 'secret_missing' } }];\nif (!sig || !ts) return [{ json: { ok: false, reason: 'signature_missing' } }];\nif (!/^\\d+$/.test(ts)) return [{ json: { ok: false, reason: 'timestamp_invalid' } }];\nconst skew = Math.abs(Math.floor(Date.now() / 1000) - Number(ts));\nif (skew > 300) return [{ json: { ok: false, reason: 'timestamp_out_of_window' } }];\nif (!sid) return [{ json: { ok: false, reason: 'missing_session_id' } }];\nconst expected = crypto.createHmac('sha256', secret).update(sid + '.' + ts).digest('hex');\nconst a = Buffer.from(sig);\nconst b = Buffer.from(expected);\nif (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {\n  return [{ json: { ok: false, reason: 'signature_invalid' } }];\n}\nreturn [{ json: { ok: true, session_id: sid, qq_id: body.qq_id || '' } }];"
       },
-      "id": "verify-token",
-      "name": "Verify token",
+      "id": "verify-hmac",
+      "name": "Verify HMAC",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
@@ -67,7 +67,7 @@
     },
     {
       "parameters": {
-        "url": "={{ $env.DEV_SERVER_URL }}/internal/dev_task/{{ $('Verify token').item.json.session_id }}",
+        "url": "={{ $env.DEV_SERVER_URL }}/internal/dev_task/{{ $('Verify HMAC').item.json.session_id }}",
         "options": {
           "timeout": 5000
         }
@@ -87,7 +87,7 @@
         "url": "={{ $env.DEV_SERVER_URL }}/internal/dev/permission",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ op: 'read', qq_id: $('Verify token').item.json.qq_id || '', session_id: $('Verify token').item.json.session_id }) }}",
+        "jsonBody": "={{ JSON.stringify({ op: 'read', qq_id: $('Verify HMAC').item.json.qq_id || '', session_id: $('Verify HMAC').item.json.session_id }) }}",
         "options": {
           "timeout": 5000
         }
@@ -152,18 +152,7 @@
       "main": [
         [
           {
-            "node": "Verify token",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Verify token": {
-      "main": [
-        [
-          {
-            "node": "IF 签名通过",
+            "node": "Verify HMAC",
             "type": "main",
             "index": 0
           }
@@ -215,6 +204,17 @@
         [
           {
             "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify HMAC": {
+      "main": [
+        [
+          {
+            "node": "IF 签名通过",
             "type": "main",
             "index": 0
           }

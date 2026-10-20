@@ -25,8 +25,10 @@ services:
       - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
       - GENERIC_TIMEZONE=Asia/Shanghai
       - TZ=Asia/Shanghai
-      # Webhook 共享 token（MVP：静态头校验；HMAC 需 NODE_FUNCTION_ALLOW_BUILTIN=crypto，留待加固）
-      - DEV_WEBHOOK_TOKEN=${DEV_WEBHOOK_TOKEN:-dev-token-change-me}
+      # Webhook：HMAC-SHA256(session_id.timestamp) 共享密钥（生产必改）
+      - DEV_WEBHOOK_SECRET=${DEV_WEBHOOK_SECRET:-dev-secret-change-me}
+      # 允许 Code 节点 require('crypto')（HMAC 校验）
+      - NODE_FUNCTION_ALLOW_BUILTIN=crypto
       # 容器内访问宿主机 server（Windows/macOS 用 host.docker.internal；Linux 见下方 extra_hosts）
       - DEV_SERVER_URL=${DEV_SERVER_URL:-http://host.docker.internal:3000}
     volumes:
