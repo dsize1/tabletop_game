@@ -1,8 +1,15 @@
 ---
+name: plan-workflow
 description: 计划工作流（围栏→修正→执行→验收→harness loop）。用于需要「先规划、人工确认后再实施」的开发任务：生成 6 分区计划文件、多轮修正、人工确认解除围栏后执行、核对待办/验证/变动文件、人工确认完成、询问并实施 harness 优化 loop、人工验收终结。
 ---
 
 # 计划工作流（plan-workflow）
+
+> **非 pi 运行时的兼容说明**：本技能正文使用的 `plan_record` / `plan_check` / `/plan` /
+> `/plan-stage` 由 pi 的 `plan-memory` 扩展提供。若运行环境没有这些工具（例如
+> `agents/dev_executor` 的 DeepAgents 执行器），改用等价的通用做法：直接读写
+> `memory_palace/plan/{sessionId}.md` 的 6 分区（保持分区名与顺序不变）、用文本
+> 勾选 `- [ ]` → `- [x]`、在文档 `status` 字段记录阶段；围栏/人工确认的原则不变。
 
 配套 `plan-memory` 扩展（`.pi/extensions/plan-memory/`）使用。核心原则：**围栏内只规划，人工确认才动手，每一步关键节点都由人工把关。**
 

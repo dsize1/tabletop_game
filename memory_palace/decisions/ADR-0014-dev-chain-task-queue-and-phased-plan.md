@@ -358,3 +358,4 @@ gateway: #确认 → confirm_task(done) → event(verified)
 - **TD-14.6**：P1 是否需要重实现 `plan_record` 6 分区语义（DeepAgents `write_todos` 语义不等价：只有勾选状态，没有「待确定事项 / 验证事项 / harness 优化项」分区）。
 - **TD-14.7**：审批超时策略（现状无超时；P2 若做，超时默认**驳回**而非自动批准）。
 - **TD-14.8**：是否需要 dev 任务的「取消正在执行」能力（现状 `cancel_task` 只改状态，停止不了已启动的 pi 会话）。
+- **TD-14.9（已决，2026-10-20）**：执行器接入项目技能与 MCP 的口径——技能走**只读 backend**（`FilesystemBackend` 虚拟根 = `<repo>/.pi/skills`，`write/edit/delete/upload` 直接返回错误 + `FilesystemPermission(write, ["/", "/**"], deny)` 兜底；`skills=[("/", "项目技能")]`）；MCP 走 `langchain-mcp-adapters` 读 `.pi/mcp.json`，由 `DEV_MCP_SERVERS` 显式开启（**默认关**），加载失败只注记不阻断。理由：① deepagents 0.7.28 的 `CompositeBackend.ls` 路由前缀重映射错位（`/skills/x` → `/skill/x`）→ 挂 `/skills` 取不到 `SKILL.md`；② 原 `tools=[]`+`StateBackend` 让技能完全不可见；③ MCP 工具只有 coroutine，planner 必须 `ainvoke`（`recursion_limit` 提到 20，中间件 hook 也计步）。未决：playwright 是否进 planner（当前**不进**，plan 阶段无浏览器需求）、`rubric_grader`/`memory` 是否接入。

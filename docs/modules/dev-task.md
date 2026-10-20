@@ -47,6 +47,7 @@ uv run dev-executor reconcile [--fix] [--json]                # 投影↔事件�
 ```
 
 - 计划生成：`DEV_PLANNER=stub|llm|deepagents`；失败自动降级 stub。
+  - `deepagents` 可选接入**项目技能**（`.pi/skills`，只读 backend，渐进披露）与 **MCP 工具**（`DEV_MCP_SERVERS`，读 `.pi/mcp.json`，默认关闭）；详见 `agents/dev_executor/README.md` 与 `src/dev_executor/harness.py`。
 - 执行阶段目前 **shadow**（不改代码）；真实执行（worktree/沙箱）待后续。
 
 ## 配置
@@ -58,6 +59,7 @@ uv run dev-executor reconcile [--fix] [--json]                # 投影↔事件�
 | `DEV_WHITELIST` | 白名单判定在 **server**；dev-up 从 `apps/agent-gateway/.env` 传给 server |
 | `DEV_NOTIFY_ENABLED` / `DEV_NOTIFY_INTERVAL_MS` | 事件→出站通知开关/间隔（游标 `dev:notify:cursor:{sid}` 去重） |
 | `DEV_PLANNER` / `LLM_*` | 计划生成后端与模型 |
+| `DEV_MCP_SERVERS` | 执行器可用的 MCP server（逗号分隔，取自 `.pi/mcp.json`；默认空 = 关闭） |
 | `DEV_CHECKPOINT_PATH` | checkpoint 覆盖（默认 `data/langgraph/checkpoints.sqlite`） |
 
 ## 回滚

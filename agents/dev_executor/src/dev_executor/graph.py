@@ -18,7 +18,7 @@ from typing import Literal
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
-from .planner import PLAN_FORMAT, SECTIONS as PLAN_SECTIONS, make_plan
+from .planner import PLAN_FORMAT, SECTIONS as PLAN_SECTIONS, plan_with_fallback
 from .state import DevState
 
 
@@ -38,11 +38,7 @@ def plan_node(state: DevState) -> DevState:
             + chr(10) + chr(10) + "补充指令：" + chr(10)
             + chr(10).join(f"- {x}" for x in extra)
         )
-    try:
-        md, fmt, used = make_plan(planner, requirement)  # type: ignore[arg-type]
-    except Exception as e:  # noqa: BLE001 - 生成失败必须可降级
-        md, fmt, used = make_plan("stub", requirement)
-        md += chr(10) + f"> 计划生成降级：planner={planner} 失败（{e}）" + chr(10)
+    md, fmt, used = plan_with_fallback(planner, requirement)
     return {"plan_markdown": md, "plan_format": fmt, "planner": used}
 
 

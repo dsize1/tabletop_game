@@ -16,7 +16,8 @@ from pathlib import Path
 from langgraph.types import Command
 
 from .graph import build_graph, checkpoint_path, sqlite_saver
-from .planner import SECTIONS, make_plan
+from .harness import describe_skills
+from .planner import SECTIONS, plan_with_fallback
 from .reconcile import main_reconcile
 from .worker import main_work
 
@@ -36,8 +37,8 @@ def _first_interrupt(result: dict) -> dict | None:
 
 
 def cmd_plan(args: argparse.Namespace) -> int:
-    """只生成计划（不进图、不写 checkpoint）：用于质量对比。"""
-    md, fmt, used = make_plan(args.planner, args.requirement)  # type: ignore[arg-type]
+    """只生成计划（不进图、不写 checkpoint）：用于质量对比。失败自动降级 stub 并注记。"""
+    md, fmt, used = plan_with_fallback(args.planner, args.requirement)
     out = {
         "planner": used,
         "plan_format": fmt,
@@ -45,6 +46,12 @@ def cmd_plan(args: argparse.Namespace) -> int:
         "sections": {s: (f"## {s}" in md) for s in SECTIONS},
         "excerpt": md[:400],
     }
+    if getattr(args, "print_skills", False):
+        try:
+            names, warnings = describe_skills()
+            out["skills"] = {"names": names, "warnings": warnings}
+        except Exception as e:  # noqa: BLE001 - 排查用，不影响出计划
+            out["skills"] = {"error": f"{type(e).__name__}: {e}"}
     if args.out:
         Path(args.out).write_text(md, encoding="utf-8")
         out["out"] = args.out
@@ -114,6 +121,7 @@ def main(argv: list[str] | None = None) -> int:
     p_plan.add_argument("--planner", default="stub", choices=["stub", "llm", "deepagents"])
     p_plan.add_argument("--out", help="把计划写到指定文件")
     p_plan.add_argument("--diff", help="与已有计划（如 pi 生成的）做 unified diff")
+    p_plan.add_argument("--print-skills", action="store_true", help="输出已加载的技能名/告警（排查用）")
     p_plan.set_defaults(func=cmd_plan)
 
     p_rec = sub.add_parser("reconcile", help="对账：投影↔事件↔checkpoint")

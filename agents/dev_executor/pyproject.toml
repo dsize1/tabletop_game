@@ -13,6 +13,7 @@ dependencies = [
 # DeepAgents harness（B6.2 接入；先不装，避免 shadow 阶段引入额外依赖）
 agents = [
     "deepagents>=0.3.0",
+    "langchain-mcp-adapters>=0.3.2",
 ]
 llm = [
     "langchain-openai>=1.7.2",

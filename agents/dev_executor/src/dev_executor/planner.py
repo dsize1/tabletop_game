@@ -3,14 +3,14 @@
 约束：
 - **不出站、不写业务状态**；生成结果只进 checkpoint（B7 才投影到 server）。
 - 所有 planner 都必须产出**6 分区** markdown（`plan6-v1`），否则 `#进度` 会归零。
-- DeepAgents 使用 `StateBackend`（内存）+ 临时 cwd + 小 `recursion_limit`，避免写宿主文件。
+- DeepAgents 使用只读技能 backend（虚拟根 `<repo>/.pi/skills`，写降级为错误）+ 小
+  `recursion_limit`，仓库其余文件不可见；MCP 工具由 `DEV_MCP_SERVERS` 显式开启（见 `harness.py`）。
 """
 
 from __future__ import annotations
 
 import json
 import os
-import tempfile
 import urllib.request
 from typing import Literal
 
@@ -25,7 +25,9 @@ SECTIONS = [
     "harness 优化项",
 ]
 
-SYSTEM_PROMPT = """你是桌游助手项目的开发计划生成器。只输出 markdown 计划，不要调用任何工具，不要写文件。
+SYSTEM_PROMPT = """你是桌游助手项目的开发计划生成器。只输出 markdown 计划，**不要写任何文件**。
+系统提示里可能已列出「技能清单」（`/skills/<name>/SKILL.md`）：若某条需求与技能领域匹配，
+可以先用 `read_file`（只读）读该 SKILL.md 再写计划；不需要时不要调用任何工具。
 必须包含且只包含以下 6 个二级标题（顺序固定）：
 ## 计划
 ## 待办实现
@@ -42,6 +44,9 @@ SYSTEM_PROMPT = """你是桌游助手项目的开发计划生成器。只输出 
 """
 
 PlannerName = Literal["stub", "llm", "deepagents"]
+
+#: DeepAgents recursion_limit：中间件 hook 也计入步数，读技能/调 MCP 需要额外轮次
+RECURSION_LIMIT = 20
 
 
 def stub_plan(requirement: str) -> str:
@@ -125,11 +130,20 @@ def llm_plan(requirement: str, timeout: float = 90.0) -> str:
     return str(content or "")
 
 
-def deepagents_plan(requirement: str, timeout: float = 120.0) -> str:
-    """DeepAgents（StateBackend，内存；临时 cwd；小 recursion_limit）。"""
+async def adeepagents_plan(requirement: str, timeout: float = 120.0) -> str:
+    """DeepAgents（只读技能 backend + 可选 MCP 工具；小 recursion_limit）。
+
+    - 技能：`harness.build_agent_kwargs()` 提供只读 backend（虚拟根 = `.pi/skills`）、
+      技能源与 `write` deny；模型只在系统提示看到 `name/description`，需要时自己读
+      `/<skill>/SKILL.md`。
+    - MCP：`DEV_MCP_SERVERS` 非空才加载（读 `.pi/mcp.json`）；MCP 工具是 coroutine-only，
+      所以必须走 `ainvoke`，不能退回 `invoke`。
+    - MCP 加载失败只注记、不阻断出计划（技能/工具的失败不得让 plan 阶段挂掉）。
+    """
     from deepagents import create_deep_agent
-    from deepagents.backends import StateBackend
     from langchain_openai import ChatOpenAI
+
+    from . import harness
 
     api_key = os.environ.get("LLM_API_KEY", "").strip()
     if not api_key:
@@ -141,30 +155,56 @@ def deepagents_plan(requirement: str, timeout: float = 120.0) -> str:
         temperature=0.2,
         timeout=timeout,
     )
+    notes: list[str] = []
+    tools: list[object] = []
+    try:
+        skill_names, skill_warnings = harness.describe_skills()
+        if skill_warnings:
+            notes.append("技能加载告警：" + "；".join(skill_warnings))
+        elif not skill_names:
+            notes.append("未加载到任何技能（检查 .pi/skills）")
+    except Exception as e:  # noqa: BLE001 - 技能不可用也要出计划
+        notes.append(f"技能清单读取失败（{type(e).__name__}: {e}）")
+    try:
+        tools = await harness.aload_mcp_tools()
+    except Exception as e:  # noqa: BLE001 - MCP 不可用必须降级
+        notes.append(f"MCP 工具未加载（{type(e).__name__}: {e}）")
     agent = create_deep_agent(
         model=model,
-        tools=[],
+        tools=tools,  # type: ignore[arg-type]
         system_prompt=SYSTEM_PROMPT,
-        backend=StateBackend(),
         name="dev-planner",
+        **harness.build_agent_kwargs(),
     )
-    with tempfile.TemporaryDirectory(prefix="dev-exec-agent-") as tmp:
-        cwd = os.getcwd()
-        try:
-            os.chdir(tmp)  # 双保险：即便有文件工具也不会写仓库
-            result = agent.invoke(
-                {"messages": [{"role": "user", "content": f"开发需求：\n{requirement.strip()}"}]},
-                {"recursion_limit": 12},
-            )
-        finally:
-            os.chdir(cwd)
+    result = await agent.ainvoke(
+        {"messages": [{"role": "user", "content": f"开发需求：\n{requirement.strip()}"}]},
+        {"recursion_limit": RECURSION_LIMIT},
+    )
     msgs = result.get("messages") or []
+    text = ""
     for msg in reversed(msgs):
         content = getattr(msg, "content", None)
-        text = content if isinstance(content, str) else json.dumps(content, ensure_ascii=False)
-        if text and text.strip():
-            return text
-    raise RuntimeError("DeepAgents 未返回内容")
+        candidate = content if isinstance(content, str) else json.dumps(content, ensure_ascii=False)
+        if candidate and candidate.strip():
+            text = candidate
+            break
+    if not text:
+        raise RuntimeError("DeepAgents 未返回内容")
+    if notes:
+        text += "\n\n> harness 注记：" + "；".join(notes) + "\n"
+    return text
+
+
+def deepagents_plan(requirement: str, timeout: float = 120.0) -> str:
+    """`adeepagents_plan` 的同步封装（可在事件循环内调用）。"""
+    return harness_run(lambda: adeepagents_plan(requirement, timeout))
+
+
+def harness_run(factory):
+    """延迟 import harness，避免 `planner` 在未装 `agents` extra 时导入失败。"""
+    from .harness import run_coro_sync
+
+    return run_coro_sync(factory)
 
 
 def make_plan(planner: PlannerName, requirement: str) -> tuple[str, str, str]:
@@ -176,3 +216,13 @@ def make_plan(planner: PlannerName, requirement: str) -> tuple[str, str, str]:
     if planner == "deepagents":
         return normalize_plan(deepagents_plan(requirement), requirement), PLAN_FORMAT, "deepagents"
     raise ValueError(f"未知 planner: {planner}")
+
+
+def plan_with_fallback(planner: PlannerName | str, requirement: str) -> tuple[str, str, str]:
+    """生成计划；**任何失败降级 stub** 并在计划尾注记原因（图节点与 CLI 共用同一条路径）。"""
+    try:
+        return make_plan(planner, requirement)  # type: ignore[arg-type]
+    except Exception as e:  # noqa: BLE001 - 生成失败必须可降级
+        md, fmt, used = make_plan("stub", requirement)
+        md += chr(10) + f"> 计划生成降级：planner={planner} 失败（{e}）" + chr(10)
+        return md, fmt, used
