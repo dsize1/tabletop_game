@@ -24,8 +24,9 @@ docker compose --profile n8n down n8n         # 停止并删除容器（卷保�
 > - `N8N_BLOCK_ENV_ACCESS_IN_NODE=false`（表达式/Code 节点读 `$env`）
 > - `NODE_FUNCTION_ALLOW_BUILTIN=crypto`（Code 节点 `require('crypto')` 做 HMAC）
 
-**鉴权（HMAC + 重放窗口）**：`signature = HMAC-SHA256(secret, session_id + "." + timestamp)`，请求头：
-`x-dev-signature`（hex）、`x-dev-timestamp`（epoch 秒，与服务端差 > 300s 拒绝）。
+**鉴权（HMAC + 防重放）**：`signature = HMAC-SHA256(secret, session_id + "." + timestamp)`，请求头：
+`x-dev-signature`（hex）、`x-dev-timestamp`（epoch 秒）。
+时间窗 ±300s；同一签名在窗口内**只能用一次**（静态数据去重，重复 → `replayed`）。
 
 ## 工作流：`dev-shadow`
 
@@ -83,7 +84,7 @@ curl -s -X POST http://127.0.0.1:5678/webhook/dev-shadow \
 
 ## 加固清单
 
-- [x] HMAC-SHA256（`session_id.timestamp`）+ 时间窗 ±300s（重放防护第一层）
-- [ ] nonce/一次性签名（防窗口内重放；需要状态存储）
+- [x] HMAC-SHA256（`session_id.timestamp`）+ 时间窗 ±300s
+- [x] 一次性签名（`$getWorkflowStaticData` 记录已用 sig，600s 清理）→ 窗口内重放返回 `replayed`
 - [ ] 审批节点（`approve_plan` / `approve_deploy`）与 CI/部署工作流（B9）
 - [ ] 密钥轮换流程
