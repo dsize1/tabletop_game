@@ -9,11 +9,9 @@
 | qq-gateway | `apps/qq-gateway` | Node/TS | QQ 群协议接入：收群事件 / 发群消息 |
 | web | `apps/web` | Node/TS | Express 独立站点：公共/个人资源展示 |
 | bot-adapter | `crates/bot-adapter` | Rust | QQ 群事件 → 内部消息事件 |
-| command-router | `crates/command-router` | Rust | 指令解析与路由 |
 | game-engine-core | `crates/game-engine-core` | Rust | 引擎框架（EnginePlugin trait / 注册表） |
-| engines/las-vegas | `crates/engines/las-vegas` | Rust | 首个桌游引擎「拉斯维加斯」（空） |
+| engines/las-vegas | `crates/engines/las-vegas` | Rust | 首个桌游引擎「拉斯维加斯」（6 轮 + 16 小游戏） |
 | auth | `crates/auth` | Rust | 短期 token 签发/校验、资源归属鉴权 |
-| push | `crates/push` | Rust | 全局广播 + 个人定向推送 |
 | server | `crates/server` | Rust | 单进程多模块入口（Axum HTTP API） |
 | shared | `crates/shared` | Rust | 内部事件与公共类型 |
 

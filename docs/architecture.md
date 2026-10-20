@@ -12,8 +12,9 @@
 
 ## 2. 技术栈
 
-- Node.js (TypeScript)：`qq-gateway`、`agent-gateway`（pi-sdk 主持人）、`web`
-- Rust + Axum（单进程多模块）：`bot-adapter`、`game-engine-core`/`engines`（含 MCP 暴露层）、`auth`、`push`、`server`
+- Node.js (TypeScript)：`qq-gateway`、`agent-gateway`（主持人 + dev 入口）、`web`、`dev-bridge`（dev 原语桥）
+- Rust + Axum（单进程多模块）：`bot-adapter`、`game-engine-core`/`engines`（含 MCP 暴露层）、`auth`、`server`
+  - 注：`command-router`、`push` 两个 Rust crate 已删除（职责分别并入 agent-gateway 与 Node 出站推送），见 `docs/modules/push.md`
 - Redis（Streams 总线 + 缓存）、SQLite（持久化真相源）
 - 模型：主持人 LLM（远程 API，型号待定）+ 决策模型 SystemOne（本地 StartLux-Decision-4B，Q8_0 GGUF）
 
@@ -36,10 +37,10 @@
 |---|---|---|---|
 | **chat**（闲聊/摘要压缩） | `chat.ts` `callLlm`（裸 HTTP DeepSeek） | **默认开启**：`LLM_THINKING_ENABLED=1`（不传 `thinking`）；`=0` 显式关闭 | **需用户主动提供链接**：消息含 `https://` 时，SystemOne `noul`（是/否）判断是否抓取该链接，命中则朴素 `fetch` 抽正文注入（Plan B 单跳）。**无链接不联网、不支持自主搜索** |
 | **game**（游戏情景叙述） | `chat.ts` `narrateGame`（复用 `callLlm`） | **默认开启**（同 `LLM_THINKING_ENABLED`） | **不支持**（纯文本润色，无链接/浏览器） |
-| **dev-task**（开发子会话） | `dev-session.ts`（pi-sdk 会话） | **开启**：`thinkingLevel: "medium"`（对 `deepseek-v4-pro` 实际夹到 `high`） | **playwright MCP 由模型自行选择抓取**：pi MCP 扩展读 `.pi/mcp.json`，`bindExtensions` 后可用 25 个 `mcp__playwright__browser_*`（codemode 暴露）；另有 `bash` 可 `curl` |
+| **dev-task**（开发执行） | `agents/dev_executor`（LangGraph；`DEV_PLANNER=stub|llm|deepagents`） | 由模型/端点决定（llm 走 DeepSeek 兼容端点） | 执行器内可接 MCP/沙箱（B8 后仍 shadow，未接 playwright） |
 | **profile**（人物画像蒸馏，日批） | `profile/local-llm.ts`（**本地 Qwen2.5-3B**，`llama-server` 按需起停） | **关闭**（非思考型小模型；经实测 9B 思考型不适合） | **不支持**（本地）；生成归 3B，**把关归 SystemOne**（`noul`）；见 ADR-0007 |
 
-- 配置项与触发细节见 `docs/modules/agent-gateway.md`（聊天联网）、`docs/modules/dev-task.md`（子会话工具）。
+- 配置项与触发细节见 `docs/modules/agent-gateway.md`（聊天联网）、`docs/modules/dev-task.md`（执行器/原语）。
 - 切换抓取源（如 chat 改用 playwright）时，同步更新本矩阵。
 
 ## 4. 模块拓扑
@@ -51,7 +52,7 @@ QQ 群 ──> qq-gateway(Node) ──> Redis Stream[qq.raw] ──> server(Rust
                                                 Redis Stream[internal]
                                                             │
                                                             ▼
-                                              agent-gateway(Node, pi-sdk)  ←─ 主持人
+                                              agent-gateway(Node)  ←─ 主持人 + dev 入口
                                                  │  ├─ 会话队列（per-session 串行）
                                                  │  ├─ MCP(stdio) ──> game-engine(Rust, MCP server)
                                                  │  │                    └─ 规则引擎校验 + 状态机 + 事件溯源 ──> SQLite
@@ -91,7 +92,7 @@ web(Express) ──HTTP──> server/auth + 资源查询 ──> SQLite / Redis
 | intent | 处理 |
 |---|---|
 | chat | 主持人直接 LLM 叙述（见 §8 回复策略） |
-| dev | 管理员白名单（`member_openid`）校验；游戏激活时丢弃并告知；子会话异步处理 |
+| dev | 管理员白名单（`member_openid`，server 判定）校验；游戏激活时丢弃并告知；执行器异步处理 |
 | start_game | 主持人列出可用游戏，确定性开桌 |
 | game_action | 见 §6.3 |
 
@@ -138,5 +139,5 @@ web(Express) ──HTTP──> server/auth + 资源查询 ──> SQLite / Redis
 
 - 新增桌游引擎：`crates/engines/<name>/` 实现 EnginePlugin（映射到 MCP 统一原语），并在 server 注册
 - 统一原语见 `docs/modules/game-engine.md`
-- 开发任务：`crates/dev-task` + `crates/dev-task-mcp`（MCP 原语，状态机 + 白名单校验）；子会话编排/消息桥见 `docs/modules/dev-task.md`
+- 开发任务：`apps/dev-bridge`（MCP 原语，契约不变）+ `crates/server`（状态/审计/白名单）+ `agents/dev_executor`（LangGraph 执行）；见 `docs/modules/dev-task.md`、ADR-0015
 - 开发文档预览：`crates/docs-mcp`（只读 MCP 原语）+ `config/dev-docs.json` + server `/resources/docs/*` + web `/dev_docs`；见 `docs/modules/docs-mcp.md`

@@ -106,7 +106,7 @@ npm run dev:up:qq      # 兼容旧命令，等价于 dev:up
 | 2 | agent-gateway | `cd apps/agent-gateway && npm run dev` | 消费 internal → 决策 → 聊天/猜拳 → qq.push；spawn game-engine-mcp |
 | 3 | qq-gateway | `cd apps/qq-gateway && npm run dev` | QQ 入站（→qq.raw）+ 出站（qq.push→发群消息） |
 
-> `game-engine-mcp` / `dev-task-mcp` / `docs-mcp` 均由 agent-gateway 通过 MCP stdio 自动 spawn，无需手动启动；但需先 `cargo build` 编译出 `crates/target/debug/*-mcp(.exe)`。
+> `game-engine-mcp` / `docs-mcp` 由 agent-gateway 通过 MCP stdio 自动 spawn；dev 原语由 `apps/dev-bridge`（Node/tsx）提供；执行器为 `agents/dev_executor`（`uv run dev-executor`）。Rust MCP 需先 `cargo build` 编译出 `crates/target/debug/*-mcp(.exe)`。
 
 ### 环境变量
 

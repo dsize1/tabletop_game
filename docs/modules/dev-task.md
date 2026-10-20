@@ -1,80 +1,71 @@
-# dev-task（开发任务引擎，MCP 形态）
+# dev-task（开发任务：桥 + 执行器 + 状态）
 
-- **语言**：Rust
-- **位置**：`crates/dev-task`（核心状态机）+ `crates/dev-task-mcp`（MCP stdio 暴露层）
-- **配套**：`apps/agent-gateway`（子会话编排 + 消息桥）+ `apps/agent-gateway/src/dev-task-client.ts`（MCP 客户端）
+> 2026-10-20 重构（ADR-0015 B1–B8）：**Rust `dev-task`/`dev-task-mcp` 已删除**；开发任务改为
+> 「**MCP 原语（薄桥）** + **LangGraph 执行器** + **server 状态/审计**」。
 
-## 职责
+## 组成
 
-- `dev-task`（core）：开发任务状态机 + 白名单校验 + SQLite 持久化（`dev_tasks` 表）
-- `dev-task-mcp`：把状态机映射为 MCP 统一原语，stdio 暴露给 agent-gateway
-
-## 与 game-engine 的同构与差异
-
-| 维度 | game-engine | dev-task |
+| 层 | 位置 | 职责 |
 |---|---|---|
-| 决策模型 | SystemOne（只建议） | **人**（固定前缀命令，置信度 100%） |
-| 规则 | 游戏规则 + 合法动作集 | 计划 + 计划工作流 |
-| 权限 | 回合/资源归属 | 开发者白名单（`member_openid`）+ 任务归属 |
-| 校验链 | 合法性 + 权限 + 执行 + 事件溯源 | 白名单 + 归属 + 确定性状态迁移表 |
-
-**子会话只做「内容」**（规划/执行/写计划文档），任务状态机由「网关（路由人工命令）+ Rust 引擎（权威状态+校验）」驱动，子会话不能自行改状态。
-
-## 状态机
+| 入口 | `apps/agent-gateway` | 显式命令识别（`#发起/#确认/#取消/#进度/#补充/#任务/#能力`）、回执、出站通知（轮询事件 → `qq.push`） |
+| 原语（桥） | `apps/dev-bridge`（Node，MCP stdio） | 对外契约；**不直连 SQLite**，全走 server；15+ 原语 |
+| 状态/审计 | `crates/server`（`/internal/dev/*`） | `dev_tasks`（投影）、`dev_task_events`、`dev_runs`、`dev_artifacts`；迁移表校验 + 白名单 |
+| 执行 | `agents/dev_executor`（Python + LangGraph） | 图 `plan → interrupt(approve) → execute → interrupt(verify) → summarize`；checkpoint 独立库 |
+| 驱动（未来） | n8n（`dev-shadow`，当前只读） | 触发/审批 UI/CI/部署（B9） |
 
 ```
-queued → planning → awaiting_confirm → running → verifying → done
-   └──────────────┬──────────────┬───────────────┘
-                failed        cancelled        failed
+QQ → gateway（入口）→ 桥（原语）→ server（投影/审计/校验）
+                        ↓ spawn
+                 dev-executor work --stage plan|execute|verify
+                        ↓
+        LangGraph checkpoint（唯一状态权威） → 事件 → gateway 通知 → 群
 ```
 
-- 迁移表确定性校验（`dev-task/src/lib.rs::is_valid_transition`）；任意非终态可进入 `failed`/`cancelled`
-- `confirm_task`（人工确认）：`awaiting_confirm → running`（确认计划）或 `verifying → done`（验收通过）
+## 原语（契约）
 
-## MCP 统一原语
+- 旧（11）：`list_tasks` / `get_task` / `get_progress` / `prepare_task_link` / `append_instruction` / `list_capabilities` / `create_task` / `confirm_task` / `cancel_task` / `transition_task` / `update_task_meta`
+- v2：`approve_plan` / `approve_verify` / `list_events` / `check_permission` / `start_run` / `finish_run` / `cancel_run`
+- 约定不变：`description` 带 `[读]/[写]`；失败文本 `错误: ...`；能力描述符 11 项（`#能力` 渲染）；**禁止用正则猜自由文本意图**。
 
-### 只读
+## 状态与数据
 
-| 工具 | 说明 |
+- `dev_tasks.status`：`queued → planning → awaiting_confirm → running → verifying → done`（+ `failed`/`cancelled`），**投影**（`sync_source=langgraph`，`executor_ref=run_id`）。
+- `stage`：`plan|execute|verify|ci|deploy`（区分「待确认计划」与「待验收」）。
+- `dev_task_events`（append-only）：`created/status_changed/run_started/plan_ready/approved/executed/verified/run_summary/failed/cancelled`；出站通知与对账的唯一输入。
+- `dev_runs`：单活跃（部分唯一索引；重复 start → 409）。
+- 计划文档：`memory_palace/plan/{sessionId}.md`（`#进度` 与短链读取同一份；6 分区 `plan6-v1`）。
+
+## 执行器命令
+
+```bash
+cd agents/dev_executor
+uv run dev-executor work --session-id <sid> --stage plan --requirement "<需求>"
+uv run dev-executor work --session-id <sid> --stage execute   # resume 批准，跑到验收中断
+uv run dev-executor work --session-id <sid> --stage verify    # resume 批准，收尾
+uv run dev-executor reconcile [--fix] [--json]                # 投影↔事件↔checkpoint 对账
+```
+
+- 计划生成：`DEV_PLANNER=stub|llm|deepagents`；失败自动降级 stub。
+- 执行阶段目前 **shadow**（不改代码）；真实执行（worktree/沙箱）待后续。
+
+## 配置
+
+| 变量 | 作用 |
 |---|---|
-| `list_tasks(status?)` | 列出所有开发任务（可按状态过滤），返回 session_id/status/title/group_id/qq_id |
-| `get_task(session_id)` | 单个任务详情 |
-| `get_progress(session_id)` | 阶段 + 待办/验证完成度（读计划文档复选框） |
-| `prepare_task_link(session_id, qq_id)` | 校验归属+非终态，返回计划短链资源 `dev_task:<id>`（**token 由网关签发**） |
-| `append_instruction(session_id, qq_id)` | 校验归属+非终态，授权把自由文本作为补充指令追加到已有子会话 |
-| `list_capabilities()` | 本服务全部 MCP 能力（描述符数组：`name/rw/description/usage/example`，见 `docs/conventions/mcp-primitives.md`） |
+| `DEV_EXEC_MODE` | `langgraph`（默认）/ `entry`（只入口不执行） |
+| `DEV_BRIDGE_ENTRY` | 指向 `dev-bridge/src/main.ts`（网关用桥；不设则连旧 Rust MCP，已无） |
+| `DEV_WHITELIST` | 白名单判定在 **server**；dev-up 从 `apps/agent-gateway/.env` 传给 server |
+| `DEV_NOTIFY_ENABLED` / `DEV_NOTIFY_INTERVAL_MS` | 事件→出站通知开关/间隔（游标 `dev:notify:cursor:{sid}` 去重） |
+| `DEV_PLANNER` / `LLM_*` | 计划生成后端与模型 |
+| `DEV_CHECKPOINT_PATH` | checkpoint 覆盖（默认 `data/langgraph/checkpoints.sqlite`） |
 
-### 写入（受校验）
+## 回滚
 
-| 工具 | 说明 | 校验 |
-|---|---|---|
-| `create_task(session_id, group_id, qq_id)` | 创建任务，初始 queued | 白名单 |
-| `confirm_task(session_id, qq_id)` | 人工确认计划/验收 | 白名单 + 归属 + 状态 |
-| `cancel_task(session_id, qq_id)` | 人工取消 | 白名单 + 归属 |
-| `transition_task(session_id, status)` | 内容里程碑迁移（网关驱动） | 确定性迁移表 |
-| `update_task_meta(session_id, title?, plan_path?)` | 回填标题/计划路径 | — |
+- 停执行器：`DEV_EXEC_MODE=entry`（只入口，不推进）。
+- 回旧实现不可能（Rust 引擎已删）；如需回退走 git 历史 + 重新引入 crate。
 
-读写属性标注在各 tool 的 `description` 前缀（`[读]`/`[写]`）。**能力描述符 schema、`example`（使用示例）字段与 QQ `#能力` 渲染格式见 `docs/conventions/mcp-primitives.md`**（MCP 统一原语规范）。
+## 已知边界
 
-## 统一键 sessionId
-
-- `sessionId` = pi 子会话 id = 计划文档 id（`memory_palace/plan/{sessionId}.md`）= 后期 web 页标识
-- 由 agent-gateway 生成（uuid），经 `SessionManager.create(..., { id: sessionId })` 落定到 pi 子会话；plan-memory 扩展据此写计划文档
-- 受理回执（被动回复）即携带 sessionId
-
-## 环境变量
-
-- `SQLITE_PATH`：SQLite 路径（默认 `data/tabletop.db`）
-- `DEV_WHITELIST`：开发者 `member_openid` 逗号分隔（空白名单 = 全部拒绝）
-- 经 agent-gateway 的 MCP 客户端 `env` 显式传递（MCP SDK 默认只继承白名单环境变量）
-
-## 约定
-
-- **命令固定前缀，禁用意图猜测**（2026-10-13 整改）：dev 引擎的所有对话一律走**显式命令 → MCP 原语**，禁止用正则/硬编码对自由文本判断意图（历史 `classifyDevMessage` 的 `确认|执行` 子串匹配曾误判「不要解除围栏开始执行」→ confirm）。命令：`#任务 [状态]` / `#进度 <id>` / `#确认 <id>` / `#取消 <id>` / `#能力` / `#发起 <需求>`（`#开发` 为别名）/ `#补充 <id> <正文>`。
-- **发起确认**：仅「发起」允许决策引擎识别为 dev；识别到但**无显式命令**时，网关只提示用户用 `#发起`，**不自动建任务**，防止决策引擎误判直接开任务。
-- **自由文本路由**：`#补充 <id> <正文>` 经 `append_instruction` 校验后，由网关 `runDevResume` 追加到已有子会话，不再落入通用 chat 兜底。
-- **token 重签**：`#进度/#查询` 命中非终态任务时调用 `prepare_task_link` 校验归属，再由网关签发新短链，解决原 token（TTL 8h）过期后无自助重取途径。
-- 被动回复：状态同步 + 引导人工推进（不展示计划内容）；主动推送：计划文档短链（标题 + `https://{域名}/dev_task/{sessionId}?token=xxx`，短期 token 鉴权）
-- 术语统一：`qq_id`（MCP 参数 / `dev_tasks` 列）存的是 `member_openid`（玩家身份 = openid，非 QQ 号），文档统一以「openid」指代
-- 子会话模型：复用主持人 LLM 凭据（DeepSeek），thinking 开启（`thinkingLevel: medium`；`deepseek-v4-pro` 的 `thinkingLevelMap` 中 `medium=null`，会被 pi 夹到 `high`，实际以 high 运行）
-- 子会话工具：`dev-session.ts` 挂载 pi MCP 扩展（读 `.pi/mcp.json`），`bindExtensions` 后可用 **playwright**（联网抓取/浏览器自动化）；`codemode`/`tool_search` 已激活（MCP 工具默认 codemode 暴露）
+- `#补充` 在 langgraph 模式只回执，尚无「追加到执行器」通道。
+- 事件 `verified`（server 确认）与 `run_summary`（执行器收尾）语义重叠，后续收敛。
+- `dev_tasks` 是投影，**不得**作为判定依据；判定走 server 迁移表 + checkpoint。

@@ -13,7 +13,7 @@
 ## 技术栈
 
 - **Node.js (TypeScript)**：QQ 接入 `qq-gateway`、资源展示 `web`（Express）
-- **Rust (Axum)**：bot-adapter / command-router / game-engine-core / auth / push（单进程多模块）
+- **Rust (Axum)**：bot-adapter / game-engine-core / engines / auth / server（单进程多模块）
 - **Redis**（Streams 总线 + 缓存）、**SQLite**（持久化）
 
 ## 按需加载索引

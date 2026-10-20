@@ -1,8 +1,8 @@
-# agent-gateway（主持人，pi-sdk）
+# agent-gateway（主持人 + 入口）
 
 - **语言**：Node.js（TypeScript）
 - **位置**：`apps/agent-gateway`
-- **依赖**：pi-sdk（`@earendil-works/pi-coding-agent`）
+- **依赖**：MCP SDK（stdio 客户端）；**pi-sdk 已移除**（dev 执行交 LangGraph）
 
 ## 命令与恢复原语（2026-10-17）
 
@@ -13,11 +13,11 @@
 
 - 消费 Redis Stream `internal`（bot-adapter 归一化后的内部事件）
 - 以 **pi-agent 会话**充当主持人：编排「意图 → 决策 → 执行 → 叙述」
-- 会话管理：**chat 按 `(group_id, openid)` 隔离**（每人一条独立会话线，ADR-0007）；开发任务用子会话；**人物画像跨群共享**
+- 会话管理：**chat 按 `(group_id, openid)` 隔离**（每人一条独立会话线，ADR-0007）；开发任务交 LangGraph 执行器；**人物画像跨群共享**
 - **MCP client**（stdio）：连接 game-engine MCP server
-- **MCP client**（stdio）：连接 dev-task MCP server（`dev-task-client.ts`）
+- **MCP client**（stdio）：连接 dev 薄桥（`dev-task-client.ts` → `apps/dev-bridge`）
 - **MCP client**（stdio）：连接 docs MCP server（`docs-client.ts`，本地开发文档预览，只读）
-- **子会话管理**（pi-sdk）：`dev-session.ts` 创建/恢复开发任务子会话（`SessionManager.create/open` + `prompt`/`dispose`）
+- **执行器编排**：`runStageViaExecutor` 以子进程方式跑 `uv run dev-executor work`（plan/execute/verify）；**事件通知**：轮询 `dev_task_events` → `qq.push`
 - **decision-service client**（HTTP）：调用 `/v1/systemone`
 - **auth client**（HTTP）：`auth-client.ts` 调 server `/auth/issue` 签发短期 token，拼计划文档短链
 - **profile client**（HTTP）：`profile/client.ts` 调 server `/internal/*` 读写对话窗口与人物画像（`profile/`）
@@ -29,20 +29,20 @@
 
 ### 会话与队列
 
-- chat：**每人一条线**（`chat:history:{group_id}:{openid}`）；同一会话/对局的消息**串行**处理（per-session 队列），避免 pi-sdk 会话并发 prompt
+- chat：**每人一条线**（`chat:history:{group_id}:{openid}`）；同一会话/对局的消息**串行**处理（per-session 队列），避免并发改状态
 - **阶段裁剪（a1）**：注入前只取热窗口（最近 20 条）中**最近一条 `boundary` 之后**的轮次（`chat-history.ts` 的 `cropToCurrentPhase`）；无 boundary 则全取。20 条以外不保留
-- 开发任务：独立子会话，与聊天会话隔离
+- 开发任务：LangGraph 执行器（独立 checkpoint；与聊天会话隔离）
 
 ### 开发任务（dev）
 
 - **显式命令硬判断**（先于决策模型，`dev-command.ts`）：`#任务 [状态]` / `#进度 <id>` / `#确认 <id>` / `#取消 <id>` / `#能力` / `#发起 <需求>`（`#开发` 别名）/ `#补充 <id> <正文>` / `#文档`。**禁止用正则/硬编码对自由文本判断意图**。
 - `#文档`：白名单 → `docs-mcp.prepare_docs_link` 校验 → 网关签发 `docs:all` 短期 token → 被动回复文档预览短链（`https://{域名}/dev_docs?token=xxx`）。
-- dev 意图：白名单校验 → `create_task` → 受理回执（含 sessionId）→ 异步 `spawn` 子会话规划；**仅显式 `#发起` 才建任务**，决策引擎判为 dev 但无显式命令时只提示，不自动建任务。
-- 子会话（pi-sdk）跑 plan-workflow：生成计划 → `update_task_meta` 回填标题 → `transition awaiting_confirm` → 签发短期 token（server `/auth/issue`）→ 主动推送计划文档短链；子会话挂 pi MCP 扩展（`.pi/mcp.json`），可用 playwright 等 MCP 工具联网
+- dev 意图：白名单校验 → `create_task` → 受理回执（含 sessionId）→ 异步 `work --stage plan`；**仅显式 `#发起` 才建任务**，决策引擎判为 dev 但无显式命令时只提示，不自动建任务。
+- 计划阶段（执行器）：`DEV_PLANNER` 生成 6 分区计划 → 写 `memory_palace/plan/{sid}.md` → `update_task_meta` + 投影 `awaiting_confirm` → 事件 `plan_ready` → 网关推送计划短链
 - **LLM 思考模式**：chat / 游戏叙述默认开启（`LLM_THINKING_ENABLED=1`，不传 `thinking`），`=0` 显式关闭；源起「3s 被动超时」误判，见 ADR-0002 修订
-- `#确认` → `confirm_task` → 恢复子会话执行 → `transition verifying` → `#确认` 再验收 → `done`
+- `#确认` → `approve_plan`/`approve_verify`（桥）→ 执行器 `work --stage execute|verify` → 投影 `verifying|done`
 - `#进度`：经 `prepare_task_link` 校验归属后**重签新短链**（原 token 过期可自助重取）
-- `#补充 <id> <正文>`：经 `append_instruction` 校验后 `runDevResume` 追加到已有子会话（不落 chat 兜底）
+- `#补充 <id> <正文>`：经 `append_instruction` 校验后仅回执（执行器追加通道待实现）
 - 聊天多轮：**按 `(group, openid)` 隔离**的 Redis 热缓存最近 20 条（`CHAT_HISTORY_LIMIT` 可配）注入 `chatReply`；条目随消息存 `ts`（写入时刻）与 `boundary`（话题切换边界），旧条目无这两个字段时降级为「时间未知、无边界」。读写见 `src/chat-history.ts`，渲染见 `src/time-context.ts`，上下文组装见 `src/context.ts`
 
 ### 游戏（拉斯维加斯，显式命令）
@@ -226,5 +226,5 @@
 - 蒸馏模型：本地 `llama-server` + Qwen2.5-3B GGUF（按需起停）
 - decision-service：本地 HTTP `/v1/systemone`
 - game-engine：MCP stdio
-- dev-task：MCP stdio（状态机 + 白名单）
+- dev 原语：MCP stdio（薄桥 `apps/dev-bridge`；状态/白名单在 server）
 - docs-mcp：MCP stdio（本地开发文档预览，只读）

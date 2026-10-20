@@ -25,3 +25,6 @@
 - [ADR-0010：版图渲染、页内双模式与素材加工](./ADR-0010-board-rendering-dualmode-assets.md)
 - [ADR-0011：移动端形态 —— PWA 优先、Tauri 2 壳次之，RN/Expo 延后](./ADR-0011-mobile-app-form-pwa-tauri2-vs-rn.md)
 - [ADR-0012：交互原语分级（单选/多选/分区/级联/接力）与 Q 群消息侧冻结](./ADR-0012-interaction-primitives.md)
+- [ADR-0013：n8n + LangGraph + DeepAgents 三层编排架构与协议边界（提案·技术探讨）](./ADR-0013-n8n-langgraph-deepagents-layering.md)
+- [ADR-0014：dev 消息链路改造 —— 任务入口化、可恢复执行与分阶段实现计划（提案·技术探讨）](./ADR-0014-dev-chain-task-queue-and-phased-plan.md)
+- [ADR-0015：切新路线时保留「消息驱动 + MCP 桥」口径下的阻碍、持久化改动与冗余清理（Rust 引擎可废弃）](./ADR-0015-dev-line-mcp-bridge-persistence-delta.md)
