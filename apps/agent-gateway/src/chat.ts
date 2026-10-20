@@ -7,6 +7,7 @@ import {
   buildChatContext,
   buildGameNarrationInput,
   type ChatContextOptions,
+  type GameNarrationInput,
 } from "./context.js";
 import type { TimedTurn } from "./time-context.js";
 
@@ -129,22 +130,14 @@ export async function chatReply(
   }
 }
 
-/** 游戏情景叙述：把动作 + 结果（+ 局面摘要 + 玩家画像）润色为承上启下、有带入感的短叙述。失败抛错（调用方静默降级为仅模板）。 */
-export async function narrateGame(
-  action: string,
-  result: string,
-  stateSummary?: string,
-  profileText?: string,
-): Promise<string> {
+/** 游戏情景叙述：把动作 + 结果（+ 局面摘要 + 玩家画像 + 执行者）润色为承上启下、有带入感的短叙述。失败抛错（调用方静默降级为仅模板）。 */
+export async function narrateGame(input: GameNarrationInput): Promise<string> {
   if (!LLM_API_KEY) throw new Error("LLM 未配置，跳过情景叙述");
-  // 背景组装见 `context.ts`（game 线：局面 + 画像 + 操作 + 结果）
+  // 背景组装见 `context.ts`（game 线：执行者 + 局面 + 画像 + 操作 + 结果）
   const text = await callLlm(
     [
       { role: "system", content: GAME_NARRATION_SYSTEM_PROMPT },
-      {
-        role: "user",
-        content: buildGameNarrationInput({ action, result, stateSummary, profileText }),
-      },
+      { role: "user", content: buildGameNarrationInput(input) },
     ],
     2000,
   );

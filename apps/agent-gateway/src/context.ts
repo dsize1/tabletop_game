@@ -51,9 +51,13 @@ export function buildChatContext(
 
 /** game 线情景叙述的 system 提示。 */
 export const GAME_NARRATION_SYSTEM_PROMPT =
-  "你是桌游群里的游戏主持人。把玩家的操作与游戏结果润色成一句简短、有情景带入感的话，承上启下推进游戏进程。不要逐条复述所有结果（详情玩家会去网页看），只做承上启下 + 情景带入。中文，不超过 200 字，直接输出正文。";
+  "你是桌游群里的游戏主持人。把玩家的操作与游戏结果润色成一句简短、有情景带入感的话，承上启下推进游戏进程。不要逐条复述所有结果（详情玩家会去网页看），只做承上启下 + 情景带入。中文，不超过 200 字，直接输出正文。" +
+  // 主体钉死（bug 修复）：局面摘要描述的是**动作之后**的局面，「等待 X」是下一位，曾被模型当成执行者。
+  "叙述主体必须是「执行玩家」（本次动作的执行者）；「当前局面」里出现的「等待 X」是下一步轮到的玩家，不要写成他执行了本次动作。";
 
 export interface GameNarrationInput {
+  /** 本次动作的执行者展示名（叙述主体；缺省则不给主体提示） */
+  actor?: string;
   /** 本次玩家操作 */
   action: string;
   /** 规则引擎结果文案（模板摘要） */
@@ -70,7 +74,12 @@ export interface GameNarrationInput {
  */
 export function buildGameNarrationInput(a: GameNarrationInput): string {
   const lines: string[] = [];
-  if (a.stateSummary) lines.push(`当前局面：${a.stateSummary}`);
+  if (a.actor) lines.push(`执行玩家：${a.actor}`);
+  // 摘要是「动作已生效后」的局面：显式标注，避免把「等待 X」误当执行者
+  if (a.stateSummary)
+    lines.push(
+      `当前局面（本次动作已生效；其中「等待 X」是下一步轮到的玩家，不是本次动作执行者）：${a.stateSummary}`,
+    );
   if (a.profileText) lines.push(`玩家画像：${a.profileText}`);
   lines.push(`玩家操作：${a.action}`);
   lines.push(`游戏结果：${a.result}`);

@@ -412,7 +412,13 @@ async function sendGameReply(
   if (NARRATION_ENABLED && actionDesc) {
     try {
       const profile = await profileCache.get(event.sender_id);
-      const narration = await narrateGame(actionDesc, template, stateSummary, profile);
+      const narration = await narrateGame({
+        actor: await resolveActorName(redis, event),
+        action: actionDesc,
+        result: template,
+        stateSummary,
+        profileText: profile,
+      });
       await pushReply(redis, event, narration, 2);
     } catch (err) {
       console.error("[agent-gateway] 情景叙述失败，静默降级为仅模板:", err);
@@ -857,6 +863,7 @@ async function executeIntent(
           result.message ?? resultJson,
           fb.summary,
           names,
+          actorName(names, event),
         );
         if (!result.finished) {
           await driveBots(redis, engine, event, active.room_id, event.sender_id, boardUrl);
@@ -1041,6 +1048,24 @@ async function recordPlayerName(redis: Redis, event: MessageGroupAt): Promise<vo
   await redis.hset(`names:${event.group_id}`, event.sender_id, name);
 }
 
+/** 执行者展示名（群昵称缓存 → 事件昵称 → openid），用于情景叙述的主体。 */
+async function resolveActorName(redis: Redis, event: MessageGroupAt): Promise<string> {
+  try {
+    const cached = await redis.hget(`names:${event.group_id}`, event.sender_id);
+    if (cached) return cached;
+  } catch {
+    /* 缓存不可用则降级 */
+  }
+  return (event.sender_name ?? "").trim() || event.sender_id;
+}
+
+/** 同上，但用已加载的展示名表（`loadNames`），避免重复读缓存。 */
+function actorName(names: Record<string, string> | undefined, event: MessageGroupAt): string {
+  return (
+    (names?.[event.sender_id] ?? "").trim() || (event.sender_name ?? "").trim() || event.sender_id
+  );
+}
+
 /** 掷骰结果的紧凑文案：小[1,2,3] 大5。 */
 function formatRoll(roll?: { small?: number[]; big?: number | null }): string {
   if (!roll) return "";
@@ -1178,6 +1203,8 @@ async function pushGameFeedback(
   resultMessage?: string,
   summary?: string,
   names?: Record<string, string>,
+  /** 本次动作的执行者展示名（叙述主体）；机器人批量播报传 undefined（动作文案已带名字）。 */
+  actor?: string,
 ) {
   const sub = (s: string) => applyNames(s, names ?? {});
   // 错误 / 中断（行政动作）不做 LLM 情景叙述。
@@ -1188,12 +1215,13 @@ async function pushGameFeedback(
   if (NARRATION_ENABLED && actionDesc && !skipNarrate) {
     try {
       const profile = await profileCache.get(event.sender_id);
-      narration = await narrateGame(
-        sub(actionDesc),
-        sub(resultMessage ?? feedback),
-        summary ? sub(summary) : undefined,
-        profile,
-      );
+      narration = await narrateGame({
+        actor,
+        action: sub(actionDesc),
+        result: sub(resultMessage ?? feedback),
+        stateSummary: summary ? sub(summary) : undefined,
+        profileText: profile,
+      });
     } catch (err) {
       console.error("[agent-gateway] 情景叙述失败，静默降级:", err);
     }
@@ -1378,6 +1406,7 @@ async function handleGameCommand(
       result.message ?? startJson,
       fb.summary,
       names,
+      actorName(names, event),
     );
     await driveBots(redis, engine, event, st.room_id, event.sender_id, boardUrl);
     return;
@@ -1462,6 +1491,7 @@ async function handleGameCommand(
     result.message ?? resultJson,
     fb.summary,
     names,
+    actorName(names, event),
   );
   if (!result.finished) {
     await driveBots(redis, engine, event, roomId, event.sender_id, boardUrl);
