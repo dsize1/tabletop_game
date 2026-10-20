@@ -1,9 +1,14 @@
 //! server：Rust 单进程多模块入口
 //!
-//! 组合 bot-adapter / game-engine-core / auth / push，
+//! 组合 bot-adapter / game-engine-core / auth，
 //! 提供 Axum HTTP API（健康检查、资源查询），并消费 Redis Streams。
+//!
+//! 注：出站推送不经 Rust 写 `qq.push`（原 `crates/push` 已于 2026-10-20 删除），
+//! 生产者是 agent-gateway（Node），此处只做 `qq.push → group_messages(out)` 归档。
 
 mod auth_routes;
+mod dev_routes;
+mod dev_state;
 mod docs_routes;
 mod internal_routes;
 mod health;
@@ -12,6 +17,7 @@ mod resources_routes;
 use axum::extract::State;
 use axum::{routing::{get, post}, Json, Router};
 use serde_json::Value;
+use std::collections::HashSet;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -23,6 +29,8 @@ struct AppState {
     storage: Arc<storage::Storage>,
     plan_dir: String,
     docs: shared::docs_config::DocsConfig,
+    /// 开发白名单（ADR-0015：判定只在 server；空白名单 = 全拒）
+    dev_whitelist: Arc<HashSet<String>>,
 }
 
 #[tokio::main]
@@ -41,6 +49,14 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or(auth::DEFAULT_TTL_SECS);
 
     let storage = Arc::new(storage::Storage::open(&sqlite_path)?);
+
+    // 开发白名单（从 MCP env 迁到 server env；空白名单 = 全拒）
+    let dev_whitelist: HashSet<String> = std::env::var("DEV_WHITELIST")
+        .unwrap_or_default()
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
 
     // 后台启动 bot-adapter 消费循环（qq.raw → internal）
     let adapter_url = redis_url.clone();
@@ -83,6 +99,7 @@ async fn main() -> anyhow::Result<()> {
         storage: storage.clone(),
         plan_dir,
         docs: shared::docs_config::load(),
+        dev_whitelist: Arc::new(dev_whitelist),
     };
     let app = Router::new()
         .route("/health", get(health))
@@ -102,6 +119,29 @@ async fn main() -> anyhow::Result<()> {
         )
         .route("/internal/profile/{openid}", get(internal_routes::get_profile))
         .route("/internal/profile", post(internal_routes::upsert_profile))
+        // dev 线内部 API（ADR-0015 §2.4）：唯写者仍是 server
+        .route(
+            "/internal/dev_task/{session_id}",
+            get(dev_routes::dev_task_payload),
+        )
+        .route("/internal/dev/events", post(dev_routes::append_event))
+        .route("/internal/dev/events", get(dev_routes::list_events))
+        .route("/internal/dev/tasks", get(dev_routes::list_tasks))
+        .route("/internal/dev/tasks", post(dev_routes::create_task))
+        .route("/internal/dev/transition", post(dev_routes::transition_task))
+        .route("/internal/dev/confirm", post(dev_routes::confirm_task))
+        .route("/internal/dev/runs", post(dev_routes::start_run))
+        .route(
+            "/internal/dev/runs/{run_id}/status",
+            post(dev_routes::set_run_status),
+        )
+        .route(
+            "/internal/dev/runs/{session_id}/active",
+            get(dev_routes::active_run),
+        )
+        .route("/internal/dev/meta", post(dev_routes::update_meta))
+        .route("/internal/dev/projection", post(dev_routes::update_projection))
+        .route("/internal/dev/permission", post(dev_routes::check_permission))
         .with_state(state);
 
     let port: u16 = std::env::var("SERVER_PORT")

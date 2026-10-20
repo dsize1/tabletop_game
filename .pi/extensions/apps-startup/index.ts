@@ -90,7 +90,7 @@ function findProjectProcs(): Array<{ pid: number; name: string }> {
   const ps = [
     "$ErrorActionPreference='SilentlyContinue'",
     `$root='${root}'`,
-    "$names=@('server.exe','dev-task-mcp.exe','game-engine-mcp.exe','llama-server.exe')",
+    "$names=@('server.exe','game-engine-mcp.exe','llama-server.exe')",
     // 匹配：① node 进程命令行含项目根（tsx 路径）或 dev-up.mjs；② 本项目下的服务 exe（按路径或命令行）
     "Get-CimInstance Win32_Process | Where-Object { ($_.Name -eq 'node.exe' -and ($_.CommandLine -like \"*$root*\" -or $_.CommandLine -like '*dev-up.mjs*')) -or (($names -contains $_.Name) -and ($_.ExecutablePath -like \"$root*\" -or $_.CommandLine -like \"*$root*\")) } | ForEach-Object { \"$($_.ProcessId)|$($_.Name)\" }",
   ].join("; ");

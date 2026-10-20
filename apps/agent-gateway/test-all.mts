@@ -26,6 +26,8 @@ const INCLUDED = [
   "test-profile-inject.mts",
   "test-profile-local-llm.mts",
   "test-context.mts",
+  "test-proactive-gate.mts",
+  "test-dev-bridge.mts",
 ];
 
 /** 显式排除（附原因）。 */

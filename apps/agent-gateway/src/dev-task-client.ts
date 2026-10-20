@@ -1,5 +1,5 @@
-//! dev-task MCP client（stdio）：agent-gateway → dev-task-mcp 进程。
-//! 与 game-engine MCP 同构：读写原语 + 白名单/状态机校验在 Rust 侧。
+//! dev 原语 MCP client（stdio）：agent-gateway → `apps/dev-bridge`。
+//! 原语契约不变；白名单/状态/审计在 server（`/internal/dev/*`），桥不直连 SQLite。
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
@@ -8,30 +8,25 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-function defaultMcpPath(): string {
-  const exe = process.platform === "win32" ? "dev-task-mcp.exe" : "dev-task-mcp";
-  return path.resolve(__dirname, "../../../crates/target/debug", exe);
-}
-
 export class DevTaskClient {
   private client: Client | null = null;
 
   async connect(): Promise<void> {
-    const mcpPath = process.env.DEV_TASK_MCP ?? defaultMcpPath();
     const projectRoot = path.resolve(__dirname, "../../..");
+    const appsRoot = path.resolve(__dirname, "../..");
+    // B8：薄桥是唯一实现（Rust dev-task-mcp 已删除）；可用 DEV_BRIDGE_ENTRY 覆盖入口
+    const bridgeEntry = process.env.DEV_BRIDGE_ENTRY ?? "dev-bridge/src/main.ts";
     const transport = new StdioClientTransport({
-      command: mcpPath,
-      args: [],
-      cwd: projectRoot, // 让 dev-task-mcp 的 SQLITE_PATH 相对路径与 server 一致
-      // MCP SDK 默认只继承白名单环境变量，需显式传递 dev-task-mcp 所需变量
+      command: process.execPath,
+      args: ["--import", "tsx", path.resolve(appsRoot, bridgeEntry)],
+      cwd: appsRoot, // apps/node_modules 下可解析 tsx
       env: {
-        DEV_WHITELIST: process.env.DEV_WHITELIST ?? "",
-        SQLITE_PATH: process.env.SQLITE_PATH ?? "data/tabletop.db",
+        SERVER_URL: process.env.SERVER_URL ?? "http://127.0.0.1:3000",
       },
     });
     this.client = new Client({ name: "agent-gateway", version: "0.1.0" });
     await this.client.connect(transport);
-    console.log(`[agent-gateway] 已连接 dev-task MCP: ${mcpPath}`);
+    console.log(`[agent-gateway] 已连接 dev-bridge: ${bridgeEntry}（projectRoot=${projectRoot}）`);
   }
 
   private async call(name: string, args: Record<string, unknown>): Promise<string> {
@@ -78,6 +73,21 @@ export class DevTaskClient {
 
   async confirmTask(sessionId: string, qqId: string): Promise<string> {
     return this.call("confirm_task", { session_id: sessionId, qq_id: qqId });
+  }
+
+  /** v2：批准计划（仅薄桥提供；Rust MCP 无此原语）。 */
+  async approvePlan(sessionId: string, qqId: string): Promise<string> {
+    return this.call("approve_plan", { session_id: sessionId, qq_id: qqId });
+  }
+
+  /** v2：任务事件增量（审计/通知源）。 */
+  async listEvents(sessionId: string, sinceId = 0, limit = 50): Promise<string> {
+    return this.call("list_events", { session_id: sessionId, since_id: sinceId, limit });
+  }
+
+  /** v2：验收通过（仅薄桥提供）。 */
+  async approveVerify(sessionId: string, qqId: string): Promise<string> {
+    return this.call("approve_verify", { session_id: sessionId, qq_id: qqId });
   }
 
   async cancelTask(sessionId: string, qqId: string): Promise<string> {

@@ -1,0 +1,14 @@
+{
+  "name": "@tabletop-game/dev-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "dev-task 薄桥（MCP stdio）：原语实现，状态与持久化全部走 server /internal/dev/*",
+  "scripts": {
+    "start": "tsx src/main.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1"
+  }
+}

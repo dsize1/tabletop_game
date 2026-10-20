@@ -3,17 +3,13 @@ resolver = "2"
 members = [
     "shared",
     "bot-adapter",
-    "command-router",
     "game-engine-core",
     "engines/las-vegas",
     "engines/rock-paper-scissors",
     "game-engine-mcp",
-    "dev-task",
-    "dev-task-mcp",
     "docs-mcp",
     "storage",
     "auth",
-    "push",
     "server",
 ]
 

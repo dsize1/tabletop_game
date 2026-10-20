@@ -8,11 +8,9 @@ license.workspace = true
 shared = { path = "../shared" }
 storage = { path = "../storage" }
 bot-adapter = { path = "../bot-adapter" }
-command-router = { path = "../command-router" }
 game-engine-core = { path = "../game-engine-core" }
 las-vegas = { path = "../engines/las-vegas" }
 auth = { path = "../auth" }
-push = { path = "../push" }
 axum.workspace = true
 serde.workspace = true
 uuid.workspace = true

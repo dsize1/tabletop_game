@@ -207,15 +207,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "command-router"
-version = "0.1.0"
-dependencies = [
- "game-engine-core",
- "shared",
- "tracing",
-]
-
-[[package]]
 name = "core-foundation-sys"
 version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -262,31 +253,6 @@ dependencies = [
  "darling_core",
  "quote",
  "syn 3.0.6",
-]
-
-[[package]]
-name = "dev-task"
-version = "0.1.0"
-dependencies = [
- "serde",
- "storage",
- "thiserror",
-]
-
-[[package]]
-name = "dev-task-mcp"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "dev-task",
- "rmcp",
- "schemars",
- "serde",
- "serde_json",
- "storage",
- "tokio",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -959,18 +925,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "push"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "redis",
- "serde",
- "serde_json",
- "shared",
- "tracing",
-]
-
-[[package]]
 name = "quote"
 version = "1.0.47"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1274,10 +1228,8 @@ dependencies = [
  "auth",
  "axum",
  "bot-adapter",
- "command-router",
  "game-engine-core",
  "las-vegas",
- "push",
  "redis",
  "serde",
  "serde_json",

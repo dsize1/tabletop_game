@@ -1,0 +1,230 @@
+{
+  "name": "dev-shadow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dev-shadow",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-dev-shadow",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -200,
+        0
+      ],
+      "webhookId": "dev-shadow"
+    },
+    {
+      "parameters": {
+        "jsCode": "// MVP：静态头 token 校验（x-dev-token = DEV_WEBHOOK_TOKEN）。\n// shadow：只读 payload + 权限判定，不推进状态、不通知。\nconst body = $json.body ?? {};\nconst headers = $json.headers || {};\nconst token = headers['x-dev-token'] || headers['X-Dev-Token'] || '';\nconst expect = $env.DEV_WEBHOOK_TOKEN || '';\nif (!token || !expect || token !== expect) {\n  return [{ json: { ok: false, reason: 'token_invalid' } }];\n}\nconst sessionId = body.session_id || '';\nif (!sessionId) return [{ json: { ok: false, reason: 'missing_session_id' } }];\nreturn [{ json: { ok: true, session_id: sessionId, qq_id: body.qq_id || '' } }];"
+      },
+      "id": "verify-token",
+      "name": "Verify token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ok-true",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-signature-ok",
+      "name": "IF 签名通过",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.DEV_SERVER_URL }}/internal/dev_task/{{ $('Verify token').item.json.session_id }}",
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "id": "get-payload",
+      "name": "GET payload",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        420,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.DEV_SERVER_URL }}/internal/dev/permission",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ op: 'read', qq_id: $('Verify token').item.json.qq_id || '', session_id: $('Verify token').item.json.session_id }) }}",
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "id": "check-permission",
+      "name": "POST permission",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        420,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "respond-ok",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1080,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ shadow: true, reason: $json.reason || 'not_verifying' }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-skip",
+      "name": "Respond skip",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// shadow 决策：只读判定，不推进状态、不通知\nconst status = $('GET payload').item.json.task?.status ?? 'unknown';\nconst perm = $json || {};\nreturn [{ json: { shadow: true, status, permission: perm, would_run_ci: status === 'verifying' && perm.allow === true } }];"
+      },
+      "id": "shadow-decision",
+      "name": "Decision",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        860,
+        -100
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Verify token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify token": {
+      "main": [
+        [
+          {
+            "node": "IF 签名通过",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF 签名通过": {
+      "main": [
+        [
+          {
+            "node": "GET payload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond skip",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET payload": {
+      "main": [
+        [
+          {
+            "node": "POST permission",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST permission": {
+      "main": [
+        [
+          {
+            "node": "Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decision": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "active": false
+}

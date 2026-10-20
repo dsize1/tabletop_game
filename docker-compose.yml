@@ -8,5 +8,35 @@ services:
       - redis-data:/data
     command: ["redis-server", "--appendonly", "yes"]
 
+  # n8n：dev 线的「驱动 + 消费 + 未来 CI/部署」（ADR-0015）。
+  # 默认**不启动**（profile），只在需要时：docker compose --profile n8n up -d n8n
+  # 注意：n8n 不持有业务状态、不直连 SQLite、不存群消息正文（只传 task_id）。
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: tabletop-game-n8n
+    profiles: ["n8n"]
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_SECURE_COOKIE=false
+      - N8N_DIAGNOSTICS_ENABLED=false
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
+      # 工作流表达式需读 $env（DEV_SERVER_URL / DEV_WEBHOOK_TOKEN）
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+      - GENERIC_TIMEZONE=Asia/Shanghai
+      - TZ=Asia/Shanghai
+      # Webhook 共享 token（MVP：静态头校验；HMAC 需 NODE_FUNCTION_ALLOW_BUILTIN=crypto，留待加固）
+      - DEV_WEBHOOK_TOKEN=${DEV_WEBHOOK_TOKEN:-dev-token-change-me}
+      # 容器内访问宿主机 server（Windows/macOS 用 host.docker.internal；Linux 见下方 extra_hosts）
+      - DEV_SERVER_URL=${DEV_SERVER_URL:-http://host.docker.internal:3000}
+    volumes:
+      - n8n-data:/home/node/.n8n
+      # 工作流 JSON 只读挂载，便于 CLI 导入：docker compose --profile n8n run --rm n8n import:workflow --input=/workflows/dev-shadow.json
+      - ./deploy/n8n/workflows:/workflows:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
 volumes:
   redis-data:
+  n8n-data:

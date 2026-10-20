@@ -35,6 +35,8 @@ impl Storage {
         // 旧表无任何写入方，安全重建（数据不作保留）。
         migrate_chat_history(&conn)?;
         conn.execute_batch(CREATE_TABLES)?;
+        // dev_tasks 加列（幂等）：ADR-0015 §3.3（stage/executor/... 投影列）
+        ensure_dev_task_columns(&conn)?;
         Ok(Self {
             conn: Mutex::new(conn),
         })
@@ -239,6 +241,16 @@ impl Storage {
         Ok(())
     }
 
+    /// 记录计划格式标识（`plan6-v1` 等；ADR-0015 §3.3 防 `get_progress` 解析失效）。
+    pub fn set_dev_task_plan_format(&self, session_id: &str, plan_format: &str) -> anyhow::Result<()> {
+        let conn = self.lock();
+        conn.execute(
+            "UPDATE dev_tasks SET plan_format=?1, last_synced_at=?2, updated_at=?2 WHERE session_id=?3",
+            params![plan_format, now_secs(), session_id],
+        )?;
+        Ok(())
+    }
+
     /// 更新任务状态（状态机由网关+引擎确定性驱动）。
     pub fn set_dev_task_status(&self, session_id: &str, status: &str) -> anyhow::Result<()> {
         let conn = self.lock();
@@ -253,7 +265,8 @@ impl Storage {
     pub fn get_dev_task(&self, session_id: &str) -> anyhow::Result<Option<DevTask>> {
         let conn = self.lock();
         let mut stmt = conn.prepare(
-            "SELECT session_id, group_id, qq_id, title, plan_path, status, created_at, updated_at
+            "SELECT session_id, group_id, qq_id, title, plan_path, status, created_at, updated_at,
+                    stage, executor, executor_ref, contract_version, plan_format, last_synced_at, sync_source
              FROM dev_tasks WHERE session_id=?1",
         )?;
         let mut rows = stmt.query_map(params![session_id], map_dev_task)?;
@@ -267,7 +280,8 @@ impl Storage {
         match status_filter {
             Some(s) => {
                 let mut stmt = conn.prepare(
-                    "SELECT session_id, group_id, qq_id, title, plan_path, status, created_at, updated_at
+                    "SELECT session_id, group_id, qq_id, title, plan_path, status, created_at, updated_at,
+                            stage, executor, executor_ref, contract_version, plan_format, last_synced_at, sync_source
                      FROM dev_tasks WHERE status=?1 ORDER BY created_at DESC",
                 )?;
                 let rows = stmt.query_map(params![s], map_dev_task)?;
@@ -277,7 +291,8 @@ impl Storage {
             }
             None => {
                 let mut stmt = conn.prepare(
-                    "SELECT session_id, group_id, qq_id, title, plan_path, status, created_at, updated_at
+                    "SELECT session_id, group_id, qq_id, title, plan_path, status, created_at, updated_at,
+                            stage, executor, executor_ref, contract_version, plan_format, last_synced_at, sync_source
                      FROM dev_tasks ORDER BY created_at DESC",
                 )?;
                 let rows = stmt.query_map([], map_dev_task)?;
@@ -287,6 +302,203 @@ impl Storage {
             }
         }
         Ok(out)
+    }
+
+    // ---- dev_task_events（审计 + 出站通知源；ADR-0015 §3.2）----
+
+    /// 追加一条任务事件（`event_id` 幂等）；返回是否实际插入。
+    pub fn append_dev_task_event(
+        &self,
+        event_id: &str,
+        session_id: &str,
+        kind: &str,
+        actor: Option<&str>,
+        payload: &str,
+    ) -> anyhow::Result<bool> {
+        let conn = self.lock();
+        let n = conn.execute(
+            "INSERT OR IGNORE INTO dev_task_events
+             (event_id, session_id, kind, actor, payload, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![event_id, session_id, kind, actor, payload, now_secs()],
+        )?;
+        Ok(n > 0)
+    }
+
+    /// 按 `since_id`（不含）增量查询任务事件，按 id 升序。
+    pub fn list_dev_task_events(
+        &self,
+        session_id: &str,
+        since_id: i64,
+        limit: usize,
+    ) -> anyhow::Result<Vec<DevTaskEventRow>> {
+        let conn = self.lock();
+        let mut stmt = conn.prepare(
+            "SELECT id, event_id, session_id, kind, actor, payload, created_at
+             FROM dev_task_events WHERE session_id=?1 AND id>?2 ORDER BY id ASC LIMIT ?3",
+        )?;
+        let rows = stmt.query_map(params![session_id, since_id, limit as i64], |row| {
+            Ok(DevTaskEventRow {
+                id: row.get(0)?,
+                event_id: row.get(1)?,
+                session_id: row.get(2)?,
+                kind: row.get(3)?,
+                actor: row.get(4)?,
+                payload: row.get(5)?,
+                created_at: row.get(6)?,
+            })
+        })?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r?);
+        }
+        Ok(out)
+    }
+
+    // ---- dev_runs（执行调度；单活跃 run 由唯一索引兼底）----
+
+    /// 插入一条 run（`status=queued`）。同任务已有活跃 run 时报错（唯一索引）。
+    pub fn insert_dev_run(
+        &self,
+        run_id: &str,
+        session_id: &str,
+        stage: &str,
+        executor: &str,
+        branch: Option<&str>,
+        commit_sha: Option<&str>,
+        idempotency_key: Option<&str>,
+    ) -> anyhow::Result<()> {
+        let conn = self.lock();
+        conn.execute(
+            "INSERT INTO dev_runs
+             (run_id, session_id, stage, executor, status, attempt, branch, commit_sha,
+              idempotency_key, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, 'queued', 1, ?5, ?6, ?7, ?8, ?8)",
+            params![
+                run_id,
+                session_id,
+                stage,
+                executor,
+                branch,
+                commit_sha,
+                idempotency_key,
+                now_secs()
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// 推进 run 状态（可选回填 `executor_ref`/错误/结束时间）。
+    pub fn set_dev_run_status(
+        &self,
+        run_id: &str,
+        status: &str,
+        executor_ref: Option<&str>,
+        last_error: Option<&str>,
+    ) -> anyhow::Result<()> {
+        let conn = self.lock();
+        let now = now_secs();
+        let ended = matches!(status, "succeeded" | "failed" | "cancelled").then(|| now.clone());
+        conn.execute(
+            "UPDATE dev_runs SET status=?1,
+                executor_ref=COALESCE(?2, executor_ref),
+                last_error=COALESCE(?3, last_error),
+                started_at=CASE WHEN ?1='running' AND started_at IS NULL THEN ?4 ELSE started_at END,
+                ended_at=COALESCE(?5, ended_at),
+                updated_at=?4
+             WHERE run_id=?6",
+            params![status, executor_ref, last_error, now, ended, run_id],
+        )?;
+        Ok(())
+    }
+
+    /// 查同一任务当前活跃 run（queued/running）。
+    pub fn get_active_dev_run(&self, session_id: &str) -> anyhow::Result<Option<DevRunRow>> {
+        let conn = self.lock();
+        let mut stmt = conn.prepare(
+            "SELECT run_id, session_id, stage, executor, executor_ref, status, attempt, branch,
+                    commit_sha, idempotency_key, started_at, ended_at, last_error, created_at, updated_at
+             FROM dev_runs WHERE session_id=?1 AND status IN ('queued','running')
+             ORDER BY created_at DESC LIMIT 1",
+        )?;
+        let mut rows = stmt.query_map(params![session_id], map_dev_run)?;
+        match rows.next() {
+            Some(r) => Ok(Some(r?)),
+            None => Ok(None),
+        }
+    }
+
+    // ---- dev_artifacts（产物：worktree/commit/测试报告/镜像/部署）----
+
+    /// 追加一条产物记录。
+    pub fn insert_dev_artifact(
+        &self,
+        session_id: &str,
+        kind: &str,
+        r#ref: &str,
+        digest: Option<&str>,
+    ) -> anyhow::Result<()> {
+        let conn = self.lock();
+        conn.execute(
+            "INSERT INTO dev_artifacts (session_id, kind, ref, digest, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![session_id, kind, r#ref, digest, now_secs()],
+        )?;
+        Ok(())
+    }
+
+    /// 列表任务产物（按 id 升序）。
+    pub fn list_dev_artifacts(&self, session_id: &str) -> anyhow::Result<Vec<DevArtifactRow>> {
+        let conn = self.lock();
+        let mut stmt = conn.prepare(
+            "SELECT id, session_id, kind, ref, digest, created_at
+             FROM dev_artifacts WHERE session_id=?1 ORDER BY id ASC",
+        )?;
+        let rows = stmt.query_map(params![session_id], |row| {
+            Ok(DevArtifactRow {
+                id: row.get(0)?,
+                session_id: row.get(1)?,
+                kind: row.get(2)?,
+                r#ref: row.get(3)?,
+                digest: row.get(4)?,
+                created_at: row.get(5)?,
+            })
+        })?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r?);
+        }
+        Ok(out)
+    }
+
+    // ---- 投影（事件 → dev_tasks；ADR-0015 §3.3）----
+
+    /// 更新任务投影列（`status/stage/executor/...`）；权威在 LangGraph，此处只落影子。
+    pub fn update_dev_task_projection(
+        &self,
+        session_id: &str,
+        status: &str,
+        stage: Option<&str>,
+        executor: Option<&str>,
+        executor_ref: Option<&str>,
+        plan_format: Option<&str>,
+        sync_source: &str,
+    ) -> anyhow::Result<()> {
+        let conn = self.lock();
+        let now = now_secs();
+        conn.execute(
+            "UPDATE dev_tasks SET status=?1,
+                stage=COALESCE(?2, stage),
+                executor=COALESCE(?3, executor),
+                executor_ref=COALESCE(?4, executor_ref),
+                plan_format=COALESCE(?5, plan_format),
+                sync_source=?6,
+                last_synced_at=?7,
+                updated_at=?7
+             WHERE session_id=?8",
+            params![status, stage, executor, executor_ref, plan_format, sync_source, now, session_id],
+        )?;
+        Ok(())
     }
 
     // ---- chat_history（per-user 对话，画像蒸馏数据源；ADR-0007） ----
@@ -393,6 +605,9 @@ impl Storage {
 }
 
 /// 开发任务记录（dev_tasks 表行）。
+///
+/// `stage/executor/executor_ref/...` 为 v2 投影列（ADR-0015 §3.3）：
+/// 状态权威在 LangGraph 后，本表**只作投影**，不得用于合法性判定。
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct DevTask {
     pub session_id: String,
@@ -403,6 +618,56 @@ pub struct DevTask {
     pub status: String,
     pub created_at: String,
     pub updated_at: String,
+    pub stage: Option<String>,
+    pub executor: Option<String>,
+    pub executor_ref: Option<String>,
+    pub contract_version: Option<i64>,
+    pub plan_format: Option<String>,
+    pub last_synced_at: Option<String>,
+    pub sync_source: Option<String>,
+}
+
+/// 开发任务事件（`dev_task_events` 行；审计 + 出站通知源）。
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct DevTaskEventRow {
+    pub id: i64,
+    pub event_id: String,
+    pub session_id: String,
+    pub kind: String,
+    pub actor: Option<String>,
+    pub payload: Option<String>,
+    pub created_at: String,
+}
+
+/// 执行 run（`dev_runs` 行；单活跃 run 约束在这里生效）。
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct DevRunRow {
+    pub run_id: String,
+    pub session_id: String,
+    pub stage: String,
+    pub executor: String,
+    pub executor_ref: Option<String>,
+    pub status: String,
+    pub attempt: i64,
+    pub branch: Option<String>,
+    pub commit_sha: Option<String>,
+    pub idempotency_key: Option<String>,
+    pub started_at: Option<String>,
+    pub ended_at: Option<String>,
+    pub last_error: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// 产物（`dev_artifacts` 行；worktree / commit / 测试报告 / 镜像 / 部署）。
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct DevArtifactRow {
+    pub id: i64,
+    pub session_id: String,
+    pub kind: String,
+    pub r#ref: String,
+    pub digest: Option<String>,
+    pub created_at: String,
 }
 
 /// 对话单条（chat_history 表行；用于画像蒸馏）。
@@ -435,6 +700,33 @@ fn map_dev_task(row: &rusqlite::Row<'_>) -> rusqlite::Result<DevTask> {
         status: row.get(5)?,
         created_at: row.get(6)?,
         updated_at: row.get(7)?,
+        stage: row.get(8)?,
+        executor: row.get(9)?,
+        executor_ref: row.get(10)?,
+        contract_version: row.get(11)?,
+        plan_format: row.get(12)?,
+        last_synced_at: row.get(13)?,
+        sync_source: row.get(14)?,
+    })
+}
+
+fn map_dev_run(row: &rusqlite::Row<'_>) -> rusqlite::Result<DevRunRow> {
+    Ok(DevRunRow {
+        run_id: row.get(0)?,
+        session_id: row.get(1)?,
+        stage: row.get(2)?,
+        executor: row.get(3)?,
+        executor_ref: row.get(4)?,
+        status: row.get(5)?,
+        attempt: row.get(6)?,
+        branch: row.get(7)?,
+        commit_sha: row.get(8)?,
+        idempotency_key: row.get(9)?,
+        started_at: row.get(10)?,
+        ended_at: row.get(11)?,
+        last_error: row.get(12)?,
+        created_at: row.get(13)?,
+        updated_at: row.get(14)?,
     })
 }
 
@@ -452,6 +744,38 @@ fn now_secs() -> String {
         .unwrap_or_default()
         .as_secs()
         .to_string()
+}
+
+/// 给旧库的 `dev_tasks` 补投影列（幂等；ADR-0015 §3.3）。
+///
+/// 只新增 NULL 默认列，不重建表、不改既有数据。
+fn ensure_dev_task_columns(conn: &Connection) -> anyhow::Result<()> {
+    const COLS: &[(&str, &str)] = &[
+        ("stage", "TEXT"),
+        ("executor", "TEXT"),
+        ("executor_ref", "TEXT"),
+        ("contract_version", "INTEGER"),
+        ("plan_format", "TEXT"),
+        ("last_synced_at", "TEXT"),
+        ("sync_source", "TEXT"),
+    ];
+    for (name, ty) in COLS {
+        let exists: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('dev_tasks') WHERE name=?1",
+            params![name],
+            |r| r.get(0),
+        )?;
+        if exists == 0 {
+            conn.execute(
+                &format!("ALTER TABLE dev_tasks ADD COLUMN {name} {ty}"),
+                [],
+            )?;
+        }
+    }
+    conn.execute_batch(
+        "CREATE INDEX IF NOT EXISTS idx_dev_tasks_status ON dev_tasks(status, updated_at);",
+    )?;
+    Ok(())
 }
 
 /// 迁移：chat_history 旧结构（群级，缺 `openid`/`event_id`）→ 新 per-user 结构。
@@ -515,6 +839,45 @@ CREATE TABLE IF NOT EXISTS dev_tasks (
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS dev_task_events (
+    id          INTEGER PRIMARY KEY,
+    event_id    TEXT NOT NULL UNIQUE,
+    session_id  TEXT NOT NULL,
+    kind        TEXT NOT NULL,
+    actor       TEXT,
+    payload     TEXT,
+    created_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_dev_task_events_session ON dev_task_events(session_id, id);
+CREATE TABLE IF NOT EXISTS dev_runs (
+    run_id          TEXT PRIMARY KEY,
+    session_id      TEXT NOT NULL,
+    stage           TEXT NOT NULL,
+    executor        TEXT NOT NULL,
+    executor_ref    TEXT,
+    status          TEXT NOT NULL,
+    attempt         INTEGER NOT NULL DEFAULT 1,
+    branch          TEXT,
+    commit_sha      TEXT,
+    idempotency_key TEXT UNIQUE,
+    started_at      TEXT,
+    ended_at        TEXT,
+    last_error      TEXT,
+    created_at      TEXT NOT NULL,
+    updated_at      TEXT NOT NULL
+);
+-- 单活跃 run：同一任务同时只能有一个 queued/running（ADR-0015 §2.4 第 5 项）
+CREATE UNIQUE INDEX IF NOT EXISTS uq_dev_runs_active
+    ON dev_runs(session_id) WHERE status IN ('queued','running');
+CREATE TABLE IF NOT EXISTS dev_artifacts (
+    id          INTEGER PRIMARY KEY,
+    session_id  TEXT NOT NULL,
+    kind        TEXT NOT NULL,
+    ref         TEXT NOT NULL,
+    digest      TEXT,
+    created_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_dev_artifacts_session ON dev_artifacts(session_id, id);
 CREATE TABLE IF NOT EXISTS chat_history (
     id         INTEGER PRIMARY KEY,
     event_id   TEXT    NOT NULL UNIQUE,
@@ -644,8 +1007,7 @@ mod tests {
     }
 
     #[test]
-    fn profile_upsert_get_and_active_openids() {
-        let s = Storage::open(":memory:").unwrap();
+    fn profile_upsert_get_and_active_openids() {        let s = Storage::open(":memory:").unwrap();
         s.insert_chat_message("e1", "u1", "g1", "user", "a", "2026-02-14T01:00:00Z")
             .unwrap();
         s.insert_chat_message("e2", "u2", "g1", "user", "b", "2026-02-14T02:00:00Z")
@@ -679,5 +1041,149 @@ mod tests {
         let p2 = s.get_profile("u1").unwrap().unwrap();
         assert_eq!(p2.profile_text, "喜欢合作");
         assert_eq!(p2.distilled_at.as_deref(), Some("2026-02-15T04:00:00Z"));
+    }
+
+    // ---- dev v2 底座（ADR-0015 §3.2/§3.3）----
+
+    #[test]
+    fn dev_schema_migration_idempotent_on_legacy_db() {
+        let path = tmp_db("devschema");
+        let _ = std::fs::remove_file(&path);
+        // 旧库：只有 v1 的 8 列（无 stage/executor/...）
+        {
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE dev_tasks (
+                    session_id TEXT PRIMARY KEY,
+                    group_id   TEXT NOT NULL,
+                    qq_id      TEXT NOT NULL,
+                    title      TEXT,
+                    plan_path  TEXT,
+                    status     TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL);
+                 INSERT INTO dev_tasks (session_id,group_id,qq_id,status,created_at,updated_at)
+                 VALUES ('s1','g1','u1','queued','1','1');",
+            )
+            .unwrap();
+        }
+        // 连续 open 两次：迁移必须幂等（第二次不报错、不丢数据）
+        drop(Storage::open(path.to_str().unwrap()).unwrap());
+        let s = Storage::open(path.to_str().unwrap()).unwrap();
+
+        let t = s.get_dev_task("s1").unwrap().unwrap();
+        assert_eq!(t.status, "queued");
+        assert!(t.stage.is_none(), "旧数据投影列为 NULL");
+
+        let tables: i64 = s
+            .lock()
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master
+                 WHERE type='table' AND name IN ('dev_task_events','dev_runs','dev_artifacts')",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(tables, 3, "三张新表应已创建");
+
+        drop(s);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn dev_events_idempotent_and_incremental() {
+        let s = Storage::open(":memory:").unwrap();
+        assert!(s
+            .append_dev_task_event("e1", "s1", "created", Some("u1"), "{}")
+            .unwrap());
+        // 幂等：同 event_id 不重复插入
+        assert!(!s
+            .append_dev_task_event("e1", "s1", "created", Some("u1"), "{}")
+            .unwrap());
+        s.append_dev_task_event("e2", "s1", "plan_ready", None, "{}")
+            .unwrap();
+        s.append_dev_task_event("e3", "s2", "created", None, "{}")
+            .unwrap();
+
+        let all = s.list_dev_task_events("s1", 0, 10).unwrap();
+        assert_eq!(all.len(), 2);
+        assert_eq!(all[0].kind, "created");
+        // since_id 不含自身
+        let after = s.list_dev_task_events("s1", all[0].id, 10).unwrap();
+        assert_eq!(after.len(), 1);
+        assert_eq!(after[0].kind, "plan_ready");
+        // 任务间隔离
+        assert_eq!(s.list_dev_task_events("s2", 0, 10).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn dev_run_single_active_and_status_transition() {
+        let s = Storage::open(":memory:").unwrap();
+        s.insert_dev_run("r1", "s1", "plan", "langgraph", None, None, Some("k1"))
+            .unwrap();
+        // 同任务已有活跃 run → 插入失败（唯一索引）
+        assert!(s
+            .insert_dev_run("r2", "s1", "execute", "langgraph", None, None, Some("k2"))
+            .is_err());
+        // 不同任务互不影响
+        assert!(s
+            .insert_dev_run("r3", "s2", "plan", "langgraph", None, None, Some("k3"))
+            .is_ok());
+
+        s.set_dev_run_status("r1", "running", Some("thread-1"), None)
+            .unwrap();
+        let active = s.get_active_dev_run("s1").unwrap().unwrap();
+        assert_eq!(active.status, "running");
+        assert_eq!(active.executor_ref.as_deref(), Some("thread-1"));
+        assert!(active.started_at.is_some());
+
+        // 终态后不再占用「单活跃」名额
+        s.set_dev_run_status("r1", "succeeded", None, None).unwrap();
+        assert!(s.get_active_dev_run("s1").unwrap().is_none());
+        assert!(s
+            .insert_dev_run("r4", "s1", "verify", "langgraph", None, None, Some("k4"))
+            .is_ok());
+    }
+
+    #[test]
+    fn dev_projection_and_artifacts() {
+        let s = Storage::open(":memory:").unwrap();
+        s.create_dev_task("s1", "g1", "u1", "queued").unwrap();
+        s.update_dev_task_projection(
+            "s1",
+            "awaiting_confirm",
+            Some("plan"),
+            Some("langgraph"),
+            Some("thread-1"),
+            Some("plan6-v1"),
+            "n8n",
+        )
+        .unwrap();
+        let t = s.get_dev_task("s1").unwrap().unwrap();
+        assert_eq!(t.status, "awaiting_confirm");
+        assert_eq!(t.stage.as_deref(), Some("plan"));
+        assert_eq!(t.executor.as_deref(), Some("langgraph"));
+        assert_eq!(t.executor_ref.as_deref(), Some("thread-1"));
+        assert_eq!(t.plan_format.as_deref(), Some("plan6-v1"));
+        assert_eq!(t.sync_source.as_deref(), Some("n8n"));
+        assert!(t.last_synced_at.is_some());
+
+        // COALESCE 语义：None 不覆盖已有值
+        s.update_dev_task_projection("s1", "running", None, None, None, None, "bridge")
+            .unwrap();
+        let t2 = s.get_dev_task("s1").unwrap().unwrap();
+        assert_eq!(t2.status, "running");
+        assert_eq!(t2.stage.as_deref(), Some("plan"));
+        assert_eq!(t2.sync_source.as_deref(), Some("bridge"));
+
+        s.insert_dev_artifact("s1", "commit", "deadbeef", None)
+            .unwrap();
+        s.insert_dev_artifact("s1", "test_report", "logs/ci.json", Some("md5:1"))
+            .unwrap();
+        let arts = s.list_dev_artifacts("s1").unwrap();
+        assert_eq!(arts.len(), 2);
+        assert_eq!(arts[0].kind, "commit");
+        assert_eq!(arts[1].r#ref, "logs/ci.json");
+        assert_eq!(arts[1].digest.as_deref(), Some("md5:1"));
     }
 }

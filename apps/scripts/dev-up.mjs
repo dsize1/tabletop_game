@@ -28,6 +28,28 @@ const FLAGS = {
 const children = [];
 let stopping = false;
 
+// 从 .env 读取指定键（仅取需要的，不把全文注入所有子进程）。
+// 目的：`DEV_WHITELIST` 的**判定方是 server**（ADR-0015 §2.4），但配置一直放在
+// apps/agent-gateway/.env；这里显式传递给 server，避免「网关放行、server 全拒」。
+function readEnvKeys(envPath, keys) {
+  const out = {};
+  let txt = "";
+  try {
+    txt = readFileSync(envPath, "utf8");
+  } catch {
+    return out;
+  }
+  for (const key of keys) {
+    const m = txt.match(new RegExp(`^\\s*${key}\\s*=\\s*(.+)$`, "m"));
+    if (m) out[key] = m[1].trim().replace(/^["']|["']$/g, "");
+  }
+  return out;
+}
+
+const sharedDevEnv = readEnvKeys(resolve(repoRoot, "apps", "agent-gateway", ".env"), [
+  "DEV_WHITELIST",
+]);
+
 function launch(name, cmd, cmdArgs, opts = {}) {
   const child = spawn(cmd, cmdArgs, { stdio: ["ignore", "pipe", "pipe"], ...opts });
   const tag = `[${name}]`;
@@ -127,7 +149,10 @@ if (FLAGS.build) {
 if (!existsSync(serverBin)) {
   console.warn(`[warn] 找不到 server 二进制：${serverBin}\n  请先 cargo build（去掉 --no-build 会自动编译）。`);
 } else {
-  launch("server", serverBin, [], { cwd: repoRoot });
+  launch("server", serverBin, [], {
+    cwd: repoRoot,
+    env: { ...process.env, ...sharedDevEnv },
+  });
 }
 
 // 4. decision-service（可选）

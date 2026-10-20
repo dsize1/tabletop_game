@@ -1,6 +1,9 @@
 import "dotenv/config";
 import { Redis } from "ioredis";
+import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   decideIntent,
   decideLinkFetch,
@@ -42,7 +45,6 @@ import { fetchLinkText } from "./link-fetch.js";
 import { GameEngineClient } from "./mcp.js";
 import { DevTaskClient } from "./dev-task-client.js";
 import { DocsClient } from "./docs-client.js";
-import { DevSessionManager, devTaskPrompt } from "./dev-session.js";
 import { AuthClient, buildDocsUrl, buildGameUrl, buildPlanUrl } from "./auth-client.js";
 import { ProfileClient } from "./profile/client.js";
 import { ProfileCache } from "./profile/inject.js";
@@ -105,6 +107,14 @@ const DEV_WHITELIST = new Set(
     .map((s) => s.trim())
     .filter(Boolean),
 );
+
+// dev 执行模式（ADR-0015 B4）：
+// - inline（默认）：现状，网关内跑 pi 子会话（B8 前保留回退）
+// - entry：只做入口（落库+入队+回执），执行交外部（n8n/LangGraph）
+const DEV_EXEC_MODE = (process.env.DEV_EXEC_MODE ?? "inline").trim();
+// langgraph = 交 LangGraph 执行器（默认；L3）；entry = 只入口（不执行）
+const DEV_EXEC_LANGGRAPH = DEV_EXEC_MODE !== "entry";
+
 
 // SystemOne 决策服务（本地 StartLux-Decision，/v1/systemone）
 const systemone = new SystemOneClient({
@@ -469,27 +479,33 @@ async function handleDevQueryById(
 async function handleDevConfirmById(
   redis: Redis,
   devTask: DevTaskClient,
-  devSessions: DevSessionManager,
   event: MessageGroupAt,
   sessionId: string,
 ) {
   try {
-    const json = await devTask.confirmTask(sessionId, event.sender_id);
+    // 审批双语义（ADR-0015 §4）：桥提供 approve_plan / approve_verify（B8 后无 Rust 回退）
+    const taskJson = await devTask.getTask(sessionId);
+    const cur = parseJson<DevTaskRow>(taskJson, {} as DevTaskRow);
+    let json: string;
+    if (cur.status === "awaiting_confirm") {
+      json = await devTask.approvePlan(sessionId, event.sender_id);
+    } else if (cur.status === "verifying") {
+      json = await devTask.approveVerify(sessionId, event.sender_id);
+    } else {
+      await pushReply(redis, event, taskJson);
+      return;
+    }
     const task = parseJson<DevTaskRow>(json, {} as DevTaskRow);
     if (task.status === "running") {
       await pushReply(redis, event, `任务 ${sessionId} 已确认，开始执行（异步推进，完成后主动推送）`);
-      void runDevResume(
-        redis, devTask, devSessions, event, sessionId,
-        "用户已确认计划，请解除只读围栏（/plan）并按计划开始执行。",
-        "verifying",
-      );
+      if (DEV_EXEC_LANGGRAPH) {
+        runStageViaExecutor(redis, event, sessionId, "execute");
+      }
     } else if (task.status === "done") {
       await pushReply(redis, event, `任务 ${sessionId} 验收通过，已完成`);
-      void runDevResume(
-        redis, devTask, devSessions, event, sessionId,
-        "用户已验收通过，任务完成。请收尾（可选 harness 优化）后终结。",
-        null,
-      );
+      if (DEV_EXEC_LANGGRAPH) {
+        runStageViaExecutor(redis, event, sessionId, "verify");
+      }
     } else {
       await pushReply(redis, event, json);
     }
@@ -528,7 +544,6 @@ async function handleDevCapabilities(redis: Redis, devTask: DevTaskClient, event
 async function handleDevCommand(
   redis: Redis,
   devTask: DevTaskClient,
-  devSessions: DevSessionManager,
   event: MessageGroupAt,
   cmd: DevCommand,
 ) {
@@ -546,7 +561,7 @@ async function handleDevCommand(
       break;
     case "确认":
       if (!cmd.arg) { await pushReply(redis, event, "用法：#确认 <sessionId>"); return; }
-      await handleDevConfirmById(redis, devTask, devSessions, event, extractSessionId(cmd.arg) ?? cmd.arg);
+      await handleDevConfirmById(redis, devTask, event, extractSessionId(cmd.arg) ?? cmd.arg);
       break;
     case "取消":
       if (!cmd.arg) { await pushReply(redis, event, "用法：#取消 <sessionId>"); return; }
@@ -556,14 +571,14 @@ async function handleDevCommand(
       await handleDevCapabilities(redis, devTask, event);
       break;
     case "发起":
-      await handleDevCreate(redis, devTask, devSessions, event, cmd.arg);
+      await handleDevCreate(redis, devTask, event, cmd.arg);
       break;
     case "补充":
       if (!cmd.arg) {
         await pushReply(redis, event, "用法：#补充 <sessionId> <正文>");
         return;
       }
-      await handleDevAppend(redis, devTask, devSessions, event, cmd.arg);
+      await handleDevAppend(redis, devTask, event, cmd.arg);
       break;
   }
 }
@@ -593,7 +608,6 @@ async function handleDevUnmatched(redis: Redis, event: MessageGroupAt) {
 async function handleDevAppend(
   redis: Redis,
   devTask: DevTaskClient,
-  devSessions: DevSessionManager,
   event: MessageGroupAt,
   arg: string,
 ) {
@@ -617,8 +631,7 @@ async function handleDevAppend(
       await pushReply(redis, event, json);
       return;
     }
-    await pushReply(redis, event, `任务 ${sessionId} 已收到补充，正在追加到执行会话…`);
-    void runDevResume(redis, devTask, devSessions, event, sessionId, content, null);
+    await pushReply(redis, event, `任务 ${sessionId} 已收到补充（已记录；执行器追加通道待 B7+ 实现）`);
   } catch (err) {
     console.error("[agent-gateway] 追加补充失败:", err);
     await pushReply(redis, event, "[开发] 追加补充失败，请稍后重试");
@@ -646,7 +659,6 @@ async function reissuePlanLink(
 async function handleDevCreate(
   redis: Redis,
   devTask: DevTaskClient,
-  devSessions: DevSessionManager,
   event: MessageGroupAt,
   requirementArg?: string,
 ) {
@@ -669,81 +681,48 @@ async function handleDevCreate(
     }
     await devTask.transitionTask(sessionId, "planning");
     await pushReply(redis, event, `[开发] 已受理，任务ID：${sessionId}\n（规划中，完成后主动推送计划）`);
-    void runDevCreate(redis, devTask, devSessions, event, sessionId, requirement);
+    if (DEV_EXEC_LANGGRAPH) {
+      runStageViaExecutor(redis, event, sessionId, "plan", requirement);
+    }
   } catch (err) {
     console.error("[agent-gateway] 创建开发任务失败:", err);
     await pushReply(redis, event, "[开发] 创建任务失败，请稍后重试");
   }
 }
 
-/** 异步：子会话首轮（规划）→ 回填标题 → awaiting_confirm → 主动推送计划。 */
-async function runDevCreate(
-  redis: Redis,
-  devTask: DevTaskClient,
-  devSessions: DevSessionManager,
-  event: MessageGroupAt,
-  sessionId: string,
-  requirement: string,
-) {
-  await devSessions.withLock(sessionId, async () => {
-    let output = "";
-    try {
-      const { session } = await devSessions.spawn(sessionId);
-      try {
-        await session.prompt(devTaskPrompt(requirement));
-        output = session.getLastAssistantText() ?? "";
-      } finally {
-        session.dispose();
-      }
-      await devTask.updateTaskMeta(
-        sessionId,
-        extractTitle(output, requirement),
-        `memory_palace/plan/${sessionId}.md`,
-      );
-      await devTask.transitionTask(sessionId, "awaiting_confirm");
-      const link = await buildPlanLink(sessionId, event.sender_id);
-      const summary = link
-        ? `[开发] 计划已生成（任务 ${sessionId}）：\n${extractTitle(output, requirement)}\n计划文档：${link}`
-        : `[开发] 计划已生成（任务 ${sessionId}）：\n${output.slice(0, 1500)}`;
-      await pushActive(
-        redis,
-        event,
-        `${summary}\n\n回复「#确认 ${sessionId}」开始执行，「#取消 ${sessionId}」放弃`,
-      );
-    } catch (err) {
-      console.error(`[agent-gateway] 开发任务规划失败 sessionId=${sessionId}:`, err);
-      await devTask.transitionTask(sessionId, "failed").catch(() => {});
-      await pushActive(redis, event, `[开发] 任务 ${sessionId} 规划失败，请稍后重试或「#取消 ${sessionId}」`);
-    }
-  });
-}
+const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 
-/** 异步：恢复子会话跑一轮（确认后执行 / 验收收尾），可选迁移状态。 */
-async function runDevResume(
+/** L3：把某个 stage 交给 LangGraph 执行器（`uv run dev-executor work`）。 */
+function runStageViaExecutor(
   redis: Redis,
-  devTask: DevTaskClient,
-  devSessions: DevSessionManager,
   event: MessageGroupAt,
   sessionId: string,
-  message: string,
-  afterStatus: string | null,
+  stage: "plan" | "execute" | "verify",
+  requirement?: string,
 ) {
-  await devSessions.withLock(sessionId, async () => {
-    try {
-      const { session } = await devSessions.resume(sessionId);
-      let output = "";
-      try {
-        await session.prompt(message);
-        output = session.getLastAssistantText() ?? "";
-      } finally {
-        session.dispose();
-      }
-      if (afterStatus) await devTask.transitionTask(sessionId, afterStatus);
-      await pushActive(redis, event, `[开发] 任务 ${sessionId}：\n${output.slice(0, 1500)}`);
-    } catch (err) {
-      console.error(`[agent-gateway] 开发任务执行失败 sessionId=${sessionId}:`, err);
-      await devTask.transitionTask(sessionId, "failed").catch(() => {});
-      await pushActive(redis, event, `[开发] 任务 ${sessionId} 执行失败，请查看日志`);
+  const cwd = path.join(PROJECT_ROOT, "agents", "dev_executor");
+  const args = ["run", "dev-executor", "work", "--session-id", sessionId, "--stage", stage];
+  if (requirement) args.push("--requirement", requirement);
+  const child = spawn("uv", args, {
+    cwd,
+    env: {
+      ...process.env,
+      SERVER_URL: process.env.SERVER_URL ?? "http://127.0.0.1:3000",
+      // 默认 stub（确定性、零成本）；需要真实计划时设 DEV_PLANNER=llm|deepagents
+      DEV_PLANNER: process.env.DEV_PLANNER ?? "stub",
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  child.stdout.on("data", (b) => console.log(`[dev-exec:${stage}] ${String(b).trim()}`));
+  child.stderr.on("data", (b) => console.error(`[dev-exec:${stage}] ${String(b).trim()}`));
+  child.on("error", (e) => {
+    console.error(`[dev-exec:${stage}] 启动失败 sessionId=${sessionId}:`, e.message);
+    void pushActive(redis, event, `[开发] 执行器启动失败（任务 ${sessionId}，stage=${stage}），请稍后重试`);
+  });
+  child.on("exit", (code) => {
+    if (code !== 0) {
+      console.error(`[dev-exec:${stage}] 退出码 ${code} sessionId=${sessionId}`);
+      void pushActive(redis, event, `[开发] 任务 ${sessionId} 的 ${stage} 阶段失败（exit=${code}），请查看日志`);
     }
   });
 }
@@ -1489,7 +1468,6 @@ async function handle(
   redis: Redis,
   engine: GameEngineClient,
   devTask: DevTaskClient,
-  devSessions: DevSessionManager,
   event: MessageGroupAt,
 ) {
   // 记录发送者昵称（用于把 openid 渲染为群昵称）
@@ -1514,7 +1492,7 @@ async function handle(
       await handleDocsLink(redis, event);
       return;
     }
-    await handleDevCommand(redis, devTask, devSessions, event, devCmd);
+    await handleDevCommand(redis, devTask, event, devCmd);
     return;
   }
 
@@ -1609,7 +1587,6 @@ async function processEntries(
   redis: Redis,
   engine: GameEngineClient,
   devTask: DevTaskClient,
-  devSessions: DevSessionManager,
   results: unknown,
 ) {
   for (const [, entries] of results as [string, [string, string[]][]][]) {
@@ -1618,7 +1595,7 @@ async function processEntries(
       const json = map["event"];
       if (!json) continue;
       try {
-        await handle(redis, engine, devTask, devSessions, JSON.parse(json) as MessageGroupAt);
+        await handle(redis, engine, devTask, JSON.parse(json) as MessageGroupAt);
         await redis.xack(INTERNAL_STREAM, GROUP, id);
       } catch (err) {
         console.error(`[agent-gateway] 处理失败 [${id}]:`, err);
@@ -1631,7 +1608,6 @@ async function consume(
   redis: Redis,
   engine: GameEngineClient,
   devTask: DevTaskClient,
-  devSessions: DevSessionManager,
 ) {
   // 启动时重投 PEL 中未 ACK 的历史消息
   try {
@@ -1641,7 +1617,7 @@ async function consume(
       "STREAMS", INTERNAL_STREAM, "0",
     )) as unknown;
     if (pending) {
-      await processEntries(redis, engine, devTask, devSessions, pending);
+      await processEntries(redis, engine, devTask, pending);
       console.log("[agent-gateway] PEL 重投完成");
     }
   } catch (err) {
@@ -1658,7 +1634,7 @@ async function consume(
         "STREAMS", INTERNAL_STREAM, ">",
       )) as unknown;
 
-      if (results) await processEntries(redis, engine, devTask, devSessions, results);
+      if (results) await processEntries(redis, engine, devTask, results);
     } catch (err) {
       const msg = String((err as Error)?.message ?? err);
       // group 被外部删除（如清理脚本）时重建，避免永久 NOGROUP
@@ -1673,6 +1649,66 @@ async function consume(
       await sleep(1000);
     }
   }
+}
+
+// ==================== dev 事件 → 出站通知（B7；passive/主动口径见 ADR-0009） ====================
+
+const DEV_NOTIFY_INTERVAL_MS = Number(process.env.DEV_NOTIFY_INTERVAL_MS ?? 5000);
+
+/** 轮询 `dev_task_events`，把 plan_ready / executed / run_summary 推给发起人。
+ *  只处理启动后产生的事件（避免历史任务积压刷屏）；游标存 Redis。
+ */
+function startDevEventNotifier(redis: Redis, devTask: DevTaskClient) {
+  if (process.env.DEV_NOTIFY_ENABLED === "0") {
+    console.log("[agent-gateway] dev 事件通知已关闭（DEV_NOTIFY_ENABLED=0）");
+    return;
+  }
+  const startedAt = Math.floor(Date.now() / 1000);
+  setInterval(() => {
+    void (async () => {
+      try {
+        const tasks = parseJson<Array<Record<string, any>>>(await devTask.listTasks(), []);
+        for (const t of tasks) {
+          const sid = String(t.session_id ?? "");
+          const gid = String(t.group_id ?? "");
+          const qq = String(t.qq_id ?? "");
+          if (!sid || !gid || !qq) continue;
+          const key = `dev:notify:cursor:${sid}`;
+          const since = Number((await redis.get(key)) ?? 0);
+          const events = parseJson<Array<Record<string, any>>>(
+            await devTask.listEvents(sid, since, 50),
+            [],
+          );
+          if (!events.length) continue;
+          let maxId = since;
+          const fake = { group_id: gid, sender_id: qq } as MessageGroupAt;
+          for (const e of events) {
+            maxId = Math.max(maxId, Number(e.id ?? 0));
+            // 启动前的积压跳过；但 langgraph 任务的补发例外（游标保证只发一次）
+            if (Number(e.created_at ?? 0) < startedAt && t.executor !== "langgraph") continue;
+            if (e.kind === "plan_ready") {
+              const link = await buildPlanLink(sid, qq);
+              await pushActive(
+                redis,
+                fake,
+                `[开发] 计划已生成（任务 ${sid}）：${t.title ?? ""}
+${link ? `计划文档：${link}` : ""}
+回复「#确认 ${sid}」开始执行`,
+              );
+            } else if (e.kind === "executed") {
+              await pushActive(redis, fake, `[开发] 任务 ${sid} 执行完成，待验收。回复「#确认 ${sid}」验收`);
+            } else if (e.kind === "run_summary") {
+              await pushActive(redis, fake, `[开发] 任务 ${sid} 已完成 ✅`);
+            }
+          }
+          await redis.set(key, String(maxId));
+        }
+      } catch (err) {
+        console.error("[agent-gateway] dev 事件通知失败:", err);
+      }
+    })();
+  }, DEV_NOTIFY_INTERVAL_MS);
+  console.log(`[agent-gateway] dev 事件通知已启动（interval=${DEV_NOTIFY_INTERVAL_MS}ms）`);
 }
 
 // ==================== 人物画像日批（ADR-0007） ====================
@@ -1738,13 +1774,12 @@ async function main() {
 
   await docsClient.connect();
 
-  const devSessions = new DevSessionManager();
-
   startProfileScheduler(redis);
+  startDevEventNotifier(redis, devTask);
 
   await ensureGroup(redis);
   console.log(`[agent-gateway] 就绪，消费 ${INTERNAL_STREAM}（dev 白名单 ${DEV_WHITELIST.size} 人）`);
-  await consume(redis, engine, devTask, devSessions);
+  await consume(redis, engine, devTask);
 }
 
 main().catch((err) => {
