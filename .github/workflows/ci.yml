@@ -1,0 +1,51 @@
+name: ci
+
+# 离线可跑的三套件：Rust 工作区 / Node 网关（含门禁）/ Python 执行器。
+# 不依赖外部服务（Redis/LLM/n8n）；需要外部依赖的测试仍在本地跑。
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    name: Rust（cargo test --workspace）
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: crates
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: crates
+      - run: cargo test --workspace
+
+  node:
+    name: Node（网关单测 + 主动消息门禁）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/package-lock.json
+      - run: npm ci --prefix apps
+      - run: npm run test:agent-gateway
+      - run: node apps/scripts/check-proactive-gate.mjs
+
+  executor:
+    name: Python（执行器离线单测）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --frozen --directory agents/dev_executor
+      - run: uv run --directory agents/dev_executor python tests/test_planner.py
+      - run: uv run --directory agents/dev_executor python tests/test_shadow.py
