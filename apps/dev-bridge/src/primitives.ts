@@ -24,6 +24,8 @@ export interface PrimitiveArgs {
   limit?: number;
   op?: string;
   stage?: string;
+  text?: string;
+  kind?: string;
   run_id?: string;
   executor_ref?: string;
   last_error?: string;
@@ -197,6 +199,15 @@ export function createPrimitives(api: DevApi) {
       const sid = need(args, "session_id");
       const r = await api.listEvents(sid, args.since_id ?? 0, args.limit ?? 50);
       return failOr(r, (d) => d);
+    },
+
+    /** v2：请求出站通知（由网关统一写 qq.push；遵守 ADR-0009 口径）。 */
+    async notify_user(args: PrimitiveArgs): Promise<string> {
+      const sid = need(args, "session_id");
+      const text = need(args, "text");
+      const r = await api.notify(sid, text, args.kind);
+      if (!r.ok) return errorText(r);
+      return JSON.stringify(r.data);
     },
 
     async check_permission(args: PrimitiveArgs): Promise<string> {

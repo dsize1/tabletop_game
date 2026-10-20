@@ -35,6 +35,7 @@ export const TOOLS = [
   { name: "finish_run", description: "[写] 内部：结束 run（succeeded/failed/cancelled）", inputSchema: { type: "object", properties: { run_id: { type: "string" }, status: { type: "string" }, executor_ref: { type: "string" }, last_error: { type: "string" } }, required: ["run_id"], additionalProperties: true } },
   { name: "cancel_run", description: "[写] 内部：取消当前活跃 run", inputSchema: { type: "object", properties: { session_id: { type: "string" } }, required: ["session_id"], additionalProperties: true } },
   { name: "list_events", description: "[读] 内部：任务事件增量（审计/通知源）", inputSchema: { type: "object", properties: { session_id: { type: "string" }, since_id: { type: "number" }, limit: { type: "number" } }, required: ["session_id"], additionalProperties: true } },
+  { name: "notify_user", description: "[写] 内部：请求出站通知（网关统一发；主动口径受 ADR-0009）", inputSchema: { type: "object", properties: { session_id: { type: "string" }, text: { type: "string" }, kind: { type: "string" } }, required: ["session_id", "text"], additionalProperties: true } },
   { name: "check_permission", description: "[读] 内部：权限判定（白名单+归属）", inputSchema: { type: "object", properties: { op: { type: "string" }, qq_id: { type: "string" }, session_id: { type: "string" } }, required: ["op", "qq_id"], additionalProperties: true } },
 ];
 
@@ -62,6 +63,7 @@ export async function dispatch(
       case "finish_run": return await prims.finish_run(args);
       case "cancel_run": return await prims.cancel_run(args);
       case "list_events": return await prims.list_events(args);
+      case "notify_user": return await prims.notify_user(args);
       case "check_permission": return await prims.check_permission(args);
       default: return `错误: 未知原语 ${name}`;
     }

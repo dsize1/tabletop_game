@@ -88,3 +88,41 @@ curl -s -X POST http://127.0.0.1:5678/webhook/dev-shadow \
 - [x] 一次性签名（`$getWorkflowStaticData` 记录已用 sig，600s 清理）→ 窗口内重放返回 `replayed`
 - [ ] 审批节点（`approve_plan` / `approve_deploy`）与 CI/部署工作流（B9）
 - [ ] 密钥轮换流程
+
+## 本机部署（dev-deploy-request / dev-deploy-approve）
+
+> 目标：**本机**（构建 → 重启 dev-up → 健康检查 → 记录回滚点）。两段式：请求只登记，**批准才执行**。
+
+1. 启动本机部署器（宿主进程，n8n 容器经 `host.docker.internal:8787` 访问）：
+
+```bash
+# 剧本演练（不构建、不重启）
+DEPLOY_TOKEN=dev-deploy-token DEPLOY_DRY_RUN=1 DEPLOY_HOST=0.0.0.0 node apps/scripts/deploy-local.mjs serve
+# 真实部署（需 --confirm 的 CLI 等价）
+DEPLOY_TOKEN=dev-deploy-token DEPLOY_HOST=0.0.0.0 node apps/scripts/deploy-local.mjs serve
+# 或直接命令行：npm run deploy:local -- deploy --confirm [--reason x]
+# 回滚：npm run deploy:local -- rollback --to <sha> --confirm
+```
+
+2. n8n 环境：`DEV_DEPLOY_AGENT`（默认 `http://host.docker.internal:8787`）、`DEV_DEPLOY_TOKEN`（默认 `dev-deploy-token`，生产必改）。
+
+3. 工作流：
+- `dev-deploy-request`：`POST /webhook/dev-deploy`（HMAC）→ 校验任务 `status=done` → 返回 `pending_approval`（不执行）。
+- `dev-deploy-approve`：`POST /webhook/dev-deploy-approve`（HMAC，body 带 `approver`）→ 调宿主部署器 `/deploy` → 返回部署记录。
+
+```bash
+SID=<session_id>; TS=$(date +%s)
+SIG=$(node -e "const c=require('crypto');console.log(c.createHmac('sha256',process.argv[3]).update(process.argv[1]+'.'+process.argv[2]).digest('hex'))" "$SID" "$TS" "$DEV_WEBHOOK_SECRET")
+curl -s -X POST http://127.0.0.1:5678/webhook/dev-deploy -H 'content-type: application/json' -H "x-dev-signature: $SIG" -H "x-dev-timestamp: $TS" -d "{\"session_id\":\"$SID\",\"reason\":\"deploy\"}"
+# → {"status":"pending_approval", ...}
+
+TS=$(date +%s); SIG=$(...)   # 重新签名（一次性）
+curl -s -m 300 -X POST http://127.0.0.1:5678/webhook/dev-deploy-approve -H 'content-type: application/json' -H "x-dev-signature: $SIG" -H "x-dev-timestamp: $TS" -d "{\"session_id\":\"$SID\",\"approver\":\"<openid>\"}"
+# → {"action":"deploy","status":"succeeded","commit":"...", "prev_commit":"...", "log":[...]}
+```
+
+记录：`data/deploy-history.jsonl`（含 `commit`/`prev_commit`/`reason`/`log`/时间）。回滚点 = 上一条记录的 `commit`。
+
+**已实测**：request → `pending_approval`；approve → 部署器执行（dry-run）并返回记录，`reason` 含 approver。**未演练**：真实构建+重启（`DEPLOY_DRY_RUN` 未设时执行）。
+
+**限制**：当前 approve 工作流不写 `deploy_*` 事件、也不调 `notify_user`（n8n 表达式引用在 HTTP 节点间不稳定，先收敛到最小可跑；后续可加回）。通知可另行 `POST /internal/dev/notify`（服务端会转成 `notify_requested`，由网关统一发送）。

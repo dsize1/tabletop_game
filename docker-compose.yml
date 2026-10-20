@@ -31,6 +31,9 @@ services:
       - NODE_FUNCTION_ALLOW_BUILTIN=crypto
       # 容器内访问宿主机 server（Windows/macOS 用 host.docker.internal；Linux 见下方 extra_hosts）
       - DEV_SERVER_URL=${DEV_SERVER_URL:-http://host.docker.internal:3000}
+      # 本机部署器（apps/scripts/deploy-local.mjs serve）
+      - DEV_DEPLOY_AGENT=${DEV_DEPLOY_AGENT:-http://host.docker.internal:8787}
+      - DEV_DEPLOY_TOKEN=${DEV_DEPLOY_TOKEN:-dev-deploy-token}
     volumes:
       - n8n-data:/home/node/.n8n
       # 工作流 JSON 只读挂载，便于 CLI 导入：docker compose --profile n8n run --rm n8n import:workflow --input=/workflows/dev-shadow.json

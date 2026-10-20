@@ -15,6 +15,7 @@
     "verify:push": "node apps/verify-push.mjs",
     "test:agent-gateway": "npm --prefix apps run test:agent-gateway",
     "test:web": "npm --prefix apps run test:web",
-    "assets:board": "node apps/scripts/board-assets.mjs"
+    "assets:board": "node apps/scripts/board-assets.mjs",
+    "deploy:local": "node apps/scripts/deploy-local.mjs"
   }
 }

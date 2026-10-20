@@ -1703,6 +1703,14 @@ ${link ? `计划文档：${link}` : ""}
               );
             } else if (e.kind === "executed") {
               await pushActive(redis, fake, `[开发] 任务 ${sid} 执行完成，待验收。回复「#确认 ${sid}」验收`);
+            } else if (e.kind === "notify_requested") {
+              let text = "";
+              try {
+                text = String(JSON.parse(e.payload ?? "{}").text ?? "");
+              } catch {
+                text = "";
+              }
+              if (text.trim()) await pushActive(redis, fake, text);
             } else if (e.kind === "run_summary") {
               await pushActive(redis, fake, `[开发] 任务 ${sid} 已完成 ✅`);
             }

@@ -1,0 +1,224 @@
+{
+  "name": "dev-deploy-request",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "dev-deploy",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-deploy",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -200,
+        0
+      ],
+      "webhookId": "webhook-deploy"
+    },
+    {
+      "parameters": {
+        "jsCode": "// HMAC 校验：signature = HMAC-SHA256(secret, session_id + \".\" + timestamp)\n// 重放防护：① timestamp 与服务器时间差 ≤ 300s；② signature 在窗口内一次性（workflow static data）。\nconst crypto = require('crypto');\nconst body = $json.body ?? {};\nconst headers = $json.headers || {};\nconst secret = $env.DEV_WEBHOOK_SECRET || '';\nconst sid = String(body.session_id || '');\nconst sig = String(headers['x-dev-signature'] || '').trim();\nconst ts = String(headers['x-dev-timestamp'] || '').trim();\nif (!secret) return [{ json: { ok: false, reason: 'secret_missing' } }];\nif (!sig || !ts) return [{ json: { ok: false, reason: 'signature_missing' } }];\nif (!/^\\d+$/.test(ts)) return [{ json: { ok: false, reason: 'timestamp_invalid' } }];\nconst now = Math.floor(Date.now() / 1000);\nif (Math.abs(now - Number(ts)) > 300) return [{ json: { ok: false, reason: 'timestamp_out_of_window' } }];\nif (!sid) return [{ json: { ok: false, reason: 'missing_session_id' } }];\n\nconst expected = crypto.createHmac('sha256', secret).update(sid + '.' + ts).digest('hex');\nconst a = Buffer.from(sig);\nconst b = Buffer.from(expected);\nif (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {\n  return [{ json: { ok: false, reason: 'signature_invalid' } }];\n}\n\n// 一次性签名（窗口内防重放）\nconst store = $getWorkflowStaticData('global');\nstore.seen = store.seen || {};\nfor (const k of Object.keys(store.seen)) {\n  if (Number(store.seen[k]) < now - 600) delete store.seen[k];\n}\nif (store.seen[sig]) return [{ json: { ok: false, reason: 'replayed' } }];\nstore.seen[sig] = now;\n\nreturn [{ json: { ok: true, session_id: sid, qq_id: body.qq_id || '', approver: body.approver || '', reason: body.reason || '' } }];"
+      },
+      "id": "verify-hmac",
+      "name": "Verify HMAC",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ok",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-sig",
+      "name": "IF 签名通过",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.DEV_SERVER_URL }}/internal/dev_task/{{ $json.session_id }}",
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "id": "get-task",
+      "name": "GET task",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        420,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "done",
+              "leftValue": "={{ $json.task.status }}",
+              "rightValue": "done",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-done",
+      "name": "IF status=done",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        640,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'pending_approval', session_id: $('Verify HMAC').item.json.session_id, task_status: $json.task.status }) }}",
+        "options": {}
+      },
+      "id": "respond-ok",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        860,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, reason: $json.reason || 'not_done' }) }}",
+        "options": {}
+      },
+      "id": "respond-skip",
+      "name": "Respond skip",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        860,
+        100
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Verify HMAC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify HMAC": {
+      "main": [
+        [
+          {
+            "node": "IF 签名通过",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF 签名通过": {
+      "main": [
+        [
+          {
+            "node": "GET task",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond skip",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET task": {
+      "main": [
+        [
+          {
+            "node": "IF status=done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF status=done": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond skip",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "active": false
+}

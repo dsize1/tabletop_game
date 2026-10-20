@@ -126,6 +126,7 @@ async fn main() -> anyhow::Result<()> {
         )
         .route("/internal/dev/events", post(dev_routes::append_event))
         .route("/internal/dev/events", get(dev_routes::list_events))
+        .route("/internal/dev/notify", post(dev_routes::notify))
         .route("/internal/dev/tasks", get(dev_routes::list_tasks))
         .route("/internal/dev/tasks", post(dev_routes::create_task))
         .route("/internal/dev/transition", post(dev_routes::transition_task))

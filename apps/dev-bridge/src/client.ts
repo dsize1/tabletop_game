@@ -152,6 +152,14 @@ export class DevApi {
     return this.call("GET", `/internal/dev/runs/${encodeURIComponent(sessionId)}/active`);
   }
 
+  notify(sessionId: string, text: string, kind?: string): Promise<ApiResult<{ event_id: string; inserted: boolean }>> {
+    return this.call("POST", "/internal/dev/notify", {
+      session_id: sessionId,
+      text,
+      ...(kind ? { kind } : {}),
+    });
+  }
+
   listEvents(sessionId: string, sinceId = 0, limit = 50): Promise<ApiResult<unknown[]>> {
     const q = `session_id=${encodeURIComponent(sessionId)}&since_id=${sinceId}&limit=${limit}`;
     return this.call("GET", `/internal/dev/events?${q}`);

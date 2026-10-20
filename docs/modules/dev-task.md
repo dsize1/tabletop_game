@@ -11,7 +11,7 @@
 | 原语（桥） | `apps/dev-bridge`（Node，MCP stdio） | 对外契约；**不直连 SQLite**，全走 server；15+ 原语 |
 | 状态/审计 | `crates/server`（`/internal/dev/*`） | `dev_tasks`（投影）、`dev_task_events`、`dev_runs`、`dev_artifacts`；迁移表校验 + 白名单 |
 | 执行 | `agents/dev_executor`（Python + LangGraph） | 图 `plan → interrupt(approve) → execute → interrupt(verify) → summarize`；checkpoint 独立库 |
-| 驱动（未来） | n8n（`dev-shadow`，当前只读） | 触发/审批 UI/CI/部署（B9）；Webhook 用 HMAC + ±300s 时间窗 |
+| 驱动（未来） | n8n（`dev-shadow` / `dev-deploy-*`） | 触发/审批/本机部署；Webhook HMAC + 一次性签名；部署走宿主 `deploy-local.mjs`（两段式：request → approve） |
 
 ```
 QQ → gateway（入口）→ 桥（原语）→ server（投影/审计/校验）
@@ -68,5 +68,7 @@ uv run dev-executor reconcile [--fix] [--json]                # 投影↔事件�
 ## 已知边界
 
 - `#补充`：执行器 `work --stage append --instruction` 写入 checkpoint（`instructions` 累加）；任务在 `awaiting_confirm` 时会**自动重新规划**（计划含「补充指令」）。
+- `notify_user`（v2 原语）：`POST /internal/dev/notify` 追加 `notify_requested` 事件，由网关统一写 `qq.push`。
+- 本机部署：`apps/scripts/deploy-local.mjs`（status/history/deploy/rollback/serve）+ n8n 两段式审批；详见 `deploy/n8n/README.md`。
 - 终态事件已收敛：`verified` 由 server 确认写入；执行器 verify 阶段不再重复写 `run_summary`（历史事件保留兼容）。
 - `dev_tasks` 是投影，**不得**作为判定依据；判定走 server 迁移表 + checkpoint。

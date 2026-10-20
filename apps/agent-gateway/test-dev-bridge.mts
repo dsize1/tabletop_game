@@ -57,6 +57,10 @@ function fakeApi(over: Partial<Record<string, any>> = {}) {
       calls.push({ fn: "permission", args: [op, q, s] });
       return ok({ allow: true, reason: null });
     },
+    notify: async (s: string, text: string, kind?: string) => {
+      calls.push({ fn: "notify", args: [s, text, kind] });
+      return ok({ event_id: "ev1", inserted: true });
+    },
     startRun: async (s: string, stage: string) => {
       calls.push({ fn: "startRun", args: [s, stage] });
       return ok({ run_id: `${s}:${stage}:r1`, status: "queued" });
@@ -103,7 +107,7 @@ assert.deepEqual(
   ],
   "能力名称/顺序是对外契约，不得随意改动",
 );
-assert.equal(TOOLS.length, 18, "MCP 工具数 = 11 旧 + 7 v2（approve_plan/approve_verify/list_events/check_permission/start_run/finish_run/cancel_run）");
+assert.equal(TOOLS.length, 19, "MCP 工具数 = 11 旧 + 8 v2（approve_plan/approve_verify/list_events/check_permission/start_run/finish_run/cancel_run/notify_user）");
 
 // ---- 计划解析：分区隔离 + [x]/[X]/[ ] ----
 const planText = [
@@ -217,6 +221,14 @@ try {
   const cancelled = JSON.parse(await prims.cancel_run({ session_id: "s1" }));
   assert.equal(cancelled.status, "cancelled");
   assert.equal(calls.filter((c) => c.fn === "setRunStatus").length, 2);
+}
+
+// ---- notify_user（v2）----
+{
+  const { api, calls } = fakeApi();
+  const out = JSON.parse(await createPrimitives(api).notify_user({ session_id: "s1", text: "部署已完成" }));
+  assert.equal(out.inserted, true);
+  assert.deepEqual(calls.find((c) => c.fn === "notify")?.args, ["s1", "部署已完成", undefined]);
 }
 
 console.log("✅ test-dev-bridge 通过");

@@ -464,6 +464,31 @@ pub async fn update_meta(
 }
 
 
+#[derive(Debug, Deserialize)]
+pub struct NotifyRequest {
+    pub session_id: String,
+    pub text: String,
+    #[serde(default)]
+    pub kind: Option<String>,
+}
+
+/// `POST /internal/dev/notify` → 追加 `notify_requested` 事件（出站由网关统一发送）。
+pub async fn notify(
+    State(state): State<AppState>,
+    Json(body): Json<NotifyRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    if body.session_id.trim().is_empty() || body.text.trim().is_empty() {
+        return Err(err(StatusCode::BAD_REQUEST, "缺少 session_id/text"));
+    }
+    let payload = serde_json::json!({"text": body.text, "kind": body.kind}).to_string();
+    let event_id = uuid::Uuid::new_v4().to_string();
+    let inserted = state
+        .storage
+        .append_dev_task_event(&event_id, &body.session_id, "notify_requested", Some("n8n"), &payload)
+        .map_err(|_| err(StatusCode::INTERNAL_SERVER_ERROR, "写事件失败"))?;
+    Ok(Json(serde_json::json!({"event_id": event_id, "inserted": inserted})))
+}
+
 // ---- dev_runs（执行 run；单活跃由 DB 唯一索引兼底）----
 
 #[derive(Debug, Deserialize)]
