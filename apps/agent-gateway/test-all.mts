@@ -28,6 +28,7 @@ const INCLUDED = [
   "test-context.mts",
   "test-proactive-gate.mts",
   "test-dev-bridge.mts",
+  "test-dev-contract.mts",
 ];
 
 /** 显式排除（附原因）。 */

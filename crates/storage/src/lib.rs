@@ -1146,6 +1146,43 @@ mod tests {
     }
 
     #[test]
+    fn dev_run_concurrent_insert_single_winner() {
+        use std::sync::{Arc, Barrier};
+        let path = tmp_db("runconc");
+        let _ = std::fs::remove_file(&path);
+        let s1 = Arc::new(Storage::open(path.to_str().unwrap()).unwrap());
+        let s2 = Arc::new(Storage::open(path.to_str().unwrap()).unwrap());
+        let barrier = Arc::new(Barrier::new(2));
+
+        let mut handles = Vec::new();
+        for (i, s) in [(0, s1.clone()), (1, s2.clone())] {
+            let b = barrier.clone();
+            handles.push(std::thread::spawn(move || {
+                b.wait();
+                s.insert_dev_run(
+                    &format!("r{i}"),
+                    "s-conc",
+                    "plan",
+                    "langgraph",
+                    None,
+                    None,
+                    Some(&format!("k{i}")),
+                )
+                .is_ok()
+            }));
+        }
+        let ok_count = handles
+            .into_iter()
+            .map(|h| h.join().unwrap())
+            .filter(|ok| *ok)
+            .count();
+        assert_eq!(ok_count, 1, "并发插入应只有一个成功（单活跃唯一索引）");
+        assert!(s1.get_active_dev_run("s-conc").unwrap().is_some());
+        drop((s1, s2));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
     fn dev_projection_and_artifacts() {
         let s = Storage::open(":memory:").unwrap();
         s.create_dev_task("s1", "g1", "u1", "queued").unwrap();

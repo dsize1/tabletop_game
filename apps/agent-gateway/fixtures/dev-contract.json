@@ -1,0 +1,159 @@
+{
+  "tools": [
+    {
+      "name": "list_tasks",
+      "description": "[读] 列出所有开发任务（可按状态过滤），返回 session_id/status/title/group_id/qq_id"
+    },
+    {
+      "name": "get_task",
+      "description": "[读] 查询单个开发任务详情"
+    },
+    {
+      "name": "get_progress",
+      "description": "[读] 查询任务进度（阶段 + 待办/验证完成度）"
+    },
+    {
+      "name": "prepare_task_link",
+      "description": "[读] 校验任务归属+非终态，返回计划短链资源（网关据此签发 token）"
+    },
+    {
+      "name": "append_instruction",
+      "description": "[写] 校验归属+非终态，授权把自由文本作为补充指令追加到已有子会话"
+    },
+    {
+      "name": "list_capabilities",
+      "description": "[读] 列出本服务全部 MCP 能力（能力名/简述/使用方式/读写）"
+    },
+    {
+      "name": "create_task",
+      "description": "[写] 创建开发任务（白名单校验），初始状态 queued"
+    },
+    {
+      "name": "confirm_task",
+      "description": "[写] 人工确认计划并开始执行（白名单+任务归属校验）"
+    },
+    {
+      "name": "cancel_task",
+      "description": "[写] 人工取消任务（白名单+任务归属校验）"
+    },
+    {
+      "name": "transition_task",
+      "description": "[写] 任务状态迁移（内容里程碑，确定性迁移表校验）"
+    },
+    {
+      "name": "update_task_meta",
+      "description": "[写] 回填任务标题/计划路径（子会话计划生成后由网关调用）"
+    },
+    {
+      "name": "approve_plan",
+      "description": "[写] 内部：批准计划（awaiting_confirm→running）"
+    },
+    {
+      "name": "approve_verify",
+      "description": "[写] 内部：验收通过（verifying→done）"
+    },
+    {
+      "name": "start_run",
+      "description": "[写] 内部：启动 run（映射 dev_runs；同任务单活跃）"
+    },
+    {
+      "name": "finish_run",
+      "description": "[写] 内部：结束 run（succeeded/failed/cancelled）"
+    },
+    {
+      "name": "cancel_run",
+      "description": "[写] 内部：取消当前活跃 run"
+    },
+    {
+      "name": "list_events",
+      "description": "[读] 内部：任务事件增量（审计/通知源）"
+    },
+    {
+      "name": "notify_user",
+      "description": "[写] 内部：请求出站通知（网关统一发；主动口径受 ADR-0009）"
+    },
+    {
+      "name": "check_permission",
+      "description": "[读] 内部：权限判定（白名单+归属）"
+    }
+  ],
+  "capabilities": [
+    {
+      "name": "list_tasks",
+      "rw": "读",
+      "description": "列出所有开发任务（可按状态过滤）",
+      "usage": "list_tasks(status?)",
+      "example": "#任务 或 #任务 running"
+    },
+    {
+      "name": "get_task",
+      "rw": "读",
+      "description": "查询单个任务详情",
+      "usage": "get_task(session_id)",
+      "example": "（网关内部；用户用 #进度 <sessionId>）"
+    },
+    {
+      "name": "get_progress",
+      "rw": "读",
+      "description": "查询任务进度（阶段 + 待办/验证完成度）",
+      "usage": "get_progress(session_id)",
+      "example": "#进度 <sessionId>"
+    },
+    {
+      "name": "prepare_task_link",
+      "rw": "读",
+      "description": "校验归属+非终态，返回计划短链资源（token 由网关签发）",
+      "usage": "prepare_task_link(session_id, qq_id)",
+      "example": "（网关内部；#进度 自动重签短链）"
+    },
+    {
+      "name": "append_instruction",
+      "rw": "写",
+      "description": "校验归属+非终态，授权把自由文本追加到已有子会话",
+      "usage": "append_instruction(session_id, qq_id)",
+      "example": "#补充 <sessionId> <正文>"
+    },
+    {
+      "name": "list_capabilities",
+      "rw": "读",
+      "description": "列出本服务全部 MCP 能力",
+      "usage": "list_capabilities()",
+      "example": "#能力"
+    },
+    {
+      "name": "create_task",
+      "rw": "写",
+      "description": "创建开发任务（白名单校验）",
+      "usage": "create_task(session_id, group_id, qq_id)",
+      "example": "#发起 <需求>（#开发 为别名）"
+    },
+    {
+      "name": "confirm_task",
+      "rw": "写",
+      "description": "人工确认计划并开始执行（白名单+归属校验）",
+      "usage": "confirm_task(session_id, qq_id)",
+      "example": "#确认 <sessionId>"
+    },
+    {
+      "name": "cancel_task",
+      "rw": "写",
+      "description": "人工取消任务（白名单+归属校验）",
+      "usage": "cancel_task(session_id, qq_id)",
+      "example": "#取消 <sessionId>"
+    },
+    {
+      "name": "transition_task",
+      "rw": "写",
+      "description": "任务状态迁移（内容里程碑，确定性迁移表校验）",
+      "usage": "transition_task(session_id, status)",
+      "example": "（网关内部；子会话里程碑驱动）"
+    },
+    {
+      "name": "update_task_meta",
+      "rw": "写",
+      "description": "回填任务标题/计划路径",
+      "usage": "update_task_meta(session_id, title?, plan_path?)",
+      "example": "（网关内部回填）"
+    }
+  ]
+}
