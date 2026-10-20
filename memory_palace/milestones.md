@@ -2,6 +2,78 @@
 
 > 记录项目关键节点与验证结果，按时间倒序。重大技术决策见 `decisions/`。
 
+## M16：dev 线迁移 —— MCP 薄桥 + LangGraph 执行器 + n8n shadow（ADR-0013/0014/0015）✅
+
+- **日期**：2026-10-20（人工验收 2026-10-20，用户裁定 done）
+- **完成**（分批 B0–B9，按 `plan/01a15977` 执行）：
+  - **B0 死代码清理**：删除 `crates/command-router`、`crates/push` + server 两条死依赖 + 过期模块文档；`AGENTS.md`/`README.md`/`architecture.md` 同步（ADR-0015 §8）
+  - **B1 storage 底座**：`dev_task_events` / `dev_runs` / `dev_artifacts` 三表 + `dev_tasks` 加列 + 迁移守卫（事件幂等、并发 claim 单赢家均有单测）
+  - **B2 server 内部 API**：`/internal/dev/*`（只读 payload / 事件追加 / 投影写 / 权限判定 / 事件查询 / runs / notify）
+  - **B3 薄桥 + 原语 v2**：`apps/dev-bridge`（stdio MCP，19 工具）；gateway 只换连接目标；新增 **golden 契约快照**（`test-dev-contract.mts` + `fixtures/dev-contract.json`，改名/改描述即失败）
+  - **B4 gateway 入口化**：移除 `runDev*`，只做「识别 → 落库 → 入队 → 回执」；审批拆两原语；事件 → passive 出站桥；新增 `#补充` 通道
+  - **B5 n8n（shadow）**：`docker-compose` profile + `deploy/n8n/workflows/dev-shadow.json`（8 节点）；webhook 改 **HMAC-SHA256 + ±300s 时间窗 + 一次性签名（static data nonce）**
+  - **B6/B6.2 LangGraph 执行器**：`agents/dev_executor`（shadow 只跑 plan）→ `planner`（`DEV_PLANNER=stub|llm|deepagents`）+ 计划 diff
+  - **B7 状态权威切 LangGraph（L3）**：投影 + **单活跃 run** + 对账作业（实测 0 差异）+ 事件 → 出站通知（轮询 `list_events`，Redis 游标去重，`DEV_NOTIFY_ENABLED=0` 可关）
+  - **B8 引擎删除后回归**：删除 `crates/dev-task`、`crates/dev-task-mcp`、`dev-session.ts`、`data/dev-sessions/`；`dev-task-client` 默认连桥（无 Rust 回退）
+  - **B9 CI + 部署**：`.github/workflows/ci.yml` 三 job（Rust/Node/Executor）；本机部署器 `deploy-local.mjs`（status/history/deploy/rollback/serve）；n8n **两段式人工批准**（request → approve，实测 dry-run）；`notify_user` 原语（server `/internal/dev/notify` → `notify_requested` → 网关出站）
+- **验证**：`cargo test --workspace` **132 全绿**；`npm run test:agent-gateway` **18/18**（后续新增叙述主体用例后 19/19）；`node apps/scripts/status.mjs` → ok；真机全生命周期：QQ 发起 → 回执 → 计划短链 → 确认 → 执行 → 验收；**gateway 重启不丢**、取消后不再推送、`#补充` 生效；n8n shadow 真机 + HMAC 加固验证；对账 0 差异；`check:proactive-gate` 通过
+- **关键结论**：
+  - 「原 Rust dev 引擎可废弃」成立，但 `dev_task_events` / `dev_runs` / 投影 / 租约是**切换前必补项**（ADR-0014 结论被 ADR-0015 继承）；n8n 承接 Git/CI/部署属 P3+，不与 P0/P1 捆绑
+  - `sessionId` 仍是统一键（任务 / 计划文档 / 执行器 run / web 短链）
+  - 分批原则（读取预算 ≤6 文件/≤2000 行、每批独立可回滚 commit、批末交接卡）实测有效，`plan-budget.mjs` 提供预算守卫（B1 实测 1407 行）
+- **未做（后续）**：B9 真实构建 + 重启演练；n8n `approve` 未写 deploy 事件、未调 `notify_user`；执行沙箱容器化；A2A（P3）；harness「单批范围守卫」（批内 >10 文件自动暂停）
+- **详见**：`decisions/ADR-0013-n8n-langgraph-deepagents-layering.md`、`ADR-0014-dev-chain-task-queue-and-phased-plan.md`、`ADR-0015-dev-line-mcp-bridge-persistence-delta.md`、`plan/01a15977-2e23-712c-8f0b-46fda48be9c0.md`、`docs/modules/dev-task.md`
+
+## M15：移动端形态定案 + 交互原语分级（ADR-0011 / ADR-0012）✅
+
+- **日期**：2026-10-19（文档决策，无代码改动）
+- **完成**：
+  - **ADR-0011 移动端形态**：短中期**不建原生 App**（交付物 = 现有 web 页 + PWA 化：manifest / 图标 / `display: standalone`）；需要独立图标/启动器时选 **Tauri 2**（Android 先行、壳加载线上页、**不启用 IPC**）；**RN/Expo 延后**，并列出 5 条重开条件（离开 App 的通知 / 原生级交互 / 相机扫码等硬件 / iOS 上架且无 macOS / web 迁 React）；正式取代 ADR-0010 里「按 RN 复用」的前提措辞
+  - **ADR-0012 交互原语**：三轴分级 —— 基数（`one` / `many` / `partition`）× 可见性（`plain` / `masked`）× 步数与主体（单步 / **级联**同主体连续 / **接力**跨主体 / 异步等待）；引擎只声明**结构语义**，控件由消费端决定；**Q 群消息侧冻结**（编号清单 + `#选 N` 不再改）；规范正文 `docs/conventions/interaction-primitives.md`
+  - 判据沉淀：区分「同一人连续多步」（F2/H2/F1/H1）与「跨人接力」（A1/G1 下注者→左手玩家→赢家），避免端侧误做「一次提交」
+- **验证**：仅文档/决策（提交 `b7d2a65`、`8e9e831`、`ddfa5aa`）；跨端基础有 `test-view-rn.mts`（222 图元契约守卫）兜底
+- **未做**：PWA 化（manifest / 图标 / standalone）尚未落地；RN 工程不建；离 App 通知等原生能力延后
+- **详见**：`decisions/ADR-0011-mobile-app-form-pwa-tauri2-vs-rn.md`、`ADR-0012-interaction-primitives.md`、`docs/conventions/interaction-primitives.md`、`docs/modules/web.md`
+
+## M14：版图页双模式 + 素材流水线（ADR-0010）✅
+
+- **日期**：2026-10-18~19（2026-10-19 两轮人工验收）
+- **完成**：
+  - **渲染层**：新增 `apps/web/src/view/`（纯 TS：`types/format/text/board{theme,scene,svg,manifest}/page`），服务端 SSR 首屏 + esbuild 浏览器 bundle（≈20KB）**复用同一套纯函数**；**不引入 React/Vite**
+  - **`BoardScene` 场景 IR** 作为跨端唯一契约（5 类图元 / 绝对坐标 / 无平台属性）
+  - **页内双模式**：默认**版图**、`#text` 切文本，链接与 token 语义不变；`GET /tabletop_game/{gameId}/state` + 10s 轮询 + 激活立即刷新 + 失败退避 + 无 JS 降级
+  - **版图内容**：六边形赌场盘（矢量 + 实物底盘 0.5 透明贴图）+ 6 张赌场牌 + 玩家面板 + 公共区 + 终局覆盖；16 块小游戏大图当版面、文字层/状态标记按实物印位压图、**全部顺序平铺**（不分页）；加密选项在版图态同样可见（`renderSecretOptions` 文本/版图共用）
+  - **素材流水线**：`apps/scripts/board-assets.mjs`（inventory/build/preview）+ `board-hex.mjs`（底盘标定）；16 张板块按引擎名 `A1-…H2` 命名（id 由文件名解析）；抠图/纠偏/紧裁/压缩后合计 ≈317KB；**ComfyUI（SD1.5-inpainting）仅离线修图，不参与实时渲染**
+- **验证**：`npm run test:web` 三套全绿（test-render / test-view / test-view-rn 222 图元）；server 3000 / web 18080 / 公网 tunnel 均 200；人工验收（版图态 M1–M3 → 整体收口）
+- **关键结论**：版图坐标以**紧裁后的板块图**为基准（`TILE_SLOTS` 锚点微调只需刷新）；「4+ 块小游戏分页/折叠」裁定**作废**；底盘霓虹店名**保留**（不做 inpaint）；自动 inpaint/QC 脚本方案改为人工跑 ComfyUI 遮罩工作流（一次性任务）
+- **未做**：板块锚点等实际对局反馈再微调；RN 工程接入（按 ADR-0011 延后）
+- **详见**：`plan/01a14f46-64df-76b7-ab25-1c6cc8189d2a.md`、`docs/modules/board-view.md`、`docs/games/las-vegas/props/{board-layout,asset-mapping}.md`、`decisions/ADR-0010-board-rendering-dualmode-assets.md`
+
+## M13：主动消息门禁 + 动作反馈合并单条（ADR-0009）✅
+
+- **日期**：2026-10-17
+- **完成**：
+  - **主动消息默认禁用**：被动回复超限（同一条消息第 6 次起）默认**丢弃并告警**，仅 `PROACTIVE_MESSAGES_ENABLED=1` 才降级为主动消息
+  - **开发门禁**：方案含主动消息（`pushActive` / 无 `reply_msg_id` / 文案提「主动消息」）必须 ① 在「待确定事项」列用途与配额影响 ② **人工确认** ③ 计划文档写标记 `【主动消息已人工确认】` ④ `npm run check:proactive-gate` 通过；plan-workflow skill 列为硬性约束
+  - **门禁脚本 + 负样本单测**：`apps/scripts/check-proactive-gate.mjs`（根/apps 双入口）+ `test-proactive-gate.mts`（正文/引用/行内代码/代码块里提及**不算**确认；标记须单独成行）
+  - **配套出站策略**：每次动作的「模板 + LLM 叙事」**合并为一条**被动回复，机器人动作按回合聚合，避开「每条消息 5 次被动回复」上限
+- **验证**：`test-proactive-gate` 通过；后续各计划（含 M16）门禁实际拦截/放行正确（2026-10-21 修复脚本两处缺陷：取最新计划 + 标记须独立成行）
+- **详见**：`decisions/ADR-0009-proactive-message-gate.md`、`docs/conventions/coding-standards.md`、`docs/conventions/external-constraints.md`
+
+## M12：拉斯维加斯引擎落地 + 16 块小游戏对齐（ADR-0008）✅
+
+- **日期**：2026-10-16~18（16 块对齐完成于 2026-10-17~18）
+- **完成**：
+  - **框架层（ADR-0008）**：`EngineEvent` 事件序列 + `ActionResult.events`（逐条 append、快照 `version` = 最后事件 seq）；`RandomSource` 注入（`SeededRng` 确定性 / `SystemRng` 默认）；lobby 生命周期统一走 `execute_action("lobby:*")`；`public_state` / `player_view` 视图脱敏 + `get_player_view` 原语；**群内唯一活跃对局**（含 lobby 时拒绝新建）
+  - **引擎**：`crates/engines/las-vegas` 完整三阶段流程（掷骰 → 下注 → 每轮小游戏 → 结算）；**16 块小游戏 A1–H2 全部对齐**；引入**声明式结算时机**（`sg::Tempo` 10 类 + `tempos_of` 派发 + `tempo_table_covers_all_tiles` 快照守护）；状态 schema 演进到 v6
+  - **交互能力**：加密选项通用化（A1 单选 / G1 多选，代码↔真义随机置换，公共视图抹 `perm`/`count`）；`resume`/`hint` 恢复原语（不改状态、随消息重签版面页 token）；**pending 队列**避免同次下注的多个交互互相吞掉
+  - **群侧命令**：`#单人`（可直接指定开局小游戏）、`#放`/`#重投`/`#选 N`/`#动作 <id>`/`#恢复`/`#提示`/`#小游戏#xx`
+  - **文档**：`rules.md`、`legal-actions.md`、`small-games-overview.md`（16 块速查总览）、`small-games-alignment.md`（对齐台账）、`balance-evaluation.md`（奖励期望值）
+- **验证**：`cargo test -p las-vegas` 31/31 → 32/32（含 self_play 确定性、4 人完成、启发式优于随机、5 个跨板块集成用例）；`cargo test --workspace` 全绿无警告；MCP 冒烟 47–132 步通过；实测修正若干规则偏差（G1 改每轮结算前钩子、H1 改下注后两段式 + 每回合最多移 1 颗、E2 补派发、H1 改为下注到 H1 赌场后才触发）
+- **关键结论（平衡）**：期望值 A2 1.58 万/次、B2 最优 1.5 万/次、E1 1.0 万、G1 5 万/轮、H1 **6 万/次（偏强）**、H2 3.8 万、A1 2.0 万 → 优先处理 H1 与 F2 a 组；村规确认三项（F2 灰骰 1–3 各 1 / 4–6 各 2、F1 两段式、H2 4 点重掷两骰）
+- **未做**：H1 偏强的平衡调整；F2 a 组奖励偏弱
+- **详见**：`plan/01a145b5-969e-778c-95d5-b212de7955fe.md`、`plan/01a14841-e081-7428-a966-f3d8caecfa78.md`、`docs/games/las-vegas/*`、`decisions/ADR-0008-engine-events-rng-lobby.md`
+
 ## M11：会话隔离 + 全局人物画像层（ADR-0007）✅
 
 - **日期**：2026-10-16
@@ -82,6 +154,32 @@
 - **验证**：`tsc` build 通过；`npm run test:decision` 通过；`npm run test:decision:live` 5/5；「这局规则是什么」→ chat(0.649)、「猜拳怎么玩」→ chat(0.822)，不再误判开桌
 - **未做（后续）**：动作选择接入（架构 §6.1：先 `get_active_game`/`get_legal_actions` 再双问 `intent`+`action`）—— 留待拉斯维加斯引擎落地
 
+## M5：游戏回复策略 C 方案 + 外部约束事实登记（被动窗口 5 分钟纠正）✅
+
+- **日期**：2026-10-11
+- **背景**：原计划的「M5 聊天增强 = 异步主动发送（LLM 不走被动窗口）」建立在「被动回复 3s 超时」的**误判**上；实测为 **5 分钟**窗口（每条消息最多 5 次，`msg_seq` 递增），整个 M5 因此改写
+- **完成**：
+  - **回复策略 C 方案**：游戏动作默认走**规则模板摘要**（承上启下、<1s、`msg_seq=1`）；`GAME_NARRATION_ENABLED=1` 时追加 LLM 情景叙述（`msg_seq=2`，失败/超时静默降级为仅模板）；LLM 只做「承上启下 + 情景带入」，**不逐条复述**结果（详情走 web 页）
+  - 出站：`pushReply` 增加 `msg_seq` 参数；qq-gateway 从 push 事件读 `msg_seq` 并显式传给 `bot.send(extra)`，取代 `sendText` 的随机 `msg_seq`
+  - **事实纪律**：新建 `docs/conventions/external-constraints.md`（外部约束登记表，AGENTS.md 索引、渐进披露）；`coding-standards.md` 增「事实 vs 假设」（数值约束须带来源 + 验证状态）；ADR 模板加「依据与验证状态」；plan-workflow skill 列为硬性约束；`apps/scripts/check-constraints.mjs` 扫描未标注来源的数值行
+  - 文档同步：`architecture.md` §8/§6.3、`agent-gateway.md`、`decision-service.md`、ADR-0002 决策 10 修订
+- **验证**：模板延迟 <1s；开关开启时叙事在 5 分钟窗口内送达；叙事不复述全部结果且限长；`rg` 复查 docs/.pi/memory_palace 无「不做 LLM 叙述」「威胁被动回复窗口」「3s 超时」残留；`cargo check` / `npm build` 通过
+- **后续接口**：M10 在此基础上把 thinking 默认开启；2026-10-21 的「叙述主体 = 执行玩家」修复也在这条线上（`narrateGame` + `actor`）
+- **详见**：`plan/01a12aaf-7246-75b9-a5a5-1f703bababad.md`、`docs/conventions/external-constraints.md`、`memory_palace/decisions/ADR-0002-dual-model-mcp-eventsourcing.md`（决策 10 修订）
+
+## M4：QQ 群消息全链路 + MCP 统一原语 + 猜拳引擎 ✅
+
+- **日期**：2026-10-11
+- **完成**（P0→P3 四阶段，计划 01a12909）：
+  - **P0 链路底座**：`shared` 定义 `InternalEvent` / `MessageGroupAt` / `PushEvent` + `event_id`；`bot-adapter` 用消费者组订阅 `qq.raw`（只留 @文本、trim、归一化为 `internal`）；`push` + `qq-gateway` 出站消费 `qq.push` → QQ API；`server`（Axum）+ `GET /health`
+  - **P1 agent-gateway**：新建 Node/TS 编排者，消费 `internal` → 前缀解析 → mock 决策（intent+confidence）→ 交叉验证兜底 → chat 桩 → 写 `qq.push`；聊天链路端到端跑通
+  - **P2 游戏/MCP**：`game-engine-core`（`EnginePlugin` 最小 trait + 注册表）；`game-engine-mcp` 统一原语（`get_rules` / `get_active_game` / `get_state` / `get_legal_actions` / `start_game` / `execute_action`，stdio）；`engines/rock-paper-scissors`（一轮猜拳：模拟决策解析手势、随机出拳、判定）；agent-gateway 接 MCP client（**不走 HTTP 直连**）
+  - **P3 持久化与运维**：SQLite 落库 `group_messages`（进/出）+ `game_events` / `game_state`（**先写库再 ACK**）；重启后恢复悬挂对局（PEL 重投 + `restore`）；后台自检写 Redis `health:status` + `/health` 聚合；dev 白名单（`DEV_WHITELIST`）；docker-compose + 启动顺序文档
+  - 同期接入 **DeepSeek LLM** 替代 chat 桩（+ 异常回退兜底）
+- **验证**：聊天端到端、猜拳端到端（输/赢/平）、低置信前缀兜底可观测、MCP 原语经 stdio 调用正常、`/health` 反映依赖状态、SQLite 有对应记录、rps 引擎 +7 单测
+- **未做**：`猜拳 ✌️` emoji 手势的真机用例（后续 `extractHand` 已支持 ✊/✌/✋ 与英文）；「自然语言 → mock 决策」两条人工用例未执行（M6 已整体换成 SystemOne，该验证口径作废）
+- **详见**：`plan/01a12909-b4ec-75b9-a5a5-1f6fc331f2e7.md`、`docs/modules/{bot-adapter,game-engine,agent-gateway}.md`
+
 ## M3：架构重设计（双模型 + MCP 化 + 事件溯源，文档）✅
 
 - **日期**：2026-10-11
@@ -118,7 +216,12 @@
 
 ## 下一里程碑（待办）
 
-- **M8：端到端实测** — 真机验证开发任务链路（受理→规划→确认→执行→进度查询）+ 聊天多轮
-- **M9 残留**：端到端 QQ 实测（#开发 → 计划生成 → 推短链 → 手机点开）
-- **M5 残留**：聊天历史 SQLite 归档与 Redis 热缓存同步；游戏路径 LLM 情景叙述（`GAME_NARRATION_ENABLED`）
-- 之后：拉斯维加斯引擎 → 规则查询意图路径（mock 识别游戏交互 → MCP get_rules）
+- **ADR 状态收口**：ADR-0013/0014/0015 仍标「提案（Proposed）」，而 dev 线迁移已落地（M16）→ 应转 **Accepted** 并补落地证据；ADR-0016 尚不存在（新决策请按序新开）
+- **B9 收尾**：n8n `approve` 写 deploy 事件 + 调 `notify_user`；真实构建 + 重启演练（当前只有 dry-run）
+- **执行隔离**：dev 执行器沙箱容器化（另立 ADR）
+- **拉斯维加斯**：16 块小游戏已对齐 → 真机整局验收 + 版图页移动端复核；**H1 奖励偏强（6 万/次）待平衡调整**、F2 a 组偏弱；板块锚点 `TILE_SLOTS` 等对局反馈再微调
+- **移动端**：PWA 化（manifest / 图标 / `display: standalone`，ADR-0011 P0）尚未落地；Tauri 2 壳与 RN 均延后
+- **叙述主体修复（2026-10-21）**：game 线 LLM 叙述已带「执行玩家」，待真机跑一局复核（首次玩家命令 / 机器人批次两种场景）
+- **M11 遗留**：非 @ 消息采集、群层记忆、对话摘要压缩（T3）、向量召回（T4）
+- **harness**：单批范围守卫（批内改动 >10 文件即暂停拆批）
+- **延后**：A2A（P3+）、chat 改 playwright 抓取（仅当目标站点 JS 渲染/反爬时）
