@@ -3,6 +3,7 @@
 - plan    ：新建 thread → 跑到 `approve_plan` 中断 → 写计划文件 + 投影 awaiting_confirm
 - execute ：`Command(resume=approve)` → 跑到 `approve_verify` 中断 → 投影 verifying
 - verify  ：`Command(resume=approve)` → 跑到 summary → 投影 done
+- append  ：把补充指令写进 checkpoint（`instructions` 累加）；若任务在 awaiting_confirm，重新规划
 
 约束：
 - 业务状态只经 server（`ServerApi`）；checkpoint 独立库（`data/langgraph/checkpoints.sqlite`）。
@@ -13,7 +14,6 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 from langgraph.types import Command
@@ -21,6 +21,8 @@ from langgraph.types import Command
 from .graph import build_graph, sqlite_saver
 from .planner import SECTIONS
 from .server_api import ServerApi
+
+STAGES = {"plan", "execute", "verify", "append"}
 
 
 def repo_root() -> Path:
@@ -48,8 +50,39 @@ def _title(plan_md: str, requirement: str) -> str:
     return (first or requirement or "未命名任务")[:60]
 
 
-def work(session_id: str, stage: str, requirement: str = "") -> dict:
-    if stage not in {"plan", "execute", "verify"}:
+def _run_plan_stage(api: ServerApi, graph, session_id: str, requirement: str, run_id: str) -> dict:
+    """跑 plan 阶段：invoke → 停 approve_plan → 落计划文件/投影/事件。"""
+    result = graph.invoke(
+        {"session_id": session_id, "requirement": requirement}, _cfg(session_id)
+    )
+    intr = _first_interrupt(result)
+    if not intr or intr.get("kind") != "approve_plan":
+        raise RuntimeError(f"计划阶段未停在 approve_plan 中断: {intr}")
+    md = result.get("plan_markdown") or ""
+    path = plan_path_for(session_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(md, encoding="utf-8")
+    rel = path.relative_to(repo_root()).as_posix()
+    api.update_meta(session_id, _title(md, requirement), rel, result.get("plan_format", "plan6-v1"))
+    api.event(
+        session_id,
+        "plan_ready",
+        "langgraph",
+        {
+            "run_id": run_id,
+            "plan_path": rel,
+            "chars": len(md),
+            "planner": result.get("planner", ""),
+            "sections": [s for s in SECTIONS if f"## {s}" in md],
+            "instructions": len(result.get("instructions") or []),
+        },
+    )
+    api.project(session_id, "awaiting_confirm", "plan", run_id)
+    return {"interrupt": intr, "plan_path": rel, "chars": len(md)}
+
+
+def work(session_id: str, stage: str, requirement: str = "", instruction: str = "") -> dict:
+    if stage not in STAGES:
         raise RuntimeError(f"未知 stage: {stage}")
     api = ServerApi()
     run_id = api.start_run(session_id, stage)
@@ -59,32 +92,7 @@ def work(session_id: str, stage: str, requirement: str = "") -> dict:
         with sqlite_saver() as saver:
             graph = build_graph(saver)
             if stage == "plan":
-                result = graph.invoke(
-                    {"session_id": session_id, "requirement": requirement}, _cfg(session_id)
-                )
-                intr = _first_interrupt(result)
-                if not intr or intr.get("kind") != "approve_plan":
-                    raise RuntimeError(f"计划阶段未停在 approve_plan 中断: {intr}")
-                md = result.get("plan_markdown") or ""
-                path = plan_path_for(session_id)
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text(md, encoding="utf-8")
-                rel = path.relative_to(repo_root()).as_posix()
-                api.update_meta(session_id, _title(md, requirement), rel, result.get("plan_format", "plan6-v1"))
-                api.event(
-                    session_id,
-                    "plan_ready",
-                    "langgraph",
-                    {
-                        "run_id": run_id,
-                        "plan_path": rel,
-                        "chars": len(md),
-                        "planner": result.get("planner", ""),
-                        "sections": [s for s in SECTIONS if f"## {s}" in md],
-                    },
-                )
-                api.project(session_id, "awaiting_confirm", "plan", run_id)
-                out["interrupt"] = intr
+                out.update(_run_plan_stage(api, graph, session_id, requirement, run_id))
             elif stage == "execute":
                 result = graph.invoke(Command(resume="approve"), _cfg(session_id))
                 intr = _first_interrupt(result)
@@ -93,16 +101,30 @@ def work(session_id: str, stage: str, requirement: str = "") -> dict:
                 api.event(session_id, "executed", "langgraph", {"run_id": run_id, "shadow": True})
                 api.project(session_id, "verifying", "execute", run_id)
                 out["interrupt"] = intr
-            else:  # verify
+            elif stage == "verify":
+                # server 的 confirm 已写 `verified`；这里只跑到 summary，不重复写终态事件
                 result = graph.invoke(Command(resume="approve"), _cfg(session_id))
+                out["summary"] = result.get("summary")
+            else:  # append
+                text = (instruction or "").strip()
+                if not text:
+                    raise RuntimeError("append 缺少 --instruction")
+                graph.update_state(_cfg(session_id), {"instructions": [text]})
                 api.event(
                     session_id,
-                    "run_summary",
+                    "instruction_appended",
                     "langgraph",
-                    {"run_id": run_id, "summary": result.get("summary", "")},
+                    {"run_id": run_id, "chars": len(text)},
                 )
-                api.project(session_id, "done", "verify", run_id)
-                out["summary"] = result.get("summary")
+                out["appended"] = True
+                task = api.get_task(session_id)
+                # 已计划待确认：带上补充指令重新规划（同一 thread 重新走 plan）
+                if task.get("status") == "awaiting_confirm":
+                    vals = graph.get_state(_cfg(session_id)).values
+                    out.update(
+                        _run_plan_stage(api, graph, session_id, str(vals.get("requirement") or ""), run_id)
+                    )
+                    out["replanned"] = True
         api.set_run_status(run_id, "succeeded", session_id)
         out["ok"] = True
         return out
@@ -115,9 +137,9 @@ def work(session_id: str, stage: str, requirement: str = "") -> dict:
         raise
 
 
-def main_work(session_id: str, stage: str, requirement: str = "") -> int:
+def main_work(session_id: str, stage: str, requirement: str = "", instruction: str = "") -> int:
     try:
-        out = work(session_id, stage, requirement)
+        out = work(session_id, stage, requirement, instruction)
     except Exception as e:  # noqa: BLE001
         print(json.dumps({"ok": False, "error": str(e)}, ensure_ascii=False, indent=2))
         return 1

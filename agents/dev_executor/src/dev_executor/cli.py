@@ -95,7 +95,7 @@ def cmd_state(args: argparse.Namespace) -> int:
     print(
         json.dumps(
             {
-                "values": {k: snap.values.get(k) for k in ("session_id", "approved", "executed", "verified", "summary")},
+                "values": {k: snap.values.get(k) for k in ("session_id", "approved", "executed", "verified", "summary", "instructions")},
                 "next": list(snap.next),
             },
             ensure_ascii=False,
@@ -123,9 +123,10 @@ def main(argv: list[str] | None = None) -> int:
 
     p_work = sub.add_parser("work", help="按 stage 驱动 LangGraph（L3：plan/execute/verify）")
     p_work.add_argument("--session-id", required=True)
-    p_work.add_argument("--stage", required=True, choices=["plan", "execute", "verify"])
+    p_work.add_argument("--stage", required=True, choices=["plan", "execute", "verify", "append"])
     p_work.add_argument("--requirement", default="")
-    p_work.set_defaults(func=lambda a: main_work(a.session_id, a.stage, a.requirement))
+    p_work.add_argument("--instruction", default="")
+    p_work.set_defaults(func=lambda a: main_work(a.session_id, a.stage, a.requirement, a.instruction))
 
     p_run = sub.add_parser("run", help="启动一次 shadow 执行（到人工批准中断）")
     p_run.add_argument("--session-id", required=True)

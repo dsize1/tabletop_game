@@ -1,6 +1,7 @@
 """执行器状态定义（LangGraph State）。"""
 
-from typing import TypedDict
+import operator
+from typing import Annotated, TypedDict
 
 
 class DevState(TypedDict, total=False):
@@ -18,3 +19,4 @@ class DevState(TypedDict, total=False):
     executed: bool
     verified: bool
     summary: str
+    instructions: Annotated[list[str], operator.add]

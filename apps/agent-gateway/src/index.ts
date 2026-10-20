@@ -631,7 +631,13 @@ async function handleDevAppend(
       await pushReply(redis, event, json);
       return;
     }
-    await pushReply(redis, event, `任务 ${sessionId} 已收到补充（已记录；执行器追加通道待 B7+ 实现）`);
+    const text = content;
+    if (DEV_EXEC_LANGGRAPH) {
+      await pushReply(redis, event, `任务 ${sessionId} 已收到补充，正在追加…`);
+      runStageViaExecutor(redis, event, sessionId, "append", text);
+    } else {
+      await pushReply(redis, event, `任务 ${sessionId} 已收到补充（已记录；当前模式不执行）`);
+    }
   } catch (err) {
     console.error("[agent-gateway] 追加补充失败:", err);
     await pushReply(redis, event, "[开发] 追加补充失败，请稍后重试");
@@ -697,12 +703,12 @@ function runStageViaExecutor(
   redis: Redis,
   event: MessageGroupAt,
   sessionId: string,
-  stage: "plan" | "execute" | "verify",
-  requirement?: string,
+  stage: "plan" | "execute" | "verify" | "append",
+  payload?: string,
 ) {
   const cwd = path.join(PROJECT_ROOT, "agents", "dev_executor");
   const args = ["run", "dev-executor", "work", "--session-id", sessionId, "--stage", stage];
-  if (requirement) args.push("--requirement", requirement);
+  if (payload) args.push(stage === "append" ? "--instruction" : "--requirement", payload);
   const child = spawn("uv", args, {
     cwd,
     env: {

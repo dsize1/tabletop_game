@@ -31,6 +31,13 @@ def plan_node(state: DevState) -> DevState:
     """
     planner = os.environ.get("DEV_PLANNER", "stub").strip() or "stub"
     requirement = state.get("requirement") or ""
+    extra = state.get("instructions") or []
+    if extra:
+        requirement = (
+            requirement
+            + chr(10) + chr(10) + "补充指令：" + chr(10)
+            + chr(10).join(f"- {x}" for x in extra)
+        )
     try:
         md, fmt, used = make_plan(planner, requirement)  # type: ignore[arg-type]
     except Exception as e:  # noqa: BLE001 - 生成失败必须可降级

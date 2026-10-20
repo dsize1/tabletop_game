@@ -42,6 +42,7 @@ cd agents/dev_executor
 uv run dev-executor work --session-id <sid> --stage plan --requirement "<需求>"
 uv run dev-executor work --session-id <sid> --stage execute   # resume 批准，跑到验收中断
 uv run dev-executor work --session-id <sid> --stage verify    # resume 批准，收尾
+uv run dev-executor work --session-id <sid> --stage append --instruction "补充要求"
 uv run dev-executor reconcile [--fix] [--json]                # 投影↔事件↔checkpoint 对账
 ```
 
@@ -66,6 +67,6 @@ uv run dev-executor reconcile [--fix] [--json]                # 投影↔事件�
 
 ## 已知边界
 
-- `#补充` 在 langgraph 模式只回执，尚无「追加到执行器」通道。
-- 事件 `verified`（server 确认）与 `run_summary`（执行器收尾）语义重叠，后续收敛。
+- `#补充`：执行器 `work --stage append --instruction` 写入 checkpoint（`instructions` 累加）；任务在 `awaiting_confirm` 时会**自动重新规划**（计划含「补充指令」）。
+- 终态事件已收敛：`verified` 由 server 确认写入；执行器 verify 阶段不再重复写 `run_summary`（历史事件保留兼容）。
 - `dev_tasks` 是投影，**不得**作为判定依据；判定走 server 迁移表 + checkpoint。
