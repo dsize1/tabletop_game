@@ -137,7 +137,8 @@ web(Express) ──HTTP──> server/auth + 资源查询 ──> SQLite / Redis
 
 ## 11. 扩展
 
-- 新增桌游引擎：`crates/engines/<name>/` 实现 EnginePlugin（映射到 MCP 统一原语），并在 server 注册
+- 新增桌游引擎：`crates/engines/<name>/` 实现 EnginePlugin（映射到 MCP 统一原语），并在 `crates/game-engine-mcp` 注册
+- **新桌游「三国杀」**：立项与阶段计划 `docs/games/sanguosha/development-plan.md`、数据模型 `docs/games/sanguosha/data-model.md`、决策 ADR-0016–0020（**提案·待评审，尚未实现**）
 - 统一原语见 `docs/modules/game-engine.md`
 - 开发任务：`apps/dev-bridge`（MCP 原语，契约不变）+ `crates/server`（状态/审计/白名单）+ `agents/dev_executor`（LangGraph 执行）；见 `docs/modules/dev-task.md`、ADR-0015
 - 开发文档预览：`crates/docs-mcp`（只读 MCP 原语）+ `config/dev-docs.json` + server `/resources/docs/*` + web `/dev_docs`；见 `docs/modules/docs-mcp.md`

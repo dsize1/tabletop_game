@@ -29,6 +29,10 @@
 | 小游戏 16 块速查总览（最终口径） | `docs/games/las-vegas/small-games-overview.md` |
 | 小游戏奖励期望值评估（平衡） | `docs/games/las-vegas/balance-evaluation.md` |
 | 小游戏 16 阶段对齐计划 / 进度 | `docs/games/las-vegas/small-games-alignment.md` |
+| 三国杀立项：阶段计划 / 数据模型 | `docs/games/sanguosha/development-plan.md`、`docs/games/sanguosha/data-model.md` |
+| 三国杀规则裁定 / 特殊交互区 | `docs/games/sanguosha/rules-rulings.md`、`docs/games/sanguosha/special-zones.md` |
+| 三国杀武将抓取数据（696 位） | `docs/games/sanguosha/data/README.md`、`docs/games/sanguosha/data/heroes.json` |
+| 三国杀武将表（自动生成） | `docs/games/sanguosha/generals.md` |
 | MCP 统一原语 / 能力描述符规范 | `docs/conventions/mcp-primitives.md` |
 | 本地开发环境（Docker/Redis） | `docs/dev-environment.md` |
 | 编码规范 | `docs/conventions/coding-standards.md` |

@@ -29,3 +29,8 @@
 - [ADR-0013：n8n + LangGraph + DeepAgents 三层编排架构与协议边界（提案·技术探讨）](./ADR-0013-n8n-langgraph-deepagents-layering.md)
 - [ADR-0014：dev 消息链路改造 —— 任务入口化、可恢复执行与分阶段实现计划（提案·技术探讨）](./ADR-0014-dev-chain-task-queue-and-phased-plan.md)
 - [ADR-0015：切新路线时保留「消息驱动 + MCP 桥」口径下的阻碍、持久化改动与冗余清理（Rust 引擎可废弃）](./ADR-0015-dev-line-mcp-bridge-persistence-delta.md)
+- [ADR-0016：三国杀引擎 —— 模式无关内核 + 武将技能事件总线 + 刚性规则内核（提案·待评审）](./ADR-0016-sanguosha-engine-kernel.md)
+- [ADR-0017：桌游道具中台 —— 数据模型、写入边界与单页技术栈（提案·待评审）](./ADR-0017-props-admin-data-model.md)
+- [ADR-0018：武将回合设计工作台 —— 复用 n8n 做图编排，引擎只做仿真与校验（提案·待评审）](./ADR-0018-sanguosha-flow-workbench.md)
+- [ADR-0019：三国杀 AI 决策与对局录制回放（训练数据铺路）（提案·待评审）](./ADR-0019-sanguosha-ai-replay.md)
+- [ADR-0020：多端交互形态 —— Web 优先 + WebView 复用 + 游戏区域三分（提案·待评审）](./ADR-0020-sanguosha-multiclient-web-first.md)
