@@ -12,7 +12,10 @@ import {
 
 // —— 命令解析（显式前缀） ——
 assert.deepEqual(parseGameCommand("#开局"), { cmd: "create" });
-assert.deepEqual(parseGameCommand("#拉斯维加斯"), { cmd: "create" });
+assert.deepEqual(parseGameCommand("#开局 1"), { cmd: "create", game: "1" });
+assert.deepEqual(parseGameCommand("#开局1"), { cmd: "create", game: "1" });
+assert.deepEqual(parseGameCommand("#开局 猜拳"), { cmd: "create", game: "猜拳" });
+assert.deepEqual(parseGameCommand("#拉斯维加斯"), { cmd: "create", game: "拉斯维加斯" });
 assert.deepEqual(parseGameCommand("#加入"), { cmd: "join" });
 assert.deepEqual(parseGameCommand("#退出"), { cmd: "leave" });
 assert.deepEqual(parseGameCommand("#开始"), { cmd: "start" });
@@ -81,6 +84,7 @@ assert.equal(gameActionId({ cmd: "addbot", n: 2 }), "lobby:add_bot");
 assert.equal(gameActionId({ cmd: "sg", id: "F1:move:0:3" }), "sg:F1:move:0:3");
 assert.equal(gameActionId({ cmd: "solo", n: 3 }), null);
 assert.equal(gameActionId({ cmd: "create" }), null);
+assert.equal(gameActionId({ cmd: "create", game: "1" }), null);
 assert.equal(gameActionId({ cmd: "board" }), null);
 
 // —— 文案 ——

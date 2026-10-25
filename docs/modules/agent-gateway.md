@@ -45,13 +45,14 @@
 - `#补充 <id> <正文>`：经 `append_instruction` 校验后仅回执（执行器追加通道待实现）
 - 聊天多轮：**按 `(group, openid)` 隔离**的 Redis 热缓存最近 20 条（`CHAT_HISTORY_LIMIT` 可配）注入 `chatReply`；条目随消息存 `ts`（写入时刻）与 `boundary`（话题切换边界），旧条目无这两个字段时降级为「时间未知、无边界」。读写见 `src/chat-history.ts`，渲染见 `src/time-context.ts`，上下文组装见 `src/context.ts`
 
-### 游戏（拉斯维加斯，显式命令）
+### 游戏（桌游，显式命令）
 
 - **显式命令硬判断**（先于决策模型，`game-command.ts`）：确定性前缀 → MCP `execute_action`，**不经决策模型**（与「lobby 消息驱动」一致；禁止用正则猜自由文本意图）。
 
 | 命令 | 动作 | 权限 |
 |---|---|---|
-| `#开局` / `#拉斯维加斯` | `create_game(las-vegas, group, sender)` | 群内无 Active |
+| `#开局` | 列出可开的桌游（编号清单，见 `src/games.ts`） | 任意 |
+| `#开局 <编号或名称>` / `#拉斯维加斯` | 按选择建局：lobby 型 `create_game(game_id, group, sender)`；direct 型（猜拳）`start_game` 直接开打 | 群内无 Active |
 | `#加入` / `#退出` | `lobby:join` / `lobby:leave` | 群成员 |
 | `#开始` / `#中断` | `lobby:start` / `lobby:abort` | 房主 |
 | `#踢 <openid>` | `lobby:kick:<openid>` | 房主 |
@@ -73,9 +74,10 @@
 - **出站限额**（`external-constraints.md`）：同一条用户消息最多**被动回复 5 次**、`msg_seq` 递增。网关用 Redis 计数器 `msgseq:{message_id}` 递增；每个动作的「模板 + LLM 叙事」合并为**一条**回复。超过 5 条时**默认丢弃并告警**，仅 `PROACTIVE_MESSAGES_ENABLED=1`（需通过主动消息门禁）才降级为主动消息。错误/中断（`lobby:abort`）不做 LLM 叙事。
 - **主动消息门禁**（ADR-0009）：默认禁用；方案含主动消息须人工确认并写 `【主动消息已人工确认】`，`npm run check:proactive-gate` 校验。
 
-- **自然语言路径**：`start_game` 意图（无猜拳手势时）→ 创建拉斯维加斯 lobby（引导文案含上表命令）。猜拳 `rps` 保留为显式手势玩具路径。
+- **桌游目录**（`src/games.ts`）：`#开局` 的可选项单一数据源（id / 展示名 / 启动方式 / 别名）。新增引擎时在 `crates/game-engine-mcp` 注册后往 `GAME_OPTIONS` 追加一项即可出现在菜单里；`mode: "direct"` 表示无等待厅（建局即开打），`"lobby"` 走 `#加入` / `#开始`。
+- **自然语言路径**：`start_game` 意图（无猜拳手势时）→ 发「#开局」菜单让用户选桌游。猜拳 `rps` 既保留显式手势玩具路径，也可经 `#开局 猜拳` 直接开一局。
 - **动作选择（阶段 4b）**：`game_action` 意图 → `get_legal_actions(room, sender)` → SystemOne `choice`（≤26 个动作）选一个 → `execute_action`；动作数 >26 或决策不可用时回显编号清单兜底（`formatActionList`）。小游戏交互态的合法动作归 `pending.actor`，非该玩家无动作。
-- 命令 → 动作串映射与解析单测见 `src/game-command.ts` / `test-game-command.mts`。
+- 命令 → 动作串映射与解析单测见 `src/game-command.ts` / `test-game-command.mts`；桌游目录与菜单单测见 `src/games.ts` / `test-games.mts`。
 
 ### 人物画像（全局层，ADR-0007）
 

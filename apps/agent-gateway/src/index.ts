@@ -71,6 +71,7 @@ import {
   type GameCommand,
   type LegalAction,
 } from "./game-command.js";
+import { directLaunchPrompt, formatGameMenu, resolveGameOption } from "./games.js";
 
 const redisUrl = process.env.REDIS_URL ?? "redis://127.0.0.1:6379";
 const INTERNAL_STREAM = "internal";
@@ -426,6 +427,30 @@ async function sendGameReply(
   }
 }
 
+// ==================== 猜拳手势（显式手势 → rps 引擎） ====================
+
+/** 在指定 rps 对局里出拳：执行 → 归档 → 模板回执（+ 可选情景叙述）。 */
+async function playRpsHand(
+  redis: Redis,
+  engine: GameEngineClient,
+  event: MessageGroupAt,
+  content: string,
+  hand: string,
+  roomId: string,
+): Promise<void> {
+  const resultJson = await engine.executeAction(roomId, event.sender_id, hand);
+  const result = parseJson<ActionResult>(resultJson, {});
+  const summary = await fetchStateSummary(engine, roomId);
+  await emitChatLog(redis, { openid: event.sender_id, groupId: event.group_id, role: "user", content });
+  await emitChatLog(redis, {
+    openid: event.sender_id,
+    groupId: event.group_id,
+    role: "assistant",
+    content: result.message ?? resultJson,
+  });
+  await sendGameReply(redis, event, result.message ?? resultJson, `玩家出了「${hand}」`, summary);
+}
+
 // ==================== dev 任务（固定前缀命令 + 子会话编排） ====================
 
 /** 处理 #任务 / #进度 / #确认 / #取消 / #能力（白名单内）。 */
@@ -777,29 +802,24 @@ async function executeIntent(
       break;
 
     case "start_game": {
-      // 猜拳（显式手势）：旧行为保留；否则发起拉斯维加斯对局（进入 lobby）
+      // 猜拳（显式手势）：优先在当前活跃 rps 局里出拳，否则开一局新的；非手势 → #开局 菜单
       const hand = extractHand(content);
       if (!hand) {
         await handleGameCommand(redis, engine, event, { cmd: "create" });
         break;
       }
-      const stateJson = await engine.startGame("rps", event.group_id, [event.sender_id]);
-      const state = parseJson<GameState>(stateJson, {});
-      if (!state.room_id) {
-        await pushReply(redis, event, stateJson); // 开桌失败信息
-        break;
+      const active = parseJson<GameState>(await engine.getActiveGame(event.group_id), {});
+      let roomId = active.game_id === "rps" ? active.room_id : undefined;
+      if (!roomId) {
+        const stateJson = await engine.startGame("rps", event.group_id, [event.sender_id]);
+        const state = parseJson<GameState>(stateJson, {});
+        if (!state.room_id) {
+          await pushReply(redis, event, stateJson); // 开桌失败信息
+          break;
+        }
+        roomId = state.room_id;
       }
-      const resultJson = await engine.executeAction(state.room_id, event.sender_id, hand);
-      const result = parseJson<ActionResult>(resultJson, {});
-      const summary = await fetchStateSummary(engine, state.room_id);
-      await emitChatLog(redis, { openid: event.sender_id, groupId: event.group_id, role: "user", content });
-      await emitChatLog(redis, {
-        openid: event.sender_id,
-        groupId: event.group_id,
-        role: "assistant",
-        content: result.message ?? resultJson,
-      });
-      await sendGameReply(redis, event, result.message ?? resultJson, `玩家出了「${hand}」`, summary);
+      await playRpsHand(redis, engine, event, content, hand, roomId);
       break;
     }
 
@@ -809,17 +829,7 @@ async function executeIntent(
       const activeJson = await engine.getActiveGame(event.group_id);
       const active = parseJson<GameState>(activeJson, {});
       if (active.room_id && hand && active.game_id === "rps") {
-        const resultJson = await engine.executeAction(active.room_id, event.sender_id, hand);
-        const result = parseJson<ActionResult>(resultJson, {});
-        const summary = await fetchStateSummary(engine, active.room_id);
-        await emitChatLog(redis, { openid: event.sender_id, groupId: event.group_id, role: "user", content });
-        await emitChatLog(redis, {
-          openid: event.sender_id,
-          groupId: event.group_id,
-          role: "assistant",
-          content: result.message ?? resultJson,
-        });
-        await sendGameReply(redis, event, result.message ?? resultJson, `玩家出了「${hand}」`, summary);
+        await playRpsHand(redis, engine, event, content, hand, active.room_id);
       } else if (active.room_id) {
         // 阶段 4b：合法动作 → 决策模型选择 → 执行；不可选则回清单兜底
         const legalRaw = await engine.getLegalActions(active.room_id, event.sender_id);
@@ -872,7 +882,7 @@ async function executeIntent(
           `[agent-gateway] game_action via=decision model=${chosen.id}:${chosen.confidence.toFixed(3)} ← ${content}`,
         );
       } else {
-        await pushReply(redis, event, "当前没有进行中的对局，试试「#开局」发起一局拉斯维加斯。");
+        await pushReply(redis, event, "当前没有进行中的对局，试试「#开局」选一个桌游。");
       }
       break;
     }
@@ -1331,7 +1341,26 @@ async function handleGameCommand(
       await pushReply(redis, event, "本群已有进行中的对局，先打完或由房主「#中断」再来。");
       return;
     }
-    const stateJson = await engine.createGame(LAS_VEGAS_GAME_ID, event.group_id, event.sender_id);
+    const host = event.sender_name || event.sender_id;
+    const game = resolveGameOption(cmd.game);
+    if (!game) {
+      // 无参 = 列菜单；参数无法识别 = 先报错再列菜单（不落闲聊）
+      const hint = cmd.game ? `没有「${cmd.game}」这个桌游。` : "";
+      await pushReply(redis, event, [hint, formatGameMenu()].filter(Boolean).join("\n"));
+      return;
+    }
+    if (game.mode === "direct") {
+      // 无等待厅：建局即开打（如猜拳）
+      const stateJson = await engine.startGame(game.id, event.group_id, [event.sender_id]);
+      const st = parseJson<GameState>(stateJson, {});
+      if (!st.room_id) {
+        await pushReply(redis, event, stateJson);
+        return;
+      }
+      await pushReply(redis, event, directLaunchPrompt(game, host));
+      return;
+    }
+    const stateJson = await engine.createGame(game.id, event.group_id, event.sender_id);
     const st = parseJson<GameState>(stateJson, {});
     if (!st.room_id) {
       await pushReply(redis, event, stateJson);
@@ -1339,7 +1368,7 @@ async function handleGameCommand(
     }
     const seats = st.data?.seats?.length ?? 1;
     const n = st.data?.small_game_count ?? 3;
-    await pushReply(redis, event, lobbyPrompt(event.sender_name || event.sender_id, seats, n));
+    await pushReply(redis, event, lobbyPrompt(host, seats, n));
     return;
   }
 

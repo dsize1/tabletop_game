@@ -4,7 +4,8 @@
 // 禁止对自由文本做意图猜测。本模块只做「前缀 → 动作」的确定性映射，产出合法的 `execute_action` 动作串。
 //
 // 命令表：
-//   #开局 / #拉斯维加斯          创建对局（进入 lobby）
+//   #开局                      列出可开的桌游（`src/games.ts`）
+//   #开局 <编号|名称> / #拉斯维加斯  创建对应对局（lobby 或直接开打）
 //   #加入 / #退出                lobby 加入 / 退出
 //   #开始 / #中断                lobby 开赛 / 房主中止
 //   #踢 <openid>                房主踢人
@@ -14,7 +15,7 @@
 //   #局面 / #牌面               查看局面摘要
 
 export type GameCommand =
-  | { cmd: "create" }
+  | { cmd: "create"; game?: string }
   | { cmd: "join" }
   | { cmd: "leave" }
   | { cmd: "start" }
@@ -146,6 +147,10 @@ export function parseGameCommand(content: string): GameCommand | null {
       return arg ? { cmd, ids: arg } : null;
     case "pickcode":
       return null; // 只经 `#选 <代码>` 进入（上面已处理）
+    case "create":
+      // `#开局` 无参 = 列菜单；`#开局 <编号|名称>` = 选桌游；`#拉斯维加斯` = 直接开该桌游
+      if (word !== "开局") return { cmd: "create", game: word };
+      return arg ? { cmd: "create", game: arg } : { cmd: "create" };
     case "resume":
       return { cmd: "resume" };
     default:
