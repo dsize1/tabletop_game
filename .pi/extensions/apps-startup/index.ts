@@ -1,7 +1,7 @@
 /**
  * apps-startup：在 Pi TUI 中一键启动 / 停止本地服务链。
  *
- *   /apps-startup start [--no-build] [--no-qq]   启动 dev-up（server/web/agent/decision/MCP，默认含 qq-gateway）
+ *   /apps-startup start [--no-build] [--no-qq] [--no-props]   启动 dev-up（server/web/props/agent/decision/MCP，默认含 qq-gateway）
  *   /apps-startup stop  [--keep-redis]           停止全部（dev-up 树 + 独立 qq-gateway + 残留服务；默认停 Redis 容器）
  *   /apps-startup status                         查看进程与 PID 文件状态
  *
@@ -28,7 +28,7 @@ const REDIS_CONTAINER = "tabletop-game-redis";
 
 const USAGE =
   "用法：\n" +
-  "/apps-startup start [--no-build] [--no-qq] — 启动全部服务\n" +
+  "/apps-startup start [--no-build] [--no-qq] [--no-props] — 启动全部服务\n" +
   "/apps-startup stop  [--keep-redis] — 停止全部服务\n" +
   "/apps-startup status — 查看状态";
 
@@ -115,6 +115,7 @@ function doStart(ctx: any, flags: string[]) {
   const argv = [DEV_UP];
   if (flags.includes("--no-build")) argv.push("--no-build");
   if (flags.includes("--no-qq")) argv.push("--no-qq");
+  if (flags.includes("--no-props")) argv.push("--no-props");
   ensureDirs();
   const out = fs.openSync(LOG_FILE, "w");
   const err = fs.openSync(ERR_FILE, "w");

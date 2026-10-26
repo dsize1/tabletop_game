@@ -65,7 +65,7 @@ docker exec tabletop-game-redis redis-cli XRANGE qq.raw - +        # 查入站�
 ### 一键启动（推荐）
 
 ```bash
-npm run dev:up         # Redis + cargo build + server + decision + web + agent-gateway + qq-gateway（默认含 QQ）
+npm run dev:up         # Redis + cargo build + server + decision + web + props-admin + agent-gateway + qq-gateway（默认含 QQ）
 npm run dev:up:noqq    # 不启动 qq-gateway
 npm run dev:up:qq      # 兼容旧命令，等价于 dev:up
 ```
@@ -73,8 +73,8 @@ npm run dev:up:qq      # 兼容旧命令，等价于 dev:up
 > 以上命令在**仓库根目录**执行（仓库根 `package.json` 仅做转发，真正的 npm workspaces 根在 `apps/`）。
 > 也可等价地用 `cd apps && npm run dev:up`，或直接 `node apps/scripts/dev-up.mjs`。
 
-`apps/scripts/dev-up.mjs` 前台运行，Ctrl+C 停止全部子进程（含 MCP/llama-server 进程树）。
-可选参数：`--no-qq`（不启动 qq-gateway）、`--no-build`（跳过 cargo build）、`--no-decision`（不启动 4.5G 决策模型）。
+`apps/scripts/dev-up.mjs` 前台运行，Ctrl+C 停止全部子进程（含 MCP/llama-server/道具中台进程树）。
+可选参数：`--no-qq`（不启动 qq-gateway）、`--no-build`（跳过 cargo build）、`--no-decision`（不启动 4.5G 决策模型）、`--no-props`（不启动道具中台）。
 
 > **Redis 是硬依赖**：脚本先探活 127.0.0.1:6379，不可达时自动尝试 `docker compose up -d`；若仍不可达则**直接报错退出（exit 1）**，不再启动后续服务（否则 server 会因连接被拒秒退，导致「已启动」后整条链路连带消失）。请先启动 Docker Desktop 并按 §1/§3 确认 Redis。
 > qq-gateway 需已配 `apps/qq-gateway/.env` 的 `QQBOT_APP_ID`/`QQBOT_APP_SECRET`；凭证缺失时脚本会打印告警并跳过，不影响其余服务。
@@ -86,7 +86,7 @@ npm run dev:up:qq      # 兼容旧命令，等价于 dev:up
 
 | 命令 | 作用 |
 |---|---|
-| `/apps-startup start [--no-build] [--no-qq]` | 后台（detached）启动 `dev-up`，PID 写入 `data/run/dev-up.pid`，日志 `logs/dev-up.log` |
+| `/apps-startup start [--no-build] [--no-qq] [--no-props]` | 后台（detached）启动 `dev-up`，PID 写入 `data/run/dev-up.pid`，日志 `logs/dev-up.log` |
 | `/apps-startup stop [--keep-redis]` | 结束 dev-up 进程树 + 独立 qq-gateway + 残留服务；默认连 Redis 容器一起停 |
 | `/apps-startup status` | 列出 dev-up PID 文件与相关服务进程 |
 
@@ -94,7 +94,7 @@ npm run dev:up:qq      # 兼容旧命令，等价于 dev:up
 - `stop` 默认停 Redis 容器（数据卷保留）；加 `--keep-redis` 只停应用。进程匹配按「命令行含项目根 / `dev-up.mjs`」+ 本项目下服务 exe，避免误杀同名进程。
 - 与 `npm run dev:up` 等价，只是改为后台运行 + 可一键停止；关机前建议先执行 `/apps-startup stop`。
 - 命令行等价物 `npm run dev:down [--keep-redis]`（`apps/scripts/dev-down.mjs`，按 `data/run/dev-up.pid` 结束整棵进程树）。
-- ⚠️ **不要**直接 `taskkill` 单个子进程（如 `server.exe`）：dev-up 视子进程意外退出为致命，会连带停掉 web/agent/qq/decision。停服一律走 `/apps-startup stop` 或 `npm run dev:down`。
+- ⚠️ **不要**直接 `taskkill` 单个子进程（如 `server.exe`）：dev-up 视子进程意外退出为致命，会连带停掉 web/props/agent/qq/decision。停服一律走 `/apps-startup stop` 或 `npm run dev:down`。
 
 ### 手动逐个启动（排查用）
 
@@ -105,6 +105,7 @@ npm run dev:up:qq      # 兼容旧命令，等价于 dev:up
 | 1 | server | `cd crates && cargo run -p server` | bot-adapter（qq.raw→internal）+ 健康自检 + /health |
 | 2 | agent-gateway | `cd apps/agent-gateway && npm run dev` | 消费 internal → 决策 → 聊天/猜拳 → qq.push；spawn game-engine-mcp |
 | 3 | qq-gateway | `cd apps/qq-gateway && npm run dev` | QQ 入站（→qq.raw）+ 出站（qq.push→发群消息） |
+| 4 | props-admin | `cd apps && npm run dev:props` | 道具中台（仅本机 5174，不挂公网） |
 
 > `game-engine-mcp` / `docs-mcp` 由 agent-gateway 通过 MCP stdio 自动 spawn；dev 原语由 `apps/dev-bridge`（Node/tsx）提供；执行器为 `agents/dev_executor`（`uv run dev-executor`）。Rust MCP 需先 `cargo build` 编译出 `crates/target/debug/*-mcp(.exe)`。
 

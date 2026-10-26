@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // 一键启动开发服务链：
-//   Redis(探测/拉起) → cargo build(可选) → server → decision(可选) → web → agent-gateway → qq-gateway(默认)
+//   Redis(探测/拉起) → cargo build(可选) → server → decision(可选) → web → props-admin → agent-gateway → qq-gateway(默认)
 //
 // 用法（在仓库根目录）：
-//   node apps/scripts/dev-up.mjs [--no-qq] [--no-decision] [--no-build]
+//   node apps/scripts/dev-up.mjs [--no-qq] [--no-decision] [--no-build] [--no-props]
 //   npm run dev:up            # 默认含 qq-gateway（缺 QQBOT 凭证时自动跳过）
 //   npm run dev:up:noqq       # 不启动 qq-gateway
 //   npm run dev:up:qq         # 兼容旧命令，等价于 dev:up
@@ -23,6 +23,8 @@ const FLAGS = {
   qq: !args.includes("--no-qq"),
   decision: !args.includes("--no-decision"),
   build: !args.includes("--no-build"),
+  // 道具中台：默认启动，仅本机（5174）；没有安装前端依赖时自动跳过
+  props: !args.includes("--no-props"),
 };
 
 const children = [];
@@ -165,6 +167,21 @@ if (FLAGS.decision) {
 // 5. web
 launch("web", node, [tsxCli, "src/index.ts"], { cwd: resolve(repoRoot, "apps", "web") });
 
+// 5.5 props-admin（仅本机；不挂公网）
+let propsStarted = false;
+if (FLAGS.props) {
+  const viteBin = resolve(repoRoot, "apps", "node_modules", "vite", "bin", "vite.js");
+  if (!existsSync(viteBin)) {
+    console.warn("[warn] 未安装 props-admin 前端依赖，跳过中台（先 cd apps && npm install）。");
+  } else {
+    launch("props", node, [viteBin], {
+      cwd: resolve(repoRoot, "apps", "props-admin"),
+      env: { ...process.env, SERVER_URL: process.env.SERVER_URL ?? `http://127.0.0.1:${process.env.SERVER_PORT ?? "3000"}` },
+    });
+    propsStarted = true;
+  }
+}
+
 // 6. agent-gateway
 launch("agent", node, [tsxCli, "src/index.ts"], {
   cwd: resolve(repoRoot, "apps", "agent-gateway"),
@@ -198,12 +215,16 @@ const started = [
   "server",
   ...(FLAGS.decision ? ["decision"] : []),
   "web",
+  ...(propsStarted ? ["props"] : []),
   "agent",
   ...(startQQ ? ["qq"] : []),
 ].join(" / ");
 
+const propsLine = propsStarted
+  ? "\n  props   http://127.0.0.1:5174/props-admin/（仅本机，不挂公网）"
+  : "";
 console.log(`
 已启动：${started}
   server  http://127.0.0.1:3000
-  web     http://127.0.0.1:18080
+  web     http://127.0.0.1:18080${propsLine}
 Ctrl+C 停止全部。`);

@@ -8,7 +8,11 @@
 ## 启动
 
 ```bash
-# 1) 先启动 server（默认 3000；这里以 3100 为例）
+# 0) 一键开发链（默认包含中台，--no-props 可关闭）
+npm run dev:up
+# 中台：http://127.0.0.1:5174/props-admin/
+
+# 或单独启动 server（默认 3000；这里以 3100 为例）
 SQLITE_PATH=data/tabletop.db \
 GAMEPROPS_DATA_DIR=docs/games/sanguosha/data \
 SERVER_PORT=3100 \

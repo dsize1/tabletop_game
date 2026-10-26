@@ -4,7 +4,7 @@
 
 ## 命令
 
-- `/apps-startup start [--no-build] [--no-qq]` — 后台启动 `apps/scripts/dev-up.mjs`（server/web/agent/decision/MCP，默认含 qq-gateway）
+- `/apps-startup start [--no-build] [--no-qq] [--no-props]` — 后台启动 `apps/scripts/dev-up.mjs`（server/web/props/agent/decision/MCP，默认含 qq-gateway）
 - `/apps-startup stop [--keep-redis]` — 结束 dev-up 进程树 + 独立 qq-gateway + 残留服务；默认停 Redis 容器
 - `/apps-startup status` — 列出 PID 文件与相关服务进程
 
