@@ -30,6 +30,7 @@
 | 小游戏奖励期望值评估（平衡） | `docs/games/las-vegas/balance-evaluation.md` |
 | 小游戏 16 阶段对齐计划 / 进度 | `docs/games/las-vegas/small-games-alignment.md` |
 | 三国杀立项：阶段计划 / 数据模型 | `docs/games/sanguosha/development-plan.md`、`docs/games/sanguosha/data-model.md` |
+| 三国杀规则 / 牌表 / 状态机 / 动作 / 校验 | `docs/games/sanguosha/rules.md`、`cards.md`、`state-machine.md`、`legal-actions.md`、`rule-engine-permission.md` |
 | 三国杀规则裁定 / 特殊交互区 | `docs/games/sanguosha/rules-rulings.md`、`docs/games/sanguosha/special-zones.md` |
 | 三国杀武将抓取数据（696 位） | `docs/games/sanguosha/data/README.md`、`docs/games/sanguosha/data/heroes.json` |
 | 三国杀武将表（自动生成） | `docs/games/sanguosha/generals.md` |

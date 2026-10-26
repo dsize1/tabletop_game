@@ -23,8 +23,8 @@ target-*/
 .DS_Store
 Thumbs.db
 
-# SQLite 运行时数据
-data/
+# SQLite 运行时数据（仅仓库根目录；docs/**/data 是入库数据）
+/data/
 *.db
 *.db-shm
 *.db-wal

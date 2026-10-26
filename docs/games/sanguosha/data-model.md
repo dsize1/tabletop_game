@@ -118,25 +118,26 @@ CREATE TABLE IF NOT EXISTS sgs_card_defs (
     code            TEXT PRIMARY KEY,           -- 'sha' | 'shan' | 'tao' | 'jiu' | 'qinggang_sword' | ...
     name            TEXT NOT NULL,
     category        TEXT NOT NULL CHECK (category IN
-                      ('basic','weapon','armor','horse','trick','delayed_trick')),
+                      ('basic','weapon','armor','horse','treasure','trick','delayed_trick')),
     description     TEXT NOT NULL DEFAULT '',
     image_asset_id  INTEGER REFERENCES prop_assets(id),
-    -- 武器=攻击范围；马=±1（+1 为防御马，-1 为进攻马）；锦囊/延时锦囊=距离限制（NULL 不限）
+    -- 武器=攻击范围 N；马=距离修正（进攻马 +1 攻击距离 / 防御马 +1 防御距离，方向由 range_type 区分）；锦囊/延时锦囊=距离限制（NULL 不限）
     range_value     INTEGER,
     -- 锦囊 / 延时锦囊：single=单目标；aoe=群体；NULL=非锦囊
     target_mode     TEXT CHECK (target_mode IN ('single','aoe')),
     -- 装备槽位：玩家装备区的显式类型（武器/护具/进攻马/防御马）；非装备=NULL
-    equip_slot      TEXT CHECK (equip_slot IN ('weapon','armor','horse_offense','horse_defense')),
-    -- 攻防马类型（仅 category='horse'）：attack=进攻马（-1），defense=防御马（+1）
+    equip_slot      TEXT CHECK (equip_slot IN
+                      ('weapon','armor','horse_offense','horse_defense','treasure')),
+    -- 攻防马类型（仅 category='horse'）：attack=进攻马（+1 攻击距离），defense=防御马（+1 防御距离）
     range_type      TEXT CHECK (range_type IN ('attack','defense')),
     status          TEXT NOT NULL DEFAULT 'draft'
                     CHECK (status IN ('draft','testing','review','live','offline')),
     created_at      TEXT NOT NULL,
     updated_at      TEXT NOT NULL,
-    CHECK ((category IN ('weapon','armor','horse')) = (equip_slot IS NOT NULL)),
+    CHECK ((category IN ('weapon','armor','horse','treasure')) = (equip_slot IS NOT NULL)),
     CHECK ((category = 'horse') = (range_type IS NOT NULL)),
     CHECK (range_type IS NULL OR
-           (range_type = 'attack'  AND equip_slot = 'horse_offense' AND range_value = -1) OR
+           (range_type = 'attack'  AND equip_slot = 'horse_offense' AND range_value = 1) OR
            (range_type = 'defense' AND equip_slot = 'horse_defense' AND range_value = 1))
 );
 
@@ -163,8 +164,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_sgs_cards_unique_full
 
 - `sgs_card_defs` 只描述「这类牌是什么」（规则效果、分类、距离、单/AOE）；
 - `sgs_cards` 是**牌堆里的每一张物理牌**（花色 + 点数），满足「所有道具手牌都有花色与 A–K 点数，初始化为空」；
-- 装备：`category='weapon'` + `range_value`；`category='horse'` + `range_value=+1/-1`；护具用 `category='armor'`；
-- **装备槽位显式化**：`equip_slot` 决定玩家装备区落到哪个槽（`weapon/armor/horse_offense/horse_defense`），便于距离与替换判定；进攻马 `range_value=-1`、防御马 `range_value=+1`；
+- 装备：`category='weapon'` + `range_value`；`category='horse'` + `range_value=+1/-1`；护具用 `category='armor'`；特殊装备（木牛流马）用 `category='treasure'` / `equip_slot='treasure'`（预留）；
+- **装备槽位显式化**：`equip_slot` 决定玩家装备区落到哪个槽（`weapon/armor/horse_offense/horse_defense/treasure`），便于距离与替换判定；进攻马 `range_value=+1`、防御马 `range_value=+1`（方向由 `range_type` 区分，见 `rules.md` §7）；`treasure` 为特殊区（木牛流马）预留；
 - **攻防马类型显式化**：`range_type=attack|defense` 与 `equip_slot`/`range_value` 由 CHECK 约束一致（用户 2026-10-25 要求「距离值加攻防马类型」）；
 - `category` 与 `equip_slot` 必须一致（DDL 末尾 CHECK）：装备类必须有槽位，非装备必须无槽位；
 - 延时锦囊用 `category='delayed_trick'`，与普通锦囊同表，靠分类区分。
@@ -286,7 +287,7 @@ CREATE INDEX IF NOT EXISTS idx_prop_status_log_entity
 | `gender` | `sgs_generals.gender` | 官网缺失 → `unknown`，中台补 |
 
 - 技能 `code` 由导入脚本生成（如 `sk_<名称哈希前10位>`），跨武将同名共享一行；人工可在中台改 code。
-- 牌表：官网**没有公开的结构化牌表/接口**（sitemap 仅 `/hero/*` 等页面），P1 默认人工录入/社区整理表；若后续找到官方结构化数据再补导入。
+- 牌表：官网**没有公开的结构化牌表/接口**（sitemap 仅 `/hero/*` 等页面）；已从社区开源牌堆整理 `cards.json`（标准 108 + 军争 52）与 `cards.md`，**P1 人工逐张复核后入库**；若后续找到官方数据再替换。
 
 ## 4. 运行时状态模型（不建实体表）
 
@@ -304,6 +305,13 @@ CREATE INDEX IF NOT EXISTS idx_prop_status_log_entity
   "mode": "identity",                 // identity | guozhan（国战未排期，仅预留接缝）
   "phase": "lobby",                   // lobby | deal | turn | dying | settle | finished | aborted
   "host": "openid",
+  "config": {                         // 规则配置（默认值，可扩展）
+    "lord_candidate_count": 5,        // 主公候选中的非主公武将数
+    "other_candidate_count": 5,       // 其他玩家同时获得的候选数
+    "max_hand_cards": 20,             // 任何时刻手牌持有上限（弃牌阶段上限仍为当前体力值）
+    "base_attack_range": 1,
+    "base_defense_range": 1
+  },
   "player_count": 5,
   "identity_variant": "default",
   "round": 1,
@@ -322,8 +330,8 @@ CREATE INDEX IF NOT EXISTS idx_prop_status_log_entity
       "alive": true,
       "hand": ["c12", "c7"],          // 牌实例 id（顺序即手牌顺序）
       // 键 = sgs_card_defs.equip_slot；玩家装备区按槽位判定
-      "equips": { "weapon": null, "armor": null, "horse_offense": null, "horse_defense": null },
-      "judge_zone": [],               // 延时锦囊实例 id（后进先判）
+      "equips": { "weapon": null, "armor": null, "horse_offense": null, "horse_defense": null, "treasure": null },
+      "judge_zone": [],               // 延时锦囊实例 id（按放入顺序存；末尾=栈顶，LIFO 先判）
       "flags": {}                     // 技能私有标记（如觉醒已触发）
     }
   ],
@@ -347,7 +355,7 @@ CREATE INDEX IF NOT EXISTS idx_prop_status_log_entity
 }
 ```
 
-说明：`equips` 的键就是 `sgs_card_defs.equip_slot`（武器/护具/进攻马/防御马），玩家装备区按槽位判定；`special_zones` 是通用占位，具体字段由技能实现定义（观星、五谷丰登、判定展示等），未出现时为空对象。
+说明：`equips` 的键就是 `sgs_card_defs.equip_slot`（武器/护具/进攻马/防御马/特殊），玩家装备区按槽位判定；`special_zones` 是通用占位，具体字段由技能实现定义（观星、五谷丰登、判定展示等），未出现时为空对象。
 
 ### 4.2 视图三分区（ADR-0020）
 
@@ -442,7 +450,7 @@ CREATE TABLE IF NOT EXISTS sgs_flow_designs (
 | 7 | 决策日志 | 允许采样/关闭 | `game_decision_log` + 采样开关（P6） |
 | 8 | 模板归属 | `source` + `created_by` 足够 | 保持 |
 | 9 | 特殊区域可见性 | 当前 `owner/public` 够用，**预留其他** | `special_zones.visibility` 预留 `all/team`（未实现）；新增区域必须登记 `special-zones.md` |
-| 10 | 规则口径 | 内奸/双内、主杀忠弃牌、响应从当前玩家左手侧、主公体力 +1、观星排序延后 | 见 `rules-rulings.md`；特殊区域见 `special-zones.md` |
+| 10 | 规则口径 | 内奸/双内、主杀忠弃牌、响应顺序（含无懈链特殊顺序）、主公体力 +1、观星排序延后 | 见 `rules-rulings.md`；特殊区域见 `special-zones.md` |
 
 ### 7.2 其他已确认（影响范围，详见开发计划）
 
@@ -452,11 +460,19 @@ CREATE TABLE IF NOT EXISTS sgs_flow_designs (
 - **Q 群侧后置**：原语先行添加；**Web 页提前**且应在设计工作台之前完成；多端通过 WebView 复用；玩家区域三分（公共局面区 / 个人资源区 / 特殊交互区）。
 - 游戏**权鉴**放到后续上线阶段再做（当前拉斯维加斯信息公开，权限模型待验证）。
 - 死亡奖惩：**杀反贼摸 3 张**、主公杀忠弃全部手牌和装备；**主公先死 → 反贼胜**。
+- 选将：主公候选 = 全部主公将 + N 张非主公（默认 5）；其余同时发放 M 张候选（默认 5）；N/M 可配置。
+- 手牌：**持有上限 20**（`max_hand_cards`，可配置；超出立即弃至上限）；**弃牌阶段上限仍为当前体力值**（技能可改）。
+- 装备区：武器/护具/进攻马/防御马/**特殊区（木牛流马预留）**各 1；后装备顶掉旧装备入弃牌堆。
+- 距离：无上限；默认攻击距离 1、防御距离 1；武器 +N、进攻马 +1 攻击距离、防御马 +1 防御距离；顺手/兵粮不含武器范围；技能可叠加。
+- 无懈链：从原锦囊使用者左手侧开始，每次有人打出无懈重新从该使用者左手侧开始，允许同一玩家多次响应。
 
 ### 7.3 仍需确认 / 验证
 
-1. **牌表来源**：官网无公开结构化牌表（`sitemap` 仅 `/hero/*` 等页面）；按用户裁定 **P1 人工录入**（可参考社区表）。若后续发现官方结构化数据，再补 `cards.json` 导入。
+1. **牌表来源**：官网无公开结构化牌表（`sitemap` 仅 `/hero/*` 等页面）；按用户裁定 **P1 人工录入**；`cards.json`/`cards.md` 为社区开源牌堆参考（标准 108 + 军争 52），需逐张复核后入库。
 2. **武将数据质量**：696 位中 1 条技能描述为空（gid 639 秦朗）、`gender` 全部缺失、54 位国战半体力；导入时按 §3.6 处理，`gender`/`type_guess` **待用户确认**。
 3. **版权**：官网文本仅内部开发/初始化使用，上线前确认授权；图片不使用官方素材。
 4. **特殊区域**：`all/team` 预留未实现；观星 `ordered` 原语需在 P2 补，五谷丰登/濒死/无懈链待细化（见 `special-zones.md`）。
-5. **权鉴模型**：现有短期 token 是否足够；个人资源区隔离是否要写进 token scope（上线阶段定）。
+5. **持有上限超出**：弃置交互由玩家选择还是自动按获得顺序（P2 细化）。
+6. **选将**：候选玩家间不重复、未选回池已按用户口径记录；实现细节 P2 确认。
+7. **顺手距离例外**：陆逊等武将技能覆盖默认距离（P4 核对）。
+8. **权鉴模型**：现有短期 token 是否足够；个人资源区隔离是否要写进 token scope（上线阶段定）。
