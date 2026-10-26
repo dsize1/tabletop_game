@@ -3,6 +3,8 @@
 //! WAL 模式 + busy_timeout + event_id 唯一键去重（幂等）。
 //! 多进程（server / game-engine-mcp）各持连接，WAL 下并发写安全。
 
+pub mod gameprops;
+
 use rusqlite::{params, Connection};
 use std::sync::Mutex;
 
@@ -42,7 +44,7 @@ impl Storage {
         })
     }
 
-    fn lock(&self) -> std::sync::MutexGuard<'_, Connection> {
+    pub(crate) fn lock(&self) -> std::sync::MutexGuard<'_, Connection> {
         self.conn.lock().expect("storage mutex poisoned")
     }
 
@@ -61,7 +63,15 @@ impl Storage {
             "INSERT OR IGNORE INTO group_messages
              (event_id, direction, group_id, qq_id, content, raw_payload, created_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![event_id, direction, group_id, qq_id, content, raw_payload, now_secs()],
+            params![
+                event_id,
+                direction,
+                group_id,
+                qq_id,
+                content,
+                raw_payload,
+                now_secs()
+            ],
         )?;
         Ok(())
     }
@@ -84,7 +94,15 @@ impl Storage {
             "INSERT OR IGNORE INTO game_events
              (event_id, game_id, room_id, event_type, actor, payload, created_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![event_id, game_id, room_id, event_type, actor, payload, now_secs()],
+            params![
+                event_id,
+                game_id,
+                room_id,
+                event_type,
+                actor,
+                payload,
+                now_secs()
+            ],
         )?;
         tx.execute(
             "INSERT INTO game_state (game_id, room_id, state, version, updated_at)
@@ -190,9 +208,8 @@ impl Storage {
         room_id: &str,
     ) -> anyhow::Result<Option<i64>> {
         let conn = self.lock();
-        let mut stmt = conn.prepare(
-            "SELECT version FROM game_state WHERE game_id = ?1 AND room_id = ?2",
-        )?;
+        let mut stmt =
+            conn.prepare("SELECT version FROM game_state WHERE game_id = ?1 AND room_id = ?2")?;
         let mut rows = stmt.query(params![game_id, room_id])?;
         if let Some(r) = rows.next()? {
             Ok(Some(r.get(0)?))
@@ -242,7 +259,11 @@ impl Storage {
     }
 
     /// 记录计划格式标识（`plan6-v1` 等；ADR-0015 §3.3 防 `get_progress` 解析失效）。
-    pub fn set_dev_task_plan_format(&self, session_id: &str, plan_format: &str) -> anyhow::Result<()> {
+    pub fn set_dev_task_plan_format(
+        &self,
+        session_id: &str,
+        plan_format: &str,
+    ) -> anyhow::Result<()> {
         let conn = self.lock();
         conn.execute(
             "UPDATE dev_tasks SET plan_format=?1, last_synced_at=?2, updated_at=?2 WHERE session_id=?3",
@@ -496,7 +517,16 @@ impl Storage {
                 last_synced_at=?7,
                 updated_at=?7
              WHERE session_id=?8",
-            params![status, stage, executor, executor_ref, plan_format, sync_source, now, session_id],
+            params![
+                status,
+                stage,
+                executor,
+                executor_ref,
+                plan_format,
+                sync_source,
+                now,
+                session_id
+            ],
         )?;
         Ok(())
     }
@@ -524,11 +554,7 @@ impl Storage {
     }
 
     /// 读窗口内对话（`[from, to)`，ISO8601 字符串区间），按 openid、时间升序。
-    pub fn get_chat_window(
-        &self,
-        from: &str,
-        to: &str,
-    ) -> anyhow::Result<Vec<ChatMessageRow>> {
+    pub fn get_chat_window(&self, from: &str, to: &str) -> anyhow::Result<Vec<ChatMessageRow>> {
         let conn = self.lock();
         let mut stmt = conn.prepare(
             "SELECT openid, group_id, role, content, created_at FROM chat_history
@@ -738,7 +764,7 @@ pub fn check(path: &str) -> bool {
     }
 }
 
-fn now_secs() -> String {
+pub(crate) fn now_secs() -> String {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
@@ -766,10 +792,7 @@ fn ensure_dev_task_columns(conn: &Connection) -> anyhow::Result<()> {
             |r| r.get(0),
         )?;
         if exists == 0 {
-            conn.execute(
-                &format!("ALTER TABLE dev_tasks ADD COLUMN {name} {ty}"),
-                [],
-            )?;
+            conn.execute(&format!("ALTER TABLE dev_tasks ADD COLUMN {name} {ty}"), [])?;
         }
     }
     conn.execute_batch(
@@ -894,6 +917,145 @@ CREATE TABLE IF NOT EXISTS user_profile (
     distilled_at TEXT,
     updated_at   TEXT NOT NULL
 );
+-- ===== 桌游道具中台（三国杀 P1）=====
+CREATE TABLE IF NOT EXISTS prop_packs (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    game_id     TEXT    NOT NULL,
+    kind        TEXT    NOT NULL,
+    code        TEXT    NOT NULL,
+    name        TEXT    NOT NULL,
+    sort_order  INTEGER NOT NULL DEFAULT 0,
+    enabled     INTEGER NOT NULL DEFAULT 1,
+    created_at  TEXT    NOT NULL,
+    updated_at  TEXT    NOT NULL,
+    UNIQUE (game_id, kind, code)
+);
+CREATE TABLE IF NOT EXISTS prop_assets (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    game_id     TEXT    NOT NULL,
+    kind        TEXT    NOT NULL,
+    path        TEXT    NOT NULL,
+    mime        TEXT    NOT NULL,
+    width       INTEGER,
+    height      INTEGER,
+    bytes       INTEGER,
+    sha256      TEXT,
+    created_at  TEXT    NOT NULL,
+    UNIQUE (game_id, path)
+);
+CREATE TABLE IF NOT EXISTS sgs_identities (
+    code            TEXT PRIMARY KEY,
+    name            TEXT NOT NULL,
+    team            TEXT NOT NULL CHECK (team IN ('lord','rebel','spy')),
+    win_condition   TEXT NOT NULL,
+    description     TEXT NOT NULL DEFAULT '',
+    image_asset_id  INTEGER REFERENCES prop_assets(id),
+    sort_order      INTEGER NOT NULL DEFAULT 0,
+    status          TEXT NOT NULL DEFAULT 'draft'
+                    CHECK (status IN ('draft','testing','review','live','offline')),
+    created_at      TEXT NOT NULL,
+    updated_at      TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS sgs_identity_setup (
+    player_count    INTEGER NOT NULL CHECK (player_count BETWEEN 5 AND 8),
+    variant         TEXT    NOT NULL DEFAULT 'default'
+                    CHECK (variant IN ('default','double_spy')),
+    identity_code   TEXT    NOT NULL REFERENCES sgs_identities(code),
+    count           INTEGER NOT NULL CHECK (count >= 0),
+    PRIMARY KEY (player_count, variant, identity_code)
+);
+CREATE TABLE IF NOT EXISTS sgs_card_defs (
+    code            TEXT PRIMARY KEY,
+    name            TEXT NOT NULL,
+    category        TEXT NOT NULL CHECK (category IN
+                      ('basic','weapon','armor','horse','treasure','trick','delayed_trick')),
+    description     TEXT NOT NULL DEFAULT '',
+    image_asset_id  INTEGER REFERENCES prop_assets(id),
+    range_value     INTEGER,
+    target_mode     TEXT CHECK (target_mode IN ('single','aoe')),
+    equip_slot      TEXT CHECK (equip_slot IN
+                      ('weapon','armor','horse_offense','horse_defense','treasure')),
+    range_type      TEXT CHECK (range_type IN ('attack','defense')),
+    status          TEXT NOT NULL DEFAULT 'draft'
+                    CHECK (status IN ('draft','testing','review','live','offline')),
+    created_at      TEXT NOT NULL,
+    updated_at      TEXT NOT NULL,
+    CHECK ((category IN ('weapon','armor','horse','treasure')) = (equip_slot IS NOT NULL)),
+    CHECK ((category = 'horse') = (range_type IS NOT NULL)),
+    CHECK (range_type IS NULL OR
+           (range_type = 'attack'  AND equip_slot = 'horse_offense' AND range_value = 1) OR
+           (range_type = 'defense' AND equip_slot = 'horse_defense' AND range_value = 1))
+);
+CREATE TABLE IF NOT EXISTS sgs_cards (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    pack_id         INTEGER NOT NULL REFERENCES prop_packs(id),
+    def_code        TEXT    NOT NULL REFERENCES sgs_card_defs(code),
+    suit            TEXT CHECK (suit IN ('spade','heart','club','diamond')),
+    rank            INTEGER CHECK (rank BETWEEN 1 AND 13),
+    image_asset_id  INTEGER REFERENCES prop_assets(id),
+    status          TEXT NOT NULL DEFAULT 'draft'
+                    CHECK (status IN ('draft','testing','review','live','offline')),
+    created_at      TEXT NOT NULL,
+    updated_at      TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sgs_cards_unique_full
+    ON sgs_cards (pack_id, def_code, suit, rank)
+    WHERE suit IS NOT NULL AND rank IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_sgs_cards_def ON sgs_cards(def_code);
+CREATE TABLE IF NOT EXISTS sgs_generals (
+    code            TEXT PRIMARY KEY,
+    external_id     TEXT UNIQUE,
+    name            TEXT NOT NULL,
+    kingdom         TEXT NOT NULL CHECK (kingdom IN ('wei','shu','wu','qun','jin','god')),
+    gender          TEXT NOT NULL DEFAULT 'unknown'
+                    CHECK (gender IN ('male','female','unknown')),
+    pack_id         INTEGER NOT NULL REFERENCES prop_packs(id),
+    max_hp          REAL NOT NULL CHECK (max_hp > 0 AND max_hp <= 15),
+    initial_hp      REAL NOT NULL DEFAULT 0 CHECK (initial_hp >= 0 AND initial_hp <= 15),
+    quality         TEXT,
+    description     TEXT NOT NULL DEFAULT '',
+    biography       TEXT NOT NULL DEFAULT '',
+    image_asset_id  INTEGER REFERENCES prop_assets(id),
+    status          TEXT NOT NULL DEFAULT 'draft'
+                    CHECK (status IN ('draft','testing','review','live','offline')),
+    created_at      TEXT NOT NULL,
+    updated_at      TEXT NOT NULL,
+    CHECK (initial_hp = 0 OR initial_hp <= max_hp)
+);
+CREATE INDEX IF NOT EXISTS idx_sgs_generals_pack ON sgs_generals(pack_id);
+CREATE TABLE IF NOT EXISTS sgs_skills (
+    code            TEXT PRIMARY KEY,
+    external_id     TEXT UNIQUE,
+    name            TEXT NOT NULL,
+    type            TEXT NOT NULL CHECK (type IN
+                      ('lord','normal','locked','limited','awakening')),
+    description     TEXT NOT NULL DEFAULT '',
+    status          TEXT NOT NULL DEFAULT 'draft'
+                    CHECK (status IN ('draft','testing','review','live','offline')),
+    created_at      TEXT NOT NULL,
+    updated_at      TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_sgs_skills_name ON sgs_skills(name);
+CREATE TABLE IF NOT EXISTS sgs_general_skills (
+    general_code    TEXT    NOT NULL REFERENCES sgs_generals(code),
+    skill_code      TEXT    NOT NULL REFERENCES sgs_skills(code),
+    sort_order      INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (general_code, skill_code)
+);
+CREATE TABLE IF NOT EXISTS prop_status_log (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    game_id     TEXT    NOT NULL,
+    entity_kind TEXT    NOT NULL CHECK (entity_kind IN
+                  ('identity','card_def','card','general','skill')),
+    entity_code TEXT    NOT NULL,
+    from_status TEXT,
+    to_status   TEXT    NOT NULL,
+    actor       TEXT,
+    note        TEXT,
+    created_at  TEXT    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_prop_status_log_entity
+    ON prop_status_log (game_id, entity_kind, entity_code, created_at);
 ";
 
 #[cfg(test)]
@@ -909,8 +1071,15 @@ mod tests {
         let s = Storage::open(":memory:").unwrap();
         s.insert_chat_message("e1", "u1", "g1", "user", "你好", "2026-02-14T00:00:00Z")
             .unwrap();
-        s.insert_chat_message("e2", "u1", "g1", "assistant", "回复", "2026-02-14T00:00:01Z")
-            .unwrap();
+        s.insert_chat_message(
+            "e2",
+            "u1",
+            "g1",
+            "assistant",
+            "回复",
+            "2026-02-14T00:00:01Z",
+        )
+        .unwrap();
         // 幂等：同 event_id 重复插入不增加
         s.insert_chat_message("e1", "u1", "g1", "user", "你好", "2026-02-14T00:00:00Z")
             .unwrap();
@@ -972,7 +1141,10 @@ mod tests {
             .append_game_events("las-vegas", "room1", &[e1], "{\"a\":1}")
             .unwrap();
         assert_eq!(seq1, 1);
-        assert_eq!(s.game_snapshot_version("las-vegas", "room1").unwrap(), Some(1));
+        assert_eq!(
+            s.game_snapshot_version("las-vegas", "room1").unwrap(),
+            Some(1)
+        );
 
         let e2 = GameEventRecord {
             event_id: "ev2",
@@ -990,7 +1162,10 @@ mod tests {
             .append_game_events("las-vegas", "room1", &[e2, e3], "{\"a\":2}")
             .unwrap();
         assert_eq!(seq2, seq1 + 2);
-        assert_eq!(s.game_snapshot_version("las-vegas", "room1").unwrap(), Some(seq2));
+        assert_eq!(
+            s.game_snapshot_version("las-vegas", "room1").unwrap(),
+            Some(seq2)
+        );
 
         // 幂等：重复 event_id 不新增事件，version 不回退
         let dup = GameEventRecord {
@@ -1003,11 +1178,15 @@ mod tests {
             .append_game_events("las-vegas", "room1", &[dup], "{\"a\":3}")
             .unwrap();
         assert_eq!(seq3, seq2);
-        assert_eq!(s.game_snapshot_version("las-vegas", "room1").unwrap(), Some(seq2));
+        assert_eq!(
+            s.game_snapshot_version("las-vegas", "room1").unwrap(),
+            Some(seq2)
+        );
     }
 
     #[test]
-    fn profile_upsert_get_and_active_openids() {        let s = Storage::open(":memory:").unwrap();
+    fn profile_upsert_get_and_active_openids() {
+        let s = Storage::open(":memory:").unwrap();
         s.insert_chat_message("e1", "u1", "g1", "user", "a", "2026-02-14T01:00:00Z")
             .unwrap();
         s.insert_chat_message("e2", "u2", "g1", "user", "b", "2026-02-14T02:00:00Z")

@@ -38,6 +38,9 @@ jobs:
           cache-dependency-path: apps/package-lock.json
       - run: npm ci --prefix apps
       - run: npm run test:agent-gateway
+      - run: npm run test:web
+      - run: npm run build:props
+      - run: node apps/scripts/check-props-admin-boundary.mjs
       - run: node apps/scripts/check-proactive-gate.mjs
 
   executor:

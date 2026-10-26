@@ -12,7 +12,7 @@
 
 ## 2. 技术栈
 
-- Node.js (TypeScript)：`qq-gateway`、`agent-gateway`（主持人 + dev 入口）、`web`、`dev-bridge`（dev 原语桥）
+- Node.js (TypeScript)：`qq-gateway`、`agent-gateway`（主持人 + dev 入口）、`web`、`dev-bridge`（dev 原语桥）、`props-admin`（道具中台 SPA，P1，**仅本机**，不挂公网）
 - Rust + Axum（单进程多模块）：`bot-adapter`、`game-engine-core`/`engines`（含 MCP 暴露层）、`auth`、`server`
   - 注：`command-router`、`push` 两个 Rust crate 已删除（职责分别并入 agent-gateway 与 Node 出站推送），见 `docs/modules/push.md`
 - Redis（Streams 总线 + 缓存）、SQLite（持久化真相源）

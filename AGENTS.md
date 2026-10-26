@@ -38,6 +38,7 @@
 | 本地开发环境（Docker/Redis） | `docs/dev-environment.md` |
 | 编码规范 | `docs/conventions/coding-standards.md` |
 | 某模块职责/接口 | `docs/modules/<模块>.md` |
+| 道具中台（P1，三国杀） | `docs/modules/props-admin.md` |
 | 版图页 / 素材流水线 | `docs/modules/board-view.md`、`docs/games/las-vegas/props/asset-mapping.md`、`board-layout.md` |
 | 长期记忆 / 计划 / 决策 | `memory_palace/README.md` |
 | 当前计划与验收清单 | `memory_palace/plan/` |
@@ -51,4 +52,5 @@
 - 修改架构先更新 `docs/architecture.md` 与相关 `docs/modules/` 文档
 - 重大技术决策记入 `memory_palace/decisions/`（ADR）
 - 新增桌游引擎：在 `crates/engines/<name>/` 建 crate，并在 `crates/game-engine-mcp` 注册；再往 `apps/agent-gateway/src/games.ts` 的 `GAME_OPTIONS` 追加一项（`#开局` 菜单自动出现）
+- **道具中台边界**：`apps/props-admin` 与 `/internal/gameprops/*` 在 P1 **仅本机**（Vite dev/preview + server 127.0.0.1）；**不挂公网 web/tunnel**，待 P8 完成游戏权鉴后再暴露。
 - **主动消息门禁**：方案含主动消息（proactive / `pushActive` / 无 `reply_msg_id`）必须**人工确认**并写入 `【主动消息已人工确认】`，`npm run check:proactive-gate` 校验（见 `docs/conventions/coding-standards.md`、ADR-0009）

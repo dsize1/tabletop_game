@@ -16,6 +16,10 @@
     "test:agent-gateway": "npm --prefix apps run test:agent-gateway",
     "test:web": "npm --prefix apps run test:web",
     "assets:board": "node apps/scripts/board-assets.mjs",
-    "deploy:local": "node apps/scripts/deploy-local.mjs"
+    "deploy:local": "node apps/scripts/deploy-local.mjs",
+    "dev:props": "npm --prefix apps run dev:props",
+    "build:props": "npm --prefix apps run build:props",
+    "test:props": "npm --prefix apps run test:props",
+    "check:props-boundary": "node apps/scripts/check-props-admin-boundary.mjs"
   }
 }

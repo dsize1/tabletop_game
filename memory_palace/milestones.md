@@ -2,6 +2,20 @@
 
 > 记录项目关键节点与验证结果，按时间倒序。重大技术决策见 `decisions/`。
 
+## M17：道具中台 MVP（三国杀 P1）✅
+
+- **日期**：2026-10-26（人工验收 2026-10-26，用户裁定 P1 收口）
+- **完成**：
+  - **存储**：`prop_packs` / `prop_assets` / `sgs_identities` / `sgs_identity_setup` / `sgs_card_defs` / `sgs_cards` / `sgs_generals` / `sgs_skills` / `sgs_general_skills` / `prop_status_log`（含 status/equip_slot/range_type 约束）
+  - **server API**：`/internal/gameprops/{summary,seed,import/heroes,status,{table}}`；静态 Admin token；单写者
+  - **SPA**：`apps/props-admin`（Vue3 + Vite + Naive UI），含包/身份/配比/牌定义/物理牌/**定义↔物理牌关联页**/武将/技能/关联/导入
+  - **数据**：`seed`（4 身份 / 20 配比 / 12 包）；`heroes.json` 导入 696 武将、1053 技能，幂等
+  - **托管**：仅本机 Vite dev/preview（5174/4174）；**不挂公网**，P8 权鉴后再挂 web/server
+  - **文档/CI**：`docs/modules/props-admin.md`；CI 增加 `test:web` + `build:props`
+- **验证**：`cargo test --workspace` **136 通过**；`npm run test:web` 三套通过；`npm run build:props` 通过；手工 API：seed/import 幂等、状态流转；本机 Vite 静态/代理 200；公网入口未挂载
+- **已知限制**：图片上传未实现；牌表人工录入（关联页逐张加花色/点数）；Admin token 为静态共享（完整权鉴 P8）；SPA 构建约 720KB
+- **详见**：`docs/modules/props-admin.md`、`docs/games/sanguosha/data-model.md`、`plan/01a1736d-3571-7742-861e-3aa85e630def.md`
+
 ## M16：dev 线迁移 —— MCP 薄桥 + LangGraph 执行器 + n8n shadow（ADR-0013/0014/0015）✅
 
 - **日期**：2026-10-20（人工验收 2026-10-20，用户裁定 done）

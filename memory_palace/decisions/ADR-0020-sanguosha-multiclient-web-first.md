@@ -71,6 +71,7 @@
 - **Web**：新增三分区页面与交互 API；工作台预览复用；WebView 冒烟测试。
 - **agent-gateway**：三国杀不启用局面叙述；`#局面` 只回轮次/阶段/链接；Q 命令在 P7 落地。
 - **auth/server**：P8 评估 token scope 与动作级校验；可能需要新增区域级 scope。
+- **道具中台**：P1 仅本机（Vite dev/preview + server 127.0.0.1），**不随玩家 Web 挂公网**；P8 权鉴完成后再暴露 `/props-admin` 与 `/internal/gameprops`。
 - **文档**：`data-model.md` §4.2、`development-plan.md` P3/P7/P8 与本 ADR 同步；`docs/architecture.md` 的端侧描述后续按实现更新。
 - **风险**：Q 后置会弱化群内体验（用户已确认）；WebView 兼容与权鉴需专项验证。
 

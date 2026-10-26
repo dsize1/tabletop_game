@@ -10,12 +10,16 @@ mod auth_routes;
 mod dev_routes;
 mod dev_state;
 mod docs_routes;
-mod internal_routes;
+mod gameprops_routes;
 mod health;
+mod internal_routes;
 mod resources_routes;
 
 use axum::extract::State;
-use axum::{routing::{get, post}, Json, Router};
+use axum::{
+    routing::{get, post},
+    Json, Router,
+};
 use serde_json::Value;
 use std::collections::HashSet;
 use std::net::SocketAddr;
@@ -31,6 +35,10 @@ struct AppState {
     docs: shared::docs_config::DocsConfig,
     /// 开发白名单（ADR-0015：判定只在 server；空白名单 = 全拒）
     dev_whitelist: Arc<HashSet<String>>,
+    /// 道具中台管理员 token（未设置 = 本机开发模式放行）
+    props_admin_token: Option<String>,
+    /// 道具数据目录（heroes.json / cards.json）
+    props_data_dir: std::path::PathBuf,
 }
 
 #[tokio::main]
@@ -41,8 +49,7 @@ async fn main() -> anyhow::Result<()> {
         std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
     let sqlite_path =
         std::env::var("SQLITE_PATH").unwrap_or_else(|_| "data/tabletop.db".to_string());
-    let plan_dir =
-        std::env::var("PLAN_DIR").unwrap_or_else(|_| "memory_palace/plan".to_string());
+    let plan_dir = std::env::var("PLAN_DIR").unwrap_or_else(|_| "memory_palace/plan".to_string());
     let auth_ttl = std::env::var("AUTH_TOKEN_TTL")
         .ok()
         .and_then(|s| s.parse().ok())
@@ -100,6 +107,13 @@ async fn main() -> anyhow::Result<()> {
         plan_dir,
         docs: shared::docs_config::load(),
         dev_whitelist: Arc::new(dev_whitelist),
+        props_admin_token: std::env::var("PROPS_ADMIN_TOKEN")
+            .ok()
+            .filter(|s| !s.is_empty()),
+        props_data_dir: std::path::PathBuf::from(
+            std::env::var("GAMEPROPS_DATA_DIR")
+                .unwrap_or_else(|_| "docs/games/sanguosha/data".to_string()),
+        ),
     };
     let app = Router::new()
         .route("/health", get(health))
@@ -109,7 +123,10 @@ async fn main() -> anyhow::Result<()> {
             "/resources/dev_task/{session_id}/plan",
             get(resources_routes::dev_task_plan),
         )
-        .route("/resources/game/{game_id}", get(resources_routes::game_resource))
+        .route(
+            "/resources/game/{game_id}",
+            get(resources_routes::game_resource),
+        )
         .route("/resources/docs/tree", get(docs_routes::docs_tree))
         .route("/resources/docs/file", get(docs_routes::docs_file))
         .route("/internal/chat/window", get(internal_routes::chat_window))
@@ -117,7 +134,10 @@ async fn main() -> anyhow::Result<()> {
             "/internal/chat/active_openids",
             get(internal_routes::active_openids),
         )
-        .route("/internal/profile/{openid}", get(internal_routes::get_profile))
+        .route(
+            "/internal/profile/{openid}",
+            get(internal_routes::get_profile),
+        )
         .route("/internal/profile", post(internal_routes::upsert_profile))
         // dev 线内部 API（ADR-0015 §2.4）：唯写者仍是 server
         .route(
@@ -129,7 +149,10 @@ async fn main() -> anyhow::Result<()> {
         .route("/internal/dev/notify", post(dev_routes::notify))
         .route("/internal/dev/tasks", get(dev_routes::list_tasks))
         .route("/internal/dev/tasks", post(dev_routes::create_task))
-        .route("/internal/dev/transition", post(dev_routes::transition_task))
+        .route(
+            "/internal/dev/transition",
+            post(dev_routes::transition_task),
+        )
         .route("/internal/dev/confirm", post(dev_routes::confirm_task))
         .route("/internal/dev/runs", post(dev_routes::start_run))
         .route(
@@ -141,8 +164,36 @@ async fn main() -> anyhow::Result<()> {
             get(dev_routes::active_run),
         )
         .route("/internal/dev/meta", post(dev_routes::update_meta))
-        .route("/internal/dev/projection", post(dev_routes::update_projection))
-        .route("/internal/dev/permission", post(dev_routes::check_permission))
+        .route(
+            "/internal/dev/projection",
+            post(dev_routes::update_projection),
+        )
+        .route(
+            "/internal/dev/permission",
+            post(dev_routes::check_permission),
+        )
+        // 道具中台（P1）：单写者仍是 server
+        .route(
+            "/internal/gameprops/summary",
+            get(gameprops_routes::summary),
+        )
+        .route("/internal/gameprops/seed", post(gameprops_routes::seed))
+        .route(
+            "/internal/gameprops/import/heroes",
+            post(gameprops_routes::import_heroes),
+        )
+        .route(
+            "/internal/gameprops/status",
+            post(gameprops_routes::set_status),
+        )
+        .route(
+            "/internal/gameprops/{table}",
+            get(gameprops_routes::list).post(gameprops_routes::upsert),
+        )
+        .route(
+            "/internal/gameprops/{table}/{code}",
+            get(gameprops_routes::get_one),
+        )
         .with_state(state);
 
     let port: u16 = std::env::var("SERVER_PORT")

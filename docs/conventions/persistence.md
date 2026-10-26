@@ -137,6 +137,14 @@ CREATE TABLE user_profile (
 );
 ```
 
+### 道具中台表（P1，三国杀）
+
+- 通用：`prop_packs`（包）、`prop_assets`（素材登记）、`prop_status_log`（生命周期/审核）。
+- 专用：`sgs_identities`、`sgs_identity_setup`、`sgs_card_defs`、`sgs_cards`、`sgs_generals`、`sgs_skills`、`sgs_general_skills`。
+- 写路径：仅 `crates/server` 的 `/internal/gameprops/*`；SPA 不直连 SQLite。
+- 生命周期：`draft/testing/review/live/offline`（软删）；只读接口只取 `live`。
+- 运行时不建实体表：三国杀对局仍复用 `game_state` + `game_events`。
+
 ### 事件溯源约定
 
 - 一次状态变更 = 一个事务：`INSERT game_events` + `UPDATE game_state`（version 自增）原子提交。

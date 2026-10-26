@@ -2,7 +2,7 @@
 
 - **状态**：提案·待评审（2026-10-25）
 - **相关**：`docs/games/sanguosha/plan.md`（一期需求）、`docs/games/sanguosha/data-model.md`（已评审 v0.2）、`docs/games/sanguosha/development-plan.md` P1；ADR-0001（SQLite 真相源）、ADR-0004（状态序列化）、ADR-0010（版图渲染与素材流水线）、ADR-0016（规则内核刚性）、ADR-0018（设计工作台）
-- **结论一句话**：新建 `apps/props-admin`（**Vue 3 + Vite + TypeScript + Naive UI**）+ `crates/server` 的 `/internal/gameprops/*` 受控 REST；表结构采用「通用包/素材表 + 三国杀专用强类型表」；所有道具/武将带**生命周期状态**；提供**牌定义 ↔ 物理牌关联页**；**武将数据已从官网全量抓取**（696 位 / 1383 技能）可直接导入，**牌表无官方公开结构化接口**（人工/社区整理）；图片字段先留空，规则校验不在中台。
+- **结论一句话**：新建 `apps/props-admin`（**Vue 3 + Vite + TypeScript + Naive UI**，**P1 仅本机、不挂公网**）+ `crates/server` 的 `/internal/gameprops/*` 受控 REST；表结构采用「通用包/素材表 + 三国杀专用强类型表」；所有道具/武将带**生命周期状态**；提供**牌定义 ↔ 物理牌关联页**；**武将数据已从官网全量抓取**（696 位 / 1383 技能）可直接导入，**牌表无官方公开结构化接口**（人工/社区整理）；图片字段先留空，规则校验不在中台。
 
 ## 背景
 
@@ -24,7 +24,7 @@
   - 生命周期流转 `POST /{resource}/{code}/status`（新建→测试→审核→上线→下线软删）。
 - **鉴权**：沿用「管理员白名单」模式（类似 `DEV_WHITELIST`），新增 `PROPS_ADMIN_WHITELIST`（openid）；失败 403；不引入新的 token 体系。
 - **写入**：所有写操作在 server 内做参数校验（枚举、唯一键、血量 `initial_hp <= max_hp`、距离范围），并写审计（`updated_at` + 操作者）。
-- **SPA**：`apps/props-admin`，静态构建产物由现有 web/Express 或 server 静态托管（二选一，P1 定）；开发期 Vite dev server 代理到 server。页面含：身份配置、牌定义、物理牌、**定义↔物理牌关联页**（按定义筛选/批量生成/绑定花色点数）、武将、技能、包管理、生命周期流转。
+- **SPA**：`apps/props-admin`，**P1 仅本机**：Vite dev（5174）/ preview（4174）代理到 server 127.0.0.1；**不挂公网 web/tunnel**，待 P8 完成权鉴后再挂到 web/server 公网入口。页面含：身份配置、牌定义、物理牌、**定义↔物理牌关联页**（按定义筛选/批量生成/绑定花色点数）、武将、技能、包管理、生命周期流转。
 
 ### 2. 数据模型（详见 `docs/games/sanguosha/data-model.md`）
 
@@ -82,7 +82,7 @@
 - 生命周期状态影响只读接口：引擎 fixture、牌表导出、Web 资源接口都只取 `live`；软删不改历史回放。
 - 「定义↔物理牌关联页」是 P1 必交付项（用户 2026-10-25 明确）。
 - `docs/games/sanguosha/data-model.md` 成为**审核基线**：确认后建表；后续字段变更走迁移 + ADR 增补。
-- 部署：多一个静态站点/路由；不影响现有 `apps/web` 与 QQ 链路。
+- 部署：P1 不新增公网路由；不影响现有 `apps/web` 与 QQ 链路。P8 权鉴后再决定 web/server 托管方式。
 - 与 ADR-0010 的关系：不冲突——`apps/web` 仍不引 React/Vite；管理后台是独立应用。
 
 ## 依据与验证状态
