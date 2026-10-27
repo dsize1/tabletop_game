@@ -262,6 +262,7 @@ async fn main() -> anyhow::Result<()> {
     let mut registry = EngineRegistry::new();
     registry.register(rock_paper_scissors::RpsEngine);
     registry.register(las_vegas::LasVegasEngine);
+    registry.register(sanguosha::SanguoshaEngine);
     let manager = Arc::new(GameManager::new(registry));
 
     // 从 SQLite 恢复活跃对局（引擎重启后内存丢失）

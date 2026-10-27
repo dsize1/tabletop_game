@@ -20,6 +20,9 @@
     "dev:props": "npm --prefix apps run dev:props",
     "build:props": "npm --prefix apps run build:props",
     "test:props": "npm --prefix apps run test:props",
-    "check:props-boundary": "node apps/scripts/check-props-admin-boundary.mjs"
+    "check:props-boundary": "node apps/scripts/check-props-admin-boundary.mjs",
+    "gen:sgs-engine-data": "node apps/scripts/gen-sanguosha-engine-data.mjs",
+    "check:sgs-engine-data": "node apps/scripts/gen-sanguosha-engine-data.mjs --check",
+    "verify:sanguosha": "node apps/verify-sanguosha.mjs"
   }
 }

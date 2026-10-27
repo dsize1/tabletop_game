@@ -15,7 +15,9 @@
     "dev:props": "npm --workspace @tabletop-game/props-admin run dev",
     "build:props": "npm --workspace @tabletop-game/props-admin run build",
     "test:props": "npm --workspace @tabletop-game/props-admin run build",
-    "check:props-boundary": "node scripts/check-props-admin-boundary.mjs"
+    "check:props-boundary": "node scripts/check-props-admin-boundary.mjs",
+    "gen:sgs-engine-data": "node scripts/gen-sanguosha-engine-data.mjs",
+    "check:sgs-engine-data": "node scripts/gen-sanguosha-engine-data.mjs --check"
   },
   "workspaces": [
     "qq-gateway",

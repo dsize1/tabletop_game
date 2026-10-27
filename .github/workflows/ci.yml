@@ -41,6 +41,7 @@ jobs:
       - run: npm run test:web
       - run: npm run build:props
       - run: node apps/scripts/check-props-admin-boundary.mjs
+      - run: node apps/scripts/gen-sanguosha-engine-data.mjs --check
       - run: node apps/scripts/check-proactive-gate.mjs
 
   executor:

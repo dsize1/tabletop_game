@@ -12,6 +12,7 @@ path = "src/main.rs"
 game-engine-core = { path = "../game-engine-core" }
 rock-paper-scissors = { path = "../engines/rock-paper-scissors" }
 las-vegas = { path = "../engines/las-vegas" }
+sanguosha = { path = "../engines/sanguosha" }
 storage = { path = "../storage" }
 shared = { path = "../shared" }
 serde.workspace = true
