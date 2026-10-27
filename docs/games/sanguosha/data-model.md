@@ -348,14 +348,20 @@ CREATE INDEX IF NOT EXISTS idx_prop_status_log_entity
   ],
   // 特殊交互区（技能/阶段私有，按需出现；视图投影见 §4.2）
   "special_zones": {
-    "guanxing": { "owner": "openid", "cards": ["c3", "c4"], "visibility": "owner" },
+    // 观星：2 列 × 5 槽固定；L1..L5 = 牌堆顶侧，R1..R5 = 牌堆底侧；提交时每列跳过空槽上到下压紧，左列接右列
+    "guanxing": {
+      "owner": "openid", "visibility": "owner", "rows": 5, "cols": 2, "rev": 1,
+      "slots": { "L1": "c3", "L2": "c4", "L3": null, "L4": null, "L5": null,
+                 "R1": null, "R2": null, "R3": null, "R4": null, "R5": null },
+      "interaction": { "kind": "ordered", "commit": "arrange" }
+    },
     "wugu":    { "cards": ["c5", "c6"], "visibility": "public" }
   },
   "winner": null                      // { team: "lord"|"rebel"|"spy", players: [...] }
 }
 ```
 
-说明：`equips` 的键就是 `sgs_card_defs.equip_slot`（武器/护具/进攻马/防御马/特殊），玩家装备区按槽位判定；`special_zones` 是通用占位，具体字段由技能实现定义（观星、五谷丰登、判定展示等），未出现时为空对象。
+说明：`equips` 的键就是 `sgs_card_defs.equip_slot`（武器/护具/进攻马/防御马/特殊），玩家装备区按槽位判定；`special_zones` 是通用占位，具体字段由技能实现定义（观星、五谷丰登、判定展示等），未出现时为空对象。观星的完整字段、交互与回写口径见 `special-zones.md` §5 与 `ui-spec.md` §7（**已定稿**）。
 
 ### 4.2 视图三分区（ADR-0020）
 
@@ -368,6 +374,7 @@ CREATE INDEX IF NOT EXISTS idx_prop_status_log_entity
 | `special_zones` | 特殊交互区：观星牌堆顶、五谷丰登候选/选择、判定展示等，按技能声明的可见性下发 | 被授权玩家 / 公共 |
 
 - `get_state` = `public_board` + 公共 `special_zones`；`get_player_view` = `public_board` + 本人 `player_area` + 本人可见的 `special_zones`。
+- **schema v2（P2.3）**：`data` 内新增 `resolution`（结算栈）与 `outcome`（子帧结果）；`pending` 是栈顶投影，对外字段不变。判定中的延时锦囊计入 `deck.processing`（牌数守恒）。
 - 公共区**只读**；动作只能基于 `player_area`（及授权 `special_zones`）发起。
 - 多端（Web / WebView / 未来 APP）复用同一套视图分区；Q 群侧**不播报公共局面**，只做开局设定、轮次/状态查询与牌局链接（见开发计划 P7）。
 - 敏感选项仍走一次性代码 + 短 token；token 过期由 `#恢复` 重签。
@@ -450,7 +457,7 @@ CREATE TABLE IF NOT EXISTS sgs_flow_designs (
 | 7 | 决策日志 | 允许采样/关闭 | `game_decision_log` + 采样开关（P6） |
 | 8 | 模板归属 | `source` + `created_by` 足够 | 保持 |
 | 9 | 特殊区域可见性 | 当前 `owner/public` 够用，**预留其他** | `special_zones.visibility` 预留 `all/team`（未实现）；新增区域必须登记 `special-zones.md` |
-| 10 | 规则口径 | 内奸/双内、主杀忠弃牌、响应顺序（含无懈链特殊顺序）、主公体力 +1、观星排序延后 | 见 `rules-rulings.md`；特殊区域见 `special-zones.md` |
+| 10 | 规则口径 | 内奸/双内、主杀忠弃牌、响应顺序（含无懈链特殊顺序）、主公体力 +1 | 见 `rules-rulings.md`；观星排序规格已定（`ui-spec.md` §7）；特殊区域见 `special-zones.md` |
 
 ### 7.2 其他已确认（影响范围，详见开发计划）
 

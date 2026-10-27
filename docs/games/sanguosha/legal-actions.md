@@ -104,6 +104,51 @@ hint                               # 同 resume（别名）
 - 响应顺序由引擎计算：闪/桃/濒死/改判/技能从当前玩家（判定者为当前回合玩家）左手侧开始；**无懈链从原锦囊使用者左手侧开始，每次有人打出无懈重新从该使用者左手侧开始，允许同一玩家多次响应**。只有当前 `actor` 能提交；其他人提交返回权限错误。
 - 濒死求桃：每轮可多次使用【桃】/【酒】，直到体力 > 0 或放弃。
 
+### 4.5 P2.2 实现状态（2026-10-27）
+
+已实现（引擎实际行为）：
+
+| 场景 | action id | 说明 |
+|---|---|---|
+| 使用杀/桃/装备/乐不思蜀/闪电 | `play:<card_id>` | 杀/桃/装备/延时锦囊按各自条件校验；其余锦囊暂未实现（返回非法） |
+| 选择目标 | `target:<player_id>` | pending.kind = `target` |
+| 出杀后响应 | `respond:<shan_id>` / `pass` | pending.kind = `respond`，仅目标可提交 |
+| 濒死救援 | `respond:<tao_id>` / `pass` | pending.kind = `dying`，按响应顺序逐个询问持桃者 |
+| 弃牌（持有上限/弃牌阶段） | `discard:<id[,id]>` | pending.kind = `discard`；**允许一次弃满 required 张，也允许逐张弃**（每次 1 张，required 递减） |
+| 结束出牌阶段 | `end_play` | 进入弃牌阶段 |
+
+- pending 的 `options` 与 `legal_actions` 一一对应（每个候选都是可直接提交的 id），Web 端可逐步提交；`data.required` 给出多选基数。
+- **P2.3 已实现**：`wuxie`（全员询问）、`pick_card`（`pick:hand|equip:<slot>|judge:<id>`）、借刀二阶段（`target:<A>` → `target:<B>` → `confirm`/`cancel`）、决斗 `respond:<杀>`、判定前无懈（`wuxie`）。
+- **P2.4 技能动作**：`skill:rende`（仁德：多选 → `target`）、`skill:lijian`（离间：多选 1 张 → 两次 `target`）、`skill:qixi:<card>`（奇袭：黑色牌当过河拆桥）、`choose:tuxi`/`pass`（突袭，`choice`）、`skill:jijiang`/`skill:hujia`（主公技，出现在 `respond` 待选的选项中）。
+- **装备**：`skill:bagua`（八卦阵：需要【闪】时判定；红色视为出闪）。
+- **未实现**：五谷丰登（`wugu`，P2.4/P2.5），其 `play:` 动作不出现在合法动作中。
+- 未实现但已在规则中登记的：锦囊响应（无懈链）、改判、技能转化、多目标。
+
+### 4.6 P2.3 锦囊相关动作
+
+| 场景 | action id | pending.kind | 说明 |
+|---|---|---|---|
+| 无懈链响应 | `respond:<wuxie_id>` / `pass` | `wuxie` | 所有存活玩家依次被询问（无无懈也可 pass） |
+| 顺手/过河选牌 | `pick:hand` / `pick:equip:<slot>` / `pick:judge:<card_id>` | `pick_card` | 手牌=随机；装备/判定=指定 |
+| 借刀第一步 | `target:<A>` | `target`（`stage=borrow_first`） | 仅装备区有武器者 |
+| 借刀第二步 | `target:<B>` | `target`（`stage=borrow_second`） | 仅 A 攻击范围内 |
+| 借刀确认/取消 | `confirm` / `cancel` | 同上 | `cancel` 只清空选择，不改结算状态 |
+| 决斗出杀 | `respond:<sha_id>` / `pass` | `respond` | 双方交替；每次出杀前先跑无懈链 |
+| 判定前无懈 | `respond:<wuxie_id>` / `pass` | `wuxie` | root = 该延时锦囊的判定 |
+| 五谷选牌（P2.4/P2.5） | `pick:<card_id>` | `pick_card` | 释放者先选，随后座位顺序 |
+
+- `confirm`/`cancel` 仅用于需要二阶段目标确认的牌（当前只有借刀杀人）；取消后不产生任何状态变化。
+
+### 4.7 技能动作（P2.4）
+
+| 场景 | action id | pending.kind | 说明 |
+|---|---|---|---|
+| 发动主动技 | `skill:<code>` | — | 当前已实现 `skill:zhiheng`（制衡） |
+| 技能二选一 | `choose:gain` / `pass` | `choice` | 奸雄：获得造成伤害的牌 / 不获得 |
+| 技能多选 | `choose:<card_id>` / `confirm` / `cancel` | `choose_many` | 制衡：切换选中、确认、取消（`data.selected`） |
+
+- 技能动作与其他动作一样走 `execute_action` 重校验（技能拥有者、次数、手牌合法性）。
+
 ## 5. 合法动作列表生成
 
 ### 5.1 输入
@@ -177,5 +222,5 @@ choose:c1,c3,c2
 
 1. `cancel` 是否作为独立动作 id（当前用 `pass` 表达放弃）。
 2. 多目标选择的顺序是否影响结算顺序（默认按玩家选择顺序）。
-3. 观星 `ordered` 原语的具体编码（P2 定）。
-4. 持有上限超出时的弃置交互（玩家选择/自动）P2 定。
+3. ~~观星 `ordered` 原语的具体编码~~ → 已定：`slots` + `arrange:<csv>`（`interaction-primitives.md` §4，P3 实现 UI）。
+4. ~~持有上限超出时的弃置交互~~ → 已定：玩家选择，`discard:<csv>`（可逐张），见 §4.5。

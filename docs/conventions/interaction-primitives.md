@@ -20,6 +20,7 @@
 | **单选 `one`** | 在候选集中取 1 个 | 1 | 单选列表 / radio | `place:n`、`reroll`、`sg:B1:put:{c}`、`sg:B2:guess`、`sg:E1:ban`、`sg:G2:move:{k}`、`sg:H1:slot:{n}`、`sg:D2:use:{n}` |
 | **多选 `many`** | 取任意子集，**无补集语义** | 0..n | 复选列表 | **暂无实例（原语保留，用户裁定 2026-10-19）** |
 | **分区 `partition`** | 候选集二分：选中→A 堆，未选→B 堆 | 补集 | **穿梭框（唯一合适控件）** | `sg:G1:split:{codes}` |
+| **有序 `ordered`** | 取全部候选并**给出顺序**（顺序本身是结果） | n | 槽位列表 + 拖拽排序（点击移位兜底） | **观星：2×5 槽排序**（`arrange:<csv>`；见 `docs/games/sanguosha/ui-spec.md` §7） |
 | **级联 `cascade`** | **同一主体 + 连续**的多步，每步是上面三种之一 | — | 向导 / stepper，一次提交 | F2（3–4 步）、H2（1–3 步，含循环）、F1（2 步）、H1（2 步） |
 | **接力 `handoff`** | 上一步与下一步**主体不同** | — | 各端各自完成，**不得合并为一次提交** | A1（下注者选码 → 左手玩家猜）、G1（左手玩家分堆 → 赢家选堆） |
 | **异步等待 `async gate`** | 需跨越他人动作 / 阶段交界才能继续 | — | 分段提示 + 等待态 | B1（`round_end` 结算前）、C2 |
@@ -46,8 +47,9 @@ interface Interaction {
 }
 
 interface InteractionStep {
-  kind: "one" | "many" | "partition";
+  kind: "one" | "many" | "partition" | "ordered";
   min?: number; max?: number;   // kind=many/partition 的基数约束；partition 默认 0..n
+  slots?: string[];             // kind=ordered 的槽位 id（顺序即槽位声明顺序）；三国杀观星：L1..L5,R1..R5
   vision: "plain" | "masked";   // masked 需短时 token 的个人视图
   options: { id: string; label: string; value?: unknown }[];
   dependsOn?: number;           // 候选集依赖第 n 步的选择
@@ -59,6 +61,7 @@ interface InteractionStep {
 约束：
 
 - `options[].label` 必须可直接展示；`masked` 时引擎只给代码，真义在 `player_view`（复用现有 `sg.pending_options` 结构）。
+- `kind=ordered` 只表达「槽位 + 最终顺序」：`slots` 的声明顺序即默认顺序，提交时只传**跳空后的有序 id 列表**（`arrange:<csv>`）；**手势、长按、吸附半径等一律属端侧实现细节**，不得写进契约。
 - 若落地，`game-engine-core::Action` **只允许追加 `#[serde(default)]` 字段**，**不得修改或重排现有 `id` 与 `description`**（见 §6）。
 
 ## 5. 拉斯维加斯逐游戏标注
@@ -94,6 +97,7 @@ interface InteractionStep {
 | `one` | 编号清单 + `#选 N` | 单选列表点击，提交 1 步 |
 | `many` | 同左，多次消息 | 复选列表 + 提交 |
 | `partition` | `#选 A，B`（逗号分隔多代码） | **穿梭框**（候选 / A 堆），一次提交生成 `sg:G1:split:{codes}` |
+| `ordered` | 后置（观星等特殊区不做群交互） | **槽位 + 拖拽排序**，点击移位兜底；一次提交 `arrange:<csv>` |
 | `masked` | 牌面页只读 + 群里发代码 | token 面板内直接点选（同一 `player_view` 数据） |
 | 级联 | 多轮 `#选 N`（多消息，合理且唯一） | 向导 / stepper，全部选完**一次提交** |
 | 接力 | 每人各自 `#选 N` | 各自完成，**不允许代填他人** |
@@ -112,4 +116,5 @@ interface InteractionStep {
 - 是否把 §4 描述符升为 MCP 正式原语（会新增 `get_interaction`），需同步能力描述符。
 - 级联「一次提交」的事务边界放在引擎侧还是 server 侧。
 
+> 已裁定（2026-10-27，三国杀 P2/P3）：新增 `ordered` 原语（`slots` + 跳空有序 id 列表，提交 `arrange:<csv>`）；观星是该原语的首个实例，交互规格见 `docs/games/sanguosha/ui-spec.md` §7；`execute_actions` 当前**无必需场景**，推迟到 P3/按需，UI 改为「草稿 + 按 pending 逐条提交」。
 > 已裁定（2026-10-19）：**保留 `many`**（虽无实例，但不做「暂时不需要就剪掉」的原语裁剪）。

@@ -28,6 +28,8 @@
 
 > 结论：**P0 不建原生 App（先 PWA）；P1 需要 App 图标/启动器时用 Tauri 2 壳；RN/Expo 延后**。取舍与触发条件见 ADR-0011。
 
+> **2026-10-27 修订（三国杀阶段）**：端侧壳（Tauri/RN）**整体延后**；三国杀页面先在**手机浏览器 + PC 浏览器**验收，验收通过后再决定壳形态。页面基线定为 **Chromium ≥ 88 / iOS Safari ≥ 14**（禁 `:has()`、容器查询、`dvh`），布局用 flex + `clamp()` autosize + 百分比定位，不依赖原生桥。详见 `docs/games/sanguosha/ui-spec.md`。
+
 - **P0（PWA）**：移动端交付物 = 现有页 + manifest + 图标 + `display: standalone`；**不改鉴权、不改路由、不改渲染**。
 - **P1（App 壳）**：Tauri 2，Android 先行；壳加载线上域名（`PUBLIC_BASE_URL` 同源页），**不启用 IPC / Rust command** → 「改 web 即发布」，零发版更新。iOS 需 macOS 构建（阻塞项，见 ADR-0011 影响）。
 - **对 web 的壳化约束**（现状已满足，后续改动不得破坏）：

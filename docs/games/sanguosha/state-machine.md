@@ -53,7 +53,30 @@ GameState（game-engine-core 信封）
 - 主公候选 = 全部主公武将 + `config.lord_candidate_count` 张非主公武将（默认 5）；主公选 1。
 - 主公未选武将进入武将池；从主公左手侧开始，每名其他玩家**同时**获得 `config.other_candidate_count` 张候选（默认 5，玩家之间不重复），各选 1；未选候选回池。
 - 候选/池只取 `status=live` 的武将。
+- **实现口径（P2.1，2026-10-27）**：引擎内置池暂为标准包 25 将（自动生成）；当 `M × 其他玩家数` 超过池子时按**均分降级**（每人不低于 1、不超过 M，余数给左手侧靠前的玩家），P4 扩池后恢复按 M 发满。
 - 选将结果写入 `seats[].general`，进入 `turn`。
+
+### 2.2 pending 类型（P2.2 实现）
+
+| kind | actor | data | 动作 | 出现时机 |
+|---|---|---|---|---|
+| `target` | 出牌者 | `card/source/type` | `target:<player>` | 杀、乐不思蜀选目标 |
+| `respond` | 被杀目标 | `card/source/target/damage` | `respond:<闪>` / `pass` | 杀结算，目标需出闪 |
+| `dying` | 按响应顺序的持桃者 | `victim` | `respond:<桃>` / `pass` | 体力 ≤ 0 |
+| `discard` | 需弃牌者 | `required/reason`（`hand_cap` / `discard_phase`） | `discard:<csv>`（可逐张） | 超过持有上限、弃牌阶段 |
+| `wuxie` | 按座位顺序的**所有存活玩家** | `root` / `count` / `cursor` | `respond:<无懈>` / `pass` | 锦囊生效前、延时锦囊判定前 |
+| `pick_card` | 锦囊使用者 | `target` / `options`（装备槽/手牌/判定区） | `pick:hand` / `pick:equip:<slot>` / `pick:judge:<id>` | 顺手牵羊、过河拆桥（无懈后） |
+| `target`（借刀） | 锦囊使用者 | `stage`（`borrow_first`/`borrow_second`） | `target:<player>` / `confirm` / `cancel` | 借刀杀人二阶段目标 |
+| `choice` | 技能拥有者 | `skill` / `card` | `choose:gain` / `pass` | 奸雄（第一批技能） |
+| `choose_many` | 技能拥有者 | `purpose` / `selected` / `min` / `max` | `choose:<card>` / `confirm` / `cancel` | 制衡（弃 N 摸 N）、仁德（选牌）、离间（选 1 张） |
+| `choice`（巡袭/接力） | 技能拥有者 | `skill` / `needed` | `choose:tuxi` / `respond:<card>` / `pass` | 突袭（放弃摸牌）、激将/护驾（同势力代出杀/闪） |
+
+- P2.3 起由**结算栈**驱动：`resolution: Vec<Frame>`（Trick/Wuxie/PickCard/Aoe/Respond/Dying/Discard），`pending` 是栈顶投影；濒死与无懈嵌套通过压栈/弹栈恢复。
+- 所有「响应类」询问都向被询问者展示（无对应牌亦可 `pass`），不自动跳过。
+- **P2.3** 已实现锦囊/无懈/濒死/弃牌/判定 pending；**P2.4 第一批**新增 `choice`（奸雄）与 `choose_many`（制衡）；五谷丰登（`wugu`）留 P2.5，其余技能见 `skills.md`。
+
+- 只有 `pending.actor` 能提交；其他玩家提交返回权限错误。
+- 阶段机在无 pending 时自动推进，停在**出牌阶段**等待输入。
 
 ## 3. 回合阶段
 
