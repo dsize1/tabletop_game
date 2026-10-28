@@ -22,6 +22,7 @@ import {
   type GameView,
 } from "./render.js";
 import { renderAppPage } from "./view/page.js";
+import { renderSgsPage } from "./view/sgs/page.js";
 
 const SERVER_URL = process.env.SERVER_URL ?? "http://127.0.0.1:3000";
 const PORT = Number(process.env.WEB_PORT ?? process.env.PORT ?? 18080);
@@ -261,9 +262,21 @@ app.get("/tabletop_game/:gameId/player/:openid", async (req, res) => {
       res.status(404).send(renderErrorPage(404, "对局不存在或已结束"));
       return;
     }
-    // 双模式页（版图默认 / 文本可切；?view=text 仅用于首屏直出旧行为）
-    const mode = req.query.view === "text" ? "text" : "board";
     res.setHeader("Cache-Control", "no-store");
+    // 引擎分派（P3）：三国杀走三分区交互页；其余引擎沿用双模式版图/文本。
+    const data = (view.player?.data ?? view.public?.data) as { game?: string } | undefined;
+    if (data?.game === "sanguosha") {
+      res.send(
+        renderSgsPage(view, {
+          gameId: req.params.gameId,
+          token,
+          openid: v.openid ?? req.params.openid,
+          roomId: view.room_id,
+        }),
+      );
+      return;
+    }
+    const mode = req.query.view === "text" ? "text" : "board";
     res.send(renderAppPage(view, { gameId: req.params.gameId, token, mode }));
   } catch (err) {
     console.error("[web] 拉取游戏资源失败:", err);

@@ -1,0 +1,146 @@
+// 玩家个人资源区（交互基座）：武将/技能/手牌/装备/判定/操作条/pending。
+//
+// 规格：`docs/games/sanguosha/ui-spec.md` §4。P3.1 先渲染结构（按钮禁用），
+// 交互在 P3.2/P3.3 接线（`client/sgs.ts`）。
+
+import { escapeHtml } from "../format.js";
+import {
+  EQUIP_SLOT_LABEL,
+  EQUIP_SLOT_ORDER,
+  IDENTITY_LABEL,
+  KINGDOM_LABEL,
+  cardChipHtml,
+  cardFaceHtml,
+  cardLabel,
+  hpPips,
+  judgeIcon,
+  playerName,
+} from "./format.js";
+import type { SgsCard, SgsPlayerArea, SgsPublicBoard, SgsSpecialZones } from "./types.js";
+
+function pendingSummary(area: SgsPlayerArea): string {
+  const p = area.pending;
+  if (!p) return "";
+  const labels = p.options.map((o) => escapeHtml(o.label)).join(" / ");
+  const extra =
+    p.kind === "discard" && typeof p.data?.required === "number"
+      ? `（需弃 ${p.data.required} 张）`
+      : p.kind === "arrange"
+        ? "（观星：调整顺序后确认）"
+        : "";
+  return (
+    `<div class="sgs-pending" data-kind="${escapeHtml(p.kind)}">` +
+    `<div class="sgs-pending-head">待办：${escapeHtml(p.kind)}${extra}</div>` +
+    `<div class="sgs-pending-options">${labels}</div>` +
+    `</div>`
+  );
+}
+
+/** 观星 owner 区（P3.1 只读占位，P3.5 接拖拽）。 */
+function guanxingPanel(zones: SgsSpecialZones | undefined): string {
+  const g = zones?.guanxing;
+  if (!g) return "";
+  const cell = (slot: string): string => {
+    const id = g.slots?.[slot];
+    if (!id) return `<div class="sgs-gx-slot empty" data-slot="${slot}"><span>${slot}</span></div>`;
+    return (
+      `<div class="sgs-gx-slot" data-slot="${slot}" data-card="${escapeHtml(id)}">` +
+      `<span class="sgs-gx-id">${slot}</span><span class="sgs-gx-card">${escapeHtml(id)}</span></div>`
+    );
+  };
+  const col = (prefix: "L" | "R"): string =>
+    Array.from({ length: g.rows }, (_, i) => cell(`${prefix}${i + 1}`)).join("");
+  return (
+    `<div class="sgs-gx" data-zone="guanxing" data-rev="${g.rev}">` +
+    `<div class="sgs-gx-col">${col("L")}</div>` +
+    `<div class="sgs-gx-col">${col("R")}</div>` +
+    `</div>`
+  );
+}
+
+function wuguPanel(zones: SgsSpecialZones | undefined, names?: Record<string, string>): string {
+  const w = zones?.wugu;
+  if (!w) return "";
+  const cards = (w.cards ?? [])
+    .map(
+      (c) =>
+        `<button type="button" class="sgs-wugu-card" data-pick="${escapeHtml(c.id)}" title="${escapeHtml(
+          cardLabel(c),
+        )}">${escapeHtml(cardLabel(c))}</button>`,
+    )
+    .join("");
+  const picked = (w.picked ?? [])
+    .map((p) => `${escapeHtml(playerName(names, p.player))}：${escapeHtml(cardLabel(p.card))}`)
+    .join("；");
+  return (
+    `<div class="sgs-wugu" data-zone="wugu">` +
+    `<div class="sgs-wugu-head">五谷丰登 · 当前 ${escapeHtml(
+      w.current ? playerName(names, w.current) : "-",
+    )}</div>` +
+    `<div class="sgs-wugu-cards">${cards}</div>` +
+    (picked ? `<div class="muted">已选：${picked}</div>` : "") +
+    `</div>`
+  );
+}
+
+/** 个人资源区。 */
+export function renderPersonalArea(
+  area: SgsPlayerArea | null | undefined,
+  board: SgsPublicBoard,
+  zones: SgsSpecialZones | undefined,
+  names?: Record<string, string>,
+): string {
+  if (!area) return `<section class="sgs-personal muted">个人资源区不可见（未坐下或已阵亡）</section>`;
+  const kingdom = area.kingdom ? KINGDOM_LABEL[area.kingdom] ?? area.kingdom : "";
+  const general = area.general_name || "未选将";
+  const skills = (area.skills ?? [])
+    .map(
+      (s) =>
+        `<button type="button" class="sgs-skill${s.implemented === false ? " disabled" : ""}" ` +
+        `data-skill="${escapeHtml(s.code)}" title="${escapeHtml(s.type)}"${s.implemented === false ? " disabled" : ""}>` +
+        `${escapeHtml(s.name)}</button>`,
+    )
+    .join("");
+  const hand = (area.hand ?? []).map((c) => cardFaceHtml(c)).join("");
+  const equips = EQUIP_SLOT_ORDER.map((slot) => {
+    const card = area.equips?.[slot] ?? null;
+    const body = card
+      ? cardChipHtml(card as SgsCard, { long: true })
+      : `<span class="muted">空</span>`;
+    return `<div class="sgs-equip" data-slot="${slot}"><span class="sgs-equip-label">${EQUIP_SLOT_LABEL[slot]}</span>${body}</div>`;
+  }).join("");
+  const judge = (area.judge_zone ?? [])
+    .slice()
+    .reverse()
+    .map((c) => cardChipHtml(c, { icon: judgeIcon(c) }))
+    .join("");
+  const isMyTurn = board.turn.seat === area.seat && board.turn.phase === "play";
+  return (
+    `<section class="sgs-personal" aria-label="个人资源区">` +
+    `<div class="sgs-me">` +
+    `<div class="sgs-me-head"><b>${escapeHtml(general)}</b>` +
+    (kingdom ? `<span class="sgs-kingdom">${escapeHtml(kingdom)}</span>` : "") +
+    `<span class="sgs-identity ${escapeHtml(area.identity)}">${escapeHtml(
+      IDENTITY_LABEL[area.identity] ?? area.identity,
+    )}</span>` +
+    `<span class="muted">${escapeHtml(playerName(names, area.player_id))}</span></div>` +
+    `<div class="sgs-hp">${hpPips(area.hp, area.max_hp)}<span class="sgs-hp-num">${area.hp}/${area.max_hp}</span></div>` +
+    `<div class="sgs-skills">${skills}</div>` +
+    `</div>` +
+    `<div class="sgs-me-row">` +
+    `<div class="sgs-equips">${equips}</div>` +
+    `<div class="sgs-judge"><span class="sgs-equip-label">判定</span>${judge || `<span class="muted">无</span>`}</div>` +
+    `</div>` +
+    `<div class="sgs-hand" role="list">${hand || `<span class="muted">无手牌</span>`}</div>` +
+    pendingSummary(area) +
+    guanxingPanel(zones) +
+    wuguPanel(zones, names) +
+    `<div class="sgs-ops" data-my-turn="${isMyTurn ? "1" : "0"}">` +
+    `<span class="sgs-selected muted">未选择</span>` +
+    `<button type="button" class="btn" data-op="confirm" disabled>确认打出</button>` +
+    `<button type="button" class="btn ghost" data-op="cancel" disabled>取消选择</button>` +
+    `<button type="button" class="btn ghost" data-op="end_play"${isMyTurn ? "" : " disabled"}>结束出牌</button>` +
+    `</div>` +
+    `</section>`
+  );
+}

@@ -265,6 +265,14 @@
 - **本地脚手架**：`apps/scripts/sgs-web-room.mjs`（MCP 建局→选将→停在出牌 → `/auth/issue` 签 token → 打印每人链接；`--dump-state` 导出 `{public, players}` 前端 fixture）。
 - **验证**：sanguosha 公共视图无 `hand`、`player_area=null`、无他人特殊区；Web JSON 提交 `end_play`/`discard:<id>` 生效（turn_index 推进、快照 version 递增、事件入库）；跨房间 token → 403；无 JS 表单（token 在 body）→ 303；`npm run sgs:web-room` 可一键起局。
 
+**P3.1 实施记录（2026-10-28，视图层 + SSR）**
+
+- 新增 `apps/web/src/view/sgs/`：`types.ts`（三分区契约）、`format.ts`（牌面/文案/座位公式）、`public.ts`（公共区只读 + 左侧辅助区）、`personal.ts`（个人区：手牌/装备/技能/判定/操作条/观星与五谷占位）、`text.ts`（无 JS 文本态 + pending 文本提交表单）、`page.ts`（页面骨架 + CSS，三档断点）。
+- 座位布局按 `ui-spec.md` §3.2 公式：`splitSides(4..7)` = 1/2/1、1/3/1、2/3/1、2/3/2；填位顺序「左列自下而上 → 上排自左而右 → 右列自上而下」，百分比定位 + `clamp()` 尺寸。
+- web 路由分派：`GET /tabletop_game/:gameId/player/:openid` 按 `data.game === "sanguosha"` 走新页（拉斯维加斯双模式不动）；客户端 bundle `public/assets/sgs.js`（es2017）负责 10s 轮询/激活刷新/退避/状态条。
+- 测试：`apps/web/test-sgs.mts`（座位公式、牌面与图标、公共区无手牌、个人区手牌/技能/禁用按钮、观星/五谷占位、文本态表单与 `arrange:` 提示、整页 bootstrap/noscript、禁用特性 `:has()`/容器查询/`dvh`、昵称 XSS 转义）。
+- 真机布局实测（Playwright + 系统 Edge）：1366×900、1920×1080、390×844 三档**无横向溢出**；公共区按比例撑满、个人区贴底、操作条在手机端贴底；公共区 0 张手牌正面、个人区 6 张手牌正面。
+
 ### P4 武将 / 军争扩展（XL，持续）
 
 **目标**：先补齐标准包 25 将，再按包扩展；军争牌玩法启用。
