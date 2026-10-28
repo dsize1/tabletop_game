@@ -12,6 +12,9 @@ import {
 import { renderPublicArea, renderSidePanel } from "./src/view/sgs/public.js";
 import { renderPersonalArea } from "./src/view/sgs/personal.js";
 import { renderSgsTextBody } from "./src/view/sgs/text.js";
+import { renderCardDetail, renderDiscardList, renderGeneralDetail } from "./src/view/sgs/detail.js";
+import { renderOverlayShell } from "./src/view/sgs/overlay.js";
+import { classifyPress, MOVE_TOLERANCE_PX, LONG_PRESS_MS } from "./src/client/sgs-gestures.js";
 import { renderSgsPage, SGS_STYLES } from "./src/view/sgs/page.js";
 import type { SgsCard, SgsPlayerArea, SgsPublicBoard, SgsViewData } from "./src/view/sgs/types.js";
 import type { GameView } from "./src/view/types.js";
@@ -227,3 +230,51 @@ assert.ok(
 );
 
 console.log("[sgs-web] 视图层单测通过 ✅（座位布局/牌面/公共区/个人区/特殊区/文本态/整页）");
+
+// —— 手势判定（ui-spec §5：<400ms 短按；≥400ms 长按；>8px 取消）——
+const press = (downAt: number, upAt: number, dx = 0, dy = 0, extra: Record<string, boolean> = {}) =>
+  classifyPress({ downAt, upAt, dx, dy, ...extra });
+assert.equal(press(0, 399), "tap", "399ms = 短按");
+assert.equal(press(0, LONG_PRESS_MS), "longpress", "≥400ms = 长按");
+assert.equal(press(0, 120, MOVE_TOLERANCE_PX, 0), "tap", "位移 8px 仍算点击");
+assert.equal(press(0, 120, MOVE_TOLERANCE_PX + 1, 0), "move", "位移 >8px = 滚动意图");
+assert.equal(press(0, 120, 6, 6), "move", "斜向位移按欧氏距离（6,6 → 8.49px > 8）");
+assert.equal(press(0, 500, 0, 0, { cancelled: true }), "cancel", "pointercancel 不产生点击");
+assert.equal(press(0, 500, 0, 0, { longFired: true }), "longpress", "长按到时后 up 不再触发点击");
+
+// —— 详情浮层内容 ——
+const detailCard = renderCardDetail(card("c1", "青釭剑", "spade", 6, "qinggang_jian"));
+assert.ok(detailCard.includes("青釭剑") && detailCard.includes("♠6"), "牌面详情含花色点数");
+const generalDetail = renderGeneralDetail(seats[1], names);
+assert.ok(generalDetail.includes("曹操") && generalDetail.includes("未公开"), "武将详情（非主公身份不公开）");
+const discardHtml = renderDiscardList({
+  ...board,
+  discard: [card("c1", "杀", "spade", 7), card("c2", "闪", "heart", 2, "shan")],
+});
+assert.ok(discardHtml.includes("共 2 张") && discardHtml.includes("闪♥2"), "弃牌堆列表");
+assert.ok(discardHtml.indexOf("闪♥2") < discardHtml.indexOf("杀♠7"), "弃牌堆顶在前");
+assert.ok(renderDiscardList({ ...board, discard: [] }).includes("弃牌堆为空"), "空弃牌堆");
+
+// —— 浮层外壳 ——
+const shell = renderOverlayShell("牌面详情", "<b>内容</b>");
+assert.ok(shell.includes("sgs-overlay-mask") && shell.includes("data-overlay-close"), "外壳含遮罩与关闭");
+assert.ok(shell.includes("<h2>牌面详情</h2>") && shell.includes("<b>内容</b>"), "外壳含标题与内容");
+const shellXss = renderOverlayShell("<img src=x>", "");
+assert.ok(!shellXss.includes("<img src=x"), "标题转义");
+const shellWide = renderOverlayShell("观星", "", { size: "wide" });
+assert.ok(shellWide.includes("sgs-overlay-card wide"), "wide 变体");
+
+// —— data-press 钩子（手势委托依赖）——
+assert.ok(publicHtml.includes('data-press="general"'), "武将卡可点开详情");
+assert.ok(publicHtml.includes('data-press="discard"'), "弃牌堆可点开列表");
+assert.ok(meHtml.includes('data-press="hand"'), "手牌可手势操作");
+const meWithEquip = renderPersonalArea(
+  { ...me, equips: { ...me.equips, weapon: card("c9", "青釭剑", "spade", 6, "qinggang_jian") } },
+  board,
+  {},
+  names,
+);
+assert.ok(meWithEquip.includes('data-press="card"'), "装备/判定小标记可长按详情");
+assert.ok(publicHtml.includes('data-press="card"'), "他人装备/判定小标记可长按详情");
+
+console.log("[sgs-web] 手势/浮层/详情单测通过 ✅");

@@ -141,7 +141,23 @@ button { font: inherit; color: inherit; }
 .sgs-overlay.on { display:block; }
 .sgs-overlay-mask { position:absolute; inset:0; background:rgba(0,0,0,.55); }
 .sgs-overlay-card { position:relative; margin:6vh auto 0; background:var(--sgs-panel); border:1px solid var(--sgs-line);
-  border-radius:14px; max-width:min(92vw,720px); max-height:min(80vh,640px); overflow:auto; padding:14px 16px; }
+  border-radius:14px; max-width:min(92vw,720px); max-height:min(80vh,640px); overflow:auto; padding:14px 16px;
+  overscroll-behavior:contain; }
+.sgs-overlay-card.wide { max-width:min(96vw,900px); }
+.sgs-overlay-head { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+.sgs-overlay-head h2 { font-size:15px; margin:0; }
+.sgs-overlay-close { margin-left:auto; width:34px; height:34px; border-radius:999px; border:1px solid #3d4757;
+  background:#1c232c; color:#c9d1d9; font-size:20px; line-height:1; cursor:pointer; }
+.sgs-overlay-body { font-size:13px; line-height:1.6; }
+.sgs-detail { border-collapse:collapse; width:100%; }
+.sgs-detail th, .sgs-detail td { border-bottom:1px solid #262d38; padding:6px 8px; text-align:left; vertical-align:top; }
+.sgs-detail th { width:6.5em; color:var(--sgs-muted); font-weight:600; }
+.sgs-big { font-size:20px; font-weight:700; }
+.sgs-big.red { color:#ff9b95; }
+.sgs-discard-list { margin:6px 0 0; padding-left:22px; max-height:min(56vh,460px); overflow:auto; }
+.sgs-discard-list li { padding:1px 0; }
+.sgs-deck-btn { cursor:pointer; text-align:left; color:inherit; }
+.sgs-card.pressed, .sgs-opponent.pressed, .sgs-chip.pressed, .sgs-deck-btn.pressed { outline:2px solid var(--sgs-gold); }
 .sgs-text { display:none; padding:12px 16px 90px; }
 .sgs-text h2 { font-size:16px; } .sgs-text h3 { font-size:13px; color:var(--sgs-muted); margin:14px 0 4px; }
 .sgs-text ul { padding-left:18px; margin:0; } .sgs-text li { font-size:13px; line-height:1.6; }

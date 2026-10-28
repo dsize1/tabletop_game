@@ -53,7 +53,7 @@ function seatCard(
     .join("");
   const handDots = Array.from({ length: Math.min(seat.hand_count, 6) }, () => cardBackHtml()).join("");
   return (
-    `<div class="${cls}" data-seat="${seatIdx}" style="left:${placement.left}%;top:${placement.top}%">` +
+    `<div class="${cls}" data-press="general" data-seat="${seatIdx}" style="left:${placement.left}%;top:${placement.top}%">` +
     `<div class="sgs-opponent-head">${name}${identity}</div>` +
     general +
     `<div class="sgs-hp">${hpPips(seat.hp, seat.max_hp)}<span class="sgs-hp-num">${seat.hp}/${seat.max_hp}</span></div>` +
@@ -126,7 +126,8 @@ export function renderPublicArea(
     `<div class="sgs-round">第 ${board.round} 轮 · ${escapeHtml(phase)} · ${currentName}</div>` +
     `<div class="sgs-deck-row">` +
     `<div class="sgs-deck"><span class="sgs-deck-label">牌堆</span>${board.deck.draw}</div>` +
-    `<div class="sgs-deck"><span class="sgs-deck-label">弃牌</span>${board.deck.discard}${discardTop}</div>` +
+    `<button type="button" class="sgs-deck sgs-deck-btn" data-press="discard" aria-label="查看弃牌堆">` +
+    `<span class="sgs-deck-label">弃牌</span>${board.deck.discard}${discardTop}</button>` +
     `</div>` +
     pending +
     winner +

@@ -32,6 +32,7 @@ const BOARD_KEYS: &[&str] = &[
     "seats",
     "deck",
     "discard_top",
+    "discard",
     "pending",
     "setup",
     "winner",

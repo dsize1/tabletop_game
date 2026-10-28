@@ -94,7 +94,7 @@ export function cardLabel(card: SgsCard): string {
 export function cardFaceHtml(card: SgsCard, extraClass = ""): string {
   const red = SUIT_RED[card.suit] ? " red" : "";
   return (
-    `<span class="sgs-card${red}${extraClass}" data-card="${escapeHtml(card.id)}" title="${escapeHtml(cardLabel(card))}">` +
+    `<span class="sgs-card${red}${extraClass}" data-press="hand" data-card="${escapeHtml(card.id)}" title="${escapeHtml(cardLabel(card))}">` +
     `<span class="sgs-card-rank">${rankLabel(card.rank)}${SUIT_LABEL[card.suit] ?? ""}</span>` +
     `<span class="sgs-card-name">${escapeHtml(card.name)}</span>` +
     `</span>`
@@ -114,7 +114,10 @@ export function cardChipHtml(card: SgsCard, opts: { icon?: string; long?: boolea
     : opts.long
       ? cardLabel(card)
       : `${rankLabel(card.rank)}${SUIT_LABEL[card.suit] ?? ""}`;
-  return `<span class="sgs-chip${red}" title="${escapeHtml(cardLabel(card))}">${escapeHtml(text)}</span>`;
+  return (
+    `<span class="sgs-chip${red}" data-press="card" data-card="${escapeHtml(card.id)}" ` +
+    `title="${escapeHtml(cardLabel(card))}">${escapeHtml(text)}</span>`
+  );
 }
 
 /** 显示名（群昵称优先，缺失回退 openid）。 */

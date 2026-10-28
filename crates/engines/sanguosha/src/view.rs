@@ -112,6 +112,8 @@ pub fn public_board(st: &SgsState) -> Value {
             "void": st.deck.void.len(),
         },
         "discard_top": st.deck.discard.last().map(|id| card_view(st, id)),
+        // 弃牌堆全量（公共信息；ui-spec §4「点击开浮层列表」）
+        "discard": st.deck.discard.iter().map(|id| card_view(st, id)).collect::<Vec<_>>(),
         // 公共区只给 pending 的「谁在等」，不给选项内容。
         "pending": st.pending.as_ref().map(|p| json!({ "kind": p.kind, "actor": p.actor })),
         "setup": if st.phase == Phase::Setup {

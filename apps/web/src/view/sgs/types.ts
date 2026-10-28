@@ -82,6 +82,8 @@ export interface SgsPublicBoard {
   seats: SgsSeat[];
   deck: { draw: number; discard: number; processing: number; void: number };
   discard_top?: SgsCard | null;
+  /** 弃牌堆全量（顶 → 底，引擎按入堆顺序返回）。 */
+  discard?: SgsCard[];
   pending?: { kind: string; actor: string } | null;
   setup?: unknown;
   winner?: { team: string; players: string[] } | null;
