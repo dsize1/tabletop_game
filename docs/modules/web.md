@@ -24,6 +24,7 @@
 - 运行时：`src/client/main.ts`（拉斯维加斯，版图/文本双模式）与 `src/client/sgs.ts`（三国杀：10s 轮询 + 激活即刷 + 退避、`data-press` 手势、`data-action` 动作提交、pending 浮层、观星拖拽）。
 - 构建：`build:client` 产出 `public/assets/app.js`（es2020）与 `sgs.js`（es2017）。
 - 本地验收脚手架：`npm run sgs:web-room`（MCP 建局→选将→停在出牌→`/auth/issue` 签 token→打印每人链接；`--dump-state` 导出视图 fixture）。**先起 `npm run dev:up:noqq`**（server 3000 / web 18080）。
+- **自动化 e2e**：`npm run test:sgs-web`（`apps/scripts/test-sgs-web.mjs`）——自起临时 server/web（3199/18199 + 临时 SQLite）→ MCP 建局 → `playwright-core` 驱动**系统 Edge/Chrome**（不下载浏览器）跑四档视口/隐藏信息/越权/无 JS 表单/点击推进回合。依赖 Redis 与系统浏览器；任一缺失打印 `skip` 并退出 0（CI 不阻塞）。真机清单见 `docs/games/sanguosha/p3-manual-test.md`。
 - 基线：Chromium ≥ 88 / iOS Safari ≥ 14；禁用 `:has()`、容器查询、`dvh`；矮视口（≤520px）紧凑布局 + 操作条 fixed 贴底。
 
 ### 页面运行时（2026-10-18 起）

@@ -32,6 +32,7 @@
 | 三国杀立项：阶段计划 / 数据模型 | `docs/games/sanguosha/development-plan.md`、`docs/games/sanguosha/data-model.md` |
 | 三国杀规则 / 牌表 / 状态机 / 动作 / 校验 | `docs/games/sanguosha/rules.md`、`cards.md`、`state-machine.md`、`legal-actions.md`、`rule-engine-permission.md` |
 | 三国杀视图 / 布局 / 手势 / 浮层 / 观星交互 | `docs/games/sanguosha/ui-spec.md` |
+| 三国杀 Web 真机验收清单（人工） | `docs/games/sanguosha/p3-manual-test.md` |
 | 三国杀技能注册表 / 触发钩子 / 实现进度 | `docs/games/sanguosha/skills.md` |
 | 三国杀规则裁定 / 特殊交互区 | `docs/games/sanguosha/rules-rulings.md`、`docs/games/sanguosha/special-zones.md` |
 | 三国杀武将抓取数据（696 位） | `docs/games/sanguosha/data/README.md`、`docs/games/sanguosha/data/heroes.json` |
