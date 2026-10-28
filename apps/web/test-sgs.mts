@@ -134,7 +134,7 @@ const meHtml = renderPersonalArea(me, board, {}, names);
 assert.ok(meHtml.includes("杀♠7") && meHtml.includes("桃♥3"), "个人区应显示手牌正面");
 assert.ok(meHtml.includes('data-skill="rende"'), "技能按钮");
 assert.ok(meHtml.includes("确认打出") && meHtml.includes("disabled"), "未选中时确认按钮置灰");
-assert.ok(meHtml.includes('data-op="end_play"'), "结束出牌按钮");
+assert.ok(meHtml.includes('data-action="end_play"'), "结束出牌按钮");
 const withPending: SgsPlayerArea = {
   ...me,
   pending: {
@@ -278,3 +278,48 @@ assert.ok(meWithEquip.includes('data-press="card"'), "装备/判定小标记可�
 assert.ok(publicHtml.includes('data-press="card"'), "他人装备/判定小标记可长按详情");
 
 console.log("[sgs-web] 手势/浮层/详情单测通过 ✅");
+
+// —— P3.3 出牌链路：actions 驱动可用性 + pending 动作按钮 ——
+const actions = [
+  { id: "play:c1", description: "使用【杀♠7】" },
+  { id: "play:c2", description: "使用【桃♥3】" },
+  { id: "end_play", description: "结束出牌阶段" },
+];
+const withActions = renderPersonalArea(me, board, {}, names, actions);
+assert.ok(withActions.includes('class="sgs-card red playable"') || withActions.includes("playable"), "可出的牌应标记 playable");
+assert.ok(withActions.includes('data-action="end_play"'), "结束出牌按钮携带动作 id");
+assert.ok(!/data-action="end_play"[^>]*disabled/.test(withActions), "有 end_play 动作时应启用");
+const noActions = renderPersonalArea(me, board, {}, names, []);
+assert.ok(/data-action="end_play"[^>]*disabled/.test(noActions), "无动作时结束出牌置灰");
+
+const pendingButtons = renderPersonalArea(
+  {
+    ...me,
+    pending: {
+      kind: "respond",
+      actor: "p0",
+      options: [
+        { id: "respond:c2", label: "打出【桃♥3】" },
+        { id: "pass", label: "不出" },
+      ],
+    },
+  },
+  board,
+  {},
+  names,
+  [],
+);
+assert.ok(pendingButtons.includes('data-action="respond:c2"'), "pending 选项可提交");
+assert.ok(pendingButtons.includes('data-action="pass"'), "显式不出按钮");
+
+const skillActions = renderPersonalArea(me, board, {}, names, [
+  { id: "skill:rende", description: "仁德" },
+]);
+assert.ok(
+  /data-skill="rende"[^>]*data-action="skill:rende"/.test(skillActions),
+  "有主动技动作时技能按钮可点",
+);
+const noSkillAction = renderPersonalArea(me, board, {}, names, []);
+assert.ok(/data-skill="rende"[^>]*disabled/.test(noSkillAction), "无对应动作时技能按钮置灰");
+
+console.log("[sgs-web] 出牌链路（可用性/动作按钮）单测通过 ✅");

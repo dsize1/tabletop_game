@@ -114,7 +114,9 @@ button { font: inherit; color: inherit; }
 .sgs-chip.red { color:#ff9b95; }
 .sgs-pending { border:1px dashed #3d4757; border-radius:10px; padding:6px 8px; font-size:12px; color:#c9d1d9; }
 .sgs-pending-head { color:var(--sgs-gold); margin-bottom:4px; }
-.sgs-pending-options { color:#9aa7b4; }
+.sgs-pending-actions { display:flex; flex-wrap:wrap; gap:6px; }
+.btn.small { padding:6px 10px; min-height:34px; font-size:12px; border-radius:8px; }
+.sgs-card.playable { border-color:#8a6d1f; box-shadow:0 0 0 1px rgba(227,179,65,.35) inset; }
 .sgs-gx { display:flex; gap:10px; justify-content:center; }
 .sgs-gx-col { display:flex; flex-direction:column; gap:4px; }
 .sgs-gx-slot { width:clamp(60px,12vw,110px); height:clamp(34px,5vw,44px); border-radius:8px;
@@ -137,6 +139,9 @@ button { font: inherit; color: inherit; }
   background:linear-gradient(rgba(11,15,20,0), #0b0f14 45%); }
 .sgs-statusbar .grow { margin-left:auto; }
 .sgs-statusbar .warn { color:#f0883e; }
+#sgs-msg { color:#9fd7a0; max-width:52vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#sgs-msg.warn { color:#f0883e; }
+body.busy { cursor:progress; }
 .sgs-overlay { position:fixed; inset:0; z-index:100; display:none; }
 .sgs-overlay.on { display:block; }
 .sgs-overlay-mask { position:absolute; inset:0; background:rgba(0,0,0,.55); }
@@ -185,13 +190,17 @@ button { font: inherit; color: inherit; }
 @media (prefers-reduced-motion: reduce) { .sgs-card { transition:none; } }
 `;
 
-/** 页面主体（SSR 与客户端重渲染共用）。 */
-export function renderSgsApp(data: SgsViewData, names?: Record<string, string>): string {
+/** 页面主体（SSR 与客户端重渲染共用）。`actions` = 本人合法动作（服务端按权限过滤）。 */
+export function renderSgsApp(
+  data: SgsViewData,
+  names?: Record<string, string>,
+  actions?: Array<{ id: string; description: string }>,
+): string {
   const mySeat = data.player_area?.seat ?? data.public_board.turn.seat;
   return (
     `<div class="sgs-main">` +
     renderPublicArea(data, mySeat, names) +
-    renderPersonalArea(data.player_area, data.public_board, data.special_zones, names) +
+    renderPersonalArea(data.player_area, data.public_board, data.special_zones, names, actions) +
     `</div>`
   );
 }
@@ -209,6 +218,7 @@ export function renderSgsPage(view: GameView, opts: SgsPageOpts): string {
     openid: opts.openid,
     pollMs: opts.pollMs ?? 10000,
   };
+  const actions = view.actions ?? [];
   const textBody = renderSgsTextBody(data, names, {
     gameId: opts.gameId,
     token: opts.token,
@@ -231,11 +241,12 @@ export function renderSgsPage(view: GameView, opts: SgsPageOpts): string {
     renderSidePanel(data, names) +
     `<div class="sgs-main" id="sgs-app">` +
     renderPublicArea(data, data.player_area?.seat ?? board.turn.seat, names) +
-    renderPersonalArea(data.player_area, board, data.special_zones, names) +
+    renderPersonalArea(data.player_area, board, data.special_zones, names, actions) +
     `</div>` +
     `</div>` +
     `<div class="sgs-statusbar"><span>token 仅存于本页链接</span>` +
-    `<span class="grow"></span><span id="sgs-warn"></span><span id="sgs-updated">—</span></div>` +
+    `<span class="grow"></span><span id="sgs-msg"></span><span id="sgs-warn"></span>` +
+    `<span id="sgs-updated">—</span></div>` +
     `<div class="sgs-overlay" id="sgs-overlay" role="dialog" aria-modal="true" aria-label="特殊区"></div>` +
     `<div class="sgs-text" id="sgs-text">${textBody}</div>` +
     `<noscript><style>#sgs-app,.sgs-side,.sgs-statusbar{display:none!important}.sgs-text{display:block!important}</style></noscript>` +

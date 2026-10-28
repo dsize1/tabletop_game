@@ -75,6 +75,8 @@ export interface GameView {
   player: { status?: string; players?: string[]; data?: GameData };
   /** openid → 群昵称（server 从 Redis `names:{group_id}` 读取）。 */
   names?: Record<string, string>;
+  /** 请求者本人的合法动作（引擎按权限过滤；无 pending/非其回合时为空）。 */
+  actions?: Array<{ id: string; description: string }>;
 }
 
 /** 页内双模式。 */

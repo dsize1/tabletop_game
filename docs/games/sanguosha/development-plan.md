@@ -281,6 +281,13 @@
 - **客户端接线**：手牌短按选中/取消（`.selected` + 操作条「已选：牌名」，提交在 P3.3）；长按手牌/装备/判定小标记打开牌面详情；点他人武将打开武将详情；点弃牌堆打开列表；首帧立即拉 `/state`（详情依赖客户端数据），浮层打开时轮询不打断界面。
 - **实测（Playwright + Edge，390×844）**：长按 460ms → 浮层打开、标题「桃♥8」、滚动锁生效、焦点在关闭按钮、`history.state.sgsOverlay=true`；Esc → 关闭 + 滚动恢复 + `history.back()` 生效；遮罩点击关闭；短按选中/再按取消；位移 30px 不选中。
 
+**P3.3 实施记录（2026-10-28，出牌链路）**
+
+- **合法动作下发给端侧**：`server /resources/game/{gameId}` 新增 `actions`（请求者本人的 `legal_actions`，引擎按权限过滤：非其回合/非其 pending 时为空）；`GameView.actions` 同步。
+- **UI 由 actions 驱动**：手牌可出的牌加 `playable` 高亮；「结束出牌」仅在有 `end_play` 时可用；技能按钮在存在 `skill:*` 动作时启用（转化技 `skill:qixi:<card>` 映射到对应牌）；**pending 逐条提交**：`player_area.pending.options` 全量渲染为按钮（`data-action`），覆盖选目标 / 闪·杀·无懈·桃响应 / 显式 `pass` / 弃牌（可逐张点）/ 技能多选（choose/confirm/cancel）/ 接力 / 五谷 / 观星默认顺序。
+- **提交流程**：选中 → 「确认打出」（`play:<card>`，未选中或不在 actions 内则禁用）→ `POST /tabletop_game/:gameId/action` → 成功后立即拉 `/state` 重渲染；失败显示原因并自动刷新（处理他端抢先导致的 400/403）；提交期间 `busy` 防重复。
+- **实测（Playwright + Edge）**：p4 选【杀】→ 确认 → 目标按钮（p3/p5）→ 切到 p3 页面点「不出」→ HP 4→3、p3 pending 清空；回 p4 点「结束出牌」→ 回合推进到 p5；p5 结束出牌 → 回合推进到 p1（克己自动跳过弃牌）。
+
 ### P4 武将 / 军争扩展（XL，持续）
 
 **目标**：先补齐标准包 25 将，再按包扩展；军争牌玩法启用。

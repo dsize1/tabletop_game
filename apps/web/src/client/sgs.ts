@@ -23,8 +23,11 @@ const MAX_POLL_MS = 60_000;
 const FETCH_TIMEOUT_MS = 8_000;
 
 let currentData: SgsViewData | null = null;
+let currentActions: Array<{ id: string; description: string }> = [];
 let selectedCard: string | null = null;
 let unbindPress: (() => void) | null = null;
+let submitting = false;
+let boot: Bootstrap | null = null;
 
 function readBootstrap(): Bootstrap | null {
   const node = document.getElementById("sgs-bootstrap");
@@ -90,16 +93,62 @@ function updateOpsSummary(): void {
   label.textContent = card ? `已选：${cardLabel(card)}` : "未选择";
 }
 
+function canPlaySelected(): boolean {
+  return Boolean(selectedCard && currentActions.some((a) => a.id === `play:${selectedCard}`));
+}
+
 function syncSelection(): void {
   document.querySelectorAll<HTMLElement>(".sgs-hand .sgs-card").forEach((el) => {
     el.classList.toggle("selected", el.dataset.card === selectedCard);
   });
+  const confirm = document.querySelector<HTMLButtonElement>('[data-op="confirm"]');
+  if (confirm) confirm.disabled = !canPlaySelected();
+  const cancel = document.querySelector<HTMLButtonElement>('[data-op="cancel"]');
+  if (cancel) cancel.disabled = !selectedCard;
   updateOpsSummary();
 }
 
 function toggleSelect(cardId: string): void {
   selectedCard = selectedCard === cardId ? null : cardId;
   syncSelection();
+}
+
+// ---------------------------------------------------------------------------
+// 动作提交（P3.3）：草稿（选中）→ 按 pending 逐条提交；失败保留草稿并提示
+// ---------------------------------------------------------------------------
+
+function message(text: string, warn = false): void {
+  const node = document.getElementById("sgs-msg");
+  if (!node) return;
+  node.textContent = text;
+  node.classList.toggle("warn", warn);
+}
+
+async function submitAction(action: string): Promise<void> {
+  if (!boot || submitting || !action) return;
+  submitting = true;
+  document.body.classList.add("busy");
+  try {
+    const r = await fetch(`/tabletop_game/${encodeURIComponent(boot.gameId)}/action`, {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json" },
+      body: JSON.stringify({ token: boot.token, room_id: boot.roomId, action }),
+      cache: "no-store",
+    });
+    const body = (await r.json().catch(() => ({}))) as { ok?: boolean; message?: string; error?: string };
+    if (!r.ok) {
+      message(body.error ?? `提交失败（${r.status}）`, true);
+    } else {
+      message(body.message ?? "已提交");
+    }
+    await refreshNow();
+  } catch (err) {
+    console.error("[sgs] 动作提交失败", err);
+    message("连接中断，请稍后重试", true);
+  } finally {
+    submitting = false;
+    document.body.classList.remove("busy");
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -125,6 +174,30 @@ function onTap(el: HTMLElement): void {
   if (kind === "card" && el.dataset.card && currentData) {
     const card = findCard(currentData, el.dataset.card);
     if (card) openOverlay(cardLabel(card), renderCardDetail(card));
+  }
+}
+
+function onClick(ev: MouseEvent): void {
+  const target = ev.target as HTMLElement | null;
+  const opEl = target?.closest?.("[data-op]") as HTMLElement | null;
+  if (opEl) {
+    const op = opEl.dataset.op;
+    if (op === "confirm") {
+      if (selectedCard && currentActions.some((a) => a.id === `play:${selectedCard}`)) {
+        void submitAction(`play:${selectedCard}`);
+      } else {
+        message("该牌当前不可打出", true);
+      }
+    } else if (op === "cancel") {
+      selectedCard = null;
+      syncSelection();
+    }
+    return;
+  }
+  const actionEl = target?.closest?.("[data-action]") as HTMLElement | null;
+  const action = actionEl?.dataset.action;
+  if (action) {
+    void submitAction(action);
   }
 }
 
@@ -157,6 +230,7 @@ interface StateResponse {
   public?: { data?: SgsViewData };
   player?: { data?: SgsViewData };
   names?: Record<string, string>;
+  actions?: Array<{ id: string; description: string }>;
   error?: string;
 }
 
@@ -179,6 +253,7 @@ function applyState(res: StateResponse): void {
   const data = res.player?.data ?? res.public?.data;
   if (!data) return;
   currentData = data;
+  currentActions = res.actions ?? [];
   lastNames = res.names;
   // 选中的牌可能已被打出/弃置：不再存在于手牌则清空。
   if (selectedCard && !(data.player_area?.hand ?? []).some((c) => c.id === selectedCard)) {
@@ -186,7 +261,7 @@ function applyState(res: StateResponse): void {
   }
   const app = q<HTMLElement>("#sgs-app");
   if (app) {
-    app.innerHTML = renderSgsApp(data, res.names);
+    app.innerHTML = renderSgsApp(data, res.names, currentActions);
     bindInteractions();
     syncSelection();
   }
@@ -195,11 +270,22 @@ function applyState(res: StateResponse): void {
   if (meta && board) meta.textContent = `第 ${board.round} 轮 · ${board.turn.player_id ?? "-"}`;
 }
 
-function boot(): void {
+async function refreshNow(): Promise<void> {
+  if (!boot) return;
+  const res = await fetchState(boot);
+  if (!isOverlayOpen()) applyState(res);
+  setText("sgs-warn", "");
+  setText("sgs-updated", `更新于 ${hhmmss(new Date())}`);
+}
+
+function start(): void {
   const bootstrap = readBootstrap();
   if (!bootstrap) return;
+  boot = bootstrap;
   initOverlay();
   bindInteractions();
+  // 点击委托只绑一次（容器元素不变，innerHTML 重渲染不影响）
+  q<HTMLElement>("#sgs-app")?.addEventListener("click", onClick);
 
   let pollMs = bootstrap.pollMs ?? DEFAULT_POLL_MS;
   let timer: number | undefined;
@@ -246,9 +332,9 @@ function boot(): void {
 }
 
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", boot);
+  document.addEventListener("DOMContentLoaded", start);
 } else {
-  boot();
+  start();
 }
 
 // 供 P3.3 复用的内部能力（提交/刷新）

@@ -21,17 +21,23 @@ import type { SgsCard, SgsPlayerArea, SgsPublicBoard, SgsSpecialZones } from "./
 function pendingSummary(area: SgsPlayerArea): string {
   const p = area.pending;
   if (!p) return "";
-  const labels = p.options.map((o) => escapeHtml(o.label)).join(" / ");
   const extra =
     p.kind === "discard" && typeof p.data?.required === "number"
-      ? `（需弃 ${p.data.required} 张）`
+      ? `（需弃 ${p.data.required} 张，可逐张点）`
       : p.kind === "arrange"
-        ? "（观星：调整顺序后确认）"
+        ? "（观星：P3.5 提供槽位，这里可用默认顺序）"
         : "";
+  const buttons = p.options
+    .map(
+      (o) =>
+        `<button type="button" class="btn small${o.id === "pass" ? " ghost" : ""}" ` +
+        `data-action="${escapeHtml(o.id)}">${escapeHtml(o.label)}</button>`,
+    )
+    .join("");
   return (
     `<div class="sgs-pending" data-kind="${escapeHtml(p.kind)}">` +
     `<div class="sgs-pending-head">待办：${escapeHtml(p.kind)}${extra}</div>` +
-    `<div class="sgs-pending-options">${labels}</div>` +
+    `<div class="sgs-pending-actions">${buttons}</div>` +
     `</div>`
   );
 }
@@ -84,24 +90,48 @@ function wuguPanel(zones: SgsSpecialZones | undefined, names?: Record<string, st
 }
 
 /** 个人资源区。 */
+export interface SgsActionItem {
+  id: string;
+  description: string;
+}
+
 export function renderPersonalArea(
   area: SgsPlayerArea | null | undefined,
   board: SgsPublicBoard,
   zones: SgsSpecialZones | undefined,
   names?: Record<string, string>,
+  actions?: SgsActionItem[],
 ): string {
   if (!area) return `<section class="sgs-personal muted">个人资源区不可见（未坐下或已阵亡）</section>`;
+  const acts = actions ?? [];
+  const canEndPlay = acts.some((a) => a.id === "end_play");
+  const playable = new Set(
+    acts.filter((a) => a.id.startsWith("play:")).map((a) => a.id.slice("play:".length)),
+  );
+  const skillsWithAction = new Map<string, string>();
+  for (const a of acts) {
+    const m = /^skill:([a-z_]+)(?::(.+))?$/.exec(a.id);
+    if (m) skillsWithAction.set(m[2] ?? m[1], a.id);
+  }
   const kingdom = area.kingdom ? KINGDOM_LABEL[area.kingdom] ?? area.kingdom : "";
   const general = area.general_name || "未选将";
   const skills = (area.skills ?? [])
     .map(
-      (s) =>
-        `<button type="button" class="sgs-skill${s.implemented === false ? " disabled" : ""}" ` +
-        `data-skill="${escapeHtml(s.code)}" title="${escapeHtml(s.type)}"${s.implemented === false ? " disabled" : ""}>` +
-        `${escapeHtml(s.name)}</button>`,
+      (s) => {
+        const action = skillsWithAction.get(s.code);
+        return (
+          `<button type="button" class="sgs-skill${s.implemented === false ? " disabled" : ""}" ` +
+          `data-skill="${escapeHtml(s.code)}" title="${escapeHtml(s.type)}"` +
+          (action ? ` data-action="${escapeHtml(action)}"` : "") +
+          `${s.implemented === false || !action ? " disabled" : ""}>` +
+          `${escapeHtml(s.name)}</button>`
+        );
+      },
     )
     .join("");
-  const hand = (area.hand ?? []).map((c) => cardFaceHtml(c)).join("");
+  const hand = (area.hand ?? [])
+    .map((c) => cardFaceHtml(c, playable.has(c.id) ? " playable" : ""))
+    .join("");
   const equips = EQUIP_SLOT_ORDER.map((slot) => {
     const card = area.equips?.[slot] ?? null;
     const body = card
@@ -139,7 +169,7 @@ export function renderPersonalArea(
     `<span class="sgs-selected muted">未选择</span>` +
     `<button type="button" class="btn" data-op="confirm" disabled>确认打出</button>` +
     `<button type="button" class="btn ghost" data-op="cancel" disabled>取消选择</button>` +
-    `<button type="button" class="btn ghost" data-op="end_play"${isMyTurn ? "" : " disabled"}>结束出牌</button>` +
+    `<button type="button" class="btn ghost" data-action="end_play"${canEndPlay ? "" : " disabled"}>结束出牌</button>` +
     `</div>` +
     `</section>`
   );

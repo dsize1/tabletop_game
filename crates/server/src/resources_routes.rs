@@ -142,6 +142,16 @@ pub async fn game_resource(
         serde_json::to_value(public).unwrap_or_default(),
         serde_json::to_value(player).unwrap_or_default(),
     );
+    // 请求者本人的合法动作（引擎按权限过滤：非其回合/非其 pending 时为空）。
+    let actions = state
+        .games
+        .legal_actions(&room_id, &rec.openid)
+        .map(|list| {
+            list.into_iter()
+                .map(|a| serde_json::json!({ "id": a.id, "description": a.description }))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
 
     Ok(Json(serde_json::json!({
         "game_id": game_id,
@@ -149,6 +159,7 @@ pub async fn game_resource(
         "openid": rec.openid,
         "public": public,
         "player": player,
+        "actions": actions,
         "names": names,
     }))
     .into_response())
