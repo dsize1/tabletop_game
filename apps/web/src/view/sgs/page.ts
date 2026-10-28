@@ -206,6 +206,17 @@ body.busy { cursor:progress; }
     padding-top:8px; }
 }
 @media (min-width: 1024px) { .sgs-hand { flex-wrap:wrap; overflow:visible; } }
+/* 横屏手机/矮视口：压缩公共区与个人区，操作条贴底 */
+@media (max-height: 520px) {
+  .sgs-layout { min-height:0; padding-bottom:64px; gap:8px; }
+  .sgs-public { min-height:180px; }
+  .sgs-personal { padding:6px 10px; gap:5px; }
+  .sgs-hand { min-height:58px; padding-bottom:2px; }
+  .sgs-card { width:44px; height:60px; }
+  .sgs-ops { position:fixed; left:0; right:0; bottom:0; z-index:7; background:var(--sgs-panel);
+    border-top:1px solid var(--sgs-line); padding:8px 12px calc(8px + env(safe-area-inset-bottom)); }
+  .sgs-side { max-height:calc(100vh - 56px); }
+}
 @media (prefers-reduced-motion: reduce) { .sgs-card { transition:none; } }
 `;
 

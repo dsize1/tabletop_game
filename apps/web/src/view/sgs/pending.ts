@@ -83,8 +83,7 @@ export function renderWuguOverlay(
       seatLabel(board, p.data?.chooser as string | undefined, names),
     )}</p>` +
     `<div class="sgs-wugu-cards">${cardsHtml || `<span class="muted">没有可选牌</span>`}</div>` +
-    (pickedHtml ? `<p class="muted">已选：</p><ul>${pickedHtml}</ul>` : "") +
-    `<div class="sgs-zone-actions">${optionButtons(p)}</div>`
+    (pickedHtml ? `<p class="muted">已选：</p><ul>${pickedHtml}</ul>` : "")
   );
 }
 
