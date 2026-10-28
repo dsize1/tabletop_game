@@ -4,9 +4,13 @@
 //      再向 server `/auth/issue` 为每位玩家签 `game:{room_id}` 短 token，
 //      打印每个人可直接打开的 Web 页面链接。
 //
-// 前提：
-//   - server 与 web 已启动，且 **SQLITE_PATH 与本脚本一致**（快照是真相源）；
-//   - 动作提交由 server 执行（P3 单写者），因此页面里的出牌会写回同一个 SQLite。
+// 前提（**先起服务，再跑本脚本**）：
+//   1) 另一个终端前台常驻：`npm run dev:up:noqq`（或 `npm run dev:up`，含 QQ 需凭证）
+//      等它打印 server http://127.0.0.1:3000 / web http://127.0.0.1:18080；
+//   2) 再运行：`npm run sgs:web-room`
+//   脚本只建局 + 签 token，退出后对局仍在 SQLite 里，直接在浏览器点链接即可。
+//   - **SQLITE_PATH 必须与 server 一致**（快照是真相源；默认都是 data/tabletop.db）；
+//   - 动作提交由 server 执行（P3 单写者），页面里的出牌会写回同一个 SQLite。
 //
 // 用法：
 //   SQLITE_PATH=data/tabletop.db node apps/scripts/sgs-web-room.mjs
@@ -97,7 +101,18 @@ async function mintToken(openid, roomId) {
 try {
   // server 必须在跑（否则拿不到 token）
   const health = await fetch(`${SERVER_URL}/health`).catch(() => null);
-  assert(health && health.ok, `server 不可用：${SERVER_URL}（先 npm run dev:up 或启动 server）`);
+  if (!health || !health.ok) {
+    throw new Error(
+      [
+        `server 不可用：${SERVER_URL}`,
+        "先启动开发链（另一个终端前台常驻）：",
+        "  npm run dev:up:noqq     # 或 npm run dev:up（含 QQ，需要凭证）",
+        "等 server/web 就绪后再运行：",
+        "  npm run sgs:web-room",
+        `（若 server 不在 ${SERVER_URL}，用 --server 指定；web 用 --web 指定）`,
+      ].join(String.fromCharCode(10)),
+    );
+  }
 
   await client.connect(transport);
   const players = Array.from({ length: PLAYERS }, (_, i) => `sgs-web-p${i + 1}`);
