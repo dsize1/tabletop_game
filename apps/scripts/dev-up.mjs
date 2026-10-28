@@ -12,7 +12,7 @@
 
 import { spawn, spawnSync } from "node:child_process";
 import { createConnection } from "node:net";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -29,6 +29,30 @@ const FLAGS = {
 
 const children = [];
 let stopping = false;
+
+// PID 文件：dev-down.mjs（及 /apps-startup stop）只认这一个入口结束整棵进程树。
+// 历史坑：dev-up 曾不再写它 → dev-down 误报「未发现服务链」、只停 redis，
+// 留下孤儿 dev-up + server/agent/qq，表现为「停不掉 / 端口占着」。
+const pidFile = resolve(repoRoot, "data", "run", "dev-up.pid");
+
+function writePidFile() {
+  try {
+    mkdirSync(dirname(pidFile), { recursive: true });
+    writeFileSync(pidFile, `${process.pid}\n`, "utf8");
+  } catch (e) {
+    console.warn(
+      `[warn] 写 PID 文件失败（${pidFile}）：${e.message}；dev-down 将无法按 PID 停链`,
+    );
+  }
+}
+
+function removePidFile() {
+  try {
+    unlinkSync(pidFile);
+  } catch {
+    /* 文件不存在或已被删：忽略 */
+  }
+}
 
 // 从 .env 读取指定键（仅取需要的，不把全文注入所有子进程）。
 // 目的：`DEV_WHITELIST` 的**判定方是 server**（ADR-0015 §2.4），但配置一直放在
@@ -85,6 +109,7 @@ function shutdown(code = 0) {
   if (stopping) return;
   stopping = true;
   for (const c of children) killTree(c);
+  removePidFile();
   setTimeout(() => process.exit(code), 500);
 }
 process.on("SIGINT", () => shutdown(0));
@@ -140,6 +165,9 @@ if (!(await redisUp())) {
 } else {
   console.log("[redis] 已运行");
 }
+
+// Redis 就绪后再落 PID 文件：Redis 起不来时本进程会立即退出，不该留下指向僵尸的 PID 文件
+writePidFile();
 
 // 2. cargo build（可选）
 if (FLAGS.build) {
@@ -227,4 +255,5 @@ console.log(`
 已启动：${started}
   server  http://127.0.0.1:3000
   web     http://127.0.0.1:18080${propsLine}
-Ctrl+C 停止全部。`);
+  pid     ${process.pid}（已写入 ${pidFile}）
+Ctrl+C 或 \`node apps/scripts/dev-down.mjs\` 停止全部。`);

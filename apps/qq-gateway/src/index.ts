@@ -1,6 +1,13 @@
 import "dotenv/config";
 import { QQBot } from "@tencent-connect/qqbot-nodejs";
 import { Redis } from "ioredis";
+import {
+  describeFailure,
+  entryAgeMs,
+  isExpiredReply,
+  isPermanentFailure,
+  type PushEventLike,
+} from "./push-policy.js";
 
 const appId = process.env.QQBOT_APP_ID;
 const appSecret = process.env.QQBOT_APP_SECRET;
@@ -23,6 +30,10 @@ const RAW_STREAM = "qq.raw";
 const PUSH_STREAM = "qq.push";
 const GROUP = "qq-gateway";
 const CONSUMER = "qq-gateway-1";
+
+// 投递策略（超窗丢弃 / 永久失败丢弃）见 push-policy.ts
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 
 // ===== 入站：群事件 → qq.raw =====
 bot.on("ready", () => console.log("[qq-gateway] ✅ WebSocket 网关已连接"));
@@ -76,7 +87,13 @@ async function sendGroupMessage(event: {
   return await bot.sendText({ scope: "group", targetId: event.group_id }, event.content);
 }
 
-async function processPushEntries(results: unknown) {
+/** ACK 掉一条永远不可能发送成功的条目（重投只会永远失败）。 */
+async function dropEntry(id: string, reason: string) {
+  await redis.xack(PUSH_STREAM, GROUP, id);
+  console.warn(`[qq-gateway] 丢弃 ${PUSH_STREAM} [${id}]：${reason}`);
+}
+
+async function processPushEntries(results: unknown, now: () => number = Date.now) {
   for (const [, entries] of results as [string, [string, string[]][]][]) {
     for (const [id, fields] of entries) {
       // fields: [field1, value1, field2, value2, ...]
@@ -84,15 +101,40 @@ async function processPushEntries(results: unknown) {
       for (let i = 0; i < fields.length; i += 2) map[fields[i]] = fields[i + 1];
 
       const eventJson = map["event"];
-      if (!eventJson) continue;
+      if (!eventJson) {
+        // 结构损坏的条目重投永远不会成功，ACK 掉，别让它永久赖在 PEL 里
+        await dropEntry(id, "缺少 event 字段");
+        continue;
+      }
+
+      let event: PushEventLike & { group_id: string; content: string };
+      try {
+        event = JSON.parse(eventJson);
+      } catch {
+        await dropEntry(id, "event 不是合法 JSON");
+        continue;
+      }
+
+      // 被动回复已超窗：QQ 必拒，直接丢弃（停机积压重投时最常见）
+      const nowMs = now();
+      if (isExpiredReply(id, event, nowMs)) {
+        const ageS = Math.round(entryAgeMs(id, nowMs) / 1000);
+        await dropEntry(id, `被动回复已超窗（滞留 ${ageS}s > 300s）`);
+        continue;
+      }
 
       try {
-        const res = await sendGroupMessage(JSON.parse(eventJson));
+        const res = await sendGroupMessage(event);
         await redis.xack(PUSH_STREAM, GROUP, id);
         console.log(`[qq-gateway] ← ${PUSH_STREAM} 已发送 [${id}] msg_id=${res?.id ?? "?"}`);
       } catch (err) {
+        if (isPermanentFailure(err)) {
+          // 永久失败（超窗/越权/群无效）：重试只会永远失败并刷日志 → ACK 丢弃并告警
+          await dropEntry(id, `永久失败，不再重试（${describeFailure(err)}）`);
+          continue;
+        }
         console.error(`[qq-gateway] 发送失败 [${id}]，保留待重试:`, err);
-        await new Promise((r) => setTimeout(r, 500));
+        await sleep(500);
       }
     }
   }

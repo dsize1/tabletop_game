@@ -30,9 +30,23 @@
 - 主动推送做**合并/节流**，并对每个群/用户记账预算，避免打满 qpm 与每日上限
 - 发送失败（用户关闭开关 / 超限）需有兜底：记录失败，降级为下次被动回复时补发
 
+### 投递失败处理（`qq-gateway` 侧，2026-10-29 补充）
+
+| 失败类型 | 判定 | 处置 |
+|---|---|---|
+| 被动回复超窗 | Stream ID 时间戳早于 5 分钟窗口 | **ACK 丢弃**（QQ 必拒，重投无意义） |
+| 永久性业务错误 | `40034024`（msg_id 无效/越权）、`11321`（group_id 无效）、除 `429` 外的 4xx | **ACK 丢弃** + WARN |
+| 残缺条目 | 缺 `event` 字段 / JSON 解析失败 | **ACK 丢弃** + WARN |
+| 可恢复错误 | `5xx`、`429` 频控、网络错误 | 不 ACK，留 PEL，下次重启重投 |
+
+为何需要：整链停机（如 `server` 意外退出连带 `dev-up` 停掉全部子进程）后重启，PEL 里积压的
+被动回复已过 5 分钟窗口，旧代码一律“保留待重试”→ 每次重启都会对 QQ 发一次必败请求并刷屏，
+条目永久占位。实现见 `apps/qq-gateway/src/push-policy.ts`（单测 `test-push-policy.mts`）。
+
 ## 测试方式
 
 - **出站验证脚本**：`apps/verify-push.mjs` 向 `qq.push` 注入一条「主动消息」指令（`reply_msg_id=null`），观察 qq-gateway PEL/ACK 与消费者组信息；用法 `node apps/verify-push.mjs [group_openid] [content] [--no-cleanup]`
+- **投递策略单测**：`npm run test:qq-gateway`（`apps/qq-gateway/test-push-policy.mts`，纯函数 + 假时钟）
 - **真机（可选）**：传真实群 openid（`PUSH_TEST_GROUP` 或首个位置参数）发一条主动消息，需 Redis + qq-gateway（QQ 凭证 + 机器人加群 + WebSocket 在线）；会消耗主动消息日配额（1000/群/天）
 - 原 `cargo test -p push`（`ensure_event_id` / 序列化 round-trip）随 crate 删除一并移除
 

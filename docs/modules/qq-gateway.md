@@ -85,6 +85,12 @@
 - 接收群 `GROUP_AT_MESSAGE_CREATE`（@消息）
 - 原始事件写入 Redis Stream `qq.raw`（`MAXLEN ~ 1000`，字段：`eventType` / `raw` / `receivedAt`）
 - 消费 `qq.push` 发送群消息：有 `reply_msg_id` 走被动回复（显式 `msg_seq`），否则 `sendText` 主动发送；发送成功 ACK 并记录返回 `msg_id`
+- **投递失败分类**（`apps/qq-gateway/src/push-policy.ts`，单测 `test-push-policy.mts`）：
+  - **直接 ACK 丢弃**：被动回复超过 5 分钟窗口（按 Stream ID 时间戳判定，重投必被 QQ 拒）、
+    永久性业务码（`40034024` msg_id 无效或越权、`11321` group_id 无效）、除 `429` 外的 4xx、
+    以及缺 `event` 字段 / JSON 损坏的残缺条目
+  - **保留 PEL 待重试**：`5xx`、`429`（频控）、网络错误
+  - 丢弃一律打 `WARN`（含原因与滞留时长），避免“永久失败”条目永久占位 PEL、每次重启刷屏
 - SIGINT/SIGTERM 优雅退出
 
 待实现：

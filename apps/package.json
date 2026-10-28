@@ -10,6 +10,7 @@
     "dev:up:qq": "node scripts/dev-up.mjs --with-qq",
     "dev:up:noqq": "node scripts/dev-up.mjs --no-qq",
     "test:agent-gateway": "npm --workspace @tabletop-game/agent-gateway run test",
+    "test:qq-gateway": "npm --workspace @tabletop-game/qq-gateway run test",
     "test:web": "npm --workspace @tabletop-game/web run test",
     "verify:push": "node verify-push.mjs",
     "dev:props": "npm --workspace @tabletop-game/props-admin run dev",

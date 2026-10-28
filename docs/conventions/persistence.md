@@ -22,6 +22,9 @@
 - 消费模式：**消费者组**（consumer group），`XREADGROUP >`
 - ACK 时机：**处理并写 SQLite 成功后**再 `XACK`
 - 失败处理：不 ACK，消息留在 PEL，重启后重投
+  - 例外（`qq.push` 出站）：**永远不可能成功**的条目直接 ACK 丢弃——被动回复超 5 分钟窗口、
+    永久性业务码（`40034024` / `11321`）、除 429 外的 4xx、残缺条目。
+    详见 `docs/modules/push.md`「投递失败处理」、`apps/qq-gateway/src/push-policy.ts`
 - 写入：`XADD <stream> MAXLEN ~ 1000 * ...`
 
 ## 3. 幂等与去重

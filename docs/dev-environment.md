@@ -73,7 +73,8 @@ npm run dev:up:qq      # 兼容旧命令，等价于 dev:up
 > 以上命令在**仓库根目录**执行（仓库根 `package.json` 仅做转发，真正的 npm workspaces 根在 `apps/`）。
 > 也可等价地用 `cd apps && npm run dev:up`，或直接 `node apps/scripts/dev-up.mjs`。
 
-`apps/scripts/dev-up.mjs` 前台运行，Ctrl+C 停止全部子进程（含 MCP/llama-server/道具中台进程树）。
+`apps/scripts/dev-up.mjs` 前台运行，Ctrl+C 停止全部子进程（含 MCP/llama-server/道具中台进程树），
+并把自身 PID 写入 `data/run/dev-up.pid`（退出时清理），供 `dev-down` / `/apps-startup stop` 按 PID 结束整棵进程树。
 可选参数：`--no-qq`（不启动 qq-gateway）、`--no-build`（跳过 cargo build）、`--no-decision`（不启动 4.5G 决策模型）、`--no-props`（不启动道具中台）。
 
 > **Redis 是硬依赖**：脚本先探活 127.0.0.1:6379，不可达时自动尝试 `docker compose up -d`；若仍不可达则**直接报错退出（exit 1）**，不再启动后续服务（否则 server 会因连接被拒秒退，导致「已启动」后整条链路连带消失）。请先启动 Docker Desktop 并按 §1/§3 确认 Redis。
