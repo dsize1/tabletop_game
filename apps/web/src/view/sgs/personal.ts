@@ -42,28 +42,6 @@ function pendingSummary(area: SgsPlayerArea): string {
   );
 }
 
-/** 观星 owner 区（P3.1 只读占位，P3.5 接拖拽）。 */
-function guanxingPanel(zones: SgsSpecialZones | undefined): string {
-  const g = zones?.guanxing;
-  if (!g) return "";
-  const cell = (slot: string): string => {
-    const id = g.slots?.[slot];
-    if (!id) return `<div class="sgs-gx-slot empty" data-slot="${slot}"><span>${slot}</span></div>`;
-    return (
-      `<div class="sgs-gx-slot" data-slot="${slot}" data-card="${escapeHtml(id)}">` +
-      `<span class="sgs-gx-id">${slot}</span><span class="sgs-gx-card">${escapeHtml(id)}</span></div>`
-    );
-  };
-  const col = (prefix: "L" | "R"): string =>
-    Array.from({ length: g.rows }, (_, i) => cell(`${prefix}${i + 1}`)).join("");
-  return (
-    `<div class="sgs-gx" data-zone="guanxing" data-rev="${g.rev}">` +
-    `<div class="sgs-gx-col">${col("L")}</div>` +
-    `<div class="sgs-gx-col">${col("R")}</div>` +
-    `</div>`
-  );
-}
-
 function wuguPanel(zones: SgsSpecialZones | undefined, names?: Record<string, string>): string {
   const w = zones?.wugu;
   if (!w) return "";
@@ -163,7 +141,6 @@ export function renderPersonalArea(
     `</div>` +
     `<div class="sgs-hand" role="list">${hand || `<span class="muted">无手牌</span>`}</div>` +
     pendingSummary(area) +
-    guanxingPanel(zones) +
     wuguPanel(zones, names) +
     `<div class="sgs-ops" data-my-turn="${isMyTurn ? "1" : "0"}">` +
     `<span class="sgs-selected muted">未选择</span>` +

@@ -10,6 +10,18 @@ import type { SgsCard, SgsViewData } from "../view/sgs/types.js";
 import { bindPress } from "./sgs-gestures.js";
 import { closeOverlay, initOverlay, isOverlayOpen, openOverlay } from "./sgs-overlay.js";
 import {
+  GX_ROWS,
+  applyDrop,
+  applyMoveWithinColumn,
+  applyTap,
+  initialSlots,
+  renderGuanxingOverlay,
+  settle,
+  snapSlot,
+  snapThreshold,
+  type GxSlots,
+} from "../view/sgs/guanxing.js";
+import {
   isBlockingPending,
   overlayKindFor,
   pendingTitle,
@@ -41,6 +53,10 @@ let submitting = false;
 let boot: Bootstrap | null = null;
 /** 当前自动打开的 pending 浮层签名（空 = 没有 pending 浮层）。 */
 let pendingOverlaySig = "";
+/** 观星本地槽位（端侧草稿；提交时一次性发 arrange:<csv>）。 */
+let gxSlots: GxSlots | null = null;
+let gxInitial: GxSlots | null = null;
+let gxSuppressClickUntil = 0;
 
 function readBootstrap(): Bootstrap | null {
   const node = document.getElementById("sgs-bootstrap");
@@ -188,6 +204,8 @@ function syncPendingOverlay(): void {
       pendingOverlaySig = "";
       closeOverlay(true);
     }
+    gxSlots = null;
+    gxInitial = null;
     return;
   }
   const sig = pendingSignature(p);
@@ -217,11 +235,111 @@ function syncPendingOverlay(): void {
     case "choose_many":
       body = renderChooseManyOverlay(p, area, lastNames);
       break;
+    case "arrange": {
+      const zone = currentData?.special_zones?.guanxing;
+      if (!gxSlots) {
+        gxSlots = { ...(zone?.slots as GxSlots) };
+        if (!gxSlots || Object.keys(gxSlots).length === 0) {
+          gxSlots = initialSlots((zone?.cards ?? []).map((c) => c.id));
+        }
+        gxInitial = { ...gxSlots };
+      }
+      body = renderGuanxingOverlay(gxSlots, zone?.cards ?? [], { rows: zone?.rows ?? GX_ROWS });
+      break;
+    }
   }
   openOverlay(pendingTitle(p.kind), body, {
     blocking,
-    size: kind === "choose_many" || kind === "pick_card" ? "wide" : "normal",
+    size: kind === "choose_many" || kind === "pick_card" || kind === "arrange" ? "wide" : "normal",
   });
+}
+
+function redrawGuanxingOverlay(): void {
+  const zone = currentData?.special_zones?.guanxing;
+  if (!gxSlots) return;
+  openOverlay(
+    pendingTitle("arrange"),
+    renderGuanxingOverlay(gxSlots, zone?.cards ?? [], { rows: zone?.rows ?? GX_ROWS }),
+    { blocking: true, size: "wide" },
+  );
+}
+
+/** 观星拖拽（一次性绑定在浮层容器上；内容重渲染不影响监听）。 */
+function initGuanxingDrag(): void {
+  const root = document.getElementById("sgs-overlay");
+  if (!root) return;
+  let drag: {
+    slot: string;
+    el: HTMLElement;
+    x: number;
+    y: number;
+    active: boolean;
+    timer: number;
+    pointerId: number;
+  } | null = null;
+
+  const clearTimer = (): void => {
+    if (drag?.timer) window.clearTimeout(drag.timer);
+    if (drag) drag.timer = 0;
+  };
+
+  root.addEventListener("pointerdown", (ev) => {
+    if (performance.now() < 0) return;
+    const target = ev.target as HTMLElement | null;
+    if (!target?.closest(".sgs-gx")) return;
+    if (target.closest("[data-gx-move]") || target.closest("[data-gx-reset]")) return;
+    const cell = target.closest<HTMLElement>("[data-gx-slot]");
+    const slot = cell?.dataset.gxSlot;
+    if (!cell || !slot || !cell.dataset.gxCard) return;
+    drag = { slot, el: cell, x: ev.clientX, y: ev.clientY, active: false, timer: 0, pointerId: ev.pointerId };
+    const current = drag;
+    current.timer = window.setTimeout(() => {
+      if (!drag || drag !== current) return;
+      current.active = true;
+      current.el.classList.add("dragging");
+      try {
+        current.el.setPointerCapture(ev.pointerId);
+      } catch {
+        /* 合成指针可能不支持捕获 */
+      }
+    }, 380);
+  });
+
+  root.addEventListener("pointermove", (ev) => {
+    if (!drag || ev.pointerId !== drag.pointerId) return;
+    if (!drag.active) {
+      if (Math.hypot(ev.clientX - drag.x, ev.clientY - drag.y) > 8) clearTimer();
+      return;
+    }
+    ev.preventDefault();
+    drag.el.style.transform = `translate(${ev.clientX - drag.x}px, ${ev.clientY - drag.y}px)`;
+  });
+
+  const finish = (ev: PointerEvent): void => {
+    if (!drag || ev.pointerId !== drag.pointerId) return;
+    const current = drag;
+    drag = null;
+    clearTimer();
+    current.el.classList.remove("dragging");
+    current.el.style.transform = "";
+    if (!current.active) return;
+    gxSuppressClickUntil = performance.now() + 300;
+    const gx = root.querySelector<HTMLElement>(".sgs-gx");
+    if (!gx) return;
+    const rects: Record<string, { left: number; top: number; width: number; height: number }> = {};
+    gx.querySelectorAll<HTMLElement>(".sgs-gx-slot[data-gx-slot]").forEach((el) => {
+      const r = el.getBoundingClientRect();
+      rects[el.dataset.gxSlot ?? ""] = { left: r.left, top: r.top, width: r.width, height: r.height };
+    });
+    const first = Object.values(rects)[0];
+    const to = snapSlot({ x: ev.clientX, y: ev.clientY }, rects, first ? snapThreshold(first) : 0);
+    if (gxSlots && to) {
+      gxSlots = applyDrop(gxSlots, current.slot, to);
+      redrawGuanxingOverlay();
+    }
+  };
+  root.addEventListener("pointerup", finish);
+  root.addEventListener("pointercancel", finish);
 }
 
 // ---------------------------------------------------------------------------
@@ -265,6 +383,24 @@ function onClick(ev: MouseEvent): void {
       selectedCard = null;
       syncSelection();
     }
+    return;
+  }
+  // 观星槽位交互（只在浮层内）
+  const gxEl = target?.closest?.("[data-gx-slot], [data-gx-reset], [data-gx-move]") as HTMLElement | null;
+  if (gxEl && gxSlots) {
+    if (performance.now() < gxSuppressClickUntil) return; // 拖拽结束抑制一次点击
+    if (gxEl.dataset.gxReset) {
+      gxSlots = { ...(gxInitial ?? gxSlots) };
+    } else if (gxEl.dataset.gxMove) {
+      gxSlots = applyMoveWithinColumn(
+        gxSlots,
+        gxEl.dataset.gxSlot ?? "",
+        gxEl.dataset.gxMove === "up" ? -1 : 1,
+      );
+    } else {
+      gxSlots = applyTap(gxSlots, gxEl.dataset.gxSlot ?? "");
+    }
+    redrawGuanxingOverlay();
     return;
   }
   const actionEl = target?.closest?.("[data-action]") as HTMLElement | null;
@@ -359,8 +495,9 @@ function start(): void {
   boot = bootstrap;
   initOverlay();
   bindInteractions();
-  // 点击委托只绑一次（容器元素不变，innerHTML 重渲染不影响）
+  // 点击/拖拽委托只绑一次（容器元素不变，innerHTML 重渲染不影响）
   q<HTMLElement>("#sgs-app")?.addEventListener("click", onClick);
+  initGuanxingDrag();
   q<HTMLElement>("#sgs-overlay")?.addEventListener("click", onClick);
 
   let pollMs = bootstrap.pollMs ?? DEFAULT_POLL_MS;

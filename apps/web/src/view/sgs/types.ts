@@ -121,6 +121,8 @@ export interface SgsPlayerArea {
 /** 特殊交互区（按 visibility 已由服务端过滤）。 */
 export interface SgsGuanxingZone {
   owner?: string;
+  /** 本次取出的牌（owner 可见；端侧渲染槽位用）。 */
+  cards?: SgsCard[];
   visibility: string;
   rows: number;
   cols: number;

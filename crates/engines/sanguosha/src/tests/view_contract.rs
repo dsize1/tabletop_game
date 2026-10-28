@@ -310,6 +310,7 @@ fn view_contract_guanxing_zone_shape_and_visibility() {
             "rev",
             "skill",
             "interaction",
+            "cards",
         ],
         "special_zones.guanxing",
     );

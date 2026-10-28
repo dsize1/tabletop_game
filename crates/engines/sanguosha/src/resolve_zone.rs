@@ -425,6 +425,16 @@ fn write_guanxing_zone(st: &mut SgsState, f: &ArrangeFrame, slots: &[(String, Op
     payload.insert("rows".into(), json!(GUANXING_ROWS));
     payload.insert("cols".into(), json!(GUANXING_COLS));
     payload.insert("slots".into(), slots_to_value(slots));
+    // 牌面（owner 可见）：端侧渲染槽位需要点数/花色/牌名
+    payload.insert(
+        "cards".into(),
+        Value::Array(
+            f.cards
+                .iter()
+                .map(|id| crate::view::card_view(st, id))
+                .collect(),
+        ),
+    );
     payload.insert("rev".into(), json!(1));
     payload.insert("skill".into(), json!(f.skill));
     payload.insert(

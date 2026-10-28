@@ -26,6 +26,19 @@ import {
 } from "./src/view/sgs/pending.js";
 import { classifyPress, MOVE_TOLERANCE_PX, LONG_PRESS_MS } from "./src/client/sgs-gestures.js";
 import { renderSgsPage, SGS_STYLES } from "./src/view/sgs/page.js";
+import {
+  GX_SLOT_IDS,
+  applyDrop,
+  applyMoveWithinColumn,
+  applyTap,
+  arrangeAction,
+  firstEmpty,
+  initialSlots,
+  renderGuanxingOverlay,
+  settle,
+  snapSlot,
+  snapThreshold,
+} from "./src/view/sgs/guanxing.js";
 import type { SgsCard, SgsPlayerArea, SgsPublicBoard, SgsViewData } from "./src/view/sgs/types.js";
 import type { GameView } from "./src/view/types.js";
 
@@ -184,8 +197,8 @@ const zones: SgsViewData["special_zones"] = {
   },
 };
 const personalWithZones = renderPersonalArea(me, board, zones, names);
-assert.ok(personalWithZones.includes('data-zone="guanxing"'), "观星区渲染");
-assert.ok(personalWithZones.includes('data-slot="L1"'), "观星槽位 id");
+// 观星自 P3.5 起只在 pending 浮层里渲染（个人区不再重复占位）
+assert.ok(!personalWithZones.includes('data-zone="guanxing"'), "观星改由浮层承载");
 assert.ok(personalWithZones.includes('data-zone="wugu"') && personalWithZones.includes('data-pick="c5"'), "五谷选牌按钮");
 assert.ok(personalWithZones.includes("五谷丰登 · 当前 李四"), "五谷当前选择者");
 
@@ -438,3 +451,64 @@ assert.ok(!blockingShell.includes('data-overlay-close="button"'), "阻塞浮层�
 assert.ok(blockingShell.includes("sgs-overlay-lock"), "阻塞浮层显示「需选择」");
 
 console.log("[sgs-web] 特殊区 pending 浮层单测通过 ✅");
+
+// —— P3.5 观星 2×5 ——
+const gx0 = initialSlots(["c3", "c1", "c2"]);
+assert.deepEqual(
+  GX_SLOT_IDS,
+  ["L1", "L2", "L3", "L4", "L5", "R1", "R2", "R3", "R4", "R5"],
+  "槽位恒为 10",
+);
+assert.deepEqual([gx0.L1, gx0.L2, gx0.L3, gx0.L4, gx0.R1], ["c3", "c1", "c2", null, null], "初始 L1..Lk");
+assert.equal(firstEmpty(gx0, "L"), "L4");
+assert.equal(firstEmpty(gx0, "R"), "R1");
+
+// 短按：跨列首个空槽
+const tap1 = applyTap(gx0, "L1");
+assert.equal(tap1.L1, null);
+assert.equal(tap1.R1, "c3", "短按移入另一列首个空槽");
+assert.deepEqual(settle(tap1), ["c1", "c2", "c3"], "跳空压缩：左列接右列");
+
+// 同列上移/下移（与相邻槽交换）
+const moved = applyMoveWithinColumn(gx0, "L3", -1);
+assert.deepEqual([moved.L2, moved.L3], ["c2", "c1"], "上移=与上一槽交换");
+assert.deepEqual(applyMoveWithinColumn(gx0, "L1", -1), gx0, "越界不移动");
+assert.deepEqual(applyMoveWithinColumn(gx0, "L1", 1).L1, "c1", "下移后原位置拿到下方牌");
+
+// 拖拽：空槽放入 / 有牌交换 / 同槽或超距回原位
+const dropEmpty = applyDrop(gx0, "L1", "R2");
+assert.equal(dropEmpty.R2, "c3");
+assert.equal(dropEmpty.L1, null);
+const dropSwap = applyDrop(gx0, "L1", "L2");
+assert.deepEqual([dropSwap.L1, dropSwap.L2], ["c1", "c3"], "有牌槽交换");
+assert.deepEqual(applyDrop(gx0, "L1", null), gx0, "超距回原位");
+assert.deepEqual(applyDrop(gx0, "L1", "L1"), gx0, "落回原槽无操作");
+assert.deepEqual(applyDrop(gx0, "L4", "R1"), gx0, "空槽不可拖动");
+
+// 吸附：阈值 = 槽短边 10%
+const rect = { left: 0, top: 0, width: 80, height: 40 };
+assert.equal(snapThreshold(rect), 4, "阈值取短边 10%");
+const rects = { L1: rect, L2: { left: 0, top: 50, width: 80, height: 40 } };
+assert.equal(snapSlot({ x: 40, y: 20 }, rects, 4), "L1", "中心吸附");
+assert.equal(snapSlot({ x: 40, y: 71 }, rects, 4), "L2", "就近吸附（L2 中心 ±4px 内）");
+assert.equal(snapSlot({ x: 40, y: 35 }, rects, 4), null, "超出阈值返回 null");
+
+// 提交 id
+assert.equal(arrangeAction(tap1), "arrange:c1,c2,c3");
+assert.equal(arrangeAction(initialSlots([])), "arrange:");
+
+// 渲染
+const gxCards = [
+  { id: "c3", def: "sha", name: "杀", suit: "spade", rank: 3 },
+  { id: "c1", def: "shan", name: "闪", suit: "heart", rank: 1 },
+  { id: "c2", def: "tao", name: "桃", suit: "diamond", rank: 2 },
+] as const;
+const gxHtml = renderGuanxingOverlay(gx0, gxCards as never);
+assert.ok(gxHtml.includes('data-gx-slot="L1"') && gxHtml.includes('data-gx-card="c3"'), "槽位渲染");
+assert.ok(gxHtml.includes("♠3") && gxHtml.includes("杀"), "牌面渲染");
+assert.ok(gxHtml.includes('data-gx-move="down"'), "下移按钮");
+assert.ok(gxHtml.includes("data-gx-reset"), "重置按钮");
+assert.ok(gxHtml.includes('data-action="arrange:c3,c1,c2"'), "提交动作 id");
+assert.ok(gxHtml.includes("最终顺序（顶 → 底）：杀♠3 → 闪♥A → 桃♦2"), "顺序预览");
+
+console.log("[sgs-web] 观星纯函数/渲染单测通过 ✅");

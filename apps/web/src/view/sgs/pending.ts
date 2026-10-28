@@ -179,7 +179,9 @@ export function renderChooseManyOverlay(
 }
 
 /** 该 pending 是否用浮层呈现（其余留在个人区操作条）。 */
-export function overlayKindFor(p: SgsPending): "wuxie" | "dying" | "wugu" | "pick_card" | "target" | "choose_many" | null {
+export function overlayKindFor(
+  p: SgsPending,
+): "wuxie" | "dying" | "wugu" | "pick_card" | "target" | "choose_many" | "arrange" | null {
   switch (p.kind) {
     case "wuxie":
     case "dying":
@@ -187,6 +189,7 @@ export function overlayKindFor(p: SgsPending): "wuxie" | "dying" | "wugu" | "pic
     case "pick_card":
     case "target":
     case "choose_many":
+    case "arrange":
       return p.kind;
     default:
       return null;
@@ -195,7 +198,13 @@ export function overlayKindFor(p: SgsPending): "wuxie" | "dying" | "wugu" | "pic
 
 /** 不可误关（必须显式选择）的 pending。 */
 export function isBlockingPending(kind: string): boolean {
-  return kind === "wuxie" || kind === "dying" || kind === "wugu" || kind === "pick_card";
+  return (
+    kind === "wuxie" ||
+    kind === "dying" ||
+    kind === "wugu" ||
+    kind === "pick_card" ||
+    kind === "arrange"
+  );
 }
 
 /** 标题。 */
@@ -207,6 +216,7 @@ export function pendingTitle(kind: string): string {
     pick_card: "选择一张牌",
     target: "选择目标",
     choose_many: "选择手牌",
+    arrange: "观星",
   };
   return map[kind] ?? "待办";
 }

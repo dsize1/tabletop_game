@@ -118,6 +118,15 @@ button { font: inherit; color: inherit; }
 .btn.small { padding:6px 10px; min-height:34px; font-size:12px; border-radius:8px; }
 .sgs-card.playable { border-color:#8a6d1f; box-shadow:0 0 0 1px rgba(227,179,65,.35) inset; }
 .sgs-gx { display:flex; gap:10px; justify-content:center; }
+.sgs-gx-col-head { font-size:11px; color:var(--sgs-muted); text-align:center; margin-bottom:4px; }
+.sgs-gx-face { display:flex; flex-direction:column; align-items:center; line-height:1.1; }
+.sgs-gx-face.red { color:#ff9b95; }
+.sgs-gx-rank { font-weight:700; font-size:12px; }
+.sgs-gx-name { font-size:11px; }
+.sgs-gx-moves { display:flex; gap:2px; }
+.sgs-gx-move { width:20px; height:18px; padding:0; font-size:9px; border-radius:4px; border:1px solid #3d4757;
+  background:#1c232c; color:#c9d1d9; cursor:pointer; }
+.sgs-gx-slot.dragging { z-index:5; box-shadow:0 8px 24px rgba(0,0,0,.6); border-color:var(--sgs-gold); position:relative; }
 .sgs-gx-col { display:flex; flex-direction:column; gap:4px; }
 .sgs-gx-slot { width:clamp(60px,12vw,110px); height:clamp(34px,5vw,44px); border-radius:8px;
   border:1px dashed #3d4757; display:flex; align-items:center; justify-content:center; gap:4px; font-size:11px; }
