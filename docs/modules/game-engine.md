@@ -44,6 +44,14 @@
 
 > 决策模型的输出只作为"建议"传入，引擎不信任任何上游（含 agent），必过 1/2 两步。
 
+## 动作执行宿主（P3，2026-10-28）
+
+| 链路 | 宿主 | 说明 |
+|---|---|---|
+| Web（三国杀页） | **server 内置 `GameManager`** | `web POST /tabletop_game/:gameId/action` → `server POST /internal/game/{gameId}/{roomId}/action`（仅本机）→ 引擎执行 → `game_events` + 快照。**单写者**：P3–P6 三国杀动作只走此入口；MCP 仅建局/种子局（不并发） |
+| Q / dev | `game-engine-mcp`（stdio，agent-gateway 拉起） | 现有链路不变；P7 接入三国杀 Q 交互时统一改走 server 执行入口，避免双写 |
+| 快照真相源 | SQLite `game_state` | server 首次访问某房间时按需 `restore`（`resources_routes::ensure_room`），支持「MCP 建局 → Web 接管」 |
+
 ## 事件溯源
 
 - `events` 表 append-only：`seq` 自增 + `event_id` 唯一 + 状态变更事件

@@ -12,6 +12,7 @@
   - `GET /dev_docs/file?token=xxx&root=<name>&path=<rel>`：文档内容页（仅 `.md`，marked 渲染）
   - `GET /tabletop_game/{gameId}/player/{openid}?token=xxx`：游戏资源页（**双模式**：默认**版图**，页内 `#board` / `#text` 切换；服务端 SSR 首屏 + 客户端 bundle，见 `docs/modules/board-view.md`）
   - `GET /tabletop_game/{gameId}/state?token=xxx`：**状态 JSON**（页面轮询用；同一套 token 校验，401/404/503 语义同页面）
+  - `POST /tabletop_game/{gameId}/action`：**动作提交**（P3）。`fetch` 用 JSON（`Accept: application/json`）直接返回 `{ok,message}`；无 JS 时普通表单 `application/x-www-form-urlencoded` 提交后 `303` 回页面（PRG）。token 资源范围必须等于 `game:{room_id}`（越权 403），服务端转发到 `server /internal/game/{gameId}/{roomId}/action` 执行并落库。
   - `GET /board-assets/*`：版图素材（公开静态，文件名带内容哈希 → `immutable`）；`GET /assets/*`：页面 runtime bundle
   - `GET /health`：健康检查（cloudflared 探活）
 - markdown(GFM) 渲染：`src/render.ts`（marked，表格/复选框/代码块）。**后续** game/dev 引擎以 MCP 能力暴露统一的「web 渲染原语」，届时此层迁移为调用统一原语
@@ -42,7 +43,7 @@
 ### 统一「web 渲染原语」评估（2026-10-13）
 
 - docs 预览本期已按「MCP 原语（`docs-mcp`：授权 + 范围校验）→ server 资源 API → web 渲染」分层落地。
-- 现状：game 资源页已接入——**脱敏在 server 侧**（读 `game_state` 快照 → `las_vegas` 引擎 `public_state`/`player_view`），web 只渲染 JSON（`src/view/text.ts`：赌场、玩家、**加密选项**、小游戏状态四张表；`src/view/board/scene.ts`：版图场景）；加密选项来自 `player_view`，公共视图不含。token 资源范围为 `game:{room_id}`，room_id 由资源范围解析。后续如需多引擎统一渲染，再评估下沉为引擎侧「web 渲染原语」。
+- 现状：game 资源页已接入——**脱敏在 server 侧**（读 `game_state` 快照 → **按 `game_id` 分派引擎** `public_state`/`player_view`；P3 起含 `sanguosha`，未注册引擎不再原样下发内部状态），web 只渲染 JSON（`src/view/text.ts`：赌场、玩家、**加密选项**、小游戏状态四张表；`src/view/board/scene.ts`：版图场景）；加密选项来自 `player_view`，公共视图不含。token 资源范围为 `game:{room_id}`，room_id 由资源范围解析。后续如需多引擎统一渲染，再评估下沉为引擎侧「web 渲染原语」。
 - 纯函数渲染有单测：`apps/web/test-render.mts`（`npm --workspace @tabletop-game/web run test`）。
 
 ## 约定

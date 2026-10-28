@@ -65,6 +65,14 @@
 | 只做 Web、不做 Q | 否：Q 仍承担拉人/开局/状态/链接，链路需要 |
 | **Web 主交互 + WebView 复用 + Q 精简 + 区域三分** | **采纳**：体验、维护成本、隐藏信息与后续权鉴都可控 |
 
+### 5. 动作执行宿主与投影（2026-10-28 补充，用户裁定）
+
+- **Web 动作由 server 执行（方案 A）**：`web POST /tabletop_game/:gameId/action` → `server POST /internal/game/{gameId}/{roomId}/action`（仅本机）→ 引擎执行 → `game_events` + `game_state` 快照。
+  - 理由：MCP 是 gateway 以 stdio 拉起的进程，Web 无法直接复用；storage 无 CAS（last-write-wins），必须**单写者**。
+  - 约定：P3–P6 三国杀动作只由 Web/server 提交，MCP 仅建局/种子局（不并发）；P7 接入 Q 时统一走同一执行入口。
+- **引擎投影不是权限**：`/resources/game/{gameId}` 必须按 `game_id` 分派到引擎 `public_state` / `player_view`（P3 前只认 las-vegas，其它引擎原样下发内部状态 → 会泄漏手牌/身份/牌堆顺序）。
+- **权限（QQ 扫码登录 → openId 认证、token scope、动作级校验）仍按 §3 推到 P8**；P3 沿用 openid 绑定短 token + `game:{room_id}` 范围。
+
 ## 影响
 
 - **引擎**：`public_state` / `player_view` 按三区投影；`special_zones` 纳入契约；新增交互原语（P2.4）。

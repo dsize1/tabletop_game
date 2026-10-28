@@ -17,6 +17,7 @@
     "test:props": "npm --workspace @tabletop-game/props-admin run build",
     "check:props-boundary": "node scripts/check-props-admin-boundary.mjs",
     "gen:sgs-engine-data": "node scripts/gen-sanguosha-engine-data.mjs",
+    "sgs:web-room": "node scripts/sgs-web-room.mjs",
     "check:sgs-engine-data": "node scripts/gen-sanguosha-engine-data.mjs --check"
   },
   "workspaces": [

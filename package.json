@@ -25,6 +25,7 @@
     "check:sgs-engine-data": "node apps/scripts/gen-sanguosha-engine-data.mjs --check",
     "check:sgs-view-contract": "cargo test --manifest-path crates/Cargo.toml -p sanguosha view_contract",
     "check:interaction-primitives": "cargo test --manifest-path crates/Cargo.toml -p sanguosha interaction_",
-    "verify:sanguosha": "node apps/verify-sanguosha.mjs"
+    "verify:sanguosha": "node apps/verify-sanguosha.mjs",
+    "sgs:web-room": "node apps/scripts/sgs-web-room.mjs"
   }
 }

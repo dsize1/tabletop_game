@@ -63,6 +63,33 @@ async fn read_plan_markdown(state: &AppState, session_id: &str) -> Result<String
         .map_err(|_| StatusCode::NOT_FOUND)
 }
 
+/// 把快照按需恢复到内存（server 是 Web 动作宿主；快照是真相源）。
+///
+/// - 内存里已有该房间 → 直接返回；
+/// - 否则从 `game_state` 读快照并 `restore`（支持 MCP 先建局、server 后接管）；
+/// - 快照不存在或 `game_id` 不匹配 → 404。
+pub(crate) fn ensure_room(
+    state: &AppState,
+    game_id: &str,
+    room_id: &str,
+) -> Result<(), StatusCode> {
+    if state.games.get_state(room_id).is_some() {
+        return Ok(());
+    }
+    let snapshot = state
+        .storage
+        .get_game_snapshot(game_id, room_id)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .ok_or(StatusCode::NOT_FOUND)?;
+    let snapshot: game_engine_core::GameState =
+        serde_json::from_str(&snapshot).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    if snapshot.game_id != game_id {
+        return Err(StatusCode::NOT_FOUND);
+    }
+    state.games.restore(snapshot);
+    Ok(())
+}
+
 /// game 资源：返回对局的**公共视图** + **玩家个人视图**（引擎脱敏）。
 /// 安全约束：
 /// - token 必填且有效（401）；
@@ -92,22 +119,29 @@ pub async fn game_resource(
     let game_state: game_engine_core::GameState =
         serde_json::from_str(&snapshot).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
+    if game_state.game_id != game_id {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
     // 群昵称：agent-gateway 在每次 @消息 时写入 Redis hash `names:{group_id}`。
     let names = load_names(&state.redis_url, &game_state.group_id).await;
 
-    // 引擎脱敏（目前仅 las-vegas；其它引擎直接返回原状态）。
-    use game_engine_core::EnginePlugin;
-    let engine = las_vegas::LasVegasEngine;
-    let engine: &dyn EnginePlugin = &engine;
-    let (public, player) = if game_state.game_id == engine.game_id() {
-        (
-            serde_json::to_value(engine.public_state(&game_state)).unwrap_or_default(),
-            serde_json::to_value(engine.player_view(&game_state, &rec.openid)).unwrap_or_default(),
-        )
-    } else {
-        let v = serde_json::to_value(&game_state).unwrap_or_default();
-        (v.clone(), v)
-    };
+    // 引擎投影（P3）：按 game_id 分派到引擎 `public_state` / `player_view`。
+    // 注意：这里**不是**权限层（P8），而是引擎视图契约——
+    // 未注册的引擎不能把内部状态原样下发（会泄漏手牌/身份/牌堆顺序）。
+    ensure_room(&state, &game_id, &room_id)?;
+    let public = state
+        .games
+        .public_state(&room_id)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let player = state
+        .games
+        .player_view(&room_id, &rec.openid)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let (public, player) = (
+        serde_json::to_value(public).unwrap_or_default(),
+        serde_json::to_value(player).unwrap_or_default(),
+    );
 
     Ok(Json(serde_json::json!({
         "game_id": game_id,

@@ -1241,6 +1241,7 @@ dependencies = [
  "game-engine-core",
  "las-vegas",
  "redis",
+ "sanguosha",
  "serde",
  "serde_json",
  "shared",

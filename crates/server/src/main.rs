@@ -8,6 +8,7 @@
 
 mod auth_routes;
 mod dev_routes;
+mod game_routes;
 mod dev_state;
 mod docs_routes;
 mod gameprops_routes;
@@ -39,6 +40,8 @@ struct AppState {
     props_admin_token: Option<String>,
     /// 道具数据目录（heroes.json / cards.json）
     props_data_dir: std::path::PathBuf,
+    /// 对局执行宿主（P3：Web 动作由 server 执行；单写者约定见计划台账）
+    games: Arc<game_engine_core::GameManager>,
 }
 
 #[tokio::main]
@@ -56,6 +59,13 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or(auth::DEFAULT_TTL_SECS);
 
     let storage = Arc::new(storage::Storage::open(&sqlite_path)?);
+
+    // 对局引擎注册表：server 作为 Web 动作的执行宿主（P3，单写者）。
+    // 快照是真相源：房间不在内存时按需从 SQLite 恢复（见 resources_routes::ensure_room）。
+    let mut registry = game_engine_core::EngineRegistry::new();
+    registry.register(las_vegas::LasVegasEngine);
+    registry.register(sanguosha::SanguoshaEngine);
+    let games = Arc::new(game_engine_core::GameManager::new(registry));
 
     // 开发白名单（从 MCP env 迁到 server env；空白名单 = 全拒）
     let dev_whitelist: HashSet<String> = std::env::var("DEV_WHITELIST")
@@ -114,6 +124,7 @@ async fn main() -> anyhow::Result<()> {
             std::env::var("GAMEPROPS_DATA_DIR")
                 .unwrap_or_else(|_| "docs/games/sanguosha/data".to_string()),
         ),
+        games,
     };
     let app = Router::new()
         .route("/health", get(health))
@@ -126,6 +137,11 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/resources/game/{game_id}",
             get(resources_routes::game_resource),
+        )
+        // Web 动作通路（P3，仅本机；单写者由 web/server 承担）
+        .route(
+            "/internal/game/{game_id}/{room_id}/action",
+            post(game_routes::execute_action),
         )
         .route("/resources/docs/tree", get(docs_routes::docs_tree))
         .route("/resources/docs/file", get(docs_routes::docs_file))

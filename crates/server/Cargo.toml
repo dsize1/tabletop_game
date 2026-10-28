@@ -10,6 +10,7 @@ storage = { path = "../storage" }
 bot-adapter = { path = "../bot-adapter" }
 game-engine-core = { path = "../game-engine-core" }
 las-vegas = { path = "../engines/las-vegas" }
+sanguosha = { path = "../engines/sanguosha" }
 auth = { path = "../auth" }
 axum.workspace = true
 serde.workspace = true

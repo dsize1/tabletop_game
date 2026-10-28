@@ -258,6 +258,13 @@
 
 依赖：P2.1–P2.3（状态与视图稳定）。
 
+**P3.0 实施记录（2026-10-28，数据与动作通路）**
+
+- **投影修复**：`server /resources/game/{gameId}` 改为按 `game_id` 分派引擎（`server` 注册 `las-vegas` + `sanguosha`），未注册引擎不再原样返回内部状态；新增 `resources_routes::ensure_room`（内存无房间时按需从 `game_state` 恢复）。
+- **动作通路（方案 A，单写者）**：`server POST /internal/game/{gameId}/{roomId}/action`（仅本机）→ `GameManager::execute_action` → `game_events` + 快照（version 对齐最后 seq）；`web POST /tabletop_game/:gameId/action`（短 token 校验 `resource == game:{room_id}`）→ JSON（fetch）或 `303` PRG（无 JS 表单）。
+- **本地脚手架**：`apps/scripts/sgs-web-room.mjs`（MCP 建局→选将→停在出牌 → `/auth/issue` 签 token → 打印每人链接；`--dump-state` 导出 `{public, players}` 前端 fixture）。
+- **验证**：sanguosha 公共视图无 `hand`、`player_area=null`、无他人特殊区；Web JSON 提交 `end_play`/`discard:<id>` 生效（turn_index 推进、快照 version 递增、事件入库）；跨房间 token → 403；无 JS 表单（token 在 body）→ 303；`npm run sgs:web-room` 可一键起局。
+
 ### P4 武将 / 军争扩展（XL，持续）
 
 **目标**：先补齐标准包 25 将，再按包扩展；军争牌玩法启用。
