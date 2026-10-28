@@ -5,7 +5,6 @@ use super::{
     clear_hands, drive_mgr_inject, drive_state_inject, edit, give, manager, state_of, take_card,
 };
 use crate::state::*;
-use game_engine_core::GameManager;
 
 #[test]
 fn rende_gives_cards_and_heals_after_two() {

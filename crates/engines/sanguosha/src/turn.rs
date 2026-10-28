@@ -167,6 +167,11 @@ pub(crate) fn phase_step(
                 "phase_start",
                 json!({ "phase": "prepare", "seat": st.turn, "player": pid }),
             ));
+            // 观星（P2.5）：准备阶段自动进入特殊区 `guanxing`（不可取消，见 special-zones §5）。
+            if crate::skills::has(st, st.turn, "guanxing") && st.counter("guanxing_done") == 0 {
+                st.set_counter("guanxing_done", 1);
+                resolve::push(st, crate::resolve_zone::start_guanxing(st.turn));
+            }
             st.turn_phase = TurnPhase::Judge;
             Ok(true)
         }
@@ -282,6 +287,9 @@ fn end_turn(st: &mut SgsState, events: &mut Vec<EngineEvent>) {
     ));
     st.turn_counters.clear();
     st.special_zones.remove("judge");
+    // 特殊区（观星/五谷）必须在回合内结算完毕；收尾清理防止残留投影。
+    st.special_zones.remove(crate::resolve_zone::GUANXING_ZONE);
+    st.special_zones.remove(crate::resolve_zone::WUGU_ZONE);
 
     let alive = st.alive_indices();
     if alive.len() <= 1 {
@@ -468,8 +476,8 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
             "sha" => st.counter("sha_used") < sha_limit && !targets.is_empty(),
             "tao" => st.seats[idx].hp < st.seats[idx].max_hp,
             "shan" | "wuxie_keji" => false,
-            // 五谷丰登留 P2.4/P2.5（特殊区 wugu）
-            "wugu_fengdeng" => false,
+            // 五谷丰登（P2.5）：亮牌 → 释放者先选 → 座位顺序
+            "wugu_fengdeng" => true,
             "wuzhong_shengyou" => true,
             "shunshou_qianyang" => st
                 .alive_indices()
@@ -743,7 +751,15 @@ fn play_card(
             st.push_log(Some(&actor), format!("使用【{label}】"));
             Ok("请选择目标".to_string())
         }
-        "wugu_fengdeng" => Err(illegal("【五谷丰登】暂未实现（P2.4/P2.5）")),
+        "wugu_fengdeng" => {
+            take_card(st, idx, card_id)?;
+            st.deck.processing.push(card_id.to_string());
+            crate::resolve_zone::start_wugu(st, idx, card_id);
+            st.push_log(Some(&actor), format!("使用【{label}】"));
+            // 集智：使用非延时锦囊摸 1
+            crate::skills::on_non_delayed_trick_used(st, idx, events);
+            Ok(format!("使用【{label}】，请依次选牌"))
+        }
         _ if def.category == Category::Trick => {
             // 需要目标的锦囊先做一次合法性预检
             if def.code != "wuzhong_shengyou"

@@ -67,8 +67,8 @@ fn jianxiong_gains_damage_card() {
         .unwrap();
     mgr.execute_action(&room, &cur_pid, &format!("target:{victim_pid}"))
         .unwrap();
-    mgr.execute_action(&room, &victim_pid, "pass").unwrap();
 
+    // 受伤者无手牌 → 【闪】询问自动跳过，直接进入奸雄选择。
     let st = state_of(&mgr, &room);
     let pending = st.pending.clone().expect("奸雄应询问");
     assert_eq!(pending.kind, "choice");
@@ -261,7 +261,6 @@ fn jiuyuan_adds_one_heal_from_wu_ally() {
         .unwrap();
     mgr.execute_action(&room, &cur_pid, &format!("target:{victim_pid}"))
         .unwrap();
-    mgr.execute_action(&room, &victim_pid, "pass").unwrap();
 
     let mut healed = false;
     for _ in 0..20 {

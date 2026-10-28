@@ -654,7 +654,7 @@ fn spy_wins_when_last_alive_after_lord_death() {
 fn random_play_keeps_conservation() {
     let mgr = manager(42);
     let room = start_and_pick(&mgr, 5);
-    let mut last = String::new();
+    let mut last;
     for step in 0..400 {
         let st = state_of(&mgr, &room);
         if st.phase == Phase::Finished {

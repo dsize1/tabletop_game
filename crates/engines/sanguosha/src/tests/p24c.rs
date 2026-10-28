@@ -3,7 +3,6 @@
 use super::p24::{in_hand, others, pid, set_general, start_and_pick};
 use super::{clear_hands, drive_mgr_inject, edit, find_card, give, manager, state_of, take_card};
 use crate::state::*;
-use game_engine_core::GameManager;
 
 #[test]
 fn qinggang_ignores_renwang() {
@@ -161,6 +160,8 @@ fn qinggang_disables_bagua_option() {
         st.seats[target]
             .equips
             .insert(EquipSlot::Armor, Some(bagua));
+        // 给目标一张无关手牌：驱动「有手牌时仍显式询问」（无手牌会被自动跳过）。
+        give(st, target, "tao");
     });
     let st = state_of(&mgr, &room);
     let cur = st.turn;
@@ -205,7 +206,6 @@ fn keji_with_sha_still_discards() {
         .unwrap();
     mgr.execute_action(&room, &cur_pid, &format!("target:{target_pid}"))
         .unwrap();
-    mgr.execute_action(&room, &target_pid, "pass").unwrap();
     mgr.execute_action(&room, &cur_pid, "end_play").unwrap();
 
     let st = state_of(&mgr, &room);
@@ -329,7 +329,6 @@ fn jiuyuan_no_bonus_for_non_wu() {
         .unwrap();
     mgr.execute_action(&room, &cur_pid, &format!("target:{lord_pid}"))
         .unwrap();
-    mgr.execute_action(&room, &lord_pid, "pass").unwrap();
 
     let mut healed = false;
     for _ in 0..20 {

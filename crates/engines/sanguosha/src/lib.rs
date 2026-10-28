@@ -10,6 +10,7 @@ mod data;
 mod resolve;
 mod resolve_more;
 mod resolve_skill;
+mod resolve_zone;
 mod skills;
 mod state;
 mod turn;

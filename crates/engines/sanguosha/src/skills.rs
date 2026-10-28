@@ -133,6 +133,21 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
         kind: SkillType::Normal,
         implemented: true,
     }];
+    // P2.5：观星（特殊区 `guanxing`）；空城留 P4。
+    const ZHUGELIANG: &[SkillDef] = &[
+        SkillDef {
+            code: "guanxing",
+            name: "观星",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "kongcheng",
+            name: "空城",
+            kind: SkillType::Locked,
+            implemented: false,
+        },
+    ];
     match general {
         "sgs_hero_1" => LIUBEI,
         "sgs_hero_15" => CAOCAO,
@@ -142,6 +157,7 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
         "sgs_hero_24" => DIAOCHAN,
         "sgs_hero_18" => ZHANGLIAO,
         "sgs_hero_9" => GANNING,
+        "sgs_hero_4" => ZHUGELIANG,
         _ => &[],
     }
 }
@@ -216,6 +232,9 @@ pub fn requisition_available(st: &SgsState, seat: usize, needed: &str) -> bool {
 }
 
 /// 接力询问顺序：从主公左手侧开始的同势力存活角色。
+///
+/// **无手牌的同势力角色不进入询问队列**（无牌可代出；手牌数是公共信息，
+/// 与 `special-zones.md` §4.1 的响应询问口径一致）。
 pub fn requisition_order(st: &SgsState, seat: usize, needed: &str) -> Vec<String> {
     let faction = match needed {
         "sha" => "shu",
@@ -224,7 +243,9 @@ pub fn requisition_order(st: &SgsState, seat: usize, needed: &str) -> Vec<String
     };
     st.seats_from_left_of(seat)
         .into_iter()
-        .filter(|i| st.seats[*i].alive && kingdom(st, *i) == faction)
+        .filter(|i| {
+            st.seats[*i].alive && kingdom(st, *i) == faction && !st.seats[*i].hand.is_empty()
+        })
         .map(|i| st.seats[i].player_id.clone())
         .collect()
 }

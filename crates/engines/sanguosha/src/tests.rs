@@ -145,22 +145,29 @@ fn clear_hands(st: &mut SgsState) {
 }
 
 /// 测试驱动：推进结算栈，遇到响应类 pending 一律 pass（模拟无人响应）。
+///
+/// P2.5 起还有「必须选择」的 pending（观星 `arrange`、五谷 `wugu`），没有 `pass` 选项时
+/// 取第一个候选（端侧默认顺序 / 第一张亮牌）。
 fn drive(st: &mut SgsState) {
     let mut events = Vec::new();
     for _ in 0..300 {
         crate::resolve::advance(st, &mut events).unwrap();
         let Some(p) = st.pending.clone() else { return };
-        assert!(
-            matches!(p.kind.as_str(), "wuxie" | "respond" | "dying"),
-            "drive 未预期的 pending：{}",
-            p.kind
-        );
-        crate::resolve::execute_pending(st, &p.actor, "pass").unwrap();
+        let action = if p.options.iter().any(|o| o.id == "pass") {
+            "pass".to_string()
+        } else {
+            p.options
+                .first()
+                .unwrap_or_else(|| panic!("pending {} 无候选", p.kind))
+                .id
+                .clone()
+        };
+        crate::resolve::execute_pending(st, &p.actor, &action).unwrap();
     }
     panic!("drive 未收敛");
 }
 
-/// 注入格式：`"<openid>=<action>"`；未命中则 pass。
+/// 注入格式：`"<openid>=<action>"`；未命中则 pass（无 pass 候选时取首项）。
 fn take_inject(inject: &mut Vec<String>, actor: &str, kind: &str) -> String {
     for key in [format!("{actor}|{kind}="), format!("{actor}=")] {
         if let Some(i) = inject.iter().position(|x| x.starts_with(&key)) {
@@ -171,56 +178,51 @@ fn take_inject(inject: &mut Vec<String>, actor: &str, kind: &str) -> String {
     "pass".into()
 }
 
-/// 状态级驱动：推进结算栈，按注入规则响应，否则 pass。
+/// 观星（P2.5）在准备阶段自动进入；测试中如只需推进，就提交端侧默认顺序。
+fn resolve_arrange(mgr: &GameManager, room: &str) {
+    for _ in 0..8 {
+        let st = state_of(mgr, room);
+        let Some(p) = st.pending.clone() else { return };
+        if p.kind != "arrange" {
+            return;
+        }
+        let action = p
+            .options
+            .first()
+            .unwrap_or_else(|| panic!("观星无提交选项"))
+            .id
+            .clone();
+        mgr.execute_action(room, &p.actor, &action).unwrap();
+    }
+}
+
+/// 状态级驱动：推进结算栈，按注入规则响应，否则 pass（无 pass 候选时取首项）。
 fn drive_state_inject(st: &mut SgsState, inject: &mut Vec<String>) {
     let mut events = Vec::new();
     for _ in 0..800 {
         crate::resolve::advance(st, &mut events).unwrap();
         let Some(p) = st.pending.clone() else { return };
-        let action = take_inject(inject, &p.actor, &p.kind);
+        let mut action = take_inject(inject, &p.actor, &p.kind);
+        if action == "pass" && !p.options.iter().any(|o| o.id == "pass") {
+            action = p.options.first().map(|o| o.id.clone()).unwrap_or(action);
+        }
         crate::resolve::execute_pending(st, &p.actor, &action).unwrap();
     }
     panic!("drive_state_inject 未收敛");
 }
 
-/// 管理器级驱动：推进 pending，按注入规则响应，否则 pass。
+/// 管理器级驱动：推进 pending，按注入规则响应，否则 pass（无 pass 候选时取首项）。
 fn drive_mgr_inject(mgr: &GameManager, room: &str, inject: &mut Vec<String>) {
     for _ in 0..800 {
         let st = state_of(mgr, room);
         let Some(p) = st.pending.clone() else { return };
-        let action = take_inject(inject, &p.actor, &p.kind);
+        let mut action = take_inject(inject, &p.actor, &p.kind);
+        if action == "pass" && !p.options.iter().any(|o| o.id == "pass") {
+            action = p.options.first().map(|o| o.id.clone()).unwrap_or(action);
+        }
         mgr.execute_action(room, &p.actor, &action).unwrap();
     }
     panic!("drive_mgr_inject 未收敛");
-}
-
-/// 测试驱动：按 pending 逐个 pass，直到没有 pending（不处理弃牌）。
-fn pass_pending(mgr: &GameManager, room: &str) {
-    for _ in 0..400 {
-        let st = state_of(mgr, room);
-        let Some(p) = st.pending else { return };
-        if p.kind == "discard" {
-            return;
-        }
-        assert!(
-            p.options.iter().any(|o| o.id == "pass"),
-            "pending {} 没有 pass 选项",
-            p.kind
-        );
-        mgr.execute_action(room, &p.actor, "pass").unwrap();
-    }
-    panic!("pass_pending 未收敛");
-}
-
-fn alive_neighbor(st: &SgsState, from: usize) -> usize {
-    st.alive_indices()
-        .into_iter()
-        .find(|i| *i != from)
-        .expect("至少一名其他存活玩家")
-}
-
-fn current_idx(st: &SgsState) -> usize {
-    st.turn
 }
 
 #[test]
@@ -671,8 +673,12 @@ fn every_standard_card_def_and_general_is_resolvable() {
     assert!(data::all_general_codes().len() == 25);
 }
 
+mod interaction_contract;
 mod p22;
 mod p23;
 mod p24;
 mod p24b;
 mod p24c;
+mod p25;
+mod replay;
+mod view_contract;

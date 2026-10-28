@@ -1,6 +1,8 @@
 // 三国杀 MCP 端到端冒烟。
 // 覆盖：create_game → 加入 → 开赛 → 选将 → 发牌 → 视图三分区（P2.1）
-//      → 回合推进（出牌阶段结束 / 弃牌 pending）（P2.2）。
+//      → 回合推进（出牌阶段结束 / 弃牌 pending）（P2.2）
+//      → 结算栈/锦囊/技能（P2.3/P2.4）
+//      → 特殊区契约：五谷丰登 `wugu`（公开）/ 观星 `guanxing` + `arrange`（P2.5）。
 //
 // 用法：node apps/verify-sanguosha.mjs [exe路径]
 //   环境变量：
@@ -162,6 +164,9 @@ try {
   let sawWuxie = false;
   let sawPlay = false;
   let sawSkill = false;
+  let sawWuguZone = false;
+  let sawWuguPick = false;
+  let sawArrange = false;
   let finished = false;
   while (steps < 500) {
     const data = (await callJson("get_state", { room_id: roomId })).data;
@@ -170,6 +175,11 @@ try {
       break;
     }
     const b = data.public_board;
+    // 公共特殊区（五谷丰登为 public；观星为 owner，不会出现在 get_state）。
+    if (data.special_zones?.wugu) sawWuguZone = true;
+    if (data.special_zones?.guanxing) {
+      throw new Error("公共视图不应包含 owner 可见的观星特殊区");
+    }
     if (b.pending) {
       const legal = await callJson("get_legal_actions", {
         room_id: roomId,
@@ -177,8 +187,30 @@ try {
       });
       assert(legal.length > 0, `pending ${b.pending.kind} 无合法动作`);
       if (b.pending.kind === "wuxie") sawWuxie = true;
+      if (b.pending.kind === "wugu") {
+        sawWuguPick = true;
+        const zone = data.special_zones?.wugu;
+        assert(zone && Array.isArray(zone.cards) && zone.cards.length > 0, "五谷丰登应为公开特殊区且亮出牌面");
+        assert(zone.current === b.pending.actor, "五谷丰登当前选择者应与 pending.actor 一致");
+        assert(zone.interaction?.kind === "one", "五谷丰登交互原语应为 one");
+      }
+      if (b.pending.kind === "arrange") {
+        sawArrange = true;
+        const pv = await callJson("get_player_view", {
+          room_id: roomId,
+          player_id: b.pending.actor,
+        });
+        const gz = pv.data.special_zones?.guanxing;
+        assert(gz, "观星者个人视图应含 guanxing 特殊区");
+        assert(Object.keys(gz.slots ?? {}).length === 10, "观星槽位应恒为 10（2×5）");
+        assert(gz.interaction?.kind === "ordered" && gz.interaction?.commit === "arrange", "观星交互应为 ordered/arrange");
+        assert(gz.visibility === "owner", "观星可见性应为 owner");
+      }
       let act;
-      if (b.pending.kind === "choose_many") {
+      if (b.pending.kind === "arrange") {
+        act = legal.find((a) => a.id.startsWith("arrange:"));
+        assert(act, "观星 pending 应给出 arrange 提交动作");
+      } else if (b.pending.kind === "choose_many") {
         act = legal.find((a) => a.id === "confirm") ??
           legal.find((a) => a.id.startsWith("choose:"));
         if (!act) act = legal[0];
@@ -201,7 +233,12 @@ try {
       });
       assert(legal.length > 0, "出牌阶段无合法动作");
       const skill = legal.find((a) => a.id.startsWith("skill:"));
+      // 优先打五谷丰登，尽量覆盖 P2.5 特殊区链路。
+      const wugu = legal.find(
+        (a) => a.id.startsWith("play:") && a.description.includes("五谷丰登"),
+      );
       const play =
+        wugu ??
         skill ??
         legal.find((a) => a.id.startsWith("play:")) ??
         legal.find((a) => a.id === "end_play");
@@ -247,6 +284,10 @@ try {
   console.log(
     `[sgs] 结算栈/技能冒烟 OK：wuxie=${sawWuxie}, play=${sawPlay}, skill=${sawSkill}`,
   );
+  console.log(
+    `[sgs] 特殊区冒烟：wugu_zone=${sawWuguZone}, wugu_pick=${sawWuguPick}, guanxing_arrange=${sawArrange}` +
+      (sawWuguPick && sawArrange ? "" : "（随机选将/随机出牌未覆盖全部特殊区，契约由单元测试覆盖）"),
+  );
 
   // —— 收尾：未终局则中断，终局则确认群内已释放 ——
   if (!finished) {
@@ -260,7 +301,7 @@ try {
   const active = await callJson("get_active_game", { group_id: GROUP });
   assert(active === null, "终局/中断后群内不应有活跃对局");
 
-  console.log("[sgs] P2.4 冒烟通过 ✅（首批 8 将技能）");
+  console.log("[sgs] P2.5 冒烟通过 ✅（五谷丰登 + 观星特殊区契约）");
 } catch (err) {
   console.error("[sgs] 冒烟失败:", err?.message ?? err);
   if (typeof lastAction !== "undefined") console.error("[sgs] 最后动作:", lastAction);

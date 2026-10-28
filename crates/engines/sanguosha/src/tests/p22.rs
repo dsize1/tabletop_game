@@ -1,8 +1,8 @@
 //! P2.2 测试：回合流程、基础牌、装备/距离、判定区 LIFO、持有上限、濒死。
 
 use super::{
-    clear_hands, drive as drive_state, edit, find_card, give, lobby_with, manager, pass_pending,
-    pick_all, player_view, public_view, state_of, take_card,
+    clear_hands, drive as drive_state, edit, find_card, give, lobby_with, manager, pick_all,
+    player_view, public_view, resolve_arrange, state_of, take_card,
 };
 use crate::state::*;
 use game_engine_core::GameManager;
@@ -80,12 +80,9 @@ fn sha_damages_target_without_shan() {
 
     mgr.execute_action(&room, &cur_pid, &format!("target:{target_pid}"))
         .unwrap();
+    // 目标无手牌、无装备/技能替代 → 引擎自动放弃响应，不再产生 respond pending。
     let st = state_of(&mgr, &room);
-    assert_eq!(st.pending.as_ref().unwrap().kind, "respond");
-    assert_eq!(st.pending.as_ref().unwrap().actor, target_pid);
-
-    mgr.execute_action(&room, &target_pid, "pass").unwrap();
-    let st = state_of(&mgr, &room);
+    assert!(st.pending.is_none(), "无手牌目标不应被询问");
     assert_eq!(st.seats[target].hp, hp_before - 1);
     assert_eq!(st.phase, Phase::Turn);
     assert_eq!(st.turn_phase, TurnPhase::Play);
@@ -156,7 +153,6 @@ fn sha_once_per_play_phase_unless_zhuge() {
     mgr.execute_action(&room, &cur_pid, &play).unwrap();
     mgr.execute_action(&room, &cur_pid, &format!("target:{target_pid}"))
         .unwrap();
-    mgr.execute_action(&room, &target_pid, "pass").unwrap();
 
     let acts = mgr.legal_actions(&room, &cur_pid).unwrap();
     assert!(
@@ -274,6 +270,8 @@ fn discard_phase_limits_to_hp() {
     assert_eq!(pending.data["required"], 2);
     mgr.execute_action(&room, &cur_pid, &format!("discard:{},{}", ids[1], ids[2]))
         .unwrap();
+    // 下家若是诸葛亮，准备阶段的「观星」会先要一次排序提交。
+    resolve_arrange(&mgr, &room);
     let st = state_of(&mgr, &room);
     assert!(st.pending.is_none());
     assert_eq!(st.turn_index, 1);
@@ -420,9 +418,8 @@ fn dying_player_can_be_rescued_by_tao() {
     mgr.execute_action(&room, &cur_pid, &play).unwrap();
     mgr.execute_action(&room, &cur_pid, &format!("target:{target_pid}"))
         .unwrap();
-    mgr.execute_action(&room, &target_pid, "pass").unwrap();
 
-    // 逐个询问（无桃者也会被询问，显式 pass）；遇到可救援者就出桃。
+    // 只询问有手牌的存活玩家（无手牌者自动跳过）；遇到可救援者就出桃。
     let mut rescued = false;
     for _ in 0..20 {
         let st = state_of(&mgr, &room);
@@ -473,9 +470,7 @@ fn player_dies_when_nobody_saves() {
     mgr.execute_action(&room, &cur_pid, &play).unwrap();
     mgr.execute_action(&room, &cur_pid, &format!("target:{target_pid}"))
         .unwrap();
-    mgr.execute_action(&room, &target_pid, "pass").unwrap();
-    pass_pending(&mgr, &room);
-
+    // 全场无手牌：闪/求桃询问全部自动跳过，直接死亡。
     let st = state_of(&mgr, &room);
     assert!(!st.seats[target].alive, "无人救援应死亡");
     assert!(st.pending.is_none());

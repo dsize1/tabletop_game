@@ -70,10 +70,12 @@ GameState（game-engine-core 信封）
 | `choice` | 技能拥有者 | `skill` / `card` | `choose:gain` / `pass` | 奸雄（第一批技能） |
 | `choose_many` | 技能拥有者 | `purpose` / `selected` / `min` / `max` | `choose:<card>` / `confirm` / `cancel` | 制衡（弃 N 摸 N）、仁德（选牌）、离间（选 1 张） |
 | `choice`（巡袭/接力） | 技能拥有者 | `skill` / `needed` | `choose:tuxi` / `respond:<card>` / `pass` | 突袭（放弃摸牌）、激将/护驾（同势力代出杀/闪） |
+| `wugu` | 按选择顺序的当前玩家（**释放者先选**） | `card` / `remaining` / `chooser` / `zone` | `pick:<card_id>` | 五谷丰登（P2.5）；每人一次无懈窗口 |
+| `arrange` | 技能拥有者 | `zone` / `rows` / `cols` / `slots` / `rev` / `interaction` | `arrange:<csv>` | 观星（P2.5）：准备阶段自动进入，不可取消 |
 
 - P2.3 起由**结算栈**驱动：`resolution: Vec<Frame>`（Trick/Wuxie/PickCard/Aoe/Respond/Dying/Discard），`pending` 是栈顶投影；濒死与无懈嵌套通过压栈/弹栈恢复。
-- 所有「响应类」询问都向被询问者展示（无对应牌亦可 `pass`），不自动跳过。
-- **P2.3** 已实现锦囊/无懈/濒死/弃牌/判定 pending；**P2.4 第一批**新增 `choice`（奸雄）与 `choose_many`（制衡）；五谷丰登（`wugu`）留 P2.5，其余技能见 `skills.md`。
+- 响应类询问（`wuxie`/`respond`/`dying`/接力）：**无手牌且无替代选项的玩家自动跳过**；**有手牌者一律显式询问**（无对应牌时唯一动作是 `pass`），不代选（2026-10-28 裁定，见 `special-zones.md` §4.1）。
+- **P2.3** 已实现锦囊/无懈/濒死/弃牌/判定 pending；**P2.4** 新增 `choice`（奸雄）与 `choose_many`（制衡）；**P2.5** 新增 `wugu` 与 `arrange`（特殊区帧 `Frame::Wugu` / `Frame::Arrange`，见 `special-zones.md` §5/§6）。
 
 - 只有 `pending.actor` 能提交；其他玩家提交返回权限错误。
 - 阶段机在无 pending 时自动推进，停在**出牌阶段**等待输入。

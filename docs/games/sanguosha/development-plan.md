@@ -134,13 +134,13 @@
 - **P2.2 回合流程**：准备/判定/摸牌/出牌/弃牌/结束；**判定区 LIFO（后进先判）**；距离（无上限；攻击距离=武器+进攻马+技能，防御距离=基础+防御马+技能；顺手/兵粮不含武器范围）；装备槽位（武器/护具/进攻马/防御马/特殊）；**持有上限 20（可配置，超出即弃）/弃牌上限=当前体力值**；基本牌（杀/闪/桃）。
 - **P2.3 结算栈 + 锦囊 + 胜负**：
   - **结算栈**：`resolution: Vec<Frame>`（state schema v2），统一驱动「选目标 → 无懈链 → 效果 → 响应 → 伤害/濒死」；`pending` 为栈顶投影（对外契约不变）。
-  - **无懈可击链**：询问**所有存活玩家**（不跳过无手牌者，保留心理博弈）；每次有人打出无懈从原使用者左手侧重新开始；允许同一玩家多次；层数奇偶决定效果是否被抵消；**AOE 每个目标各开一次窗口**。
+  - **无懈可击链**：询问按座位顺序的**有手牌存活玩家**（**无手牌者自动跳过**，2026-10-28 修订；有手牌但无无懈者仍显式 `pass` 以保留博弈——见 `special-zones.md` §4.1）；每次有人打出无懈从原使用者左手侧重新开始；允许同一玩家多次；层数奇偶决定效果是否被抵消；**AOE 每个目标各开一次窗口**。
   - **延时锦囊**：置入判定区**不可无懈**；判定阶段**判定前**开无懈窗口，被无懈则不判定（乐/兵进弃牌堆；**闪电流转到左手边第一个玩家**）。
   - **单目标锦囊**：顺手牵羊（距离不含武器；共用特殊区 `pick_card`，手牌随机）、过河拆桥（无距离；同一 `pick_card`）、无中生有、决斗（目标先出杀、双方交替；仅开始前一次无懈）、借刀杀人（二阶段目标：有武器者 → 其攻击范围内；**即使无杀也必须询问**并由 A 选具体杀）。
   - **AOE**：南蛮入侵（目标出杀）、万箭齐发（目标出闪）、桃园结义（仅受伤者，回血前开无懈）；逐目标、从使用者左手侧开始、死亡跳过；伤害来源 = 使用者。
   - **死亡奖惩与胜负**：主公杀忠臣弃置所有手牌和装备、杀反贼摸 3 张；内奸/双内、主公先死 → 反贼胜；死亡立即判定胜负。
   - 五谷丰登留 P2.4/P2.5（特殊区 `wugu`，释放者先选）；技能/改判/可选装备效果留 P2.4；兵粮寸断随军争 P4。
-- **P2.4 技能内核 + 交互原语**：`Skill` trait + 触发事件总线（确定性排序）+ pending 队列；**响应顺序统一从当前玩家左手侧开始**（通用原则）；**原语先行**：`many(min/max)`、多目标选择、**`ordered`（槽位 + 最终顺序，提交 `arrange:<csv>`）**、跨玩家响应队列（闪/无懈/桃）；实现首批验证武将（建议：刘备/曹操/孙权/貂蝉/黄月英/张辽/甘宁/吕蒙，含主公技）。
+- **P2.4 技能内核 + 交互原语**：技能内核 + 触发钩子（确定性派发：技能声明序 → 左手侧座位序 → 注册序；实现口径为「注册表 + 钩子函数」而非 trait 对象，见 `skills.md` §1）+ pending 队列；**响应顺序统一从当前玩家左手侧开始**（通用原则）；**原语先行**：`many(min/max)`、多目标选择、**`ordered`（槽位 + 最终顺序，提交 `arrange:<csv>`）**、跨玩家响应队列（闪/无懈/桃）；实现首批验证武将（建议：刘备/曹操/孙权/貂蝉/黄月英/张辽/甘宁/吕蒙，含主公技）。
 - **P2.5 特殊区域骨架**：`special_zones` 投影 + `guanxing` 契约（`slots` 2×5 / `rev` / `interaction.kind=ordered` / `arrange` 校验，**不含 UI**）+ `wugu` 设计稿落地准备；交互规格见 `ui-spec.md` §7。
 
 **P2.1 实施记录（2026-10-27）**
@@ -197,13 +197,33 @@
 - 用例补齐：首批 8 将均 ≥3 条规则用例（刘备/曹操/孙权/貂蝉/黄月英/吕蒙/张辽/甘宁），含「无同势力不提供主公技」「离间每阶段一次」「克己出杀后不生效」「突袭提前确认」「奇袭转化仍有无懈窗口」等边界。
 - `cargo test -p sanguosha`：**77 用例**通过；MCP 冒烟至终局；workspace 全绿、无告警。
 
-验收：
+**P2.5 实施记录（2026-10-28）**
+
+- **五谷丰登 `wugu`（已实现）**：`resolve_zone.rs` 新增 `Frame::Wugu`。亮出 = 存活角色数 张（全部进 `deck.processing`）→ 写 `special_zones.wugu`（`public`：`cards/choosers/cursor/current/picked/interaction`）→ **释放者先选**、之后按座位左手侧依次 `pick:<card_id>`；**每个选择者各自一次无懈窗口**（被无懈者跳过）；结束把剩余亮牌与【五谷丰登】本身置入弃牌堆；获得后超过持有上限立即 `discard`（`hand_cap`）。动作：`play:<牌>` → pending `wugu` → `pick:<card_id>`。
+- **观星 `guanxing`（P2 契约已实现）**：`Frame::Arrange`。拥有「观星」的玩家**准备阶段自动进入**（不询问是否发动、不可取消，每回合一次，`guanxing_done` 计数）；取 `k = min(存活角色数,5)` 张进处理区，写 `special_zones.guanxing`（`owner` 可见、`rows:5`、`cols:2`、`slots: L1..L5/R1..R5`、`rev`、`interaction = {kind:ordered, commit:arrange}`）。提交 `arrange:<csv>`（最终顺序 = 新牌堆顶 → 底），**校验张数/去重/来源/仍处理区/slots 一致**，非法与重放一律拒绝且不改状态；回写按倒序压入 `deck.draw`。`settle_slots()` 纯函数落地（跳空压缩、左列接右列）。
+- 视图：`special_zones` 继续按 `visibility` 下发（`wugu` 公共、`guanxing` 仅 owner）；公共视图不含观星。回合结束时清理 `judge/wugu/guanxing` 残留。
+- **响应询问口径修订（2026-10-28 用户裁定，`special-zones.md` §4.1）**：响应类询问（无懈链/闪/杀/求桃/主公技接力）——**无手牌且无替代选项的玩家自动跳过**（不生成 pending，直接按「不出」结算）；**有手牌者一律显式询问**（即使没有对应牌，唯一动作 `pass`），不代选。实现：`step_wuxie`/`step_respond`/`step_dying`/`step_requisition` 过滤 + `respond_give_up` 统一「显式 pass / 自动跳过」结算路径。
+- 测试：`tests/p25.rs` 新增 12 个用例（五谷顺序/无懈/剩余弃置/可见性/守恒；观星槽位/可见性/非法与重放拒绝/回写顺序/纯函数；空手自动跳过、有手牌仍询问、无懈链空手跳过、求桃空手跳过、空手盟友不提供主公技）；全套 **89 用例**通过。
+- MCP 冒烟：`apps/verify-sanguosha.mjs` 增加特殊区断言（`wugu` 为公开区且 `current == pending.actor`；`arrange` 时 owner 个人视图含 10 槽、公共视图无观星），实测覆盖 `wugu_zone/wugu_pick/guanxing_arrange`。
+- 口径偏差：观星「可以发动」按 **自动进入** 实现（用户已定「不可取消」）；**空城** 留 P4。
+
+**P2 收尾记录（2026-10-28）**
+
+- **事件溯源重放**：`tests/replay.rs`——跑一局并记录 `(玩家, 动作)` 脚本 + 产出事件，再用同 seed 的新管理器重放同一脚本，断言**终态 JSON 与事件序列完全一致**（另有一条「重复重放稳定」用例）。补上了原验收里「事件溯源重放 = 快照重算」的空档（此前只有 setup 确定性与 400 步守恒）。
+- **`check:sgs-view-contract` 门禁**：`tests/view_contract.rs`——字段级冻结三分区（`view_data` / `public_board` / `seat` / `player_area` / `card` / `pending` / `options` / `skills`）与特殊区（`wugu` / `guanxing`：`visibility`/`slots`/`interaction`/`picked` 等），并断言隐藏信息不泄漏（公共区无 `hand`、公共无观星、个人区只投影本人）。npm 脚本：`npm run check:sgs-view-contract`。
+- **`check:interaction-primitives` 门禁**：`tests/interaction_contract.rs`——引擎下发的 `interaction` 只能是已登记原语 `one/many/partition/ordered` 且 `commit` 非空、`ordered` 必带 `slots`；`choose_many` 校验 `min<=max`；`pending.kind` 必须在 `state-machine.md` §2.2 登记表内。npm 脚本：`npm run check:interaction-primitives`。
+- **格式化门禁**：CI 增加 `cargo fmt --check -p sanguosha`（sanguosha 包已全量格式化）。**全仓** `cargo fmt --check` 仍有 156 处历史未格式化（las-vegas 115 / server 17 / game-engine-mcp 10 / core 4 / bot-adapter 3 / docs-mcp 1 / rps 6），属既有技术债，不在 P2 范围，见计划台账 harness。
+- 当前 `cargo test -p sanguosha`：**98 用例**（89 + 重放 2 + 视图契约 3 + 原语门禁 4）。
+
+验收（P2 / M18）：
 
 - 固定种子可复现：同 seed + 同动作序列 → 同结果。
 - 无技能 5 人局可完整结束（含内奸胜利分支）；牌数守恒不变量测试。
 - 视图分区断言：公共视图无手牌/未公开身份；个人视图含本人手牌；特殊区按可见性下发。
 - 观星契约：`slots` 回写顺序正确（跳空压缩、左列接右列）、`arrange` 非法/重放被拒、牌数守恒（含处理区）。
-- 技能武将各 ≥3 条规则用例；事件溯源重放 = 快照重算。
+- 五谷丰登：释放者先选 + 座位顺序、每选择者一次无懈、剩余牌进弃牌堆、公开可见性、牌数守恒。
+- 技能武将各 ≥3 条规则用例；事件溯源重放 = 快照重算（`tests/replay.rs`：状态 + 事件序列双比对）。
+- 视图/原语门禁：`check:sgs-view-contract`、`check:interaction-primitives`（CI 覆盖）。
 - 锦囊用例：无懈单层/三层嵌套、同一玩家连续响应、AOE 每目标独立无懈、判定前无懈（乐/兵/闪电）、顺手/过河三区选择、借刀二阶段与「无杀仍询问」、决斗交替出杀。
 - MCP 冒烟：`create_game` → lobby → `lobby:start` → 多步出牌 → 终局。
 

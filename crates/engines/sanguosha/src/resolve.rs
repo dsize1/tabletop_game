@@ -39,6 +39,10 @@ pub enum Frame {
     Lijian(crate::resolve_more::LijianFrame),
     TuxiOffer(crate::resolve_more::TuxiOfferFrame),
     Tuxi(crate::resolve_more::TuxiFrame),
+    /// 五谷丰登（P2.5 特殊区 `wugu`）。
+    Wugu(crate::resolve_zone::WuguFrame),
+    /// 观星排序提交（P2.5 特殊区 `guanxing`，`arrange:<csv>`）。
+    Arrange(crate::resolve_zone::ArrangeFrame),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -295,6 +299,11 @@ pub(crate) fn leave_processing(st: &mut SgsState, id: &str) {
     }
 }
 
+/// 无懈询问顺序（供 `resolve_zone` 复用）：从 `reference` 左手侧开始，`reference` 最后。
+pub(crate) fn wuxie_order_of(st: &SgsState, reference: usize) -> Vec<String> {
+    wuxie_order(st, reference)
+}
+
 fn wuxie_order(st: &SgsState, reference: usize) -> Vec<String> {
     let mut order: Vec<String> = st
         .seats_from_left_of(reference)
@@ -386,6 +395,9 @@ pub fn advance(st: &mut SgsState, events: &mut Vec<EngineEvent>) -> Result<(), E
         if st.phase == Phase::Finished {
             st.pending = None;
             st.resolution.clear();
+            // 终局时清掉可能残留的特殊区（五谷/观星必须在回合内结算完）。
+            st.special_zones.remove(crate::resolve_zone::GUANXING_ZONE);
+            st.special_zones.remove(crate::resolve_zone::WUGU_ZONE);
             return Ok(());
         }
         if st.pending.is_some() {
@@ -426,6 +438,8 @@ fn step(
         Frame::Lijian(f) => crate::resolve_more::step_lijian(st, f),
         Frame::TuxiOffer(f) => crate::resolve_more::step_tuxi_offer(st, f),
         Frame::Tuxi(f) => crate::resolve_more::step_tuxi(st, f),
+        Frame::Wugu(f) => crate::resolve_zone::step_wugu(st, f, events),
+        Frame::Arrange(f) => crate::resolve_zone::step_arrange(st, f, events),
     }
 }
 
@@ -447,15 +461,16 @@ fn step_wuxie(st: &mut SgsState, mut f: WuxieFrame) -> Result<bool, EngineError>
         return Ok(false);
     }
     let pid = f.order[f.cursor % f.order.len()].clone();
-    if !alive_of_order(st, &pid) {
+    let seat = st
+        .seat_index(&pid)
+        .ok_or_else(|| internal("无懈询问对象不在座"))?;
+    // 无手牌 = 公共信息，无法打出任何响应牌，无需假犹豫（2026-10-28 用户裁定）。
+    if !alive_of_order(st, &pid) || st.seats[seat].hand.is_empty() {
         f.cursor += 1;
         f.passed += 1;
         replace_top(st, Frame::Wuxie(f));
         return Ok(false);
     }
-    let seat = st
-        .seat_index(&pid)
-        .ok_or_else(|| internal("无懈询问对象不在座"))?;
     let mut options: Vec<PendingOption> = turn::hand_cards_with_def(st, seat, "wuxie_keji")
         .iter()
         .map(|id| PendingOption {
@@ -1067,6 +1082,12 @@ fn step_respond(st: &mut SgsState, f: RespondFrame) -> Result<bool, EngineError>
             },
         );
     }
+    // 无手牌且无装备/技能替代选项（也无主公技接力）→ 公共信息上已无牌可打，自动放弃询问。
+    // 有手牌时即使没有对应牌仍显式询问（保留犹豫博弈，不代选）；2026-10-28 用户裁定。
+    if st.seats[f.actor].hand.is_empty() && options.len() == 1 {
+        respond_give_up(st, &f);
+        return Ok(false);
+    }
     st.pending = Some(Pending {
         kind: "respond".into(),
         actor: st.seats[f.actor].player_id.clone(),
@@ -1098,7 +1119,10 @@ fn step_dying(
 ) -> Result<bool, EngineError> {
     while f.cursor < f.order.len() {
         let pid = &f.order[f.cursor];
-        if alive_of_order(st, pid) && !f.passed.contains(pid) {
+        let seat = st.seat_index(pid);
+        // 无手牌者不可能出【桃】（酒未实现），直接跳过（公共信息，无需询问）。
+        let empty_hand = seat.is_some_and(|i| st.seats[i].hand.is_empty());
+        if alive_of_order(st, pid) && !f.passed.contains(pid) && !empty_hand {
             break;
         }
         f.cursor += 1;
@@ -1258,6 +1282,8 @@ pub fn execute_pending(
         "pick_card" => act_pick(st, &pending, action)?,
         "dying" => act_dying(st, &pending, action)?,
         "discard" => act_discard(st, &pending, action)?,
+        "wugu" => crate::resolve_zone::act_wugu(st, &pending, action)?,
+        "arrange" => crate::resolve_zone::act_arrange(st, action)?,
         "choice" => match pending.skill.as_deref() {
             Some("requisition") => crate::resolve_more::act_requisition(st, &pending, action)?,
             Some("tuxi") => crate::resolve_more::act_tuxi_offer(st, action)?,
@@ -1481,71 +1507,7 @@ fn act_respond(st: &mut SgsState, _pending: &Pending, action: &str) -> Result<St
         return Ok("发动主公技，等待同势力角色响应".to_string());
     }
     if action == "pass" {
-        // 先出栈，再造成伤害（伤害可能压入濒死帧）
-        pop(st);
-        st.outcome = Some(Outcome::Respond {
-            played: None,
-            played_by: None,
-        });
-        if f.consume_card {
-            discard_from_processing(st, &f.card);
-        }
-        match f.kind {
-            RespondKind::Shan => {
-                let card = f.card.clone();
-                apply_damage(
-                    st,
-                    actor,
-                    f.damage,
-                    Some(f.source),
-                    f.damage_type,
-                    Some(&card),
-                );
-            }
-            RespondKind::Nanman => {
-                let card = f.card.clone();
-                apply_damage(
-                    st,
-                    actor,
-                    f.damage,
-                    Some(f.source),
-                    f.damage_type,
-                    Some(&card),
-                );
-            }
-            RespondKind::Duel => {
-                let opponent = f.target.unwrap_or(f.source);
-                let card = f.card.clone();
-                apply_damage(
-                    st,
-                    actor,
-                    f.damage,
-                    Some(opponent),
-                    f.damage_type,
-                    Some(&card),
-                );
-            }
-            RespondKind::Jiedao => {
-                let weapon = st.seats[actor]
-                    .equips
-                    .get(&EquipSlot::Weapon)
-                    .cloned()
-                    .flatten();
-                if let Some(w) = weapon {
-                    st.seats[actor].equips.insert(EquipSlot::Weapon, None);
-                    st.seats[f.source].hand.push(w.clone());
-                    st.push_log(
-                        None,
-                        format!(
-                            "{} 未出杀，武器【{}】交给 {}",
-                            st.seats[actor].general_name,
-                            card_name(st, &w),
-                            st.seats[f.source].general_name
-                        ),
-                    );
-                }
-            }
-        }
+        respond_give_up(st, &f);
         return Ok("已放弃响应".to_string());
     }
 
@@ -1553,6 +1515,77 @@ fn act_respond(st: &mut SgsState, _pending: &Pending, action: &str) -> Result<St
         .strip_prefix("respond:")
         .ok_or_else(|| illegal("需要打出牌或 pass"))?;
     finish_respond_play(st, &f, card_id, actor)
+}
+
+/// 放弃响应（显式 `pass` 或「无手牌且无任何替代选项」的自动跳过共用）。
+///
+/// 先出栈再结算（伤害可能压入濒死帧）；剑/刀等「未出杀」后果也在这里处理。
+fn respond_give_up(st: &mut SgsState, f: &RespondFrame) {
+    let actor = f.actor;
+    pop(st);
+    st.outcome = Some(Outcome::Respond {
+        played: None,
+        played_by: None,
+    });
+    if f.consume_card {
+        discard_from_processing(st, &f.card);
+    }
+    match f.kind {
+        RespondKind::Shan => {
+            let card = f.card.clone();
+            apply_damage(
+                st,
+                actor,
+                f.damage,
+                Some(f.source),
+                f.damage_type,
+                Some(&card),
+            );
+        }
+        RespondKind::Nanman => {
+            let card = f.card.clone();
+            apply_damage(
+                st,
+                actor,
+                f.damage,
+                Some(f.source),
+                f.damage_type,
+                Some(&card),
+            );
+        }
+        RespondKind::Duel => {
+            let opponent = f.target.unwrap_or(f.source);
+            let card = f.card.clone();
+            apply_damage(
+                st,
+                actor,
+                f.damage,
+                Some(opponent),
+                f.damage_type,
+                Some(&card),
+            );
+        }
+        RespondKind::Jiedao => {
+            let weapon = st.seats[actor]
+                .equips
+                .get(&EquipSlot::Weapon)
+                .cloned()
+                .flatten();
+            if let Some(w) = weapon {
+                st.seats[actor].equips.insert(EquipSlot::Weapon, None);
+                st.seats[f.source].hand.push(w.clone());
+                st.push_log(
+                    None,
+                    format!(
+                        "{} 未出杀，武器【{}】交给 {}",
+                        st.seats[actor].general_name,
+                        card_name(st, &w),
+                        st.seats[f.source].general_name
+                    ),
+                );
+            }
+        }
+    }
 }
 
 /// 八卦阵等"视为出闪"：不消耗手牌，通知父帧本次响应成功。

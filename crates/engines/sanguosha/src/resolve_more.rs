@@ -28,7 +28,10 @@ pub(crate) fn step_requisition(
     mut f: RequisitionFrame,
 ) -> Result<bool, EngineError> {
     while f.cursor < f.order.len() {
-        if st.seat(&f.order[f.cursor].clone()).is_some_and(|s| s.alive) {
+        let pid = f.order[f.cursor].clone();
+        // 无手牌的同势力角色不可能代出【杀】/【闪】，自动跳过（公共信息）。
+        let usable = st.seat(&pid).is_some_and(|s| s.alive && !s.hand.is_empty());
+        if usable {
             break;
         }
         f.cursor += 1;

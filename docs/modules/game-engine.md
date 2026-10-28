@@ -7,7 +7,7 @@
 
 - `game-engine-core`：EnginePlugin trait、引擎注册表、对局/回合状态管理
 - `engines/las-vegas`：首个引擎「拉斯维加斯」
-- `engines/sanguosha`：三国杀（P2.1 骨架 + P2.2 回合/基础牌/判定/濒死 + P2.3 结算栈/无懈链/锦囊/奖惩胜负 + P2.4 第一批技能）
+- `engines/sanguosha`：三国杀（P2.1 骨架 + P2.2 回合/基础牌/判定/濒死 + P2.3 结算栈/无懈链/锦囊/奖惩胜负 + P2.4 首批 8 将技能与可选装备效果 + **P2.5 特殊区 `wugu`/`guanxing`**；标准 25 将余量/军争留 P4，Web 页留 P3）
 - MCP 暴露层：把 EnginePlugin 映射为 **MCP 统一原语**，以 stdio 暴露给 agent-gateway
 
 ## MCP 统一原语（所有引擎通用）

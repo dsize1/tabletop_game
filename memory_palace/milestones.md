@@ -2,6 +2,21 @@
 
 > 记录项目关键节点与验证结果，按时间倒序。重大技术决策见 `decisions/`。
 
+## M18：三国杀 P2 —— 引擎内核 + 身份局全流程 + 特殊区骨架 ✅
+
+- **日期**：2026-10-28（P2.1–P2.5 收口，人工验收待定）
+- **完成**：
+  - **P2.1 骨架**：`crates/engines/sanguosha`（EnginePlugin/lobby 5–8 人/发身份/选将/108 张标准牌堆/state schema/三分区投影/数据生成脚本+CI）
+  - **P2.2 回合**：阶段机 `prepare→judge→draw→play→discard→end`、判定区 LIFO（乐/闪电）、杀/闪/桃、装备换槽与距离、持有上限、弃牌阶段、濒死求桃与死亡
+  - **P2.3 结算栈**：`resolution: Vec<Frame>` + `outcome`（schema v2）、无懈链（全员询问/重开/奇偶）、延时锦囊判定前无懈、单目标锦囊（顺手/过河/无中/决斗/借刀）、AOE（南蛮/万箭/桃园）、死亡奖惩与胜负
+  - **P2.4 技能**：技能注册表 + 固定派发顺序 + 技能帧；首批 8 将 14 技能 + 装备可选效果（青釭/八卦/仁王/连弩）；每将 ≥3 用例
+  - **P2.5 特殊区**：`resolve_zone.rs` —— `wugu`（亮牌=存活数 → **释放者先选** → 座位顺序，每选择者一次无懈，剩余进弃牌堆）+ `guanxing`（2×5 槽契约、准备阶段自动进入、`arrange:<csv>` 校验张数/去重/来源/处理区、`settle_slots()` 跳空压缩、倒序回写牌堆）
+  - **响应询问口径（2026-10-28 用户裁定）**：无手牌且无替代选项的玩家**自动跳过**（不再假装犹豫）；有手牌者即使没有对应牌仍显式 `pass`，不代选；空手同势力盟友不提供主公技接力（`special-zones.md` §4.1）
+- **验证**：`cargo test -p sanguosha` **98 用例**、`cargo test --workspace` 全绿、`cargo fmt --check -p sanguosha` 通过、生成数据 `--check` 通过（108 牌/25 将）；MCP 冒烟 `node apps/verify-sanguosha.mjs` 跑通并命中 `wuxie/play/skill` 与特殊区 `wugu_zone/wugu_pick/guanxing_arrange`；牌数守恒每 40 步校验（含处理区）
+- **收尾门禁**：`tests/replay.rs`（同 seed+同动作 → 状态与事件序列一致）、`npm run check:sgs-view-contract`（三分区字段级冻结）、`npm run check:interaction-primitives`（原语/基数校验）；CI 增加 `cargo fmt --check -p sanguosha`（全仓 fmt 因历史 156 处漂移未纳入门禁）
+- **已知限制/偏差**：观星按「自动进入」实现（用户已定不可取消，不询问是否发动）；五谷亮牌先于无懈窗口（便于决策，与 AOE 每目标独立无懈一致）；空城与其余标准将技能、7 件装备选修效果、兵粮寸断/军争留 P4；Web 页面（含观星拖拽）留 P3
+- **详见**：`docs/games/sanguosha/development-plan.md`（P2 实施记录）、`special-zones.md` §5/§6、`ui-spec.md` §7/§9.5、`skills.md`、`plan/01a17d9c-599e-7668-91f6-e76ea315b83f.md`、`plan/01a182be-f2ab-7668-91f6-e771e525ee05.md`
+
 ## M17：道具中台 MVP（三国杀 P1）✅
 
 - **日期**：2026-10-26（人工验收 2026-10-26，用户裁定 P1 收口）

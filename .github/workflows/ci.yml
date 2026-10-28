@@ -25,6 +25,8 @@ jobs:
         with:
           workspaces: crates
       - run: cargo test --workspace
+      # 格式化门禁：只对三国杀引擎（当前活跃包）强制；全仓历史未格式化，见计划台账 harness
+      - run: cargo fmt --check -p sanguosha
 
   node:
     name: Node（网关单测 + 主动消息门禁）
