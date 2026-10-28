@@ -14,6 +14,16 @@ import { renderPersonalArea } from "./src/view/sgs/personal.js";
 import { renderSgsTextBody } from "./src/view/sgs/text.js";
 import { renderCardDetail, renderDiscardList, renderGeneralDetail } from "./src/view/sgs/detail.js";
 import { renderOverlayShell } from "./src/view/sgs/overlay.js";
+import {
+  isBlockingPending,
+  overlayKindFor,
+  renderChooseManyOverlay,
+  renderDyingOverlay,
+  renderPickCardOverlay,
+  renderTargetOverlay,
+  renderWuguOverlay,
+  renderWuxieOverlay,
+} from "./src/view/sgs/pending.js";
 import { classifyPress, MOVE_TOLERANCE_PX, LONG_PRESS_MS } from "./src/client/sgs-gestures.js";
 import { renderSgsPage, SGS_STYLES } from "./src/view/sgs/page.js";
 import type { SgsCard, SgsPlayerArea, SgsPublicBoard, SgsViewData } from "./src/view/sgs/types.js";
@@ -323,3 +333,108 @@ const noSkillAction = renderPersonalArea(me, board, {}, names, []);
 assert.ok(/data-skill="rende"[^>]*disabled/.test(noSkillAction), "无对应动作时技能按钮置灰");
 
 console.log("[sgs-web] 出牌链路（可用性/动作按钮）单测通过 ✅");
+
+// —— P3.4 pending 浮层 ——
+const wuxiePending = {
+  kind: "wuxie",
+  actor: "p0",
+  options: [
+    { id: "respond:c9", label: "打出【无懈可击♣Q】" },
+    { id: "pass", label: "不出" },
+  ],
+  data: { root: "【南蛮入侵】→ 甘宁", layers: 2, count: 2 },
+};
+const wuxieHtml = renderWuxieOverlay(wuxiePending, board, names);
+assert.ok(wuxieHtml.includes("【南蛮入侵】→ 甘宁"), "无懈链展示 root");
+assert.ok(wuxieHtml.includes("已打出无懈：2 层"), "无懈链层数");
+assert.ok(wuxieHtml.includes('data-action="respond:c9"') && wuxieHtml.includes('data-action="pass"'), "无懈链动作按钮");
+assert.ok(wuxieHtml.includes("必须显式选择"), "无懈链提示不可误关");
+
+const dyingHtml = renderDyingOverlay(
+  { kind: "dying", actor: "p0", options: [{ id: "respond:c2", label: "使用桃救援" }, { id: "pass", label: "不出" }], data: { victim: "p3", hp: -1 } },
+  board,
+  names,
+);
+assert.ok(dyingHtml.includes("濒死") && dyingHtml.includes("体力 -1"), "濒死浮层展示受害者与体力");
+assert.ok(dyingHtml.includes('data-action="respond:c2"'), "濒死出桃按钮");
+
+const zonesWugu = {
+  wugu: {
+    visibility: "public",
+    cards: [card("c5", "杀", "heart", 5), card("c6", "闪", "diamond", 8, "shan")],
+    choosers: ["p0", "p1"],
+    cursor: 0,
+    current: "p0",
+    picked: [{ player: "p1", card: card("c4", "桃", "heart", 4, "tao") }],
+  },
+};
+const wuguHtml = renderWuguOverlay(
+  { kind: "wugu", actor: "p0", options: [{ id: "pick:c5", label: "杀♥5" }, { id: "pick:c6", label: "闪♦8" }], data: { chooser: "p0" } },
+  board,
+  zonesWugu,
+  names,
+);
+assert.ok(wuguHtml.includes('data-action="pick:c5"'), "五谷选牌按钮");
+assert.ok(wuguHtml.includes("李四：桃♥4"), "五谷已选列表");
+assert.ok(wuguHtml.includes("当前选择"), "五谷当前选择者");
+
+const pickHtml = renderPickCardOverlay(
+  {
+    kind: "pick_card",
+    actor: "p0",
+    options: [
+      { id: "pick:equip:weapon", label: "装备区：青釭剑♠6" },
+      { id: "pick:hand", label: "手牌：随机 1 张（共 3 张）" },
+      { id: "pick:judge:c8", label: "判定区：乐不思蜀♣6" },
+    ],
+    data: { card: "c1", target: "p1" },
+  },
+  board,
+  names,
+);
+assert.ok(pickHtml.includes("装备区") && pickHtml.includes("手牌（随机 1 张）") && pickHtml.includes("判定区"), "拿牌三组");
+assert.ok(pickHtml.includes('data-action="pick:hand"'), "随机手牌按钮");
+assert.ok(pickHtml.includes("曹操"), "展示目标");
+
+const targetHtml = renderTargetOverlay(
+  { kind: "target", actor: "p0", options: [{ id: "target:p1", label: "对 李四 使用【杀】" }], data: { card: "c1", stage: "single" } },
+  board,
+  names,
+  () => "杀♠7",
+);
+assert.ok(targetHtml.includes("杀♠7") && targetHtml.includes('data-action="target:p1"'), "目标选择按钮");
+const borrowHtml = renderTargetOverlay(
+  { kind: "target", actor: "p0", options: [{ id: "target:p1", label: "借 李四 的刀" }], data: { stage: "borrow_first" } },
+  board,
+  names,
+);
+assert.ok(borrowHtml.includes("借谁的刀"), "借刀第一阶段提示");
+
+const manyHtml = renderChooseManyOverlay(
+  {
+    kind: "choose_many",
+    actor: "p0",
+    skill: "zhiheng",
+    options: [
+      { id: "choose:c1", label: "杀♠7" },
+      { id: "confirm", label: "确认" },
+      { id: "cancel", label: "取消" },
+    ],
+    data: { purpose: "zhiheng", selected: ["c1"], min: 1, max: 2 },
+  },
+  me,
+  names,
+);
+assert.ok(manyHtml.includes("已选 1 张（1–2）"), "多选计数");
+assert.ok(manyHtml.includes('data-action="choose:c1"') && manyHtml.includes('data-action="confirm"'), "多选按钮");
+assert.ok(manyHtml.includes("sgs-multi-card on"), "已选牌高亮");
+
+assert.equal(overlayKindFor({ kind: "target" } as never), "target");
+assert.equal(overlayKindFor({ kind: "discard" } as never), null, "弃牌留在个人区");
+assert.ok(isBlockingPending("wuxie") && isBlockingPending("dying") && isBlockingPending("wugu"), "无懈/濒死/五谷不可误关");
+assert.ok(!isBlockingPending("target"), "目标选择可关闭（个人区仍可继续）");
+const blockingShell = renderOverlayShell("无懈可击", "x", { blocking: true });
+assert.ok(!blockingShell.includes('data-overlay-close="button"'), "阻塞浮层无关闭按钮");
+assert.ok(blockingShell.includes("sgs-overlay-lock"), "阻塞浮层显示「需选择」");
+
+console.log("[sgs-web] 特殊区 pending 浮层单测通过 ✅");

@@ -9,6 +9,17 @@ import { renderCardDetail, renderDiscardList, renderGeneralDetail } from "../vie
 import type { SgsCard, SgsViewData } from "../view/sgs/types.js";
 import { bindPress } from "./sgs-gestures.js";
 import { closeOverlay, initOverlay, isOverlayOpen, openOverlay } from "./sgs-overlay.js";
+import {
+  isBlockingPending,
+  overlayKindFor,
+  pendingTitle,
+  renderChooseManyOverlay,
+  renderDyingOverlay,
+  renderPickCardOverlay,
+  renderTargetOverlay,
+  renderWuguOverlay,
+  renderWuxieOverlay,
+} from "../view/sgs/pending.js";
 
 interface Bootstrap {
   gameId: string;
@@ -28,6 +39,8 @@ let selectedCard: string | null = null;
 let unbindPress: (() => void) | null = null;
 let submitting = false;
 let boot: Bootstrap | null = null;
+/** 当前自动打开的 pending 浮层签名（空 = 没有 pending 浮层）。 */
+let pendingOverlaySig = "";
 
 function readBootstrap(): Bootstrap | null {
   const node = document.getElementById("sgs-bootstrap");
@@ -152,6 +165,66 @@ async function submitAction(action: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// pending 浮层（P3.4）：无懈链 / 濒死 / 五谷 / 拿牌 / 目标 / 技能多选
+// ---------------------------------------------------------------------------
+
+function pendingSignature(p: NonNullable<SgsViewData["player_area"]>["pending"]): string {
+  if (!p) return "";
+  return [
+    p.kind,
+    p.actor,
+    p.options.map((o) => o.id).join(","),
+    JSON.stringify(p.data ?? {}),
+  ].join("|");
+}
+
+function syncPendingOverlay(): void {
+  const area = currentData?.player_area;
+  const board = currentData?.public_board;
+  const p = area?.pending;
+  const kind = p ? overlayKindFor(p) : null;
+  if (!p || !board || !kind) {
+    if (pendingOverlaySig) {
+      pendingOverlaySig = "";
+      closeOverlay(true);
+    }
+    return;
+  }
+  const sig = pendingSignature(p);
+  if (sig === pendingOverlaySig) return;
+  pendingOverlaySig = sig;
+  const blocking = isBlockingPending(p.kind);
+  let body = "";
+  switch (kind) {
+    case "wuxie":
+      body = renderWuxieOverlay(p, board, lastNames);
+      break;
+    case "dying":
+      body = renderDyingOverlay(p, board, lastNames);
+      break;
+    case "wugu":
+      body = renderWuguOverlay(p, board, currentData?.special_zones, lastNames);
+      break;
+    case "pick_card":
+      body = renderPickCardOverlay(p, board, lastNames);
+      break;
+    case "target":
+      body = renderTargetOverlay(p, board, lastNames, (id) => {
+        const card = currentData ? findCard(currentData, id) : null;
+        return card ? cardLabel(card) : null;
+      });
+      break;
+    case "choose_many":
+      body = renderChooseManyOverlay(p, area, lastNames);
+      break;
+  }
+  openOverlay(pendingTitle(p.kind), body, {
+    blocking,
+    size: kind === "choose_many" || kind === "pick_card" ? "wide" : "normal",
+  });
+}
+
+// ---------------------------------------------------------------------------
 // 手势 / 浮层
 // ---------------------------------------------------------------------------
 
@@ -268,12 +341,14 @@ function applyState(res: StateResponse): void {
   const board = data.public_board;
   const meta = document.querySelector(".sgs-topbar .meta");
   if (meta && board) meta.textContent = `第 ${board.round} 轮 · ${board.turn.player_id ?? "-"}`;
+  syncPendingOverlay();
 }
 
 async function refreshNow(): Promise<void> {
   if (!boot) return;
   const res = await fetchState(boot);
-  if (!isOverlayOpen()) applyState(res);
+  // 详情浮层打开时不打断；pending 浮层必须随提交结果更新（否则会停在旧的待办上）。
+  if (!isOverlayOpen() || pendingOverlaySig) applyState(res);
   setText("sgs-warn", "");
   setText("sgs-updated", `更新于 ${hhmmss(new Date())}`);
 }
@@ -286,6 +361,7 @@ function start(): void {
   bindInteractions();
   // 点击委托只绑一次（容器元素不变，innerHTML 重渲染不影响）
   q<HTMLElement>("#sgs-app")?.addEventListener("click", onClick);
+  q<HTMLElement>("#sgs-overlay")?.addEventListener("click", onClick);
 
   let pollMs = bootstrap.pollMs ?? DEFAULT_POLL_MS;
   let timer: number | undefined;
@@ -302,8 +378,8 @@ function start(): void {
     }
     try {
       const res = await fetchState(bootstrap);
-      // 浮层打开时不打断用户：只更新状态条；等关闭后的下一次轮询再重渲染。
-      if (!isOverlayOpen()) applyState(res);
+      // 详情浮层打开时不打断用户；pending 浮层需要随局面更新（等待他人/链推进）。
+      if (!isOverlayOpen() || pendingOverlaySig) applyState(res);
       pollMs = bootstrap.pollMs ?? DEFAULT_POLL_MS;
       setText("sgs-warn", "");
       setText("sgs-updated", `更新于 ${hhmmss(new Date())}`);

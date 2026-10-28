@@ -154,6 +154,16 @@ body.busy { cursor:progress; }
 .sgs-overlay-close { margin-left:auto; width:34px; height:34px; border-radius:999px; border:1px solid #3d4757;
   background:#1c232c; color:#c9d1d9; font-size:20px; line-height:1; cursor:pointer; }
 .sgs-overlay-body { font-size:13px; line-height:1.6; }
+.sgs-overlay-lock { margin-left:auto; font-size:11px; padding:3px 8px; border-radius:999px;
+  background:#3a2c0e; color:#f0c765; border:1px solid #7a5b12; }
+.sgs-zone-note p { margin:0 0 6px; }
+.sgs-zone-actions { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0; }
+.sgs-zone-group { border-top:1px solid #262d38; padding-top:8px; margin-top:8px; }
+.sgs-zone-group h3 { font-size:12px; color:var(--sgs-muted); margin:0 0 4px; }
+.sgs-multi-cards { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0; }
+.sgs-multi-card { padding:8px 10px; border-radius:8px; border:1px solid #3d4757; background:#1c232c; color:#c9d1d9; cursor:pointer; }
+.sgs-multi-card.on { border-color:var(--sgs-gold); background:#2a2413; color:#ffe9b0; font-weight:700; }
+.sgs-overlay.blocking .sgs-overlay-mask { cursor:default; }
 .sgs-detail { border-collapse:collapse; width:100%; }
 .sgs-detail th, .sgs-detail td { border-bottom:1px solid #262d38; padding:6px 8px; text-align:left; vertical-align:top; }
 .sgs-detail th { width:6.5em; color:var(--sgs-muted); font-weight:600; }
