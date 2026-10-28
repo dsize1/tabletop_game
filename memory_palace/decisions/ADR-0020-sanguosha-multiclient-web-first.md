@@ -83,6 +83,13 @@
 - **文档**：`data-model.md` §4.2、`development-plan.md` P3/P7/P8 与本 ADR 同步；`docs/architecture.md` 的端侧描述后续按实现更新。
 - **风险**：Q 后置会弱化群内体验（用户已确认）；WebView 兼容与权鉴需专项验证。
 
+## 实施进度（2026-10-28，P3 完成）
+
+- **Web 页面**：`apps/web` 三国杀页（三分区 + 浮层 + 手势 + 观星拖拽）已实现；SSR + 10s 轮询；无 JS 文本态含动作表单（`arrange:<csv>` 文字提交实测）。
+- **动作执行**：按 §5 补充——server 内置执行（`/internal/game/{gameId}/{roomId}/action`）+ web 转发；单写者约定执行中。
+- **权限**：仍用 openid 绑定短 token（`game:{room_id}`）；QQ 扫码登录 → openId 认证与动作级鉴权按 §3 留 P8。
+- **验证**：四档布局无溢出、隐藏信息不泄漏、观星/五谷/无懈/拿牌链路 e2e；真机（Android/iOS）待人工。
+
 ## 依据与验证状态
 
 - 现状 Web 能力（SSR + 轮询 + 短 token + WebView 可加载）：`docs/modules/web.md`、ADR-0010/0011，**已验证**。

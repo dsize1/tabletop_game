@@ -17,6 +17,15 @@
   - `GET /health`：健康检查（cloudflared 探活）
 - markdown(GFM) 渲染：`src/render.ts`（marked，表格/复选框/代码块）。**后续** game/dev 引擎以 MCP 能力暴露统一的「web 渲染原语」，届时此层迁移为调用统一原语
 
+### 三国杀页面（P3，2026-10-28）
+
+- 路由：复用 `GET /tabletop_game/{gameId}/player/{openid}`，按引擎视图 `data.game === "sanguosha"` 分派到 `src/view/sgs/`；`GET /tabletop_game/{gameId}/state` 与 `POST /tabletop_game/{gameId}/action` 通用（动作仅本机转发到 server）。
+- 视图层（纯函数，SSR + bundle 共用）：`view/sgs/{format,public,personal,detail,overlay,pending,guanxing,text,page}.ts`；三分区布局、居中浮层、观星 2×5 槽与拖拽吸附。
+- 运行时：`src/client/main.ts`（拉斯维加斯，版图/文本双模式）与 `src/client/sgs.ts`（三国杀：10s 轮询 + 激活即刷 + 退避、`data-press` 手势、`data-action` 动作提交、pending 浮层、观星拖拽）。
+- 构建：`build:client` 产出 `public/assets/app.js`（es2020）与 `sgs.js`（es2017）。
+- 本地验收脚手架：`npm run sgs:web-room`（MCP 建局→选将→停在出牌→`/auth/issue` 签 token→打印每人链接；`--dump-state` 导出视图 fixture）。**先起 `npm run dev:up:noqq`**（server 3000 / web 18080）。
+- 基线：Chromium ≥ 88 / iOS Safari ≥ 14；禁用 `:has()`、容器查询、`dvh`；矮视口（≤520px）紧凑布局 + 操作条 fixed 贴底。
+
 ### 页面运行时（2026-10-18 起）
 
 - **双模式**：`?view=text` 仅用于首屏直出文本态（向后兼容）；正常链接不带参数，默认版图。切换用 hash（`#board` / `#text`）+ `history.replaceState`，**不跳转、不丢 token**。
