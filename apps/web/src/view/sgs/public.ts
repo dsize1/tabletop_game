@@ -51,7 +51,9 @@ function seatCard(
     .reverse() // 后进在左（栈顶 = 先判）
     .map((c) => cardChipHtml(c, { icon: judgeIcon(c) }))
     .join("");
-  const handDots = Array.from({ length: Math.min(seat.hand_count, 6) }, () => cardBackHtml()).join("");
+  // 手牌背面堆叠：每张只露一小部分（CSS 负 margin），最多画 8 张，其余靠 ×N 表达。
+  const shownBacks = Math.min(seat.hand_count, 8);
+  const handDots = Array.from({ length: shownBacks }, () => cardBackHtml()).join("");
   return (
     `<div class="${cls}" data-press="general" data-seat="${seatIdx}" style="left:${placement.left}%;top:${placement.top}%">` +
     `<div class="sgs-opponent-head">${name}${identity}</div>` +
@@ -137,8 +139,8 @@ export function renderPublicArea(
   );
 }
 
-/** 左侧辅助区：阶段条 + 出牌历史（手机折叠为抽屉）。 */
-export function renderSidePanel(data: SgsViewData, names?: Record<string, string>): string {
+/** 左侧辅助区正文：阶段条 + 本局信息 + 出牌历史（客户端每次轮询只刷这部分）。 */
+export function renderSidePanelBody(data: SgsViewData, names?: Record<string, string>): string {
   const board = data.public_board;
   const history = (board.history ?? []).slice(-40);
   const rows = history
@@ -154,13 +156,20 @@ export function renderSidePanel(data: SgsViewData, names?: Record<string, string
     )
     .join("");
   return (
-    `<aside class="sgs-side" aria-label="辅助区">` +
     `<div class="sgs-side-block"><h3>阶段</h3><div class="sgs-phases">${phases}</div></div>` +
     `<div class="sgs-side-block"><h3>本局</h3>` +
     `<div class="muted">第 ${board.round} 轮 · 第 ${board.turn_index + 1} 回合 · 当前 ${escapeHtml(
       board.turn.player_id ? playerName(names, board.turn.player_id) : "-",
     )}</div></div>` +
-    `<div class="sgs-side-block grow"><h3>出牌历史</h3><ul class="sgs-history">${rows}</ul></div>` +
+    `<div class="sgs-side-block grow"><h3>出牌历史</h3><ul class="sgs-history">${rows}</ul></div>`
+  );
+}
+
+/** 左侧辅助区（外壳，SSR 用；`id="sgs-side"` 供客户端局部刷新）。 */
+export function renderSidePanel(data: SgsViewData, names?: Record<string, string>): string {
+  return (
+    `<aside class="sgs-side" id="sgs-side" aria-label="辅助区">` +
+    renderSidePanelBody(data, names) +
     `</aside>`
   );
 }

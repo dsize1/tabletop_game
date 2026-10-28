@@ -9,7 +9,7 @@ import {
   seatPlacements,
   splitSides,
 } from "./src/view/sgs/format.js";
-import { renderPublicArea, renderSidePanel } from "./src/view/sgs/public.js";
+import { renderPublicArea, renderSidePanel, renderSidePanelBody } from "./src/view/sgs/public.js";
 import { renderPersonalArea } from "./src/view/sgs/personal.js";
 import { renderSgsTextBody } from "./src/view/sgs/text.js";
 import { renderCardDetail, renderDiscardList, renderGeneralDetail } from "./src/view/sgs/detail.js";
@@ -150,7 +150,19 @@ assert.ok(!publicHtml.includes("桃♥3"), "公共区不得泄露他人手牌");
 assert.ok(publicHtml.includes("等待 李四 响应"), "应提示当前等待者");
 assert.ok(publicHtml.includes("第 2 轮"), "应显示轮次");
 const sideHtml = renderSidePanel(view, names);
+assert.ok(sideHtml.includes('id="sgs-side"'), "侧栏有稳定 id（客户端局部刷新）");
 assert.ok(sideHtml.includes("出牌历史") && sideHtml.includes("使用【杀♠7】"), "辅助区应含历史");
+const sideBody = renderSidePanelBody(view, names);
+assert.ok(!sideBody.includes("<aside"), "body 渲染器不带外壳（仅替换 innerHTML）");
+assert.ok(sideBody.includes("出牌历史"), "body 含历史");
+
+// 他人手牌堆叠：最多 8 张背面（其余由 ×N 表达）
+const many = { ...board, seats: board.seats.map((s, i) => (i === 1 ? { ...s, hand_count: 20 } : s)) };
+const stackedHtml = renderPublicArea({ ...view, public_board: many }, 0, names);
+// 他人座位手牌数：p1=20→8 张背面、p2=3、p3=4、p4=5
+const expectedBacks = 8 + 3 + 4 + 5;
+assert.equal((stackedHtml.match(/sgs-card back/g) ?? []).length, expectedBacks, "手牌背面最多画 8 张（其余靠 ×N）");
+assert.ok(stackedHtml.includes("×20"), "数量标记展示真实张数");
 
 // —— 个人区：手牌正面 / 技能 / 操作条 / pending ——
 const meHtml = renderPersonalArea(me, board, {}, names);

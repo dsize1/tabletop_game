@@ -4,6 +4,7 @@
 // 交互：出牌链路（目标/确认提交）在 P3.3 接线；本文件已提供选中态与详情浮层。
 
 import { renderSgsApp } from "../view/sgs/page.js";
+import { renderSidePanelBody } from "../view/sgs/public.js";
 import { cardLabel } from "../view/sgs/format.js";
 import { renderCardDetail, renderDiscardList, renderGeneralDetail } from "../view/sgs/detail.js";
 import type { SgsCard, SgsViewData } from "../view/sgs/types.js";
@@ -477,6 +478,9 @@ function applyState(res: StateResponse): void {
   const board = data.public_board;
   const meta = document.querySelector(".sgs-topbar .meta");
   if (meta && board) meta.textContent = `第 ${board.round} 轮 · ${board.turn.player_id ?? "-"}`;
+  // 侧栏（阶段/本局/出牌历史）不在 #sgs-app 内，需单独刷新，否则要整页刷新才更新。
+  const side = document.getElementById("sgs-side");
+  if (side) side.innerHTML = renderSidePanelBody(data, res.names);
   syncPendingOverlay();
 }
 

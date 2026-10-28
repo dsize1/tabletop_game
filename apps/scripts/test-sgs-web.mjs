@@ -140,6 +140,14 @@ if (!browserPath) skip("未找到系统 Edge/Chrome（本脚本不下载浏览�
 
 let browser = null;
 try {
+  // 0) 构建前端 bundle（e2e 用最新 client；失败则中止）
+  const build = spawnSync("npm", ["--prefix", "apps/web", "run", "build:client"], {
+    cwd: projectRoot,
+    stdio: "ignore",
+    shell: process.platform === "win32",
+  });
+  if (build.status !== 0) throw new Error("build:client 失败");
+
   // 1) 起临时 server + web
   const server = spawn(serverExe, [], {
     cwd: projectRoot,
@@ -250,6 +258,11 @@ try {
         textHidden: getComputedStyle(document.querySelector("#sgs-text")).display === "none",
         ops: !!document.querySelector(".sgs-ops"),
         bundle: !!document.querySelector('script[src="/assets/sgs.js"]'),
+        stacked: (() => {
+          const backs = Array.from(document.querySelectorAll(".sgs-opponent .sgs-card.back"));
+          if (backs.length < 2) return null;
+          return parseFloat(getComputedStyle(backs[1]).marginLeft) < 0;
+        })(),
       };
     });
     assert(!m.overflowX, `${w}x${h} 无横向溢出`);
@@ -258,18 +271,62 @@ try {
     assert(m.oppFaces === 0, `${w}x${h} 公共区无手牌正面`);
     assert(m.textHidden, `${w}x${h} 默认显示游戏态（文本态隐藏）`);
     assert(m.ops && m.bundle, `${w}x${h} 操作条与 sgs bundle 存在`);
+    if (m.stacked !== null) assert(m.stacked, `${w}x${h} 他人手牌背面堆叠（负 margin）`);
   }
 
-  // 5) 无 JS 表单（urlencoded → 303）
-  const beforeForm = (await view(tokens[cur])).public.data.public_board;
+  // 4.5) 侧栏（阶段/历史）必须随动作即时更新，而不是只有整页刷新后才更新
+  const startTurn = (await view(tokens[cur])).public.data.public_board.turn_index;
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(pageUrl, { waitUntil: "load" });
+  await page.waitForTimeout(800);
+  const sideBefore = await page.evaluate(() => ({
+    items: document.querySelectorAll("#sgs-side .sgs-history li").length,
+    last: document.querySelector("#sgs-side .sgs-history li:last-child")?.textContent ?? "",
+  }));
+  const clickedEnd = await page.evaluate(() => {
+    const btn = document.querySelector('[data-action="end_play"]');
+    if (!btn || btn.disabled) return false;
+    btn.click();
+    return true;
+  });
+  assert(clickedEnd, "出牌阶段存在可点击的「结束出牌」");
+  if (clickedEnd) {
+    await page.waitForTimeout(1500);
+    const sideAfter = await page.evaluate(() => ({
+      items: document.querySelectorAll("#sgs-side .sgs-history li").length,
+      last: document.querySelector("#sgs-side .sgs-history li:last-child")?.textContent ?? "",
+      phases: Array.from(document.querySelectorAll("#sgs-side .sgs-phase.on")).map((n) => n.textContent),
+    }));
+    assert(
+      sideAfter.items > sideBefore.items || sideAfter.last !== sideBefore.last,
+      "侧栏出牌历史随动作即时更新（无需刷新）",
+    );
+    assert(sideAfter.phases.length >= 1, "侧栏阶段条随动作更新");
+  }
+
+  // 5) 无 JS 表单（urlencoded → 303）：按当前局面取一个合法动作（pending 优先）
+  const snap0 = await view(tokens[cur]);
+  const b0 = snap0.public.data.public_board;
+  let formActor = b0.turn.player_id;
+  let formAction = null;
+  if (b0.pending) {
+    formActor = b0.pending.actor;
+    const pv = await view(tokens[formActor]);
+    const opts = pv.player.data.player_area?.pending?.options ?? [];
+    formAction = (opts.find((o) => o.id === "pass") ?? opts[0])?.id ?? null;
+  } else {
+    formAction = (snap0.actions ?? []).find((a) => a.id === "end_play")?.id ?? (snap0.actions ?? [])[0]?.id ?? null;
+  }
+  assert(Boolean(formActor && formAction), "取到可提交的合法动作（无 JS 表单）");
+  const beforeForm = b0;
   const form = await fetch(`${WEB_URL}/tabletop_game/sanguosha/action`, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ token: tokens[cur], room_id: room, action: "end_play" }),
+    body: new URLSearchParams({ token: tokens[formActor], room_id: room, action: formAction }),
     redirect: "manual",
   });
   assert(form.status === 303, "无 JS 表单提交 → 303 PRG");
-  const afterForm = (await view(tokens[cur])).public.data.public_board;
+  const afterForm = (await view(tokens[formActor])).public.data.public_board;
   assert(
     afterForm.turn_index > beforeForm.turn_index ||
       JSON.stringify(afterForm.pending) !== JSON.stringify(beforeForm.pending) ||
@@ -279,7 +336,6 @@ try {
 
   // 6) 浏览器交互：清掉 pending（弃牌/响应按「不出」）后 end_play，直到回合推进
   await page.setViewportSize({ width: 390, height: 844 });
-  const startTurn = (await view(tokens[cur])).public.data.public_board.turn_index;
   for (let step = 0; step < 8; step += 1) {
     await page.goto(pageUrl, { waitUntil: "load" });
     await page.waitForTimeout(700);

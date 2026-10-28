@@ -74,6 +74,9 @@ button { font: inherit; color: inherit; }
 .sgs-hp .hp.on { background:#e5484d; }
 .sgs-hp-num { font-size:10px; color:var(--sgs-muted); margin-left:2px; }
 .sgs-hand-mini { display:flex; align-items:center; gap:2px; flex-wrap:wrap; }
+/* 他人手牌背面堆叠：每张仅露左侧一小截（负 margin），第一张不缩 */
+.sgs-hand-mini .sgs-card.back + .sgs-card.back { margin-left:-18px; }
+.sgs-hand-mini .sgs-card.back { box-shadow:1px 1px 2px rgba(0,0,0,.45); }
 .sgs-hand-count { font-size:11px; color:#c9d1d9; }
 .sgs-mini-row { display:flex; flex-wrap:wrap; gap:3px; margin-top:2px; }
 .sgs-mini-row.judge .sgs-chip { background:#2a2033; }
