@@ -214,6 +214,9 @@ pub struct RespondFrame {
     /// 青釭剑：无视目标防具（八卦阵不可用、仁王盾无效）。
     #[serde(default)]
     pub ignore_armor: bool,
+    /// 八卦阵：本次响应是否已经判定过（每次需要【闪】只能判一次）。
+    #[serde(default)]
+    pub bagua_used: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -841,6 +844,7 @@ fn step_trick(
                             damage_type: DamageType::Normal,
                             consume_card: false,
                             ignore_armor: false,
+                            bagua_used: false,
                         }),
                     );
                     f.stage = TrickStage::WaitChild;
@@ -859,6 +863,7 @@ fn step_trick(
                             damage_type: DamageType::Normal,
                             consume_card: false,
                             ignore_armor: false,
+                            bagua_used: false,
                         }),
                     );
                     f.stage = TrickStage::WaitChild;
@@ -912,6 +917,7 @@ fn step_trick(
                             damage_type: DamageType::Normal,
                             consume_card: false,
                             ignore_armor: false,
+                            bagua_used: false,
                         }),
                     );
                     f.stage = TrickStage::WaitChild;
@@ -932,6 +938,7 @@ fn step_trick(
                             damage_type: DamageType::Normal,
                             consume_card: false,
                             ignore_armor: false,
+                            bagua_used: false,
                         }),
                     );
                     f.stage = TrickStage::WaitChild;
@@ -1073,6 +1080,7 @@ fn step_respond(st: &mut SgsState, f: RespondFrame) -> Result<bool, EngineError>
     // 八卦阵：需要【闪】时可判定，红色视为打出【闪】（青釭剑无视）
     if needed == "shan"
         && !f.ignore_armor
+        && !f.bagua_used
         && st
             .equip_def(f.actor, EquipSlot::Armor)
             .is_some_and(|d| d.code == "bagua_zhen")
@@ -1391,6 +1399,7 @@ fn act_target(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Stri
                 damage_type: DamageType::Normal,
                 consume_card: false,
                 ignore_armor: st.has_equip(f.user, "qinggang_jian"),
+                bagua_used: false,
             }),
         );
         return Ok(format!("已选择目标：{}", st.seats[target].general_name));
@@ -1473,6 +1482,9 @@ fn act_respond(st: &mut SgsState, _pending: &Pending, action: &str) -> Result<St
         if f.kind != RespondKind::Shan {
             return Err(illegal("八卦阵只能用于需要【闪】时"));
         }
+        if f.bagua_used {
+            return Err(illegal("本次响应已经使用过【八卦阵】"));
+        }
         if f.ignore_armor
             || !st
                 .equip_def(actor, EquipSlot::Armor)
@@ -1480,6 +1492,9 @@ fn act_respond(st: &mut SgsState, _pending: &Pending, action: &str) -> Result<St
         {
             return Err(illegal("没有可用的【八卦阵】"));
         }
+        let mut used = f.clone();
+        used.bagua_used = true;
+        replace_top(st, Frame::Respond(used));
         let mut ev = Vec::new();
         let judge_id = turn::draw_one(st, &mut ev).ok_or_else(|| internal("牌堆不可用"))?;
         let suit = st.cards.get(&judge_id).map(|c| c.suit);
@@ -1674,6 +1689,7 @@ fn finish_respond_play(
                     damage_type: f.damage_type,
                     consume_card: false,
                     ignore_armor: false,
+                    bagua_used: false,
                 }),
             );
             Ok("已打出【杀】，轮到对方".to_string())
@@ -1693,6 +1709,7 @@ fn finish_respond_play(
                     damage_type: DamageType::Normal,
                     consume_card: true,
                     ignore_armor: st.has_equip(played_by, "qinggang_jian"),
+                    bagua_used: false,
                 }),
             );
             Ok("A 已出杀，等待目标响应".to_string())

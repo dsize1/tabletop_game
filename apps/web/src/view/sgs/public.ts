@@ -145,10 +145,13 @@ export function renderSidePanelBody(data: SgsViewData, names?: Record<string, st
   // 全量历史（引擎上限 800），最新在最上面；端侧只负责展示顺序。
   const history = (board.history ?? []).slice().reverse();
   const rows = history
-    .map(
-      (h) =>
-        `<li data-seq="${h.seq}"><span class="muted">#${h.seq}</span> ${escapeHtml(h.text)}</li>`,
-    )
+    .map((h) => {
+      // 历史正文多数以「使用/装备/打出」开头，补上操作者更易复盘。
+      const who = h.actor
+        ? `<b class="sgs-log-actor">${escapeHtml(playerName(names, h.actor))}</b> `
+        : "";
+      return `<li data-seq="${h.seq}"><span class="muted">#${h.seq}</span> ${who}${escapeHtml(h.text)}</li>`;
+    })
     .join("");
   const phases = ["prepare", "judge", "draw", "play", "discard", "end"]
     .map(

@@ -49,6 +49,7 @@ button { font: inherit; color: inherit; }
 .sgs-phase.on { background:var(--sgs-gold); color:#1a1206; font-weight:700; }
 .sgs-history { list-style:none; margin:0; padding:0; overflow:auto; font-size:12px; line-height:1.5; }
 .sgs-history li { padding:2px 0; border-bottom:1px dashed #21262d; }
+.sgs-log-actor { color:#9fd7a0; font-weight:600; }
 .sgs-main { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:10px; }
 .sgs-public { position:relative; flex:1 1 auto; min-height:clamp(260px,44vh,640px);
   background:radial-gradient(circle at 50% 45%, #131a23 0%, #0d1219 70%); border:1px solid var(--sgs-line);

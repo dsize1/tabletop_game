@@ -79,7 +79,7 @@ const board: SgsPublicBoard = {
   pending: { kind: "wuxie", actor: "p1" },
   history: [
     { seq: 1, turn: 0, text: "刘备 使用【杀♠7】" },
-    { seq: 2, turn: 0, text: "曹操 受到 1 点普通伤害（体力 3）" },
+    { seq: 2, turn: 0, actor: "p0", text: "受到 1 点普通伤害（体力 3）" },
     { seq: 3, turn: 0, text: "【杀】结算完毕" },
   ],
 };
@@ -157,6 +157,10 @@ const sideHtml = renderSidePanel(view, names);
 assert.ok(sideHtml.includes('id="sgs-side"'), "侧栏有稳定 id（客户端局部刷新）");
 assert.ok(sideHtml.includes("出牌历史") && sideHtml.includes("使用【杀♠7】"), "辅助区应含历史");
 assert.ok(sideHtml.includes("出牌历史（3）"), "历史标题显示总条数（全量）");
+assert.ok(
+  sideHtml.includes('class="sgs-log-actor">张三</b> 受到 1 点普通伤害'),
+  "历史条目显示操作者昵称（便于复盘）",
+);
 const seqs = [...sideHtml.matchAll(/data-seq="(\d+)"/g)].map((m) => Number(m[1]));
 assert.deepEqual(seqs, [3, 2, 1], "历史倒序（最新在最上面）");
 const sideBody = renderSidePanelBody(view, names);

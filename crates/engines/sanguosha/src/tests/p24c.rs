@@ -117,6 +117,8 @@ fn bagua_black_fails_then_pass_takes_damage() {
             .unwrap();
         take_card(st, &black);
         st.deck.draw.push(black);
+        // 手里留一张【闪】：黑色八卦失败后仍可正常出闪（且不能再判八卦）
+        give(st, target, "shan");
     });
     let st = state_of(&mgr, &room);
     let cur = st.turn;
@@ -133,10 +135,16 @@ fn bagua_black_fails_then_pass_takes_damage() {
     mgr.execute_action(&room, &target_pid, "skill:bagua")
         .unwrap();
     let st = state_of(&mgr, &room);
-    assert_eq!(
-        st.pending.as_ref().map(|p| p.kind.as_str()),
-        Some("respond"),
-        "八卦阵黑色应继续询问闪"
+    let pending = st.pending.clone().expect("八卦阵黑色应继续询问闪");
+    assert_eq!(pending.kind, "respond");
+    assert!(
+        !pending.options.iter().any(|o| o.id == "skill:bagua"),
+        "每次需要【闪】只能判定一次八卦阵"
+    );
+    assert!(
+        mgr.execute_action(&room, &target_pid, "skill:bagua")
+            .is_err(),
+        "重复使用八卦阵应被拒绝"
     );
     mgr.execute_action(&room, &target_pid, "pass").unwrap();
     let st = state_of(&mgr, &room);

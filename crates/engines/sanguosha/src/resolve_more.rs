@@ -378,6 +378,7 @@ pub(crate) fn lijian_target(
                     damage_type: crate::resolve::DamageType::Normal,
                     consume_card: false,
                     ignore_armor: false,
+                    bagua_used: false,
                 }),
             );
             Ok("离间已生效：目标需出【杀】".to_string())
