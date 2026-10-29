@@ -72,6 +72,7 @@ GameState（game-engine-core 信封）
 | `choose_many` | 技能拥有者 | `purpose` / `selected` / `min` / `max` | `choose:<card>` / `confirm` / `cancel` | 制衡（弃 N 摸 N）、仁德（选牌）、离间（选 1 张） |
 | `choice`（巡袭/接力） | 技能拥有者 | `skill` / `needed` | `choose:tuxi` / `respond:<card>` / `pass` | 突袭（放弃摸牌）、激将/护驾（同势力代出杀/闪） |
 | `wugu` | 按选择顺序的当前玩家（**释放者先选**） | `card` / `remaining` / `chooser` / `zone` | `pick:<card_id>` | 五谷丰登（P2.5）；每人一次无懈窗口 |
+| `judge`（改判，P4 计划） | 从判定者左手侧起、**仅有改判技能者** | `owner` / `card` / `skill` / `cursor` | `skill:<改判技能>:<card_id>` / `pass` | 判定牌亮出后自动询问；无人改判则按原判定结算 |
 | `arrange` | 技能拥有者 | `zone` / `rows` / `cols` / `slots` / `rev` / `interaction` | `arrange:<csv>` | 观星（P2.5）：准备阶段自动进入，不可取消 |
 
 - P2.3 起由**结算栈**驱动：`resolution: Vec<Frame>`（Trick/Wuxie/PickCard/Aoe/Respond/Dying/Discard），`pending` 是栈顶投影；濒死与无懈嵌套通过压栈/弹栈恢复。

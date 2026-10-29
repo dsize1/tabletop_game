@@ -335,7 +335,10 @@ CREATE INDEX IF NOT EXISTS idx_prop_status_log_entity
       "flags": {}                     // 技能私有标记（如觉醒已触发）
     }
   ],
-  "cards": {
+  // P4 计划字段（当前实现尚未包含）：牌堆/包与角色状态
+  // "config": { ..., "packs": ["standard", "junzheng"] },   // 全局包组合（默认 160 张）
+  // "seats[].chained": false,                              // 铁索连环状态
+  // "cards": {
     // 牌实例表：id → 物理牌 + 当前区域 + 归属
     "c12": { "def": "sha", "suit": "spade", "rank": 7, "zone": "hand", "owner": "openid" },
     "c7":  { "def": "shan", "suit": "heart", "rank": 2, "zone": "hand", "owner": "openid" }

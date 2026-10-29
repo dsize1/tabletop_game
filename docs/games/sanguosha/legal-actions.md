@@ -139,6 +139,7 @@ hint                               # 同 resume（别名）
 | 五谷选牌（P2.5） | `pick:<card_id>` | `wugu` | 释放者先选，随后座位顺序；每人一次无懈窗口 |
 | 观星提交（P2.5） | `arrange:<id,id,...>` | `arrange` | 有序 id 列表 = 新牌堆顶 → 底；必填全部取出的牌 |
 | 麒麟弓（P3 追加） | `skill:qilin:horse_offense` / `skill:qilin:horse_defense` / `pass` | `choice` | 【杀】造成伤害后由攻击方弃置目标一张坐骑 |
+| 改判（P4 计划） | `skill:<改判技能>:<card_id>` / `pass` | `judge` | 判定牌亮出后自动询问；从判定者左手侧起，仅询问有改判技能者 |
 
 - `confirm`/`cancel` 仅用于需要二阶段目标确认的牌（当前只有借刀杀人）；取消后不产生任何状态变化。
 

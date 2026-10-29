@@ -351,7 +351,14 @@
 
 依赖：P2.4、P3。
 
-**P4 前置清单（2026-10-30 梳理，开工前逐项确认）**
+**P4 开工口径（2026-10-30 用户确认）**
+
+1. **牌堆**：**标准 + 军争 = 160 张**（军争 52 张定义已在 `data/cards.json`）；`Config` 默认即此组合。
+2. **包开关**：**全局 config（一局一个包组合）**，不做逐玩家/逐牌开关；旧对局按创建时的 config 固定。
+3. **武将数据源**：**P4 先引擎内置多包生成**（生成脚本按 `pack` 产出）；中台 live/元数据只读 API 留 P5。
+4. **改判窗口**：**判定牌亮出后自动弹 pending**；询问顺序**从判定者左手侧开始、拥有改判技能者先被询问**（没有改判技能者不询问）；可打出改判牌或 `pass`。
+
+**P4 前置清单（2026-10-30 梳理；①②③④ 已按上表拍板）**
 
 1. **数据/牌堆扩展（生成脚本，必做）**
    - `apps/scripts/gen-sanguosha-engine-data.mjs` 目前**只生成标准 108 张 + gid 1..25**；`docs/games/sanguosha/data/cards.json` 已有 `standard=108` / `junzheng=52`，`heroes.json` 696 将含 `pack`（标准27/风林火山48/一将成名72/界限突破87/国战110…）。
@@ -369,7 +376,9 @@
    - 每将 ≥3 用例 + ≥1 跨技能交互；包开关回归；军争规则用例；`check:sgs-engine-data` 扩军争/多包。
    - Web 侧：技能多选/主公技接力/限定技按钮的浏览器实测（P3 已有 `choice/choose_many/target` 通道与浮层，缺实测）；新增触发窗口若无现成 pending 形态需登记 `state-machine.md` §2.2 与 `check:interaction-primitives`。
 
-**P4 建议拆分**：P4.0 数据/牌堆/包开关 → P4.1 标准 25 将余 17（含改判/空城）→ P4.2 装备效果剩余 6 件 + 机制窗口（damage_before/多目标/转化/追加）→ P4.3 军争牌结算 + 属性/连环 → P4.4 包扩展（风林火山→…）与验收。
+**P4 建议拆分**：P4.0 数据/牌堆(160)/包开关(config) → P4.1 标准 25 将余 17（含空城、改判 pending）→ P4.2 装备效果剩余 6 件 + 机制窗口（damage_before/多目标/转化/追加）→ P4.3 军争牌结算 + 属性/连环 → P4.4 包扩展（风林火山→…）与验收。
+
+**P4.0 交付锚点（新会话直接照此开工）**：生成脚本支持 `junzheng` 牌 + `GeneralDef.pack`；引擎新增 `JUNZHENG_DECK` 与 `Config.packs`/牌堆模式（默认 `["standard","junzheng"]` → 160）；`finish_setup` 按 config 建堆；牌数守恒断言覆盖 160；`check:sgs-engine-data` 扩围；文档 `data-model.md` schema 同步。
 
 ### P5 武将流程设计工作台 + 预览（L）
 
