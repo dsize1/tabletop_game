@@ -1,6 +1,6 @@
 # ADR-0020：多端交互形态 —— Web 优先 + WebView 复用 + 游戏区域三分
 
-- **状态**：提案·待评审（2026-10-25，依据用户当日裁定）
+- **状态**：**已采纳**（2026-10-30；P3 已按本 ADR 落地 Web 三分区页面与 server 动作宿主）
 - **相关**：`docs/games/sanguosha/plan.md`、`docs/games/sanguosha/development-plan.md`（P3/P7/P8）、`docs/games/sanguosha/data-model.md`（§4.2）、ADR-0010（版图渲染/双模式）、ADR-0011（移动端形态 PWA/Tauri）、ADR-0012（交互原语）、ADR-0016（引擎内核）、ADR-0017（中台）
 - **结论一句话**：三国杀的**主交互面是 Web 页**，多端通过 WebView 复用；页面按**公共局面区（只读）/ 玩家个人资源区（交互基座）/ 特殊交互区**三分；**Q 群后置**，只做开局设定、轮次/状态查询与牌局链接；**完整权鉴放到上线阶段**。
 

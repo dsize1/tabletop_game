@@ -15,6 +15,16 @@
 - **已知限制**：真机吸附阈值/长按阈值按默认 10%/400ms（可调）；借刀二阶段无灰/红边框视觉；e2e 未覆盖无懈/五谷/观星整链（手工验证）；全仓 `cargo fmt` 历史漂移未处理
 - **详见**：`docs/games/sanguosha/development-plan.md` P3 记录、`ui-spec.md`、`p3-manual-test.md`、`docs/modules/web.md`、计划台账
 
+## M19：三国杀 P2.4 —— 技能内核 + 首批武将 + 交互原语 ✅
+
+- **日期**：2026-10-28（P2.4 收口；记录补录 2026-10-30）
+- **完成**：
+  - 技能注册表（`skills.rs`，确定性派发：声明序 → 左手侧座位序 → 注册序）+ 技能帧（`resolve_skill.rs`）+ 第二批帧（`resolve_more.rs`）
+  - 首批 8 将 14 技能（含主公技激将/护驾接力）+ 诸葛亮观星（P2.5）；装备可选效果：青釭剑/八卦阵/仁王盾/诸葛连弩（麒麟弓 P3 追加）
+  - 交互原语：`choice` / `choose_many(min,max)` / `ordered`（观星）/ 跨玩家响应队列；视图 `player_area.skills` 结构化
+- **验证**：`cargo test -p sanguosha` 77 用例（每将 ≥3 用例）；MCP 终局冒烟；workspace 全绿
+- **详见**：`docs/games/sanguosha/skills.md`、`development-plan.md` P2.4 记录
+
 ## M18：三国杀 P2 —— 引擎内核 + 身份局全流程 + 特殊区骨架 ✅
 
 - **日期**：2026-10-28（P2.1–P2.5 收口；**人工验收 2026-10-28 通过**，用户裁定进入 P3）
