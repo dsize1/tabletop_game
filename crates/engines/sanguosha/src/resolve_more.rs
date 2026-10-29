@@ -537,12 +537,20 @@ pub(crate) fn act_select_skill(st: &mut SgsState, action: &str) -> Result<String
         Rende,
         Lijian,
     }
-    let (which, mut selected) = match top(st).cloned() {
-        Some(Frame::Rende(f)) => (Which::Rende, f.selected),
-        Some(Frame::Lijian(f)) => (Which::Lijian, f.selected),
+    let (which, mut selected, actor) = match top(st).cloned() {
+        Some(Frame::Rende(f)) => (Which::Rende, f.selected, f.actor),
+        Some(Frame::Lijian(f)) => (Which::Lijian, f.selected, f.actor),
         _ => return Err(internal("栈顶不是技能多选帧")),
     };
     if action == "cancel" {
+        let name = match which {
+            Which::Rende => "仁德",
+            Which::Lijian => "离间",
+        };
+        st.push_log(
+            Some(&st.seats[actor].player_id.clone()),
+            format!("取消{name}"),
+        );
         pop(st);
         return Ok("已取消".to_string());
     }
