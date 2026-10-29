@@ -13,6 +13,131 @@ use game_engine_core::EngineError;
 use serde_json::json;
 
 // ---------------------------------------------------------------------------
+// 麒麟弓（P3 追加）：杀造成伤害后，攻击方可弃置目标一张坐骑（进攻/防御马）
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct QilinFrame {
+    pub attacker: usize,
+    pub target: usize,
+}
+
+/// 目标当前可被弃置的坐骑槽（进攻马在前、防御马在后）。
+pub(crate) fn qilin_horses(st: &SgsState, target: usize) -> Vec<EquipSlot> {
+    [EquipSlot::HorseOffense, EquipSlot::HorseDefense]
+        .into_iter()
+        .filter(|slot| {
+            st.seats[target]
+                .equips
+                .get(slot)
+                .is_some_and(|v| v.is_some())
+        })
+        .collect()
+}
+
+fn horse_slot_code(slot: EquipSlot) -> &'static str {
+    match slot {
+        EquipSlot::HorseOffense => "horse_offense",
+        EquipSlot::HorseDefense => "horse_defense",
+        _ => "horse_offense",
+    }
+}
+
+fn horse_slot_from_code(code: &str) -> Option<EquipSlot> {
+    match code {
+        "horse_offense" => Some(EquipSlot::HorseOffense),
+        "horse_defense" => Some(EquipSlot::HorseDefense),
+        _ => None,
+    }
+}
+
+pub(crate) fn step_qilin(st: &mut SgsState, f: QilinFrame) -> Result<bool, EngineError> {
+    let horses = qilin_horses(st, f.target);
+    if horses.is_empty() || !st.seats[f.target].alive || !st.seats[f.attacker].alive {
+        pop(st);
+        return Ok(false);
+    }
+    let target_name = st.seats[f.target].general_name.clone();
+    let mut options: Vec<PendingOption> = horses
+        .iter()
+        .map(|slot| {
+            let id = st.seats[f.target].equips.get(slot).and_then(|v| v.clone());
+            let label = match (&id, slot) {
+                (Some(card), EquipSlot::HorseOffense) => {
+                    format!(
+                        "弃置{}的【{}】（进攻马）",
+                        target_name,
+                        turn::card_label(st, card)
+                    )
+                }
+                (Some(card), _) => {
+                    format!(
+                        "弃置{}的【{}】（防御马）",
+                        target_name,
+                        turn::card_label(st, card)
+                    )
+                }
+                (None, _) => String::new(),
+            };
+            PendingOption {
+                id: format!("skill:qilin:{}", horse_slot_code(*slot)),
+                label,
+            }
+        })
+        .collect();
+    options.push(PendingOption {
+        id: "pass".into(),
+        label: "不弃置".into(),
+    });
+    st.pending = Some(Pending {
+        kind: "choice".into(),
+        actor: st.seats[f.attacker].player_id.clone(),
+        skill: Some("qilin".into()),
+        options,
+        data: json!({ "skill": "qilin", "target": st.seats[f.target].player_id }),
+    });
+    replace_top(st, Frame::Qilin(f));
+    Ok(true)
+}
+
+pub(crate) fn act_qilin(
+    st: &mut SgsState,
+    pending: &Pending,
+    action: &str,
+) -> Result<String, EngineError> {
+    let f = match top(st).cloned() {
+        Some(Frame::Qilin(f)) => f,
+        _ => return Err(internal("栈顶不是麒麟弓帧")),
+    };
+    if action == "pass" {
+        pop(st);
+        return Ok("不弃置坐骑".to_string());
+    }
+    let code = action
+        .strip_prefix("skill:qilin:")
+        .ok_or_else(|| illegal("需要选择要弃置的坐骑或选择不弃置"))?;
+    let slot = horse_slot_from_code(code).ok_or_else(|| illegal("未知的坐骑槽"))?;
+    let card = st.seats[f.target]
+        .equips
+        .get(&slot)
+        .cloned()
+        .flatten()
+        .ok_or_else(|| illegal("该槽位没有坐骑"))?;
+    st.seats[f.target].equips.insert(slot, None);
+    turn::to_discard_card(st, &card);
+    let label = turn::card_label(st, &card);
+    st.push_log(
+        Some(&pending.actor),
+        format!(
+            "麒麟弓：弃置{}的【{}】",
+            st.seats[f.target].general_name, label
+        ),
+    );
+    pop(st);
+    Ok(format!("麒麟弓：已弃置【{label}】"))
+}
+
+// ---------------------------------------------------------------------------
 // 奸雄
 // ---------------------------------------------------------------------------
 

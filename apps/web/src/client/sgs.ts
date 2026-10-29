@@ -58,6 +58,9 @@ let pendingOverlaySig = "";
 let gxSlots: GxSlots | null = null;
 let gxInitial: GxSlots | null = null;
 let gxSuppressClickUntil = 0;
+/** 整页刷新/重新进入时恢复的滚动位置（页面 + 历史列表）。 */
+let restoreScroll: { page: number; hist: number } | null = null;
+let scrollKey = "";
 
 function readBootstrap(): Bootstrap | null {
   const node = document.getElementById("sgs-bootstrap");
@@ -146,6 +149,37 @@ function toggleSelect(cardId: string): void {
 // ---------------------------------------------------------------------------
 // 动作提交（P3.3）：草稿（选中）→ 按 pending 逐条提交；失败保留草稿并提示
 // ---------------------------------------------------------------------------
+
+function readSavedScroll(): { page: number; hist: number } | null {
+  if (!scrollKey) return null;
+  try {
+    const raw = sessionStorage.getItem(scrollKey);
+    if (!raw) return null;
+    const v = JSON.parse(raw) as { page?: number; hist?: number };
+    return { page: Number(v.page) || 0, hist: Number(v.hist) || 0 };
+  } catch {
+    return null;
+  }
+}
+
+function saveScroll(): void {
+  if (!scrollKey) return;
+  try {
+    const hist = document.querySelector<HTMLElement>(".sgs-history")?.scrollTop ?? 0;
+    sessionStorage.setItem(scrollKey, JSON.stringify({ page: window.scrollY, hist }));
+  } catch {
+    /* 隐私模式等忽略 */
+  }
+}
+
+function applyRestoredScroll(): void {
+  if (!restoreScroll) return;
+  const { page, hist } = restoreScroll;
+  restoreScroll = null;
+  if (window.scrollY === 0 && page > 0) window.scrollTo(0, page);
+  const list = document.querySelector<HTMLElement>(".sgs-history");
+  if (list && hist > 0) list.scrollTop = hist;
+}
 
 function message(text: string, warn = false): void {
   const node = document.getElementById("sgs-msg");
@@ -479,8 +513,15 @@ function applyState(res: StateResponse): void {
   const meta = document.querySelector(".sgs-topbar .meta");
   if (meta && board) meta.textContent = `第 ${board.round} 轮 · ${board.turn.player_id ?? "-"}`;
   // 侧栏（阶段/本局/出牌历史）不在 #sgs-app 内，需单独刷新，否则要整页刷新才更新。
+  // 轮询/提交会重建 DOM，需保留历史列表滚动位置（否则每次刷新跳回顶部）。
   const side = document.getElementById("sgs-side");
-  if (side) side.innerHTML = renderSidePanelBody(data, res.names);
+  if (side) {
+    const oldList = side.querySelector<HTMLElement>(".sgs-history");
+    const keepScroll = oldList?.scrollTop ?? 0;
+    side.innerHTML = renderSidePanelBody(data, res.names);
+    const newList = side.querySelector<HTMLElement>(".sgs-history");
+    if (newList && keepScroll > 0) newList.scrollTop = keepScroll;
+  }
   syncPendingOverlay();
 }
 
@@ -489,6 +530,7 @@ async function refreshNow(): Promise<void> {
   const res = await fetchState(boot);
   // 详情浮层打开时不打断；pending 浮层必须随提交结果更新（否则会停在旧的待办上）。
   if (!isOverlayOpen() || pendingOverlaySig) applyState(res);
+  applyRestoredScroll();
   setText("sgs-warn", "");
   setText("sgs-updated", `更新于 ${hhmmss(new Date())}`);
 }
@@ -497,6 +539,10 @@ function start(): void {
   const bootstrap = readBootstrap();
   if (!bootstrap) return;
   boot = bootstrap;
+  scrollKey = `sgs:scroll:${bootstrap.roomId}`;
+  restoreScroll = readSavedScroll();
+  window.addEventListener("pagehide", saveScroll);
+  window.addEventListener("beforeunload", saveScroll);
   initOverlay();
   bindInteractions();
   // 点击/拖拽委托只绑一次（容器元素不变，innerHTML 重渲染不影响）

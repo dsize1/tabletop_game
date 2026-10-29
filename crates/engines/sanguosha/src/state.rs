@@ -31,7 +31,7 @@ pub const MAX_HP_LIMIT: i32 = 15;
 /// 摸牌阶段默认摸牌数。
 pub const DRAW_PER_TURN: u32 = 2;
 /// 出牌历史保留条数。
-pub const HISTORY_LIMIT: usize = 200;
+pub const HISTORY_LIMIT: usize = 800;
 
 /// 全局阶段（`state-machine.md` §2）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

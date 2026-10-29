@@ -71,6 +71,16 @@ pub(crate) fn to_discard_card(st: &mut SgsState, card_id: &str) {
     st.deck.discard.push(card_id.to_string());
 }
 
+/// 是否有「顺手/过河」可拿的牌（手牌 / 装备 / 判定区至少其一）。
+pub(crate) fn has_cards_to_take(st: &SgsState, idx: usize) -> bool {
+    let Some(seat) = st.seats.get(idx) else {
+        return false;
+    };
+    !seat.hand.is_empty()
+        || !seat.judge_zone.is_empty()
+        || seat.equips.values().any(|v| v.is_some())
+}
+
 pub(crate) fn judge_zone_has(st: &SgsState, idx: usize, def_code: &str) -> bool {
     st.seats
         .get(idx)
@@ -335,6 +345,7 @@ pub(crate) fn resolve_judge_reveal(
         .cloned()
         .ok_or_else(|| internal("判定牌缺少实例"))?;
     let owner_pid = st.seats[owner].player_id.clone();
+    let owner_name = st.seats[owner].general_name.clone();
 
     let drop_processing = |st: &mut SgsState| {
         st.deck.processing.retain(|c| c != &delayed);
@@ -418,7 +429,7 @@ pub(crate) fn resolve_judge_reveal(
     st.push_log(
         Some(&owner_pid),
         format!(
-            "判定【{delayed_name}】：{}，{effect}",
+            "判定【{delayed_name}】（{owner_name}）：{}，{effect}",
             card_label(st, &judge_id)
         ),
     );
@@ -482,7 +493,12 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
             "shunshou_qianyang" => st
                 .alive_indices()
                 .into_iter()
-                .any(|t| t != idx && trick_distance_ok(st, idx, t)),
+                .any(|t| t != idx && trick_distance_ok(st, idx, t) && has_cards_to_take(st, t)),
+            "guohe_chaiqiao" => st
+                .alive_indices()
+                .into_iter()
+                .any(|t| t != idx && has_cards_to_take(st, t)),
+            "juedou" => st.alive_indices().into_iter().any(|t| t != idx),
             "lebu_sishu" => st
                 .alive_indices()
                 .into_iter()

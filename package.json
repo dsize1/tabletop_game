@@ -28,6 +28,7 @@
     "check:interaction-primitives": "cargo test --manifest-path crates/Cargo.toml -p sanguosha interaction_",
     "verify:sanguosha": "node apps/verify-sanguosha.mjs",
     "sgs:web-room": "node apps/scripts/sgs-web-room.mjs",
-    "test:sgs-web": "node apps/scripts/test-sgs-web.mjs"
+    "test:sgs-web": "node apps/scripts/test-sgs-web.mjs",
+    "sgs:history": "node apps/scripts/sgs-history.mjs"
   }
 }

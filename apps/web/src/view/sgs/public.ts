@@ -142,11 +142,12 @@ export function renderPublicArea(
 /** 左侧辅助区正文：阶段条 + 本局信息 + 出牌历史（客户端每次轮询只刷这部分）。 */
 export function renderSidePanelBody(data: SgsViewData, names?: Record<string, string>): string {
   const board = data.public_board;
-  const history = (board.history ?? []).slice(-40);
+  // 全量历史（引擎上限 800），最新在最上面；端侧只负责展示顺序。
+  const history = (board.history ?? []).slice().reverse();
   const rows = history
     .map(
       (h) =>
-        `<li><span class="muted">#${h.seq}</span> ${escapeHtml(h.text)}</li>`,
+        `<li data-seq="${h.seq}"><span class="muted">#${h.seq}</span> ${escapeHtml(h.text)}</li>`,
     )
     .join("");
   const phases = ["prepare", "judge", "draw", "play", "discard", "end"]
@@ -161,7 +162,8 @@ export function renderSidePanelBody(data: SgsViewData, names?: Record<string, st
     `<div class="muted">第 ${board.round} 轮 · 第 ${board.turn_index + 1} 回合 · 当前 ${escapeHtml(
       board.turn.player_id ? playerName(names, board.turn.player_id) : "-",
     )}</div></div>` +
-    `<div class="sgs-side-block grow"><h3>出牌历史</h3><ul class="sgs-history">${rows}</ul></div>`
+    `<div class="sgs-side-block grow"><h3>出牌历史（${history.length}）</h3>` +
+    `<ul class="sgs-history" data-count="${history.length}">${rows}</ul></div>`
   );
 }
 

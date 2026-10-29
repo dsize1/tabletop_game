@@ -34,6 +34,8 @@ pub enum Frame {
     Jianxiong(JianxiongFrame),
     /// 通用多选（制衡等技能）。
     MultiSelect(MultiSelectFrame),
+    /// 麒麟弓：杀造成伤害后，攻击方可弃置目标一匹坐骑。
+    Qilin(crate::resolve_skill::QilinFrame),
     Requisition(crate::resolve_more::RequisitionFrame),
     Rende(crate::resolve_more::RendeFrame),
     Lijian(crate::resolve_more::LijianFrame),
@@ -433,6 +435,7 @@ fn step(
         Frame::Judge(f) => step_judge(st, f, events),
         Frame::Jianxiong(f) => crate::resolve_skill::step_jianxiong(st, f),
         Frame::MultiSelect(f) => crate::resolve_skill::step_multiselect(st, f),
+        Frame::Qilin(f) => crate::resolve_skill::step_qilin(st, f),
         Frame::Requisition(f) => crate::resolve_more::step_requisition(st, f),
         Frame::Rende(f) => crate::resolve_more::step_rende(st, f),
         Frame::Lijian(f) => crate::resolve_more::step_lijian(st, f),
@@ -450,11 +453,15 @@ fn step_wuxie(st: &mut SgsState, mut f: WuxieFrame) -> Result<bool, EngineError>
         let cancelled = f.count % 2 == 1;
         st.push_log(
             None,
-            if cancelled {
-                "无懈可击：效果被抵消"
-            } else {
-                "无懈可击：效果生效"
-            },
+            format!(
+                "无懈可击：{} {}",
+                f.root.summary(st),
+                if cancelled {
+                    "效果被抵消"
+                } else {
+                    "效果生效"
+                }
+            ),
         );
         st.outcome = Some(Outcome::Wuxie { cancelled });
         pop(st);
@@ -605,7 +612,8 @@ fn start_trick_code(
         .map(str::to_string)
         .unwrap_or_else(|| card_code(st, card));
     let mut targets = trick_targets(st, &code, user);
-    if code == "wuzhong_shengyou" {
+    if code == "wuzhong_shengyou" || code == "shandian" {
+        // 无中生有与闪电都只作用于自己（闪电置入自己判定区，下回合最先判定）。
         targets = vec![user];
     }
     let stage = if targets.is_empty() {
@@ -695,7 +703,16 @@ fn step_trick(
                     "shunshou_qianyang" => st
                         .alive_indices()
                         .into_iter()
-                        .filter(|i| *i != f.user && turn::trick_distance_ok(st, f.user, *i))
+                        .filter(|i| {
+                            *i != f.user
+                                && turn::trick_distance_ok(st, f.user, *i)
+                                && turn::has_cards_to_take(st, *i)
+                        })
+                        .collect(),
+                    "guohe_chaiqiao" => st
+                        .alive_indices()
+                        .into_iter()
+                        .filter(|i| *i != f.user && turn::has_cards_to_take(st, *i))
                         .collect(),
                     "lebu_sishu" => st
                         .alive_indices()
@@ -1285,6 +1302,7 @@ pub fn execute_pending(
         "wugu" => crate::resolve_zone::act_wugu(st, &pending, action)?,
         "arrange" => crate::resolve_zone::act_arrange(st, action)?,
         "choice" => match pending.skill.as_deref() {
+            Some("qilin") => crate::resolve_skill::act_qilin(st, &pending, action)?,
             Some("requisition") => crate::resolve_more::act_requisition(st, &pending, action)?,
             Some("tuxi") => crate::resolve_more::act_tuxi_offer(st, action)?,
             _ => crate::resolve_skill::act_jianxiong(st, action)?,
@@ -1828,9 +1846,12 @@ fn act_discard(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Str
             format!("弃牌阶段：弃置 {} 张", ids.len())
         }
     } else {
-        format!("还需弃 {remaining} 张")
+        // 逐张弃时只提示当前动作，不写「还需弃 N 张」的中间日志（历史更干净）。
+        format!("弃置 {} 张", ids.len())
     };
-    st.push_log(Some(&pending.actor.clone()), text.clone());
+    if remaining == 0 {
+        st.push_log(Some(&pending.actor.clone()), text.clone());
+    }
     if remaining == 0 {
         pop(st);
     } else {
@@ -1881,6 +1902,24 @@ pub fn apply_damage(
                 Frame::Jianxiong(JianxiongFrame {
                     actor: victim,
                     card: card_id.to_string(),
+                }),
+            );
+        }
+    }
+    // 麒麟弓：使用【杀】造成伤害后，攻击方可弃置目标一匹坐骑（压在奸雄之上先问）。
+    if let (Some(card_id), Some(src)) = (card, source) {
+        let is_sha = st.cards.get(card_id).map(|c| c.def.as_str()) == Some("sha");
+        if st.seats[victim].hp > 0
+            && is_sha
+            && src != victim
+            && st.has_equip(src, "qilin_gong")
+            && crate::resolve_skill::qilin_horses(st, victim).len() > 0
+        {
+            push(
+                st,
+                Frame::Qilin(crate::resolve_skill::QilinFrame {
+                    attacker: src,
+                    target: victim,
                 }),
             );
         }

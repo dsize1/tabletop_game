@@ -127,11 +127,10 @@ pub fn public_board(st: &SgsState) -> Value {
         },
         "winner": st.winner,
         "aborted": st.abort_reason,
-        // 出牌历史（最近 50 条，按时间正序）。
+        // 出牌历史（全量，按时间正序；端侧倒序展示）。
         "history": st
             .history
             .iter()
-            .skip(st.history.len().saturating_sub(50))
             .map(|e| json!({ "seq": e.seq, "turn": e.turn, "actor": e.actor, "text": e.text }))
             .collect::<Vec<_>>(),
     })

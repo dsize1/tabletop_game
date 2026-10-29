@@ -77,7 +77,11 @@ const board: SgsPublicBoard = {
   deck: { draw: 60, discard: 12, processing: 0, void: 0 },
   discard_top: card("c7", "杀", "spade", 7),
   pending: { kind: "wuxie", actor: "p1" },
-  history: [{ seq: 1, turn: 0, text: "刘备 使用【杀♠7】" }],
+  history: [
+    { seq: 1, turn: 0, text: "刘备 使用【杀♠7】" },
+    { seq: 2, turn: 0, text: "曹操 受到 1 点普通伤害（体力 3）" },
+    { seq: 3, turn: 0, text: "【杀】结算完毕" },
+  ],
 };
 
 const me: SgsPlayerArea = {
@@ -152,6 +156,9 @@ assert.ok(publicHtml.includes("第 2 轮"), "应显示轮次");
 const sideHtml = renderSidePanel(view, names);
 assert.ok(sideHtml.includes('id="sgs-side"'), "侧栏有稳定 id（客户端局部刷新）");
 assert.ok(sideHtml.includes("出牌历史") && sideHtml.includes("使用【杀♠7】"), "辅助区应含历史");
+assert.ok(sideHtml.includes("出牌历史（3）"), "历史标题显示总条数（全量）");
+const seqs = [...sideHtml.matchAll(/data-seq="(\d+)"/g)].map((m) => Number(m[1]));
+assert.deepEqual(seqs, [3, 2, 1], "历史倒序（最新在最上面）");
 const sideBody = renderSidePanelBody(view, names);
 assert.ok(!sideBody.includes("<aside"), "body 渲染器不带外壳（仅替换 innerHTML）");
 assert.ok(sideBody.includes("出牌历史"), "body 含历史");

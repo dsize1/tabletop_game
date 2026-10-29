@@ -68,6 +68,7 @@ GameState（game-engine-core 信封）
 | `pick_card` | 锦囊使用者 | `target` / `options`（装备槽/手牌/判定区） | `pick:hand` / `pick:equip:<slot>` / `pick:judge:<id>` | 顺手牵羊、过河拆桥（无懈后） |
 | `target`（借刀） | 锦囊使用者 | `stage`（`borrow_first`/`borrow_second`） | `target:<player>` / `confirm` / `cancel` | 借刀杀人二阶段目标 |
 | `choice` | 技能拥有者 | `skill` / `card` | `choose:gain` / `pass` | 奸雄（第一批技能） |
+| `choice`（麒麟弓） | 攻击方 | `skill=qilin` / `target` | `skill:qilin:horse_offense|horse_defense` / `pass` | 【杀】造成伤害后，目标有坐骑（P3 追加） |
 | `choose_many` | 技能拥有者 | `purpose` / `selected` / `min` / `max` | `choose:<card>` / `confirm` / `cancel` | 制衡（弃 N 摸 N）、仁德（选牌）、离间（选 1 张） |
 | `choice`（巡袭/接力） | 技能拥有者 | `skill` / `needed` | `choose:tuxi` / `respond:<card>` / `pass` | 突袭（放弃摸牌）、激将/护驾（同势力代出杀/闪） |
 | `wugu` | 按选择顺序的当前玩家（**释放者先选**） | `card` / `remaining` / `chooser` / `zone` | `pick:<card_id>` | 五谷丰登（P2.5）；每人一次无懈窗口 |

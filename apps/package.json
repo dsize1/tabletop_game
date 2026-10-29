@@ -20,7 +20,8 @@
     "gen:sgs-engine-data": "node scripts/gen-sanguosha-engine-data.mjs",
     "sgs:web-room": "node scripts/sgs-web-room.mjs",
     "check:sgs-engine-data": "node scripts/gen-sanguosha-engine-data.mjs --check",
-    "test:sgs-web": "node scripts/test-sgs-web.mjs"
+    "test:sgs-web": "node scripts/test-sgs-web.mjs",
+    "sgs:history": "node scripts/sgs-history.mjs"
   },
   "workspaces": [
     "qq-gateway",

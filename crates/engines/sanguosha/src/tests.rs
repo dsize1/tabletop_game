@@ -680,5 +680,6 @@ mod p24;
 mod p24b;
 mod p24c;
 mod p25;
+mod p26;
 mod replay;
 mod view_contract;

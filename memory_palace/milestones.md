@@ -2,6 +2,19 @@
 
 > 记录项目关键节点与验证结果，按时间倒序。重大技术决策见 `decisions/`。
 
+## M20：三国杀 P3 —— Web 交互基座（三分区页面 + 特殊区 + 观星）✅
+
+- **日期**：2026-10-30（P3.0–P3.6 收口；**真机验收 16 项由用户确认通过**）
+- **完成**：
+  - **数据与动作通路**：server 按 `game_id` 分派引擎投影（修掉「未注册引擎原样下发内部状态」泄漏）；`/internal/game/{gameId}/{roomId}/action` 单写者执行 + web `POST /tabletop_game/:gameId/action`（JSON / 无 JS 表单 303）
+  - **页面**：三分区（公共只读 / 个人交互 / 特殊区浮层）、四档响应式布局、10s 轮询、无 JS 文本态（含 `arrange` 文字提交）
+  - **交互**：`legal_actions` 驱动 + pending 逐条提交（目标/响应/弃牌/多选/接力）、居中浮层基座（blocking 语义）、指针手势（短按/长按/位移取消）
+  - **特殊区**：无懈链、濒死、五谷、拿牌三组、借刀二阶段、技能多选；**观星 2×5**（点击/▲▼/长按拖拽吸附/重置/`arrange` 一次提交）
+  - **本地/自动化**：`npm run sgs:web-room`（建局+签链接）、`npm run test:sgs-web`（playwright-core + 系统 Edge 四档视口/隐藏信息/越权/无 JS 表单/点击推进）、`npm run sgs:history`（完整历史）
+- **验证**：`cargo test -p sanguosha` 103 用例；`npm run test:web` 五套；`npm run test:sgs-web` 全绿；真机 16 项通过（`p3-manual-test.md`）
+- **已知限制**：真机吸附阈值/长按阈值按默认 10%/400ms（可调）；借刀二阶段无灰/红边框视觉；e2e 未覆盖无懈/五谷/观星整链（手工验证）；全仓 `cargo fmt` 历史漂移未处理
+- **详见**：`docs/games/sanguosha/development-plan.md` P3 记录、`ui-spec.md`、`p3-manual-test.md`、`docs/modules/web.md`、计划台账
+
 ## M18：三国杀 P2 —— 引擎内核 + 身份局全流程 + 特殊区骨架 ✅
 
 - **日期**：2026-10-28（P2.1–P2.5 收口；**人工验收 2026-10-28 通过**，用户裁定进入 P3）
