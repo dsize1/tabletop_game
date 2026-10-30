@@ -755,6 +755,129 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
             implemented: true,
         },
     ];
+    // ---- P4.4.1 SP-1（8 将 / 18 技能）----
+    const YUANSHU: &[SkillDef] = &[
+        SkillDef {
+            code: "yongsi",
+            name: "庸肆",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "weidi",
+            name: "伪帝",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+    ];
+    const WANGJI: &[SkillDef] = &[
+        SkillDef {
+            code: "qizhi",
+            name: "奇制",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "jinzou",
+            name: "进趋",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const YANYAN: &[SkillDef] = &[SkillDef {
+        code: "juzhan",
+        name: "拒战",
+        kind: SkillType::Normal,
+        implemented: true,
+    }];
+    const WANGPING: &[SkillDef] = &[
+        SkillDef {
+            code: "feijun",
+            name: "飞军",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "binglue",
+            name: "兵略",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+    ];
+    const LUJI: &[SkillDef] = &[
+        SkillDef {
+            code: "huaiju",
+            name: "怀橘",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "yili",
+            name: "遗礼",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "zhenglun",
+            name: "整论",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const SUNLIANG: &[SkillDef] = &[
+        SkillDef {
+            code: "kuizhu",
+            name: "溃诛",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "chezheng",
+            name: "掣政",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "lijun",
+            name: "立军",
+            kind: SkillType::Lord,
+            implemented: true,
+        },
+    ];
+    const KUAIYUE: &[SkillDef] = &[
+        SkillDef {
+            code: "jianxiang",
+            name: "荐降",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "shenshi",
+            name: "审时",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const XUYOU: &[SkillDef] = &[
+        SkillDef {
+            code: "chenglue",
+            name: "成略",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "shicai",
+            name: "恃才",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "cunmu",
+            name: "寸目",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+    ];
     match general {
         "sgs_hero_1" => LIUBEI,
         "sgs_hero_15" => CAOCAO,
@@ -813,6 +936,14 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
         "sgs_hero_55" => ZHANGZHAO,
         "sgs_hero_56" => ZUOCI,
         "sgs_hero_57" => CAIWENJI,
+        "sgs_hero_100" => YUANSHU,
+        "sgs_hero_362" => WANGJI,
+        "sgs_hero_400" => YANYAN,
+        "sgs_hero_401" => WANGPING,
+        "sgs_hero_402" => LUJI,
+        "sgs_hero_403" => SUNLIANG,
+        "sgs_hero_404" => KUAIYUE,
+        "sgs_hero_406" => XUYOU,
         _ => &[],
     }
 }
@@ -1037,9 +1168,152 @@ pub fn has(st: &SgsState, seat: usize, code: &str) -> bool {
     let Some(general) = seat_state.general.as_deref() else {
         return false;
     };
-    skills_of(general)
+    if skills_of(general)
         .iter()
         .any(|s| s.code == code && s.implemented)
+    {
+        return true;
+    }
+    // 伪帝（袁术）：视为拥有主公的主公技（仅已实现的主公技；不借觉醒技）。
+    let has_weidi = seat_state.extra_skills.iter().any(|c| c == "weidi")
+        || skills_of(general)
+            .iter()
+            .any(|s| s.code == "weidi" && s.implemented);
+    if !has_weidi {
+        return false;
+    }
+    let Some(lord) = st.lord_index() else {
+        return false;
+    };
+    if lord == seat {
+        return false;
+    }
+    let Some(lord_general) = st.seats[lord].general.as_deref() else {
+        return false;
+    };
+    skills_of(lord_general)
+        .iter()
+        .any(|s| s.code == code && s.implemented && s.kind == SkillType::Lord)
+}
+
+/// 转换技当前面（P4.4.1 SP-1）：`false` = 阳（默认），`true` = 阴。
+pub fn yj_yin(st: &SgsState, seat: usize, code: &str) -> bool {
+    st.seats
+        .get(seat)
+        .and_then(|s| s.flags.get(&format!("yj:{code}")))
+        .copied()
+        .unwrap_or(false)
+}
+
+/// 转换技切换（每次发动后调用）。
+pub fn toggle_yj(st: &mut SgsState, seat: usize, code: &str) {
+    if let Some(s) = st.seats.get_mut(seat) {
+        let key = format!("yj:{code}");
+        let cur = s.flags.get(&key).copied().unwrap_or(false);
+        s.flags.insert(key, !cur);
+    }
+}
+
+/// 「橘」标记数（陆绩·怀橘）。
+pub fn ju_count(st: &SgsState, seat: usize) -> u32 {
+    st.seats
+        .get(seat)
+        .and_then(|s| s.mark_counts.get("ju"))
+        .copied()
+        .unwrap_or(0)
+}
+
+/// 获得/移除「橘」标记。
+pub fn add_ju(st: &mut SgsState, seat: usize, n: u32) {
+    if let Some(s) = st.seats.get_mut(seat) {
+        *s.mark_counts.entry("ju".into()).or_insert(0) += n;
+    }
+}
+
+pub fn remove_ju(st: &mut SgsState, seat: usize, n: u32) {
+    if let Some(s) = st.seats.get_mut(seat) {
+        let cur = s.mark_counts.get("ju").copied().unwrap_or(0);
+        let left = cur.saturating_sub(n);
+        if left == 0 {
+            s.mark_counts.remove("ju");
+        } else {
+            s.mark_counts.insert("ju".into(), left);
+        }
+    }
+}
+
+/// 存活角色的势力数（庸肆 X；至少 1）。
+pub fn kingdom_count(st: &SgsState) -> u32 {
+    let mut seen = std::collections::BTreeSet::new();
+    for i in st.alive_indices() {
+        if let Some(g) = st.seats[i]
+            .general
+            .as_deref()
+            .and_then(data::general)
+            .map(|d| d.kingdom)
+        {
+            seen.insert(g);
+        }
+    }
+    (seen.len() as u32).max(1)
+}
+
+/// 本回合禁止 `user` 对 `target` 使用牌（拒战）。
+pub fn deny_target(st: &SgsState, user: usize, target: usize) -> bool {
+    st.counter(&format!("deny:{user}:{target}")) > 0
+}
+
+pub fn set_deny_target(st: &mut SgsState, user: usize, target: usize) {
+    st.set_counter(&format!("deny:{user}:{target}"), 1);
+}
+
+/// 成略：本阶段与弃置牌同花色的牌无距离/次数限制。
+pub fn chenglue_free(st: &SgsState, _seat: usize, card_id: &str) -> bool {
+    let Some(suit) = st.cards.get(card_id).map(|c| c.suit) else {
+        return false;
+    };
+    let key = match suit {
+        Suit::Spade => "cl_spade",
+        Suit::Heart => "cl_heart",
+        Suit::Club => "cl_club",
+        Suit::Diamond => "cl_diamond",
+    };
+    st.counter(key) > 0
+}
+
+/// 恃才：本回合首次使用某一类型的牌后，将其置于牌堆顶，然后摸 1 张。
+///
+/// 口径：装备牌不触发（`kind` 只接受 `basic` / `trick`）；返回是否已触发。
+pub fn shicai_trigger(st: &mut SgsState, seat: usize, kind: &str, card_id: &str) -> bool {
+    if !has(st, seat, "shicai") || st.turn != seat {
+        return false;
+    }
+    let key = format!("shicai:{kind}");
+    if st.counter(&key) > 0 {
+        return false;
+    }
+    // 牌必须仍在处理区（使用后尚未进弃牌堆）。
+    if !st.deck.processing.iter().any(|c| c == card_id) {
+        return false;
+    }
+    st.set_counter(&key, 1);
+    crate::resolve::leave_processing(st, card_id);
+    st.deck.draw.push(card_id.to_string());
+    let mut ev = Vec::new();
+    let drawn = crate::turn::draw_cards(st, seat, 1, &mut ev);
+    let label = crate::turn::card_label(st, card_id);
+    st.push_log(
+        Some(&st.seats[seat].player_id.clone()),
+        format!("恃才：将【{label}】置于牌堆顶并摸 {drawn} 张"),
+    );
+    let over = st.seats[seat]
+        .hand
+        .len()
+        .saturating_sub(st.config.max_hand_cards as usize);
+    if over > 0 {
+        crate::resolve::push_discard(st, seat, over, "hand_cap");
+    }
+    true
 }
 
 /// 额外技能（觉醒/化身）注册表（不在武将原始技能列表中的技能）。

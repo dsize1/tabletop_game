@@ -297,9 +297,12 @@ pub struct Seat {
     pub is_bot: bool,
     /// 技能私有标记（如觉醒已触发、限定技已用）。
     pub flags: BTreeMap<String, bool>,
-    /// 武将牌上的标记（牌实例 id，按获得顺序）：不屈「创」、屯田「田」、怀橘「橘」等。
+    /// 武将牌上的标记（牌实例 id，按获得顺序）：不屈「创」、屯田「田」等。
     #[serde(default)]
     pub marks: BTreeMap<String, Vec<String>>,
+    /// 计数型标记（非牌实例）：怀橘「橘」等（P4.4.1 SP-1）。
+    #[serde(default)]
+    pub mark_counts: BTreeMap<String, u32>,
     /// 技能获得（觉醒/化身等授予的额外技能 code）。
     #[serde(default)]
     pub extra_skills: Vec<String>,
@@ -332,6 +335,7 @@ impl Seat {
             is_bot,
             flags: BTreeMap::new(),
             marks: BTreeMap::new(),
+            mark_counts: BTreeMap::new(),
             extra_skills: Vec::new(),
             huashen: Vec::new(),
             huashen_active: None,
@@ -451,6 +455,17 @@ pub struct LogEntry {
     pub text: String,
 }
 
+/// 审时（阴）记录：交给目标的手牌，用于回合结束阶段校验。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ShenshiMark {
+    /// 审时持有者（回合结束阶段校验/摸牌的对象）。
+    pub owner: usize,
+    /// 目标座位。
+    pub target: usize,
+    /// 交给目标的牌实例 id。
+    pub card: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Winner {
     pub team: String,
@@ -497,6 +512,9 @@ pub struct SgsState {
     /// 本回合弃牌阶段进入弃牌堆的牌（固政使用）。
     #[serde(default)]
     pub phase_discarded: Vec<String>,
+    /// 审时（阴）待验证记录：本回合结束阶段检查该牌是否仍在目标手牌。
+    #[serde(default)]
+    pub shenshi_marks: Vec<ShenshiMark>,
     /// 放权等产生的额外回合（下一个执行的座位）。
     #[serde(default)]
     pub extra_turn: Option<usize>,

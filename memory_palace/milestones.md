@@ -2,6 +2,16 @@
 
 > 记录项目关键节点与验证结果，按时间倒序。重大技术决策见 `decisions/`。
 
+## M28：三国杀 P4.4.1 SP-1 8 将 ✅
+
+- **日期**：2026-10-30
+- **机制**（ADR-0028）：转换技（`flags["yj:*"]`）；计数标记（`mark_counts` + 视图 `marks_count`）；牌堆底摸牌（寸目）/置顶（恃才）；伪帝借用主公技；回合内禁止指定目标（`turn_counters["deny:*"]`）；出牌阶段伤害防止与用牌计数（掣政）；审时（阴）私有观看手牌 + 回合结束校验
+- **技能**：袁术·庸肆/伪帝；王基·奇制/进趋；严颜·拒战（转换）；王平·飞军/兵略；陆绩·怀橘/遗礼/整论；孙亮·溃诛/掣政/立军；蒯越蒯良·荐降/审时（转换）；许攸·成略（转换）/恃才/寸目
+- **验证**：`cargo test -p sanguosha` **344** 全绿；`check:sgs-skill-cases`（326 条 / 65 位已实现武将 ≥3 + 转换技阳阴两面）、`check:sgs-skill-docs`（122 条技能登记一致）、`check:sgs-engine-data`（160 牌 / 73 将）、`check:sgs-view-contract`、`npm run test:web`、`npm run test:sgs-web`、MCP 冒烟
+- **harness**：转换技两面覆盖门禁；文档-代码一致性门禁 `check:sgs-skill-docs`；Web 视图契约快照（`marks_count`/阳阴/旧快照）
+- **已知边界**：ADR-0028 §3（奇制每次使用一次；飞军只弃手牌；兵略按目标首次；审时阴只写日志；恃才装备不触发；掣政弃牌随机；立军收益自动）
+- **详见**：`docs/games/sanguosha/development-plan.md` P4.4.1 SP-1 记录、`skills.md` §2.5、ADR-0028、`rules-rulings.md` §14
+
 ## M27：三国杀 P4.4.1 山包 8 将 ✅
 
 - **日期**：2026-10-30

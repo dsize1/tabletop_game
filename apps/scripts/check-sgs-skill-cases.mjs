@@ -151,6 +151,41 @@ if (missing.length) {
   process.exit(1);
 }
 
+// 转换技（ADR-0028）：要求「阳 / 阴」两面均有用例覆盖。
+// 判定口径：测试体**写入** `flags.insert("yj:<code>", true)` → 阴面用例；
+// 其余引用该技能 code 的用例 → 阳面用例（显式 `flags.remove("yj:<code>")` 视为阳面）。
+const TRANSFORM_SKILLS = ["juzhan", "shenshi", "chenglue"];
+const transformMissing = [];
+console.log("[check] 转换技两面覆盖：");
+for (const code of TRANSFORM_SKILLS) {
+  const registered = [...generals.values()].some((skills) => skills.includes(code));
+  if (!registered) continue;
+  const yinMarks = [
+    `flags.insert("yj:${code}".into(), true)`,
+    `flags.insert("yj:${code}", true)`,
+  ];
+  const refs = tests.filter(
+    (t) =>
+      t.body.includes(`"${code}"`) ||
+      t.body.includes(`choose:${code}`) ||
+      t.body.includes(`skill:${code}`) ||
+      t.body.includes(`yj:${code}`),
+  );
+  const isYin = (body) => yinMarks.some((m) => body.includes(m));
+  const yin = refs.filter((t) => isYin(t.body));
+  const yang = refs.filter((t) => !isYin(t.body));
+  const ok = yang.length > 0 && yin.length > 0;
+  console.log(`  ${ok ? "OK " : "FAIL"} ${code}：阳 ${yang.length} 条 / 阴 ${yin.length} 条`);
+  if (!ok) transformMissing.push(`${code}(阳=${yang.length},阴=${yin.length})`);
+}
+if (transformMissing.length) {
+  console.error(
+    `[check] 失败：转换技两面覆盖不足：${transformMissing.join("、")}` +
+      '（阴面用例需在测试内写 `flags.insert("yj:<code>", true)`）',
+  );
+  process.exit(1);
+}
+
 const min = Math.min(...Object.values(counts));
 console.log(
   `[check] OK：${tests.length} 条测试 / ${generals.size} 位已实现武将均 ≥${opts.min} 条（最低 ${min}）`,

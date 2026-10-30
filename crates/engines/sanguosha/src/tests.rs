@@ -239,6 +239,57 @@ fn drive_state_inject(st: &mut SgsState, inject: &mut Vec<String>) {
     panic!("drive_state_inject 未收敛");
 }
 
+/// 阶段推进器：`advance` 直到没有 pending；`choose_many` 自动选未选中的牌后确认。
+///
+/// 注入格式 `"{actor}={action}"`，按顺序消费（选项存在才使用，否则退回自动策略）。
+fn drive_phases(st: &mut SgsState, inject: &mut Vec<String>) {
+    let mut events = Vec::new();
+    for _ in 0..1200 {
+        crate::resolve::advance(st, &mut events).unwrap();
+        let Some(p) = st.pending.clone() else { return };
+        let key = format!("{}=", p.actor);
+        if let Some(pos) = inject.iter().position(|e| e.starts_with(&key)) {
+            let entry = inject.remove(pos);
+            let action = entry.splitn(2, '=').nth(1).unwrap_or("pass").to_string();
+            if p.options.iter().any(|o| o.id == action) {
+                crate::resolve::execute_pending(st, &p.actor, &action).unwrap();
+                continue;
+            }
+            inject.insert(pos, entry);
+        }
+        let action = if p.kind == "choose_many" {
+            let selected: Vec<String> = p
+                .data["selected"]
+                .as_array()
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|v| v.as_str().map(str::to_string))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let min = p.data["min"].as_u64().unwrap_or(0) as usize;
+            if selected.len() >= min && p.options.iter().any(|o| o.id == "confirm") {
+                "confirm".to_string()
+            } else if let Some(opt) = p.options.iter().find(|o| {
+                o.id.starts_with("choose:")
+                    && !selected.contains(&o.id["choose:".len()..].to_string())
+            }) {
+                opt.id.clone()
+            } else if p.options.iter().any(|o| o.id == "pass") {
+                "pass".to_string()
+            } else {
+                p.options.first().map(|o| o.id.clone()).unwrap_or_default()
+            }
+        } else if p.options.iter().any(|o| o.id == "pass") {
+            "pass".to_string()
+        } else {
+            p.options.first().map(|o| o.id.clone()).unwrap_or_default()
+        };
+        crate::resolve::execute_pending(st, &p.actor, &action).unwrap();
+    }
+    panic!("drive_phases 未收敛");
+}
+
 /// 管理器级驱动：推进 pending，按注入规则响应，否则 pass（无 pass 候选时取首项）。
 fn drive_mgr_inject(mgr: &GameManager, room: &str, inject: &mut Vec<String>) {
     for _ in 0..800 {
@@ -820,5 +871,7 @@ mod p72;
 mod p73;
 mod p74;
 mod p75;
+mod p76;
+mod p77;
 mod replay;
 mod view_contract;

@@ -70,13 +70,15 @@ function wuguPanel(zones: SgsSpecialZones | undefined, names?: Record<string, st
 
 function marksHtml(area: SgsPlayerArea): string {
   const entries = Object.entries(area.marks ?? {}).filter(([, cards]) => (cards ?? []).length > 0);
-  if (entries.length === 0) return "";
-  const body = entries
-    .map(([code, cards]) => {
+  const counts = Object.entries(area.marks_count ?? {}).filter(([, n]) => n > 0);
+  if (entries.length === 0 && counts.length === 0) return "";
+  const body = [
+    ...entries.map(([code, cards]) => {
       const name = MARK_LABEL[code] ?? code;
       return `${escapeHtml(name)}：${(cards ?? []).map((c) => cardChipHtml(c)).join("")}`;
-    })
-    .join(" ");
+    }),
+    ...counts.map(([code, n]) => `${escapeHtml(MARK_LABEL[code] ?? code)}×${n}`),
+  ].join(" ");
   return `<div class="sgs-marks" data-marks>${body}</div>`;
 }
 
@@ -106,16 +108,20 @@ export function renderPersonalArea(
   }
   const kingdom = area.kingdom ? KINGDOM_LABEL[area.kingdom] ?? area.kingdom : "";
   const general = area.general_name || "未选将";
+  const transforms = area.transforms ?? {};
   const skills = (area.skills ?? [])
     .map(
       (s) => {
         const action = skillsWithAction.get(s.code);
+        // 转换技（SP-1）：展示当前面（阳/阴）。
+        const face = transforms[s.code] === "yin" ? "（阴）" : transforms[s.code] === "yang" ? "（阳）" : "";
         return (
           `<button type="button" class="sgs-skill${s.implemented === false ? " disabled" : ""}" ` +
           `data-skill="${escapeHtml(s.code)}" title="${escapeHtml(s.type)}"` +
+          (face ? ` data-face="${face === "（阴）" ? "yin" : "yang"}"` : "") +
           (action ? ` data-action="${escapeHtml(action)}"` : "") +
           `${s.implemented === false || !action ? " disabled" : ""}>` +
-          `${escapeHtml(s.name)}</button>`
+          `${escapeHtml(s.name)}${face}</button>`
         );
       },
     )

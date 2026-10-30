@@ -44,10 +44,14 @@ function seatCard(
   const general = seat.general_name
     ? `<div class="sgs-general">${escapeHtml(seat.general_name)}${flipped}${kingdom ? `<span class="sgs-kingdom">${escapeHtml(kingdom)}</span>` : ""}</div>`
     : `<div class="sgs-general muted">未选将</div>`;
-  const marks = Object.entries(seat.marks ?? {})
-    .filter(([, cards]) => (cards ?? []).length > 0)
-    .map(([code, cards]) => `${MARK_LABEL[code] ?? code}×${cards.length}`)
-    .join(" ");
+  const marks = [
+    ...Object.entries(seat.marks ?? {})
+      .filter(([, cards]) => (cards ?? []).length > 0)
+      .map(([code, cards]) => `${MARK_LABEL[code] ?? code}×${cards.length}`),
+    ...Object.entries(seat.marks_count ?? {})
+      .filter(([, n]) => n > 0)
+      .map(([code, n]) => `${MARK_LABEL[code] ?? code}×${n}`),
+  ].join(" ");
   const equips = Object.entries(seat.equips ?? {})
     .filter(([, c]) => Boolean(c))
     .map(([slot, c]) => cardChipHtml(c as SgsCard, { long: true }))

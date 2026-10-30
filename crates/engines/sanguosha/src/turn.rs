@@ -121,19 +121,28 @@ pub(crate) fn sha_limit(st: &SgsState, idx: usize) -> u32 {
     {
         u32::MAX
     } else {
-        // 奇谋/天义：本回合【杀】限制次数 +X。
-        1 + st.counter("qimou") + st.counter("tianyi")
+        // 奇谋/天义/立军：本回合【杀】限制次数 +X。
+        1 + st.counter("qimou")
+            + st.counter("tianyi")
+            + st.counter("lijun_sha_bonus")
     }
 }
 
 pub(crate) fn sha_targets(st: &SgsState, idx: usize) -> Vec<usize> {
+    sha_targets_with(st, idx, false)
+}
+
+/// 【杀】目标列表；`unlimited` = 无距离限制（天义 / 成略同花色）。
+pub(crate) fn sha_targets_with(st: &SgsState, idx: usize, unlimited: bool) -> Vec<usize> {
     st.alive_indices()
         .into_iter()
         .filter(|t| {
             *t != idx
-                && st.in_attack_range(idx, *t)
+                && (unlimited || st.in_attack_range(idx, *t))
                 // 空城（锁定）：无手牌时不能成为【杀】目标。
                 && !crate::skills::kongcheng_blocks(st, *t)
+                // 拒战（本回合不能再对其使用牌）。
+                && !crate::skills::deny_target(st, idx, *t)
         })
         .collect()
 }
@@ -177,15 +186,31 @@ pub(crate) fn draw_one(st: &mut SgsState, events: &mut Vec<EngineEvent>) -> Opti
     st.deck.draw.pop()
 }
 
+/// 从牌堆底摸一张（寸目）。
+fn draw_one_bottom(st: &mut SgsState, events: &mut Vec<EngineEvent>) -> Option<String> {
+    refill_deck(st, events);
+    if st.deck.draw.is_empty() {
+        None
+    } else {
+        Some(st.deck.draw.remove(0))
+    }
+}
+
 pub(crate) fn draw_cards(
     st: &mut SgsState,
     idx: usize,
     n: u32,
     events: &mut Vec<EngineEvent>,
 ) -> usize {
+    let bottom = crate::skills::has(st, idx, "cunmu");
     let mut drawn = 0;
     for _ in 0..n {
-        let Some(card) = draw_one(st, events) else {
+        let card = if bottom {
+            draw_one_bottom(st, events)
+        } else {
+            draw_one(st, events)
+        };
+        let Some(card) = card else {
             break;
         };
         st.seats[idx].hand.push(card);
@@ -355,6 +380,18 @@ pub(crate) fn phase_step(
         }
         TurnPhase::Draw => {
             let idx = st.turn;
+            // 整论（陆绩）：无「橘」时，可跳过摸牌阶段并获得 1 枚「橘」。
+            if crate::skills::has(st, idx, "zhenglun")
+                && crate::skills::ju_count(st, idx) == 0
+                && st.counter("zhenglun_offered") == 0
+            {
+                st.set_counter("zhenglun_offered", 1);
+                resolve::push(
+                    st,
+                    resolve::Frame::Zhenglun(crate::resolve_sp::ZhenglunFrame { actor: idx }),
+                );
+                return Ok(true);
+            }
             // 突袭：放弃摸牌，改为获得至多两名角色各一张手牌
             if crate::skills::has(st, idx, "tuxi") && st.counter("tuxi_offered") == 0 {
                 st.set_counter("tuxi_offered", 1);
@@ -431,6 +468,19 @@ pub(crate) fn phase_step(
             if st.counter("haoshi") > 0 {
                 draw_n += 2;
             }
+            // 庸肆（袁术，锁定）：摸牌阶段多摸 X 张（X = 全场势力数）。
+            if crate::skills::has(st, idx, "yongsi") {
+                let x = crate::skills::kingdom_count(st);
+                draw_n += x;
+                st.push_log(
+                    Some(&st.seats[idx].player_id.clone()),
+                    format!("庸肆：摸牌阶段多摸 {x} 张"),
+                );
+            }
+            // 怀橘（锁定）：有「橘」的角色摸牌阶段多摸 1 张。
+            if crate::skills::ju_count(st, idx) > 0 {
+                draw_n += 1;
+            }
             let drawn = draw_cards(st, idx, draw_n, events);
             let pid = st.seats[idx].player_id.clone();
             st.push_log(Some(&pid), format!("摸牌阶段：摸 {drawn} 张"));
@@ -462,6 +512,7 @@ pub(crate) fn phase_step(
         TurnPhase::Play => {
             if st.counter("skip_play") > 0 {
                 let pid = st.seats[st.turn].player_id.clone();
+                crate::resolve_sp::chezheng_end_phase(st, st.turn);
                 st.set_counter("skip_play", 0);
                 st.phase_discarded.clear();
                 st.push_log(Some(&pid), "出牌阶段被跳过");
@@ -477,6 +528,18 @@ pub(crate) fn phase_step(
                 "phase_start",
                 json!({ "phase": "play", "seat": st.turn, "player": pid }),
             ));
+            // 遗礼（陆绩）：出牌阶段开始时，可失去 1 点体力或移除 1 枚「橘」。
+            if crate::skills::has(st, st.turn, "yili") && st.counter("yili_offered") == 0 {
+                st.set_counter("yili_offered", 1);
+                resolve::push(
+                    st,
+                    resolve::Frame::Yili(crate::resolve_sp::YiliFrame {
+                        actor: st.turn,
+                        stage: crate::resolve_sp::YiliStage::Cost,
+                    }),
+                );
+                return Ok(true);
+            }
             // 等待玩家操作
             Ok(false)
         }
@@ -497,6 +560,20 @@ pub(crate) fn phase_step(
                 st.push_log(Some(&pid), "神速：跳过弃牌阶段");
                 st.turn_phase = TurnPhase::End;
                 return Ok(true);
+            }
+            // 庸肆（袁术，锁定）：弃牌阶段开始时，先弃 X 张（X = 全场势力数）。
+            if crate::skills::has(st, idx, "yongsi") && st.counter("yongsi_discard_done") == 0 {
+                st.set_counter("yongsi_discard_done", 1);
+                let x = crate::skills::kingdom_count(st) as usize;
+                let n = x.min(st.seats[idx].hand.len());
+                if n > 0 {
+                    st.push_log(
+                        Some(&st.seats[idx].player_id.clone()),
+                        format!("庸肆：弃牌阶段开始时先弃 {n} 张"),
+                    );
+                    resolve::push_discard(st, idx, n, "yongsi");
+                    return Ok(true);
+                }
             }
             // 克己：出牌阶段未使用杀 → 跳过弃牌
             let limit = crate::skills::hand_limit(st, idx);
@@ -523,6 +600,24 @@ pub(crate) fn phase_step(
                         return Ok(true);
                     }
                 }
+            }
+            // 溃诛（孙亮）：弃牌阶段结束时，按本阶段弃牌数发动。
+            if crate::skills::has(st, idx, "kuizhu")
+                && st.counter("kuizhu_done") == 0
+                && !st.phase_discarded.is_empty()
+            {
+                st.set_counter("kuizhu_done", 1);
+                let x = st.phase_discarded.len() as u32;
+                resolve::push(
+                    st,
+                    resolve::Frame::Kuizhu(crate::resolve_sp::KuizhuFrame {
+                        actor: idx,
+                        stage: crate::resolve_sp::KuizhuStage::Choice,
+                        chosen: Vec::new(),
+                        x,
+                    }),
+                );
+                return Ok(true);
             }
             st.phase_discarded.clear();
             st.turn_phase = TurnPhase::End;
@@ -585,6 +680,17 @@ pub(crate) fn phase_step(
                 );
                 return Ok(true);
             }
+            // 进趋（王基）：结束阶段可摸 2 张，然后将手牌弃至本回合奇制次数。
+            if crate::skills::has(st, st.turn, "jinzou") && st.counter("jinzou_done") == 0 {
+                st.set_counter("jinzou_done", 1);
+                resolve::push(
+                    st,
+                    resolve::Frame::Jinzou(crate::resolve_sp::JinzouFrame { actor: st.turn }),
+                );
+                return Ok(true);
+            }
+            // 审时（阴）：当前回合结束阶段校验目标是否仍未失去该牌。
+            crate::resolve_sp::shenshi_end_turn(st);
             crate::skills::on_phase_start(st, TurnPhase::End, events);
             end_turn(st, events);
             Ok(true)
@@ -602,6 +708,7 @@ fn end_turn(st: &mut SgsState, events: &mut Vec<EngineEvent>) {
     ));
     st.turn_counters.clear();
     st.phase_discarded.clear();
+    st.shenshi_marks.clear();
     st.special_zones.remove("judge");
     // 特殊区（观星/五谷）必须在回合内结算完毕；收尾清理防止残留投影。
     st.special_zones.remove(crate::resolve_zone::GUANXING_ZONE);
@@ -840,7 +947,9 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
             // P4.0：军争牌定义已入库，结算未实现 → 不出现在合法动作里（避免驱动脚本选中即内部错误）。
             code if PENDING_JUNZHENG_CARDS.contains(&code) => false,
             "sha" | "huo_sha" | "lei_sha" => {
-                st.counter("sha_used") < sha_limit && !targets.is_empty()
+                let free = crate::skills::chenglue_free(st, idx, &card_id);
+                (free || st.counter("sha_used") < sha_limit)
+                    && !sha_targets_with(st, idx, free).is_empty()
             }
             // 酒：每回合限一次（本回合下一张【杀】伤害 +1）。
             "jiu" => st.counter("jiu_used") == 0,
@@ -1203,6 +1312,40 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
                 });
             }
         }
+    }
+    // 飞军（王平）：出牌阶段限一次，弃 1 张牌后二选一。
+    if crate::skills::has(st, idx, "feijun")
+        && st.counter("feijun_used") == 0
+        && !st.seats[idx].hand.is_empty()
+        && (!crate::resolve_sp::feijun_targets(st, idx, 1).is_empty()
+            || !crate::resolve_sp::feijun_targets(st, idx, 2).is_empty())
+    {
+        out.push(Action {
+            id: "skill:feijun".into(),
+            description: "飞军：弃 1 张牌，令手牌最多者交给你一张牌或令装备最多者弃一张装备".into(),
+        });
+    }
+    // 审时（阳，蒯越蒯良）：出牌阶段限一次，交给手牌最多者一张牌并造成 1 点伤害。
+    if crate::skills::has(st, idx, "shenshi")
+        && !crate::skills::yj_yin(st, idx, "shenshi")
+        && st.counter("shenshi_used") == 0
+        && !st.seats[idx].hand.is_empty()
+        && !crate::resolve_sp::shenshi_targets(st, idx).is_empty()
+    {
+        out.push(Action {
+            id: "skill:shenshi".into(),
+            description: "审时（阳）：交给手牌最多的其他角色一张牌并对其造成 1 点伤害".into(),
+        });
+    }
+    // 成略（许攸，转换技）：出牌阶段限一次，摸牌后弃牌，本阶段同花色牌无距离与次数限制。
+    if crate::skills::has(st, idx, "chenglue")
+        && st.counter("chenglue_used") == 0
+        && !st.seats[idx].hand.is_empty()
+    {
+        out.push(Action {
+            id: "skill:chenglue".into(),
+            description: "成略：摸牌后弃牌，本阶段同花色牌无距离与次数限制".into(),
+        });
     }
     // 重铸：铁索连环（或连环：梅花手牌）可弃置并摸 1 张。
     for card_id in hand_ids(st, idx) {
@@ -1976,9 +2119,75 @@ pub fn execute(
         );
         st.push_log(Some(player_id), "发动制衡");
         "请选择要弃置的牌".to_string()
+    } else if action == "skill:feijun" {
+        if !crate::skills::has(st, idx, "feijun") {
+            return Err(illegal("没有该技能"));
+        }
+        if st.counter("feijun_used") > 0 {
+            return Err(illegal("本阶段已发动过飞军"));
+        }
+        if st.seats[idx].hand.is_empty() {
+            return Err(illegal("飞军需弃置一张牌"));
+        }
+        resolve::push(
+            st,
+            resolve::Frame::Feijun(crate::resolve_sp::FeijunFrame {
+                actor: idx,
+                stage: crate::resolve_sp::FeijunStage::Choose,
+                option: 1,
+                target: None,
+            }),
+        );
+        st.push_log(Some(player_id), "发动飞军");
+        "飞军：请选择一项".to_string()
+    } else if action == "skill:shenshi" {
+        if !crate::skills::has(st, idx, "shenshi") {
+            return Err(illegal("没有该技能"));
+        }
+        if crate::skills::yj_yin(st, idx, "shenshi") {
+            return Err(illegal("审时当前为阴面，不能主动发动"));
+        }
+        if st.counter("shenshi_used") > 0 {
+            return Err(illegal("本阶段已发动过审时"));
+        }
+        if st.seats[idx].hand.is_empty() {
+            return Err(illegal("没有手牌可交出"));
+        }
+        if crate::resolve_sp::shenshi_targets(st, idx).is_empty() {
+            return Err(illegal("没有可选目标"));
+        }
+        st.set_counter("shenshi_used", 1);
+        resolve::push(
+            st,
+            resolve::Frame::Shenshi(crate::resolve_sp::ShenshiFrame {
+                actor: idx,
+                stage: crate::resolve_sp::ShenshiStage::YangSelect,
+                source: None,
+                card: None,
+            }),
+        );
+        st.push_log(Some(player_id), "发动审时（阳）");
+        "审时：请选择要交出的牌".to_string()
+    } else if action == "skill:chenglue" {
+        if !crate::skills::has(st, idx, "chenglue") {
+            return Err(illegal("没有该技能"));
+        }
+        if st.counter("chenglue_used") > 0 {
+            return Err(illegal("本阶段已发动过成略"));
+        }
+        if st.seats[idx].hand.is_empty() {
+            return Err(illegal("没有手牌"));
+        }
+        resolve::push(
+            st,
+            resolve::Frame::Chenglue(crate::resolve_sp::ChenglueFrame { actor: idx }),
+        );
+        st.push_log(Some(player_id), "发动成略");
+        "成略：请确认要发动".to_string()
     } else if let Some(card_id) = action.strip_prefix("play:") {
         play_card(st, idx, card_id, &mut events)?
     } else if action == "end_play" {
+        crate::resolve_sp::chezheng_end_phase(st, idx);
         st.phase_discarded.clear();
         st.turn_phase = TurnPhase::Discard;
         st.push_log(Some(player_id), "结束出牌阶段");
@@ -2021,11 +2230,12 @@ fn play_card(
 
     match def.code {
         "sha" | "huo_sha" | "lei_sha" => {
+            let free = crate::skills::chenglue_free(st, idx, card_id);
             let limit = sha_limit(st, idx);
-            if st.counter("sha_used") >= limit {
+            if !free && st.counter("sha_used") >= limit {
                 return Err(illegal("本出牌阶段已使用过【杀】"));
             }
-            if sha_targets(st, idx).is_empty() {
+            if sha_targets_with(st, idx, free).is_empty() {
                 return Err(illegal("攻击范围内没有目标"));
             }
             if crate::skills::sha_blocked(st, idx) {
@@ -2040,7 +2250,7 @@ fn play_card(
                 _ => resolve::DamageType::Normal,
             };
             take_card(st, idx, card_id)?;
-            resolve::start_sha_flags(st, idx, card_id, fangtian, dtype, tianyi, tianyi)?;
+            resolve::start_sha_flags(st, idx, card_id, fangtian, dtype, tianyi || free, tianyi)?;
             st.push_log(Some(&actor), format!("使用【{label}】"));
             Ok("请选择【杀】的目标".to_string())
         }
@@ -2050,6 +2260,7 @@ fn play_card(
             }
             take_card(st, idx, card_id)?;
             to_discard_card(st, card_id);
+            st.bump_counter("play_cards_used");
             st.seats[idx].hp += 1;
             let hp = st.seats[idx].hp;
             st.push_log(
@@ -2066,6 +2277,7 @@ fn play_card(
             st.set_counter("jiu", 1);
             take_card(st, idx, card_id)?;
             to_discard_card(st, card_id);
+            st.bump_counter("play_cards_used");
             st.push_log(
                 Some(&actor),
                 format!("使用【{label}】：本回合下一张【杀】伤害 +1"),
@@ -2118,6 +2330,7 @@ fn play_card(
         _ if def.equip_slot.is_some() => {
             let slot = def.equip_slot.expect("equip slot");
             take_card(st, idx, card_id)?;
+            st.bump_counter("play_cards_used");
             let old = st.seats[idx].equips.insert(slot, Some(card_id.to_string()));
             if let Some(Some(old_id)) = old {
                 to_discard_card(st, &old_id);

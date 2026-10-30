@@ -107,6 +107,19 @@ pub enum Frame {
     Guzheng(crate::resolve_mountain::GuzhengFrame),
     Huashen(crate::resolve_mountain::HuashenFrame),
     Beige(crate::resolve_mountain::BeigeFrame),
+    /// P4.4.1 SP-1 帧。
+    Qizhi(crate::resolve_sp::QizhiFrame),
+    Jinzou(crate::resolve_sp::JinzouFrame),
+    Juzhan(crate::resolve_sp::JuzhanFrame),
+    Feijun(crate::resolve_sp::FeijunFrame),
+    Jianxiang(crate::resolve_sp::JianxiangFrame),
+    Shenshi(crate::resolve_sp::ShenshiFrame),
+    Chenglue(crate::resolve_sp::ChenglueFrame),
+    Yili(crate::resolve_sp::YiliFrame),
+    Zhenglun(crate::resolve_sp::ZhenglunFrame),
+    Kuizhu(crate::resolve_sp::KuizhuFrame),
+    Chezheng(crate::resolve_sp::ChezhengFrame),
+    Lijun(crate::resolve_sp::LijunFrame),
     /// 五谷丰登（P2.5 特殊区 `wugu`）。
     Wugu(crate::resolve_zone::WuguFrame),
     /// 观星排序提交（P2.5 特殊区 `guanxing`，`arrange:<csv>`）。
@@ -244,6 +257,12 @@ pub enum PickMode {
     Fankui,
     /// 挑衅：弃置目标一张牌。
     Tiaoxin,
+    /// 奇制：弃置目标一张牌（然后目标摸 1）。
+    Qizhi,
+    /// 拒战（阴）：获得目标一张牌。
+    Juzhan,
+    /// 掣政：弃置目标一张牌。
+    Chezheng,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -671,6 +690,18 @@ fn step(
         Frame::Guzheng(f) => crate::resolve_mountain::step_guzheng(st, f),
         Frame::Huashen(f) => crate::resolve_mountain::step_huashen(st, f),
         Frame::Beige(f) => crate::resolve_mountain::step_beige(st, f),
+        Frame::Qizhi(f) => crate::resolve_sp::step_qizhi(st, f),
+        Frame::Jinzou(f) => crate::resolve_sp::step_jinzou(st, f),
+        Frame::Juzhan(f) => crate::resolve_sp::step_juzhan(st, f),
+        Frame::Feijun(f) => crate::resolve_sp::step_feijun(st, f),
+        Frame::Jianxiang(f) => crate::resolve_sp::step_jianxiang(st, f),
+        Frame::Shenshi(f) => crate::resolve_sp::step_shenshi(st, f),
+        Frame::Chenglue(f) => crate::resolve_sp::step_chenglue(st, f),
+        Frame::Yili(f) => crate::resolve_sp::step_yili(st, f),
+        Frame::Zhenglun(f) => crate::resolve_sp::step_zhenglun(st, f),
+        Frame::Kuizhu(f) => crate::resolve_sp::step_kuizhu(st, f),
+        Frame::Chezheng(f) => crate::resolve_sp::step_chezheng(st, f),
+        Frame::Lijun(f) => crate::resolve_sp::step_lijun(st, f),
         Frame::Wugu(f) => crate::resolve_zone::step_wugu(st, f, events),
         Frame::Arrange(f) => crate::resolve_zone::step_arrange(st, f, events),
     }
@@ -805,10 +836,15 @@ fn step_sha(st: &mut SgsState, mut f: ShaFrame) -> Result<bool, EngineError> {
     match f.stage {
         ShaStage::Target => {
             // 神速：视为使用的【杀】无距离限制（仍受空城等目标锁定技限制）。
-            let targets = if f.no_distance {
+            let free = crate::skills::chenglue_free(st, f.user, &f.card);
+            let targets = if f.no_distance || free {
                 st.alive_indices()
                     .into_iter()
-                    .filter(|t| *t != f.user && !crate::skills::kongcheng_blocks(st, *t))
+                    .filter(|t| {
+                        *t != f.user
+                            && !crate::skills::kongcheng_blocks(st, *t)
+                            && !crate::skills::deny_target(st, f.user, *t)
+                    })
                     .collect()
             } else {
                 turn::sha_targets(st, f.user)
@@ -949,6 +985,11 @@ pub fn start_sha_flags(
 ) -> Result<(), EngineError> {
     st.deck.processing.push(card.to_string());
     st.bump_counter("sha_used");
+    if st.turn == user {
+        st.bump_counter("play_cards_used");
+    }
+    // 恃才（许攸）：本回合首次使用基本牌后置于牌堆顶并摸 1。
+    crate::skills::shicai_trigger(st, user, "basic", card);
     push(
         st,
         Frame::Sha(ShaFrame {
@@ -964,6 +1005,8 @@ pub fn start_sha_flags(
             tianyi,
         }),
     );
+    // 奇制（王基）：回合内使用非装备牌后。
+    crate::resolve_sp::qizhi_trigger(st, user);
     Ok(())
 }
 
@@ -982,17 +1025,25 @@ fn trick_targets(st: &SgsState, code: &str, user: usize, card: &str) -> Vec<usiz
                 st.seats[*i].alive
                     && !crate::skills::nanman_immune(st, *i)
                     && !crate::skills::weimu_blocks(st, *i, card)
+                    && !crate::skills::deny_target(st, user, *i)
             })
             .collect(),
         "wanjian_qifa" => st
             .seats_from_left_of(user)
             .into_iter()
-            .filter(|i| st.seats[*i].alive && !crate::skills::weimu_blocks(st, *i, card))
+            .filter(|i| {
+                st.seats[*i].alive
+                    && !crate::skills::weimu_blocks(st, *i, card)
+                    && !crate::skills::deny_target(st, user, *i)
+            })
             .collect(),
         "taoyuan_jieyi" => {
             let mut v = vec![user];
             v.extend(st.seats_from_left_of(user).into_iter().filter(|i| {
-                st.seats[*i].alive && *i != user && !crate::skills::weimu_blocks(st, *i, card)
+                st.seats[*i].alive
+                    && *i != user
+                    && !crate::skills::weimu_blocks(st, *i, card)
+                    && !crate::skills::deny_target(st, user, *i)
             }));
             v
         }
@@ -1044,6 +1095,14 @@ fn start_trick_code(
     } else {
         TrickStage::Effect
     };
+    let delayed = matches!(
+        code.as_str(),
+        "lebu_sishu" | "bingliang_cunduan" | "shandian"
+    );
+    // 恃才（许攸）：本回合首次使用锦囊后置于牌堆顶并摸 1（延时锦囊不进牌堆顶）。
+    if !delayed {
+        crate::skills::shicai_trigger(st, user, "trick", card);
+    }
     push(
         st,
         Frame::Trick(TrickFrame {
@@ -1057,6 +1116,13 @@ fn start_trick_code(
             second: None,
         }),
     );
+    if st.turn == user {
+        st.bump_counter("play_cards_used");
+    }
+    // 奇制（王基）：回合内使用非装备牌后。
+    if !delayed {
+        crate::resolve_sp::qizhi_trigger(st, user);
+    }
     Ok(())
 }
 
@@ -1158,7 +1224,9 @@ fn step_trick(
                         .filter(|i| {
                             *i != f.user
                                 && !crate::skills::qianxun_blocks(st, *i)
-                                && turn::trick_distance_ok(st, f.user, *i)
+                                && !crate::skills::deny_target(st, f.user, *i)
+                                && (turn::trick_distance_ok(st, f.user, *i)
+                                    || crate::skills::chenglue_free(st, f.user, &f.card))
                                 && turn::has_cards_to_take(st, *i)
                         })
                         .collect(),
@@ -1168,6 +1236,7 @@ fn step_trick(
                         .filter(|i| {
                             *i != f.user
                                 && !crate::skills::qianxun_blocks(st, *i)
+                                && !crate::skills::deny_target(st, f.user, *i)
                                 && turn::has_cards_to_take(st, *i)
                         })
                         .collect(),
@@ -1202,12 +1271,18 @@ fn step_trick(
                     "juedou" => st
                         .alive_indices()
                         .into_iter()
-                        .filter(|i| *i != f.user && !crate::skills::kongcheng_blocks(st, *i))
+                        .filter(|i| {
+                            *i != f.user
+                                && !crate::skills::kongcheng_blocks(st, *i)
+                                && !crate::skills::deny_target(st, f.user, *i)
+                        })
                         .collect(),
                     _ => st
                         .alive_indices()
                         .into_iter()
-                        .filter(|i| *i != f.user)
+                        .filter(|i| {
+                            *i != f.user && !crate::skills::deny_target(st, f.user, *i)
+                        })
                         .collect(),
                 };
                 let candidates: Vec<usize> = candidates
@@ -2578,6 +2653,17 @@ pub fn execute_pending(
             Some("guzheng") => crate::resolve_mountain::act_guzheng(st, action)?,
             Some("huashen") => crate::resolve_mountain::act_huashen(st, action)?,
             Some("beige") => crate::resolve_mountain::act_beige(st, action)?,
+            Some("qizhi") => crate::resolve_sp::act_qizhi(st, action)?,
+            Some("jinzou") => crate::resolve_sp::act_jinzou(st, action)?,
+            Some("juzhan") => crate::resolve_sp::act_juzhan(st, action)?,
+            Some("feijun") => crate::resolve_sp::act_feijun(st, action)?,
+            Some("jianxiang") => crate::resolve_sp::act_jianxiang(st, action)?,
+            Some("shenshi") => crate::resolve_sp::act_shenshi(st, action)?,
+            Some("chenglue") => crate::resolve_sp::act_chenglue(st, action)?,
+            Some("yili") => crate::resolve_sp::act_yili(st, action)?,
+            Some("zhenglun") => crate::resolve_sp::act_zhenglun(st, action)?,
+            Some("kuizhu") => crate::resolve_sp::act_kuizhu(st, action)?,
+            Some("lijun") => crate::resolve_sp::act_lijun(st, action)?,
             _ => crate::resolve_skill::act_jianxiong(st, action)?,
         },
         "choose_many" => match top(st) {
@@ -2820,6 +2906,22 @@ fn act_target(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Stri
             crate::skills::has_equipment_skill(st, f.user, "qinggang_jian"),
             f.damage_type,
         );
+        // 拒战（严颜，转换技）：阳面（成为杀目标后）/ 阴面（使用杀指定目标后），
+        // 压在用【闪】响应之上，先结算拒战再进入响应。
+        crate::resolve_sp::push_juzhan_yang(st, target, f.user);
+        crate::resolve_sp::push_juzhan_yin(st, f.user, target);
+        // 荐降（蒯越蒯良）：成为其他角色使用牌的目标后，可令手牌最少者摸 1。
+        if crate::skills::has(st, target, "jianxiang") && target != f.user {
+            push(
+                st,
+                Frame::Jianxiang(crate::resolve_sp::JianxiangFrame {
+                    actor: target,
+                    source: f.user,
+                }),
+            );
+        }
+        // 立军（孙亮主公技）：其他吴势力使用【杀】后可交给孙亮。
+        crate::resolve_sp::lijun_trigger(st, f.user, &f.card);
         return Ok(format!("已选择目标：{}", st.seats[target].general_name));
     }
 
@@ -3400,15 +3502,55 @@ fn act_pick(st: &mut SgsState, pending: &Pending, action: &str) -> Result<String
                 format!("挑衅：弃置【{picked_name}】"),
             );
         }
+        PickMode::Qizhi => {
+            to_discard(st, &picked);
+            st.push_log(
+                Some(&st.seats[f.user].player_id.clone()),
+                format!("奇制：弃置【{picked_name}】"),
+            );
+        }
+        PickMode::Juzhan => {
+            st.seats[f.user].hand.push(picked.clone());
+            st.push_log(
+                Some(&st.seats[f.user].player_id.clone()),
+                format!("拒战（阴）：获得【{picked_name}】"),
+            );
+        }
+        PickMode::Chezheng => {
+            to_discard(st, &picked);
+            st.push_log(
+                Some(&st.seats[f.user].player_id.clone()),
+                format!("掣政：弃置【{picked_name}】"),
+            );
+        }
     }
     pop(st);
+    if f.mode == PickMode::Qizhi {
+        crate::resolve_sp::qizhi_done(st, f.user, target);
+    }
+    if f.mode == PickMode::Juzhan {
+        crate::resolve_sp::juzhan_yin_done(st, f.user, target);
+    }
     // 反馈压在其他结算帧之上：不能覆盖父帧需要的 outcome（如【闪】响应结果）。
-    if !matches!(f.mode, PickMode::Fankui | PickMode::Tiaoxin) {
+    if !matches!(
+        f.mode,
+        PickMode::Fankui
+            | PickMode::Tiaoxin
+            | PickMode::Qizhi
+            | PickMode::Juzhan
+            | PickMode::Chezheng
+    ) {
         st.outcome = Some(Outcome::Picked {
             card: Some(picked.clone()),
         });
     }
-    if !matches!(f.mode, PickMode::Guohe | PickMode::Tiaoxin) {
+    if !matches!(
+        f.mode,
+        PickMode::Guohe
+            | PickMode::Tiaoxin
+            | PickMode::Qizhi
+            | PickMode::Chezheng
+    ) {
         let user = f.user;
         let over = st.seats[user]
             .hand
@@ -3675,6 +3817,26 @@ fn apply_damage_inner(
     card: Option<&str>,
     allow_tianxiang: bool,
 ) {
+    // 怀橘（陆绩）：有「橘」的角色受到伤害时，防止此伤害并移除 1 枚「橘」。
+    if amount > 0 && crate::resolve_sp::huaiju_prevent(st, victim) {
+        return;
+    }
+    // 掣政（孙亮，锁定）：出牌阶段内，目标攻击范围不含你的伤害被防止。
+    if amount > 0 {
+        if let Some(src) = source {
+            if src != victim && crate::resolve_sp::chezheng_blocks(st, src, victim) {
+                let pid = st.seats[src].player_id.clone();
+                st.push_log(
+                    Some(&pid),
+                    format!(
+                        "掣政：防止对 {} 造成的伤害（其攻击范围不含孙亮）",
+                        st.seats[victim].general_name
+                    ),
+                );
+                return;
+            }
+        }
+    }
     // 天香：受到伤害时，可弃红桃手牌防止伤害并转移。
     if allow_tianxiang
         && amount > 0
@@ -3942,6 +4104,12 @@ fn apply_damage_inner(
                     target: victim,
                 }),
             );
+        }
+    }
+    // 审时（阴）：其他角色对你造成伤害后，可观看其手牌并交给其一张牌。
+    if let Some(src) = source {
+        if src != victim && st.seats[victim].hp > 0 && amount > 0 {
+            crate::resolve_sp::push_shenshi_yin(st, victim, src);
         }
     }
     // 狂骨：对距离 1 以内角色造成伤害后，可回复 1 点体力或摸 1 张。

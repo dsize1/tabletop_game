@@ -35,7 +35,7 @@ fn general_packs_default_and_parse() {
             n += 1;
         }
     }
-    assert_eq!(n, 57, "标准 25 + 风 8 + 火 8 + 林 8 + 山 8");
+    assert_eq!(n, 65, "标准 25 + 风 8 + 火 8 + 林 8 + 山 8 + SP-1 8");
 }
 
 #[test]
@@ -77,11 +77,11 @@ fn general_pack_switch_filters_offer_pool() {
         assert!(matches!(def.pack, "standard" | "wind_fire_forest_mountain"));
         assert!(skills::general_ready(code));
     }
-    // 未实现武将不进池。
+    // 未实现武将不进池（SP-2 武将尚未实现）。
     st2.setup.offered.clear();
     drop(st2);
     let st2 = state_of(&mgr2, &room2);
-    assert!(!st2.setup.offered.contains("sgs_hero_100"));
+    assert!(!st2.setup.offered.contains("sgs_hero_405"));
 }
 
 #[test]
@@ -134,8 +134,9 @@ fn general_ready_gates_unimplemented_generals() {
     assert!(skills::general_ready("sgs_hero_34")); // 典韦（火包，已实现）
     assert!(skills::general_ready("sgs_hero_42")); // 徐晃（林包，已实现）
     assert!(skills::general_ready("sgs_hero_50")); // 张郃（山包，已实现）
-    assert!(!skills::general_ready("sgs_hero_100")); // 袁术（后续 SP，未实现）
-    assert!(!skills::general_ready("sgs_hero_400")); // 严颜（后续/SP，未实现）
+    assert!(skills::general_ready("sgs_hero_100")); // 袁术（SP-1，已实现）
+    assert!(skills::general_ready("sgs_hero_400")); // 严颜（SP-1，已实现）
+    assert!(!skills::general_ready("sgs_hero_405")); // SP-2 未实现
                                                      // 开启风林火山后，标准将仍可用（不受影响）。
     let mgr = manager(405);
     let room = super::lobby_with(&mgr, 5);

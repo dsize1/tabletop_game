@@ -72,6 +72,38 @@ fn marks_view(st: &SgsState, seat: &Seat) -> Value {
     Value::Object(out)
 }
 
+/// 计数型标记（非牌实例，如陆绩「橘」；公共信息）。
+fn marks_count_view(seat: &Seat) -> Value {
+    let mut out = Map::new();
+    for (code, n) in &seat.mark_counts {
+        if *n == 0 {
+            continue;
+        }
+        out.insert(code.clone(), json!(n));
+    }
+    Value::Object(out)
+}
+
+/// 转换技当前面（阳/阴）视图：仅返回已实现的转换技。
+fn transforms_view(st: &SgsState, seat: usize) -> Value {
+    const TRANSFORMS: &[&str] = &["juzhan", "shenshi", "chenglue"];
+    let mut out = Map::new();
+    for code in TRANSFORMS {
+        if !crate::skills::has(st, seat, code) {
+            continue;
+        }
+        out.insert(
+            code.to_string(),
+            json!(if crate::skills::yj_yin(st, seat, code) {
+                "yin"
+            } else {
+                "yang"
+            }),
+        );
+    }
+    Value::Object(out)
+}
+
 /// 公共局面区。
 pub fn public_board(st: &SgsState) -> Value {
     // 选将期间不公开其他玩家已选武将（选将完成后统一亮明）。
@@ -100,6 +132,7 @@ pub fn public_board(st: &SgsState) -> Value {
                 "equips": equips_view(st, s),
                 "judge_zone": s.judge_zone.iter().map(|id| card_view(st, id)).collect::<Vec<_>>(),
                 "marks": marks_view(st, s),
+                "marks_count": marks_count_view(s),
                 "flipped": s.flipped,
                 "alive": s.alive,
                 "is_bot": s.is_bot,
@@ -267,6 +300,8 @@ pub fn player_area(st: &SgsState, viewer: &str) -> Option<Value> {
         "equips": equips_view(st, s),
         "judge_zone": s.judge_zone.iter().map(|id| card_view(st, id)).collect::<Vec<_>>(),
         "marks": marks_view(st, s),
+        "marks_count": marks_count_view(s),
+        "transforms": transforms_view(st, idx),
         "flipped": s.flipped,
         "skills": skills,
         "equipment_skills": equipment_skills_view(st, idx),

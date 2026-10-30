@@ -57,6 +57,8 @@ export interface SgsSeat {
   judge_zone: SgsCard[];
   /** 武将牌上的标记（code → 牌）。 */
   marks?: Record<string, SgsCard[]>;
+  /** 计数型标记（code → 数量，如怀橘「橘」）。 */
+  marks_count?: Record<string, number>;
   /** 翻面状态（背面朝上）。 */
   flipped?: boolean;
   alive: boolean;
@@ -116,6 +118,9 @@ export interface SgsPlayerArea {
   equips: SgsEquips;
   judge_zone: SgsCard[];
   marks?: Record<string, SgsCard[]>;
+  marks_count?: Record<string, number>;
+  /** 转换技当前面（技能 code → yang/yin）。 */
+  transforms?: Record<string, string>;
   flipped?: boolean;
   skills?: SgsSkill[];
   is_bot?: boolean;

@@ -402,6 +402,42 @@ assert.ok(/data-skill="rende"[^>]*disabled/.test(noSkillAction), "无对应动�
 
 console.log("[sgs-web] 出牌链路（可用性/动作按钮）单测通过 ✅");
 
+// —— 视图契约快照（P4.4.1 SP-1）：marks_count 计数标记 + 转换技阳/阴 ——
+const luJiArea: SgsPlayerArea = {
+  ...me,
+  general: "sgs_hero_402",
+  general_name: "陆绩",
+  marks: {},
+  marks_count: { ju: 2 },
+  transforms: { shenshi: "yin" },
+  skills: [
+    { code: "huaiju", name: "怀橘", type: "locked", implemented: true },
+    { code: "shenshi", name: "审时", type: "normal", implemented: true },
+  ],
+};
+const luJiPublic = renderPublicArea(
+  {
+    ...view,
+    public_board: {
+      ...board,
+      seats: board.seats.map((s, i) => (i === 1 ? { ...s, marks: {}, marks_count: { ju: 2 } } : s)),
+    },
+  },
+  0,
+  names,
+);
+assert.ok(luJiPublic.includes("橘×2"), "公共区应下发并展示计数标记「橘×2」");
+assert.ok(!luJiPublic.includes("data-marks-count"), "公共区计数标记不引入额外结构（兼容旧快照）");
+const luJiPersonal = renderPersonalArea(luJiArea, board, {}, names);
+assert.ok(luJiPersonal.includes("橘×2"), "个人区应展示计数标记「橘×2」");
+assert.ok(luJiPersonal.includes("审时（阴）"), "个人区应展示转换技当前面（阴）");
+const yangArea: SgsPlayerArea = { ...luJiArea, transforms: { shenshi: "yang" } };
+assert.ok(renderPersonalArea(yangArea, board, {}, names).includes("审时（阳）"), "转换技阳面展示");
+const legacyArea: SgsPlayerArea = { ...luJiArea, marks_count: undefined, transforms: undefined };
+const legacyHtml = renderPersonalArea(legacyArea, board, {}, names);
+assert.ok(!legacyHtml.includes("橘×"), "旧快照（无 marks_count/transforms）渲染不报错");
+console.log("[sgs-web] 视图契约快照（marks_count / 转换技阳阴）单测通过 ✅");
+
 // —— P3.4 pending 浮层 ——
 const wuxiePending = {
   kind: "wuxie",

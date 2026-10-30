@@ -1740,6 +1740,89 @@ pub(crate) fn multiselect_confirm(
             pop(st);
             Some(Ok("缔盟：已交换手牌".to_string()))
         }
+        "jinzou" => {
+            let target = f.data["target"].as_u64().unwrap_or(0) as usize;
+            let n = f.selected.len();
+            for id in &f.selected {
+                if turn::take_card(st, f.actor, id).is_err() {
+                    return Some(Err(illegal("手牌中没有该牌")));
+                }
+                turn::to_discard_card(st, id);
+            }
+            let left = st.seats[f.actor].hand.len();
+            pop(st);
+            let pid = st.seats[f.actor].player_id.clone();
+            st.push_log(
+                Some(&pid),
+                format!("进趋：弃置 {n} 张，手牌剩 {left} 张（目标 {target} 张）"),
+            );
+            Some(Ok(format!("进趋：已弃置 {n} 张")))
+        }
+        "feijun" => {
+            if f.selected.len() != 1 {
+                return Some(Err(illegal("飞军需弃置 1 张牌")));
+            }
+            let id = f.selected[0].clone();
+            if turn::take_card(st, f.actor, &id).is_err() {
+                return Some(Err(illegal("手牌中没有该牌")));
+            }
+            let label = turn::card_label(st, &id);
+            turn::to_discard_card(st, &id);
+            let pid = st.seats[f.actor].player_id.clone();
+            st.push_log(Some(&pid), format!("飞军：弃置【{label}】"));
+            let option = f.data["option"].as_u64().unwrap_or(1) as u8;
+            let target = f.data["target"].as_u64().unwrap_or(0) as usize;
+            pop(st);
+            match crate::resolve_sp::feijun_done(st, f.actor, target, option) {
+                Ok(msg) => Some(Ok(msg)),
+                Err(e) => Some(Err(e)),
+            }
+        }
+        "chenglue" => {
+            let need = if f.data["yin"].as_bool().unwrap_or(false) {
+                1
+            } else {
+                2
+            };
+            if f.selected.len() != need {
+                return Some(Err(illegal("成略弃置张数不符")));
+            }
+            let mut suits = Vec::new();
+            for id in &f.selected {
+                if turn::take_card(st, f.actor, id).is_err() {
+                    return Some(Err(illegal("手牌中没有该牌")));
+                }
+                if let Some(inst) = st.cards.get(id) {
+                    suits.push(inst.suit);
+                }
+                turn::to_discard_card(st, id);
+            }
+            for suit in suits {
+                let key = match suit {
+                    Suit::Spade => "cl_spade",
+                    Suit::Heart => "cl_heart",
+                    Suit::Club => "cl_club",
+                    Suit::Diamond => "cl_diamond",
+                };
+                st.set_counter(key, 1);
+            }
+            skills::toggle_yj(st, f.actor, "chenglue");
+            let pid = st.seats[f.actor].player_id.clone();
+            st.push_log(
+                Some(&pid),
+                format!("成略：弃置 {} 张，本阶段同花色牌无距离与次数限制", f.selected.len()),
+            );
+            pop(st);
+            Some(Ok("成略：已完成".to_string()))
+        }
+        "shenshi_yang" => match crate::resolve_sp::shenshi_yang_confirm(st, f) {
+            Ok(msg) => Some(Ok(msg)),
+            Err(e) => Some(Err(e)),
+        },
+        "shenshi_yin" => match crate::resolve_sp::shenshi_yin_confirm(st, f) {
+            Ok(msg) => Some(Ok(msg)),
+            Err(e) => Some(Err(e)),
+        },
         "tianxiang" => {
             if f.selected.len() != 1 {
                 return Some(Err(illegal("天香需弃置 1 张红桃手牌")));
@@ -1833,6 +1916,14 @@ pub(crate) fn target_action(
         Some(Frame::Zhijian(_)) => {
             crate::resolve_mountain::zhijian_target(st, pending, action).map(Some)
         }
+        Some(Frame::Qizhi(_)) => crate::resolve_sp::qizhi_target(st, pending, action).map(Some),
+        Some(Frame::Feijun(_)) => crate::resolve_sp::feijun_target(st, pending, action).map(Some),
+        Some(Frame::Yili(_)) => crate::resolve_sp::yili_target(st, pending, action).map(Some),
+        Some(Frame::Shenshi(_)) => crate::resolve_sp::shenshi_target(st, pending, action).map(Some),
+        Some(Frame::Chezheng(_)) => {
+            crate::resolve_sp::chezheng_target(st, pending, action).map(Some)
+        }
+        Some(Frame::Kuizhu(_)) => crate::resolve_sp::kuizhu_target(st, pending, action),
         _ => Ok(None),
     }
 }
