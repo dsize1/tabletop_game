@@ -34,3 +34,4 @@
 - [ADR-0018：武将回合设计工作台 —— 复用 n8n 做图编排，引擎只做仿真与校验（提案·待评审）](./ADR-0018-sanguosha-flow-workbench.md)
 - [ADR-0019：三国杀 AI 决策与对局录制回放（训练数据铺路）（提案·待评审）](./ADR-0019-sanguosha-ai-replay.md)
 - [ADR-0020：多端交互形态 —— Web 优先 + WebView 复用 + 游戏区域三分（提案·待评审）](./ADR-0020-sanguosha-multiclient-web-first.md)
+- [ADR-0022：装备效果技能化（Equipment-as-Skills）—— 窗口由引擎开、效果由技能注册表实现（已采纳）](./ADR-0022-equipment-as-skills.md)

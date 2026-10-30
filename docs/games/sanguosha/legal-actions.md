@@ -45,6 +45,7 @@ hint                               # 同 resume（别名）
 | `lobby:start` | 房主 | 人数/身份配比合法 → `setup` |
 | `lobby:abort` | 房主 | 中断，不结算 |
 | `lobby:add_bot` | 房主 | 机器人补位（测试） |
+| `lobby:set_packs:<mode>` | 房主 | 牌堆包组合（P4.0）：`standard`（108 张）/ `standard+junzheng`（160 张，默认）；全局生效，开局后不可改；军争不可单独启用 |
 | `setup:choose_general:<code>` | 当前选将玩家 | 主公：全部主公将 + N 张非主公（默认 N=5）中选 1；其他：同时获得 M 张候选（默认 M=5，玩家间不重复）中选 1；未选回池 |
 | `setup:confirm` | 当前选将玩家 | 确认（如需要） |
 
@@ -54,7 +55,7 @@ hint                               # 同 resume（别名）
 
 - 默认自动，无玩家动作；
 - 可选技能触发时，引擎下发 `pending`（`choose`/`respond`）；
-- 判定改判：`skill:<judge_skill>:<card_id>` 或 `choose`，由技能定义。
+- 判定改判（P4.1）：判定牌亮出后引擎下发 `judge_rewrite` pending，动作为 `respond:<任意手牌>`（鬼才）或 `pass`；**从判定者左手侧起、仅有改判技能且手牌非空者被询问**，判定者最后。
 
 ### 4.2 出牌阶段
 
@@ -76,6 +77,9 @@ hint                               # 同 resume（别名）
 | 普通锦囊 | 满足目标/距离；可被无懈 |
 | 延时锦囊 | 目标判定区无同名；置入后可被无懈 |
 | 无懈可击 | 仅当锦囊结算 pending 时；任意玩家按响应顺序 |
+| 转化（P4.1） | 武圣：红色手牌当【杀】（主动/响应）；龙胆：【杀】【闪】互转；倾国：黑色手牌当【闪】（响应）；急救：**回合外**红色手牌当【桃】（濒死响应）；国色：方块手牌当【乐不思蜀】（`skill:guose:<card>`，判定区记录 `virtual_defs`）。转化选项由引擎下发（`respond:<card>` / `skill:<转化>:<card>`），未下发不可提交 |
+
+> **P4.0 军争牌拦截**：酒/火杀/雷杀/火攻/铁索连环/兵粮寸断/古锥刀/朱雀羽扇/藤甲/白银狮子已入牌堆定义，但结算在 P4.2–P4.3；在此之前**不出现在 `legal_actions`**，直接 `play:` 也报错（不得静默按普通牌结算）。骅骝（防御马距离）由通用装备逻辑直接可用。
 
 子交互：
 
@@ -122,8 +126,8 @@ hint                               # 同 resume（别名）
 - **P2.4 技能动作**：`skill:rende`（仁德：多选 → `target`）、`skill:lijian`（离间：多选 1 张 → 两次 `target`）、`skill:qixi:<card>`（奇袭：黑色牌当过河拆桥）、`choose:tuxi`/`pass`（突袭，`choice`）、`skill:jijiang`/`skill:hujia`（主公技，出现在 `respond` 待选的选项中）。
 - **装备**：`skill:bagua`（八卦阵：需要【闪】时判定；红色视为出闪）。
 - **P2.5 特殊区**：`play:<五谷丰登>`（亮牌 → 每人选 1）、`pick:<card_id>`（pending `wugu`）、`arrange:<csv>`（pending `arrange`，观星）。
-- **未实现**：改判技能、其余标准将技能（P4）。
-- 未实现但已在规则中登记的：锦囊响应（无懈链）、改判、技能转化、多目标。
+- **未实现**：其余标准将技能（P4.1 分批）。
+- 已实现（P4.1）：改判窗口（鬼才）、空城目标过滤。未实现但已在规则中登记的：技能转化、多目标【杀】、双牌转化、被闪后追加结算。
 
 ### 4.6 P2.3 锦囊相关动作
 
@@ -139,7 +143,7 @@ hint                               # 同 resume（别名）
 | 五谷选牌（P2.5） | `pick:<card_id>` | `wugu` | 释放者先选，随后座位顺序；每人一次无懈窗口 |
 | 观星提交（P2.5） | `arrange:<id,id,...>` | `arrange` | 有序 id 列表 = 新牌堆顶 → 底；必填全部取出的牌 |
 | 麒麟弓（P3 追加） | `skill:qilin:horse_offense` / `skill:qilin:horse_defense` / `pass` | `choice` | 【杀】造成伤害后由攻击方弃置目标一张坐骑 |
-| 改判（P4 计划） | `skill:<改判技能>:<card_id>` / `pass` | `judge` | 判定牌亮出后自动询问；从判定者左手侧起，仅询问有改判技能者 |
+| 改判（P4.1 鬼才） | `respond:<card_id>` / `pass` | `judge_rewrite` | 判定牌亮出后自动询问；从判定者左手侧起、判定者最后，仅询问有改判技能且手牌非空者 |
 
 - `confirm`/`cancel` 仅用于需要二阶段目标确认的牌（当前只有借刀杀人）；取消后不产生任何状态变化。
 
@@ -188,7 +192,7 @@ hint                               # 同 resume（别名）
 |---|---|---|
 | 观星 `guanxing` | `arrange:<id,id,...>`（pending `arrange`） | 有序 id 列表（跳空压缩后的最终顺序）；Web 端拖拽草稿后一次提交，Q 后置 |
 | 五谷丰登 `wugu` | `pick:<card_id>`（pending `wugu`） | 释放者先选，之后座位顺序每人选 1 |
-| 判定 `judge` | 自动 / `skill:<改判>` | 判定牌公开 |
+| 判定 `judge` | 自动 / `judge_rewrite`（`respond:<手牌>` / `pass`） | 判定牌亮出即公开（特殊区 `judge`） |
 | 濒死 `dying` | `respond:<桃/酒>` / `pass` | 响应顺序 |
 | 无懈链 `wuxie_chain` | `respond:<无懈>` / `pass` | 从原锦囊使用者左手侧开始，可递归抵消，允许同一玩家多次响应 |
 

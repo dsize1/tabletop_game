@@ -289,6 +289,24 @@ CREATE INDEX IF NOT EXISTS idx_prop_status_log_entity
 - 技能 `code` 由导入脚本生成（如 `sk_<名称哈希前10位>`），跨武将同名共享一行；人工可在中台改 code。
 - 牌表：官网**没有公开的结构化牌表/接口**（sitemap 仅 `/hero/*` 等页面）；已从社区开源牌堆整理 `cards.json`（标准 108 + 军争 52）与 `cards.md`，**P1 人工逐张复核后入库**；若后续找到官方数据再替换。
 
+### 3.7 引擎内置数据（生成脚本，P4.0 已落地）
+
+中台「元数据只读 API」留 P5：P4 阶段引擎消费**内置生成数据**，来源与中台同一批 `data/*.json`，保证口径一致。
+
+| 生成产物（`crates/engines/sanguosha/src/data.rs`） | 说明 |
+|---|---|
+| `CARD_DEFS` | 牌定义（按 code 去重；跨包同名定义字段必须一致） |
+| `STANDARD_DECK` / `JUNZHENG_DECK` | 物理牌表（108 / 52），`PhysicalCard.pack` 标注所属牌堆包 |
+| `STANDARD_DECK_SIZE` / `JUNZHENG_DECK_SIZE` / `FULL_DECK_SIZE` | 108 / 52 / 160 |
+| `DECK_PACKS` | 支持的牌堆包（顺序即建堆顺序：`standard` → `junzheng`） |
+| `deck_cards(&packs)` | 按 `Config.packs` 组堆；未知包/空组合报错；同一牌堆内 `pack` 必须与牌堆名一致 |
+| `STANDARD_GENERALS` + `GENERAL_PACKS` | 武将（`GeneralDef.pack` 为武将包 code）；`GENERAL_PACKS` 按包拼接即选将池 |
+
+- 生成：`npm run gen:sgs-engine-data`；门禁：`npm run check:sgs-engine-data`（`--check` 逐字节比对）。
+- 默认只生成标准包 25 将（gid 1..=25）；`--general-packs` 预留多包（新增包需在脚本 `GENERAL_PACKS` 登记性别表，P4.4 扩包）。
+- 牌堆口径：默认 `["standard","junzheng"]` = **160 张**，可在 lobby 切到 `standard` = 108 张（`lobby:set_packs`）。
+- 旧快照兼容：schema v2 及以前没有 `config.packs`，反序列化按默认 `["standard","junzheng"]` 补齐（**不重建已有牌堆**，实例仍以快照中的 `cards` 为准）。
+
 ## 4. 运行时状态模型（不建实体表）
 
 复用：
@@ -310,7 +328,8 @@ CREATE INDEX IF NOT EXISTS idx_prop_status_log_entity
     "other_candidate_count": 5,       // 其他玩家同时获得的候选数
     "max_hand_cards": 20,             // 任何时刻手牌持有上限（弃牌阶段上限仍为当前体力值）
     "base_attack_range": 1,
-    "base_defense_range": 1
+    "base_defense_range": 1,
+    "packs": ["standard", "junzheng"] // P4.0：牌堆包组合（默认 160 张；旧对局按创建时固定）
   },
   "player_count": 5,
   "identity_variant": "default",
@@ -335,9 +354,8 @@ CREATE INDEX IF NOT EXISTS idx_prop_status_log_entity
       "flags": {}                     // 技能私有标记（如觉醒已触发）
     }
   ],
-  // P4 计划字段（当前实现尚未包含）：牌堆/包与角色状态
-  // "config": { ..., "packs": ["standard", "junzheng"] },   // 全局包组合（默认 160 张）
-  // "seats[].chained": false,                              // 铁索连环状态
+  // P4 计划字段（P4.0 已落地 `config.packs`；其余仍待实现）
+  // "seats[].chained": false,                              // 铁索连环状态（P4.3）
   // "cards": {
     // 牌实例表：id → 物理牌 + 当前区域 + 归属
     "c12": { "def": "sha", "suit": "spade", "rank": 7, "zone": "hand", "owner": "openid" },

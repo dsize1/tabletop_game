@@ -21,7 +21,7 @@ GameState（game-engine-core 信封）
 | `mode` | `identity`（本期）/ `guozhan`（预留） |
 | `phase` | `lobby` / `setup` / `turn` / `dying` / `finished` / `aborted` |
 | `host` | 房主 openid |
-| `config` | 规则配置：`lord_candidate_count` / `other_candidate_count` / `max_hand_cards` / `base_attack_range` / `base_defense_range`（默认 5 / 5 / 20 / 1 / 1，可配置） |
+| `config` | 规则配置：`lord_candidate_count` / `other_candidate_count` / `max_hand_cards` / `base_attack_range` / `base_defense_range` / `packs`（默认 5 / 5 / 20 / 1 / 1 / `["standard","junzheng"]`，可配置） |
 | `player_count` / `identity_variant` | 人数与双内变体 |
 | `round` | 轮次（以主公回合为一轮起点，按实现定义） |
 | `turn` | `{ seat, phase, extra_phases }` 当前回合 |
@@ -55,6 +55,7 @@ GameState（game-engine-core 信封）
 - 候选/池只取 `status=live` 的武将。
 - **实现口径（P2.1，2026-10-27）**：引擎内置池暂为标准包 25 将（自动生成）；当 `M × 其他玩家数` 超过池子时按**均分降级**（每人不低于 1、不超过 M，余数给左手侧靠前的玩家），P4 扩池后恢复按 M 发满。
 - 选将结果写入 `seats[].general`，进入 `turn`。
+- **建堆（P4.0）**：全员选将完成后按 `config.packs` 组堆（固定顺序 `standard` → `junzheng`，默认 160 张；`standard` = 108 张），牌实例 id 按牌堆顺序编号（`c1..cN`）后整体洗牌（种子入 `deck_shuffled` 事件的 `size` / `packs` / `seed`）。包开关是**全局**的：一局一个组合，旧对局按创建时 config 固定，不得中途重建。
 
 ### 2.2 pending 类型（P2.2 实现）
 
@@ -69,15 +70,18 @@ GameState（game-engine-core 信封）
 | `target`（借刀） | 锦囊使用者 | `stage`（`borrow_first`/`borrow_second`） | `target:<player>` / `confirm` / `cancel` | 借刀杀人二阶段目标 |
 | `choice` | 技能拥有者 | `skill` / `card` | `choose:gain` / `pass` | 奸雄（第一批技能） |
 | `choice`（麒麟弓） | 攻击方 | `skill=qilin` / `target` | `skill:qilin:horse_offense|horse_defense` / `pass` | 【杀】造成伤害后，目标有坐骑（P3 追加） |
+| `choice`（裸衣） | 回合玩家 | `skill=luoyi` | `choose:luoyi` / `pass` | 摸牌阶段：发动=少摸 1 张且本回合杀/决斗伤害 +1；放弃=正常摸 2 张（P4.1） |
+| `target`（遗计） | 受伤的郭嘉 | `skill=yiji` / `card` / `remaining` | `target:<player>`（含自己） | 伤害后摸 2 张逐张分配（P4.1） |
+| `target`（青囊/结姻） | 技能拥有者 | `skill` / `selected` | `target:<player>` | 青囊（已受伤角色）/结姻（已受伤男性）（P4.1） |
 | `choose_many` | 技能拥有者 | `purpose` / `selected` / `min` / `max` | `choose:<card>` / `confirm` / `cancel` | 制衡（弃 N 摸 N）、仁德（选牌）、离间（选 1 张） |
 | `choice`（巡袭/接力） | 技能拥有者 | `skill` / `needed` | `choose:tuxi` / `respond:<card>` / `pass` | 突袭（放弃摸牌）、激将/护驾（同势力代出杀/闪） |
 | `wugu` | 按选择顺序的当前玩家（**释放者先选**） | `card` / `remaining` / `chooser` / `zone` | `pick:<card_id>` | 五谷丰登（P2.5）；每人一次无懈窗口 |
-| `judge`（改判，P4 计划） | 从判定者左手侧起、**仅有改判技能者** | `owner` / `card` / `skill` / `cursor` | `skill:<改判技能>:<card_id>` / `pass` | 判定牌亮出后自动询问；无人改判则按原判定结算 |
+| `judge_rewrite`（改判，P4.1 已实现） | 从判定者左手侧起、**仅有改判技能且手牌非空者** | `judge_card` / `delayed` / `owner` / `interaction` | `respond:<任意手牌>` / `pass` | 判定牌亮出后自动询问（鬼才）；无人改判则按原判定结算 |
 | `arrange` | 技能拥有者 | `zone` / `rows` / `cols` / `slots` / `rev` / `interaction` | `arrange:<csv>` | 观星（P2.5）：准备阶段自动进入，不可取消 |
 
 - P2.3 起由**结算栈**驱动：`resolution: Vec<Frame>`（Trick/Wuxie/PickCard/Aoe/Respond/Dying/Discard），`pending` 是栈顶投影；濒死与无懈嵌套通过压栈/弹栈恢复。
 - 响应类询问（`wuxie`/`respond`/`dying`/接力）：**无手牌且无替代选项的玩家自动跳过**；**有手牌者一律显式询问**（无对应牌时唯一动作是 `pass`），不代选（2026-10-28 裁定，见 `special-zones.md` §4.1）。
-- **P2.3** 已实现锦囊/无懈/濒死/弃牌/判定 pending；**P2.4** 新增 `choice`（奸雄）与 `choose_many`（制衡）；**P2.5** 新增 `wugu` 与 `arrange`（特殊区帧 `Frame::Wugu` / `Frame::Arrange`，见 `special-zones.md` §5/§6）。
+- **P2.3** 已实现锦囊/无懈/濒死/弃牌/判定 pending；**P2.4** 新增 `choice`（奸雄）与 `choose_many`（制衡）；**P2.5** 新增 `wugu` 与 `arrange`（特殊区帧 `Frame::Wugu` / `Frame::Arrange`，见 `special-zones.md` §5/§6）；**P4.1** 新增 `judge_rewrite`（鬼才；判定帧新增 `Reveal→Rewrite→WaitRewrite→Effect` 阶段，判定牌亮出即进处理区并公开）。
 
 - 只有 `pending.actor` 能提交；其他玩家提交返回权限错误。
 - 阶段机在无 pending 时自动推进，停在**出牌阶段**等待输入。

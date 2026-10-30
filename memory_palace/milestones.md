@@ -2,6 +2,42 @@
 
 > 记录项目关键节点与验证结果，按时间倒序。重大技术决策见 `decisions/`。
 
+## M23：三国杀 P4.2 / P4.3 / P4.5 —— 装备效果 + 军争结算 + 装备技能化 ✅
+
+- **日期**：2026-10-30
+- **P4.2**：标准 8 件装备效果全部实现（寒冰剑 damage_before、雌雄双股剑、青龙偃月刀/贯石斧 after_dodge、丈八蛇矛主动+响应、方天画戟多目标、八卦/麒麟等既有）
+- **P4.3**：军争 52 张全部接入结算——酒、火杀/雷杀（`ShaFrame.damage_type`）、火攻、铁索连环（横置/重铸/属性传导）、兵粮寸断、藤甲、白银狮子、古锭刀、朱雀羽扇；`PENDING_JUNZHENG_CARDS` 清空
+- **P4.5**：ADR-0022 装备技能化落地——`EQUIPMENT_SKILLS`（21 件）+ `Trigger` 六类 + `triggered()`；AfterDodge/DamageBefore/TargetChosen/PlayPhase handler 表；`player_area.equipment_skills[]`；Web 武器高亮（`option_sources`）
+- **验证**：`cargo test -p sanguosha` **210** 用例；`check:sgs-skill-cases`（193 条 / 25 将 ≥3）、`check:sgs-view-contract`、`check:interaction-primitives`、`fmt --check`、`npm --prefix apps run test:web`、MCP 冒烟全通过
+- **详见**：`docs/games/sanguosha/development-plan.md` P4.2/P4.3/P4.5 记录、`skills.md`、ADR-0022
+
+## M22：三国杀 P4.1 —— 标准包全技能（25 将 / 49 技能）✅
+
+- **日期**：2026-10-30（P4.1 收口）
+- **完成**：
+  - **改判窗口**：`judge_rewrite` pending（判定帧 `Reveal→Rewrite→WaitRewrite→Effect`）+ 鬼才（司马懿）；判定牌亮出即处理区/公开
+  - **锁定/目标过滤**：空城（诸葛亮）、谦逊（陆逊）、马术（马超）、咆哮（张飞）、无双（吕布）、倾国（甄姬）
+  - **转化**：武圣、龙胆、急救、倾国、国色（`SgsState.virtual_defs` + `effective_def_code`）
+  - **主动/伤害后**：苦肉、青囊、结姻、反馈、遗计（逐张分配）、刚烈、反间、洛神、铁骑、天妒、裸衣（手动 `choice`）、英姿、连营、枭姬、流离、闭月/离间/奇袭/突袭/仁德/激将/制衡/救援/奸雄/护驾/集智/奇才/克己/观星
+  - **工程**：`RespondFrame.need/played/no_shan/duel_initiator`（无双/铁骑）、`Frame::Liuli/Luoshen/Ganglie/Fanjian/Qingnang/Jieyin/Yiji/Luoyi`
+  - **harness**：`check:sgs-skill-cases`（扫描测试体，标准 25 将每人 ≥3 条用例）；D 回归 12 条跨技能交互（p47）
+- **验证**：`cargo test -p sanguosha` **164** 用例全绿；`check:sgs-skill-cases` / `check:sgs-view-contract` / `check:interaction-primitives` / `fmt --check` / MCP 冒烟（160 张牌、守恒、终局）通过
+- **已知偏差（已登记 `skills.md` §8）**：遗计按「每次伤害结算」触发（规则为每点）；铁骑/刚烈/洛神为自动判定（待 P4.2 通用 `judge_before`）；流离弃置限手牌；国色判定区视图仍显示物理牌
+- **详见**：`docs/games/sanguosha/development-plan.md` P4.1 记录、`skills.md`（技能表/钩子/偏差）、`data-model.md` §4.1（`virtual_defs`）、`legal-actions.md`
+
+## M21：三国杀 P4.0 —— 军争牌堆 + 包开关（数据层）✅
+
+- **日期**：2026-10-30
+- **完成**：
+  - 生成脚本：军争 52 张入 `CARD_DEFS`/`JUNZHENG_DECK`，`PhysicalCard.pack` + `GeneralDef.pack`，`deck_cards(&packs)`；`check:sgs-engine-data` 扩围至 160 张（标准 108 + 军争 52）/ 25 将
+  - 引擎：`Config.packs`（默认 `["standard","junzheng"]` = 160）、`parse_packs`/`packs_mode`、`lobby:set_packs:standard|standard+junzheng`、`finish_setup` 按 config 建堆、`deck_shuffled` 带 `packs`
+  - 军争未实现结算的 10 种牌（酒/火杀/雷杀/火攻/铁索连环/兵粮寸断/古锭刀/朱雀羽扇/藤甲/白银狮子）在 `legal_actions` 与 `play:` 双重拦截；骅骝走通用距离逻辑
+  - 测试：新增 `tests/p40.rs` 5 条；修复 160 牌堆下受影响的牌数/弃牌断言；`apps/verify-sanguosha.mjs` 守恒断言改为按 `config.packs` 计算
+- **验证**：`cargo test -p sanguosha` **109** 用例全绿；`npm run check:sgs-engine-data` 通过；`cargo fmt --check -p sanguosha` 通过；MCP 冒烟（160 张/packs 打印 + 军争未实现牌零出牌断言）通过
+- **harness（2026-10-30）**：新增「牌定义 ↔ 引擎结算覆盖」门禁（每张 CardDef ∈ 标准包 / 已实现军争牌 / `PENDING_JUNZHENG_CARDS`）+ `verify-sanguosha.mjs` 端到端断言军争未实现牌从未被列为可出
+- **已知限制**：军争牌结算（属性伤害/连环/酒/兵粮/火攻/藤甲/白银狮子/古锭刀/朱雀羽扇）留 P4.2–P4.3；武将池仍为标准 25；中台 live 元数据 API 留 P5
+- **详见**：`docs/games/sanguosha/development-plan.md`「P4.0 实施记录」、`data-model.md` §3.7/§4.1、`state-machine.md` §2.1、`legal-actions.md` §3/§4.2
+
 ## M20：三国杀 P3 —— Web 交互基座（三分区页面 + 特殊区 + 观星）✅
 
 - **日期**：2026-10-30（P3.0–P3.6 收口；**真机验收 16 项由用户确认通过**）

@@ -332,6 +332,22 @@
 - **历史可读性（第二轮）**：历史条目显示操作者昵称前缀（`LogEntry.actor` → 前端解析），复盘时不再需要猜「谁用了这张牌」。
 - 用例：`tests/p26.rs` 5 条（闪电自身/判定顺序、顺手过河目标过滤、麒麟弓弃坐骑/决斗不触发、历史全量下发）+ `p24c` 八卦阵单次判定；全套 **103** 用例通过。
 
+### P4.5 装备效果技能化重构（ADR-0022，已立项）
+
+**目标**：把装备效果从各时机点的内联 if/专用帧，迁移为「装备技能」注册表（`SkillOwner::Equipment` + `Trigger`），窗口仍由引擎开、效果由技能实现统一派发。
+
+**范围（迁移清单）**：诸葛连弩 / 八卦阵 / 麒麟弓 / 寒冰剑 / 青龙偃月刀 / 贯石斧 / 雌雄双股剑 / 丈八蛇矛。
+
+**前置**：通用判定窗口 `judge_before`（铁骑/刚烈/八卦/洛神统一走它，支持鬼才改判）先落地。
+
+**交付**：
+- `skills.rs`：`SkillOwner` + `Trigger` + `triggered()`；`has()` 同时查装备技能；
+- 删除各调用点的 `has_equip` 内联分支与重复胶水，新增装备只加 `SkillDef` + 效果函数；
+- 视图 `player_area.equipment_skills[]`（供 Web 武器高亮/浮层入口）+ `view_contract` 同步；
+- 回归：`cargo test -p sanguosha`、`check:sgs-view-contract`、`check:interaction-primitives`。
+
+**边界**：窗口类装备（伤害前/被闪后/判定前）不提供「提前点击」，端侧在窗口内把选项画在武器卡上；中台只读元数据（ADR-0016）。
+
 ### P4 武将 / 军争扩展（XL，持续）
 
 **目标**：先补齐标准包 25 将，再按包扩展；军争牌玩法启用。
@@ -379,6 +395,105 @@
 **P4 建议拆分**：P4.0 数据/牌堆(160)/包开关(config) → P4.1 标准 25 将余 17（含空城、改判 pending）→ P4.2 装备效果剩余 6 件 + 机制窗口（damage_before/多目标/转化/追加）→ P4.3 军争牌结算 + 属性/连环 → P4.4 包扩展（风林火山→…）与验收。
 
 **P4.0 交付锚点（新会话直接照此开工）**：生成脚本支持 `junzheng` 牌 + `GeneralDef.pack`；引擎新增 `JUNZHENG_DECK` 与 `Config.packs`/牌堆模式（默认 `["standard","junzheng"]` → 160）；`finish_setup` 按 config 建堆；牌数守恒断言覆盖 160；`check:sgs-engine-data` 扩围；文档 `data-model.md` schema 同步。
+
+**P4.0 实施记录（2026-10-30，已完成）**
+
+- **生成脚本**（`apps/scripts/gen-sanguosha-engine-data.mjs`）：
+  - 牌：`DECKS` 表驱动 `standard`(108)/`junzheng`(52)，DEF_CODE 补齐军争 11 种定义（酒/火杀/雷杀/火攻/兵粮寸断/铁索连环/白银狮子/藤甲/古锭刀/朱雀羽扇/骅骝）；跨包同名定义（桃/闪/无懈可击）字段一致性校验。
+  - `PhysicalCard.pack` + `STANDARD_DECK`/`JUNZHENG_DECK` + `FULL_DECK_SIZE=160` + `deck_cards(&packs)`（未知包/空组合报错，堆内 `pack` 自检）。
+  - 武将：`GENERAL_PACKS` 登记表按包生成，`GeneralDef.pack`；默认仍只生成标准包 25 将，`--general-packs` 为 P4.4 扩包预留（新包需登记性别表）。
+- **引擎**：`Config.packs`（serde 默认 `["standard","junzheng"]`）+ `parse_packs`/`packs_mode`（顺序无关、去重、军争必须带标准）；`lobby:set_packs:standard|standard+junzheng`（房主、开局后不可改）；`finish_setup` 按 config 组堆，`deck_shuffled` 载荷加 `packs`；牌数守恒与 `deck_shuffled.size` 均按实际堆大小（160/108）。
+- **军争未实现牌拦截**：酒/火杀/雷杀/火攻/铁索连环/兵粮寸断/古锭刀/朱雀羽扇/藤甲/白银狮子 — 定义已入库但结算未实现，`legal_actions` 不列出且 `play:` 直接报错（避免默认 160 牌堆触发内部错误或静默按普通牌结算）；骅骝走通用距离逻辑可直接装备。
+- **测试**：`cargo test -p sanguosha` **108** 用例全绿（新增 `tests/p40.rs` 5 条：默认 160 / 切换 standard=108 / 包配置校验与规范化 / `deck_cards` 顺序与错误 / 未实现军争牌不可出 + 骅骝可装备）；`p23` 弃牌断言改为增量（160 牌堆下初始手牌可能含乐不思蜀副本）；`apps/verify-sanguosha.mjs` 守恒断言按 `board.config.packs` 计算（160/108）。
+- **门禁**：`npm run check:sgs-engine-data` 通过（160 张：标准 108 + 军争 52 / 25 将）；`cargo fmt --check -p sanguosha` 通过。
+- **文档**：`data-model.md` 新增 §3.7 引擎内置数据 + §4.1 `config.packs`；`state-machine.md` §1/§2.1 建堆口径；`legal-actions.md` §3 `lobby:set_packs` + §4.2 军争拦截；`rules.md` 牌池与建堆。
+- **harness 优化（2026-10-30）**：① 新增「牌定义 ↔ 引擎结算覆盖」门禁用例（`junzheng_card_defs_are_covered_or_explicitly_pending`：每张 CardDef 必须 ∈ 标准包 / 已实现军争牌 `JUNZHENG_IMPLEMENTED` / `PENDING_JUNZHENG_CARDS`，防新牌静默落入通用分支）；② `apps/verify-sanguosha.mjs` 打印 `packs/总张数` 并断言军争未实现牌从未以 `play:` 出现（端到端守恒 + 拦截双保险）。用例总数 **109**。
+- **下一阶段入口**：P4.1（标准 25 将余 17 + 空城 + 改判 pending）
+
+**P4.1 实施记录（进行中，2026-10-30）**
+
+- **首批（已完成）**：改判窗口 + 鬼才（司马懿）+ 空城（诸葛亮）。
+  - 判定帧重构：`JudgeStage = Wuxie → WaitWuxie → Reveal → Rewrite → WaitRewrite → Effect`；判定牌亮出即进 `deck.processing`（牌数守恒）并在特殊区 `judge` 公开；改判替换的旧牌进弃牌堆。
+  - `judge_rewrite` pending（已登记 `state-machine.md` §2.2 与交互原语门禁）：`respond:<任意手牌>` / `pass`；询问顺序 = 判定者左手侧起、**判定者最后**；只问拥有改判技能且手牌非空者（无手牌不询问）。
+  - 空城：`skills::kongcheng_blocks` 统一过滤【杀】目标（`sha_targets`）、【决斗】目标（`legal_actions` + 锦囊目标 pending）、借刀杀人的虚拟【杀】目标、离间视为决斗的防守者；南蛮/万箭等非杀锦囊不受影响。
+  - 用例：新增 `tests/p41.rs` 8 条（改判生效/放弃/询问顺序含判定者最后、空城杀/决斗/借刀/有手牌可指定/非杀锦囊不受限）；`cargo test -p sanguosha` **117** 全绿；`check:sgs-view-contract`、`check:interaction-primitives`、MCP 冒烟通过。
+- **批次 B（转化/防御，部分完成 2026-10-30）**：
+  - 已实现 **武圣**（红牌当杀：出牌阶段主动 `skill:wusheng:<card>` + 响应）、**龙胆**（杀闪互转，主动 + 响应）、**倾国**（黑牌当闪，响应）、**急救**（回合外红牌当桃，濒死 `dying` pending）。
+  - 转化统一走 `skills::conversion_for`（实际牌 ≠ 目标牌才成立，并按有无该技能/颜色/回合外校验）；响应路径在 `resolve::respond_options` 下发选项、`finish_respond_play`/`act_dying` 重校验，未下发选项不可伪造。
+  - **国色暂缓**：方块牌当【乐不思蜀】要求判定区保存「虚拟牌定义」（当前判定区按物理牌 def 结算，转换牌会被当成原牌误判），待引入 `virtual_defs` 后与军争转化（火攻/朱雀羽扇 P4.2/P4.3）一起做。
+  - 用例：新增 `tests/p42.rs` 8 条；`cargo test -p sanguosha` **125** 全绿；视图/原语门禁与 MCP 冒烟通过。
+- **批次 C1（锁定/触发，已完成 2026-10-30）**：咆哮（杀无次数限制）、马术（距离 -1）、英姿（摸牌 +1）、裸衣（**手动触发**：摸牌阶段 `choice` 询问，发动=少摸 1 张且杀/决斗伤害 +1，放弃=正常摸 2 张）、天妒（获得判定牌）、谦逊（不能成为顺手/过河目标）、连营（失去最后手牌摸 1）、枭姬（失去装备摸 2）。
+  - 自动/锁定化实现：天妒、连营、枭姬按自动发动（口径见 `skills.md` §8）；**裸衣为手动触发**（`Frame::Luoyi` + `choice` pending，可放弃并正常摸 2 张）。
+  - 用例：新增 `tests/p43.rs` 9 条（含裸衣发动/放弃）；`cargo test -p sanguosha` **134** 全绿；视图/原语门禁与 MCP 冒烟通过。
+- **批次 C2-1（主动/伤害后，已完成 2026-10-30）**：苦肉（失去 1 体力摸 2，可多次；1 体力进入濒死）、青囊（弃 1 手牌令已受伤角色回复 1，每阶段一次）、结姻（弃 2 手牌，与已受伤男性各回复 1）、反馈（受伤后获得来源一张牌，`pick_card` 不含判定区）、遗计（受伤后摸 2 并逐张分配，任意角色含自己）。
+  - 口径偏差：遗计按「每次伤害结算」触发一次（规则为每 1 点伤害），待 P4.2 `damage_before` 统一；分配交互已完整实现。
+  - 修复要点：反馈的 `pick_card` 压在【闪】响应帧之上，不得覆盖父帧 `outcome`（已加保护）。
+  - 用例：新增 `tests/p44.rs` 6 条；`cargo test -p sanguosha` **140** 全绿；视图/原语门禁与 MCP 冒烟通过。
+- **批次 C2-2（判定/响应，已完成 2026-10-30）**：无双（杀需两张闪；决斗对方每次需两张杀，`RespondFrame.need/played`）、铁骑（杀指定目标后判定，红色封锁闪）、刚烈（受伤判定非红桃→来源弃2手牌或受1伤）、洛神（准备阶段反复判定黑色获得）、反间（目标选花色→获得随机手牌→花色不同受1伤）。
+  - 口径偏差：铁骑/刚烈/洛神为**自动判定**（不开放改判窗口），待 P4.2 通用 `judge_before` 判定帧统一接入。
+  - 用例：新增 `tests/p45.rs` 6 条；`cargo test -p sanguosha` **146** 全绿；视图/原语门禁与 MCP 冒烟通过。
+- **流离（大乔，已完成 2026-10-30）**：成为【杀】目标时可弃 1 张手牌，将【杀】转移给自己攻击范围内、非使用者的其他角色；`Frame::Liuli`（Choice 选牌 / Aim 选目标），转移后重算响应（无双 need 继承、铁骑封锁不继承）。口径偏差：弃置费用限手牌（不支持弃装备）。
+  - 用例：新增 `tests/p46.rs` 3 条；`cargo test -p sanguosha` **149** 全绿。
+- **剩余批次（待做）**：
+  - 国色（大乔）：待 `virtual_defs`（判定区虚拟牌定义）。
+  - D 收尾：标准 25 将全覆盖回归（每将 ≥3 用例 + 跨技能交互）。**当前 25/25 武将所有至少 1 个已实现技能**（大乔另有国色待做）。
+- **批次 D（回归收口，已完成 2026-10-30）**：
+  - 新增 `tests/p47.rs` 12 条：龙胆响应决斗、马术+顺手距离、苦肉+持有上限、反间同花色免伤、流离排除使用者/空城、突袭+连营、鬼才+天妒、刚烈弃 2 张 / 红桃不触发、倾国+无双、无双+龙胆、枭姬+顺手拿装备。
+  - 新增门禁 `npm run check:sgs-skill-cases`（`apps/scripts/check-sgs-skill-cases.mjs`）：扫描 `src/tests/*.rs` 的 `#[test]` 函数体，按 `sgs_hero_<gid>` / 技能 code 统计，要求标准 25 将**每人 ≥3 条**（当前最低 3）。
+  - 顺手补齐：苦肉摸牌后的持有上限检查、遗计分配结束后的持有上限检查。
+  - 验证：`cargo test -p sanguosha` **161** 全绿；`check:sgs-skill-cases`、`check:sgs-view-contract`、`check:interaction-primitives`、`fmt` 通过；MCP 冒烟通过。
+- **国色（大乔，P4.1 收尾完成 2026-10-30）**：引入 `SgsState.virtual_defs`（牌实例 → 生效定义码）+ `effective_def_code`；方块手牌当【乐不思蜀】(`skill:guose:<card>`)，判定区同名检查与判定结算按生效定义，`virtual_defs` 仅用于判定区/判定上下文（不改变物理牌）。
+  - 用例：新增 `tests/p48.rs` 3 条（国色生效/拒绝非方块/已有乐不思蜀目标排除）；`cargo test -p sanguosha` **164** 全绿。
+  - **P4.1 收口（2026-10-30）**：标准 25 将 / 标准包全部技能（49 个技能 + 5 件装备效果）已实现；D 回归门禁 `check:sgs-skill-cases` 通过（25/25 每人 ≥3 用例）。
+  - **下一步**：P4.2（装备效果剩余 6 件 + `damage_before`/多目标【杀】/双牌转化/被闪追加，另可用通用 `judge_before` 判定帧统一铁骑/刚烈/洛神/国色等自动判定与改判窗口）→ P4.3（军争结算：酒/属性杀/火攻/铁索/兵粮/藤甲/白银狮子 — 完成后移除 `PENDING_JUNZHENG_CARDS` 对应项）→ P4.4（包扩展）。
+- **P4.2 进展（2026-10-30，部分完成）**：
+  - **被闪后追加窗口**已落地：`RespondFrame.is_sha` + `Frame::AfterDodge`（`resolve_skill`）。**青龙偃月刀**：【杀】被【闪】抵消后可对该目标再使用一张【杀】（新【杀】入处理区并重算无双/铁骑，原【杀】先行结算避免 outcome 串帧）。**贯石斧**：可弃 2 张手牌使此【杀】依然造成伤害（`MultiSelect` 增加 `data` 携带 target/card 后调用 `apply_damage`）。
+  - 用例：新增 `tests/p49.rs` 3 条（青龙连杀 / 贯石斧弃 2 命中 / 无武器无追加窗口）；`cargo test -p sanguosha` **167** 全绿。
+  - **寒冰剑 / 雌雄双股剑（已完成 2026-10-30）**：`Hanbing` 帧走进 `respond_give_up`（damage_before，防止伤害改弃目标 2 牌，目标不足 2 牌不询问；弃置随机）；`Cixiong` 帧统一入口 `push_sha_target_response`（异性目标先二选一：弃 1 手牌 / 攻击方摸 1，再进入【闪】响应；流离转移后同样生效）。
+  - 用例：新增 `tests/p50.rs` 6 条（寒冰防止/放弃/不足两张、雌雄弃牌/摸牌/同性不触发）；`cargo test -p sanguosha` **173** 全绿；门禁与 MCP 冒烟通过。
+  - **丈八蛇矛（主动使用，已完成 2026-10-30）**：出牌阶段 `skill:zhangba:<c1>,<c2>` 两张手牌当【杀】（受出杀次数限制；第二张直接进弃牌堆为简化口径）；响应时双牌转化留后续。
+  - 用例：新增 `tests/p51.rs` 3 条；`cargo test -p sanguosha` **176** 全绿。
+  - **通用判定窗口 `judge_before`（首阶段完成 2026-10-30）**：新增 `Frame::QuickJudge`（Reveal→Rewrite→WaitRewrite→Effect，复用 `judge_rewrite` 与鬼才询问顺序，`saved_outcome` 归还父帧结果）；**铁骑、刚烈**已迁移，支持鬼才改判；洛神/八卦阵仍为直接判定（待下一阶段迁移）。
+  - 用例：新增 `tests/p52.rs` 2 条（铁骑红→黑改判后可闪、刚烈非红桃→红桃改判不触发）；`cargo test -p sanguosha` **178** 全绿。
+  - **方天画戟（已完成 2026-10-30）**：`ShaFrame.pending_targets` 顺序结算 + `targets:<p1,p2[,p3]>` 组合选项；仅当【杀】为使用者最后一张手牌（使用时判定 `fangtian`）可额外指定 2/3 个目标；追加目标走统一响应入口（无双/铁骑/雌雄生效，不重复触发流离）。
+  - 用例：新增 `tests/p53.rs` 3 条；`cargo test -p sanguosha` **181** 全绿。
+  - **洛神 / 八卦阵迁移 `QuickJudge`（完成 2026-10-30）**：八卦判定改由 `QuickJudge(reason=bagua)`，红色经 `finish_respond_dodge` 结算；洛神每次 `choose:luoshen` 走 `QuickJudge(reason=luoshen)`（黑色自动获得并重新询问，红色结束）。四类技能判定（铁骑/刚烈/洛神/八卦）全部支持鬼才改判。
+  - 用例：新增 `tests/p54.rs` 2 条；`cargo test -p sanguosha` **183** 全绿。
+  - **丈八蛇矛响应转化（完成 2026-10-30）**：需要【杀】时（南蛮/决斗/借刀）下发 `respond:<c1>,<c2>` 双牌选项；`act_respond` 校验并弃置第二张，复用转化日志。
+  - 用例：新增 `tests/p55.rs` 2 条；`cargo test -p sanguosha` **185** 全绿。**P4.2 全部装备效果已完成**（8 件）。
+  - **后续**：P4.3 军争牌结算。
+- **P4.3 首批（已完成 2026-10-30）**：**酒**（出牌阶段限一次，下一张【杀】+1；濒死可自救）、**火杀/雷杀**（`ShaFrame.damage_type` 传递火/雷属性）、**藤甲**（火焰 +1；普通杀/南蛮/万箭免疫）、**白银狮子**（伤害改为 1）、**古锭刀**（目标无手牌时杀 +1）；军争装备已登记 `EQUIPMENT_SKILLS`。`PENDING_JUNZHENG_CARDS` 缩减为 火攻/铁索连环/兵粮寸断/朱雀羽扇。
+  - 用例：新增 `tests/p62.rs` 5 条；`cargo test -p sanguosha` **201** 全绿；门禁/前端单测/MCP 冒烟通过。
+  - **兵粮寸断（完成 2026-10-30）**：延时锦囊，距离 ≤1，判定非黑桃跳过摸牌阶段；`PENDING_JUNZHENG_CARDS` 再缩减为 火攻/铁索连环/朱雀羽扇。用例 `tests/p63.rs` 2 条。
+  - **朱雀羽扇（完成 2026-10-30）**：PlayPhase 注册表新增 `zhuque_yushan`（普通杀 → 火杀，`ShaFrame.damage_type=Fire`）；`PENDING_JUNZHENG_CARDS` 缩减为 火攻/铁索连环。用例 `tests/p64.rs` 2 条；`cargo test -p sanguosha` **205** 全绿。
+  - **火攻（完成 2026-10-30）**：目标亮一张手牌 → 使用者可弃同花色手牌造成 1 点火焰伤害（`Frame::HuoGong`，可放弃；无懈窗口/藤甲按火焰伤害处理）；`PENDING_JUNZHENG_CARDS` 仅剩 铁索连环。用例 `tests/p65.rs` 2 条；`cargo test -p sanguosha` **207** 全绿。
+  - **铁索连环（完成 2026-10-30）**：`Seat.chained` 横置/重置；重铸 `recast:<card>`（弃置摸 1）；火/雷属性伤害在同横置角色间传导（传导前全部重置，避免级联）。`PENDING_JUNZHENG_CARDS` **清空**，军争 52 张全部接入结算。用例 `tests/p66.rs` 3 条；`cargo test -p sanguosha` **210** 全绿。
+  - **P4.3 状态：完成**（酒/属性杀/火攻/铁索/兵粮/藤甲/白银狮子/古锭刀/朱雀羽扇 全部实现；16 件装备效果 + 9 军争牌）。
+- **P4.5 阶段一（已完成 2026-10-30）**：`skills.rs` 新增 `Trigger` / `EquipmentSkillDef` / `EQUIPMENT_SKILLS`（17 件）/ `has_equipment_skill()` / `triggered()`；所有装备判断调用点由 `has_equip` 统一改为 `has_equipment_skill`（8 武器 + 2 防具 + 坐骑）。用例 `tests/p56.rs` 3 条（注册表覆盖 / 装备后生效 / 按时机收集确定性）。
+  - **阶段二（已完成 2026-10-30）**：`player_area.equipment_skills[] = {slot, code, name, card, trigger}`（仅本人视图，公共区不下发）；AfterDodge（青龙/贯石）与 DamageBefore（寒冰剑）窗口改为 `triggered(Trigger)` 派发；`view_contract` 已同步冻结字段。
+  - 用例：新增 `tests/p57.rs` 2 条；`cargo test -p sanguosha` **190** 全绿；`npm --prefix apps run test:web` 通过。
+  - **阶段三（已完成 2026-10-30）**：AfterDodge 窗口改为**效果函数注册表** `AFTER_DODGE_HANDLERS`（`{code, options, act}`，青龙/贯石），窗口按 `triggered(Trigger)` 收集处理器并顺序执行；新增装备只需登记 handler。用例 `tests/p58.rs` 2 条（注册表覆盖 / 无第二张杀不开窗口）。
+  - **阶段三（续，完成 2026-10-30）**：`DAMAGE_BEFORE_HANDLERS`（寒冰剑：`available` + `effect`，选项与效果均由注册表提供）与 `TARGET_CHOSEN_HANDLERS`（雌雄双股剑：异性目标可用性）；窗口统一经 `triggered(Trigger)` 收集处理器。用例 `tests/p59.rs` 2 条；`cargo test -p sanguosha` **194** 全绿。
+  - **阶段四（收尾，完成 2026-10-30）**：**PlayPhase** 注册表 `PLAY_PHASE_HANDLERS`（丈八蛇矛 options/act），出牌阶段选项按 `triggered(PlayPhase)` 派发；方天画戟仍由 `triggered(TargetChosen)` + `ShaFrame.fangtian` 驱动（多目标修正不属于选项类 handler）。用例 `tests/p60.rs` 1 条；`cargo test -p sanguosha` **195** 全绿。
+  - **Web 武器高亮（完成 2026-10-30）**：窗口 pending 增加 `data.option_sources`（选项 → 装备 code）；个人区武器卡按 `equipment_skills` + `option_sources` 渲染 `data-equipment-skill` 与 `.sgs-equip.active`；丈八在出牌阶段按 action 前缀高亮。前端单测覆盖。
+  - **P4.5 状态：全部完成**（注册表 17 件 + 六类 Trigger + 四个 handler 表 + `equipment_skills` 视图 + 武器高亮）。
+
+### P4.4 包扩展（下一会话开工口径，2026-10-30 确认在新会话完成）
+
+**目标**：在 P4.0–P4.3 已完成（160 牌堆、标准 25 将全技能、标准 8 件 + 军争装备、军争 52 张结算、装备技能化）的基础上，扩展武将包并验收。
+
+**现状/前置**：
+- 生成脚本已有 `GENERAL_PACKS` 登记表（`--general-packs`）与 `GeneralDef.pack`；默认只生成标准 25 将。
+- `heroes.json` 包分布：风林火山 48 / 一将成名 72 / 界限突破 87 / 神将 16 / 谋 27 / 门阀士族 34 / 魔 6 / 国战 110 / 其他 269。
+- `skills.rs` 目前只注册标准 25 将技能；新包技能需注册表 + 实现（或先 `implemented:false` 进池）。
+
+**建议拆分**：
+- **P4.4.0 数据/开关**：生成脚本登记「风林火山」包（`gids` + `femaleGids`）；`GENERAL_PACKS` 支持多包；`Config.general_packs`（默认 `["standard"]`，全局开关，旧局固定）；选将池按包过滤（`all_general_codes`/`offer_to_lord`/`distribute_offers_to_others`）；`lobby:set_general_packs:standard|standard+wind_fire_forest_mountain`；用例：池子过滤、包切换、旧局不受影响；`check:sgs-skill-cases` 扩到新将（每将 ≥3 用例前先按 `implemented:false` 允许进池不触发）。
+- **P4.4.1 风林火山技能**：按武将逐批注册 + 实现（每将 ≥3 用例 + 跨技能交互）；优先锁定/被动类。
+- **P4.4.2 一将成名 / 界限突破**：同模式扩包；界限突破与标准同名武将的替换口径需在 ADR/数据模型确认。
+- **P4.4.3 验收**：包开关回归（旧包对局不受影响）、`cargo test` 全绿、`check:sgs-*` 全套、MCP 冒烟、对应文档（`skills.md`、`generals.md`、`data-model.md`）同步。
+
+**已知口径**：包开关是一局一个组合（与牌堆 `Config.packs` 同思路）；中台 live/元数据只读 API 仍留 P5；军争/标准装备不再改动。
 
 ### P5 武将流程设计工作台 + 预览（L）
 

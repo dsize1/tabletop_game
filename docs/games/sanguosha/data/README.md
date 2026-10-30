@@ -14,6 +14,7 @@
 | `../../../../apps/scripts/crawl-sanguosha-heroes.mjs` | 抓取脚本（可复现；带缓存、重试、限速） |
 | `../../../../apps/scripts/gen-sanguosha-heroes-md.mjs` | `heroes.json` → `generals.md` 生成脚本 |
 | `../../../../apps/scripts/gen-sanguosha-cards-md.mjs` | `cards.json` → `cards.md` 生成脚本 |
+| `../../../../apps/scripts/gen-sanguosha-engine-data.mjs` | `cards.json` + `heroes.json` → 引擎内置 `crates/engines/sanguosha/src/data.rs`（P4.0：标准 108 + 军争 52 = 160 张 / 标准 25 将；`npm run check:sgs-engine-data` 门禁） |
 
 ## 2. 抓取结果（2026-10-25）
 
