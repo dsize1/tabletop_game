@@ -272,6 +272,19 @@ pub(crate) fn phase_step(
                     }),
                 );
             }
+            // 英魂：准备阶段若已受伤，可选一名其他角色二选一。
+            if crate::skills::has(st, st.turn, "yinghun")
+                && st.seats[st.turn].hp < st.seats[st.turn].max_hp
+            {
+                resolve::push(
+                    st,
+                    resolve::Frame::Yinghun(crate::resolve_forest::YinghunFrame {
+                        actor: st.turn,
+                        target: None,
+                        stage: crate::resolve_forest::YinghunStage::Target,
+                    }),
+                );
+            }
             st.turn_phase = TurnPhase::Judge;
             Ok(true)
         }
@@ -323,7 +336,31 @@ pub(crate) fn phase_step(
                     "跳过摸牌阶段"
                 };
                 st.push_log(Some(&st.seats[idx].player_id.clone()), reason);
+                crate::skills::jiezi_on_skip_draw(st, idx);
                 st.turn_phase = TurnPhase::Play;
+                return Ok(true);
+            }
+            // 再起（可选）：已受伤时改为亮 X 张、红桃回血并获得亮出牌。
+            if crate::skills::has(st, idx, "zaizhi")
+                && st.seats[idx].hp < st.seats[idx].max_hp
+                && st.counter("zaizhi_offered") == 0
+            {
+                st.set_counter("zaizhi_offered", 1);
+                resolve::push(
+                    st,
+                    resolve::Frame::Zaizhi(crate::resolve_forest::ZaizhiFrame { actor: idx }),
+                );
+                return Ok(true);
+            }
+            // 好施（可选）：摸牌阶段多摸 2 张（之后若手牌>5 需交一半）。
+            if crate::skills::has(st, idx, "haoshi") && st.counter("haoshi_offered") == 0 {
+                st.set_counter("haoshi_offered", 1);
+                resolve::push(
+                    st,
+                    resolve::Frame::HaoshiOffer(crate::resolve_forest::HaoshiOfferFrame {
+                        actor: idx,
+                    }),
+                );
                 return Ok(true);
             }
             // 双雄（可选）：改为判定并获得判定牌（本回合异色手牌当【决斗】）。
@@ -355,6 +392,9 @@ pub(crate) fn phase_step(
             if st.counter("luoyi") > 0 {
                 draw_n = draw_n.saturating_sub(1);
             }
+            if st.counter("haoshi") > 0 {
+                draw_n += 2;
+            }
             let drawn = draw_cards(st, idx, draw_n, events);
             let pid = st.seats[idx].player_id.clone();
             st.push_log(Some(&pid), format!("摸牌阶段：摸 {drawn} 张"));
@@ -369,6 +409,17 @@ pub(crate) fn phase_step(
                 .saturating_sub(st.config.max_hand_cards as usize);
             if over > 0 {
                 resolve::push_discard(st, idx, over, "hand_cap");
+            }
+            // 好施：手牌 >5 时须将一半交给手牌最少的一名其他角色。
+            if st.counter("haoshi") > 0 && st.seats[idx].hand.len() > 5 {
+                resolve::push(
+                    st,
+                    resolve::Frame::Haoshi(crate::resolve_forest::HaoshiFrame {
+                        actor: idx,
+                        stage: crate::resolve_forest::HaoshiStage::Select,
+                        selected: Vec::new(),
+                    }),
+                );
             }
             Ok(true)
         }
@@ -419,6 +470,23 @@ pub(crate) fn phase_step(
                 "phase_start",
                 json!({ "phase": "end", "seat": st.turn, "player": pid }),
             ));
+            // 崩坏：结束阶段若你不是体力值最小的角色，失 1 体力或减 1 体力上限。
+            if crate::skills::has(st, st.turn, "bengkuai")
+                && st.counter("bengkuai_done") == 0
+                && st
+                    .alive_indices()
+                    .into_iter()
+                    .any(|i| st.seats[i].hp < st.seats[st.turn].hp)
+            {
+                st.set_counter("bengkuai_done", 1);
+                resolve::push(
+                    st,
+                    resolve::Frame::Bengkuai(crate::resolve_forest::BengkuaiFrame {
+                        actor: st.turn,
+                    }),
+                );
+                return Ok(true);
+            }
             // 据守：结束阶段可选择翻面并摸 4 张，然后弃置 1 张手牌。
             if crate::skills::has(st, st.turn, "jushou") && st.counter("jushou_done") == 0 {
                 st.set_counter("jushou_done", 1);
@@ -574,6 +642,8 @@ pub(crate) fn apply_judge_effect(
     publish_judge_zone(st, &delayed, owner, &judge_id, effect);
     // 天妒：判定牌生效后获得之（自动；拿走则不再进弃牌堆）。
     let judge_gained = crate::skills::tiandu_gain(st, owner, &judge_id);
+    // 颂威：其他魏势力角色的黑色判定牌生效后，主公曹丕摸 1。
+    crate::skills::songwei_on_judge(st, owner, &judge_id);
 
     if delayed_def == "shandian" {
         let hit = judge_card.suit == Suit::Spade && (2..=9).contains(&judge_card.rank);
@@ -900,6 +970,72 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
                 }
             }
         }
+    }
+    // 断粮：黑色基本牌/装备牌当【兵粮寸断】；对牌数≥你的目标无距离限制。
+    if crate::skills::has(st, idx, "duanliang") {
+        for card_id in hand_ids(st, idx) {
+            let inst = st.cards.get(&card_id).cloned();
+            let Some(inst) = inst else { continue };
+            if !crate::skills::is_black(inst.suit) {
+                continue;
+            }
+            let def = card_def(st, &card_id);
+            let basic = def.is_some_and(|d| d.category == Category::Basic);
+            let equip = def.is_some_and(|d| d.equip_slot.is_some());
+            if !basic && !equip {
+                continue;
+            }
+            let has_target = st.alive_indices().into_iter().any(|t| {
+                t != idx
+                    && !judge_zone_has(st, t, "bingliang_cunduan")
+                    && (st.seats[t].hand.len() >= st.seats[idx].hand.len()
+                        || trick_distance_ok(st, idx, t))
+            });
+            if has_target {
+                out.push(Action {
+                    id: format!("skill:duanliang:{card_id}"),
+                    description: format!(
+                        "断粮：将【{}】当【兵粮寸断】使用",
+                        card_label(st, &card_id)
+                    ),
+                });
+            }
+        }
+    }
+    // 酒池：黑桃手牌当【酒】使用。
+    if crate::skills::has(st, idx, "jiuchi") && st.counter("jiu_used") == 0 {
+        for card_id in hand_ids(st, idx) {
+            if st
+                .cards
+                .get(&card_id)
+                .is_some_and(|c| c.suit == Suit::Spade)
+            {
+                out.push(Action {
+                    id: format!("skill:jiuchi:{card_id}"),
+                    description: format!("酒池：将【{}】当【酒】使用", card_label(st, &card_id)),
+                });
+            }
+        }
+    }
+    // 乱武（限定技）：令所有其他角色依次杀最近或失去 1 体力。
+    if crate::skills::has(st, idx, "luanwu")
+        && !st.seats[idx].flags.contains_key("luanwu_used")
+        && st.alive_indices().len() > 1
+    {
+        out.push(Action {
+            id: "skill:luanwu".into(),
+            description: "乱武：令所有其他角色依次杀最近或失去 1 点体力".into(),
+        });
+    }
+    // 缔盟：出牌阶段限一次，选两名其他角色，弃 X 张后交换其手牌。
+    if crate::skills::has(st, idx, "dimeng")
+        && st.counter("dimeng_used") == 0
+        && st.alive_indices().len() >= 3
+    {
+        out.push(Action {
+            id: "skill:dimeng".into(),
+            description: "缔盟：选择两名其他角色，弃 X 张牌后交换其手牌".into(),
+        });
     }
     // 奇谋（限定技）：失去任意点体力，本回合距离/杀次数修正。
     if crate::skills::has(st, idx, "qimou")
@@ -1378,6 +1514,94 @@ pub fn execute(
             format!("乱击：将【{l1}】【{l2}】当万箭齐发"),
         );
         "使用【万箭齐发】".to_string()
+    } else if let Some(card_id) = action.strip_prefix("skill:duanliang:") {
+        if !crate::skills::has(st, idx, "duanliang") {
+            return Err(illegal("没有该技能"));
+        }
+        if !st.seats[idx].hand.iter().any(|c| c == card_id) {
+            return Err(illegal("手牌中没有该牌"));
+        }
+        let inst = st
+            .cards
+            .get(card_id)
+            .cloned()
+            .ok_or_else(|| illegal("未知牌"))?;
+        let def = card_def(st, card_id).ok_or_else(|| illegal("未知牌定义"))?;
+        let black = crate::skills::is_black(inst.suit);
+        let legal_card = def.category == Category::Basic || def.equip_slot.is_some();
+        if !black || !legal_card {
+            return Err(illegal("断粮只能使用黑色基本牌或黑色装备牌"));
+        }
+        let label = card_label(st, card_id);
+        take_card(st, idx, card_id)?;
+        st.deck.processing.push(card_id.to_string());
+        resolve::start_virtual_trick(st, idx, card_id, "bingliang_cunduan")?;
+        st.push_log(Some(player_id), format!("断粮：将【{label}】当兵粮寸断"));
+        "请选择兵粮寸断的目标".to_string()
+    } else if let Some(card_id) = action.strip_prefix("skill:jiuchi:") {
+        if !crate::skills::has(st, idx, "jiuchi") {
+            return Err(illegal("没有该技能"));
+        }
+        if st.counter("jiu_used") > 0 {
+            return Err(illegal("本回合已使用过【酒】"));
+        }
+        if !st.seats[idx].hand.iter().any(|c| c == card_id) {
+            return Err(illegal("手牌中没有该牌"));
+        }
+        if !st.cards.get(card_id).is_some_and(|c| c.suit == Suit::Spade) {
+            return Err(illegal("酒池只能使用黑桃手牌"));
+        }
+        let label = card_label(st, card_id);
+        st.set_counter("jiu_used", 1);
+        st.set_counter("jiu", 1);
+        take_card(st, idx, card_id)?;
+        to_discard_card(st, card_id);
+        st.push_log(
+            Some(player_id),
+            format!("酒池：将【{label}】当【酒】（下一张杀 +1）"),
+        );
+        "已使用【酒】".to_string()
+    } else if action == "skill:luanwu" {
+        if !crate::skills::has(st, idx, "luanwu") {
+            return Err(illegal("没有该技能"));
+        }
+        if st.seats[idx].flags.contains_key("luanwu_used") {
+            return Err(illegal("乱武（限定技）本局已发动过"));
+        }
+        st.seats[idx].flags.insert("luanwu_used".into(), true);
+        let order: Vec<usize> = st
+            .seats_from_left_of(idx)
+            .into_iter()
+            .filter(|i| st.seats[*i].alive)
+            .collect();
+        resolve::push(
+            st,
+            resolve::Frame::Luanwu(crate::resolve_forest::LuanwuFrame {
+                actor: idx,
+                order,
+                cursor: 0,
+            }),
+        );
+        st.push_log(Some(player_id), "乱武：所有其他角色依次选择");
+        "乱武：开始结算".to_string()
+    } else if action == "skill:dimeng" {
+        if !crate::skills::has(st, idx, "dimeng") {
+            return Err(illegal("没有该技能"));
+        }
+        if st.counter("dimeng_used") > 0 {
+            return Err(illegal("本阶段已发动过缔盟"));
+        }
+        st.set_counter("dimeng_used", 1);
+        resolve::push(
+            st,
+            resolve::Frame::Dimeng(crate::resolve_forest::DimengFrame {
+                actor: idx,
+                first: None,
+                stage: crate::resolve_forest::DimengStage::First,
+            }),
+        );
+        st.push_log(Some(player_id), "发动缔盟");
+        "缔盟：请选择第一名角色".to_string()
     } else if action == "skill:qimou" {
         if !crate::skills::has(st, idx, "qimou") {
             return Err(illegal("没有该技能"));

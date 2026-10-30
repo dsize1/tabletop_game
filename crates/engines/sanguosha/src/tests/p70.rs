@@ -27,7 +27,22 @@ fn free_card_where(st: &SgsState, f: impl Fn(&CardInst) -> bool) -> String {
 }
 
 fn top_card(st: &mut SgsState, filter: impl Fn(&CardInst) -> bool) -> String {
-    let id = free_card_where(st, filter);
+    let claimed = |id: &str| {
+        st.deck.draw.iter().any(|c| c == id)
+            || st.deck.processing.iter().any(|c| c == id)
+            || st.seats.iter().any(|s| {
+                s.hand.iter().any(|c| c == id)
+                    || s.marks.values().flatten().any(|c| c == id)
+                    || s.judge_zone.iter().any(|c| c == id)
+                    || s.equips.values().flatten().any(|c| c == id)
+            })
+    };
+    let id = st
+        .cards
+        .iter()
+        .find(|(id, c)| filter(c) && !claimed(id))
+        .map(|(id, _)| id.clone())
+        .unwrap_or_else(|| panic!("没有可用的牌"));
     take_card(st, &id);
     st.deck.draw.push(id.clone());
     id

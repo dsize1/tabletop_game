@@ -1627,6 +1627,43 @@ pub(crate) fn multiselect_confirm(
             }
             Some(Ok(format!("据守：已弃置【{label}】")))
         }
+        "haoshi" => {
+            if f.selected.is_empty() {
+                return Some(Err(illegal("好施需选择要交出的牌")));
+            }
+            replace_top(
+                st,
+                Frame::Haoshi(crate::resolve_forest::HaoshiFrame {
+                    actor: f.actor,
+                    stage: crate::resolve_forest::HaoshiStage::Target,
+                    selected: f.selected.clone(),
+                }),
+            );
+            Some(Ok("好施：请选择手牌最少的其他角色".to_string()))
+        }
+        "dimeng" => {
+            let first = f.data["first"].as_u64().unwrap_or(0) as usize;
+            let second = f.data["second"].as_u64().unwrap_or(0) as usize;
+            for id in &f.selected {
+                if turn::take_card(st, f.actor, id).is_err() {
+                    return Some(Err(illegal("手牌中没有该牌")));
+                }
+                turn::to_discard_card(st, id);
+            }
+            let a = std::mem::take(&mut st.seats[first].hand);
+            let b = std::mem::take(&mut st.seats[second].hand);
+            st.seats[first].hand = b;
+            st.seats[second].hand = a;
+            st.push_log(
+                Some(&st.seats[f.actor].player_id.clone()),
+                format!(
+                    "缔盟：交换 {} 与 {} 的手牌",
+                    st.seats[first].general_name, st.seats[second].general_name
+                ),
+            );
+            pop(st);
+            Some(Ok("缔盟：已交换手牌".to_string()))
+        }
         "tianxiang" => {
             if f.selected.len() != 1 {
                 return Some(Err(illegal("天香需弃置 1 张红桃手牌")));
@@ -1696,6 +1733,18 @@ pub(crate) fn target_action(
             crate::resolve_fire::jieming_target(st, pending, action).map(Some)
         }
         Some(Frame::Tianyi(_)) => crate::resolve_fire::tianyi_target(st, pending, action).map(Some),
+        Some(Frame::Fangzhu(_)) => {
+            crate::resolve_forest::fangzhu_target(st, pending, action).map(Some)
+        }
+        Some(Frame::Yinghun(_)) => {
+            crate::resolve_forest::yinghun_target(st, pending, action).map(Some)
+        }
+        Some(Frame::Haoshi(_)) => {
+            crate::resolve_forest::haoshi_target(st, pending, action).map(Some)
+        }
+        Some(Frame::Dimeng(_)) => {
+            crate::resolve_forest::dimeng_target(st, pending, action).map(Some)
+        }
         _ => Ok(None),
     }
 }

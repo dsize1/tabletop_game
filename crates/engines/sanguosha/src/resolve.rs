@@ -85,6 +85,17 @@ pub enum Frame {
     Tianyi(crate::resolve_fire::TianyiFrame),
     Jiandu(crate::resolve_fire::JianduFrame),
     Shuangxiong(crate::resolve_fire::ShuangxiongFrame),
+    /// P4.4.1 林包帧。
+    Xingshang(crate::resolve_forest::XingshangFrame),
+    Fangzhu(crate::resolve_forest::FangzhuFrame),
+    Yinghun(crate::resolve_forest::YinghunFrame),
+    Bengkuai(crate::resolve_forest::BengkuaiFrame),
+    Liewen(crate::resolve_forest::LiewenFrame),
+    Zaizhi(crate::resolve_forest::ZaizhiFrame),
+    Haoshi(crate::resolve_forest::HaoshiFrame),
+    Dimeng(crate::resolve_forest::DimengFrame),
+    Luanwu(crate::resolve_forest::LuanwuFrame),
+    HaoshiOffer(crate::resolve_forest::HaoshiOfferFrame),
     /// 五谷丰登（P2.5 特殊区 `wugu`）。
     Wugu(crate::resolve_zone::WuguFrame),
     /// 观星排序提交（P2.5 特殊区 `guanxing`，`arrange:<csv>`）。
@@ -623,6 +634,16 @@ fn step(
         Frame::Tianyi(f) => crate::resolve_fire::step_tianyi(st, f),
         Frame::Jiandu(f) => crate::resolve_fire::step_jiandu(st, f),
         Frame::Shuangxiong(f) => crate::resolve_fire::step_shuangxiong(st, f),
+        Frame::Xingshang(f) => crate::resolve_forest::step_xingshang(st, f),
+        Frame::Fangzhu(f) => crate::resolve_forest::step_fangzhu(st, f),
+        Frame::Yinghun(f) => crate::resolve_forest::step_yinghun(st, f),
+        Frame::Bengkuai(f) => crate::resolve_forest::step_bengkuai(st, f),
+        Frame::Liewen(f) => crate::resolve_forest::step_liewen(st, f),
+        Frame::Zaizhi(f) => crate::resolve_forest::step_zaizhi(st, f),
+        Frame::Haoshi(f) => crate::resolve_forest::step_haoshi(st, f),
+        Frame::Dimeng(f) => crate::resolve_forest::step_dimeng(st, f),
+        Frame::Luanwu(f) => crate::resolve_forest::step_luanwu(st, f),
+        Frame::HaoshiOffer(f) => crate::resolve_forest::step_haoshi_offer(st, f),
         Frame::Wugu(f) => crate::resolve_zone::step_wugu(st, f, events),
         Frame::Arrange(f) => crate::resolve_zone::step_arrange(st, f, events),
     }
@@ -925,20 +946,27 @@ fn needs_wuxie(code: &str) -> bool {
     !matches!(code, "lebu_sishu" | "shandian" | "bingliang_cunduan")
 }
 
-fn trick_targets(st: &SgsState, code: &str, user: usize) -> Vec<usize> {
+fn trick_targets(st: &SgsState, code: &str, user: usize, card: &str) -> Vec<usize> {
     match code {
-        "nanman_ruqin" | "wanjian_qifa" => st
+        "nanman_ruqin" => st
             .seats_from_left_of(user)
             .into_iter()
-            .filter(|i| st.seats[*i].alive)
+            .filter(|i| {
+                st.seats[*i].alive
+                    && !crate::skills::nanman_immune(st, *i)
+                    && !crate::skills::weimu_blocks(st, *i, card)
+            })
+            .collect(),
+        "wanjian_qifa" => st
+            .seats_from_left_of(user)
+            .into_iter()
+            .filter(|i| st.seats[*i].alive && !crate::skills::weimu_blocks(st, *i, card))
             .collect(),
         "taoyuan_jieyi" => {
             let mut v = vec![user];
-            v.extend(
-                st.seats_from_left_of(user)
-                    .into_iter()
-                    .filter(|i| st.seats[*i].alive && *i != user),
-            );
+            v.extend(st.seats_from_left_of(user).into_iter().filter(|i| {
+                st.seats[*i].alive && *i != user && !crate::skills::weimu_blocks(st, *i, card)
+            }));
             v
         }
         _ => Vec::new(),
@@ -969,10 +997,18 @@ fn start_trick_code(
     let code = override_code
         .map(str::to_string)
         .unwrap_or_else(|| card_code(st, card));
-    let mut targets = trick_targets(st, &code, user);
+    let mut targets = trick_targets(st, &code, user, card);
     if code == "wuzhong_shengyou" || code == "shandian" {
         // 无中生有与闪电都只作用于自己（闪电置入自己判定区，下回合最先判定）。
         targets = vec![user];
+        targets.retain(|i| !crate::skills::weimu_blocks(st, *i, card));
+    }
+    // 转化后的延时锦囊：记录生效定义（判定区/判定结算按声明牌名）。
+    if matches!(
+        code.as_str(),
+        "lebu_sishu" | "bingliang_cunduan" | "shandian"
+    ) {
+        st.virtual_defs.insert(card.to_string(), code.clone());
     }
     let stage = if targets.is_empty() {
         TrickStage::Target
@@ -998,7 +1034,28 @@ fn start_trick_code(
 }
 
 fn trick_done(st: &mut SgsState, f: &TrickFrame) {
-    if !matches!(f.code.as_str(), "lebu_sishu" | "shandian") {
+    // 巨象：其他角色使用的【南蛮入侵】结算后，获得该牌。
+    if f.code == "nanman_ruqin" {
+        if let Some(owner) = crate::skills::juxiang_owner(st, f.user) {
+            if st.deck.processing.iter().any(|c| c == &f.card) {
+                leave_processing(st, &f.card);
+                st.seats[owner].hand.push(f.card.clone());
+                let over = st.seats[owner]
+                    .hand
+                    .len()
+                    .saturating_sub(st.config.max_hand_cards as usize);
+                if over > 0 {
+                    push_discard(st, owner, over, "hand_cap");
+                }
+                st.push_log(
+                    Some(&st.seats[owner].player_id.clone()),
+                    "巨象：获得【南蛮入侵】",
+                );
+            }
+        } else {
+            discard_from_processing(st, &f.card);
+        }
+    } else if !matches!(f.code.as_str(), "lebu_sishu" | "shandian") {
         discard_from_processing(st, &f.card);
     }
     st.push_log(None, format!("【{}】结算完毕", card_name(st, &f.card)));
@@ -1028,7 +1085,11 @@ fn step_trick(
                 if f.first.is_none() {
                     st.alive_indices()
                         .into_iter()
-                        .filter(|i| *i != f.user && st.equip_def(*i, EquipSlot::Weapon).is_some())
+                        .filter(|i| {
+                            *i != f.user
+                                && st.equip_def(*i, EquipSlot::Weapon).is_some()
+                                && !crate::skills::weimu_blocks(st, *i, &f.card)
+                        })
                         .map(|i| PendingOption {
                             id: format!("target:{}", st.seats[i].player_id),
                             label: format!("借 {} 的刀", st.seats[i].general_name),
@@ -1043,6 +1104,7 @@ fn step_trick(
                                 && st.in_attack_range(first, *i)
                                 // 空城（锁定）：借刀迫使的【杀】也不能指定无手牌空城角色。
                                 && !crate::skills::kongcheng_blocks(st, *i)
+                                && !crate::skills::weimu_blocks(st, *i, &f.card)
                         })
                         .map(|i| PendingOption {
                             id: format!("target:{}", st.seats[i].player_id),
@@ -1102,7 +1164,9 @@ fn step_trick(
                         .into_iter()
                         .filter(|i| {
                             *i != f.user
-                                && turn::trick_distance_ok(st, f.user, *i)
+                                && (turn::trick_distance_ok(st, f.user, *i)
+                                    || (crate::skills::has(st, f.user, "duanliang")
+                                        && st.seats[*i].hand.len() >= st.seats[f.user].hand.len()))
                                 && !turn::judge_zone_has(st, *i, "bingliang_cunduan")
                         })
                         .collect(),
@@ -1119,6 +1183,10 @@ fn step_trick(
                         .filter(|i| *i != f.user)
                         .collect(),
                 };
+                let candidates: Vec<usize> = candidates
+                    .into_iter()
+                    .filter(|i| !crate::skills::weimu_blocks(st, *i, &f.card))
+                    .collect();
                 candidates
                     .into_iter()
                     .map(|i| PendingOption {
@@ -1222,13 +1290,14 @@ fn step_trick(
             };
             match f.code.as_str() {
                 "nanman_ruqin" => {
+                    let source = crate::skills::huoshou_owner(st, f.user).unwrap_or(f.user);
                     push(
                         st,
                         Frame::Respond(RespondFrame {
                             kind: RespondKind::Nanman,
                             actor: target,
                             card: f.card.clone(),
-                            source: f.user,
+                            source,
                             target: Some(target),
                             damage: 1,
                             damage_type: DamageType::Normal,
@@ -1705,6 +1774,17 @@ fn step_dying(
             });
         }
     }
+    // 酒池：黑桃手牌当【酒】自救。
+    if f.victim == seat {
+        for id in &st.seats[seat].hand {
+            if crate::skills::conversion_for(st, seat, id, "jiu").is_some() {
+                options.push(PendingOption {
+                    id: format!("respond:{id}"),
+                    label: format!("酒池：将【{}】当【酒】自救", turn::card_label(st, id)),
+                });
+            }
+        }
+    }
     // 急救（P4.1）：回合外可将红色牌当【桃】使用。
     for id in &st.seats[seat].hand {
         if let Some((_, name)) = crate::skills::conversion_for(st, seat, id, "tao") {
@@ -1733,8 +1813,11 @@ fn step_dying(
             label: "涅槃：弃置区域内所有牌，复原武将牌，摸 3 张并回复至 3 点体力".into(),
         });
     }
-    // 缠怨：体力值为 1 时不能使用或打出手牌。
-    if crate::skills::chanyuan_locked(st, seat) {
+    // 完杀：贾诩回合内，仅濒死者本人可使用【桃】。
+    if crate::skills::wansha_blocks(st, seat, f.victim) {
+        options = vec![pending_pass()];
+    } else if crate::skills::chanyuan_locked(st, seat) {
+        // 缠怨：体力值为 1 时不能使用或打出手牌。
         options = vec![pending_pass()];
     } else {
         options.push(pending_pass());
@@ -1947,6 +2030,7 @@ fn step_quick_judge(
                 discard_from_processing(st, &judge_id);
             }
             let pid = st.seats[f.owner].player_id.clone();
+            crate::skills::songwei_on_judge(st, f.owner, &judge_id);
             match f.reason.as_str() {
                 "tieqi" => {
                     let red = matches!(suit, Some(Suit::Heart) | Some(Suit::Diamond));
@@ -2055,6 +2139,18 @@ fn step_quick_judge(
                             Some(&pid),
                             format!("雷击：判定【{label}】非黑桃/梅花，未生效"),
                         );
+                    }
+                }
+                "baonue" => {
+                    let lord = f.data["lord"].as_u64().unwrap_or(f.owner as u64) as usize;
+                    if suit == Some(Suit::Spade) {
+                        st.seats[lord].hp += 1;
+                        st.push_log(
+                            Some(&pid),
+                            format!("暴虐：判定【{label}】黑桃，回复 1 点体力"),
+                        );
+                    } else {
+                        st.push_log(Some(&pid), format!("暴虐：判定【{label}】非黑桃，未生效"));
                     }
                 }
                 other => st.push_log(Some(&pid), format!("判定（{other}）：【{label}】")),
@@ -2369,6 +2465,13 @@ pub fn execute_pending(
             Some("qiangxi") => crate::resolve_fire::act_qiangxi(st, action)?,
             Some("jiandu") => crate::resolve_fire::act_jiandu(st, action)?,
             Some("shuangxiong") => crate::resolve_fire::act_shuangxiong(st, action)?,
+            Some("xingshang") => crate::resolve_forest::act_xingshang(st, action)?,
+            Some("yinghun") => crate::resolve_forest::act_yinghun(st, action)?,
+            Some("bengkuai") => crate::resolve_forest::act_bengkuai(st, action)?,
+            Some("liewen") => crate::resolve_forest::act_liewen(st, action)?,
+            Some("zaizhi") => crate::resolve_forest::act_zaizhi(st, action)?,
+            Some("luanwu") => crate::resolve_forest::act_luanwu(st, action)?,
+            Some("haoshi_offer") => crate::resolve_forest::act_haoshi_offer(st, action)?,
             _ => crate::resolve_skill::act_jianxiong(st, action)?,
         },
         "choose_many" => match top(st) {
@@ -2525,11 +2628,14 @@ fn act_target(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Stri
             st.push_log(Some(&user_pid), "烈弓：目标不能使用【闪】");
         }
         // 无双：吕布使用【杀】时，目标需连续打出两张【闪】。
-        let need = if crate::skills::has(st, f.user, "wushuang") {
+        let mut need = if crate::skills::has(st, f.user, "wushuang") {
             2
         } else {
             1
         };
+        if crate::skills::roulin_need(st, f.user, target) {
+            need = need.max(2);
+        }
         // 流离：成为【杀】目标时可弃一张手牌，将【杀】转移给攻击范围内的其他角色。
         let liuli = crate::skills::has(st, target, "liuli")
             && !st.seats[target].hand.is_empty()
@@ -3256,20 +3362,29 @@ fn act_dying(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Strin
         .strip_prefix("respond:")
         .ok_or_else(|| illegal("需要使用桃或 pass"))?;
     let actual = turn::card_def(st, card_id).map(|d| d.code);
-    // 酒自救：只允许对自己、且不享受救援加成。
-    if actual == Some("jiu") {
+    // 酒自救：只允许对自己、且不享受救援加成（含酒池转化）。
+    let jiu_conversion = if actual == Some("jiu") {
+        None
+    } else {
+        crate::skills::conversion_for(st, seat, card_id, "jiu")
+    };
+    if actual == Some("jiu") || jiu_conversion.is_some() {
         if f.victim != seat {
             return Err(illegal("【酒】只能在濒死时对自己使用"));
         }
+        let used = match jiu_conversion {
+            Some((_, name)) => format!(
+                "{name}：将【{}】当【酒】自救",
+                turn::card_label(st, card_id)
+            ),
+            None => format!("使用【{}】自救", turn::card_label(st, card_id)),
+        };
         turn::take_card(st, seat, card_id)?;
         turn::to_discard_card(st, card_id);
         let victim = f.victim;
         st.seats[victim].hp += 1;
         let hp = st.seats[victim].hp;
-        st.push_log(
-            Some(&pending.actor.clone()),
-            format!("使用【酒】自救（体力 {hp}）"),
-        );
+        st.push_log(Some(&pending.actor.clone()), format!("{used}（体力 {hp}）"));
         if hp > 0 {
             st.phase = Phase::Turn;
             pop(st);
@@ -3547,6 +3662,58 @@ fn apply_damage_inner(
             Frame::Jieming(crate::resolve_fire::JiemingFrame { actor: victim }),
         );
     }
+    // 放逐：受到伤害后，可令一名其他角色翻面并摸 X 张。
+    if amount > 0 && st.seats[victim].hp > 0 && crate::skills::has(st, victim, "fangzhu") {
+        push(
+            st,
+            Frame::Fangzhu(crate::resolve_forest::FangzhuFrame { actor: victim }),
+        );
+    }
+    // 烈刃：使用【杀】造成伤害后，可与目标拼点；赢则获得其一张牌。
+    if let (Some(card_id), Some(src)) = (card, source) {
+        if st.seats[victim].hp > 0
+            && src != victim
+            && st.cards.get(card_id).map(|c| c.def.as_str()) == Some("sha")
+            && crate::skills::has(st, src, "liewen")
+        {
+            push(
+                st,
+                Frame::Liewen(crate::resolve_forest::LiewenFrame {
+                    actor: src,
+                    target: victim,
+                    stage: crate::resolve_forest::LiewenStage::Start,
+                    saved_outcome: None,
+                }),
+            );
+        }
+    }
+    // 暴虐：其他群势力角色造成伤害后，可令主公董卓判定（黑桃回复 1）。
+    if let Some(src) = source {
+        let qun = st.seats[src]
+            .general
+            .as_deref()
+            .and_then(crate::data::general)
+            .is_some_and(|g| g.kingdom == "qun");
+        if src != victim && qun {
+            if let Some(lord) = st.alive_indices().into_iter().find(|i| {
+                *i != src && crate::skills::has(st, *i, "baonue") && crate::skills::is_lord(st, *i)
+            }) {
+                push(
+                    st,
+                    Frame::QuickJudge(QuickJudgeFrame {
+                        owner: lord,
+                        reason: "baonue".into(),
+                        stage: QuickJudgeStage::Reveal,
+                        judge_card: None,
+                        rewrite_order: Vec::new(),
+                        rewrite_cursor: 0,
+                        data: json!({ "lord": lord, "source": src }),
+                        saved_outcome: None,
+                    }),
+                );
+            }
+        }
+    }
     // 反馈：受到伤害后获得伤害来源的一张牌（存活时；不含判定区）。
     if let Some(src) = source {
         if src != victim
@@ -3658,20 +3825,35 @@ fn death(
     let identity = st.seats[victim].identity;
     st.seats[victim].alive = false;
     st.seats[victim].hp = 0;
-    let hand = std::mem::take(&mut st.seats[victim].hand);
-    let judge = std::mem::take(&mut st.seats[victim].judge_zone);
-    let equips: Vec<String> = st.seats[victim]
-        .equips
-        .values_mut()
-        .filter_map(Option::take)
-        .collect();
+    // 行殇：其他角色死亡时，可在清理前获得其所有牌（终局时不触发，避免帧被清空丢牌）。
+    let game_over = check_winner(st).is_some();
+    let xingshang_owner = if game_over {
+        None
+    } else {
+        st.alive_indices()
+            .into_iter()
+            .find(|i| *i != victim && crate::skills::has(st, *i, "xingshang"))
+    };
+    // 武将牌上的标记不属于「其所有牌」，始终弃置。
     let marks: Vec<String> = st.seats[victim]
         .marks
         .values_mut()
         .flat_map(|v| v.drain(..))
         .collect();
-    for c in hand.into_iter().chain(judge).chain(equips).chain(marks) {
+    for c in marks {
         to_discard(st, &c);
+    }
+    if xingshang_owner.is_none() {
+        let hand = std::mem::take(&mut st.seats[victim].hand);
+        let judge = std::mem::take(&mut st.seats[victim].judge_zone);
+        let equips: Vec<String> = st.seats[victim]
+            .equips
+            .values_mut()
+            .filter_map(Option::take)
+            .collect();
+        for c in hand.into_iter().chain(judge).chain(equips) {
+            to_discard(st, &c);
+        }
     }
     st.push_log(None, format!("{pid} 阵亡（身份公开）"));
     events.push(EngineEvent::new(
@@ -3680,6 +3862,12 @@ fn death(
     ));
     st.phase = Phase::Turn;
     st.pending = None;
+    if let Some(owner) = xingshang_owner {
+        push(
+            st,
+            Frame::Xingshang(crate::resolve_forest::XingshangFrame { victim, owner }),
+        );
+    }
 
     // 死亡奖惩（rules-rulings §3）
     if let Some(killer) = source {

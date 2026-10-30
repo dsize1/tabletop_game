@@ -509,6 +509,135 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
             implemented: true,
         },
     ];
+    // P4.4.1 林包：徐晃 / 曹丕 / 孙坚 / 董卓 / 祝融 / 孟获 / 贾诩 / 鲁肃。
+    const XUHUANG: &[SkillDef] = &[
+        SkillDef {
+            code: "duanliang",
+            name: "断粮",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "jiezi",
+            name: "截辎",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+    ];
+    const CAOPI: &[SkillDef] = &[
+        SkillDef {
+            code: "xingshang",
+            name: "行殇",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "fangzhu",
+            name: "放逐",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "songwei",
+            name: "颂威",
+            kind: SkillType::Lord,
+            implemented: true,
+        },
+    ];
+    const SUNJIAN: &[SkillDef] = &[SkillDef {
+        code: "yinghun",
+        name: "英魂",
+        kind: SkillType::Normal,
+        implemented: true,
+    }];
+    const DONGZHUO: &[SkillDef] = &[
+        SkillDef {
+            code: "jiuchi",
+            name: "酒池",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "roulin",
+            name: "肉林",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "bengkuai",
+            name: "崩坏",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "baonue",
+            name: "暴虐",
+            kind: SkillType::Lord,
+            implemented: true,
+        },
+    ];
+    const ZHURONG: &[SkillDef] = &[
+        SkillDef {
+            code: "juxiang",
+            name: "巨象",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "liewen",
+            name: "烈刃",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const MENG_HUO: &[SkillDef] = &[
+        SkillDef {
+            code: "huoshou",
+            name: "祸首",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "zaizhi",
+            name: "再起",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIAXU: &[SkillDef] = &[
+        SkillDef {
+            code: "wansha",
+            name: "完杀",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "luanwu",
+            name: "乱武",
+            kind: SkillType::Limited,
+            implemented: true,
+        },
+        SkillDef {
+            code: "weimu",
+            name: "帷幕",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+    ];
+    const LUSU: &[SkillDef] = &[
+        SkillDef {
+            code: "haoshi",
+            name: "好施",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "dimeng",
+            name: "缔盟",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
     match general {
         "sgs_hero_1" => LIUBEI,
         "sgs_hero_15" => CAOCAO,
@@ -551,6 +680,14 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
         "sgs_hero_39" => PANGDE,
         "sgs_hero_40" => YANLIANGWENCHOU,
         "sgs_hero_41" => YUANSHAO,
+        "sgs_hero_42" => XUHUANG,
+        "sgs_hero_43" => CAOPI,
+        "sgs_hero_44" => SUNJIAN,
+        "sgs_hero_45" => DONGZHUO,
+        "sgs_hero_46" => ZHURONG,
+        "sgs_hero_47" => MENG_HUO,
+        "sgs_hero_48" => JIAXU,
+        "sgs_hero_49" => LUSU,
         _ => &[],
     }
 }
@@ -853,6 +990,12 @@ pub fn conversion_for(
                 return Some(("kanpo", "看破"));
             }
         }
+        "jiu" => {
+            // 酒池：黑桃手牌当【酒】。
+            if has(st, seat, "jiuchi") && inst.suit == Suit::Spade {
+                return Some(("jiuchi", "酒池"));
+            }
+        }
         _ => {}
     }
     None
@@ -1145,6 +1288,102 @@ pub fn chanyuan_locked(st: &SgsState, seat: usize) -> bool {
     st.seats
         .get(seat)
         .is_some_and(|s| s.flags.contains_key("chanyuan") && s.hp == 1)
+}
+
+/// 女性角色（离间/雌雄/肉林等）。
+pub fn is_female(st: &SgsState, seat: usize) -> bool {
+    st.seats
+        .get(seat)
+        .and_then(|s| s.general.as_deref())
+        .and_then(crate::data::general)
+        .is_some_and(|g| g.gender == "female")
+}
+
+/// 肉林：涉及董卓与女性的【杀】需两张【闪】。
+pub fn roulin_need(st: &SgsState, attacker: usize, target: usize) -> bool {
+    (has(st, attacker, "roulin") && is_female(st, target))
+        || (has(st, target, "roulin") && is_female(st, attacker))
+}
+
+/// 帷幕：不能成为黑色锦囊牌的目标。
+pub fn weimu_blocks(st: &SgsState, target: usize, card_id: &str) -> bool {
+    has(st, target, "weimu") && st.cards.get(card_id).is_some_and(|c| is_black(c.suit))
+}
+
+/// 巨象/祸首：南蛮入侵免疫。
+pub fn nanman_immune(st: &SgsState, seat: usize) -> bool {
+    has(st, seat, "juxiang") || has(st, seat, "huoshou")
+}
+
+/// 巨象：其他角色使用的南蛮结算后，获得该牌。
+pub fn juxiang_owner(st: &SgsState, user: usize) -> Option<usize> {
+    st.alive_indices()
+        .into_iter()
+        .find(|i| *i != user && has(st, *i, "juxiang"))
+}
+
+/// 祸首：其他角色使用的南蛮，其代替使用者成为伤害来源。
+pub fn huoshou_owner(st: &SgsState, user: usize) -> Option<usize> {
+    st.alive_indices()
+        .into_iter()
+        .find(|i| *i != user && has(st, *i, "huoshou"))
+}
+
+/// 完杀：贾诩回合内，仅濒死者本人可使用【桃】（贾诩本人不受限）。
+pub fn wansha_blocks(st: &SgsState, seat: usize, victim: usize) -> bool {
+    seat != victim && seat != st.turn && has(st, st.turn, "wansha")
+}
+
+/// 截辎：其他角色跳过摸牌阶段后，你摸一张。
+pub fn jiezi_on_skip_draw(st: &mut SgsState, skipper: usize) {
+    for i in st.alive_indices() {
+        if i == skipper || !has(st, i, "jiezi") {
+            continue;
+        }
+        let mut ev = Vec::new();
+        let drawn = crate::turn::draw_cards(st, i, 1, &mut ev);
+        if drawn > 0 {
+            st.push_log(
+                Some(&st.seats[i].player_id.clone()),
+                "截辎：其他角色跳过摸牌阶段，摸 1 张",
+            );
+        }
+        let over = st.seats[i]
+            .hand
+            .len()
+            .saturating_sub(st.config.max_hand_cards as usize);
+        if over > 0 {
+            crate::resolve::push_discard(st, i, over, "hand_cap");
+        }
+    }
+}
+
+/// 颂威：其他魏势力角色的黑色判定牌生效后，令曹丕摸一张（自动）。
+pub fn songwei_on_judge(st: &mut SgsState, owner: usize, judge_id: &str) {
+    if kingdom(st, owner) != "wei" {
+        return;
+    }
+    if !st.cards.get(judge_id).is_some_and(|c| is_black(c.suit)) {
+        return;
+    }
+    let Some(lord) = st
+        .alive_indices()
+        .into_iter()
+        .find(|i| has(st, *i, "songwei") && is_lord(st, *i))
+    else {
+        return;
+    };
+    if lord == owner {
+        return;
+    }
+    let mut ev = Vec::new();
+    let drawn = crate::turn::draw_cards(st, lord, 1, &mut ev);
+    if drawn > 0 {
+        st.push_log(
+            Some(&st.seats[lord].player_id.clone()),
+            "颂威：魏势力黑色判定生效，摸 1 张",
+        );
+    }
 }
 
 /// 黄天：可接收牌的张角主公（其他群势力角色出牌阶段限一次）。
