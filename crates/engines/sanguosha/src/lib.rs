@@ -16,7 +16,9 @@ mod state;
 mod turn;
 mod view;
 
-pub use data::{STANDARD_DECK_SIZE, STANDARD_GENERAL_COUNT};
+pub use data::{
+    FULL_DECK_SIZE, GENERAL_COUNT, JUNZHENG_DECK_SIZE, STANDARD_DECK_SIZE, STANDARD_GENERAL_COUNT,
+};
 pub use state::*;
 
 use game_engine_core::{
@@ -250,9 +252,11 @@ fn finish_setup(st: &mut SgsState) -> Result<Vec<EngineEvent>, EngineError> {
         seat.hp = seat.max_hp;
     }
 
-    // 建牌堆：实例 id 按定义表顺序编号，再整体洗牌（种子可复现）。
-    let mut ids: Vec<String> = Vec::with_capacity(STANDARD_DECK_SIZE);
-    for (i, pc) in data::STANDARD_DECK.iter().enumerate() {
+    // 建牌堆：按 `Config.packs` 组堆（standard → junzheng），实例 id 按牌堆顺序编号，再整体洗牌。
+    let deck = data::deck_cards(&st.config.packs).map_err(illegal)?;
+    let deck_size = deck.len();
+    let mut ids: Vec<String> = Vec::with_capacity(deck_size);
+    for (i, pc) in deck.iter().enumerate() {
         let id = format!("c{}", i + 1);
         st.cards.insert(
             id.clone(),
@@ -294,7 +298,11 @@ fn finish_setup(st: &mut SgsState) -> Result<Vec<EngineEvent>, EngineError> {
         EngineEvent::new("setup_done", json!({ "seats": generals })),
         EngineEvent::new(
             "deck_shuffled",
-            json!({ "size": STANDARD_DECK_SIZE, "seed": st.deck.seed }),
+            json!({
+                "size": deck_size,
+                "packs": st.config.packs,
+                "seed": st.deck.seed
+            }),
         ),
         EngineEvent::new(
             "initial_hand_dealt",
@@ -356,6 +364,11 @@ fn start_setup(st: &mut SgsState) -> Result<Vec<EngineEvent>, EngineError> {
 }
 
 fn apply_config(st: &mut SgsState, key: &str, value: &str) -> Result<(), EngineError> {
+    // 牌堆包组合不是数字：先单独处理（如 `standard` / `standard+junzheng`）。
+    if key == "packs" {
+        st.config.packs = parse_packs(value).map_err(illegal)?;
+        return Ok(());
+    }
     let v: u32 = value
         .parse()
         .map_err(|_| illegal(format!("非法配置值：{value}")))?;
@@ -456,6 +469,7 @@ impl EnginePlugin for SanguoshaEngine {
             turn_index: 0,
             round: 1,
             cards: Default::default(),
+            virtual_defs: Default::default(),
             deck: Deck::empty(seed),
             setup: SetupState::default(),
             pending: None,
@@ -568,6 +582,19 @@ impl EnginePlugin for SanguoshaEngine {
                                 "开启双内局（1 主 1 忠 4 反 2 内）".into()
                             },
                         });
+                    }
+                    // 牌堆包组合（全局开关；旧对局按创建时的 config 固定）
+                    for mode in ["standard", "standard+junzheng"] {
+                        if st.config.packs_mode() != mode {
+                            out.push(Action {
+                                id: format!("lobby:set_packs:{mode}"),
+                                description: if mode == "standard" {
+                                    "牌堆：标准包（108 张）".into()
+                                } else {
+                                    "牌堆：标准 + 军争（160 张）".into()
+                                },
+                            });
+                        }
                     }
                 }
             }

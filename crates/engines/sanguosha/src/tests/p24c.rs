@@ -425,18 +425,26 @@ fn qixi_transform_still_has_wuxie_window() {
         take_card(st, &black);
         st.seats[cur].hand.push(black);
         let b = st.seats_from_left_of(cur)[0];
+        // 固定为无「谦逊」的武将（否则过河拆桥没有合法目标）。
+        set_general(st, b, "sgs_hero_2");
         give(st, b, "sha");
     });
     let st = state_of(&mgr, &room);
     let cur = st.turn;
     let cur_pid = pid(&st, cur);
-    let b = others(&st, cur)[0];
-    let b_pid = pid(&st, b);
     let black = st.seats[cur].hand[0].clone();
     mgr.execute_action(&room, &cur_pid, &format!("skill:qixi:{black}"))
         .unwrap();
-    mgr.execute_action(&room, &cur_pid, &format!("target:{b_pid}"))
-        .unwrap();
+    // 目标由引擎候选给出（谦逊等锁定技会过滤目标）。
+    let target = mgr
+        .legal_actions(&room, &cur_pid)
+        .unwrap()
+        .iter()
+        .find(|a| a.id.starts_with("target:"))
+        .expect("奇袭应有合法目标")
+        .id
+        .clone();
+    mgr.execute_action(&room, &cur_pid, &target).unwrap();
     let pending = state_of(&mgr, &room)
         .pending
         .expect("转化的过河也应有无懈窗口");

@@ -28,6 +28,7 @@ const REGISTERED_PENDING_KINDS: &[&str] = &[
     "choose_many",
     "wugu",
     "arrange",
+    "judge_rewrite",
 ];
 
 fn check_descriptor(value: &Value, label: &str) -> String {

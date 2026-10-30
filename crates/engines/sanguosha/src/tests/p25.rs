@@ -465,10 +465,10 @@ fn hand_without_matching_card_still_gets_prompt() {
         clear_hands(st);
         let cur = st.turn;
         give(st, cur, "sha");
-        let target = st
-            .alive_indices()
+        // 用引擎的目标候选（已排除空城等锁定技），避免选中不可指定目标。
+        let target = crate::turn::sha_targets(st, cur)
             .into_iter()
-            .find(|i| *i != cur && st.in_attack_range(cur, *i))
+            .next()
             .expect("目标");
         // 有手牌但没有【闪】→ 仍要被询问（保留犹豫博弈），只有「不出」。
         give(st, target, "tao");
@@ -561,10 +561,10 @@ fn dying_skips_empty_hand_players() {
         clear_hands(st);
         let cur = st.turn;
         give(st, cur, "sha");
-        let target = st
-            .alive_indices()
+        // 用引擎的目标候选（已排除空城等锁定技），避免选中不可指定目标。
+        let target = crate::turn::sha_targets(st, cur)
             .into_iter()
-            .find(|i| *i != cur && st.in_attack_range(cur, *i))
+            .next()
             .expect("目标");
         st.seats[target].hp = 1;
         // 只有「左手侧最后一位」持桃：它前面的空手玩家应被跳过。

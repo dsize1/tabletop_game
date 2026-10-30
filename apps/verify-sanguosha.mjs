@@ -30,9 +30,18 @@ const GROUP = `sgs-smoke-${Date.now()}`;
 let lastAction = "";
 const HOST = "sgs-host";
 const PLAYERS = [HOST, "sgs-p2", "sgs-p3", "sgs-p4", "sgs-p5"];
+// P4.0 军争牌定义已入库但结算未实现：端到端冒烟必须确认它们从未以出牌动作出现。
+// （`legal_actions` 不列出 + `play:` 直接报错，见 crates/engines/sanguosha/src/turn.rs）
+const PENDING_JUNZHENG_NAMES = [];
 
 function assert(cond, msg) {
   if (!cond) throw new Error(`断言失败：${msg}`);
+}
+
+// 牌堆总张数由 `Config.packs` 决定（P4.0 默认 标准+军争 = 160；标准包 = 108）。
+function deckTotal(board) {
+  const packs = board.config?.packs ?? ["standard", "junzheng"];
+  return packs.includes("junzheng") ? 160 : 108;
 }
 
 const client = new Client({ name: "verify-sanguosha", version: "0.1.0" });
@@ -121,7 +130,12 @@ try {
   // —— 发牌后的公共视图 ——
   const view = await callJson("get_state", { room_id: roomId });
   const board = view.data.public_board;
+  const total = deckTotal(board);
   assert(view.data.phase === "turn", `选将后应进入 turn，实际 ${view.data.phase}`);
+  assert(
+    (board.config?.packs ?? []).includes("standard"),
+    `牌堆组合应含标准包，实际 ${JSON.stringify(board.config?.packs)}`,
+  );
   assert(board.turn.phase === "play", `首个回合应自动推进到 play，实际 ${board.turn.phase}`);
   assert(board.turn.player_id, "应有当前回合玩家");
   for (const s of board.seats) {
@@ -139,10 +153,12 @@ try {
   const judge = board.seats.reduce((n, s) => n + (s.judge_zone?.length ?? 0), 0);
   assert(
     board.deck.draw + board.deck.discard + board.deck.processing + board.deck.void +
-      hands + equips + judge === 108,
-    `牌数守恒失败：draw ${board.deck.draw} + discard ${board.deck.discard} + processing ${board.deck.processing} + hands ${hands} + equips ${equips} + judge ${judge} ≠ 108`,
+      hands + equips + judge === total,
+    `牌数守恒失败：draw ${board.deck.draw} + discard ${board.deck.discard} + processing ${board.deck.processing} + hands ${hands} + equips ${equips} + judge ${judge} ≠ ${total}`,
   );
-  console.log(`[sgs] 发牌 OK：牌堆余 ${board.deck.draw}，手牌 ${hands}`);
+  console.log(
+    `[sgs] 发牌 OK：packs=${(board.config?.packs ?? []).join("+")}，总张数 ${total}，牌堆余 ${board.deck.draw}，手牌 ${hands}`,
+  );
 
   // —— 个人视图：本人手牌 + 身份，且不含他人手牌 ——
   const pv = await callJson("get_player_view", { room_id: roomId, player_id: HOST });
@@ -244,7 +260,13 @@ try {
         legal.find((a) => a.id === "end_play");
       assert(play, "既没有可出的牌也没有 end_play");
       if (play.id.startsWith("skill:")) sawSkill = true;
-      if (play.id.startsWith("play:")) sawPlay = true;
+      if (play.id.startsWith("play:")) {
+        sawPlay = true;
+        assert(
+          !PENDING_JUNZHENG_NAMES.some((n) => play.description.includes(`【${n}`)),
+          `军争未实现结算的牌被列为可出：${play.description}（P4.0 拦截失效）`,
+        );
+      }
       lastAction = `${b.turn.player_id}:${play.id} (play)`;
       await callJson("execute_action", {
         room_id: roomId,
@@ -263,7 +285,7 @@ try {
       const judge = v.seats.reduce((n, s) => n + (s.judge_zone?.length ?? 0), 0);
       assert(
         v.deck.draw + v.deck.discard + v.deck.processing + v.deck.void +
-          hands + equips + judge === 108,
+          hands + equips + judge === deckTotal(v),
         `第 ${steps} 步牌数不守恒：draw ${v.deck.draw} discard ${v.deck.discard} proc ${v.deck.processing} hands ${hands} eq ${equips} judge ${judge}`,
       );
     }

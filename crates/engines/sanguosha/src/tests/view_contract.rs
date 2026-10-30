@@ -71,6 +71,7 @@ const AREA_KEYS: &[&str] = &[
     "equips",
     "judge_zone",
     "skills",
+    "equipment_skills",
     "is_bot",
     "is_current",
     "pending",
@@ -184,6 +185,16 @@ fn view_contract_midgame_three_zones_shape() {
     assert_keys(&mine, ROOT_KEYS, "player view_data");
     let area = &mine["player_area"];
     assert_keys(area, AREA_KEYS, "player_area");
+    for item in area["equipment_skills"]
+        .as_array()
+        .expect("equipment_skills")
+    {
+        assert_keys(
+            item,
+            &["slot", "code", "name", "card", "trigger"],
+            "player_area.equipment_skills[]",
+        );
+    }
     for card in area["hand"].as_array().expect("hand") {
         assert_keys(card, CARD_KEYS, "player_area.hand[]");
     }

@@ -114,6 +114,7 @@ export interface SgsPlayerArea {
   skills?: SgsSkill[];
   is_bot?: boolean;
   is_current?: boolean;
+  equipment_skills?: { slot: string; code: string; name: string; card: string; trigger: string }[];
   pending?: SgsPending | null;
   setup?: unknown;
 }

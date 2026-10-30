@@ -1,10 +1,9 @@
 //! P3 反馈修复用例：闪电只对自己、顺手/过河目标须有牌、麒麟弓、历史全量。
 
-use super::p24::{in_hand, others, set_general, start_and_pick};
+use super::p24::{in_hand, start_and_pick};
 use super::{clear_hands, edit, give, manager, player_view, state_of};
 use crate::resolve::{DamageType, Frame};
 use crate::state::*;
-use game_engine_core::GameManager;
 
 fn pid(st: &SgsState, idx: usize) -> String {
     st.seats[idx].player_id.clone()

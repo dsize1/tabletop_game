@@ -323,6 +323,38 @@ const meWithEquip = renderPersonalArea(
 assert.ok(meWithEquip.includes('data-press="card"'), "装备/判定小标记可长按详情");
 assert.ok(publicHtml.includes('data-press="card"'), "他人装备/判定小标记可长按详情");
 
+// —— P4.5：装备技能高亮（equipment_skills + pending.option_sources）——
+const hanbingArea = {
+  ...me,
+  equips: { ...me.equips, weapon: card("c21", "寒冰剑", "spade", 2, "hanbing_jian") },
+  equipment_skills: [
+    { slot: "weapon", code: "hanbing_jian", name: "寒冰剑", card: "hanbing_jian", trigger: "damage_before" },
+  ],
+  pending: {
+    kind: "choice",
+    actor: me.player_id,
+    options: [
+      { id: "choose:hanbing", label: "寒冰剑：防止此伤害" },
+      { id: "pass", label: "正常造成伤害" },
+    ],
+    data: { option_sources: { "choose:hanbing": "hanbing_jian" } },
+  },
+} as typeof me;
+const hanbingHtml = renderPersonalArea(hanbingArea, board, {}, names);
+assert.ok(hanbingHtml.includes('data-equipment-skill="hanbing_jian"'), "装备技能应带 data-equipment-skill");
+assert.ok(/sgs-equip active/.test(hanbingHtml), "窗口内对应武器应高亮 active");
+const zhangbaArea = {
+  ...me,
+  equips: { ...me.equips, weapon: card("c22", "丈八蛇矛", "spade", 12, "zhangba_shemao") },
+  equipment_skills: [
+    { slot: "weapon", code: "zhangba_shemao", name: "丈八蛇矛", card: "zhangba_shemao", trigger: "play_phase" },
+  ],
+} as typeof me;
+const zhangbaHtml = renderPersonalArea(zhangbaArea, board, {}, names, [
+  { id: "skill:zhangba:c1,c2", description: "丈八蛇矛：将【A】【B】当【杀】使用" },
+]);
+assert.ok(/sgs-equip active/.test(zhangbaHtml), "出牌阶段丈八选项应高亮武器");
+
 console.log("[sgs-web] 手势/浮层/详情单测通过 ✅");
 
 // —— P3.3 出牌链路：actions 驱动可用性 + pending 动作按钮 ——

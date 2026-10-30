@@ -137,6 +137,46 @@ pub fn public_board(st: &SgsState) -> Value {
 }
 
 /// 玩家个人资源区；`viewer` 不在座时返回 `None`。
+
+/// 装备技能视图（P4.5 阶段二）：已装备且已注册的装备技能。
+fn equipment_skills_view(st: &SgsState, seat: usize) -> Vec<Value> {
+    let trigger_code = |t: crate::skills::Trigger| match t {
+        crate::skills::Trigger::Passive => "passive",
+        crate::skills::Trigger::PlayPhase => "play_phase",
+        crate::skills::Trigger::TargetChosen => "target_chosen",
+        crate::skills::Trigger::DamageBefore => "damage_before",
+        crate::skills::Trigger::AfterDodge => "after_dodge",
+        crate::skills::Trigger::JudgeBefore => "judge_before",
+    };
+    let mut out = Vec::new();
+    for def in crate::skills::EQUIPMENT_SKILLS {
+        let Some(slot) = EquipSlot::ALL.into_iter().find(|slot| {
+            st.seats[seat]
+                .equips
+                .get(slot)
+                .and_then(|v| v.as_ref())
+                .and_then(|id| st.cards.get(id))
+                .is_some_and(|c| c.def == def.card)
+        }) else {
+            continue;
+        };
+        out.push(json!({
+            "slot": match slot {
+                EquipSlot::Weapon => "weapon",
+                EquipSlot::Armor => "armor",
+                EquipSlot::HorseOffense => "horse_offense",
+                EquipSlot::HorseDefense => "horse_defense",
+                EquipSlot::Treasure => "treasure",
+            },
+            "code": def.code,
+            "name": def.name,
+            "card": def.card,
+            "trigger": trigger_code(def.trigger),
+        }));
+    }
+    out
+}
+
 pub fn player_area(st: &SgsState, viewer: &str) -> Option<Value> {
     let idx = st.seat_index(viewer)?;
     let s = &st.seats[idx];
@@ -194,6 +234,7 @@ pub fn player_area(st: &SgsState, viewer: &str) -> Option<Value> {
         "equips": equips_view(st, s),
         "judge_zone": s.judge_zone.iter().map(|id| card_view(st, id)).collect::<Vec<_>>(),
         "skills": skills,
+        "equipment_skills": equipment_skills_view(st, idx),
         "is_bot": s.is_bot,
         "is_current": st.phase == Phase::Turn && idx == st.turn,
         // 只有本人能看到 pending 的选项内容。

@@ -155,6 +155,40 @@ pub enum TargetMode {
     Aoe,
 }
 
+/// 默认牌堆包组合（标准 + 军争 = 160 张，`Config.packs`）。
+pub fn default_packs() -> Vec<String> {
+    vec!["standard".to_string(), "junzheng".to_string()]
+}
+
+/// 解析 `lobby:set_packs` / `Config.packs` 的包组合字符串。
+///
+/// 支持形式：`standard` / `standard+junzheng`（顺序无关、去重；多余/未知包报错）。
+/// 返回的列表按 `data::DECK_PACKS` 的固定顺序规范化（建堆顺序稳定）。
+pub fn parse_packs(mode: &str) -> Result<Vec<String>, String> {
+    let mut wanted: Vec<&str> = Vec::new();
+    for raw in mode.split('+') {
+        let code = raw.trim();
+        if code.is_empty() {
+            return Err("牌堆包组合不能为空".into());
+        }
+        if !data::DECK_PACKS.contains(&code) {
+            return Err(format!("未知牌堆包：{code}"));
+        }
+        if !wanted.contains(&code) {
+            wanted.push(code);
+        }
+    }
+    // 军争是标准包的扩充：不允许单独建 52 张牌的军争堆。
+    if wanted.contains(&"junzheng") && !wanted.contains(&"standard") {
+        return Err("军争包需与标准包同时启用".into());
+    }
+    Ok(data::DECK_PACKS
+        .iter()
+        .filter(|p| wanted.contains(p))
+        .map(|p| (*p).to_string())
+        .collect())
+}
+
 /// 规则配置（`state-machine.md` §1）。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Config {
@@ -171,6 +205,17 @@ pub struct Config {
     /// 8 人局双内（1 主 1 忠 4 反 2 内）。
     #[serde(default)]
     pub double_spy: bool,
+    /// 牌堆/牌池包组合（全局，一局一个；旧对局按创建时的 config 固定）。
+    /// 默认 `["standard", "junzheng"]` = 160 张。
+    #[serde(default = "default_packs")]
+    pub packs: Vec<String>,
+}
+
+impl Config {
+    /// 规范化包组合字符串（如 `standard+junzheng`），用于动作 id 与视图展示。
+    pub fn packs_mode(&self) -> String {
+        self.packs.join("+")
+    }
 }
 
 impl Default for Config {
@@ -183,6 +228,7 @@ impl Default for Config {
             base_attack_range: DEFAULT_ATTACK_RANGE,
             base_defense_range: DEFAULT_DEFENSE_RANGE,
             double_spy: false,
+            packs: default_packs(),
         }
     }
 }
@@ -205,6 +251,9 @@ pub struct Seat {
     /// 判定区（按放入顺序；末尾 = 栈顶 = 先判，LIFO）。
     pub judge_zone: Vec<String>,
     pub alive: bool,
+    /// 铁索连环：横置状态（属性伤害会在横置角色间传导）。
+    #[serde(default)]
+    pub chained: bool,
     pub is_bot: bool,
     /// 技能私有标记（如觉醒已触发、限定技已用）。
     pub flags: BTreeMap<String, bool>,
@@ -224,6 +273,7 @@ impl Seat {
             equips: EquipSlot::empty_map(),
             judge_zone: Vec::new(),
             alive: true,
+            chained: false,
             is_bot,
             flags: BTreeMap::new(),
         }
@@ -363,6 +413,10 @@ pub struct SgsState {
     /// 轮次（主公回合为一轮起点）。
     pub round: u32,
     pub cards: BTreeMap<String, CardInst>,
+    /// 虚拟牌定义（P4.1 国色等）：牌实例 id → 生效定义码（如方块牌当【乐不思蜀】）。
+    /// 仅用于判定区/处理区的“生效定义”查询，不改变牌实例本身的物理定义。
+    #[serde(default)]
+    pub virtual_defs: BTreeMap<String, String>,
     pub deck: Deck,
     pub setup: SetupState,
     #[serde(default)]
@@ -399,6 +453,14 @@ impl SgsState {
     /// 从 `GameState.data` 解析（失败视为内部错误）。
     pub fn parse(data: &Value) -> Result<Self, String> {
         serde_json::from_value(data.clone()).map_err(|e| format!("状态解析失败: {e}"))
+    }
+
+    /// 牌的“生效定义码”：转化牌（`virtual_defs`）优先，否则为物理牌定义。
+    pub fn effective_def_code(&self, card_id: &str) -> Option<&str> {
+        if let Some(code) = self.virtual_defs.get(card_id) {
+            return Some(code.as_str());
+        }
+        self.cards.get(card_id).map(|c| c.def.as_str())
     }
 
     pub fn seat_index(&self, player_id: &str) -> Option<usize> {
@@ -515,6 +577,11 @@ impl SgsState {
         i32::from(self.equip_def(idx, EquipSlot::HorseDefense).is_some())
     }
 
+    /// 马术（锁定技）：计算与其他角色的距离 -1。
+    pub fn mashu_bonus(&self, idx: usize) -> i32 {
+        i32::from(crate::skills::has(self, idx, "mashu"))
+    }
+
     /// `from` 能否用【杀】指定 `to`：座位距离 + 目标防御距离 ≤ 自己的攻击距离。
     pub fn in_attack_range(&self, from: usize, to: usize) -> bool {
         if from == to {
@@ -524,7 +591,7 @@ impl SgsState {
         if d == usize::MAX {
             return false;
         }
-        d as i32 + self.defense_bonus(to) <= self.attack_range(from)
+        d as i32 - self.mashu_bonus(from) + self.defense_bonus(to) <= self.attack_range(from)
     }
 
     /// 弃牌阶段手牌上限 = 当前体力值（最低 0）。

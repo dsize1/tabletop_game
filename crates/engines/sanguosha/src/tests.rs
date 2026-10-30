@@ -374,17 +374,16 @@ fn setup_offers_are_disjoint_and_then_game_starts() {
     assert_eq!(st.seats[st.turn].hp, st.seats[st.turn].max_hp);
 
     let counts = st.check_conservation().expect("conservation");
-    assert_eq!(counts.instances, STANDARD_DECK_SIZE);
+    // P4.0：默认牌堆 = 标准 + 军争 = 160 张（`Config.packs`）。
+    assert_eq!(counts.instances, FULL_DECK_SIZE);
+    assert_eq!(st.config.packs, vec!["standard", "junzheng"]);
     for (i, s) in st.seats.iter().enumerate() {
         assert!(s.general.is_some());
         // 初始 4 张；主公（首个回合）已过摸牌阶段 +2。
         assert_eq!(s.hand.len(), if i == st.turn { 6 } else { 4 });
     }
-    assert_eq!(
-        st.deck.draw.len(),
-        STANDARD_DECK_SIZE - 4 * st.seats.len() - 2
-    );
-    assert_eq!(counts.total_in_zones(), STANDARD_DECK_SIZE);
+    assert_eq!(st.deck.draw.len(), FULL_DECK_SIZE - 4 * st.seats.len() - 2);
+    assert_eq!(counts.total_in_zones(), FULL_DECK_SIZE);
 }
 
 #[test]
@@ -422,7 +421,11 @@ fn setup_emits_deck_seed_and_deal_events() {
         .iter()
         .find(|e| e.event_type == "deck_shuffled")
         .expect("deck_shuffled");
-    assert_eq!(shuffle.payload["size"], STANDARD_DECK_SIZE);
+    assert_eq!(shuffle.payload["size"], FULL_DECK_SIZE);
+    assert_eq!(
+        shuffle.payload["packs"],
+        serde_json::json!(["standard", "junzheng"])
+    );
     assert_eq!(shuffle.payload["seed"], state_of(&mgr, &room).deck.seed);
     assert!(last_events
         .iter()
@@ -653,11 +656,23 @@ fn resume_is_noop_and_unknown_actions_are_rejected() {
 
 #[test]
 fn every_standard_card_def_and_general_is_resolvable() {
+    // P4.0：标准 108 + 军争 52 = 160 张物理牌。
     assert_eq!(data::STANDARD_DECK.len(), STANDARD_DECK_SIZE);
+    assert_eq!(data::JUNZHENG_DECK.len(), JUNZHENG_DECK_SIZE);
+    assert_eq!(
+        data::FULL_DECK_SIZE,
+        STANDARD_DECK_SIZE + JUNZHENG_DECK_SIZE
+    );
     assert_eq!(data::STANDARD_GENERALS.len(), STANDARD_GENERAL_COUNT);
-    for pc in data::STANDARD_DECK {
+    assert_eq!(data::GENERAL_COUNT, STANDARD_GENERAL_COUNT);
+    for pc in data::STANDARD_DECK.iter().chain(data::JUNZHENG_DECK) {
         let def = data::card_def(pc.def).unwrap_or_else(|| panic!("缺少定义 {}", pc.def));
         assert!((1..=13).contains(&pc.rank), "非法点数: {pc:?}");
+        assert!(
+            data::DECK_PACKS.contains(&pc.pack),
+            "未知牌堆包: {}",
+            pc.pack
+        );
         // 装备必须有槽位；基本/锦囊不能有槽位
         if matches!(
             def.category,
@@ -670,7 +685,8 @@ fn every_standard_card_def_and_general_is_resolvable() {
     }
     let lords = data::STANDARD_GENERALS.iter().filter(|g| g.is_lord).count();
     assert_eq!(lords, 3, "标准包主公将应为 3 位");
-    assert!(data::all_general_codes().len() == 25);
+    assert_eq!(data::all_general_codes().len(), 25);
+    assert!(data::STANDARD_GENERALS.iter().all(|g| g.pack == "standard"));
 }
 
 mod interaction_contract;
@@ -681,5 +697,32 @@ mod p24b;
 mod p24c;
 mod p25;
 mod p26;
+mod p40;
+mod p41;
+mod p42;
+mod p43;
+mod p44;
+mod p45;
+mod p46;
+mod p47;
+mod p48;
+mod p49;
+mod p50;
+mod p51;
+mod p52;
+mod p53;
+mod p54;
+mod p55;
+mod p56;
+mod p57;
+mod p58;
+mod p59;
+mod p60;
+mod p61;
+mod p62;
+mod p63;
+mod p64;
+mod p65;
+mod p66;
 mod replay;
 mod view_contract;

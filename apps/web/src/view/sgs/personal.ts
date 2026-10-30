@@ -110,12 +110,30 @@ export function renderPersonalArea(
   const hand = (area.hand ?? [])
     .map((c) => cardFaceHtml(c, playable.has(c.id) ? " playable" : ""))
     .join("");
+  // 装备技能高亮（P4.5）：pending.data.option_sources / 出牌阶段丈八选项。
+  const optionSources = ((area.pending?.data as Record<string, unknown> | undefined)
+    ?.option_sources ?? {}) as Record<string, string>;
+  const activeSources = new Set<string>(Object.values(optionSources));
+  if (actions?.some((a) => a.id.startsWith("skill:zhangba:"))) {
+    activeSources.add("zhangba_shemao");
+  }
+  const skillBySlot = new Map<string, { code: string; name: string }>();
+  for (const s of area.equipment_skills ?? []) {
+    skillBySlot.set(s.slot, { code: s.code, name: s.name });
+  }
   const equips = EQUIP_SLOT_ORDER.map((slot) => {
     const card = area.equips?.[slot] ?? null;
+    const skill = skillBySlot.get(slot);
+    const active = skill ? activeSources.has(skill.code) : false;
     const body = card
       ? cardChipHtml(card as SgsCard, { long: true })
       : `<span class="muted">空</span>`;
-    return `<div class="sgs-equip" data-slot="${slot}"><span class="sgs-equip-label">${EQUIP_SLOT_LABEL[slot]}</span>${body}</div>`;
+    return (
+      `<div class="sgs-equip${active ? " active" : ""}" data-slot="${slot}"` +
+      (skill ? ` data-equipment-skill="${escapeHtml(skill.code)}"` : "") +
+      (skill ? ` title="${escapeHtml(skill.name)}"` : "") +
+      `><span class="sgs-equip-label">${EQUIP_SLOT_LABEL[slot]}</span>${body}</div>`
+    );
   }).join("");
   const judge = (area.judge_zone ?? [])
     .slice()

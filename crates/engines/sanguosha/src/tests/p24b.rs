@@ -102,6 +102,9 @@ fn tuxi_replaces_draw_with_stealing() {
         give(st, cur, "shan");
         let a = st.seats_from_left_of(cur)[0];
         let b = st.seats_from_left_of(cur)[1];
+        // 突袭会拿走最后一张手牌；固定为无「连营」的武将，避免额外摸牌干扰断言。
+        set_general(st, a, "sgs_hero_2");
+        set_general(st, b, "sgs_hero_2");
         give(st, a, "sha");
         give(st, b, "sha");
         st.turn_phase = TurnPhase::Prepare;

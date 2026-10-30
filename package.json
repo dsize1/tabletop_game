@@ -24,6 +24,7 @@
     "check:props-boundary": "node apps/scripts/check-props-admin-boundary.mjs",
     "gen:sgs-engine-data": "node apps/scripts/gen-sanguosha-engine-data.mjs",
     "check:sgs-engine-data": "node apps/scripts/gen-sanguosha-engine-data.mjs --check",
+    "check:sgs-skill-cases": "node apps/scripts/check-sgs-skill-cases.mjs",
     "check:sgs-view-contract": "cargo test --manifest-path crates/Cargo.toml -p sanguosha view_contract",
     "check:interaction-primitives": "cargo test --manifest-path crates/Cargo.toml -p sanguosha interaction_",
     "verify:sanguosha": "node apps/verify-sanguosha.mjs",

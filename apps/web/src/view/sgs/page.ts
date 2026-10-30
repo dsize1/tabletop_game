@@ -100,6 +100,7 @@ button { font: inherit; color: inherit; }
 .sgs-skill.disabled { opacity:.45; cursor:default; }
 .sgs-me-row { display:flex; gap:10px; flex-wrap:wrap; font-size:12px; }
 .sgs-equips, .sgs-judge { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+.sgs-equip.active { border-color:var(--sgs-gold); box-shadow:0 0 0 1px rgba(227,179,65,.45) inset; }
 .sgs-equip { display:flex; gap:4px; align-items:center; background:#1c232c; border:1px solid #2b3644;
   border-radius:8px; padding:3px 6px; font-size:11px; }
 .sgs-equip-label { color:var(--sgs-muted); font-size:10px; }

@@ -139,8 +139,10 @@ fn judge_wuxie_skips_judgment_and_discards_lebu() {
     let mgr = manager(42);
     let room = start_and_pick(&mgr, 5);
     let mut draw_at_start = 0usize;
+    let mut lebu_in_discard = 0usize;
     edit(&mgr, &room, |st| {
         clear_hands(st);
+        lebu_in_discard = discards(st, "lebu_sishu");
         let cur = st.turn;
         let lebu = find_card(st, "lebu_sishu");
         take_card(st, &lebu);
@@ -157,7 +159,8 @@ fn judge_wuxie_skips_judgment_and_discards_lebu() {
     let st = state_of(&mgr, &room);
     assert_eq!(st.turn_phase, TurnPhase::Play, "无懈后不应跳过出牌阶段");
     assert!(!st.history.iter().any(|e| e.text.starts_with("判定【")));
-    assert_eq!(discards(&st, "lebu_sishu"), 1);
+    // 无懈后乐不思蜀直接进弃牌堆（弃牌堆里可能已有其他副本，按增量断言）。
+    assert_eq!(discards(&st, "lebu_sishu"), lebu_in_discard + 1);
     assert_eq!(st.deck.draw.len(), draw_at_start - 2);
     st.check_conservation().unwrap();
 }
@@ -475,14 +478,20 @@ fn jiedao_asks_weapon_owner_even_without_sha() {
     let order = others_from_left(&st, cur);
     let a = order[0];
     let a_pid = pid(&st, a);
-    let b = order[1];
-    let b_pid = pid(&st, b);
     let card = in_hand(&st, cur, "jiedao_sharen");
 
     mgr.execute_action(&room, &cur_pid, &format!("play:{card}"))
         .unwrap();
+    mgr.execute_action(&room, &cur_pid, &format!("target:{a_pid}"))
+        .unwrap();
+    // 杀的合法目标由引擎给出（已排除空城等锁定技），不假定座位顺序。
+    let b_pid = mgr
+        .legal_actions(&room, &cur_pid)
+        .unwrap()
+        .iter()
+        .find_map(|act| act.id.strip_prefix("target:").map(str::to_string))
+        .expect("借刀第二阶段应有合法杀目标");
     let mut inject = vec![
-        format!("{cur_pid}|target=target:{a_pid}"),
         format!("{cur_pid}|target=target:{b_pid}"),
         format!("{cur_pid}|target=confirm"),
         format!("{a_pid}|respond=pass"),

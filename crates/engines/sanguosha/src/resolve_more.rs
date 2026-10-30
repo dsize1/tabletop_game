@@ -291,7 +291,15 @@ pub(crate) fn step_lijian(st: &mut SgsState, f: LijianFrame) -> Result<bool, Eng
             Ok(true)
         }
         LijianStage::Defender => {
-            let options = male_targets(st, f.actor, f.attacker);
+            // 空城（锁定）：无手牌者不能成为【决斗】目标（离间视为决斗）。
+            let options: Vec<PendingOption> = male_targets(st, f.actor, f.attacker)
+                .into_iter()
+                .filter(|o| {
+                    o.id.strip_prefix("target:")
+                        .and_then(|pid| st.seat_index(pid))
+                        .is_some_and(|i| !skills::kongcheng_blocks(st, i))
+                })
+                .collect();
             if options.is_empty() {
                 pop(st);
                 return Ok(false);
@@ -339,6 +347,13 @@ pub(crate) fn lijian_target(
         .strip_prefix("target:")
         .ok_or_else(|| illegal("需要选择目标"))?;
     let target = st.seat_index(pid).ok_or_else(|| illegal("目标不在座"))?;
+    if !pending
+        .options
+        .iter()
+        .any(|o| o.id == format!("target:{pid}"))
+    {
+        return Err(illegal("目标不合法"));
+    }
     let stage = pending.data["stage"].as_str().unwrap_or("");
     match stage {
         "attacker" => {
@@ -379,12 +394,785 @@ pub(crate) fn lijian_target(
                     consume_card: false,
                     ignore_armor: false,
                     bagua_used: false,
+                    need: 1,
+                    played: 0,
+                    no_shan: false,
+                    duel_initiator: None,
+                    is_sha: false,
                 }),
             );
             Ok("离间已生效：目标需出【杀】".to_string())
         }
         _ => Err(illegal("未知离间阶段")),
     }
+}
+
+// ---------------------------------------------------------------------------
+// 流离（P4.1：成为【杀】目标时弃一张手牌转移）
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LiuliStage {
+    /// 选择弃置哪张手牌（或放弃）。
+    Choice,
+    /// 选择转移目标的受害者。
+    Aim,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct LiuliFrame {
+    pub user: usize,
+    pub original: usize,
+    pub card: String,
+    /// 原【杀】的响应牌数（无双）。
+    pub need: u32,
+    /// 原【杀】的铁骑结果（转移后对新目标不生效）。
+    pub no_shan: bool,
+    pub stage: LiuliStage,
+}
+
+fn liuli_victims(st: &SgsState, f: &LiuliFrame) -> Vec<usize> {
+    st.alive_indices()
+        .into_iter()
+        .filter(|v| {
+            *v != f.original
+                && *v != f.user
+                && st.in_attack_range(f.original, *v)
+                && !crate::skills::kongcheng_blocks(st, *v)
+        })
+        .collect()
+}
+
+pub(crate) fn step_liuli(st: &mut SgsState, f: LiuliFrame) -> Result<bool, EngineError> {
+    match f.stage {
+        LiuliStage::Choice => {
+            let mut options: Vec<PendingOption> = st.seats[f.original]
+                .hand
+                .iter()
+                .map(|id| PendingOption {
+                    id: format!("choose:{id}"),
+                    label: format!("弃置【{}】并转移【杀】", turn::card_label(st, id)),
+                })
+                .collect();
+            options.push(PendingOption {
+                id: "pass".into(),
+                label: "不发动流离".into(),
+            });
+            st.pending = Some(Pending {
+                kind: "choice".into(),
+                actor: st.seats[f.original].player_id.clone(),
+                skill: Some("liuli".into()),
+                options,
+                data: json!({ "skill": "liuli", "card": f.card }),
+            });
+            replace_top(st, Frame::Liuli(f));
+            Ok(true)
+        }
+        LiuliStage::Aim => {
+            let options: Vec<PendingOption> = liuli_victims(st, &f)
+                .into_iter()
+                .map(|v| PendingOption {
+                    id: format!("target:{}", st.seats[v].player_id),
+                    label: format!("转移给 {}", st.seats[v].general_name),
+                })
+                .collect();
+            if options.is_empty() {
+                // 没有可转移目标：按原目标继续响应。
+                let original = f.original;
+                let no_shan = f.no_shan;
+                let need = f.need;
+                pop(st);
+                push_liuli_respond(st, f.user, original, &f.card, need, no_shan);
+                return Ok(false);
+            }
+            st.pending = Some(Pending {
+                kind: "target".into(),
+                actor: st.seats[f.original].player_id.clone(),
+                skill: Some("liuli".into()),
+                options,
+                data: json!({ "purpose": "liuli" }),
+            });
+            replace_top(st, Frame::Liuli(f));
+            Ok(true)
+        }
+    }
+}
+
+/// 给最终受害者压入【闪】响应帧。
+fn push_liuli_respond(
+    st: &mut SgsState,
+    user: usize,
+    victim: usize,
+    card: &str,
+    need: u32,
+    no_shan: bool,
+) {
+    crate::resolve_skill::push_sha_target_response(
+        st,
+        user,
+        victim,
+        card,
+        need,
+        no_shan,
+        crate::skills::has_equipment_skill(st, user, "qinggang_jian"),
+        crate::resolve::DamageType::Normal,
+    );
+    // 更新【杀】帧的目标（日志/结算展示）。
+    for frame in st.resolution.iter_mut().rev() {
+        if let Frame::Sha(sf) = frame {
+            sf.target = Some(victim);
+            break;
+        }
+    }
+}
+
+pub(crate) fn act_liuli(st: &mut SgsState, action: &str) -> Result<String, EngineError> {
+    let f = match top(st).cloned() {
+        Some(Frame::Liuli(f)) => f,
+        _ => return Err(internal("栈顶不是流离帧")),
+    };
+    if action == "pass" {
+        pop(st);
+        push_liuli_respond(st, f.user, f.original, &f.card, f.need, f.no_shan);
+        return Ok("不发动流离".to_string());
+    }
+    let card_id = action
+        .strip_prefix("choose:")
+        .ok_or_else(|| illegal("需要选择弃置的牌或放弃"))?;
+    if !st.seats[f.original].hand.iter().any(|c| c == card_id) {
+        return Err(illegal("手牌中没有该牌"));
+    }
+    turn::take_card(st, f.original, card_id)?;
+    turn::to_discard_card(st, card_id);
+    let label = turn::card_label(st, card_id);
+    let pid = st.seats[f.original].player_id.clone();
+    st.push_log(Some(&pid), format!("流离：弃置【{label}】，选择转移目标"));
+    replace_top(
+        st,
+        Frame::Liuli(LiuliFrame {
+            stage: LiuliStage::Aim,
+            ..f
+        }),
+    );
+    Ok("请选择转移目标".to_string())
+}
+
+pub(crate) fn liuli_target(
+    st: &mut SgsState,
+    pending: &Pending,
+    action: &str,
+) -> Result<String, EngineError> {
+    let f = match top(st).cloned() {
+        Some(Frame::Liuli(f)) => f,
+        _ => return Err(internal("栈顶不是流离帧")),
+    };
+    let pid = action
+        .strip_prefix("target:")
+        .ok_or_else(|| illegal("需要选择目标"))?;
+    if !pending
+        .options
+        .iter()
+        .any(|o| o.id == format!("target:{pid}"))
+    {
+        return Err(illegal("目标不合法"));
+    }
+    let victim = st.seat_index(pid).ok_or_else(|| illegal("目标不在座"))?;
+    pop(st);
+    push_liuli_respond(st, f.user, victim, &f.card, f.need, false);
+    let pid = st.seats[f.original].player_id.clone();
+    let victim_name = st.seats[victim].general_name.clone();
+    st.push_log(Some(&pid), format!("流离：将【杀】转移给 {victim_name}"));
+    Ok(format!("已将【杀】转移给 {victim_name}"))
+}
+
+// ---------------------------------------------------------------------------
+// 刚烈 / 洛神 / 反间（P4.1-C2-2：判定与选择类）
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct GanglieFrame {
+    pub victim: usize,
+    pub source: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct LuoshenFrame {
+    pub actor: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FanjianStage {
+    Target,
+    Suit,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct FanjianFrame {
+    pub actor: usize,
+    pub stage: FanjianStage,
+    pub target: Option<usize>,
+}
+
+pub(crate) fn step_ganglie(st: &mut SgsState, f: GanglieFrame) -> Result<bool, EngineError> {
+    let mut options = Vec::new();
+    if st.seats[f.source].hand.len() >= 2 {
+        options.push(PendingOption {
+            id: "choose:discard".into(),
+            label: "弃置两张手牌".into(),
+        });
+    }
+    options.push(PendingOption {
+        id: "choose:damage".into(),
+        label: "受到 1 点伤害".into(),
+    });
+    st.pending = Some(Pending {
+        kind: "choice".into(),
+        actor: st.seats[f.source].player_id.clone(),
+        skill: Some("ganglie".into()),
+        options,
+        data: json!({ "skill": "ganglie", "victim": st.seats[f.victim].player_id }),
+    });
+    replace_top(st, Frame::Ganglie(f));
+    Ok(true)
+}
+
+pub(crate) fn act_ganglie(st: &mut SgsState, action: &str) -> Result<String, EngineError> {
+    let f = match top(st).cloned() {
+        Some(Frame::Ganglie(f)) => f,
+        _ => return Err(internal("栈顶不是刚烈帧")),
+    };
+    if action == "choose:discard" {
+        if st.seats[f.source].hand.len() < 2 {
+            return Err(illegal("手牌不足 2 张"));
+        }
+        replace_top(
+            st,
+            Frame::MultiSelect(crate::resolve::MultiSelectFrame {
+                actor: f.source,
+                purpose: "ganglie".into(),
+                selected: Vec::new(),
+                min: 2,
+                max: 2,
+                data: json!({}),
+            }),
+        );
+        return Ok("请选择弃置的 2 张手牌".to_string());
+    }
+    if action == "choose:damage" {
+        pop(st);
+        let victim = f.victim;
+        let source = f.source;
+        crate::resolve::apply_damage(
+            st,
+            source,
+            1,
+            Some(victim),
+            crate::resolve::DamageType::Normal,
+            None,
+        );
+        let pid = st.seats[victim].player_id.clone();
+        st.push_log(Some(&pid), "刚烈：伤害来源选择受到 1 点伤害");
+        return Ok("刚烈：来源受到 1 点伤害".to_string());
+    }
+    Err(illegal("未知刚烈选项"))
+}
+
+pub(crate) fn step_luoshen(st: &mut SgsState, f: LuoshenFrame) -> Result<bool, EngineError> {
+    st.pending = Some(Pending {
+        kind: "choice".into(),
+        actor: st.seats[f.actor].player_id.clone(),
+        skill: Some("luoshen".into()),
+        options: vec![
+            PendingOption {
+                id: "choose:luoshen".into(),
+                label: "洛神：判定（黑色则获得并继续）".into(),
+            },
+            PendingOption {
+                id: "pass".into(),
+                label: "结束洛神".into(),
+            },
+        ],
+        data: json!({ "skill": "luoshen" }),
+    });
+    replace_top(st, Frame::Luoshen(f));
+    Ok(true)
+}
+
+pub(crate) fn act_luoshen(st: &mut SgsState, action: &str) -> Result<String, EngineError> {
+    let f = match top(st).cloned() {
+        Some(Frame::Luoshen(f)) => f,
+        _ => return Err(internal("栈顶不是洛神帧")),
+    };
+    if action != "choose:luoshen" {
+        pop(st);
+        return Ok("结束洛神".to_string());
+    }
+    // 洛神判定走通用 judge_before（可被鬼才改判）。
+    pop(st);
+    crate::resolve::push(
+        st,
+        crate::resolve::Frame::QuickJudge(crate::resolve::QuickJudgeFrame {
+            owner: f.actor,
+            reason: "luoshen".into(),
+            stage: crate::resolve::QuickJudgeStage::Reveal,
+            judge_card: None,
+            rewrite_order: Vec::new(),
+            rewrite_cursor: 0,
+            data: json!({}),
+            saved_outcome: None,
+        }),
+    );
+    Ok("洛神：判定中".to_string())
+}
+
+pub(crate) fn step_fanjian(st: &mut SgsState, f: FanjianFrame) -> Result<bool, EngineError> {
+    match f.stage {
+        FanjianStage::Target => {
+            let options: Vec<PendingOption> = st
+                .alive_indices()
+                .into_iter()
+                .filter(|i| *i != f.actor)
+                .map(|i| PendingOption {
+                    id: format!("target:{}", st.seats[i].player_id),
+                    label: format!("令 {} 选择花色", st.seats[i].general_name),
+                })
+                .collect();
+            if options.is_empty() {
+                pop(st);
+                return Ok(false);
+            }
+            st.pending = Some(Pending {
+                kind: "target".into(),
+                actor: st.seats[f.actor].player_id.clone(),
+                skill: Some("fanjian".into()),
+                options,
+                data: json!({ "purpose": "fanjian", "stage": "target" }),
+            });
+            replace_top(st, Frame::Fanjian(f));
+            Ok(true)
+        }
+        FanjianStage::Suit => {
+            let Some(target) = f.target else {
+                return Err(internal("反间缺少目标"));
+            };
+            let suits = [
+                ("spade", "黑桃"),
+                ("heart", "红桃"),
+                ("club", "梅花"),
+                ("diamond", "方块"),
+            ];
+            let options = suits
+                .iter()
+                .map(|(code, name)| PendingOption {
+                    id: format!("choose:suit:{code}"),
+                    label: format!("选择{name}"),
+                })
+                .collect();
+            st.pending = Some(Pending {
+                kind: "choice".into(),
+                actor: st.seats[target].player_id.clone(),
+                skill: Some("fanjian".into()),
+                options,
+                data: json!({ "skill": "fanjian", "stage": "suit", "target": st.seats[target].player_id }),
+            });
+            replace_top(st, Frame::Fanjian(f));
+            Ok(true)
+        }
+    }
+}
+
+pub(crate) fn fanjian_target(
+    st: &mut SgsState,
+    pending: &Pending,
+    action: &str,
+) -> Result<String, EngineError> {
+    let f = match top(st).cloned() {
+        Some(Frame::Fanjian(f)) => f,
+        _ => return Err(internal("栈顶不是反间帧")),
+    };
+    let pid = action
+        .strip_prefix("target:")
+        .ok_or_else(|| illegal("需要选择目标"))?;
+    if !pending
+        .options
+        .iter()
+        .any(|o| o.id == format!("target:{pid}"))
+    {
+        return Err(illegal("目标不合法"));
+    }
+    let target = st.seat_index(pid).ok_or_else(|| illegal("目标不在座"))?;
+    replace_top(
+        st,
+        Frame::Fanjian(FanjianFrame {
+            stage: FanjianStage::Suit,
+            target: Some(target),
+            ..f
+        }),
+    );
+    Ok(format!("{} 请选择花色", st.seats[target].general_name))
+}
+
+pub(crate) fn act_fanjian(st: &mut SgsState, action: &str) -> Result<String, EngineError> {
+    let f = match top(st).cloned() {
+        Some(Frame::Fanjian(f)) => f,
+        _ => return Err(internal("栈顶不是反间帧")),
+    };
+    let (target, suit_code) = match f.stage {
+        FanjianStage::Suit => {
+            let target = f.target.ok_or_else(|| internal("反间缺少目标"))?;
+            let code = action
+                .strip_prefix("choose:suit:")
+                .ok_or_else(|| illegal("需要选择花色"))?;
+            (target, code.to_string())
+        }
+        FanjianStage::Target => return Err(illegal("尚未选择反间目标")),
+    };
+    let suit_name = match suit_code.as_str() {
+        "spade" => "黑桃",
+        "heart" => "红桃",
+        "club" => "梅花",
+        "diamond" => "方块",
+        _ => return Err(illegal("非法花色")),
+    };
+    if st.seats[f.actor].hand.is_empty() {
+        return Err(internal("反间者没有手牌"));
+    }
+    let n = st.seats[f.actor].hand.len();
+    let idx = st.next_index(n);
+    let card = st.seats[f.actor].hand.remove(idx);
+    let inst = st.cards.get(&card).cloned();
+    let Some(inst) = inst else {
+        return Err(internal("反间牌缺少实例"));
+    };
+    let label = turn::card_label(st, &card);
+    st.seats[target].hand.push(card.clone());
+    let over = st.seats[target]
+        .hand
+        .len()
+        .saturating_sub(st.config.max_hand_cards as usize);
+    if over > 0 {
+        crate::resolve::push_discard(st, target, over, "hand_cap");
+    }
+    let actual_name = match inst.suit {
+        Suit::Spade => "黑桃",
+        Suit::Heart => "红桃",
+        Suit::Club => "梅花",
+        Suit::Diamond => "方块",
+    };
+    let match_suit = actual_name == suit_name;
+    st.set_counter("fanjian_used", 1);
+    let actor_pid = st.seats[f.actor].player_id.clone();
+    let target_name = st.seats[target].general_name.clone();
+    pop(st);
+    if match_suit {
+        st.push_log(
+            Some(&actor_pid),
+            format!("反间：{target_name} 选择{suit_name}并获得【{label}】，花色相同，未造成伤害"),
+        );
+        Ok("反间：花色相同，未造成伤害".to_string())
+    } else {
+        st.push_log(
+            Some(&actor_pid),
+            format!(
+                "反间：{target_name} 选择{suit_name}并获得【{label}】，花色不同，受到 1 点伤害"
+            ),
+        );
+        crate::resolve::apply_damage(
+            st,
+            target,
+            1,
+            Some(f.actor),
+            crate::resolve::DamageType::Normal,
+            None,
+        );
+        Ok("反间：目标受到 1 点伤害".to_string())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 青囊 / 结姻 / 遗计（P4.1-C2：主动技与伤害后分配）
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct QingnangFrame {
+    pub actor: usize,
+    pub selected: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct JieyinFrame {
+    pub actor: usize,
+    pub selected: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct YijiFrame {
+    pub actor: usize,
+    /// 待分配的牌（仍在 actor 手牌中，分配时移出）。
+    pub cards: Vec<String>,
+}
+
+pub(crate) fn step_qingnang(st: &mut SgsState, f: QingnangFrame) -> Result<bool, EngineError> {
+    let options: Vec<PendingOption> = st
+        .alive_indices()
+        .into_iter()
+        .filter(|i| st.seats[*i].hp < st.seats[*i].max_hp)
+        .map(|i| PendingOption {
+            id: format!("target:{}", st.seats[i].player_id),
+            label: format!("令 {} 回复 1 点体力", st.seats[i].general_name),
+        })
+        .collect();
+    if options.is_empty() {
+        pop(st);
+        return Ok(false);
+    }
+    st.pending = Some(Pending {
+        kind: "target".into(),
+        actor: st.seats[f.actor].player_id.clone(),
+        skill: Some("qingnang".into()),
+        options,
+        data: json!({ "purpose": "qingnang", "selected": f.selected }),
+    });
+    replace_top(st, Frame::Qingnang(f));
+    Ok(true)
+}
+
+pub(crate) fn qingnang_target(
+    st: &mut SgsState,
+    pending: &Pending,
+    action: &str,
+) -> Result<String, EngineError> {
+    let f = match top(st).cloned() {
+        Some(Frame::Qingnang(f)) => f,
+        _ => return Err(internal("栈顶不是青囊帧")),
+    };
+    let pid = action
+        .strip_prefix("target:")
+        .ok_or_else(|| illegal("需要选择目标"))?;
+    if !pending
+        .options
+        .iter()
+        .any(|o| o.id == format!("target:{pid}"))
+    {
+        return Err(illegal("目标不合法"));
+    }
+    let target = st.seat_index(pid).ok_or_else(|| illegal("目标不在座"))?;
+    let card = f
+        .selected
+        .first()
+        .cloned()
+        .ok_or_else(|| internal("青囊缺少弃置牌"))?;
+    turn::take_card(st, f.actor, &card)?;
+    turn::to_discard_card(st, &card);
+    st.seats[target].hp += 1;
+    st.set_counter("qingnang_used", 1);
+    let label = turn::card_label(st, &card);
+    let hp = st.seats[target].hp;
+    let target_name = st.seats[target].general_name.clone();
+    st.push_log(
+        Some(&st.seats[f.actor].player_id.clone()),
+        format!("青囊：弃置【{label}】，令 {target_name} 回复 1 点体力（{hp}）"),
+    );
+    pop(st);
+    Ok(format!("{target_name} 回复 1 点体力"))
+}
+
+pub(crate) fn step_jieyin(st: &mut SgsState, f: JieyinFrame) -> Result<bool, EngineError> {
+    let options: Vec<PendingOption> = st
+        .alive_indices()
+        .into_iter()
+        .filter(|i| {
+            *i != f.actor && crate::skills::is_male(st, *i) && st.seats[*i].hp < st.seats[*i].max_hp
+        })
+        .map(|i| PendingOption {
+            id: format!("target:{}", st.seats[i].player_id),
+            label: format!("与 {} 结姻", st.seats[i].general_name),
+        })
+        .collect();
+    if options.is_empty() {
+        pop(st);
+        return Ok(false);
+    }
+    st.pending = Some(Pending {
+        kind: "target".into(),
+        actor: st.seats[f.actor].player_id.clone(),
+        skill: Some("jieyin".into()),
+        options,
+        data: json!({ "purpose": "jieyin", "selected": f.selected }),
+    });
+    replace_top(st, Frame::Jieyin(f));
+    Ok(true)
+}
+
+pub(crate) fn jieyin_target(
+    st: &mut SgsState,
+    pending: &Pending,
+    action: &str,
+) -> Result<String, EngineError> {
+    let f = match top(st).cloned() {
+        Some(Frame::Jieyin(f)) => f,
+        _ => return Err(internal("栈顶不是结姻帧")),
+    };
+    let pid = action
+        .strip_prefix("target:")
+        .ok_or_else(|| illegal("需要选择目标"))?;
+    if !pending
+        .options
+        .iter()
+        .any(|o| o.id == format!("target:{pid}"))
+    {
+        return Err(illegal("目标不合法"));
+    }
+    let target = st.seat_index(pid).ok_or_else(|| illegal("目标不在座"))?;
+    for id in &f.selected {
+        turn::take_card(st, f.actor, id)?;
+        turn::to_discard_card(st, id);
+    }
+    st.seats[target].hp += 1;
+    let mut self_heal = false;
+    if st.seats[f.actor].hp < st.seats[f.actor].max_hp {
+        st.seats[f.actor].hp += 1;
+        self_heal = true;
+    }
+    st.set_counter("jieyin_used", 1);
+    let actor_name = st.seats[f.actor].general_name.clone();
+    let target_name = st.seats[target].general_name.clone();
+    st.push_log(
+        Some(&st.seats[f.actor].player_id.clone()),
+        format!(
+            "结姻：{actor_name} 与 {target_name} 各回复 1 点体力{}",
+            if self_heal { "" } else { "（自己已满）" }
+        ),
+    );
+    pop(st);
+    Ok(format!("与 {target_name} 结姻"))
+}
+
+pub(crate) fn step_yiji(st: &mut SgsState, f: YijiFrame) -> Result<bool, EngineError> {
+    let Some(card) = f.cards.first().cloned() else {
+        pop(st);
+        return Ok(false);
+    };
+    let label = turn::card_label(st, &card);
+    let options: Vec<PendingOption> = st
+        .alive_indices()
+        .into_iter()
+        .map(|i| PendingOption {
+            id: format!("target:{}", st.seats[i].player_id),
+            label: if i == f.actor {
+                format!("将【{label}】留给自己")
+            } else {
+                format!("将【{label}】交给 {}", st.seats[i].general_name)
+            },
+        })
+        .collect();
+    st.pending = Some(Pending {
+        kind: "target".into(),
+        actor: st.seats[f.actor].player_id.clone(),
+        skill: Some("yiji".into()),
+        options,
+        data: json!({ "purpose": "yiji", "card": card, "remaining": f.cards.len() }),
+    });
+    replace_top(st, Frame::Yiji(f));
+    Ok(true)
+}
+
+pub(crate) fn yiji_target(
+    st: &mut SgsState,
+    pending: &Pending,
+    action: &str,
+) -> Result<String, EngineError> {
+    let mut f = match top(st).cloned() {
+        Some(Frame::Yiji(f)) => f,
+        _ => return Err(internal("栈顶不是遗计帧")),
+    };
+    let pid = action
+        .strip_prefix("target:")
+        .ok_or_else(|| illegal("需要选择目标"))?;
+    if !pending
+        .options
+        .iter()
+        .any(|o| o.id == format!("target:{pid}"))
+    {
+        return Err(illegal("目标不合法"));
+    }
+    let target = st.seat_index(pid).ok_or_else(|| illegal("目标不在座"))?;
+    let card = f.cards.remove(0);
+    let label = turn::card_label(st, &card);
+    if target != f.actor {
+        turn::take_card(st, f.actor, &card)?;
+        st.seats[target].hand.push(card.clone());
+        let over = st.seats[target]
+            .hand
+            .len()
+            .saturating_sub(st.config.max_hand_cards as usize);
+        if over > 0 {
+            crate::resolve::push_discard(st, target, over, "hand_cap");
+        }
+        let target_name = st.seats[target].general_name.clone();
+        st.push_log(
+            Some(&st.seats[f.actor].player_id.clone()),
+            format!("遗计：将【{label}】交给 {target_name}"),
+        );
+    }
+    if f.cards.is_empty() {
+        // 分配结束后检查持有上限。
+        let over = st.seats[f.actor]
+            .hand
+            .len()
+            .saturating_sub(st.config.max_hand_cards as usize);
+        if over > 0 {
+            crate::resolve::push_discard(st, f.actor, over, "hand_cap");
+        }
+        pop(st);
+        Ok("遗计分配完毕".to_string())
+    } else {
+        replace_top(st, Frame::Yiji(f));
+        Ok("继续分配遗计牌".to_string())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 裸衣（P4.1：摸牌阶段可选）
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct LuoyiFrame {
+    pub actor: usize,
+}
+
+pub(crate) fn step_luoyi(st: &mut SgsState, f: LuoyiFrame) -> Result<bool, EngineError> {
+    st.pending = Some(Pending {
+        kind: "choice".into(),
+        actor: st.seats[f.actor].player_id.clone(),
+        skill: Some("luoyi".into()),
+        options: vec![
+            PendingOption {
+                id: "choose:luoyi".into(),
+                label: "发动裸衣：本回合少摸 1 张牌，使用【杀】/【决斗】造成的伤害 +1".into(),
+            },
+            PendingOption {
+                id: "pass".into(),
+                label: "不发动裸衣（正常摸 2 张）".into(),
+            },
+        ],
+        data: json!({ "skill": "luoyi" }),
+    });
+    replace_top(st, Frame::Luoyi(f));
+    Ok(true)
+}
+
+pub(crate) fn act_luoyi(st: &mut SgsState, action: &str) -> Result<String, EngineError> {
+    if action == "choose:luoyi" {
+        st.set_counter("luoyi", 1);
+        pop(st);
+        return Ok("发动裸衣：本回合【杀】/【决斗】伤害 +1".to_string());
+    }
+    st.set_counter("luoyi", 0);
+    pop(st);
+    Ok("不发动裸衣，正常摸牌".to_string())
 }
 
 // ---------------------------------------------------------------------------
@@ -500,6 +1288,8 @@ pub(crate) fn tuxi_target(
     let n = st.seats[target].hand.len();
     let idx = st.next_index(n);
     let card = st.seats[target].hand.remove(idx);
+    // 连营：失去最后的手牌后摸 1 张。
+    crate::skills::lianying_on_lose_last(st, target);
     st.seats[f.actor].hand.push(card.clone());
     f.targets.push(target);
     st.push_log(
@@ -658,6 +1448,106 @@ pub(crate) fn multiselect_confirm(
             );
             Some(Ok("请选择交给谁".to_string()))
         }
+        "cixiong" => {
+            if f.selected.len() != 1 {
+                return Some(Err(illegal("雌雄双股剑需弃置 1 张手牌")));
+            }
+            let id = f.selected[0].clone();
+            if turn::take_card(st, f.actor, &id).is_err() {
+                return Some(Err(illegal("手牌中没有该牌")));
+            }
+            turn::to_discard_card(st, &id);
+            let pid = st.seats[f.actor].player_id.clone();
+            let label = turn::card_label(st, &id);
+            st.push_log(Some(&pid), format!("雌雄双股剑：弃置【{label}】"));
+            let user = f.data["user"].as_u64().unwrap_or(0) as usize;
+            let target = f.data["target"].as_u64().unwrap_or(0) as usize;
+            let card = f.data["card"].as_str().unwrap_or_default().to_string();
+            let need = f.data["need"].as_u64().unwrap_or(1) as u32;
+            let no_shan = f.data["no_shan"].as_bool().unwrap_or(false);
+            let ignore_armor = f.data["ignore_armor"].as_bool().unwrap_or(false);
+            pop(st);
+            crate::resolve_skill::push_sha_respond(
+                st,
+                user,
+                target,
+                &card,
+                need,
+                no_shan,
+                ignore_armor,
+            );
+            Some(Ok("雌雄双股剑：目标已弃置一张手牌".to_string()))
+        }
+        "guanshi" => {
+            if f.selected.len() != 2 {
+                return Some(Err(illegal("贯石斧需弃置 2 张手牌")));
+            }
+            for id in &f.selected {
+                if turn::take_card(st, f.actor, id).is_err() {
+                    return Some(Err(illegal("手牌中没有该牌")));
+                }
+                turn::to_discard_card(st, id);
+            }
+            let target = f.data["target"].as_u64().unwrap_or(0) as usize;
+            let card = f.data["card"].as_str().unwrap_or_default().to_string();
+            let source = f.actor;
+            let pid = st.seats[source].player_id.clone();
+            st.push_log(
+                Some(&pid),
+                "贯石斧：弃置 2 张手牌，【杀】依然造成伤害".to_string(),
+            );
+            crate::resolve::apply_damage(
+                st,
+                target,
+                1,
+                Some(source),
+                crate::resolve::DamageType::Normal,
+                Some(&card),
+            );
+            pop(st);
+            Some(Ok("贯石斧：目标受到 1 点伤害".to_string()))
+        }
+        "ganglie" => {
+            if f.selected.len() != 2 {
+                return Some(Err(illegal("刚烈需弃置 2 张手牌")));
+            }
+            for id in &f.selected {
+                if turn::take_card(st, f.actor, id).is_err() {
+                    return Some(Err(illegal("手牌中没有该牌")));
+                }
+                turn::to_discard_card(st, id);
+            }
+            let pid = st.seats[f.actor].player_id.clone();
+            st.push_log(Some(&pid), "刚烈：弃置两张手牌".to_string());
+            pop(st);
+            Some(Ok("刚烈：已弃置 2 张手牌".to_string()))
+        }
+        "qingnang" => {
+            if f.selected.len() != 1 {
+                return Some(Err(illegal("青囊需弃置 1 张手牌")));
+            }
+            replace_top(
+                st,
+                Frame::Qingnang(QingnangFrame {
+                    actor: f.actor,
+                    selected: f.selected.clone(),
+                }),
+            );
+            Some(Ok("请选择回复目标".to_string()))
+        }
+        "jieyin" => {
+            if f.selected.len() != 2 {
+                return Some(Err(illegal("结姻需弃置 2 张手牌")));
+            }
+            replace_top(
+                st,
+                Frame::Jieyin(JieyinFrame {
+                    actor: f.actor,
+                    selected: f.selected.clone(),
+                }),
+            );
+            Some(Ok("请选择结姻对象".to_string()))
+        }
         "lijian" => {
             if f.selected.len() != 1 {
                 return Some(Err(illegal("离间需弃置 1 张牌")));
@@ -687,6 +1577,11 @@ pub(crate) fn target_action(
         Some(Frame::Rende(_)) => rende_target(st, pending, action).map(Some),
         Some(Frame::Lijian(_)) => lijian_target(st, pending, action).map(Some),
         Some(Frame::Tuxi(_)) => tuxi_target(st, pending, action).map(Some),
+        Some(Frame::Qingnang(_)) => qingnang_target(st, pending, action).map(Some),
+        Some(Frame::Jieyin(_)) => jieyin_target(st, pending, action).map(Some),
+        Some(Frame::Yiji(_)) => yiji_target(st, pending, action).map(Some),
+        Some(Frame::Fanjian(_)) => fanjian_target(st, pending, action).map(Some),
+        Some(Frame::Liuli(_)) => liuli_target(st, pending, action).map(Some),
         _ => Ok(None),
     }
 }
