@@ -10,7 +10,7 @@
 // 口径（P4.0）：
 // - 牌：cards.json 的 `deck === "standard"`（108 张）+ `deck === "junzheng"`（52 张），
 //   定义码用下方 DEF_CODE 映射；物理牌带 `pack` 字段，引擎按 `Config.packs` 组堆；
-// - 武将：heroes.json 按 `pack` 分组生成；默认只生成标准包 25 将（gid 1..=25），
+// - 武将：heroes.json 按 `pack` 分组生成；默认生成标准包 25 将 + 风林火山 48 将（gid 表见 GENERAL_PACKS），
 //   `GeneralDef.pack` 为武将包 code；新增包需同时在 GENERAL_PACKS 登记（含性别表）；
 // - 「主公将」由技能 `type_guess === "lord"` 推出（官网无该字段）。
 // - 输出确定性：同样的输入必然产出逐字节相同的文件。
@@ -39,9 +39,23 @@ const GENERAL_PACKS = [
     gids: Array.from({ length: 25 }, (_, i) => i + 1),
     femaleGids: new Set([7, 13, 21, 24, 25]),
   },
+  {
+    key: "wind_fire_forest_mountain",
+    label: "风林火山",
+    staticName: "WIND_FIRE_FOREST_MOUNTAIN_GENERALS",
+    countConst: "WIND_FIRE_FOREST_MOUNTAIN_GENERAL_COUNT",
+    // 官网 `风林火山` 标签下的全部 48 位（核心风火林山 32 + 后续/SP 16）；
+    // 技能按批次实现，未实现武将不进选将池（`skills::general_ready`）。
+    gids: [
+      27, 28, 29, 30, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48,
+      49, 50, 51, 52, 53, 54, 55, 56, 57, 61, 100, 210, 211, 212, 362, 400, 401,
+      402, 403, 404, 406, 407, 408, 409, 410, 411, 413, 414, 415,
+    ],
+    femaleGids: new Set([30, 46, 57, 411]),
+  },
 ];
 
-const DEFAULT_GENERAL_PACKS = ["standard"];
+const DEFAULT_GENERAL_PACKS = ["standard", "wind_fire_forest_mountain"];
 
 const DEF_CODE = {
   // 标准包
@@ -132,10 +146,13 @@ function parseArgs(argv) {
         console.error("--general-packs 不能为空");
         process.exit(1);
       }
+      if (opts.generalPacks.length === 1 && opts.generalPacks[0] === "all") {
+        opts.generalPacks = GENERAL_PACKS.map((p) => p.key);
+      }
     } else if (argv[i] === "--check") opts.check = true;
     else if (argv[i] === "--help" || argv[i] === "-h") {
       console.log(
-        "用法：node apps/scripts/gen-sanguosha-engine-data.mjs [--cards cards.json] [--heroes heroes.json] [--out data.rs] [--general-packs standard] [--check]",
+        "用法：node apps/scripts/gen-sanguosha-engine-data.mjs [--cards cards.json] [--heroes heroes.json] [--out data.rs] [--general-packs standard|all] [--check]",
       );
       process.exit(0);
     } else {
@@ -257,9 +274,9 @@ function buildGenerals(payload, packKeys) {
   const built = [];
   for (const pack of resolveGeneralPacks(packKeys)) {
     if (!pack.femaleGids) throw new Error(`武将包 ${pack.key} 缺少性别表（femaleGids）`);
-    const heroes = all.filter(
-      (h) => h.pack === pack.label && (pack.gids === null || pack.gids.includes(h.gid)),
-    );
+    const heroes = all
+      .filter((h) => h.pack === pack.label && (pack.gids === null || pack.gids.includes(h.gid)))
+      .sort((a, b) => a.gid - b.gid);
     if (pack.gids) {
       for (const gid of pack.gids) {
         if (!heroes.some((h) => h.gid === gid)) {
@@ -314,6 +331,7 @@ function render({ defs, decks, defRows, total, generals, generalTotal }) {
   lines.push(`/// 全部牌堆包合计（standard + junzheng = 160）。`);
   lines.push(`pub const FULL_DECK_SIZE: usize = ${total};`);
   for (const pack of generals) {
+    if (pack.key !== "standard") lines.push("#[allow(dead_code)]");
     lines.push(`pub const ${pack.countConst}: usize = ${pack.picked.length};`);
   }
   lines.push(`/// 已生成的全部武将数（所有包合计）。`);
@@ -377,8 +395,7 @@ function render({ defs, decks, defRows, total, generals, generalTotal }) {
   lines.push("    pub code: &'static str,");
   lines.push("    pub gid: u32,");
   lines.push("    pub name: &'static str,");
-  lines.push("    /// 武将包 code（`standard`；P4.4 包开关过滤时消费）。");
-  lines.push("    #[allow(dead_code)]");
+  lines.push("    /// 武将包 code（`standard` / `wind_fire_forest_mountain`；选将池按 `Config.general_packs` 过滤）。");
   lines.push("    pub pack: &'static str,");
   lines.push("    pub kingdom: &'static str,");
   lines.push("    pub max_hp: i32,");
@@ -405,6 +422,11 @@ function render({ defs, decks, defRows, total, generals, generalTotal }) {
     lines.push(`    ${pack.staticName},`);
   }
   lines.push("];");
+  lines.push("");
+  lines.push("/// 支持的武将包 key（顺序即选将池包顺序，用于 `Config.general_packs` 归一化）。");
+  lines.push(
+    `pub static GENERAL_PACK_KEYS: &[&str] = &[${generals.map((p) => rustStr(p.key)).join(", ")}];`,
+  );
   lines.push("");
   lines.push("/// 按 `Config.packs` 组合牌堆（顺序固定：standard → junzheng）。");
   lines.push("///");
@@ -442,11 +464,22 @@ function render({ defs, decks, defRows, total, generals, generalTotal }) {
   lines.push("        .find(|g| g.code == code)");
   lines.push("}");
   lines.push("");
-  lines.push("/// 全部武将码（按包顺序 + gid 升序），用于选将池。");
+  lines.push("/// 全部武将码（按包顺序 + gid 升序；调试/断言用）。");
+  lines.push("#[allow(dead_code)]");
   lines.push("pub fn all_general_codes() -> Vec<&'static str> {");
   lines.push("    GENERAL_PACKS");
   lines.push("        .iter()");
   lines.push("        .flat_map(|p| p.iter())");
+  lines.push("        .map(|g| g.code)");
+  lines.push("        .collect()");
+  lines.push("}");
+  lines.push("");
+  lines.push("/// 指定武将包组合内的武将码（按包顺序 + gid 升序）；未启用的包不参与。");
+  lines.push("pub fn general_codes_in_packs(packs: &[String]) -> Vec<&'static str> {");
+  lines.push("    GENERAL_PACKS");
+  lines.push("        .iter()");
+  lines.push("        .flat_map(|p| p.iter())");
+  lines.push("        .filter(|g| packs.iter().any(|p| p == g.pack))");
   lines.push("        .map(|g| g.code)");
   lines.push("        .collect()");
   lines.push("}");
@@ -469,6 +502,9 @@ async function main() {
   const deckSummary = built.decks
     .map((d) => `${d.label} ${d.physical.length}`)
     .join(" + ");
+  const generalSummary = gens.built
+    .map((p) => `${p.label} ${p.picked.length}`)
+    .join(" + ");
 
   if (opts.check) {
     let current = "";
@@ -483,7 +519,7 @@ async function main() {
       process.exit(1);
     }
     console.log(
-      `[check] OK：${built.total} 张牌（${deckSummary}）/ ${gens.total} 位武将，${opts.out} 已是最新`,
+      `[check] OK：${built.total} 张牌（${deckSummary}）/ ${gens.total} 位武将（${generalSummary}），${opts.out} 已是最新`,
     );
     return;
   }
@@ -491,7 +527,7 @@ async function main() {
   await mkdir(dirname(opts.out), { recursive: true });
   await writeFile(opts.out, text, "utf8");
   console.log(
-    `[gen] ${built.defs.size} 个牌定义 / ${built.total} 张物理牌（${deckSummary}）/ ${gens.total} 位武将 → ${opts.out}`,
+    `[gen] ${built.defs.size} 个牌定义 / ${built.total} 张物理牌（${deckSummary}）/ ${gens.total} 位武将（${generalSummary}）→ ${opts.out}`,
   );
 }
 

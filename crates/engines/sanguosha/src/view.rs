@@ -57,6 +57,21 @@ fn pending_view(p: &Pending) -> Value {
     })
 }
 
+/// 武将牌上的标记（按标记 code → 牌列表；公共信息）。
+fn marks_view(st: &SgsState, seat: &Seat) -> Value {
+    let mut out = Map::new();
+    for (code, ids) in &seat.marks {
+        if ids.is_empty() {
+            continue;
+        }
+        out.insert(
+            code.clone(),
+            json!(ids.iter().map(|id| card_view(st, id)).collect::<Vec<_>>()),
+        );
+    }
+    Value::Object(out)
+}
+
 /// 公共局面区。
 pub fn public_board(st: &SgsState) -> Value {
     // 选将期间不公开其他玩家已选武将（选将完成后统一亮明）。
@@ -84,6 +99,8 @@ pub fn public_board(st: &SgsState) -> Value {
                 "hand_count": s.hand.len(),
                 "equips": equips_view(st, s),
                 "judge_zone": s.judge_zone.iter().map(|id| card_view(st, id)).collect::<Vec<_>>(),
+                "marks": marks_view(st, s),
+                "flipped": s.flipped,
                 "alive": s.alive,
                 "is_bot": s.is_bot,
                 "has_picked": st.setup.picks.contains_key(&s.player_id),
@@ -233,6 +250,8 @@ pub fn player_area(st: &SgsState, viewer: &str) -> Option<Value> {
         "hand": s.hand.iter().map(|id| card_view(st, id)).collect::<Vec<_>>(),
         "equips": equips_view(st, s),
         "judge_zone": s.judge_zone.iter().map(|id| card_view(st, id)).collect::<Vec<_>>(),
+        "marks": marks_view(st, s),
+        "flipped": s.flipped,
         "skills": skills,
         "equipment_skills": equipment_skills_view(st, idx),
         "is_bot": s.is_bot,

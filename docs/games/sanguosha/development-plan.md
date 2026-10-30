@@ -495,6 +495,22 @@
 
 **已知口径**：包开关是一局一个组合（与牌堆 `Config.packs` 同思路）；中台 live/元数据只读 API 仍留 P5；军争/标准装备不再改动。
 
+**P4.4.0 实施记录（2026-10-30，已完成）**：
+- 生成脚本 `GENERAL_PACKS` 登记 `wind_fire_forest_mountain`（48 位，官网标签全量），默认生成 standard + 风林火山 = **73 将**；`data.rs` 新增 `WIND_FIRE_FOREST_MOUNTAIN_GENERALS`、`GENERAL_PACK_KEYS`、`general_codes_in_packs()`。
+- `Config.general_packs`（默认 `["standard"]`，旧快照 serde 兼容）+ `parse_general_packs` + `general_packs_mode`；选将池按包过滤（`offer_to_lord`/`distribute_offers_to_others`），未实现武将不进池（`skills::general_ready`）。
+- lobby 新增 `lobby:set_general_packs:standard|standard+wind_fire_forest_mountain`（描述带当前可用武将数）；开局后不可改。
+- `check:sgs-skill-cases` 改为解析 `skills.rs`，只对「注册齐全且全部 implemented」的武将要求 ≥3 用例；新增契约测试 `general_skill_registry_matches_generated_data`。
+- 用例：`tests/p67.rs` 5 条；`cargo test -p sanguosha` 全绿；`check:sgs-engine-data` / MCP 冒烟（含包开关）通过。
+
+**P4.4.1 风包 8 将（已完成 2026-10-30）**：
+- 机制：`Seat.marks`（不屈「创」，牌数守恒覆盖标记区）、`Seat.flipped`（翻面跳过回合/翻回）、`apply_damage` 天香窗口（`apply_damage_now` 绕过）、`Frame::Guhuo` 蛊惑质疑、`ShaFrame.no_distance/virtual_card`（神速虚拟杀）、鬼道扩展改判窗口。
+- 技能：魏延（狂骨/奇谋）、夏侯渊（神速）、曹仁（据守/解围）、小乔（红颜/天香）、黄忠（烈弓）、周泰（不屈/奋激）、于吉（蛊惑 + 缠怨）、张角（鬼道/黄天/雷击）。
+- 视图：公共/个人区下发 `marks`、`flipped`；`view_contract` 期望集同步；Web 座位/个人区展示翻面与标记。
+- 用例：`tests/p68.rs` 21 条、`tests/p69.rs` 5 条；`cargo test -p sanguosha` **242** 全绿；`check:sgs-*` 全套 + `test:web` + MCP 冒烟通过。
+- 已知边界（ADR-0023 §3）：鬼道/鬼才仅手牌、解围移动只能到自己区域、奋激触发点有限、神速②仅手牌装备、不屈无牌可翻时不发动。
+
+**P4.4 下一步（后续会话）**：P4.4.1-火（典韦/荀彧/庞统/卧龙/太史慈/庞德/颜良文丑/袁绍，需拼点/视为装备/多目标杀）→ 林 → 山 → 16 位后续/SP；P4.4.2 一将成名/界限突破先落 ADR-0024（同名替换口径）。
+
 ### P5 武将流程设计工作台 + 预览（L）
 
 **目标**：用有向图设计武将回合内/外流程，并在 Web 预览页跑通一轮 5 人局。

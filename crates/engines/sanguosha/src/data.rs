@@ -11,8 +11,10 @@ pub const JUNZHENG_DECK_SIZE: usize = 52;
 /// 全部牌堆包合计（standard + junzheng = 160）。
 pub const FULL_DECK_SIZE: usize = 160;
 pub const STANDARD_GENERAL_COUNT: usize = 25;
+#[allow(dead_code)]
+pub const WIND_FIRE_FOREST_MOUNTAIN_GENERAL_COUNT: usize = 48;
 /// 已生成的全部武将数（所有包合计）。
-pub const GENERAL_COUNT: usize = 25;
+pub const GENERAL_COUNT: usize = 73;
 
 /// 支持的牌堆包（顺序即建堆顺序）。
 pub static DECK_PACKS: &[&str] = &["standard", "junzheng"];
@@ -273,8 +275,7 @@ pub struct GeneralDef {
     pub code: &'static str,
     pub gid: u32,
     pub name: &'static str,
-    /// 武将包 code（`standard`；P4.4 包开关过滤时消费）。
-    #[allow(dead_code)]
+    /// 武将包 code（`standard` / `wind_fire_forest_mountain`；选将池按 `Config.general_packs` 过滤）。
     pub pack: &'static str,
     pub kingdom: &'static str,
     pub max_hp: i32,
@@ -316,11 +317,68 @@ pub static STANDARD_GENERALS: &[GeneralDef] = &[
     GeneralDef { code: "sgs_hero_25", gid: 25, name: "孙尚香", pack: "standard", kingdom: "wu", max_hp: 3, gender: "female", is_lord: false, skills: &["枭姬", "结姻"],},
 ];
 
+/// 风林火山包武将（48 位）。
+#[rustfmt::skip]
+pub static WIND_FIRE_FOREST_MOUNTAIN_GENERALS: &[GeneralDef] = &[
+    GeneralDef { code: "sgs_hero_27", gid: 27, name: "魏延", pack: "wind_fire_forest_mountain", kingdom: "shu", max_hp: 4, gender: "male", is_lord: false, skills: &["狂骨", "奇谋"],},
+    GeneralDef { code: "sgs_hero_28", gid: 28, name: "夏侯渊", pack: "wind_fire_forest_mountain", kingdom: "wei", max_hp: 4, gender: "male", is_lord: false, skills: &["神速"],},
+    GeneralDef { code: "sgs_hero_29", gid: 29, name: "曹仁", pack: "wind_fire_forest_mountain", kingdom: "wei", max_hp: 4, gender: "male", is_lord: false, skills: &["据守", "解围"],},
+    GeneralDef { code: "sgs_hero_30", gid: 30, name: "小乔", pack: "wind_fire_forest_mountain", kingdom: "wu", max_hp: 3, gender: "female", is_lord: false, skills: &["红颜", "天香"],},
+    GeneralDef { code: "sgs_hero_34", gid: 34, name: "典韦", pack: "wind_fire_forest_mountain", kingdom: "wei", max_hp: 4, gender: "male", is_lord: false, skills: &["强袭"],},
+    GeneralDef { code: "sgs_hero_35", gid: 35, name: "荀彧", pack: "wind_fire_forest_mountain", kingdom: "wei", max_hp: 3, gender: "male", is_lord: false, skills: &["驱虎", "节命"],},
+    GeneralDef { code: "sgs_hero_36", gid: 36, name: "庞统", pack: "wind_fire_forest_mountain", kingdom: "shu", max_hp: 3, gender: "male", is_lord: false, skills: &["连环", "涅槃"],},
+    GeneralDef { code: "sgs_hero_37", gid: 37, name: "卧龙诸葛亮", pack: "wind_fire_forest_mountain", kingdom: "shu", max_hp: 3, gender: "male", is_lord: false, skills: &["八阵", "火计", "看破"],},
+    GeneralDef { code: "sgs_hero_38", gid: 38, name: "太史慈", pack: "wind_fire_forest_mountain", kingdom: "wu", max_hp: 4, gender: "male", is_lord: false, skills: &["天义"],},
+    GeneralDef { code: "sgs_hero_39", gid: 39, name: "庞德", pack: "wind_fire_forest_mountain", kingdom: "qun", max_hp: 4, gender: "male", is_lord: false, skills: &["马术", "鞬出"],},
+    GeneralDef { code: "sgs_hero_40", gid: 40, name: "颜良文丑", pack: "wind_fire_forest_mountain", kingdom: "qun", max_hp: 4, gender: "male", is_lord: false, skills: &["双雄"],},
+    GeneralDef { code: "sgs_hero_41", gid: 41, name: "袁绍", pack: "wind_fire_forest_mountain", kingdom: "qun", max_hp: 4, gender: "male", is_lord: true, skills: &["乱击", "血裔"],},
+    GeneralDef { code: "sgs_hero_42", gid: 42, name: "徐晃", pack: "wind_fire_forest_mountain", kingdom: "wei", max_hp: 4, gender: "male", is_lord: false, skills: &["断粮", "截辎"],},
+    GeneralDef { code: "sgs_hero_43", gid: 43, name: "曹丕", pack: "wind_fire_forest_mountain", kingdom: "wei", max_hp: 3, gender: "male", is_lord: true, skills: &["行殇", "放逐", "颂威"],},
+    GeneralDef { code: "sgs_hero_44", gid: 44, name: "孙坚", pack: "wind_fire_forest_mountain", kingdom: "wu", max_hp: 4, gender: "male", is_lord: false, skills: &["英魂"],},
+    GeneralDef { code: "sgs_hero_45", gid: 45, name: "董卓", pack: "wind_fire_forest_mountain", kingdom: "qun", max_hp: 8, gender: "male", is_lord: true, skills: &["酒池", "肉林", "崩坏", "暴虐"],},
+    GeneralDef { code: "sgs_hero_46", gid: 46, name: "祝融", pack: "wind_fire_forest_mountain", kingdom: "shu", max_hp: 4, gender: "female", is_lord: false, skills: &["巨象", "烈刃"],},
+    GeneralDef { code: "sgs_hero_47", gid: 47, name: "孟获", pack: "wind_fire_forest_mountain", kingdom: "shu", max_hp: 4, gender: "male", is_lord: false, skills: &["祸首", "再起"],},
+    GeneralDef { code: "sgs_hero_48", gid: 48, name: "贾诩", pack: "wind_fire_forest_mountain", kingdom: "qun", max_hp: 3, gender: "male", is_lord: false, skills: &["完杀", "乱武", "帷幕"],},
+    GeneralDef { code: "sgs_hero_49", gid: 49, name: "鲁肃", pack: "wind_fire_forest_mountain", kingdom: "wu", max_hp: 3, gender: "male", is_lord: false, skills: &["好施", "缔盟"],},
+    GeneralDef { code: "sgs_hero_50", gid: 50, name: "张郃", pack: "wind_fire_forest_mountain", kingdom: "wei", max_hp: 4, gender: "male", is_lord: false, skills: &["巧变"],},
+    GeneralDef { code: "sgs_hero_51", gid: 51, name: "邓艾", pack: "wind_fire_forest_mountain", kingdom: "wei", max_hp: 4, gender: "male", is_lord: false, skills: &["屯田", "凿险"],},
+    GeneralDef { code: "sgs_hero_52", gid: 52, name: "姜维", pack: "wind_fire_forest_mountain", kingdom: "shu", max_hp: 4, gender: "male", is_lord: false, skills: &["挑衅", "志继"],},
+    GeneralDef { code: "sgs_hero_53", gid: 53, name: "刘禅", pack: "wind_fire_forest_mountain", kingdom: "shu", max_hp: 3, gender: "male", is_lord: true, skills: &["享乐", "放权", "若愚"],},
+    GeneralDef { code: "sgs_hero_54", gid: 54, name: "孙策", pack: "wind_fire_forest_mountain", kingdom: "wu", max_hp: 4, gender: "male", is_lord: true, skills: &["激昂", "魂姿", "制霸"],},
+    GeneralDef { code: "sgs_hero_55", gid: 55, name: "张昭张弘", pack: "wind_fire_forest_mountain", kingdom: "wu", max_hp: 3, gender: "male", is_lord: false, skills: &["直谏", "固政"],},
+    GeneralDef { code: "sgs_hero_56", gid: 56, name: "左慈", pack: "wind_fire_forest_mountain", kingdom: "qun", max_hp: 3, gender: "male", is_lord: false, skills: &["化身", "新生"],},
+    GeneralDef { code: "sgs_hero_57", gid: 57, name: "蔡文姬", pack: "wind_fire_forest_mountain", kingdom: "qun", max_hp: 3, gender: "female", is_lord: false, skills: &["悲歌", "断肠"],},
+    GeneralDef { code: "sgs_hero_61", gid: 61, name: "黄忠", pack: "wind_fire_forest_mountain", kingdom: "shu", max_hp: 4, gender: "male", is_lord: false, skills: &["烈弓"],},
+    GeneralDef { code: "sgs_hero_100", gid: 100, name: "袁术", pack: "wind_fire_forest_mountain", kingdom: "qun", max_hp: 4, gender: "male", is_lord: false, skills: &["庸肆", "伪帝"],},
+    GeneralDef { code: "sgs_hero_210", gid: 210, name: "周泰", pack: "wind_fire_forest_mountain", kingdom: "wu", max_hp: 4, gender: "male", is_lord: false, skills: &["不屈", "奋激"],},
+    GeneralDef { code: "sgs_hero_211", gid: 211, name: "于吉", pack: "wind_fire_forest_mountain", kingdom: "qun", max_hp: 3, gender: "male", is_lord: false, skills: &["蛊惑"],},
+    GeneralDef { code: "sgs_hero_212", gid: 212, name: "张角", pack: "wind_fire_forest_mountain", kingdom: "qun", max_hp: 3, gender: "male", is_lord: true, skills: &["鬼道", "黄天", "雷击"],},
+    GeneralDef { code: "sgs_hero_362", gid: 362, name: "王基", pack: "wind_fire_forest_mountain", kingdom: "wei", max_hp: 3, gender: "male", is_lord: false, skills: &["奇制", "进趋"],},
+    GeneralDef { code: "sgs_hero_400", gid: 400, name: "严颜", pack: "wind_fire_forest_mountain", kingdom: "shu", max_hp: 4, gender: "male", is_lord: false, skills: &["拒战"],},
+    GeneralDef { code: "sgs_hero_401", gid: 401, name: "王平", pack: "wind_fire_forest_mountain", kingdom: "shu", max_hp: 4, gender: "male", is_lord: false, skills: &["飞军", "兵略"],},
+    GeneralDef { code: "sgs_hero_402", gid: 402, name: "陆绩", pack: "wind_fire_forest_mountain", kingdom: "wu", max_hp: 3, gender: "male", is_lord: false, skills: &["怀橘", "遗礼", "整论"],},
+    GeneralDef { code: "sgs_hero_403", gid: 403, name: "孙亮", pack: "wind_fire_forest_mountain", kingdom: "wu", max_hp: 3, gender: "male", is_lord: true, skills: &["溃诛", "掣政", "立军"],},
+    GeneralDef { code: "sgs_hero_404", gid: 404, name: "蒯越蒯良", pack: "wind_fire_forest_mountain", kingdom: "wei", max_hp: 3, gender: "male", is_lord: false, skills: &["荐降", "审时"],},
+    GeneralDef { code: "sgs_hero_406", gid: 406, name: "许攸", pack: "wind_fire_forest_mountain", kingdom: "qun", max_hp: 3, gender: "male", is_lord: false, skills: &["成略", "恃才", "寸目"],},
+    GeneralDef { code: "sgs_hero_407", gid: 407, name: "卢植", pack: "wind_fire_forest_mountain", kingdom: "qun", max_hp: 3, gender: "male", is_lord: false, skills: &["明任", "贞良"],},
+    GeneralDef { code: "sgs_hero_408", gid: 408, name: "郝昭", pack: "wind_fire_forest_mountain", kingdom: "wei", max_hp: 4, gender: "male", is_lord: false, skills: &["镇骨"],},
+    GeneralDef { code: "sgs_hero_409", gid: 409, name: "陈到", pack: "wind_fire_forest_mountain", kingdom: "shu", max_hp: 4, gender: "male", is_lord: false, skills: &["往烈"],},
+    GeneralDef { code: "sgs_hero_410", gid: 410, name: "诸葛瞻", pack: "wind_fire_forest_mountain", kingdom: "shu", max_hp: 3, gender: "male", is_lord: false, skills: &["罪论", "父荫"],},
+    GeneralDef { code: "sgs_hero_411", gid: 411, name: "周妃", pack: "wind_fire_forest_mountain", kingdom: "wu", max_hp: 3, gender: "female", is_lord: false, skills: &["良姻", "箜声"],},
+    GeneralDef { code: "sgs_hero_413", gid: 413, name: "毌丘俭", pack: "wind_fire_forest_mountain", kingdom: "wei", max_hp: 4, gender: "male", is_lord: false, skills: &["征荣", "鸿举"],},
+    GeneralDef { code: "sgs_hero_414", gid: 414, name: "陆抗", pack: "wind_fire_forest_mountain", kingdom: "wu", max_hp: 4, gender: "male", is_lord: false, skills: &["谦节", "决堰", "破势"],},
+    GeneralDef { code: "sgs_hero_415", gid: 415, name: "张绣", pack: "wind_fire_forest_mountain", kingdom: "qun", max_hp: 4, gender: "male", is_lord: false, skills: &["雄乱", "从谏"],},
+];
+
 /// 已生成的武将包（按包顺序拼接即选将池）。
 #[rustfmt::skip]
 pub static GENERAL_PACKS: &[&[GeneralDef]] = &[
     STANDARD_GENERALS,
+    WIND_FIRE_FOREST_MOUNTAIN_GENERALS,
 ];
+
+/// 支持的武将包 key（顺序即选将池包顺序，用于 `Config.general_packs` 归一化）。
+pub static GENERAL_PACK_KEYS: &[&str] = &["standard", "wind_fire_forest_mountain"];
 
 /// 按 `Config.packs` 组合牌堆（顺序固定：standard → junzheng）。
 ///
@@ -358,11 +416,22 @@ pub fn general(code: &str) -> Option<&'static GeneralDef> {
         .find(|g| g.code == code)
 }
 
-/// 全部武将码（按包顺序 + gid 升序），用于选将池。
+/// 全部武将码（按包顺序 + gid 升序；调试/断言用）。
+#[allow(dead_code)]
 pub fn all_general_codes() -> Vec<&'static str> {
     GENERAL_PACKS
         .iter()
         .flat_map(|p| p.iter())
+        .map(|g| g.code)
+        .collect()
+}
+
+/// 指定武将包组合内的武将码（按包顺序 + gid 升序）；未启用的包不参与。
+pub fn general_codes_in_packs(packs: &[String]) -> Vec<&'static str> {
+    GENERAL_PACKS
+        .iter()
+        .flat_map(|p| p.iter())
+        .filter(|g| packs.iter().any(|p| p == g.pack))
         .map(|g| g.code)
         .collect()
 }

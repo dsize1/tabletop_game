@@ -4,6 +4,7 @@
 
 import { escapeHtml } from "../format.js";
 import {
+  MARK_LABEL,
   IDENTITY_LABEL,
   KINGDOM_LABEL,
   PHASE_LABEL,
@@ -39,9 +40,14 @@ function seatCard(
     : "";
   const kingdom = seat.kingdom ? KINGDOM_LABEL[seat.kingdom] ?? seat.kingdom : "";
   const name = escapeHtml(playerName(names, seat.player_id));
+  const flipped = seat.flipped ? `<span class="sgs-flip">翻面</span>` : "";
   const general = seat.general_name
-    ? `<div class="sgs-general">${escapeHtml(seat.general_name)}${kingdom ? `<span class="sgs-kingdom">${escapeHtml(kingdom)}</span>` : ""}</div>`
+    ? `<div class="sgs-general">${escapeHtml(seat.general_name)}${flipped}${kingdom ? `<span class="sgs-kingdom">${escapeHtml(kingdom)}</span>` : ""}</div>`
     : `<div class="sgs-general muted">未选将</div>`;
+  const marks = Object.entries(seat.marks ?? {})
+    .filter(([, cards]) => (cards ?? []).length > 0)
+    .map(([code, cards]) => `${MARK_LABEL[code] ?? code}×${cards.length}`)
+    .join(" ");
   const equips = Object.entries(seat.equips ?? {})
     .filter(([, c]) => Boolean(c))
     .map(([slot, c]) => cardChipHtml(c as SgsCard, { long: true }))
@@ -60,6 +66,7 @@ function seatCard(
     general +
     `<div class="sgs-hp">${hpPips(seat.hp, seat.max_hp)}<span class="sgs-hp-num">${seat.hp}/${seat.max_hp}</span></div>` +
     `<div class="sgs-hand-mini">${handDots}<span class="sgs-hand-count">×${seat.hand_count}</span></div>` +
+    (marks ? `<div class="sgs-mini-row marks">${escapeHtml(marks)}</div>` : "") +
     (equips ? `<div class="sgs-mini-row">${equips}</div>` : "") +
     (judge ? `<div class="sgs-mini-row judge">${judge}</div>` : "") +
     (seat.alive ? "" : `<div class="sgs-dead-mark">阵亡</div>`) +

@@ -10,6 +10,7 @@ mod data;
 mod resolve;
 mod resolve_more;
 mod resolve_skill;
+mod resolve_wind;
 mod resolve_zone;
 mod skills;
 mod state;
@@ -100,18 +101,40 @@ fn parse(data: &Value) -> Result<SgsState, EngineError> {
 // 选将 / 发牌
 // ---------------------------------------------------------------------------
 
-/// 给主公发候选：全部主公将 + `lord_candidate_count` 张非主公。
+/// 当前对局可用的武将码：`Config.general_packs` 过滤 + 技能全部已实现。
+fn available_general_codes(st: &SgsState) -> Vec<&'static str> {
+    data::general_codes_in_packs(&st.config.general_packs)
+        .into_iter()
+        .filter(|code| skills::general_ready(code))
+        .collect()
+}
+
+fn general_pack_mode_label(mode: &str) -> (&'static str, usize) {
+    let packs = parse_general_packs(mode).unwrap_or_default();
+    let count = data::general_codes_in_packs(&packs)
+        .into_iter()
+        .filter(|code| skills::general_ready(code))
+        .count();
+    let label = if mode == "standard" {
+        "标准"
+    } else {
+        "标准 + 风林火山"
+    };
+    (label, count)
+}
+
+/// 给主公发候选：启用包内全部主公将 + `lord_candidate_count` 张非主公。
 fn offer_to_lord(st: &mut SgsState) -> Result<(), EngineError> {
     let lord = st.setup.lord.clone();
-    let lord_codes: Vec<&'static str> = data::STANDARD_GENERALS
+    let pool = available_general_codes(st);
+    let lord_codes: Vec<&'static str> = pool
         .iter()
-        .filter(|g| g.is_lord)
-        .map(|g| g.code)
+        .copied()
+        .filter(|c| data::general(c).map(|g| g.is_lord).unwrap_or(false))
         .collect();
-    let mut non_lord: Vec<&'static str> = data::STANDARD_GENERALS
-        .iter()
-        .filter(|g| !g.is_lord)
-        .map(|g| g.code)
+    let mut non_lord: Vec<&'static str> = pool
+        .into_iter()
+        .filter(|c| data::general(c).map(|g| !g.is_lord).unwrap_or(false))
         .collect();
     st.shuffle(&mut non_lord);
     let extra = (st.config.lord_candidate_count as usize).min(non_lord.len());
@@ -126,7 +149,7 @@ fn offer_to_lord(st: &mut SgsState) -> Result<(), EngineError> {
 fn distribute_offers_to_others(st: &mut SgsState) -> Result<(), EngineError> {
     let lord_idx = st.lord_index().ok_or_else(|| internal("缺少主公座位"))?;
     let picks: Vec<String> = st.setup.picks.values().cloned().collect();
-    let mut pool: Vec<String> = data::all_general_codes()
+    let mut pool: Vec<String> = available_general_codes(st)
         .into_iter()
         .map(str::to_string)
         .filter(|c| !picks.contains(c))
@@ -364,9 +387,13 @@ fn start_setup(st: &mut SgsState) -> Result<Vec<EngineEvent>, EngineError> {
 }
 
 fn apply_config(st: &mut SgsState, key: &str, value: &str) -> Result<(), EngineError> {
-    // 牌堆包组合不是数字：先单独处理（如 `standard` / `standard+junzheng`）。
+    // 包组合不是数字：先单独处理（如 `standard` / `standard+junzheng`）。
     if key == "packs" {
         st.config.packs = parse_packs(value).map_err(illegal)?;
+        return Ok(());
+    }
+    if key == "general_packs" {
+        st.config.general_packs = parse_general_packs(value).map_err(illegal)?;
         return Ok(());
     }
     let v: u32 = value
@@ -593,6 +620,16 @@ impl EnginePlugin for SanguoshaEngine {
                                 } else {
                                     "牌堆：标准 + 军争（160 张）".into()
                                 },
+                            });
+                        }
+                    }
+                    // 武将包组合（全局开关；旧对局按创建时的 config 固定）
+                    for mode in ["standard", "standard+wind_fire_forest_mountain"] {
+                        if st.config.general_packs_mode() != mode {
+                            let (label, count) = general_pack_mode_label(mode);
+                            out.push(Action {
+                                id: format!("lobby:set_general_packs:{mode}"),
+                                description: format!("武将包：{label}（可用 {count} 位）"),
                             });
                         }
                     }

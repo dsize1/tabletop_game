@@ -155,6 +155,36 @@ pub enum TargetMode {
     Aoe,
 }
 
+/// 默认武将包组合（`Config.general_packs`）；风林火山需在 lobby 手动开启。
+pub fn default_general_packs() -> Vec<String> {
+    vec!["standard".to_string()]
+}
+
+/// 解析 `lobby:set_general_packs` / `Config.general_packs` 的包组合字符串。
+///
+/// 支持形式：`standard` / `standard+wind_fire_forest_mountain`（顺序无关、去重；未知包报错）。
+/// 返回的列表按 `data::GENERAL_PACK_KEYS` 的固定顺序规范化（选将池顺序稳定）。
+pub fn parse_general_packs(mode: &str) -> Result<Vec<String>, String> {
+    let mut wanted: Vec<&str> = Vec::new();
+    for raw in mode.split('+') {
+        let code = raw.trim();
+        if code.is_empty() {
+            return Err("武将包组合不能为空".into());
+        }
+        if !crate::data::GENERAL_PACK_KEYS.contains(&code) {
+            return Err(format!("未知武将包：{code}"));
+        }
+        if !wanted.contains(&code) {
+            wanted.push(code);
+        }
+    }
+    Ok(crate::data::GENERAL_PACK_KEYS
+        .iter()
+        .filter(|p| wanted.contains(p))
+        .map(|p| (*p).to_string())
+        .collect())
+}
+
 /// 默认牌堆包组合（标准 + 军争 = 160 张，`Config.packs`）。
 pub fn default_packs() -> Vec<String> {
     vec!["standard".to_string(), "junzheng".to_string()]
@@ -209,12 +239,21 @@ pub struct Config {
     /// 默认 `["standard", "junzheng"]` = 160 张。
     #[serde(default = "default_packs")]
     pub packs: Vec<String>,
+    /// 武将包组合（全局，一局一个；旧对局按创建时的 config 固定）。
+    /// 默认 `["standard"]`；开启 `wind_fire_forest_mountain` 后选将池按包扩大。
+    #[serde(default = "default_general_packs")]
+    pub general_packs: Vec<String>,
 }
 
 impl Config {
     /// 规范化包组合字符串（如 `standard+junzheng`），用于动作 id 与视图展示。
     pub fn packs_mode(&self) -> String {
         self.packs.join("+")
+    }
+
+    /// 规范化武将包组合字符串（如 `standard+wind_fire_forest_mountain`）。
+    pub fn general_packs_mode(&self) -> String {
+        self.general_packs.join("+")
     }
 }
 
@@ -229,6 +268,7 @@ impl Default for Config {
             base_defense_range: DEFAULT_DEFENSE_RANGE,
             double_spy: false,
             packs: default_packs(),
+            general_packs: default_general_packs(),
         }
     }
 }
@@ -257,6 +297,12 @@ pub struct Seat {
     pub is_bot: bool,
     /// 技能私有标记（如觉醒已触发、限定技已用）。
     pub flags: BTreeMap<String, bool>,
+    /// 武将牌上的标记（牌实例 id，按获得顺序）：不屈「创」、屯田「田」、怀橘「橘」等。
+    #[serde(default)]
+    pub marks: BTreeMap<String, Vec<String>>,
+    /// 翻面状态（背面朝上：下次回合跳过，随后翻回正面）。
+    #[serde(default)]
+    pub flipped: bool,
 }
 
 impl Seat {
@@ -276,6 +322,8 @@ impl Seat {
             chained: false,
             is_bot,
             flags: BTreeMap::new(),
+            marks: BTreeMap::new(),
+            flipped: false,
         }
     }
 }
@@ -591,7 +639,9 @@ impl SgsState {
         if d == usize::MAX {
             return false;
         }
-        d as i32 - self.mashu_bonus(from) + self.defense_bonus(to) <= self.attack_range(from)
+        d as i32 - self.mashu_bonus(from) - crate::skills::qimou_bonus(self, from)
+            + self.defense_bonus(to)
+            <= self.attack_range(from)
     }
 
     /// 弃牌阶段手牌上限 = 当前体力值（最低 0）。
@@ -640,6 +690,7 @@ impl SgsState {
             c.hands += s.hand.len();
             c.equips += s.equips.values().flatten().count();
             c.judge += s.judge_zone.len();
+            c.marks += s.marks.values().map(Vec::len).sum::<usize>();
         }
         c.instances = self.cards.len();
         c
@@ -669,6 +720,8 @@ pub struct CardCounts {
     pub hands: usize,
     pub equips: usize,
     pub judge: usize,
+    /// 武将牌上的标记（不屈「创」等）。
+    pub marks: usize,
     /// 牌实例总数（`state.cards.len()`）。
     pub instances: usize,
 }
@@ -682,5 +735,6 @@ impl CardCounts {
             + self.hands
             + self.equips
             + self.judge
+            + self.marks
     }
 }

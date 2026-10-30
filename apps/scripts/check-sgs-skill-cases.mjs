@@ -1,9 +1,12 @@
 #!/usr/bin/env node
-// P4.1-D 门禁：标准 25 将「每武将 ≥3 条规则用例」。
+// P4.1-D 门禁 / P4.4 扩围：「已实现武将」每武将 ≥3 条规则用例。
 //
 // 统计口径：扫描 `crates/engines/sanguosha/src/tests/` 下所有 `#[test]` 函数体，
-// 若测试体出现该武将的 `sgs_hero_<gid>` 或该武将任一技能的 code（带引号），
-// 即认为该用例覆盖该武将。跨技能交互用例同时计入涉及的多个武将。
+// 若测试体出现该武将的 `sgs_hero_<gid>` 或该武将任一技能 code（带引号），
+// 即认为该用例覆盖该武将。
+//
+// 覆盖范围（P4.4）：从 `skills.rs` 解析「已注册 + 全部 implemented」的武将，
+// 从 `data.rs` 解析 gid → 武将名。未实现的武将不要求用例（也不进选将池）。
 //
 // 用法：node apps/scripts/check-sgs-skill-cases.mjs [--min 3] [--verbose]
 
@@ -11,43 +14,8 @@ import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 const TESTS_DIR = resolve("crates", "engines", "sanguosha", "src", "tests");
-
-/// gid → 技能 code（与 `crates/engines/sanguosha/src/skills.rs` 保持一致）。
-const GENERAL_SKILLS = {
-  1: ["rende", "jijiang"],
-  2: ["wusheng"],
-  3: ["paoxiao"],
-  4: ["guanxing", "kongcheng"],
-  5: ["longdan"],
-  6: ["tieqi", "mashu"],
-  7: ["jizhi", "qicai"],
-  8: ["zhiheng", "jiuyuan"],
-  9: ["qixi"],
-  10: ["keji"],
-  11: ["kurou"],
-  12: ["yingzi", "fanjian"],
-  13: ["guose", "liuli"],
-  14: ["qianxun", "lianying"],
-  15: ["jianxiong", "hujia"],
-  16: ["fankui", "guicai"],
-  17: ["ganglie"],
-  18: ["tuxi"],
-  19: ["luoyi"],
-  20: ["tiandu", "yiji"],
-  21: ["luoshen", "qingguo"],
-  22: ["jijiu", "qingnang"],
-  23: ["wushuang"],
-  24: ["biyue", "lijian"],
-  25: ["xiaoji", "jieyin"],
-};
-
-const GENERAL_NAMES = {
-  1: "刘备", 2: "关羽", 3: "张飞", 4: "诸葛亮", 5: "赵云",
-  6: "马超", 7: "黄月英", 8: "孙权", 9: "甘宁", 10: "吕蒙",
-  11: "黄盖", 12: "周瑜", 13: "大乔", 14: "陆逊", 15: "曹操",
-  16: "司马懿", 17: "夏侯惇", 18: "张辽", 19: "许褚", 20: "郭嘉",
-  21: "甄姬", 22: "华佗", 23: "吕布", 24: "貂蝉", 25: "孙尚香",
-};
+const SKILLS_RS = resolve("crates", "engines", "sanguosha", "src", "skills.rs");
+const DATA_RS = resolve("crates", "engines", "sanguosha", "src", "data.rs");
 
 function parseArgs(argv) {
   const opts = { min: 3, verbose: false };
@@ -89,9 +57,50 @@ async function collectTests() {
   return tests;
 }
 
-function covers(body, gid) {
+/** gid → 武将名（data.rs）。 */
+async function loadGeneralNames() {
+  const text = await readFile(DATA_RS, "utf8");
+  const names = new Map();
+  for (const m of text.matchAll(/code: "(sgs_hero_\d+)", gid: (\d+), name: "([^"]+)"/g)) {
+    names.set(Number(m[2]), m[3]);
+  }
+  return names;
+}
+
+/**
+ * 解析 skills.rs：
+ * - `const XXX: &[SkillDef] = &[...]` → { code, implemented } 列表；
+ * - `"sgs_hero_<gid>" => XXX` → gid → 技能列表。
+ * 只返回「全部 implemented」的武将。
+ */
+async function loadImplementedGenerals() {
+  const text = await readFile(SKILLS_RS, "utf8");
+  const consts = new Map();
+  for (const m of text.matchAll(
+    /const\s+([A-Z0-9_]+):\s*&\[SkillDef\]\s*=\s*&\[([\s\S]*?)\n\s*\}?\];/g,
+  )) {
+    const entries = [];
+    for (const e of m[2].split("SkillDef {").slice(1)) {
+      const code = /code:\s*"([a-z0-9_]+)"/.exec(e)?.[1];
+      if (!code) continue;
+      entries.push({ code, implemented: /implemented:\s*true/.test(e) });
+    }
+    consts.set(m[1], entries);
+  }
+  const generals = new Map();
+  for (const m of text.matchAll(/"sgs_hero_(\d+)"\s*=>\s*([A-Z0-9_]+)/g)) {
+    const gid = Number(m[1]);
+    const skills = consts.get(m[2]);
+    if (!skills || skills.length === 0) continue;
+    if (!skills.every((s) => s.implemented)) continue;
+    generals.set(gid, skills.map((s) => s.code));
+  }
+  return generals;
+}
+
+function covers(body, gid, skills) {
   if (body.includes(`sgs_hero_${gid}`)) return true;
-  return (GENERAL_SKILLS[gid] ?? []).some((code) => body.includes(`"${code}"`));
+  return skills.some((code) => body.includes(`"${code}"`));
 }
 
 const opts = parseArgs(process.argv.slice(2));
@@ -101,25 +110,32 @@ if (!tests.length) {
   process.exit(1);
 }
 
+const names = await loadGeneralNames();
+const generals = await loadImplementedGenerals();
+if (generals.size === 0) {
+  console.error("[check] 未解析到任何已实现武将（skills.rs）");
+  process.exit(1);
+}
+
 const counts = {};
-const names = {};
-for (const gid of Object.keys(GENERAL_SKILLS).map(Number)) {
+const covered = {};
+for (const gid of generals.keys()) {
   counts[gid] = 0;
-  names[gid] = [];
+  covered[gid] = [];
 }
 for (const t of tests) {
-  for (const gid of Object.keys(GENERAL_SKILLS).map(Number)) {
-    if (covers(t.body, gid)) {
+  for (const [gid, skills] of generals) {
+    if (covers(t.body, gid, skills)) {
       counts[gid] += 1;
-      names[gid].push(`${t.file}::${t.name}`);
+      covered[gid].push(`${t.file}::${t.name}`);
     }
   }
 }
 
 const missing = [];
-for (const gid of Object.keys(GENERAL_SKILLS).map(Number)) {
+for (const gid of generals.keys()) {
   if (opts.verbose || counts[gid] < opts.min) {
-    console.log(`  ${counts[gid]}\t${GENERAL_NAMES[gid]} (sgs_hero_${gid})`);
+    console.log(`  ${counts[gid]}\t${names.get(gid) ?? gid} (sgs_hero_${gid})`);
   }
   if (counts[gid] < opts.min) missing.push(gid);
 }
@@ -127,16 +143,15 @@ for (const gid of Object.keys(GENERAL_SKILLS).map(Number)) {
 if (missing.length) {
   console.error(
     `[check] 失败：${missing.length} 位武将用例不足 ${opts.min} 条：` +
-      missing.map((gid) => `${GENERAL_NAMES[gid]}(sgs_hero_${gid})=${counts[gid]}`).join("、"),
+      missing.map((gid) => `${names.get(gid) ?? gid}(sgs_hero_${gid})=${counts[gid]}`).join("、"),
   );
   for (const gid of missing) {
-    console.error(`  ${GENERAL_NAMES[gid]} 现有用例：${names[gid].join(", ") || "（无）"}`);
+    console.error(`  ${names.get(gid) ?? gid} 现有用例：${covered[gid].join(", ") || "（无）"}`);
   }
   process.exit(1);
 }
 
+const min = Math.min(...Object.values(counts));
 console.log(
-  `[check] OK：${tests.length} 条测试 / 25 位武将均 ≥${opts.min} 条（最低 ${Math.min(
-    ...Object.values(counts),
-  )}）`,
+  `[check] OK：${tests.length} 条测试 / ${generals.size} 位已实现武将均 ≥${opts.min} 条（最低 ${min}）`,
 );

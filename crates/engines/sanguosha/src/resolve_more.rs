@@ -1563,6 +1563,107 @@ pub(crate) fn multiselect_confirm(
             );
             Some(Ok("请选择第一名男性角色".to_string()))
         }
+        "guhuo" => {
+            if f.selected.len() != 1 {
+                return Some(Err(illegal("蛊惑需扣置 1 张手牌")));
+            }
+            let id = f.selected[0].clone();
+            if !st.seats[f.actor].hand.iter().any(|c| c == &id) {
+                return Some(Err(illegal("手牌中没有该牌")));
+            }
+            replace_top(
+                st,
+                Frame::Guhuo(crate::resolve_wind::GuhuoFrame {
+                    user: f.actor,
+                    purpose: "play".into(),
+                    stage: crate::resolve_wind::GuhuoStage::Declare,
+                    needed: String::new(),
+                    card: Some(id),
+                    declared: None,
+                    order: Vec::new(),
+                    cursor: 0,
+                    questioner: None,
+                    respond: None,
+                }),
+            );
+            Some(Ok("蛊惑：请声明牌名".to_string()))
+        }
+        "jushou" => {
+            if f.selected.len() != 1 {
+                return Some(Err(illegal("据守需弃置 1 张手牌")));
+            }
+            let id = f.selected[0].clone();
+            if turn::take_card(st, f.actor, &id).is_err() {
+                return Some(Err(illegal("手牌中没有该牌")));
+            }
+            let label = turn::card_label(st, &id);
+            let pid = st.seats[f.actor].player_id.clone();
+            if let Some(slot) = turn::card_def(st, &id).and_then(|d| d.equip_slot) {
+                let old = st.seats[f.actor].equips.insert(slot, Some(id.clone()));
+                if let Some(Some(old_id)) = old {
+                    turn::to_discard_card(st, &old_id);
+                    skills::xiaoji_on_lose_equip(st, f.actor);
+                }
+                st.push_log(Some(&pid), format!("据守：使用装备【{label}】"));
+                pop(st);
+                let over = st.seats[f.actor]
+                    .hand
+                    .len()
+                    .saturating_sub(st.config.max_hand_cards as usize);
+                if over > 0 {
+                    crate::resolve::push_discard(st, f.actor, over, "hand_cap");
+                }
+                return Some(Ok(format!("据守：已使用装备【{label}】")));
+            }
+            turn::to_discard_card(st, &id);
+            st.push_log(Some(&pid), format!("据守：弃置【{label}】"));
+            pop(st);
+            let over = st.seats[f.actor]
+                .hand
+                .len()
+                .saturating_sub(st.config.max_hand_cards as usize);
+            if over > 0 {
+                crate::resolve::push_discard(st, f.actor, over, "hand_cap");
+            }
+            Some(Ok(format!("据守：已弃置【{label}】")))
+        }
+        "tianxiang" => {
+            if f.selected.len() != 1 {
+                return Some(Err(illegal("天香需弃置 1 张红桃手牌")));
+            }
+            let id = f.selected[0].clone();
+            if skills::effective_suit(st, f.actor, &id) != Some(Suit::Heart) {
+                return Some(Err(illegal("天香只能弃置红桃手牌")));
+            }
+            if turn::take_card(st, f.actor, &id).is_err() {
+                return Some(Err(illegal("手牌中没有该牌")));
+            }
+            turn::to_discard_card(st, &id);
+            let victim = f.data["victim"].as_u64().unwrap_or(f.actor as u64) as usize;
+            let amount = f.data["amount"].as_i64().unwrap_or(1) as i32;
+            let source = f.data["source"].as_u64().map(|v| v as usize);
+            let damage_type: crate::resolve::DamageType =
+                serde_json::from_value(f.data["damage_type"].clone()).unwrap_or_default();
+            let card = f.data["card"].as_str().map(str::to_string);
+            st.push_log(
+                Some(&st.seats[f.actor].player_id.clone()),
+                format!("天香：弃置【{}】防止伤害", turn::card_label(st, &id)),
+            );
+            replace_top(
+                st,
+                Frame::Tianxiang(crate::resolve_wind::TianxiangFrame {
+                    victim,
+                    amount,
+                    source,
+                    damage_type,
+                    card,
+                    stage: crate::resolve_wind::TianxiangStage::Target,
+                    target: None,
+                    discarded: Some(id),
+                }),
+            );
+            Some(Ok("天香：请选择转移目标".to_string()))
+        }
         _ => None,
     }
 }
@@ -1582,6 +1683,11 @@ pub(crate) fn target_action(
         Some(Frame::Yiji(_)) => yiji_target(st, pending, action).map(Some),
         Some(Frame::Fanjian(_)) => fanjian_target(st, pending, action).map(Some),
         Some(Frame::Liuli(_)) => liuli_target(st, pending, action).map(Some),
+        Some(Frame::Leiji(_)) => crate::resolve_wind::leiji_target(st, pending, action).map(Some),
+        Some(Frame::Tianxiang(_)) => {
+            crate::resolve_wind::tianxiang_target(st, pending, action).map(Some)
+        }
+        Some(Frame::Jiewei(_)) => crate::resolve_wind::jiewei_target(st, pending, action).map(Some),
         _ => Ok(None),
     }
 }

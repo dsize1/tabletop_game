@@ -61,6 +61,34 @@ fn pick_all(mgr: &GameManager, room: &str) {
     }
 }
 
+/// 建房 + 设定 `Config` + 开赛选将（测试专用）。
+fn start_with_config<F: FnOnce(&mut Config)>(
+    mgr: &GameManager,
+    players: usize,
+    configure: F,
+) -> String {
+    let room = lobby_with(mgr, players);
+    edit(mgr, &room, |st| configure(&mut st.config));
+    mgr.execute_action(&room, "u1", "lobby:start").unwrap();
+    pick_all(mgr, &room);
+    room
+}
+
+/// 把一张牌放到武将牌上的标记区（测试专用；从任意区域取出）。
+fn place_mark(st: &mut SgsState, seat: usize, key: &str, card_id: &str) {
+    take_card(st, card_id);
+    st.seats[seat]
+        .marks
+        .entry(key.to_string())
+        .or_default()
+        .push(card_id.to_string());
+}
+
+/// 将座位翻面（测试专用）。
+fn flip_seat(st: &mut SgsState, seat: usize) {
+    st.seats[seat].flipped = true;
+}
+
 /// 直接改写引擎状态（测试专用）：从任意区域取牌、指定手牌/体力/牌堆顶。
 fn edit<F: FnOnce(&mut SgsState)>(mgr: &GameManager, room: &str, f: F) {
     let full = mgr.get_state(room).expect("room");
@@ -664,7 +692,14 @@ fn every_standard_card_def_and_general_is_resolvable() {
         STANDARD_DECK_SIZE + JUNZHENG_DECK_SIZE
     );
     assert_eq!(data::STANDARD_GENERALS.len(), STANDARD_GENERAL_COUNT);
-    assert_eq!(data::GENERAL_COUNT, STANDARD_GENERAL_COUNT);
+    assert_eq!(
+        data::WIND_FIRE_FOREST_MOUNTAIN_GENERALS.len(),
+        data::WIND_FIRE_FOREST_MOUNTAIN_GENERAL_COUNT
+    );
+    assert_eq!(
+        data::GENERAL_COUNT,
+        STANDARD_GENERAL_COUNT + data::WIND_FIRE_FOREST_MOUNTAIN_GENERAL_COUNT
+    );
     for pc in data::STANDARD_DECK.iter().chain(data::JUNZHENG_DECK) {
         let def = data::card_def(pc.def).unwrap_or_else(|| panic!("缺少定义 {}", pc.def));
         assert!((1..=13).contains(&pc.rank), "非法点数: {pc:?}");
@@ -685,8 +720,60 @@ fn every_standard_card_def_and_general_is_resolvable() {
     }
     let lords = data::STANDARD_GENERALS.iter().filter(|g| g.is_lord).count();
     assert_eq!(lords, 3, "标准包主公将应为 3 位");
-    assert_eq!(data::all_general_codes().len(), 25);
+    assert_eq!(
+        data::all_general_codes().len(),
+        STANDARD_GENERAL_COUNT + data::WIND_FIRE_FOREST_MOUNTAIN_GENERAL_COUNT
+    );
     assert!(data::STANDARD_GENERALS.iter().all(|g| g.pack == "standard"));
+    assert!(data::WIND_FIRE_FOREST_MOUNTAIN_GENERALS
+        .iter()
+        .all(|g| g.pack == "wind_fire_forest_mountain"));
+    assert_eq!(data::GENERAL_PACK_KEYS.len(), data::GENERAL_PACKS.len());
+    // 武将 code/gid 全局唯一；包内 gid 升序（生成脚本契约）。
+    let mut codes = data::all_general_codes();
+    codes.sort_unstable();
+    codes.dedup();
+    assert_eq!(codes.len(), data::GENERAL_COUNT);
+    assert!(data::WIND_FIRE_FOREST_MOUNTAIN_GENERALS
+        .windows(2)
+        .all(|w| w[0].gid < w[1].gid));
+    // 选将池按包过滤：标准只含 25 将，标准+风林火山含 73 将。
+    assert_eq!(
+        data::general_codes_in_packs(&["standard".to_string()]).len(),
+        STANDARD_GENERAL_COUNT
+    );
+    let both = vec![
+        "standard".to_string(),
+        "wind_fire_forest_mountain".to_string(),
+    ];
+    assert_eq!(
+        data::general_codes_in_packs(&both).len(),
+        data::GENERAL_COUNT
+    );
+}
+
+#[test]
+fn general_skill_registry_matches_generated_data() {
+    for general in data::GENERAL_PACKS.iter().flat_map(|p| p.iter()) {
+        let defs = crate::skills::skills_of(general.code);
+        if defs.is_empty() {
+            // 未注册（未实现）的武将：允许为空白，但不得进选将池。
+            assert!(!crate::skills::general_ready(general.code));
+            continue;
+        }
+        let mut want: Vec<&str> = general.skills.to_vec();
+        want.sort_unstable();
+        let mut got: Vec<&str> = defs.iter().map(|s| s.name).collect();
+        got.sort_unstable();
+        assert_eq!(
+            got, want,
+            "{}（{}）技能名与注册表不一致",
+            general.name, general.code
+        );
+        if defs.iter().all(|s| s.implemented) {
+            assert!(crate::skills::general_ready(general.code));
+        }
+    }
 }
 
 mod interaction_contract;
@@ -724,5 +811,8 @@ mod p63;
 mod p64;
 mod p65;
 mod p66;
+mod p67;
+mod p68;
+mod p69;
 mod replay;
 mod view_contract;

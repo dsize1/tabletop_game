@@ -55,6 +55,10 @@ export interface SgsSeat {
   hand_count: number;
   equips: SgsEquips;
   judge_zone: SgsCard[];
+  /** 武将牌上的标记（code → 牌）。 */
+  marks?: Record<string, SgsCard[]>;
+  /** 翻面状态（背面朝上）。 */
+  flipped?: boolean;
   alive: boolean;
   is_bot?: boolean;
 }
@@ -111,6 +115,8 @@ export interface SgsPlayerArea {
   hand: SgsCard[];
   equips: SgsEquips;
   judge_zone: SgsCard[];
+  marks?: Record<string, SgsCard[]>;
+  flipped?: boolean;
   skills?: SgsSkill[];
   is_bot?: boolean;
   is_current?: boolean;

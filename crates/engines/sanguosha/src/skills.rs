@@ -319,6 +319,101 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
             implemented: true,
         },
     ];
+    // P4.4.1 风包：魏延 / 夏侯渊 / 曹仁 / 小乔 / 黄忠 / 周泰 / 于吉 / 张角。
+    const WEIYAN: &[SkillDef] = &[
+        SkillDef {
+            code: "kuanggu",
+            name: "狂骨",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "qimou",
+            name: "奇谋",
+            kind: SkillType::Limited,
+            implemented: true,
+        },
+    ];
+    const XIAHOUYUAN: &[SkillDef] = &[SkillDef {
+        code: "shensu",
+        name: "神速",
+        kind: SkillType::Normal,
+        implemented: true,
+    }];
+    const CAOREN: &[SkillDef] = &[
+        SkillDef {
+            code: "jushou",
+            name: "据守",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "jiewei",
+            name: "解围",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const XIAOQIAO: &[SkillDef] = &[
+        SkillDef {
+            code: "hongyan",
+            name: "红颜",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "tianxiang",
+            name: "天香",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const HUANGZHONG: &[SkillDef] = &[SkillDef {
+        code: "liegong",
+        name: "烈弓",
+        kind: SkillType::Normal,
+        implemented: true,
+    }];
+    const ZHOUTAI: &[SkillDef] = &[
+        SkillDef {
+            code: "buqu",
+            name: "不屈",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "fenji",
+            name: "奋激",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const YUJI: &[SkillDef] = &[SkillDef {
+        code: "guhuo",
+        name: "蛊惑",
+        kind: SkillType::Normal,
+        implemented: true,
+    }];
+    const ZHANGJIAO: &[SkillDef] = &[
+        SkillDef {
+            code: "guidao",
+            name: "鬼道",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "huangtian",
+            name: "黄天",
+            kind: SkillType::Lord,
+            implemented: true,
+        },
+        SkillDef {
+            code: "leiji",
+            name: "雷击",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
     match general {
         "sgs_hero_1" => LIUBEI,
         "sgs_hero_15" => CAOCAO,
@@ -345,6 +440,14 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
         "sgs_hero_19" => XUCHU,
         "sgs_hero_20" => GUOJIA,
         "sgs_hero_25" => SUNSHANGXIANG,
+        "sgs_hero_27" => WEIYAN,
+        "sgs_hero_28" => XIAHOUYUAN,
+        "sgs_hero_29" => CAOREN,
+        "sgs_hero_30" => XIAOQIAO,
+        "sgs_hero_61" => HUANGZHONG,
+        "sgs_hero_210" => ZHOUTAI,
+        "sgs_hero_211" => YUJI,
+        "sgs_hero_212" => ZHANGJIAO,
         _ => &[],
     }
 }
@@ -534,6 +637,12 @@ pub fn triggered(st: &SgsState, trigger: Trigger) -> Vec<(usize, &'static Equipm
         }
     }
     out
+}
+
+/// 武将是否可用于选将池：技能注册表存在且全部已实现（未实现武将不进池，避免白板将）。
+pub fn general_ready(general: &str) -> bool {
+    let defs = skills_of(general);
+    !defs.is_empty() && defs.iter().all(|s| s.implemented)
 }
 
 /// 是否拥有某技能（只有已实现的技能会触发）。
@@ -786,8 +895,11 @@ pub fn on_non_delayed_trick_used(st: &mut SgsState, seat: usize, events: &mut Ve
     );
 }
 
-/// 弃牌阶段上限：克己（出牌阶段未使用过杀 → 跳过弃牌）。
+/// 弃牌阶段上限：克己（出牌阶段未使用过杀 → 跳过弃牌）；不屈（有「创」时上限为创数）。
 pub fn hand_limit(st: &SgsState, seat: usize) -> usize {
+    if has(st, seat, "buqu") && !buqu_cards(st, seat).is_empty() {
+        return buqu_cards(st, seat).len();
+    }
     if has(st, seat, "keji") && st.counter("sha_used") == 0 {
         usize::MAX
     } else {
@@ -795,9 +907,119 @@ pub fn hand_limit(st: &SgsState, seat: usize) -> usize {
     }
 }
 
+/// 不屈「创」（武将牌上的牌）。
+pub fn buqu_cards(st: &SgsState, seat: usize) -> Vec<String> {
+    st.seats
+        .get(seat)
+        .and_then(|s| s.marks.get("buqu"))
+        .cloned()
+        .unwrap_or_default()
+}
+
+/// 不屈：濒死时翻出牌堆顶一张「创」；点数不重复则回复至 1 点体力。
+/// 返回 `true` 表示已脱离濒死。
+pub fn buqu_save(st: &mut SgsState, victim: usize) -> bool {
+    let mut events = Vec::new();
+    let Some(card) = crate::turn::draw_one(st, &mut events) else {
+        return false;
+    };
+    let rank = st.cards.get(&card).map(|c| c.rank).unwrap_or(0);
+    let existing: Vec<u8> = buqu_cards(st, victim)
+        .iter()
+        .filter_map(|id| st.cards.get(id).map(|c| c.rank))
+        .collect();
+    let pid = st.seats[victim].player_id.clone();
+    let label = crate::turn::card_label(st, &card);
+    if existing.contains(&rank) {
+        crate::turn::to_discard_card(st, &card);
+        st.push_log(
+            Some(&pid),
+            format!("不屈：新增【{label}】点数重复，置入弃牌堆（仍濒死）"),
+        );
+        false
+    } else {
+        st.seats[victim]
+            .marks
+            .entry("buqu".into())
+            .or_default()
+            .push(card);
+        st.seats[victim].hp = 1;
+        st.push_log(
+            Some(&pid),
+            format!("不屈：新增【{label}】点数不同，回复至 1 点体力"),
+        );
+        true
+    }
+}
+
+/// 红颜（锁定）：黑桃视为红桃（按牌的持有者结算）。
+pub fn effective_suit(st: &SgsState, seat: usize, card_id: &str) -> Option<Suit> {
+    let suit = st.cards.get(card_id)?.suit;
+    if suit == Suit::Spade && has(st, seat, "hongyan") {
+        Some(Suit::Heart)
+    } else {
+        Some(suit)
+    }
+}
+
+/// 奇谋：本回合与其他角色的距离 -X（X = 失去的体力值）。
+pub fn qimou_bonus(st: &SgsState, seat: usize) -> i32 {
+    if has(st, seat, "qimou") {
+        st.counter("qimou") as i32
+    } else {
+        0
+    }
+}
+
+/// 烈弓：使用【杀】指定目标后，满足条件则目标不能使用【闪】。
+pub fn liegong_blocks(st: &SgsState, attacker: usize, victim: usize) -> bool {
+    if !has(st, attacker, "liegong") {
+        return false;
+    }
+    let hand = st.seats[victim].hand.len() as i32;
+    let hp = st.seats[attacker].hp.max(0);
+    let range = st.attack_range(attacker);
+    hand >= hp || hand <= range
+}
+
+/// 天香：受到伤害时是否有可用红桃手牌。
+pub fn tianxiang_available(st: &SgsState, victim: usize) -> bool {
+    has(st, victim, "tianxiang")
+        && st.seats[victim]
+            .hand
+            .iter()
+            .any(|id| effective_suit(st, victim, id) == Some(Suit::Heart))
+}
+
+/// 奋激：手牌被弃置/获得后的可发动持有者（存活）。
+pub fn fenji_owner(st: &SgsState, lost_by: usize) -> Option<usize> {
+    let mut candidates: Vec<usize> = vec![lost_by];
+    candidates.extend(st.seats_from_left_of(lost_by));
+    candidates
+        .into_iter()
+        .find(|i| st.seats.get(*i).is_some_and(|s| s.alive) && has(st, *i, "fenji"))
+}
+
 /// 奇才：使用锦囊无距离限制。
 pub fn trick_distance_unlimited(st: &SgsState, seat: usize) -> bool {
     has(st, seat, "qicai")
+}
+
+/// 缠怨（蛊惑质疑惩罚）：体力值为 1 时不能使用或打出手牌；也不能质疑于吉。
+pub fn chanyuan_locked(st: &SgsState, seat: usize) -> bool {
+    st.seats
+        .get(seat)
+        .is_some_and(|s| s.flags.contains_key("chanyuan") && s.hp == 1)
+}
+
+/// 黄天：可接收牌的张角主公（其他群势力角色出牌阶段限一次）。
+pub fn huangtian_owner(st: &SgsState, giver: usize) -> Option<usize> {
+    if kingdom(st, giver) != "qun" {
+        return None;
+    }
+    st.alive_indices()
+        .into_iter()
+        .find(|i| *i != giver && has(st, *i, "huangtian") && is_lord(st, *i))
 }
 
 /// 救援：其他吴势力角色对拥有此技的主公使用【桃】时，回复 +1。

@@ -198,3 +198,13 @@ export function othersInSeatOrder(n: number, mySeat: number): number[] {
   for (let k = 1; k < n; k += 1) out.push((mySeat + k) % n);
   return out;
 }
+
+/** 「武将牌上的标记」展示名（未知 code 原样展示）。 */
+export const MARK_LABEL: Record<string, string> = {
+  buqu: "创",
+  tian: "田",
+  ju: "橘",
+  ren: "任",
+  rong: "荣",
+  huanhua: "化身",
+};

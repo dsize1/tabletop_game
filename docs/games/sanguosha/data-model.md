@@ -300,12 +300,16 @@ CREATE INDEX IF NOT EXISTS idx_prop_status_log_entity
 | `STANDARD_DECK_SIZE` / `JUNZHENG_DECK_SIZE` / `FULL_DECK_SIZE` | 108 / 52 / 160 |
 | `DECK_PACKS` | 支持的牌堆包（顺序即建堆顺序：`standard` → `junzheng`） |
 | `deck_cards(&packs)` | 按 `Config.packs` 组堆；未知包/空组合报错；同一牌堆内 `pack` 必须与牌堆名一致 |
-| `STANDARD_GENERALS` + `GENERAL_PACKS` | 武将（`GeneralDef.pack` 为武将包 code）；`GENERAL_PACKS` 按包拼接即选将池 |
+| `STANDARD_GENERALS` / `WIND_FIRE_FOREST_MOUNTAIN_GENERALS` | 武将（标准 25 / 风林火山 48；`GeneralDef.pack` 为武将包 code） |
+| `GENERAL_PACK_KEYS` / `GENERAL_PACKS` | 武将包 key 表（`standard` → `wind_fire_forest_mountain`）与按包拼接的静态数据 |
+| `general_codes_in_packs(&packs)` | 按 `Config.general_packs` 过滤武将码（选将池）；未实现武将再由 `skills::general_ready` 过滤 |
 
 - 生成：`npm run gen:sgs-engine-data`；门禁：`npm run check:sgs-engine-data`（`--check` 逐字节比对）。
-- 默认只生成标准包 25 将（gid 1..=25）；`--general-packs` 预留多包（新增包需在脚本 `GENERAL_PACKS` 登记性别表，P4.4 扩包）。
+- 默认生成标准 25 + 风林火山 48 = **73 将**（`DEFAULT_GENERAL_PACKS`）；`--general-packs` 可裁剪（新增包需在脚本 `GENERAL_PACKS` 登记 gids 与性别表）。
+- 选将池：`Config.general_packs`（默认 `["standard"]`，旧快照自动补齐）→ 包过滤 → `skills::general_ready`（技能全部 implemented）→ 候选。风林火山当前只实现风包 8 将，其余 40 位不进池。
 - 牌堆口径：默认 `["standard","junzheng"]` = **160 张**，可在 lobby 切到 `standard` = 108 张（`lobby:set_packs`）。
-- 旧快照兼容：schema v2 及以前没有 `config.packs`，反序列化按默认 `["standard","junzheng"]` 补齐（**不重建已有牌堆**，实例仍以快照中的 `cards` 为准）。
+- 武将包口径：默认 `["standard"]`，可在 lobby 切到 `["standard","wind_fire_forest_mountain"]`（`lobby:set_general_packs`；风林火山 48 位数据已生成，未实现武将不进池）。
+- 旧快照兼容：schema v2 及以前没有 `config.packs` / `config.general_packs`，反序列化分别按默认 `["standard","junzheng"]` / `["standard"]` 补齐（**不重建已有牌堆**，实例仍以快照中的 `cards` 为准）。
 
 ## 4. 运行时状态模型（不建实体表）
 
@@ -329,7 +333,8 @@ CREATE INDEX IF NOT EXISTS idx_prop_status_log_entity
     "max_hand_cards": 20,             // 任何时刻手牌持有上限（弃牌阶段上限仍为当前体力值）
     "base_attack_range": 1,
     "base_defense_range": 1,
-    "packs": ["standard", "junzheng"] // P4.0：牌堆包组合（默认 160 张；旧对局按创建时固定）
+    "packs": ["standard", "junzheng"], // P4.0：牌堆包组合（默认 160 张；旧对局按创建时固定）
+    "general_packs": ["standard"]      // P4.4：武将包组合（默认仅标准；开启后选将池扩大）
   },
   "player_count": 5,
   "identity_variant": "default",
@@ -351,11 +356,12 @@ CREATE INDEX IF NOT EXISTS idx_prop_status_log_entity
       // 键 = sgs_card_defs.equip_slot；玩家装备区按槽位判定
       "equips": { "weapon": null, "armor": null, "horse_offense": null, "horse_defense": null, "treasure": null },
       "judge_zone": [],               // 延时锦囊实例 id（按放入顺序存；末尾=栈顶，LIFO 先判）
-      "flags": {}                     // 技能私有标记（如觉醒已触发）
+      "flags": {},                    // 技能私有标记（如觉醒已触发、限定技已用、蛊惑「缠怨」）
+      "marks": {},                    // P4.4：武将牌上的标记（code → 牌实例，如不屈「创」）
+      "flipped": false,               // P4.4：翻面（背面朝上：跳过下个回合）
+      "chained": false                // P4.3：铁索连环横置
     }
   ],
-  // P4 计划字段（P4.0 已落地 `config.packs`；其余仍待实现）
-  // "seats[].chained": false,                              // 铁索连环状态（P4.3）
   // "cards": {
     // 牌实例表：id → 物理牌 + 当前区域 + 归属
     "c12": { "def": "sha", "suit": "spade", "rank": 7, "zone": "hand", "owner": "openid" },
@@ -470,7 +476,8 @@ CREATE TABLE IF NOT EXISTS sgs_flow_designs (
 - 新增表全部 `CREATE TABLE IF NOT EXISTS`，纳入 `crates/storage/src/lib.rs` 的 `CREATE_TABLES`（或按域拆 `CREATE_SGS_TABLES`），启动幂等执行。
 - 需补索引：`sgs_general_skills(skill_code)`、`sgs_cards(def_code)`、`sgs_generals(pack_id)`、`sgs_identity_setup(player_count)`、`game_state_templates(game_id)`。
 - 不做破坏性迁移；`sgs_*` 新表与现有表无外键耦合（避免与事件溯源表强绑定）。
-- 状态 JSON 的版本演进走 `data.schema_version` + 引擎内迁移函数（与拉斯维加斯 v1→v6 同法）。
+- 状态 JSON 的版本演进走 `data.schema_version` + 引擎内迁移函数（与拉斯维加斯 v1→v6 同法）。P4.3/P4.4 新增字段全部 `#[serde(default)]`（`chained`/`marks`/`flipped`/`config.general_packs`），旧快照可直接解析，不 bump schema。
+- 牌数守恒（`check_conservation`）统计区域：`draw/discard/processing/void/hands/equips/judge/marks`；武将牌上的标记牌同样计入，死亡时清空进弃牌堆。
 
 ## 7. 评审结论与遗留确认
 

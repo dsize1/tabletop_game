@@ -91,6 +91,19 @@ try {
   assert(lobbyView.data.public_board.seat_count === 5, "应为 5 人局");
   console.log("[sgs] lobby 5 人 OK");
 
+  // —— P4.4.0：武将包开关（标准 + 风林火山）——
+  await callJson("execute_action", {
+    room_id: roomId,
+    player_id: HOST,
+    action: "lobby:set_general_packs:standard+wind_fire_forest_mountain",
+  });
+  const packed = await callJson("get_state", { room_id: roomId });
+  assert(
+    (packed.data.public_board.config.general_packs ?? []).includes("wind_fire_forest_mountain"),
+    "武将包开关未写入 config.general_packs",
+  );
+  console.log("[sgs] lobby:set_general_packs OK");
+
   // —— 开赛（发身份 → 主公候选）——
   const started = await callJson("execute_action", {
     room_id: roomId,

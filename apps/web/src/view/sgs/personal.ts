@@ -5,6 +5,7 @@
 
 import { escapeHtml } from "../format.js";
 import {
+  MARK_LABEL,
   EQUIP_SLOT_LABEL,
   EQUIP_SLOT_ORDER,
   IDENTITY_LABEL,
@@ -65,6 +66,18 @@ function wuguPanel(zones: SgsSpecialZones | undefined, names?: Record<string, st
     (picked ? `<div class="muted">已选：${picked}</div>` : "") +
     `</div>`
   );
+}
+
+function marksHtml(area: SgsPlayerArea): string {
+  const entries = Object.entries(area.marks ?? {}).filter(([, cards]) => (cards ?? []).length > 0);
+  if (entries.length === 0) return "";
+  const body = entries
+    .map(([code, cards]) => {
+      const name = MARK_LABEL[code] ?? code;
+      return `${escapeHtml(name)}：${(cards ?? []).map((c) => cardChipHtml(c)).join("")}`;
+    })
+    .join(" ");
+  return `<div class="sgs-marks" data-marks>${body}</div>`;
 }
 
 /** 个人资源区。 */
@@ -145,6 +158,7 @@ export function renderPersonalArea(
     `<section class="sgs-personal" aria-label="个人资源区">` +
     `<div class="sgs-me">` +
     `<div class="sgs-me-head"><b>${escapeHtml(general)}</b>` +
+    (area.flipped ? `<span class="sgs-flip">翻面</span>` : "") +
     (kingdom ? `<span class="sgs-kingdom">${escapeHtml(kingdom)}</span>` : "") +
     `<span class="sgs-identity ${escapeHtml(area.identity)}">${escapeHtml(
       IDENTITY_LABEL[area.identity] ?? area.identity,
@@ -152,6 +166,7 @@ export function renderPersonalArea(
     `<span class="muted">${escapeHtml(playerName(names, area.player_id))}</span></div>` +
     `<div class="sgs-hp">${hpPips(area.hp, area.max_hp)}<span class="sgs-hp-num">${area.hp}/${area.max_hp}</span></div>` +
     `<div class="sgs-skills">${skills}</div>` +
+    marksHtml(area) +
     `</div>` +
     `<div class="sgs-me-row">` +
     `<div class="sgs-equips">${equips}</div>` +

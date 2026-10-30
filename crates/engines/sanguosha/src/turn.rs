@@ -113,7 +113,8 @@ pub(crate) fn sha_limit(st: &SgsState, idx: usize) -> u32 {
     {
         u32::MAX
     } else {
-        1
+        // 奇谋：本回合【杀】限制次数 +X。
+        1 + st.counter("qimou")
     }
 }
 
@@ -129,19 +130,24 @@ pub(crate) fn sha_targets(st: &SgsState, idx: usize) -> Vec<usize> {
         .collect()
 }
 
+/// 计算与其他角色的有效距离（含马术/奇谋/对方防御马；用于技能判定）。
+pub(crate) fn effective_distance(st: &SgsState, from: usize, to: usize) -> i32 {
+    let d = st.seat_distance(from, to);
+    if d == usize::MAX {
+        return i32::MAX;
+    }
+    d as i32 + st.defense_bonus(to)
+        - i32::from(st.equip_def(from, EquipSlot::HorseOffense).is_some())
+        - st.mashu_bonus(from)
+        - crate::skills::qimou_bonus(st, from)
+}
+
 /// 顺手牵羊等「不含武器范围」的距离：`seat_distance + 防御马 - 进攻马 ≤ 1`。
 pub(crate) fn trick_distance_ok(st: &SgsState, from: usize, to: usize) -> bool {
     if crate::skills::trick_distance_unlimited(st, from) {
         return true;
     }
-    let d = st.seat_distance(from, to);
-    if d == usize::MAX {
-        return false;
-    }
-    let effective = d as i32 + st.defense_bonus(to)
-        - i32::from(st.equip_def(from, EquipSlot::HorseOffense).is_some())
-        - st.mashu_bonus(from);
-    effective <= 1
+    effective_distance(st, from, to) <= 1
 }
 
 pub(crate) fn refill_deck(st: &mut SgsState, events: &mut Vec<EngineEvent>) {
@@ -202,7 +208,36 @@ pub(crate) fn phase_step(
     }
     match st.turn_phase {
         TurnPhase::Prepare => {
-            let pid = st.seats[st.turn].player_id.clone();
+            let idx = st.turn;
+            // 翻面：跳过本回合，随后翻回正面（解围可在此发动）。
+            if st.seats[idx].flipped {
+                st.seats[idx].flipped = false;
+                st.set_counter("skip_turn", 1);
+                let pid = st.seats[idx].player_id.clone();
+                st.push_log(Some(&pid), "翻面：跳过本回合");
+                events.push(EngineEvent::new(
+                    "turn_skipped",
+                    json!({ "seat": idx, "player": pid }),
+                ));
+                if crate::skills::has(st, idx, "jiewei") {
+                    resolve::push(
+                        st,
+                        resolve::Frame::Jiewei(crate::resolve_wind::JieweiFrame {
+                            actor: idx,
+                            stage: crate::resolve_wind::JieweiStage::Ask,
+                        }),
+                    );
+                    return Ok(true);
+                }
+                end_turn(st, events);
+                return Ok(true);
+            }
+            if st.counter("skip_turn") > 0 {
+                st.set_counter("skip_turn", 0);
+                end_turn(st, events);
+                return Ok(true);
+            }
+            let pid = st.seats[idx].player_id.clone();
             st.push_log(Some(&pid), "准备阶段");
             events.push(EngineEvent::new(
                 "phase_start",
@@ -221,10 +256,29 @@ pub(crate) fn phase_step(
                     resolve::Frame::Luoshen(crate::resolve_more::LuoshenFrame { actor: st.turn }),
                 );
             }
+            // 神速：准备阶段可选（至多三项），每项视为使用一张无距离限制的【杀】。
+            if crate::skills::has(st, st.turn, "shensu") && st.counter("shensu_done") == 0 {
+                st.set_counter("shensu_done", 1);
+                resolve::push(
+                    st,
+                    resolve::Frame::Shensu(crate::resolve_wind::ShensuFrame {
+                        actor: st.turn,
+                        stage: crate::resolve_wind::ShensuStage::Ask,
+                        used: 0,
+                    }),
+                );
+            }
             st.turn_phase = TurnPhase::Judge;
             Ok(true)
         }
         TurnPhase::Judge => {
+            // 神速①：跳过判定阶段（判定区牌保留）。
+            if st.counter("shensu_skip_judge") > 0 {
+                let pid = st.seats[st.turn].player_id.clone();
+                st.push_log(Some(&pid), "神速：跳过判定阶段");
+                st.turn_phase = TurnPhase::Draw;
+                return Ok(true);
+            }
             // 判定区的栈顶在 `Judge` 帧里结算（含判定前的无懈窗口）。
             let top = st.seats[st.turn].judge_zone.last().cloned();
             match top {
@@ -324,6 +378,14 @@ pub(crate) fn phase_step(
         }
         TurnPhase::Discard => {
             let idx = st.turn;
+            // 神速③：跳过弃牌阶段。
+            if st.counter("shensu_skip_discard") > 0 {
+                st.set_counter("shensu_skip_discard", 0);
+                let pid = st.seats[idx].player_id.clone();
+                st.push_log(Some(&pid), "神速：跳过弃牌阶段");
+                st.turn_phase = TurnPhase::End;
+                return Ok(true);
+            }
             // 克己：出牌阶段未使用杀 → 跳过弃牌
             let limit = crate::skills::hand_limit(st, idx);
             let over = st.seats[idx].hand.len().saturating_sub(limit);
@@ -341,6 +403,15 @@ pub(crate) fn phase_step(
                 "phase_start",
                 json!({ "phase": "end", "seat": st.turn, "player": pid }),
             ));
+            // 据守：结束阶段可选择翻面并摸 4 张，然后弃置 1 张手牌。
+            if crate::skills::has(st, st.turn, "jushou") && st.counter("jushou_done") == 0 {
+                st.set_counter("jushou_done", 1);
+                resolve::push(
+                    st,
+                    resolve::Frame::Jushou(crate::resolve_wind::JushouFrame { actor: st.turn }),
+                );
+                return Ok(true);
+            }
             crate::skills::on_phase_start(st, TurnPhase::End, events);
             end_turn(st, events);
             Ok(true)
@@ -698,6 +769,34 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
             description: "结姻：弃 2 张手牌，与一名已受伤男性各回复 1 点体力".into(),
         });
     }
+    // 蛊惑：每回合限一次，扣置一张手牌当任意基本牌/普通锦囊使用。
+    if crate::resolve_wind::guhuo_available(st, idx) {
+        out.push(Action {
+            id: "skill:guhuo".into(),
+            description: "蛊惑：扣置一张手牌当任意基本牌或普通锦囊使用".into(),
+        });
+    }
+    // 奇谋（限定技）：失去任意点体力，本回合距离/杀次数修正。
+    if crate::skills::has(st, idx, "qimou")
+        && !st.seats[idx].flags.contains_key("qimou_used")
+        && st.seats[idx].hp > 0
+    {
+        out.push(Action {
+            id: "skill:qimou".into(),
+            description: "奇谋：失去任意点体力，本回合距离 -X、杀次数 +X".into(),
+        });
+    }
+    // 黄天（张角主公技）：其他群势力角色出牌阶段限一次，交给张角一张【闪】或【闪电】。
+    if st.counter("huangtian_used") == 0 && crate::skills::huangtian_owner(st, idx).is_some() {
+        for card_id in hand_ids(st, idx) {
+            if card_def(st, &card_id).is_some_and(|d| matches!(d.code, "shan" | "shandian")) {
+                out.push(Action {
+                    id: format!("skill:huangtian:{card_id}"),
+                    description: format!("黄天：将【{}】交给张角", card_label(st, &card_id)),
+                });
+            }
+        }
+    }
     // 重铸：铁索连环可弃置并摸 1 张。
     for card_id in hand_ids(st, idx) {
         if card_def(st, &card_id).is_some_and(|d| d.code == "tiesuo_lianhuan") {
@@ -799,6 +898,18 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
         id: "end_play".into(),
         description: "结束出牌阶段".into(),
     });
+    // 缠怨：体力值为 1 时不能使用或打出手牌。
+    if crate::skills::chanyuan_locked(st, idx) {
+        out.retain(|a| {
+            !a.id.starts_with("play:")
+                && !a.id.starts_with("skill:wusheng:")
+                && !a.id.starts_with("skill:longdan:")
+                && !a.id.starts_with("skill:guose:")
+                && !a.id.starts_with("skill:qixi:")
+                && !a.id.starts_with("skill:zhangba:")
+                && a.id != "skill:guhuo"
+        });
+    }
     out
 }
 
@@ -991,6 +1102,47 @@ pub fn execute(
         );
         st.push_log(Some(player_id), "发动结姻");
         "请选择要弃置的 2 张牌".to_string()
+    } else if action == "skill:guhuo" {
+        crate::resolve_wind::begin_guhuo_play(st, idx)?;
+        st.push_log(Some(player_id), "发动蛊惑");
+        "蛊惑：请选择要扣置的手牌".to_string()
+    } else if action == "skill:qimou" {
+        if !crate::skills::has(st, idx, "qimou") {
+            return Err(illegal("没有该技能"));
+        }
+        if st.seats[idx].flags.contains_key("qimou_used") {
+            return Err(illegal("奇谋（限定技）本局已发动过"));
+        }
+        if st.seats[idx].hp <= 0 {
+            return Err(illegal("体力不足，不能发动奇谋"));
+        }
+        resolve::push(
+            st,
+            resolve::Frame::Qimou(crate::resolve_wind::QimouFrame { actor: idx }),
+        );
+        st.push_log(Some(player_id), "发动奇谋");
+        "奇谋：请选择失去的体力值".to_string()
+    } else if let Some(card_id) = action.strip_prefix("skill:huangtian:") {
+        let owner = crate::skills::huangtian_owner(st, idx)
+            .ok_or_else(|| illegal("没有可发动黄天的张角主公"))?;
+        if st.counter("huangtian_used") > 0 {
+            return Err(illegal("本阶段已发动过黄天"));
+        }
+        if !st.seats[idx].hand.iter().any(|c| c == card_id) {
+            return Err(illegal("手牌中没有该牌"));
+        }
+        if !card_def(st, card_id).is_some_and(|d| matches!(d.code, "shan" | "shandian")) {
+            return Err(illegal("黄天只能交给【闪】或【闪电】"));
+        }
+        let label = card_label(st, card_id);
+        take_card(st, idx, card_id)?;
+        st.seats[owner].hand.push(card_id.to_string());
+        st.set_counter("huangtian_used", 1);
+        st.push_log(
+            Some(player_id),
+            format!("黄天：将【{label}】交给 {}", st.seats[owner].general_name),
+        );
+        format!("黄天：已将【{label}】交给张角")
     } else if let Some(card_id) = action.strip_prefix("recast:") {
         if !st.seats[idx].hand.iter().any(|c| c == card_id) {
             return Err(illegal("手牌中没有该牌"));

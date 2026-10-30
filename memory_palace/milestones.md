@@ -2,6 +2,17 @@
 
 > 记录项目关键节点与验证结果，按时间倒序。重大技术决策见 `decisions/`。
 
+## M24：三国杀 P4.4.0 / P4.4.1 —— 风林火山包开关 + 风包 8 将 ✅
+
+- **日期**：2026-10-30
+- **P4.4.0 数据/开关**：生成脚本登记 `wind_fire_forest_mountain`（48 位，官网标签全量），默认生成标准 25 + 风林火山 48 = **73 将**；`Config.general_packs`（默认 `["standard"]`，旧快照 serde 兼容）+ `parse_general_packs` + lobby `lobby:set_general_packs:standard|standard+wind_fire_forest_mountain`；选将池按包过滤 + `skills::general_ready`（未实现武将不进池）
+- **P4.4.1 风包 8 将**：魏延（狂骨/奇谋）、夏侯渊（神速）、曹仁（据守/解围）、小乔（红颜/天香）、黄忠（烈弓）、周泰（不屈/奋激）、于吉（蛊惑 + 缠怨）、张角（鬼道/黄天/雷击）
+- **机制**（ADR-0023）：`Seat.marks`（不屈「创」，牌数守恒覆盖）、`Seat.flipped`（翻面跳过/翻回）、天香伤害防止窗口、蛊惑质疑/真假/缠怨、神速虚拟无距离【杀】、鬼道改判、`Frame::*` 8 类新帧
+- **视图/Web**：公共/个人区下发 `marks`/`flipped`，`view_contract` 期望集同步；Web 座位/个人区展示翻面与标记
+- **验证**：`cargo test -p sanguosha` **242** 全绿；`check:sgs-engine-data`（160 牌 / 73 将）、`check:sgs-skill-cases`（224 条 / 33 位已实现武将 ≥3）、`check:sgs-view-contract`、`check:interaction-primitives`、`npm --prefix apps run test:web`、`npm run verify:sanguosha`（含包开关）全通过
+- **已知边界**：ADR-0023 §3（鬼道/鬼才仅手牌、解围移动限自己区域、奋激触发点有限、神速②仅手牌装备、不屈无牌不发动）
+- **详见**：`docs/games/sanguosha/development-plan.md` P4.4 记录、`skills.md` §2.1、`data-model.md` §3.7/§4.1、ADR-0023
+
 ## M23：三国杀 P4.2 / P4.3 / P4.5 —— 装备效果 + 军争结算 + 装备技能化 ✅
 
 - **日期**：2026-10-30

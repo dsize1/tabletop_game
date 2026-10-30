@@ -675,6 +675,8 @@ fn qinglong_act(
             pending_targets: Vec::new(),
             fangtian: false,
             damage_type: crate::resolve::DamageType::Normal,
+            no_distance: false,
+            virtual_card: false,
         }),
     );
     let need = if crate::skills::has(st, f.user, "wushuang") {
@@ -1003,8 +1005,16 @@ pub(crate) fn step_multiselect(
     st: &mut SgsState,
     f: MultiSelectFrame,
 ) -> Result<bool, EngineError> {
+    let allowed: Option<Vec<String>> = f.data.get("allowed").and_then(|v| v.as_array()).map(|a| {
+        a.iter()
+            .filter_map(|v| v.as_str().map(str::to_string))
+            .collect()
+    });
     let mut options: Vec<PendingOption> = Vec::new();
     for id in turn::hand_ids(st, f.actor) {
+        if allowed.as_ref().is_some_and(|a| !a.contains(&id)) {
+            continue;
+        }
         let mark = if f.selected.contains(&id) { "✔ " } else { "" };
         options.push(PendingOption {
             id: format!("choose:{id}"),
@@ -1086,6 +1096,13 @@ pub(crate) fn act_multiselect(st: &mut SgsState, action: &str) -> Result<String,
             .ok_or_else(|| illegal("未知选项"))?;
         if !st.seats[f.actor].hand.iter().any(|c| c == card_id) {
             return Err(illegal("手牌中没有该牌"));
+        }
+        if f.data
+            .get("allowed")
+            .and_then(|v| v.as_array())
+            .is_some_and(|a| !a.iter().any(|v| v.as_str() == Some(card_id)))
+        {
+            return Err(illegal("该牌不在可选范围"));
         }
         if let Some(pos) = f.selected.iter().position(|c| c == card_id) {
             f.selected.remove(pos);
