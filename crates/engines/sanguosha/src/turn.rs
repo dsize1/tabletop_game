@@ -78,6 +78,10 @@ pub(crate) fn take_card(st: &mut SgsState, idx: usize, card_id: &str) -> Result<
     hand.remove(pos);
     // 连营：失去最后的手牌后摸 1 张（自动）。
     crate::skills::lianying_on_lose_last(st, idx);
+    // 屯田：回合外失去牌后判定。
+    if st.turn != idx {
+        crate::skills::tuotian_on_lose(st, idx);
+    }
     Ok(())
 }
 
@@ -144,6 +148,7 @@ pub(crate) fn effective_distance(st: &SgsState, from: usize, to: usize) -> i32 {
         - i32::from(st.equip_def(from, EquipSlot::HorseOffense).is_some())
         - st.mashu_bonus(from)
         - crate::skills::qimou_bonus(st, from)
+        - crate::skills::tuotian_bonus(st, from)
 }
 
 /// 顺手牵羊等「不含武器范围」的距离：`seat_distance + 防御马 - 进攻马 ≤ 1`。
@@ -272,6 +277,29 @@ pub(crate) fn phase_step(
                     }),
                 );
             }
+            // 觉醒（凿险/志继/魂姿/若愚）。
+            crate::resolve_mountain::awaken_triggers(st);
+            // 巧变：准备阶段选择跳过的阶段（每回合一次）。
+            if crate::skills::has(st, st.turn, "qiaobian") && st.counter("qiaobian_offered") == 0 {
+                st.set_counter("qiaobian_offered", 1);
+                resolve::push(
+                    st,
+                    resolve::Frame::Qiaobian(crate::resolve_mountain::QiaobianFrame {
+                        actor: st.turn,
+                        remaining: 0,
+                    }),
+                );
+            }
+            // 化身：回合开始时替换展示的化身牌。
+            if crate::skills::has(st, st.turn, "huashen") && st.counter("huashen_prepare") == 0 {
+                st.set_counter("huashen_prepare", 1);
+                resolve::push(
+                    st,
+                    resolve::Frame::Huashen(crate::resolve_mountain::HuashenFrame {
+                        actor: st.turn,
+                    }),
+                );
+            }
             // 英魂：准备阶段若已受伤，可选一名其他角色二选一。
             if crate::skills::has(st, st.turn, "yinghun")
                 && st.seats[st.turn].hp < st.seats[st.turn].max_hp
@@ -289,6 +317,14 @@ pub(crate) fn phase_step(
             Ok(true)
         }
         TurnPhase::Judge => {
+            // 巧变：跳过判定阶段。
+            if st.counter("qiaobian_skip_judge") > 0 {
+                st.set_counter("qiaobian_skip_judge", 0);
+                let pid = st.seats[st.turn].player_id.clone();
+                st.push_log(Some(&pid), "巧变：跳过判定阶段");
+                st.turn_phase = TurnPhase::Draw;
+                return Ok(true);
+            }
             // 神速①：跳过判定阶段（判定区牌保留）。
             if st.counter("shensu_skip_judge") > 0 {
                 let pid = st.seats[st.turn].player_id.clone();
@@ -427,6 +463,7 @@ pub(crate) fn phase_step(
             if st.counter("skip_play") > 0 {
                 let pid = st.seats[st.turn].player_id.clone();
                 st.set_counter("skip_play", 0);
+                st.phase_discarded.clear();
                 st.push_log(Some(&pid), "出牌阶段被跳过");
                 events.push(EngineEvent::new(
                     "phase_skipped",
@@ -445,6 +482,14 @@ pub(crate) fn phase_step(
         }
         TurnPhase::Discard => {
             let idx = st.turn;
+            // 巧变：跳过弃牌阶段。
+            if st.counter("qiaobian_skip_discard") > 0 {
+                st.set_counter("qiaobian_skip_discard", 0);
+                let pid = st.seats[idx].player_id.clone();
+                st.push_log(Some(&pid), "巧变：跳过弃牌阶段");
+                st.turn_phase = TurnPhase::End;
+                return Ok(true);
+            }
             // 神速③：跳过弃牌阶段。
             if st.counter("shensu_skip_discard") > 0 {
                 st.set_counter("shensu_skip_discard", 0);
@@ -461,6 +506,25 @@ pub(crate) fn phase_step(
                 // 帧结算完后会再次进入本阶段
                 return Ok(true);
             }
+            // 固政：其他角色弃牌阶段结束时，可令其获得一张弃牌并取得剩余。
+            if st.counter("guzheng_done") == 0 {
+                if let Some(owner) = crate::resolve_mountain::guzheng_owner(st, idx) {
+                    if !st.phase_discarded.is_empty() {
+                        st.set_counter("guzheng_done", 1);
+                        let cards = st.phase_discarded.clone();
+                        resolve::push(
+                            st,
+                            resolve::Frame::Guzheng(crate::resolve_mountain::GuzhengFrame {
+                                owner,
+                                discarder: idx,
+                                cards,
+                            }),
+                        );
+                        return Ok(true);
+                    }
+                }
+            }
+            st.phase_discarded.clear();
             st.turn_phase = TurnPhase::End;
             Ok(true)
         }
@@ -470,6 +534,31 @@ pub(crate) fn phase_step(
                 "phase_start",
                 json!({ "phase": "end", "seat": st.turn, "player": pid }),
             ));
+            // 化身：回合结束时替换展示的化身牌。
+            if crate::skills::has(st, st.turn, "huashen") && st.counter("huashen_end") == 0 {
+                st.set_counter("huashen_end", 1);
+                resolve::push(
+                    st,
+                    resolve::Frame::Huashen(crate::resolve_mountain::HuashenFrame {
+                        actor: st.turn,
+                    }),
+                );
+                return Ok(true);
+            }
+            // 放权：本回合结束时，令一名其他角色执行额外回合。
+            if st.seats[st.turn].flags.contains_key("fangquan_pending")
+                && st.counter("fangquan_done") == 0
+            {
+                st.set_counter("fangquan_done", 1);
+                resolve::push(
+                    st,
+                    resolve::Frame::Fangquan(crate::resolve_mountain::FangquanFrame {
+                        actor: st.turn,
+                        stage: crate::resolve_mountain::FangquanStage::Target,
+                    }),
+                );
+                return Ok(true);
+            }
             // 崩坏：结束阶段若你不是体力值最小的角色，失 1 体力或减 1 体力上限。
             if crate::skills::has(st, st.turn, "bengkuai")
                 && st.counter("bengkuai_done") == 0
@@ -512,6 +601,7 @@ fn end_turn(st: &mut SgsState, events: &mut Vec<EngineEvent>) {
         json!({ "seat": cur, "player": pid }),
     ));
     st.turn_counters.clear();
+    st.phase_discarded.clear();
     st.special_zones.remove("judge");
     // 特殊区（观星/五谷）必须在回合内结算完毕；收尾清理防止残留投影。
     st.special_zones.remove(crate::resolve_zone::GUANXING_ZONE);
@@ -522,11 +612,16 @@ fn end_turn(st: &mut SgsState, events: &mut Vec<EngineEvent>) {
         st.phase = Phase::Finished;
         return;
     }
-    let next = alive
+    let mut next = alive
         .iter()
         .copied()
         .find(|i| *i > cur)
         .unwrap_or_else(|| alive[0]);
+    if let Some(extra) = st.extra_turn.take() {
+        if extra != cur && st.seats.get(extra).is_some_and(|s| s.alive) {
+            next = extra;
+        }
+    }
     if Some(next) == st.lord_index() {
         st.round += 1;
     }
@@ -1037,6 +1132,57 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
             description: "缔盟：选择两名其他角色，弃 X 张牌后交换其手牌".into(),
         });
     }
+    // 挑衅：出牌阶段限一次，令攻击范围含你的角色对你出杀，否则弃其一张牌。
+    if crate::skills::has(st, idx, "tiaoxin")
+        && st.counter("tiaoxin_used") == 0
+        && st.alive_indices().into_iter().any(|t| {
+            t != idx
+                && st.in_attack_range(t, idx)
+                && (!st.seats[t].hand.is_empty()
+                    || !st.seats[t].judge_zone.is_empty()
+                    || st.seats[t].equips.values().any(|c| c.is_some()))
+        })
+    {
+        out.push(Action {
+            id: "skill:tiaoxin".into(),
+            description: "挑衅：令攻击范围含你的角色对你使用【杀】，否则弃其一张牌".into(),
+        });
+    }
+    // 放权：跳过出牌阶段，本回合结束时可令其他角色执行额外回合。
+    if crate::skills::has(st, idx, "fangquan")
+        && st.counter("fangquan_used") == 0
+        && st.alive_indices().len() > 1
+    {
+        out.push(Action {
+            id: "skill:fangquan".into(),
+            description: "放权：跳过出牌阶段，本回合结束时可令其他角色执行额外回合".into(),
+        });
+    }
+    // 直谏：将一张装备手牌置入其他角色装备区，然后摸 1。
+    if crate::skills::has(st, idx, "zhijian") && st.alive_indices().len() > 1 {
+        for card_id in hand_ids(st, idx) {
+            if card_def(st, &card_id).is_some_and(|d| d.equip_slot.is_some()) {
+                out.push(Action {
+                    id: format!("skill:zhijian:{card_id}"),
+                    description: format!(
+                        "直谏：将【{}】置入其他角色装备区并摸 1",
+                        card_label(st, &card_id)
+                    ),
+                });
+            }
+        }
+    }
+    // 制霸（孙策主公技）：其他吴势力出牌阶段限一次，可与其拼点。
+    if st.counter("zhiba_used") == 0
+        && crate::skills::kingdom_is(st, idx, "wu")
+        && crate::resolve_mountain::zhiba_lord(st, idx).is_some()
+        && !st.seats[idx].hand.is_empty()
+    {
+        out.push(Action {
+            id: "skill:zhiba".into(),
+            description: "制霸：与孙策拼点（没赢则孙策获得两张拼点牌）".into(),
+        });
+    }
     // 奇谋（限定技）：失去任意点体力，本回合距离/杀次数修正。
     if crate::skills::has(st, idx, "qimou")
         && !st.seats[idx].flags.contains_key("qimou_used")
@@ -1263,7 +1409,7 @@ pub fn execute(
         resolve::start_virtual_trick(st, idx, card_id, "guohe_chaiqiao")?;
         st.push_log(Some(player_id), format!("奇袭：将【{label}】当过河拆桥"));
         "请选择过河拆桥的目标".to_string()
-    } else if let Some((skill, card_id)) = ["wusheng", "longdan"].iter().find_map(|code| {
+    } else if let Some((skill, card_id)) = ["wusheng", "longdan", "jixi"].iter().find_map(|code| {
         action
             .strip_prefix(&format!("skill:{code}:"))
             .map(|card| (*code, card))
@@ -1602,6 +1748,91 @@ pub fn execute(
         );
         st.push_log(Some(player_id), "发动缔盟");
         "缔盟：请选择第一名角色".to_string()
+    } else if action == "skill:tiaoxin" {
+        if !crate::skills::has(st, idx, "tiaoxin") {
+            return Err(illegal("没有该技能"));
+        }
+        if st.counter("tiaoxin_used") > 0 {
+            return Err(illegal("本阶段已发动过挑衅"));
+        }
+        st.set_counter("tiaoxin_used", 1);
+        resolve::push(
+            st,
+            resolve::Frame::Tiaoxin(crate::resolve_mountain::TiaoxinFrame {
+                actor: idx,
+                target: None,
+                stage: crate::resolve_mountain::TiaoxinStage::Target,
+            }),
+        );
+        st.push_log(Some(player_id), "发动挑衅");
+        "挑衅：请选择目标".to_string()
+    } else if action == "skill:fangquan" {
+        if !crate::skills::has(st, idx, "fangquan") {
+            return Err(illegal("没有该技能"));
+        }
+        if st.counter("fangquan_used") > 0 {
+            return Err(illegal("本阶段已发动过放权"));
+        }
+        st.set_counter("fangquan_used", 1);
+        st.set_counter("skip_play", 1);
+        st.seats[idx].flags.insert("fangquan_pending".into(), true);
+        st.push_log(Some(player_id), "放权：跳过出牌阶段");
+        "放权：已跳过出牌阶段".to_string()
+    } else if let Some(card_id) = action.strip_prefix("skill:zhijian:") {
+        if !crate::skills::has(st, idx, "zhijian") {
+            return Err(illegal("没有该技能"));
+        }
+        if !st.seats[idx].hand.iter().any(|c| c == card_id) {
+            return Err(illegal("手牌中没有该牌"));
+        }
+        if !card_def(st, card_id).is_some_and(|d| d.equip_slot.is_some()) {
+            return Err(illegal("直谏只能使用装备牌"));
+        }
+        resolve::push(
+            st,
+            resolve::Frame::Zhijian(crate::resolve_mountain::ZhijianFrame {
+                actor: idx,
+                card: card_id.to_string(),
+            }),
+        );
+        st.push_log(Some(player_id), "发动直谏");
+        "直谏：请选择目标角色".to_string()
+    } else if action == "skill:zhiba" {
+        if st.counter("zhiba_used") > 0 {
+            return Err(illegal("本阶段已发动过制霸"));
+        }
+        let Some(lord) = crate::resolve_mountain::zhiba_lord(st, idx) else {
+            return Err(illegal("没有可制霸的孙策主公"));
+        };
+        st.set_counter("zhiba_used", 1);
+        let has_hunzi = st.seats[lord].flags.contains_key("awaken_hunzi");
+        if has_hunzi {
+            resolve::push(
+                st,
+                resolve::Frame::Zhiba(crate::resolve_mountain::ZhibaFrame {
+                    challenger: idx,
+                    lord,
+                    stage: crate::resolve_mountain::ZhibaStage::LordChoice,
+                }),
+            );
+        } else {
+            resolve::push(
+                st,
+                resolve::Frame::Zhiba(crate::resolve_mountain::ZhibaFrame {
+                    challenger: idx,
+                    lord,
+                    stage: crate::resolve_mountain::ZhibaStage::WaitPindian,
+                }),
+            );
+            crate::resolve_fire::start_pindian(
+                st,
+                idx,
+                lord,
+                serde_json::json!({ "skill": "zhiba" }),
+            );
+        }
+        st.push_log(Some(player_id), "制霸：拼点");
+        "制霸：拼点开始".to_string()
     } else if action == "skill:qimou" {
         if !crate::skills::has(st, idx, "qimou") {
             return Err(illegal("没有该技能"));
@@ -1748,6 +1979,7 @@ pub fn execute(
     } else if let Some(card_id) = action.strip_prefix("play:") {
         play_card(st, idx, card_id, &mut events)?
     } else if action == "end_play" {
+        st.phase_discarded.clear();
         st.turn_phase = TurnPhase::Discard;
         st.push_log(Some(player_id), "结束出牌阶段");
         events.push(EngineEvent::new(

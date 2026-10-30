@@ -1627,6 +1627,82 @@ pub(crate) fn multiselect_confirm(
             }
             Some(Ok(format!("据守：已弃置【{label}】")))
         }
+        "qiaobian" => {
+            if f.selected.len() != 1 {
+                return Some(Err(illegal("巧变需弃置 1 张手牌")));
+            }
+            let id = f.selected[0].clone();
+            if turn::take_card(st, f.actor, &id).is_err() {
+                return Some(Err(illegal("手牌中没有该牌")));
+            }
+            turn::to_discard_card(st, &id);
+            let choice = f.data["choice"].as_str().unwrap_or_default().to_string();
+            match choice.as_str() {
+                "judge" => {
+                    st.set_counter("qiaobian_skip_judge", 1);
+                    pop(st);
+                    Some(Ok("巧变：跳过判定阶段".to_string()))
+                }
+                "draw" => {
+                    st.set_counter("skip_draw", 1);
+                    replace_top(
+                        st,
+                        Frame::Qiaobian(crate::resolve_mountain::QiaobianFrame {
+                            actor: f.actor,
+                            remaining: 2,
+                        }),
+                    );
+                    Some(Ok("巧变：请选择获得手牌的角色".to_string()))
+                }
+                "play" => {
+                    st.set_counter("skip_play", 1);
+                    replace_top(
+                        st,
+                        Frame::Jiewei(crate::resolve_wind::JieweiFrame {
+                            actor: f.actor,
+                            stage: crate::resolve_wind::JieweiStage::Move,
+                        }),
+                    );
+                    Some(Ok("巧变：请选择移动的场牌".to_string()))
+                }
+                "discard" => {
+                    st.set_counter("qiaobian_skip_discard", 1);
+                    pop(st);
+                    Some(Ok("巧变：跳过弃牌阶段".to_string()))
+                }
+                _ => Some(Err(illegal("未知巧变选项"))),
+            }
+        }
+        "xiangle" => {
+            if f.selected.len() != 1 {
+                return Some(Err(illegal("享乐需弃置 1 张基本牌")));
+            }
+            let id = f.selected[0].clone();
+            if turn::take_card(st, f.actor, &id).is_err() {
+                return Some(Err(illegal("手牌中没有该牌")));
+            }
+            turn::to_discard_card(st, &id);
+            let user = f.data["user"].as_u64().unwrap_or(f.actor as u64) as usize;
+            let target = f.data["target"].as_u64().unwrap_or(0) as usize;
+            let card = f.data["card"].as_str().unwrap_or_default().to_string();
+            let need = f.data["need"].as_u64().unwrap_or(1) as u32;
+            let no_shan = f.data["no_shan"].as_bool().unwrap_or(false);
+            let ignore_armor = f.data["ignore_armor"].as_bool().unwrap_or(false);
+            let damage_type: crate::resolve::DamageType =
+                serde_json::from_value(f.data["damage_type"].clone()).unwrap_or_default();
+            pop(st);
+            crate::resolve_skill::push_sha_target_response(
+                st,
+                user,
+                target,
+                &card,
+                need,
+                no_shan,
+                ignore_armor,
+                damage_type,
+            );
+            Some(Ok("享乐：已弃置基本牌，继续结算".to_string()))
+        }
         "haoshi" => {
             if f.selected.is_empty() {
                 return Some(Err(illegal("好施需选择要交出的牌")));
@@ -1744,6 +1820,18 @@ pub(crate) fn target_action(
         }
         Some(Frame::Dimeng(_)) => {
             crate::resolve_forest::dimeng_target(st, pending, action).map(Some)
+        }
+        Some(Frame::Qiaobian(_)) => {
+            crate::resolve_mountain::qiaobian_gain_target(st, pending, action).map(Some)
+        }
+        Some(Frame::Tiaoxin(_)) => {
+            crate::resolve_mountain::tiaoxin_target(st, pending, action).map(Some)
+        }
+        Some(Frame::Fangquan(_)) => {
+            crate::resolve_mountain::fangquan_target(st, pending, action).map(Some)
+        }
+        Some(Frame::Zhijian(_)) => {
+            crate::resolve_mountain::zhijian_target(st, pending, action).map(Some)
         }
         _ => Ok(None),
     }

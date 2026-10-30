@@ -153,6 +153,8 @@ fn finish_pindian(
         winner,
         initiator: f.initiator,
         target: f.target,
+        initiator_card: a.clone(),
+        target_card: b.clone(),
     });
     pop(st);
     Ok("拼点结算完毕".to_string())

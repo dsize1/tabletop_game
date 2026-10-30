@@ -638,6 +638,123 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
             implemented: true,
         },
     ];
+    // P4.4.1 山包：张郃 / 邓艾 / 姜维 / 刘禅 / 孙策 / 张昭张纮 / 左慈 / 蔡文姬。
+    const ZHANGHE: &[SkillDef] = &[SkillDef {
+        code: "qiaobian",
+        name: "巧变",
+        kind: SkillType::Normal,
+        implemented: true,
+    }];
+    const DENGAI: &[SkillDef] = &[
+        SkillDef {
+            code: "tuotian",
+            name: "屯田",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "zaoxian",
+            name: "凿险",
+            kind: SkillType::Awaken,
+            implemented: true,
+        },
+    ];
+    const JIANGWEI: &[SkillDef] = &[
+        SkillDef {
+            code: "tiaoxin",
+            name: "挑衅",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "zhiji",
+            name: "志继",
+            kind: SkillType::Awaken,
+            implemented: true,
+        },
+    ];
+    const LIUSHAN: &[SkillDef] = &[
+        SkillDef {
+            code: "xiangle",
+            name: "享乐",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "fangquan",
+            name: "放权",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "ruoyu",
+            name: "若愚",
+            kind: SkillType::Lord,
+            implemented: true,
+        },
+    ];
+    const SUNCE: &[SkillDef] = &[
+        SkillDef {
+            code: "jiang",
+            name: "激昂",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "hunzi",
+            name: "魂姿",
+            kind: SkillType::Awaken,
+            implemented: true,
+        },
+        SkillDef {
+            code: "zhiba",
+            name: "制霸",
+            kind: SkillType::Lord,
+            implemented: true,
+        },
+    ];
+    const ZHANGZHAO: &[SkillDef] = &[
+        SkillDef {
+            code: "zhijian",
+            name: "直谏",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "guzheng",
+            name: "固政",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const ZUOCI: &[SkillDef] = &[
+        SkillDef {
+            code: "huashen",
+            name: "化身",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "xinsheng",
+            name: "新生",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const CAIWENJI: &[SkillDef] = &[
+        SkillDef {
+            code: "beige",
+            name: "悲歌",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "duanchang",
+            name: "断肠",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+    ];
     match general {
         "sgs_hero_1" => LIUBEI,
         "sgs_hero_15" => CAOCAO,
@@ -688,6 +805,14 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
         "sgs_hero_47" => MENG_HUO,
         "sgs_hero_48" => JIAXU,
         "sgs_hero_49" => LUSU,
+        "sgs_hero_50" => ZHANGHE,
+        "sgs_hero_51" => DENGAI,
+        "sgs_hero_52" => JIANGWEI,
+        "sgs_hero_53" => LIUSHAN,
+        "sgs_hero_54" => SUNCE,
+        "sgs_hero_55" => ZHANGZHAO,
+        "sgs_hero_56" => ZUOCI,
+        "sgs_hero_57" => CAIWENJI,
         _ => &[],
     }
 }
@@ -899,12 +1024,64 @@ pub fn general_ready(general: &str) -> bool {
 
 /// 是否拥有某技能（只有已实现的技能会触发）。
 pub fn has(st: &SgsState, seat: usize, code: &str) -> bool {
-    let Some(general) = st.seats.get(seat).and_then(|s| s.general.as_deref()) else {
+    let Some(seat_state) = st.seats.get(seat) else {
+        return false;
+    };
+    // 断肠：杀死蔡文姬的角色失去所有技能。
+    if seat_state.flags.contains_key("skills_lost") {
+        return false;
+    }
+    if seat_state.extra_skills.iter().any(|c| c == code) {
+        return true;
+    }
+    let Some(general) = seat_state.general.as_deref() else {
         return false;
     };
     skills_of(general)
         .iter()
         .any(|s| s.code == code && s.implemented)
+}
+
+/// 额外技能（觉醒/化身）注册表（不在武将原始技能列表中的技能）。
+pub static EXTRA_SKILLS: &[SkillDef] = &[SkillDef {
+    code: "jixi",
+    name: "急袭",
+    kind: SkillType::Normal,
+    implemented: true,
+}];
+
+/// 按 code 查技能定义（武将原始技能 + 额外技能）。
+pub fn def_of(code: &str) -> Option<&'static SkillDef> {
+    for general in crate::data::GENERAL_PACKS.iter().flat_map(|p| p.iter()) {
+        if let Some(def) = skills_of(general.code).iter().find(|s| s.code == code) {
+            return Some(def);
+        }
+    }
+    EXTRA_SKILLS.iter().find(|s| s.code == code)
+}
+
+/// 授予额外技能（去重）。
+pub fn grant_skill(st: &mut SgsState, seat: usize, code: &str) {
+    if let Some(s) = st.seats.get_mut(seat) {
+        if !s.extra_skills.iter().any(|c| c == code) {
+            s.extra_skills.push(code.to_string());
+        }
+    }
+}
+
+/// 撤销额外技能。
+pub fn revoke_skill(st: &mut SgsState, seat: usize, code: &str) {
+    if let Some(s) = st.seats.get_mut(seat) {
+        s.extra_skills.retain(|c| c != code);
+    }
+}
+
+/// 武将第一个已实现的技能（化身用）。
+pub fn first_implemented_skill(general: &str) -> Option<&'static str> {
+    skills_of(general)
+        .iter()
+        .find(|s| s.implemented)
+        .map(|s| s.code)
 }
 
 /// 当前玩家（按座位顺序）中第一个拥有该技能的玩家（主公技救援等使用）。
@@ -968,6 +1145,11 @@ pub fn conversion_for(
             }
             if has(st, seat, "longdan") && inst.def == "shan" {
                 return Some(("longdan", "龙胆"));
+            }
+            if has(st, seat, "jixi")
+                && crate::data::card_def(&inst.def).is_some_and(|d| d.equip_slot.is_some())
+            {
+                return Some(("jixi", "急袭"));
             }
         }
         "shan" => {
@@ -1244,6 +1426,27 @@ pub fn qimou_bonus(st: &SgsState, seat: usize) -> i32 {
     }
 }
 
+/// 屯田：每有一张「田」，计算与其他角色的距离 -1。
+pub fn tuotian_bonus(st: &SgsState, seat: usize) -> i32 {
+    st.seats
+        .get(seat)
+        .and_then(|s| s.marks.get("tian"))
+        .map(|v| v.len() as i32)
+        .unwrap_or(0)
+}
+
+/// 激昂：使用/成为【决斗】或红色【杀】目标后摸 1。
+pub fn jiang_trigger(st: &mut SgsState, seat: usize) {
+    if !has(st, seat, "jiang") {
+        return;
+    }
+    let mut ev = Vec::new();
+    let drawn = crate::turn::draw_cards(st, seat, 1, &mut ev);
+    if drawn > 0 {
+        st.push_log(Some(&st.seats[seat].player_id.clone()), "激昂：摸 1 张");
+    }
+}
+
 /// 烈弓：使用【杀】指定目标后，满足条件则目标不能使用【闪】。
 pub fn liegong_blocks(st: &SgsState, attacker: usize, victim: usize) -> bool {
     if !has(st, attacker, "liegong") {
@@ -1288,6 +1491,31 @@ pub fn chanyuan_locked(st: &SgsState, seat: usize) -> bool {
     st.seats
         .get(seat)
         .is_some_and(|s| s.flags.contains_key("chanyuan") && s.hp == 1)
+}
+
+/// 势力判定（供跨模块使用）。
+pub fn kingdom_is(st: &SgsState, seat: usize, wanted: &str) -> bool {
+    kingdom(st, seat) == wanted
+}
+
+/// 屯田：回合外失去牌后判定，非红桃置于武将牌上为「田」。
+pub fn tuotian_on_lose(st: &mut SgsState, seat: usize) {
+    if !has(st, seat, "tuotian") {
+        return;
+    }
+    crate::resolve::push(
+        st,
+        crate::resolve::Frame::QuickJudge(crate::resolve::QuickJudgeFrame {
+            owner: seat,
+            reason: "tuotian".into(),
+            stage: crate::resolve::QuickJudgeStage::Reveal,
+            judge_card: None,
+            rewrite_order: Vec::new(),
+            rewrite_cursor: 0,
+            data: serde_json::json!({ "owner": seat }),
+            saved_outcome: None,
+        }),
+    );
 }
 
 /// 女性角色（离间/雌雄/肉林等）。

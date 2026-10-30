@@ -201,7 +201,7 @@ pub fn player_area(st: &SgsState, viewer: &str) -> Option<Value> {
     let s = &st.seats[idx];
     let picked = st.setup.picks.get(viewer).cloned();
     let general = s.general.clone().or_else(|| picked.clone());
-    let skills: Vec<Value> = general
+    let mut skills: Vec<Value> = general
         .as_deref()
         .map(|code| {
             let defs = crate::skills::skills_of(code);
@@ -228,6 +228,20 @@ pub fn player_area(st: &SgsState, viewer: &str) -> Option<Value> {
             }
         })
         .unwrap_or_default();
+    // 觉醒/化身授予的额外技能。
+    for code in &s.extra_skills {
+        if skills.iter().any(|v| v["code"] == json!(code)) {
+            continue;
+        }
+        if let Some(def) = crate::skills::def_of(code) {
+            skills.push(json!({
+                "code": def.code,
+                "name": def.name,
+                "type": def.kind.code(),
+                "implemented": def.implemented,
+            }));
+        }
+    }
     let setup = if st.phase == Phase::Setup {
         json!({
             "candidates": st.setup.offers.get(viewer),

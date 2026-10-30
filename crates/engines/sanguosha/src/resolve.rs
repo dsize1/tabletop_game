@@ -96,6 +96,17 @@ pub enum Frame {
     Dimeng(crate::resolve_forest::DimengFrame),
     Luanwu(crate::resolve_forest::LuanwuFrame),
     HaoshiOffer(crate::resolve_forest::HaoshiOfferFrame),
+    /// P4.4.1 山包帧。
+    Awaken(crate::resolve_mountain::AwakenFrame),
+    Qiaobian(crate::resolve_mountain::QiaobianFrame),
+    Tiaoxin(crate::resolve_mountain::TiaoxinFrame),
+    Xiangle(crate::resolve_mountain::XiangleFrame),
+    Fangquan(crate::resolve_mountain::FangquanFrame),
+    Zhiba(crate::resolve_mountain::ZhibaFrame),
+    Zhijian(crate::resolve_mountain::ZhijianFrame),
+    Guzheng(crate::resolve_mountain::GuzhengFrame),
+    Huashen(crate::resolve_mountain::HuashenFrame),
+    Beige(crate::resolve_mountain::BeigeFrame),
     /// 五谷丰登（P2.5 特殊区 `wugu`）。
     Wugu(crate::resolve_zone::WuguFrame),
     /// 观星排序提交（P2.5 特殊区 `guanxing`，`arrange:<csv>`）。
@@ -231,6 +242,8 @@ pub enum PickMode {
     Guohe,
     /// 反馈：获得伤害来源的一张牌（手牌随机 / 装备指定；不含判定区）。
     Fankui,
+    /// 挑衅：弃置目标一张牌。
+    Tiaoxin,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -425,6 +438,10 @@ pub enum Outcome {
         winner: Option<usize>,
         initiator: usize,
         target: usize,
+        #[serde(default)]
+        initiator_card: String,
+        #[serde(default)]
+        target_card: String,
     },
 }
 
@@ -644,6 +661,16 @@ fn step(
         Frame::Dimeng(f) => crate::resolve_forest::step_dimeng(st, f),
         Frame::Luanwu(f) => crate::resolve_forest::step_luanwu(st, f),
         Frame::HaoshiOffer(f) => crate::resolve_forest::step_haoshi_offer(st, f),
+        Frame::Awaken(f) => crate::resolve_mountain::step_awaken(st, f),
+        Frame::Qiaobian(f) => crate::resolve_mountain::step_qiaobian(st, f),
+        Frame::Tiaoxin(f) => crate::resolve_mountain::step_tiaoxin(st, f),
+        Frame::Xiangle(f) => crate::resolve_mountain::step_xiangle(st, f),
+        Frame::Fangquan(f) => crate::resolve_mountain::step_fangquan(st, f),
+        Frame::Zhiba(f) => crate::resolve_mountain::step_zhiba(st, f),
+        Frame::Zhijian(f) => crate::resolve_mountain::step_zhijian(st, f),
+        Frame::Guzheng(f) => crate::resolve_mountain::step_guzheng(st, f),
+        Frame::Huashen(f) => crate::resolve_mountain::step_huashen(st, f),
+        Frame::Beige(f) => crate::resolve_mountain::step_beige(st, f),
         Frame::Wugu(f) => crate::resolve_zone::step_wugu(st, f, events),
         Frame::Arrange(f) => crate::resolve_zone::step_arrange(st, f, events),
     }
@@ -2015,7 +2042,8 @@ fn step_quick_judge(
             let label = turn::card_label(st, &judge_id);
             let black = suit.map(crate::skills::is_black).unwrap_or(false);
             pop(st);
-            // 洛神：黑色判定牌由技能获得；双雄：判定牌由技能获得；其余正常进弃牌堆。
+            // 洛神/双雄：判定牌由技能获得；屯田非红桃：留在处理区待置为「田」；其余弃置。
+            let tuotian_keep = f.reason == "tuotian" && suit != Some(Suit::Heart);
             if (f.reason == "luoshen" && black) || f.reason == "shuangxiong" {
                 leave_processing(st, &judge_id);
                 st.seats[f.owner].hand.push(judge_id.clone());
@@ -2026,6 +2054,8 @@ fn step_quick_judge(
                 if over > 0 {
                     push_discard(st, f.owner, over, "hand_cap");
                 }
+            } else if tuotian_keep {
+                leave_processing(st, &judge_id);
             } else {
                 discard_from_processing(st, &judge_id);
             }
@@ -2139,6 +2169,74 @@ fn step_quick_judge(
                             Some(&pid),
                             format!("雷击：判定【{label}】非黑桃/梅花，未生效"),
                         );
+                    }
+                }
+                "tuotian" => {
+                    if suit != Some(Suit::Heart) {
+                        st.seats[f.owner]
+                            .marks
+                            .entry("tian".into())
+                            .or_default()
+                            .push(judge_id.clone());
+                        st.push_log(
+                            Some(&pid),
+                            format!("屯田：判定【{label}】非红桃，置于武将牌上为「田」"),
+                        );
+                    } else {
+                        st.push_log(Some(&pid), format!("屯田：判定【{label}】红桃，未生效"));
+                    }
+                }
+                "beige" => {
+                    let target = f.data["target"].as_u64().unwrap_or(0) as usize;
+                    let source = f.data["source"].as_u64().map(|v| v as usize);
+                    match suit {
+                        Some(Suit::Heart) => {
+                            st.seats[target].hp =
+                                (st.seats[target].hp + 1).min(st.seats[target].max_hp);
+                            st.push_log(
+                                Some(&pid),
+                                format!(
+                                    "悲歌：判定【{label}】红桃，{} 回复 1 点体力",
+                                    st.seats[target].general_name
+                                ),
+                            );
+                        }
+                        Some(Suit::Diamond) => {
+                            let mut ev = Vec::new();
+                            let drawn = turn::draw_cards(st, target, 2, &mut ev);
+                            st.push_log(
+                                Some(&pid),
+                                format!(
+                                    "悲歌：判定【{label}】方片，{} 摸 {drawn} 张",
+                                    st.seats[target].general_name
+                                ),
+                            );
+                        }
+                        Some(Suit::Club) => {
+                            if let Some(src) = source {
+                                push_discard(st, src, 2, "beige");
+                                st.push_log(
+                                    Some(&pid),
+                                    format!(
+                                        "悲歌：判定【{label}】梅花，{} 弃 2 张",
+                                        st.seats[src].general_name
+                                    ),
+                                );
+                            }
+                        }
+                        Some(Suit::Spade) => {
+                            if let Some(src) = source {
+                                st.seats[src].flipped = !st.seats[src].flipped;
+                                st.push_log(
+                                    Some(&pid),
+                                    format!(
+                                        "悲歌：判定【{label}】黑桃，{} 翻面",
+                                        st.seats[src].general_name
+                                    ),
+                                );
+                            }
+                        }
+                        None => {}
                     }
                 }
                 "baonue" => {
@@ -2472,6 +2570,14 @@ pub fn execute_pending(
             Some("zaizhi") => crate::resolve_forest::act_zaizhi(st, action)?,
             Some("luanwu") => crate::resolve_forest::act_luanwu(st, action)?,
             Some("haoshi_offer") => crate::resolve_forest::act_haoshi_offer(st, action)?,
+            Some("awaken") => crate::resolve_mountain::act_awaken(st, action)?,
+            Some("qiaobian") => crate::resolve_mountain::act_qiaobian(st, action)?,
+            Some("tiaoxin") => crate::resolve_mountain::act_tiaoxin(st, action)?,
+            Some("xiangle") => crate::resolve_mountain::act_xiangle(st, action)?,
+            Some("zhiba") => crate::resolve_mountain::act_zhiba(st, action)?,
+            Some("guzheng") => crate::resolve_mountain::act_guzheng(st, action)?,
+            Some("huashen") => crate::resolve_mountain::act_huashen(st, action)?,
+            Some("beige") => crate::resolve_mountain::act_beige(st, action)?,
             _ => crate::resolve_skill::act_jianxiong(st, action)?,
         },
         "choose_many" => match top(st) {
@@ -2659,6 +2765,29 @@ fn act_target(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Stri
             );
             return Ok("流离：请选择是否弃牌转移".to_string());
         }
+        // 享乐：成为【杀】目标后，使用者需弃基本牌，否则杀无效。
+        if crate::skills::has(st, target, "xiangle") {
+            push(
+                st,
+                Frame::Xiangle(crate::resolve_mountain::XiangleFrame {
+                    user: f.user,
+                    target,
+                    card: f.card.clone(),
+                    need,
+                    no_shan,
+                    ignore_armor: crate::skills::has_equipment_skill(st, f.user, "qinggang_jian"),
+                    damage_type: f.damage_type,
+                }),
+            );
+            return Ok("享乐：请使用者选择是否弃置基本牌".to_string());
+        }
+        // 激昂：使用/成为红色【杀】目标后摸 1。
+        if let Some(inst) = st.cards.get(&f.card) {
+            if crate::skills::is_red(inst.suit) {
+                crate::skills::jiang_trigger(st, f.user);
+                crate::skills::jiang_trigger(st, target);
+            }
+        }
         // 鞬出：使用【杀】指定目标后，可弃其一张牌（弃装备→不能闪；非装备→其获得此杀）。
         if crate::skills::has(st, f.user, "jiandu")
             && !f.card.is_empty()
@@ -2750,6 +2879,10 @@ fn act_target(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Stri
         }
         _ => {
             f.targets = vec![target];
+            if f.code == "juedou" {
+                crate::skills::jiang_trigger(st, f.user);
+                crate::skills::jiang_trigger(st, target);
+            }
             f.stage = if needs_wuxie(&f.code) {
                 TrickStage::Wuxie
             } else {
@@ -3260,15 +3393,22 @@ fn act_pick(st: &mut SgsState, pending: &Pending, action: &str) -> Result<String
                 format!("过河拆桥：弃置【{picked_name}】"),
             );
         }
+        PickMode::Tiaoxin => {
+            to_discard(st, &picked);
+            st.push_log(
+                Some(&st.seats[f.user].player_id.clone()),
+                format!("挑衅：弃置【{picked_name}】"),
+            );
+        }
     }
     pop(st);
     // 反馈压在其他结算帧之上：不能覆盖父帧需要的 outcome（如【闪】响应结果）。
-    if f.mode != PickMode::Fankui {
+    if !matches!(f.mode, PickMode::Fankui | PickMode::Tiaoxin) {
         st.outcome = Some(Outcome::Picked {
             card: Some(picked.clone()),
         });
     }
-    if f.mode != PickMode::Guohe {
+    if !matches!(f.mode, PickMode::Guohe | PickMode::Tiaoxin) {
         let user = f.user;
         let over = st.seats[user]
             .hand
@@ -3278,6 +3418,9 @@ fn act_pick(st: &mut SgsState, pending: &Pending, action: &str) -> Result<String
     }
     if from_hand {
         maybe_fenji(st, target);
+    }
+    if target != st.turn {
+        crate::skills::tuotian_on_lose(st, target);
     }
     let _ = pending;
     Ok(format!("已选择【{picked_name}】"))
@@ -3464,6 +3607,9 @@ fn act_discard(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Str
         turn::to_discard_card(st, id);
     }
     let remaining = required - ids.len();
+    if f.reason == "discard_phase" {
+        st.phase_discarded.extend(ids.iter().cloned());
+    }
     maybe_fenji(st, f.actor);
     let text = if remaining == 0 {
         if f.reason == "hand_cap" {
@@ -3669,6 +3815,27 @@ fn apply_damage_inner(
             Frame::Fangzhu(crate::resolve_forest::FangzhuFrame { actor: victim }),
         );
     }
+    // 新生：受到伤害后获得一张新的化身牌。
+    if amount > 0 && st.seats[victim].hp > 0 {
+        crate::resolve_mountain::xinsheng_gain(st, victim);
+    }
+    // 悲歌：角色受到【杀】的伤害后，可弃一张牌令其判定。
+    if amount > 0 {
+        if let Some(card_id) = card {
+            if st.cards.get(card_id).map(|c| c.def.as_str()) == Some("sha") {
+                if let Some(owner) = crate::resolve_mountain::beige_owner(st) {
+                    push(
+                        st,
+                        Frame::Beige(crate::resolve_mountain::BeigeFrame {
+                            owner,
+                            target: victim,
+                            source,
+                        }),
+                    );
+                }
+            }
+        }
+    }
     // 烈刃：使用【杀】造成伤害后，可与目标拼点；赢则获得其一张牌。
     if let (Some(card_id), Some(src)) = (card, source) {
         if st.seats[victim].hp > 0
@@ -3825,6 +3992,18 @@ fn death(
     let identity = st.seats[victim].identity;
     st.seats[victim].alive = false;
     st.seats[victim].hp = 0;
+    // 断肠：杀死蔡文姬的角色失去所有技能。
+    if crate::skills::has(st, victim, "duanchang") {
+        if let Some(src) = source {
+            if src != victim {
+                st.seats[src].flags.insert("skills_lost".into(), true);
+                st.push_log(
+                    Some(&st.seats[src].player_id.clone()),
+                    "断肠：杀死蔡文姬，失去所有技能",
+                );
+            }
+        }
+    }
     // 行殇：其他角色死亡时，可在清理前获得其所有牌（终局时不触发，避免帧被清空丢牌）。
     let game_over = check_winner(st).is_some();
     let xingshang_owner = if game_over {

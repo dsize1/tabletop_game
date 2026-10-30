@@ -35,7 +35,7 @@ fn general_packs_default_and_parse() {
             n += 1;
         }
     }
-    assert_eq!(n, 49, "标准 25 + 风 8 + 火 8 + 林 8");
+    assert_eq!(n, 57, "标准 25 + 风 8 + 火 8 + 林 8 + 山 8");
 }
 
 #[test]
@@ -81,7 +81,7 @@ fn general_pack_switch_filters_offer_pool() {
     st2.setup.offered.clear();
     drop(st2);
     let st2 = state_of(&mgr2, &room2);
-    assert!(!st2.setup.offered.contains("sgs_hero_50"));
+    assert!(!st2.setup.offered.contains("sgs_hero_100"));
 }
 
 #[test]
@@ -133,7 +133,8 @@ fn general_ready_gates_unimplemented_generals() {
     assert!(skills::general_ready("sgs_hero_212")); // 张角
     assert!(skills::general_ready("sgs_hero_34")); // 典韦（火包，已实现）
     assert!(skills::general_ready("sgs_hero_42")); // 徐晃（林包，已实现）
-    assert!(!skills::general_ready("sgs_hero_50")); // 张郃（山包，未实现）
+    assert!(skills::general_ready("sgs_hero_50")); // 张郃（山包，已实现）
+    assert!(!skills::general_ready("sgs_hero_100")); // 袁术（后续 SP，未实现）
     assert!(!skills::general_ready("sgs_hero_400")); // 严颜（后续/SP，未实现）
                                                      // 开启风林火山后，标准将仍可用（不受影响）。
     let mgr = manager(405);

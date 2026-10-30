@@ -300,6 +300,15 @@ pub struct Seat {
     /// 武将牌上的标记（牌实例 id，按获得顺序）：不屈「创」、屯田「田」、怀橘「橘」等。
     #[serde(default)]
     pub marks: BTreeMap<String, Vec<String>>,
+    /// 技能获得（觉醒/化身等授予的额外技能 code）。
+    #[serde(default)]
+    pub extra_skills: Vec<String>,
+    /// 化身牌（武将 code；左慈）。
+    #[serde(default)]
+    pub huashen: Vec<String>,
+    /// 当前展示的化身牌（武将 code）。
+    #[serde(default)]
+    pub huashen_active: Option<String>,
     /// 翻面状态（背面朝上：下次回合跳过，随后翻回正面）。
     #[serde(default)]
     pub flipped: bool,
@@ -323,6 +332,9 @@ impl Seat {
             is_bot,
             flags: BTreeMap::new(),
             marks: BTreeMap::new(),
+            extra_skills: Vec::new(),
+            huashen: Vec::new(),
+            huashen_active: None,
             flipped: false,
         }
     }
@@ -482,6 +494,12 @@ pub struct SgsState {
     /// 本回合内的计数器（`sha_used` / `skip_play` 等），回合结束清空。
     #[serde(default)]
     pub turn_counters: BTreeMap<String, u32>,
+    /// 本回合弃牌阶段进入弃牌堆的牌（固政使用）。
+    #[serde(default)]
+    pub phase_discarded: Vec<String>,
+    /// 放权等产生的额外回合（下一个执行的座位）。
+    #[serde(default)]
+    pub extra_turn: Option<usize>,
     /// 结算栈（P2.3）：锦囊/无懈/响应/濒死/弃牌/判定。
     #[serde(default)]
     pub resolution: Vec<crate::resolve::Frame>,

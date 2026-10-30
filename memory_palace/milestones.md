@@ -2,6 +2,15 @@
 
 > 记录项目关键节点与验证结果，按时间倒序。重大技术决策见 `decisions/`。
 
+## M27：三国杀 P4.4.1 山包 8 将 ✅
+
+- **日期**：2026-10-30
+- **机制**（ADR-0027）：觉醒/额外技能（`extra_skills` + `grant_skill`）；屯田标记/距离；巧变阶段跳过；享乐反制；放权额外回合（`extra_turn`）；制霸拼点夺牌；固政弃牌回收（`phase_discarded`）；化身/新生（`huashen`）；悲歌/断肠（`skills_lost`）
+- **技能**：张郃·巧变；邓艾·屯田/凿险；姜维·挑衅/志继；刘禅·享乐/放权/若愚；孙策·激昂/魂姿/制霸；张昭张纮·直谏/固政；左慈·化身/新生；蔡文姬·悲歌/断肠
+- **验证**：`cargo test -p sanguosha` **317** 全绿；`check:sgs-skill-cases`（299 条 / 57 位已实现武将 ≥3）、`check:sgs-engine-data`（73 将）、`check:sgs-view-contract`、`check:interaction-primitives`、`npm --prefix apps run test:web`、MCP 冒烟通过
+- **已知边界**：ADR-0027 §3（放权自动弃第一张；巧变移动复用解围；化身只取第一个已实现技能；固政自动分配；悲歌致命伤害不触发；制霸仅魂姿后可拒绝）
+- **详见**：`docs/games/sanguosha/development-plan.md` P4.4.1 山包记录、`skills.md` §2.4、ADR-0027、`rules-rulings.md` §13
+
 ## M26：三国杀 P4.4.1 林包 8 将 ✅
 
 - **日期**：2026-10-30

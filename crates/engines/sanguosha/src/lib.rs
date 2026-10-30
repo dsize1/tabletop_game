@@ -11,6 +11,7 @@ mod resolve;
 mod resolve_fire;
 mod resolve_forest;
 mod resolve_more;
+mod resolve_mountain;
 mod resolve_skill;
 mod resolve_wind;
 mod resolve_zone;
@@ -277,6 +278,10 @@ fn finish_setup(st: &mut SgsState) -> Result<Vec<EngineEvent>, EngineError> {
         seat.hp = seat.max_hp;
     }
 
+    // 化身（左慈）：开局随机获得两张化身牌。
+    for i in 0..st.seats.len() {
+        crate::resolve_mountain::init_huashen(st, i);
+    }
     // 建牌堆：按 `Config.packs` 组堆（standard → junzheng），实例 id 按牌堆顺序编号，再整体洗牌。
     let deck = data::deck_cards(&st.config.packs).map_err(illegal)?;
     let deck_size = deck.len();
@@ -505,6 +510,8 @@ impl EnginePlugin for SanguoshaEngine {
             pending_queue: Vec::new(),
             skill_subscriptions: Vec::new(),
             special_zones: Default::default(),
+            phase_discarded: Vec::new(),
+            extra_turn: None,
             winner: None,
             abort_reason: None,
             turn_counters: Default::default(),

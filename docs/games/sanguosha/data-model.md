@@ -358,6 +358,9 @@ CREATE INDEX IF NOT EXISTS idx_prop_status_log_entity
       "judge_zone": [],               // 延时锦囊实例 id（按放入顺序存；末尾=栈顶，LIFO 先判）
       "flags": {},                    // 技能私有标记（如觉醒已触发、限定技已用、蛊惑「缠怨」）
       "marks": {},                    // P4.4：武将牌上的标记（code → 牌实例，如不屈「创」）
+      "extra_skills": [],             // P4.4 山：觉醒/化身授予的额外技能 code
+      "huashen": [],                  // P4.4 山：化身牌（武将 code）
+      "huashen_active": null,         // P4.4 山：当前展示的化身牌
       "flipped": false,               // P4.4：翻面（背面朝上：跳过下个回合）
       "chained": false                // P4.3：铁索连环横置
     }
@@ -368,6 +371,8 @@ CREATE INDEX IF NOT EXISTS idx_prop_status_log_entity
     "c7":  { "def": "shan", "suit": "heart", "rank": 2, "zone": "hand", "owner": "openid" }
   },
   "deck": { "draw": ["c1", "c2"], "discard": [], "void": [] },
+  "phase_discarded": [],              // P4.4 山：本回合弃牌阶段进入弃牌堆的牌（固政）
+  "extra_turn": null,                 // P4.4 山：放权产生的下一个额外回合座位
   "pending": null,                    // { kind, actor, skill?, options[], data }
   "pending_queue": [],                // 同一次结算产生的多个交互排队
   "skill_subscriptions": [
@@ -477,7 +482,7 @@ CREATE TABLE IF NOT EXISTS sgs_flow_designs (
 - 需补索引：`sgs_general_skills(skill_code)`、`sgs_cards(def_code)`、`sgs_generals(pack_id)`、`sgs_identity_setup(player_count)`、`game_state_templates(game_id)`。
 - 不做破坏性迁移；`sgs_*` 新表与现有表无外键耦合（避免与事件溯源表强绑定）。
 - 状态 JSON 的版本演进走 `data.schema_version` + 引擎内迁移函数（与拉斯维加斯 v1→v6 同法）。P4.3/P4.4 新增字段全部 `#[serde(default)]`（`chained`/`marks`/`flipped`/`config.general_packs`），旧快照可直接解析，不 bump schema。
-- 牌数守恒（`check_conservation`）统计区域：`draw/discard/processing/void/hands/equips/judge/marks`；武将牌上的标记牌同样计入，死亡时清空进弃牌堆。
+- 牌数守恒（`check_conservation`）统计区域：`draw/discard/processing/void/hands/equips/judge/marks`；武将牌上的标记牌同样计入，死亡时清空进弃牌堆。`huashen` 存武将 code，不是牌实例，不参与牌数守恒；`phase_discarded`/`extra_turn` 为过程字段。
 
 ## 7. 评审结论与遗留确认
 
