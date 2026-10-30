@@ -1815,6 +1815,44 @@ pub(crate) fn multiselect_confirm(
             pop(st);
             Some(Ok("成略：已完成".to_string()))
         }
+        "mingren_init" | "mingren" => {
+            if f.selected.len() != 1 {
+                if f.purpose == "mingren_init" {
+                    pop(st);
+                    return Some(Ok("明任：未置「任」".to_string()));
+                }
+                return Some(Err(illegal("明任需选择 1 张手牌")));
+            }
+            let card = f.selected[0].clone();
+            if f.purpose == "mingren" {
+                return Some(crate::resolve_sp2::mingren_swap(st, f.actor, &card));
+            }
+            if turn::take_card(st, f.actor, &card).is_err() {
+                return Some(Err(illegal("手牌中没有该牌")));
+            }
+            skills::add_mark(st, f.actor, "ren", &card);
+            pop(st);
+            Some(Ok("明任：已置「任」".to_string()))
+        }
+        "hongju" => {
+            let cards = f.selected.clone();
+            pop(st);
+            Some(crate::resolve_sp2::hongju_swap(st, f.actor, &cards))
+        }
+        "kongsheng" => {
+            for id in &f.selected {
+                if turn::take_card(st, f.actor, id).is_err() {
+                    return Some(Err(illegal("手牌中没有该牌")));
+                }
+                skills::add_mark(st, f.actor, "kong", id);
+            }
+            pop(st);
+            Some(Ok(format!("箜声：置于武将牌上 {} 张", f.selected.len())))
+        }
+        "congjian" => match crate::resolve_sp2::congjian_confirm(st, f) {
+            Ok(msg) => Some(Ok(msg)),
+            Err(e) => Some(Err(e)),
+        },
         "shenshi_yang" => match crate::resolve_sp::shenshi_yang_confirm(st, f) {
             Ok(msg) => Some(Ok(msg)),
             Err(e) => Some(Err(e)),
@@ -1924,6 +1962,29 @@ pub(crate) fn target_action(
             crate::resolve_sp::chezheng_target(st, pending, action).map(Some)
         }
         Some(Frame::Kuizhu(_)) => crate::resolve_sp::kuizhu_target(st, pending, action),
+        Some(Frame::ZhenLiang(_)) => {
+            crate::resolve_sp2::zhenliang_target(st, pending, action).map(Some)
+        }
+        Some(Frame::ZhenLiangYin(_)) => {
+            crate::resolve_sp2::zhenliang_yin_target(st, pending, action).map(Some)
+        }
+        Some(Frame::ZhenGu(_)) => crate::resolve_sp2::zhengu_target(st, pending, action).map(Some),
+        Some(Frame::ZuiLun(_)) => {
+            crate::resolve_sp2::zuilun_zero_target(st, pending, action).map(Some)
+        }
+        Some(Frame::LiangYin(_)) => {
+            crate::resolve_sp2::liangyin_target(st, pending, action).map(Some)
+        }
+        Some(Frame::KongSheng(_)) => {
+            crate::resolve_sp2::kongsheng_target(st, pending, action).map(Some)
+        }
+        Some(Frame::ZhengRong(_)) => {
+            crate::resolve_sp2::zhengrong_target(st, pending, action).map(Some)
+        }
+        Some(Frame::XiongLuan(_)) => {
+            crate::resolve_sp2::xiongluan_target(st, pending, action).map(Some)
+        }
+        Some(Frame::CongJian(_)) => crate::resolve_sp2::congjian_target(st, pending, action).map(Some),
         _ => Ok(None),
     }
 }

@@ -2,6 +2,15 @@
 
 > 记录项目关键节点与验证结果，按时间倒序。重大技术决策见 `decisions/`。
 
+## M29：三国杀 P4.4.1 SP-2 8 将（风林火山 48 将完成）✅
+
+- **日期**：2026-10-30
+- **机制**（ADR-0029）：武将牌标记「任/荣/箜声」；废除装备栏/判定区；延迟结算队列（镇骨）；牌进出游戏钩子（良姻）；不可响应 + 本阶段/本回合手牌封禁（往烈/雄乱）；回合统计（罪论条件）；特殊区 `zuilun`
+- **技能**：卢植·明任/贞良（转换）；郝昭·镇骨；陈到·往烈；诸葛瞻·罪论/父荫；周妃·良姻/箜声；毌丘俭·征荣/鸿举；陆抗·谦节/决堰/破势；张绣·雄乱/从谏
+- **验证**：`cargo test -p sanguosha` **369** 全绿；`check:sgs-skill-cases`（352 条 / 73 位已实现武将 ≥3 + 转换技两面）、`check:sgs-skill-docs`（137 条一致）、`check:sgs-engine-data`、`check:sgs-view-contract`、`npm run test:web`、`npm run test:sgs-web`、MCP 冒烟
+- **已知边界**：ADR-0029 §3（清侧/怀柔 `implemented:false`；良姻仅 void 区；往烈限【杀】/单目标锦囊；雄乱封手牌不封装备与技能；镇骨至多 5）
+- **详见**：`docs/games/sanguosha/development-plan.md` P4.4.1 SP-2 记录、`skills.md` §2.6、ADR-0029、`rules-rulings.md` §15
+
 ## M28：三国杀 P4.4.1 SP-1 8 将 ✅
 
 - **日期**：2026-10-30

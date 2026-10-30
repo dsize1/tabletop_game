@@ -73,6 +73,10 @@ function seatCard(
     (marks ? `<div class="sgs-mini-row marks">${escapeHtml(marks)}</div>` : "") +
     (equips ? `<div class="sgs-mini-row">${equips}</div>` : "") +
     (judge ? `<div class="sgs-mini-row judge">${judge}</div>` : "") +
+    (seat.judge_abolished ? `<div class="sgs-mini-row judge muted">判定区已废除</div>` : "") +
+    ((seat.abolished_slots ?? []).length > 0
+      ? `<div class="sgs-mini-row muted">废除装备栏×${(seat.abolished_slots ?? []).length}</div>`
+      : "") +
     (seat.alive ? "" : `<div class="sgs-dead-mark">阵亡</div>`) +
     `</div>`
   );

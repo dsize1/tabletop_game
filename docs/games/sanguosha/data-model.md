@@ -359,6 +359,8 @@ CREATE INDEX IF NOT EXISTS idx_prop_status_log_entity
       "flags": {},                    // 技能私有标记（如觉醒已触发、限定技已用、蛊惑「缠怨」）
       "marks": {},                    // P4.4：武将牌上的标记（code → 牌实例，如不屈「创」）
       "mark_counts": {},              // P4.4.1 SP-1：计数型标记（code → 数量，如怀橘「橘」）
+      "abolished_slots": [],          // P4.4.1 SP-2：已废除的装备栏（决堰/雄乱，永久）
+      "judge_abolished": false,       // P4.4.1 SP-2：判定区已废除（雄乱）
       "extra_skills": [],             // P4.4 山：觉醒/化身授予的额外技能 code
       "huashen": [],                  // P4.4 山：化身牌（武将 code）
       "huashen_active": null,         // P4.4 山：当前展示的化身牌
@@ -484,6 +486,7 @@ CREATE TABLE IF NOT EXISTS sgs_flow_designs (
 - 不做破坏性迁移；`sgs_*` 新表与现有表无外键耦合（避免与事件溯源表强绑定）。
 - 状态 JSON 的版本演进走 `data.schema_version` + 引擎内迁移函数（与拉斯维加斯 v1→v6 同法）。P4.3/P4.4/P4.4.1 新增字段全部 `#[serde(default)]`（`chained`/`marks`/`mark_counts`/`flipped`/`config.general_packs`/`shenshi_marks`），旧快照可直接解析，不 bump schema。
 - 牌数守恒（`check_conservation`）统计区域：`draw/discard/processing/void/hands/equips/judge/marks`；武将牌上的标记牌同样计入，死亡时清空进弃牌堆。`huashen` 存武将 code，不是牌实例，不参与牌数守恒；`mark_counts`（计数标记）同上；`phase_discarded`/`extra_turn`/`shenshi_marks` 为过程字段。
+- **SP-2 过程字段/标记**（ADR-0029）：武将牌标记「任/荣/箜声」复用 `marks`（计入牌数守恒）；`abolished_slots`（装备栏废除，永久）/`judge_abolished`；`scheduled[{owner,target,kind,due_seat}]`（镇骨延迟结算）；`turn_counters["no_card_use"]`/`["hand_sealed:<seat>"]`/`["xl_target"]`/`["xl_seat:<seat>"]`/`["cl_*"]`；`lost:<code>`（破势失去决堰）；特殊区 `zuilun`（罪论，owner 可见）。
 - **SP-1 过程字段**（ADR-0028）：转换技面 `Seat.flags["yj:<code>"]`；回合内禁止指定目标 `turn_counters["deny:<user>:<target>"]`；出牌阶段用牌数 `turn_counters["play_cards_used"]`；成略花色免限 `turn_counters["cl_<suit>"]`；审时（阴）待校验 `shenshi_marks[{owner,target,card}]`（回合结束清空）。
 
 ## 7. 评审结论与遗留确认

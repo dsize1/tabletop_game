@@ -858,6 +858,109 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
             implemented: true,
         },
     ];
+    // ---- P4.4.1 SP-2（8 将 / 15 技能）----
+    const LUZHI: &[SkillDef] = &[
+        SkillDef {
+            code: "mingren",
+            name: "明任",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "zhenliang",
+            name: "贞良",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const HAOZHAO: &[SkillDef] = &[SkillDef {
+        code: "zhengu",
+        name: "镇骨",
+        kind: SkillType::Normal,
+        implemented: true,
+    }];
+    const CHENDAO: &[SkillDef] = &[SkillDef {
+        code: "wanglie",
+        name: "往烈",
+        kind: SkillType::Normal,
+        implemented: true,
+    }];
+    const ZHUGELAN: &[SkillDef] = &[
+        SkillDef {
+            code: "zuilun",
+            name: "罪论",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "fuyin",
+            name: "父荫",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+    ];
+    const ZHOUFEI: &[SkillDef] = &[
+        SkillDef {
+            code: "liangyin",
+            name: "良姻",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "kongsheng",
+            name: "箜声",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const GUANQIUJIAN: &[SkillDef] = &[
+        SkillDef {
+            code: "zhengrong",
+            name: "征荣",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "hongju",
+            name: "鸿举",
+            kind: SkillType::Awaken,
+            implemented: true,
+        },
+    ];
+    const LUKANG: &[SkillDef] = &[
+        SkillDef {
+            code: "qianjie",
+            name: "谦节",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "jueyan",
+            name: "决堰",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "poshi",
+            name: "破势",
+            kind: SkillType::Awaken,
+            implemented: true,
+        },
+    ];
+    const ZHANGXIU: &[SkillDef] = &[
+        SkillDef {
+            code: "xiongluan",
+            name: "雄乱",
+            kind: SkillType::Limited,
+            implemented: true,
+        },
+        SkillDef {
+            code: "congjian",
+            name: "从谏",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
     const XUYOU: &[SkillDef] = &[
         SkillDef {
             code: "chenglue",
@@ -944,6 +1047,14 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
         "sgs_hero_403" => SUNLIANG,
         "sgs_hero_404" => KUAIYUE,
         "sgs_hero_406" => XUYOU,
+        "sgs_hero_407" => LUZHI,
+        "sgs_hero_408" => HAOZHAO,
+        "sgs_hero_409" => CHENDAO,
+        "sgs_hero_410" => ZHUGELAN,
+        "sgs_hero_411" => ZHOUFEI,
+        "sgs_hero_413" => GUANQIUJIAN,
+        "sgs_hero_414" => LUKANG,
+        "sgs_hero_415" => ZHANGXIU,
         _ => &[],
     }
 }
@@ -1162,6 +1273,10 @@ pub fn has(st: &SgsState, seat: usize, code: &str) -> bool {
     if seat_state.flags.contains_key("skills_lost") {
         return false;
     }
+    // 破势等：失去某个基础技能（按 code 禁用）。
+    if seat_state.flags.contains_key(&format!("lost:{code}")) {
+        return false;
+    }
     if seat_state.extra_skills.iter().any(|c| c == code) {
         return true;
     }
@@ -1317,12 +1432,27 @@ pub fn shicai_trigger(st: &mut SgsState, seat: usize, kind: &str, card_id: &str)
 }
 
 /// 额外技能（觉醒/化身）注册表（不在武将原始技能列表中的技能）。
-pub static EXTRA_SKILLS: &[SkillDef] = &[SkillDef {
-    code: "jixi",
-    name: "急袭",
-    kind: SkillType::Normal,
-    implemented: true,
-}];
+pub static EXTRA_SKILLS: &[SkillDef] = &[
+    SkillDef {
+        code: "jixi",
+        name: "急袭",
+        kind: SkillType::Normal,
+        implemented: true,
+    },
+    // SP-2 觉醒授予（仓库无官方文本 → 先登记为未实现，见 ADR-0029 §3）。
+    SkillDef {
+        code: "qingce",
+        name: "清侧",
+        kind: SkillType::Normal,
+        implemented: false,
+    },
+    SkillDef {
+        code: "huairou",
+        name: "怀柔",
+        kind: SkillType::Normal,
+        implemented: false,
+    },
+];
 
 /// 按 code 查技能定义（武将原始技能 + 额外技能）。
 pub fn def_of(code: &str) -> Option<&'static SkillDef> {
@@ -1340,6 +1470,14 @@ pub fn grant_skill(st: &mut SgsState, seat: usize, code: &str) {
         if !s.extra_skills.iter().any(|c| c == code) {
             s.extra_skills.push(code.to_string());
         }
+    }
+}
+
+/// 失去基础技能（破势「失去决堰」等；本局生效）。
+pub fn lose_skill(st: &mut SgsState, seat: usize, code: &str) {
+    if let Some(s) = st.seats.get_mut(seat) {
+        s.flags.insert(format!("lost:{code}"), true);
+        s.extra_skills.retain(|c| c != code);
     }
 }
 
@@ -1624,6 +1762,10 @@ pub fn hand_limit(st: &SgsState, seat: usize) -> usize {
         return usize::MAX;
     }
     let mut limit = st.hand_limit(seat);
+    // 决堰（防具栏）：本回合手牌上限 +3。
+    if has(st, seat, "jueyan") {
+        limit += st.counter("jueyan_hand_limit") as usize;
+    }
     // 血裔（主公技，锁定）：其他群势力角色数 ×2 手牌上限。
     if has(st, seat, "xueyi") && is_lord(st, seat) {
         let allies = st
@@ -1931,4 +2073,107 @@ pub fn skill_event(
             "detail": extra,
         }),
     )
+}
+
+// ---------------------------------------------------------------------------
+// P4.4.1 SP-2 辅助（任/荣/箜声、废除栏、谦节、往烈、父荫、罪论、雄乱、镇骨）
+// ---------------------------------------------------------------------------
+
+/// 武将牌上的标记牌（任/荣/箜声）。
+pub fn mark_cards(st: &SgsState, seat: usize, code: &str) -> Vec<String> {
+    st.seats
+        .get(seat)
+        .and_then(|s| s.marks.get(code))
+        .cloned()
+        .unwrap_or_default()
+}
+
+/// 把一张牌置于武将牌上成为标记（从手牌移出；调用方负责先从原区域取牌）。
+pub fn add_mark(st: &mut SgsState, seat: usize, code: &str, card: &str) {
+    if let Some(s) = st.seats.get_mut(seat) {
+        s.marks
+            .entry(code.to_string())
+            .or_default()
+            .push(card.to_string());
+    }
+}
+
+/// 从武将牌上取出一张标记牌（返回是否成功）。
+pub fn remove_mark(st: &mut SgsState, seat: usize, code: &str, card: &str) -> bool {
+    let Some(s) = st.seats.get_mut(seat) else {
+        return false;
+    };
+    let Some(list) = s.marks.get_mut(code) else {
+        return false;
+    };
+    let Some(pos) = list.iter().position(|c| c == card) else {
+        return false;
+    };
+    list.remove(pos);
+    if list.is_empty() {
+        s.marks.remove(code);
+    }
+    true
+}
+
+/// 装备栏废除（永久）：弃置该槽装备并记录（枭姬按失去装备处理）。
+pub fn abolish_slot(st: &mut SgsState, seat: usize, slot: EquipSlot) {
+    if st.seats[seat].abolished_slots.contains(&slot) {
+        return;
+    }
+    st.seats[seat].abolished_slots.push(slot);
+    let old = st.seats[seat].equips.insert(slot, None);
+    if let Some(Some(card)) = old {
+        crate::turn::to_discard_card(st, &card);
+        xiaoji_on_lose_equip(st, seat);
+    }
+}
+
+/// 谦节（锁定）：不能被横置 / 成为延时锦囊与拼点目标。
+pub fn qianjie_blocks_target(st: &SgsState, seat: usize) -> bool {
+    has(st, seat, "qianjie")
+}
+
+/// 父荫（锁定）：每回合首次成为其他角色【杀】/【决斗】目标且对方手牌 ≥ 你 → 此牌无效。
+pub fn fuyin_blocks(st: &SgsState, owner: usize, user: usize) -> bool {
+    has(st, owner, "fuyin")
+        && st.counter("fuyin_done") == 0
+        && st.seats[user].hand.len() >= st.seats[owner].hand.len()
+}
+
+/// 往烈：「本阶段不能再使用牌」。
+pub fn no_card_use(st: &SgsState, seat: usize) -> bool {
+    st.seats.get(seat).is_some_and(|_| st.counter("no_card_use") > 0)
+}
+
+/// 雄乱：本回合手牌被封（不能使用/打出手牌）。
+pub fn hand_sealed(st: &SgsState, seat: usize) -> bool {
+    st.counter(&format!("hand_sealed:{seat}")) > 0
+}
+
+/// 决堰（坐骑栏 / 雄乱）：使用牌无距离限制。
+pub fn no_distance_turn(st: &SgsState, seat: usize) -> bool {
+    st.counter("jueyan_no_distance") > 0 || st.counter(&format!("xl_seat:{seat}")) > 0
+}
+
+/// 雄乱目标（本回合对其使用牌无距离与次数限制）。
+pub fn xiongluan_target(st: &SgsState, seat: usize) -> Option<usize> {
+    let t = st.counter("xl_target");
+    if t == 0 {
+        None
+    } else if t as usize == seat {
+        None
+    } else {
+        Some(t as usize - 1)
+    }
+}
+
+/// 每回合首次（`key` 计数器）；返回是否首次（首次时置 1）。
+pub fn first_each_turn(st: &mut SgsState, key: &str) -> bool {
+    let k = format!("once:{key}");
+    if st.counter(&k) > 0 {
+        return false;
+    }
+    st.set_counter(&k, 1);
+    true
 }

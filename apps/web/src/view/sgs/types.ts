@@ -59,6 +59,10 @@ export interface SgsSeat {
   marks?: Record<string, SgsCard[]>;
   /** 计数型标记（code → 数量，如怀橘「橘」）。 */
   marks_count?: Record<string, number>;
+  /** 已废除的装备栏（SP-2：决堰/雄乱）。 */
+  abolished_slots?: string[];
+  /** 判定区是否已废除（SP-2 雄乱）。 */
+  judge_abolished?: boolean;
   /** 翻面状态（背面朝上）。 */
   flipped?: boolean;
   alive: boolean;
@@ -121,6 +125,10 @@ export interface SgsPlayerArea {
   marks_count?: Record<string, number>;
   /** 转换技当前面（技能 code → yang/yin）。 */
   transforms?: Record<string, string>;
+  /** 已废除的装备栏（SP-2）。 */
+  abolished_slots?: string[];
+  /** 判定区是否已废除（SP-2）。 */
+  judge_abolished?: boolean;
   flipped?: boolean;
   skills?: SgsSkill[];
   is_bot?: boolean;

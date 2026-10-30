@@ -120,6 +120,18 @@ pub enum Frame {
     Kuizhu(crate::resolve_sp::KuizhuFrame),
     Chezheng(crate::resolve_sp::ChezhengFrame),
     Lijun(crate::resolve_sp::LijunFrame),
+    /// P4.4.1 SP-2 帧。
+    MingRen(crate::resolve_sp2::MingRenFrame),
+    ZhenLiang(crate::resolve_sp2::ZhenLiangFrame),
+    ZhenLiangYin(crate::resolve_sp2::ZhenLiangYinFrame),
+    ZhenGu(crate::resolve_sp2::ZhenGuFrame),
+    ZuiLun(crate::resolve_sp2::ZuiLunFrame),
+    LiangYin(crate::resolve_sp2::LiangYinFrame),
+    KongSheng(crate::resolve_sp2::KongShengFrame),
+    ZhengRong(crate::resolve_sp2::ZhengRongFrame),
+    JueYan(crate::resolve_sp2::JueYanFrame),
+    XiongLuan(crate::resolve_sp2::XiongLuanFrame),
+    CongJian(crate::resolve_sp2::CongJianFrame),
     /// 五谷丰登（P2.5 特殊区 `wugu`）。
     Wugu(crate::resolve_zone::WuguFrame),
     /// 观星排序提交（P2.5 特殊区 `guanxing`，`arrange:<csv>`）。
@@ -169,6 +181,9 @@ pub struct TrickFrame {
     pub first: Option<usize>,
     #[serde(default)]
     pub second: Option<usize>,
+    /// 往烈（陈到）：不能被【无懈可击】响应。
+    #[serde(default)]
+    pub no_wuxie: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -203,6 +218,9 @@ pub struct ShaFrame {
     /// 天义（赢）：本【杀】无距离限制且可多指定一个目标。
     #[serde(default)]
     pub tianyi: bool,
+    /// 往烈（陈到）：此【杀】不能被响应（目标不能使用【闪】）。
+    #[serde(default)]
+    pub no_respond: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -702,6 +720,17 @@ fn step(
         Frame::Kuizhu(f) => crate::resolve_sp::step_kuizhu(st, f),
         Frame::Chezheng(f) => crate::resolve_sp::step_chezheng(st, f),
         Frame::Lijun(f) => crate::resolve_sp::step_lijun(st, f),
+        Frame::MingRen(f) => crate::resolve_sp2::step_mingren(st, f),
+        Frame::ZhenLiang(f) => crate::resolve_sp2::step_zhenliang(st, f),
+        Frame::ZhenLiangYin(f) => crate::resolve_sp2::step_zhenliang_yin(st, f),
+        Frame::ZhenGu(f) => crate::resolve_sp2::step_zhengu(st, f),
+        Frame::ZuiLun(f) => crate::resolve_sp2::step_zuilun(st, f),
+        Frame::LiangYin(f) => crate::resolve_sp2::step_liangyin(st, f),
+        Frame::KongSheng(f) => crate::resolve_sp2::step_kongsheng(st, f),
+        Frame::ZhengRong(f) => crate::resolve_sp2::step_zhengrong(st, f),
+        Frame::JueYan(f) => crate::resolve_sp2::step_jueyan(st, f),
+        Frame::XiongLuan(f) => crate::resolve_sp2::step_xiongluan(st, f),
+        Frame::CongJian(f) => crate::resolve_sp2::step_congjian(st, f),
         Frame::Wugu(f) => crate::resolve_zone::step_wugu(st, f, events),
         Frame::Arrange(f) => crate::resolve_zone::step_arrange(st, f, events),
     }
@@ -1003,8 +1032,13 @@ pub fn start_sha_flags(
             no_distance,
             virtual_card: false,
             tianyi,
+            no_respond: false,
         }),
     );
+    // 征荣（毌丘俭）：使用【杀】时（压在用牌帧之上先询问）。
+    crate::resolve_sp2::zhengrong_trigger(st, user, card);
+    // 贞良（阴，卢植）：回合外使用的牌进入弃牌堆（按使用时机结算）。
+    crate::resolve_sp2::push_zhenliang_yin(st, user, card);
     // 奇制（王基）：回合内使用非装备牌后。
     crate::resolve_sp::qizhi_trigger(st, user);
     Ok(())
@@ -1095,6 +1129,7 @@ fn start_trick_code(
     } else {
         TrickStage::Effect
     };
+
     let delayed = matches!(
         code.as_str(),
         "lebu_sishu" | "bingliang_cunduan" | "shandian"
@@ -1114,10 +1149,20 @@ fn start_trick_code(
             stage,
             first: None,
             second: None,
+            no_wuxie: false,
         }),
     );
     if st.turn == user {
         st.bump_counter("play_cards_used");
+    }
+    // 贞良（阴，卢植）：回合外使用的锦囊。
+    crate::resolve_sp2::push_zhenliang_yin(st, user, card);
+    // 征荣（毌丘俭）：使用伤害锦囊时（压在用牌帧之上先询问）。
+    if matches!(
+        st.effective_def_code(card),
+        Some("juedou" | "nanman_ruqin" | "wanjian_qifa" | "huo_gong")
+    ) {
+        crate::resolve_sp2::zhengrong_trigger(st, user, card);
     }
     // 奇制（王基）：回合内使用非装备牌后。
     if !delayed {
@@ -1243,7 +1288,12 @@ fn step_trick(
                     "lebu_sishu" => st
                         .alive_indices()
                         .into_iter()
-                        .filter(|i| *i != f.user && !turn::judge_zone_has(st, *i, "lebu_sishu"))
+                        .filter(|i| {
+                            *i != f.user
+                                && !turn::judge_zone_has(st, *i, "lebu_sishu")
+                                && !st.seats[*i].judge_abolished
+                                && !crate::skills::qianjie_blocks_target(st, *i)
+                        })
                         .collect(),
                     "tiesuo_lianhuan" => st
                         .alive_indices()
@@ -1264,6 +1314,8 @@ fn step_trick(
                                     || (crate::skills::has(st, f.user, "duanliang")
                                         && st.seats[*i].hand.len() >= st.seats[f.user].hand.len()))
                                 && !turn::judge_zone_has(st, *i, "bingliang_cunduan")
+                                && !st.seats[*i].judge_abolished
+                                && !crate::skills::qianjie_blocks_target(st, *i)
                         })
                         .collect(),
                     "wuzhong_shengyou" => vec![f.user],
@@ -1327,6 +1379,21 @@ fn step_trick(
             Ok(true)
         }
         TrickStage::Wuxie => {
+            // 往烈（陈到）：此锦囊不能被响应 → 跳过无懈窗口。
+            if f.no_wuxie {
+                f.stage = TrickStage::Effect;
+                replace_top(st, Frame::Trick(f));
+                return Ok(false);
+            }
+            // 从谏（张绣）：成为多目标锦囊目标后。
+            if f.targets.len() > 1 && st.counter(&format!("cj:{}", f.card)) == 0 {
+                let before = st.resolution.len();
+                crate::resolve_sp2::congjian_trigger(st, &f.card, &f.targets);
+                if st.resolution.len() > before {
+                    // 从谏帧压在用牌帧之上，先结算从谏。
+                    return Ok(false);
+                }
+            }
             if f.targets.is_empty() {
                 f.stage = TrickStage::Effect;
                 replace_top(st, Frame::Trick(f));
@@ -1476,6 +1543,11 @@ fn step_trick(
                     update_parent(st, Frame::Trick(f));
                 }
                 "juedou" => {
+                    // 父荫（诸葛瞻，锁定）：每回合首次成为【决斗】目标且对方手牌 ≥ 你 → 无效。
+                    if crate::resolve_sp2::fuyin_take(st, target, f.user) {
+                        advance_trick_target(st, f)?;
+                        return Ok(false);
+                    }
                     // 无双：吕布使用【决斗】时，对方需连续打出两张【杀】。
                     let need = if crate::skills::has(st, f.user, "wushuang") {
                         2
@@ -1506,6 +1578,14 @@ fn step_trick(
                     update_parent(st, Frame::Trick(f));
                 }
                 "tiesuo_lianhuan" => {
+                    if crate::skills::qianjie_blocks_target(st, target) {
+                        st.push_log(
+                            None,
+                            format!("谦节：{} 不能进入连环状态", st.seats[target].general_name),
+                        );
+                        advance_trick_target(st, f)?;
+                        return Ok(false);
+                    }
                     st.seats[target].chained = !st.seats[target].chained;
                     let chained = st.seats[target].chained;
                     st.push_log(
@@ -1689,7 +1769,8 @@ fn needed_name(code: &str) -> &'static str {
 
 fn respond_options(st: &SgsState, f: &RespondFrame) -> Vec<PendingOption> {
     // 缠怨：体力值为 1 时不能打出手牌（八卦阵/主公技由 step_respond 追加）。
-    if crate::skills::chanyuan_locked(st, f.actor) {
+    // 雄乱：目标本回合不能使用/打出手牌（八卦阵/主公技仍可用）。
+    if crate::skills::chanyuan_locked(st, f.actor) || crate::skills::hand_sealed(st, f.actor) {
         return vec![pending_pass()];
     }
     let code = match f.kind {
@@ -2664,6 +2745,19 @@ pub fn execute_pending(
             Some("zhenglun") => crate::resolve_sp::act_zhenglun(st, action)?,
             Some("kuizhu") => crate::resolve_sp::act_kuizhu(st, action)?,
             Some("lijun") => crate::resolve_sp::act_lijun(st, action)?,
+            Some("mingren") => crate::resolve_sp2::act_mingren(st, action)?,
+            Some("zhenliang") => {
+                let top_frame = matches!(top(st), Some(Frame::ZhenLiangYin(_)));
+                if top_frame {
+                    crate::resolve_sp2::act_zhenliang_yin(st, action)?
+                } else {
+                    crate::resolve_sp2::act_zhenliang(st, action)?
+                }
+            }
+            Some("zuilun") => crate::resolve_sp2::act_zuilun(st, action)?,
+            Some("liangyin") => crate::resolve_sp2::act_liangyin(st, action)?,
+            Some("jueyan") => crate::resolve_sp2::act_jueyan(st, action)?,
+            Some("congjian") => crate::resolve_sp2::act_congjian(st, action)?,
             _ => crate::resolve_skill::act_jianxiong(st, action)?,
         },
         "choose_many" => match top(st) {
@@ -2814,10 +2908,19 @@ fn act_target(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Stri
         replace_top(st, Frame::Sha(f.clone()));
         // 铁骑在 `push_sha_target_response` 内以 QuickJudge 处理；无双在此计算。
         // 烈弓：目标手牌数 ≥ 你的体力值或 ≤ 你的攻击范围 → 不能使用【闪】（自动发动）。
-        let no_shan = crate::skills::liegong_blocks(st, f.user, target);
+        let mut no_shan = crate::skills::liegong_blocks(st, f.user, target);
+        if f.no_respond {
+            no_shan = true;
+        }
         if no_shan && crate::skills::has(st, f.user, "liegong") {
             let user_pid = st.seats[f.user].player_id.clone();
             st.push_log(Some(&user_pid), "烈弓：目标不能使用【闪】");
+        }
+        // 父荫（诸葛瞻，锁定）：每回合首次成为【杀】目标且对方手牌 ≥ 你 → 此牌无效。
+        if crate::resolve_sp2::fuyin_take(st, target, f.user) {
+            crate::resolve::discard_from_processing(st, &f.card);
+            pop(st);
+            return Ok("父荫：此【杀】对目标无效".to_string());
         }
         // 无双：吕布使用【杀】时，目标需连续打出两张【闪】。
         let mut need = if crate::skills::has(st, f.user, "wushuang") {
@@ -3306,6 +3409,8 @@ pub(crate) fn finish_respond_play(
             format!("打出【{label}】"),
         ),
     }
+    // 贞良（阴，卢植）：回合外打出的牌进入弃牌堆。
+    crate::resolve_sp2::push_zhenliang_yin(st, played_by, card_id);
     match f.kind {
         RespondKind::Shan => {
             turn::to_discard_card(st, card_id);
@@ -3752,6 +3857,9 @@ fn act_discard(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Str
     if f.reason == "discard_phase" {
         st.phase_discarded.extend(ids.iter().cloned());
     }
+    if f.actor == st.turn {
+        st.bump_counter("discard_done");
+    }
     maybe_fenji(st, f.actor);
     let text = if remaining == 0 {
         if f.reason == "hand_cap" {
@@ -3918,6 +4026,9 @@ fn apply_damage_inner(
         }
     }
     st.seats[victim].hp -= amount;
+    if source == Some(st.turn) {
+        st.bump_counter("damage_dealt");
+    }
     let pid = st.seats[victim].player_id.clone();
     st.push_log(
         None,

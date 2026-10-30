@@ -84,6 +84,14 @@ fn marks_count_view(seat: &Seat) -> Value {
     Value::Object(out)
 }
 
+/// 已废除的装备栏（P4.4.1 SP-2）。
+fn abolished_slots_view(seat: &Seat) -> Vec<Value> {
+    seat.abolished_slots
+        .iter()
+        .filter_map(|slot| serde_json::to_value(slot).ok())
+        .collect()
+}
+
 /// 转换技当前面（阳/阴）视图：仅返回已实现的转换技。
 fn transforms_view(st: &SgsState, seat: usize) -> Value {
     const TRANSFORMS: &[&str] = &["juzhan", "shenshi", "chenglue"];
@@ -133,6 +141,8 @@ pub fn public_board(st: &SgsState) -> Value {
                 "judge_zone": s.judge_zone.iter().map(|id| card_view(st, id)).collect::<Vec<_>>(),
                 "marks": marks_view(st, s),
                 "marks_count": marks_count_view(s),
+                "abolished_slots": abolished_slots_view(s),
+                "judge_abolished": s.judge_abolished,
                 "flipped": s.flipped,
                 "alive": s.alive,
                 "is_bot": s.is_bot,
@@ -302,6 +312,8 @@ pub fn player_area(st: &SgsState, viewer: &str) -> Option<Value> {
         "marks": marks_view(st, s),
         "marks_count": marks_count_view(s),
         "transforms": transforms_view(st, idx),
+        "abolished_slots": abolished_slots_view(s),
+        "judge_abolished": s.judge_abolished,
         "flipped": s.flipped,
         "skills": skills,
         "equipment_skills": equipment_skills_view(st, idx),

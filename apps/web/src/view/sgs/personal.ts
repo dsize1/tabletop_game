@@ -68,6 +68,22 @@ function wuguPanel(zones: SgsSpecialZones | undefined, names?: Record<string, st
   );
 }
 
+/// 罪论（诸葛瞻）亮出的牌：仅本人可见（`visibility: owner`）。
+function zuilunPanel(zones: SgsSpecialZones | undefined): string {
+  const z = zones?.zuilun as
+    | { cards?: { id: string; name?: string; suit?: string; rank?: number }[]; conditions?: number }
+    | undefined;
+  if (!z || !z.cards || z.cards.length === 0) return "";
+  const cards = z.cards
+    .map((c) => `<span class="sgs-pick-card">${escapeHtml(cardLabel(c as SgsCard))}</span>`)
+    .join("");
+  return (
+    `<div class="sgs-zuilun" data-zone="zuilun">` +
+    `<div class="sgs-wugu-head">罪论 · 牌堆顶 ${z.cards.length} 张（满足 ${z.conditions ?? 0} 项）</div>` +
+    `<div class="sgs-wugu-cards">${cards}</div></div>`
+  );
+}
+
 function marksHtml(area: SgsPlayerArea): string {
   const entries = Object.entries(area.marks ?? {}).filter(([, cards]) => (cards ?? []).length > 0);
   const counts = Object.entries(area.marks_count ?? {}).filter(([, n]) => n > 0);
@@ -140,15 +156,20 @@ export function renderPersonalArea(
   for (const s of area.equipment_skills ?? []) {
     skillBySlot.set(s.slot, { code: s.code, name: s.name });
   }
+  const abolished = new Set(area.abolished_slots ?? []);
   const equips = EQUIP_SLOT_ORDER.map((slot) => {
     const card = area.equips?.[slot] ?? null;
     const skill = skillBySlot.get(slot);
     const active = skill ? activeSources.has(skill.code) : false;
-    const body = card
-      ? cardChipHtml(card as SgsCard, { long: true })
-      : `<span class="muted">空</span>`;
+    const gone = abolished.has(slot);
+    const body = gone
+      ? `<span class="muted">废除</span>`
+      : card
+        ? cardChipHtml(card as SgsCard, { long: true })
+        : `<span class="muted">空</span>`;
     return (
-      `<div class="sgs-equip${active ? " active" : ""}" data-slot="${slot}"` +
+      `<div class="sgs-equip${active ? " active" : ""}${gone ? " abolished" : ""}" data-slot="${slot}"` +
+      (gone ? ' data-abolished="1"' : "") +
       (skill ? ` data-equipment-skill="${escapeHtml(skill.code)}"` : "") +
       (skill ? ` title="${escapeHtml(skill.name)}"` : "") +
       `><span class="sgs-equip-label">${EQUIP_SLOT_LABEL[slot]}</span>${body}</div>`
@@ -176,11 +197,12 @@ export function renderPersonalArea(
     `</div>` +
     `<div class="sgs-me-row">` +
     `<div class="sgs-equips">${equips}</div>` +
-    `<div class="sgs-judge"><span class="sgs-equip-label">判定</span>${judge || `<span class="muted">无</span>`}</div>` +
+    `<div class="sgs-judge"><span class="sgs-equip-label">判定</span>${area.judge_abolished ? `<span class="muted">废除</span>` : judge || `<span class="muted">无</span>`}</div>` +
     `</div>` +
     `<div class="sgs-hand" role="list">${hand || `<span class="muted">无手牌</span>`}</div>` +
     pendingSummary(area) +
     wuguPanel(zones, names) +
+    zuilunPanel(zones) +
     `<div class="sgs-ops" data-my-turn="${isMyTurn ? "1" : "0"}">` +
     `<span class="sgs-selected muted">未选择</span>` +
     `<button type="button" class="btn" data-op="confirm" disabled>确认打出</button>` +

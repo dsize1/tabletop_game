@@ -681,6 +681,7 @@ fn shensu_sha(st: &mut SgsState, actor: usize) {
             no_distance: true,
             virtual_card: true,
             tianyi: false,
+            no_respond: false,
         }),
     );
 }

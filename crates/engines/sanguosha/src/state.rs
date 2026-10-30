@@ -315,6 +315,12 @@ pub struct Seat {
     /// 翻面状态（背面朝上：下次回合跳过，随后翻回正面）。
     #[serde(default)]
     pub flipped: bool,
+    /// 已废除的装备栏（P4.4.1 SP-2：决堰/雄乱；本局永久，视为无装备且不可再装备）。
+    #[serde(default)]
+    pub abolished_slots: Vec<EquipSlot>,
+    /// 判定区是否已废除（P4.4.1 SP-2：张绣·雄乱）。
+    #[serde(default)]
+    pub judge_abolished: bool,
 }
 
 impl Seat {
@@ -340,6 +346,8 @@ impl Seat {
             huashen: Vec::new(),
             huashen_active: None,
             flipped: false,
+            abolished_slots: Vec::new(),
+            judge_abolished: false,
         }
     }
 }
@@ -466,6 +474,19 @@ pub struct ShenshiMark {
     pub card: String,
 }
 
+/// 延迟结算条目（镇骨等）：`due_seat` 的回合结束时触发一次。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScheduledEffect {
+    /// 效果来源（如郝昭）。
+    pub owner: usize,
+    /// 受影响座位。
+    pub target: usize,
+    /// 效果类型（`zhengu`）。
+    pub kind: String,
+    /// 触发座位（该座位回合结束时结算）。
+    pub due_seat: usize,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Winner {
     pub team: String,
@@ -515,6 +536,9 @@ pub struct SgsState {
     /// 审时（阴）待验证记录：本回合结束阶段检查该牌是否仍在目标手牌。
     #[serde(default)]
     pub shenshi_marks: Vec<ShenshiMark>,
+    /// 延迟结算（P4.4.1 SP-2：郝昭·镇骨）：在指定座位回合结束时触发一次。
+    #[serde(default)]
+    pub scheduled: Vec<ScheduledEffect>,
     /// 放权等产生的额外回合（下一个执行的座位）。
     #[serde(default)]
     pub extra_turn: Option<usize>,
@@ -633,9 +657,19 @@ impl SgsState {
 
     /// 某槽位上装备牌的定义（`None` 表示空槽或未知牌）。
     pub fn equip_def(&self, idx: usize, slot: EquipSlot) -> Option<&'static data::CardDef> {
+        if self.slot_abolished(idx, slot) {
+            return None;
+        }
         let id = self.seats.get(idx)?.equips.get(&slot)?.as_ref()?;
         let def = &self.cards.get(id)?.def;
         data::card_def(def)
+    }
+
+    /// 装备栏是否已废除（废除后视为无装备，且不可再装备）。
+    pub fn slot_abolished(&self, idx: usize, slot: EquipSlot) -> bool {
+        self.seats
+            .get(idx)
+            .is_some_and(|s| s.abolished_slots.contains(&slot))
     }
 
     /// 是否装备了指定装备（按定义码）。

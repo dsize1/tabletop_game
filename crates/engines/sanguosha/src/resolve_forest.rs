@@ -1011,6 +1011,7 @@ pub(crate) fn act_luanwu(st: &mut SgsState, action: &str) -> Result<String, Engi
                     fangtian: false,
                     damage_type: DamageType::Normal,
                     no_distance: false,
+                    no_respond: false,
                     virtual_card: false,
                     tianyi: false,
                 }),

@@ -436,7 +436,42 @@ assert.ok(renderPersonalArea(yangArea, board, {}, names).includes("审时（阳�
 const legacyArea: SgsPlayerArea = { ...luJiArea, marks_count: undefined, transforms: undefined };
 const legacyHtml = renderPersonalArea(legacyArea, board, {}, names);
 assert.ok(!legacyHtml.includes("橘×"), "旧快照（无 marks_count/transforms）渲染不报错");
+// —— SP-2：废除装备栏 / 判定区 / 罪论特殊区 ——
+const luKangArea: SgsPlayerArea = {
+  ...me,
+  general: "sgs_hero_414",
+  general_name: "陆抗",
+  abolished_slots: ["armor", "horse_offense"],
+  judge_abolished: true,
+};
+const luKangHtml = renderPersonalArea(luKangArea, board, {}, names);
+assert.ok(luKangHtml.includes('data-slot="armor"') && luKangHtml.includes("废除"), "个人区：废除装备栏占位");
+assert.ok(luKangHtml.includes('data-abolished="1"'), "个人区：废除装备栏带标记");
+assert.ok(luKangHtml.includes("判定</span><span class=\"muted\">废除"), "个人区：判定区废除");
+const zhuGeArea: SgsPlayerArea = { ...me, general: "sgs_hero_410", general_name: "诸葛瞻" };
+const zuiHtml = renderPersonalArea(zhuGeArea, board, {
+  zuilun: { cards: [card("c1", "杀", "spade", 7), card("c2", "桃", "heart", 3, "tao")], conditions: 2 },
+} as never, names);
+assert.ok(zuiHtml.includes('data-zone="zuilun"'), "个人区：罪论特殊区");
+assert.ok(zuiHtml.includes("满足 2 项"), "个人区：罪论条件数");
+assert.ok(zuiHtml.includes("杀♠7"), "个人区：罪论亮牌");
+const abolishedPublic = renderPublicArea(
+  {
+    ...view,
+    public_board: {
+      ...board,
+      seats: board.seats.map((s, i) =>
+        i === 1 ? { ...s, abolished_slots: ["weapon", "armor"], judge_abolished: true } : s,
+      ),
+    },
+  },
+  0,
+  names,
+);
+assert.ok(abolishedPublic.includes("判定区已废除"), "公共区：判定区废除提示");
+assert.ok(abolishedPublic.includes("废除装备栏×2"), "公共区：废除装备栏数量");
 console.log("[sgs-web] 视图契约快照（marks_count / 转换技阳阴）单测通过 ✅");
+console.log("[sgs-web] 视图契约快照（废除装备栏/判定区/罪论）单测通过 ✅");
 
 // —— P3.4 pending 浮层 ——
 const wuxiePending = {

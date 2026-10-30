@@ -362,6 +362,7 @@ pub(crate) fn act_tiaoxin(st: &mut SgsState, action: &str) -> Result<String, Eng
                 fangtian: false,
                 damage_type: DamageType::Normal,
                 no_distance: false,
+                no_respond: false,
                 virtual_card: false,
                 tianyi: false,
             }),

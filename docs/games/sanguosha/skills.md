@@ -186,6 +186,31 @@
 
 本批引入：转换技状态（`Seat.flags["yj:<code>"]`，缺省阳）、计数标记（`Seat.mark_counts`，怀橘「橘」）、牌堆底摸牌/置顶、主公技借用（伪帝）、回合内禁止指定目标（拒战）、出牌阶段伤害防止（掣政）、私有「观看手牌」（审时阴）。见 ADR-0028。
 
+## 2.6 P4.4.1 SP-2（8 将 / 15 技能）
+
+> 数据：风林火山 407–411/413–415（卢植/郝昭/陈到/诸葛瞻/周妃/毌丘俭/陆抗/张绣）。用例：`tests/p78.rs`（卢植/郝昭/陈到/诸葛瞻）、`tests/p79.rs`（周妃/毌丘俭/陆抗/张绣）。
+> 觉醒授予技能「清侧」（毌丘俭）与「怀柔」（陆抗）仓库无官方文本 → 登记为 `implemented:false`（授予但不生效，见 ADR-0029 §3）。
+
+| 武将 | 技能 | code | 类型 | 实现要点 |
+|---|---|---|---|---|
+| 卢植 `sgs_hero_407` | 明任 | `mingren` | 普通 | 开局摸 2 后将 1 张手牌置于武将牌上为「任」；结束阶段可用手牌替换「任」 |
+| 卢植 `sgs_hero_407` | 贞良 | `zhenliang` | 转换 | 阳：出牌阶段限一次，选攻击范围内角色，弃一张与「任」同色的牌造成 1 伤；阴：回合外使用/打出的牌进入弃牌堆且与「任」同色时，可令一名角色摸 1 |
+| 郝昭 `sgs_hero_408` | 镇骨 | `zhengu` | 普通 | 结束阶段选一名其他角色：本回合结束时与其下回合结束时，其手牌调整至与你相同（至多 5，超出弃置） |
+| 陈到 `sgs_hero_409` | 往烈 | `wanglie` | 普通 | 出牌阶段首张牌无距离限制；使用【杀】/单目标普通锦囊时可令此牌不能被响应，然后本阶段不能再使用牌 |
+| 诸葛瞻 `sgs_hero_410` | 罪论 | `zuilun` | 普通 | 结束阶段观看牌堆顶 3 张：每满足一项（造成过伤害/未弃置过牌/手牌最少）获得其中一张，剩余按原序回置；均不满足则你与一名其他角色各失去 1 体力 |
+| 诸葛瞻 `sgs_hero_410` | 父荫 | `fuyin` | 锁定 | 每回合首次成为其他角色【杀】/【决斗】目标后，若其手牌数 ≥ 你，此牌对你无效 |
+| 周妃 `sgs_hero_411` | 良姻 | `liangyin` | 普通 | 每回合首次有牌移出/移入游戏后，与一名其他角色各摸 1 或各弃 1；然后可令其中手牌数 =「箜声」牌数的角色回复 1 |
+| 周妃 `sgs_hero_411` | 箜声 | `kongsheng` | 普通 | 准备阶段可将任意张牌置于武将牌上；结束阶段获得其中非装备牌，然后令一名角色使用剩余装备牌并失去 1 体力 |
+| 毌丘俭 `sgs_hero_413` | 征荣 | `zhengrong` | 普通 | 使用【杀】或伤害锦囊时，可选其中手牌数 ≥ 你的目标，将其一张牌置于武将牌上为「荣」 |
+| 毌丘俭 `sgs_hero_413` | 鸿举 | `hongju` | 觉醒 | 准备阶段「荣」≥3：用任意手牌等量替换「荣」，减 1 体力上限并获得「清侧」 |
+| 陆抗 `sgs_hero_414` | 谦节 | `qianjie` | 锁定 | 防止进入连环状态；不能成为延时锦囊与其他角色拼点的目标 |
+| 陆抗 `sgs_hero_414` | 决堰 | `jueyan` | 普通 | 出牌阶段限一次：废除一个装备栏并获得本回合效果（武器：杀次数+3；防具：摸 3 且手牌上限+3；坐骑：无距离限制；宝物：集智） |
+| 陆抗 `sgs_hero_414` | 破势 | `poshi` | 觉醒 | 准备阶段装备栏全废除或体力=1：减 1 体力上限、摸至体力上限、失去「决堰」并获得「怀柔」 |
+| 张绣 `sgs_hero_415` | 雄乱 | `xiongluan` | 限定 | 出牌阶段指定一名其他角色：废除自己判定区与全部装备栏；本回合对其使用牌无距离与次数限制，其本回合不能使用/打出手牌 |
+| 张绣 `sgs_hero_415` | 从谏 | `congjian` | 普通 | 成为目标数 >1 的锦囊目标后，可交给其中一名目标角色一张牌，然后摸 1（装备牌则摸 2） |
+
+本批引入：武将牌标记「任/荣/箜声」（复用 `Seat.marks`）、废除装备栏/判定区、延迟结算队列、牌进出游戏钩子、不可响应与手牌封禁、罪论特殊区。见 ADR-0029。
+
 ## 3. 触发钩子（引擎接入点）
 
 | 钩子 | 位置 | 已用技能 |
@@ -287,11 +312,36 @@
 | 其他吴势力使用【杀】后 | `resolve::act_target` → `Frame::Lijun` | 立军 |
 | 使用基本牌/锦囊后置顶 | `skills::shicai_trigger` | 恃才 |
 | 摸牌从牌堆底 | `turn::draw_cards` | 寸目 |
+| 开局置「任」/ 结束阶段替换 | `lib::finish_setup` → `Frame::MultiSelect(mingren_init)` / `turn::phase_step` End → `Frame::MingRen` | 明任 |
+| 出牌阶段主动（阳）/ 回合外用牌入弃牌堆（阴） | `turn::legal_actions`/`execute` → `Frame::ZhenLiang`；`start_sha_flags`/`start_trick_code`/`finish_respond_play` → `Frame::ZhenLiangYin` | 贞良 |
+| 结束阶段（延迟两次结算） | `turn::phase_step` End → `Frame::ZhenGu` + `SgsState.scheduled` / `turn::end_turn` | 镇骨 |
+| 不可响应 / 本阶段禁用牌 | `skill:wanglie:<card>`（`ShaFrame.no_respond` / `TrickFrame.no_wuxie`）+ `turn_counters["no_card_use"]` | 往烈 |
+| 结束阶段观看牌堆顶 3 张 | `turn::phase_step` End → `Frame::ZuiLun` + 特殊区 `zuilun` | 罪论 |
+| 成为【杀】/【决斗】目标无效 | `resolve::act_target` / `step_trick` → `resolve_sp2::fuyin_take` | 父荫 |
+| 牌移出/移入游戏 | `turn::to_void_card` / `from_void_card` → `Frame::LiangYin` | 良姻 |
+| 准备/结束阶段置入与收取 | `turn::phase_step` Prepare/End → `Frame::KongSheng` | 箜声 |
+| 使用【杀】/伤害锦囊时 | `start_sha_flags` / `start_trick_code` → `Frame::ZhengRong` | 征荣 |
+| 觉醒（荣≥3） | `turn::phase_step` Prepare → `resolve_sp2::hongju_awaken` | 鸿举 |
+| 防止横置 / 延时锦囊与拼点目标过滤 | `step_trick`（铁索）/ 目标枚举 + `skills::qianjie_blocks_target` | 谦节 |
+| 出牌阶段主动（废除装备栏） | `turn::legal_actions`/`execute` → `Frame::JueYan` + `Seat.abolished_slots` | 决堰 |
+| 觉醒（栏全废或体力=1） | `turn::phase_step` Prepare → `resolve_sp2::poshi_awaken` | 破势 |
+| 出牌阶段主动（限定） | `turn::legal_actions`/`execute` → `Frame::XiongLuan` + `judge_abolished` / `hand_sealed` | 雄乱 |
+| 成为多目标锦囊目标后 | `step_trick`（Wuxie 入口）→ `Frame::CongJian` | 从谏 |
 
 ## 4. 未实现
 
-> **标准 25 将 + 风 8 + 火 8 + 林 8 + 山 8 + SP-1 8 已实现（P4.4.1，2026-10-30）**。风林火山剩余 8 位（SP-2：卢植/郝昭/陈到/诸葛瞻/周妃/毌丘俭/陆抗/张绣）按批次扩展；
-> 一将成名 / 界限突破（P4.4.2）需先定同名替换口径（ADR-0024）。已知边界见 ADR-0023 / 0025 / 0026 / 0027 §3。
+> **标准 25 将 + 风 8 + 火 8 + 林 8 + 山 8 + SP-1 8 + SP-2 8 已实现（P4.4.1 完成，2026-10-30）**：风林火山 48 将全部实现；
+> 一将成名 / 界限突破（P4.4.2）需先定同名替换口径（ADR-0024）。已知边界见 ADR-0023 / 0025 / 0026 / 0027 / 0028 / 0029 §3。
+
+### 4.1 授予技能（觉醒获得）
+
+> 仓库无官方文本 → `EXTRA_SKILLS` 中登记 `implemented:false`：觉醒可正常授予，但技能无效果；**待补官方文本后实现**（补文本后改 `implemented:true` 并加用例，`check:sgs-skill-docs` 会要求本表同步）。
+
+| 来源技能 | 技能 | code | 类型 | 状态 |
+|---|---|---|---|---|
+| 凿险（邓艾） | 急袭 | `jixi` | 普通 | 已实现（装备手牌当【杀】） |
+| 鸿举（毌丘俭） | 清侧 | `qingce` | 普通 | 待补文本（未激活） |
+| 破势（陆抗） | 怀柔 | `huairou` | 普通 | 待补文本（未激活） |
 
 ## 5. 装备可选效果（标准包）
 

@@ -118,6 +118,7 @@ pub(crate) fn sha_limit(st: &SgsState, idx: usize) -> u32 {
     }
     if crate::skills::has_equipment_skill(st, idx, "zhuge_liannu")
         || crate::skills::has(st, idx, "paoxiao")
+        || st.counter(&format!("xl_seat:{idx}")) > 0
     {
         u32::MAX
     } else {
@@ -125,6 +126,7 @@ pub(crate) fn sha_limit(st: &SgsState, idx: usize) -> u32 {
         1 + st.counter("qimou")
             + st.counter("tianyi")
             + st.counter("lijun_sha_bonus")
+            + st.counter("jueyan_sha_bonus")
     }
 }
 
@@ -138,7 +140,9 @@ pub(crate) fn sha_targets_with(st: &SgsState, idx: usize, unlimited: bool) -> Ve
         .into_iter()
         .filter(|t| {
             *t != idx
-                && (unlimited || st.in_attack_range(idx, *t))
+                && (unlimited
+                    || st.in_attack_range(idx, *t)
+                    || crate::skills::xiongluan_target(st, idx) == Some(*t))
                 // 空城（锁定）：无手牌时不能成为【杀】目标。
                 && !crate::skills::kongcheng_blocks(st, *t)
                 // 拒战（本回合不能再对其使用牌）。
@@ -162,7 +166,10 @@ pub(crate) fn effective_distance(st: &SgsState, from: usize, to: usize) -> i32 {
 
 /// 顺手牵羊等「不含武器范围」的距离：`seat_distance + 防御马 - 进攻马 ≤ 1`。
 pub(crate) fn trick_distance_ok(st: &SgsState, from: usize, to: usize) -> bool {
-    if crate::skills::trick_distance_unlimited(st, from) {
+    if crate::skills::trick_distance_unlimited(st, from)
+        || crate::skills::no_distance_turn(st, from)
+        || crate::skills::xiongluan_target(st, from) == Some(to)
+    {
         return true;
     }
     effective_distance(st, from, to) <= 1
@@ -194,6 +201,31 @@ fn draw_one_bottom(st: &mut SgsState, events: &mut Vec<EngineEvent>) -> Option<S
     } else {
         Some(st.deck.draw.remove(0))
     }
+}
+
+/// 从牌堆顶取一张（不进手牌；供罪论等「亮牌」使用，由调用方放处理区）。
+pub(crate) fn draw_top_public(st: &mut SgsState, events: &mut Vec<EngineEvent>) -> Option<String> {
+    draw_one(st, events)
+}
+
+/// 牌移出游戏（进入 `void`）；触发良姻等钩子（P4.4.1 SP-2）。
+///
+/// 说明：当前引擎没有主动移出游戏的牌（木牛流马未实现），本函数供后续牌与测试使用。
+#[allow(dead_code)]
+pub(crate) fn to_void_card(st: &mut SgsState, card_id: &str) {
+    st.deck.void.push(card_id.to_string());
+    crate::resolve_sp2::liangyin_trigger(st);
+}
+
+/// 牌移入游戏（离开 `void`）；返回是否成功。
+#[allow(dead_code)]
+pub(crate) fn from_void_card(st: &mut SgsState, card_id: &str) -> bool {
+    let Some(pos) = st.deck.void.iter().position(|c| c == card_id) else {
+        return false;
+    };
+    st.deck.void.remove(pos);
+    crate::resolve_sp2::liangyin_trigger(st);
+    true
 }
 
 pub(crate) fn draw_cards(
@@ -282,6 +314,22 @@ pub(crate) fn phase_step(
                 st.set_counter("guanxing_done", 1);
                 resolve::push(st, crate::resolve_zone::start_guanxing(st.turn));
             }
+            // 箜声（周妃）：准备阶段可将任意张牌置于武将牌上。
+            if crate::skills::has(st, st.turn, "kongsheng") && st.counter("kongsheng_offered") == 0 {
+                st.set_counter("kongsheng_offered", 1);
+                resolve::push(
+                    st,
+                    resolve::Frame::KongSheng(crate::resolve_sp2::KongShengFrame {
+                        actor: st.turn,
+                        stage: crate::resolve_sp2::KongShengStage::Keep,
+                        cards: Vec::new(),
+                    }),
+                );
+                return Ok(true);
+            }
+            // 鸿举（毌丘俭）/ 破势（陆抗）：准备阶段觉醒。
+            crate::resolve_sp2::hongju_awaken(st, st.turn);
+            crate::resolve_sp2::poshi_awaken(st, st.turn);
             // 洛神（P4.1-C2）：准备阶段可反复判定黑色获得。
             if crate::skills::has(st, st.turn, "luoshen") && st.counter("luoshen_done") == 0 {
                 st.set_counter("luoshen_done", 1);
@@ -680,6 +728,55 @@ pub(crate) fn phase_step(
                 );
                 return Ok(true);
             }
+            // 明任（卢植）：结束阶段可用手牌替换「任」。
+            if crate::skills::has(st, st.turn, "mingren") && st.counter("mingren_offered") == 0 {
+                st.set_counter("mingren_offered", 1);
+                resolve::push(
+                    st,
+                    resolve::Frame::MingRen(crate::resolve_sp2::MingRenFrame { actor: st.turn }),
+                );
+                return Ok(true);
+            }
+            // 镇骨（郝昭）：结束阶段选择一名其他角色。
+            if crate::skills::has(st, st.turn, "zhengu") && st.counter("zhengu_offered") == 0 {
+                st.set_counter("zhengu_offered", 1);
+                resolve::push(
+                    st,
+                    resolve::Frame::ZhenGu(crate::resolve_sp2::ZhenGuFrame { actor: st.turn }),
+                );
+                return Ok(true);
+            }
+            // 罪论（诸葛瞻）：结束阶段观看牌堆顶三张。
+            if crate::resolve_sp2::start_zuilun(st) {
+                return Ok(true);
+            }
+            // 箜声（周妃）：结束阶段获得非装备牌，并令一名角色使用剩余装备牌。
+            if crate::skills::has(st, st.turn, "kongsheng") && st.counter("kongsheng_end") == 0 {
+                st.set_counter("kongsheng_end", 1);
+                let mut kong = crate::skills::mark_cards(st, st.turn, "kong");
+                let mut equips = Vec::new();
+                for card in kong.drain(..) {
+                    let is_equip =
+                        card_def(st, &card).is_some_and(|d| d.equip_slot.is_some());
+                    crate::skills::remove_mark(st, st.turn, "kong", &card);
+                    if is_equip {
+                        equips.push(card);
+                    } else {
+                        st.seats[st.turn].hand.push(card);
+                    }
+                }
+                if !equips.is_empty() {
+                    resolve::push(
+                        st,
+                        resolve::Frame::KongSheng(crate::resolve_sp2::KongShengFrame {
+                            actor: st.turn,
+                            stage: crate::resolve_sp2::KongShengStage::UseEquip,
+                            cards: equips,
+                        }),
+                    );
+                    return Ok(true);
+                }
+            }
             // 进趋（王基）：结束阶段可摸 2 张，然后将手牌弃至本回合奇制次数。
             if crate::skills::has(st, st.turn, "jinzou") && st.counter("jinzou_done") == 0 {
                 st.set_counter("jinzou_done", 1);
@@ -701,6 +798,21 @@ pub(crate) fn phase_step(
 fn end_turn(st: &mut SgsState, events: &mut Vec<EngineEvent>) {
     let cur = st.turn;
     let pid = st.seats[cur].player_id.clone();
+    // 延迟结算（镇骨）：本座位回合结束时触发。
+    if st.scheduled.iter().any(|e| e.due_seat == cur) {
+        let due: Vec<_> = st
+            .scheduled
+            .iter()
+            .filter(|e| e.due_seat == cur)
+            .cloned()
+            .collect();
+        st.scheduled.retain(|e| e.due_seat != cur);
+        for e in due {
+            if e.kind == "zhengu" {
+                crate::resolve_sp2::zhengu_adjust(st, e.owner, e.target);
+            }
+        }
+    }
     st.push_log(Some(&pid), "结束阶段");
     events.push(EngineEvent::new(
         "turn_end",
@@ -1005,7 +1117,10 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
             _ if def.category == Category::Trick || def.category == Category::DelayedTrick => {
                 st.alive_indices().into_iter().any(|t| t != idx)
             }
-            _ if def.equip_slot.is_some() => true,
+            _ if def.equip_slot.is_some() => {
+                !def.equip_slot
+                    .is_some_and(|slot| st.slot_abolished(idx, slot))
+            }
             _ => false,
         };
         if playable {
@@ -1347,6 +1462,56 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
             description: "成略：摸牌后弃牌，本阶段同花色牌无距离与次数限制".into(),
         });
     }
+    // 贞良（卢植，转换阳）：出牌阶段限一次。
+    if crate::resolve_sp2::zhenliang_available(st, idx) {
+        out.push(Action {
+            id: "skill:zhenliang".into(),
+            description: "贞良（阳）：选攻击范围内角色，弃与「任」同色牌造成 1 点伤害".into(),
+        });
+    }
+    // 决堰（陆抗）：出牌阶段限一次，废除一个装备栏并获得本回合效果。
+    if crate::skills::has(st, idx, "jueyan")
+        && st.counter("jueyan_used") == 0
+        && !crate::resolve_sp2::jueyan_slots(st, idx).is_empty()
+    {
+        out.push(Action {
+            id: "skill:jueyan".into(),
+            description: "决堰：废除一个装备栏并获得本回合效果".into(),
+        });
+    }
+    // 雄乱（张绣，限定）：指定一名其他角色，废判定区/装备区。
+    if crate::skills::has(st, idx, "xiongluan")
+        && !st.seats[idx].flags.contains_key("xiongluan_used")
+        && st.alive_indices().len() > 1
+    {
+        out.push(Action {
+            id: "skill:xiongluan".into(),
+            description: "雄乱：废除判定区与装备区，本回合对该角色无距离与次数限制".into(),
+        });
+    }
+    // 往烈（陈到）：基本牌/单目标普通锦囊不可响应（首张牌无距离）。
+    if crate::resolve_sp2::wanglie_available(st, idx) && !crate::skills::no_card_use(st, idx) {
+        for card_id in hand_ids(st, idx) {
+            let Some(def) = card_def(st, &card_id) else {
+                continue;
+            };
+            let is_sha = matches!(def.code, "sha" | "huo_sha" | "lei_sha");
+            let single_trick = def.category == Category::Trick
+                && !matches!(
+                    def.code,
+                    "juedou" | "nanman_ruqin" | "wanjian_qifa" | "wuzhong_shengyou"
+                );
+            if is_sha || single_trick {
+                out.push(Action {
+                    id: format!("skill:wanglie:{card_id}"),
+                    description: format!(
+                        "往烈：使用【{}】（不能被响应，本阶段不能再使用牌）",
+                        card_label(st, &card_id)
+                    ),
+                });
+            }
+        }
+    }
     // 重铸：铁索连环（或连环：梅花手牌）可弃置并摸 1 张。
     for card_id in hand_ids(st, idx) {
         let is_tiesuo = card_def(st, &card_id).is_some_and(|d| d.code == "tiesuo_lianhuan");
@@ -1451,6 +1616,12 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
         id: "end_play".into(),
         description: "结束出牌阶段".into(),
     });
+    // 往烈：本阶段不能再使用牌（保留结束出牌）。
+    // 雄乱：被指定的角色本回合不能使用/打出手牌。
+    if crate::skills::no_card_use(st, idx) || crate::skills::hand_sealed(st, idx) {
+        out.retain(|a| a.id == "end_play");
+        return out;
+    }
     // 缠怨：体力值为 1 时不能使用或打出手牌。
     if crate::skills::chanyuan_locked(st, idx) {
         out.retain(|a| {
@@ -2184,6 +2355,113 @@ pub fn execute(
         );
         st.push_log(Some(player_id), "发动成略");
         "成略：请确认要发动".to_string()
+    } else if action == "skill:zhenliang" {
+        if !crate::skills::has(st, idx, "zhenliang") {
+            return Err(illegal("没有该技能"));
+        }
+        if st.counter("zhenliang_used") > 0 {
+            return Err(illegal("本阶段已发动过贞良"));
+        }
+        if !crate::resolve_sp2::zhenliang_available(st, idx) {
+            return Err(illegal("贞良当前不可发动"));
+        }
+        resolve::push(
+            st,
+            resolve::Frame::ZhenLiang(crate::resolve_sp2::ZhenLiangFrame {
+                actor: idx,
+                stage: crate::resolve_sp2::ZhenLiangStage::Target,
+                target: None,
+            }),
+        );
+        st.push_log(Some(player_id), "发动贞良（阳）");
+        "贞良：请选择目标".to_string()
+    } else if action == "skill:jueyan" {
+        if !crate::skills::has(st, idx, "jueyan") {
+            return Err(illegal("没有该技能"));
+        }
+        if st.counter("jueyan_used") > 0 {
+            return Err(illegal("本阶段已发动过决堰"));
+        }
+        resolve::push(
+            st,
+            resolve::Frame::JueYan(crate::resolve_sp2::JueYanFrame { actor: idx }),
+        );
+        st.push_log(Some(player_id), "发动决堰");
+        "决堰：请选择废除的装备栏".to_string()
+    } else if action == "skill:xiongluan" {
+        if !crate::skills::has(st, idx, "xiongluan") {
+            return Err(illegal("没有该技能"));
+        }
+        if st.seats[idx].flags.contains_key("xiongluan_used") {
+            return Err(illegal("雄乱（限定技）本局已发动过"));
+        }
+        st.seats[idx].flags.insert("xiongluan_used".into(), true);
+        resolve::push(
+            st,
+            resolve::Frame::XiongLuan(crate::resolve_sp2::XiongLuanFrame { actor: idx }),
+        );
+        st.push_log(Some(player_id), "发动雄乱");
+        "雄乱：请选择目标角色".to_string()
+    } else if let Some(card_id) = action.strip_prefix("skill:wanglie:") {
+        if !crate::skills::has(st, idx, "wanglie") {
+            return Err(illegal("没有该技能"));
+        }
+        if st.counter("wanglie_used") > 0 || crate::skills::no_card_use(st, idx) {
+            return Err(illegal("本阶段已发动过往烈"));
+        }
+        if !st.seats[idx].hand.iter().any(|c| c == card_id) {
+            return Err(illegal("手牌中没有该牌"));
+        }
+        let def = card_def(st, card_id).ok_or_else(|| illegal("未知牌"))?;
+        let is_sha = matches!(def.code, "sha" | "huo_sha" | "lei_sha");
+        let single_trick = def.category == Category::Trick
+            && !matches!(
+                def.code,
+                "juedou" | "nanman_ruqin" | "wanjian_qifa" | "wuzhong_shengyou"
+            );
+        if !is_sha && !single_trick {
+            return Err(illegal("往烈只能用于【杀】或单目标普通锦囊"));
+        }
+        let first = st.counter("play_cards_used") == 0;
+        st.set_counter("wanglie_used", 1);
+        let label = card_label(st, card_id);
+        if is_sha {
+            let dtype = match def.code {
+                "huo_sha" => resolve::DamageType::Fire,
+                "lei_sha" => resolve::DamageType::Thunder,
+                _ => resolve::DamageType::Normal,
+            };
+            let free = first
+                || crate::skills::chenglue_free(st, idx, card_id)
+                || crate::skills::no_distance_turn(st, idx);
+            take_card(st, idx, card_id)?;
+            resolve::start_sha_flags(st, idx, card_id, false, dtype, free, false)?;
+            // 标记为不可响应。
+            if let Some(resolve::Frame::Sha(mut f)) = st.resolution.pop() {
+                f.no_respond = true;
+                st.resolution.push(resolve::Frame::Sha(f));
+            }
+            st.push_log(Some(player_id), format!("往烈：使用【{label}】（不能被响应）"));
+            st.set_counter("no_card_use", 1);
+            "往烈：请选择【杀】的目标".to_string()
+        } else {
+            take_card(st, idx, card_id)?;
+            st.deck.processing.push(card_id.to_string());
+            resolve::start_virtual_trick(st, idx, card_id, def.code)?;
+            // 标记无懈窗口关闭。
+            for frame in st.resolution.iter_mut().rev() {
+                if let resolve::Frame::Trick(t) = frame {
+                    t.no_wuxie = true;
+                    break;
+                }
+            }
+            st.push_log(
+                Some(player_id),
+                format!("往烈：使用【{label}】（不能被无懈可击响应）"),
+            );
+            st.set_counter("no_card_use", 1);
+            "往烈：已使用（不可响应）".to_string()
+        }
     } else if let Some(card_id) = action.strip_prefix("play:") {
         play_card(st, idx, card_id, &mut events)?
     } else if action == "end_play" {
@@ -2329,6 +2607,9 @@ fn play_card(
         }
         _ if def.equip_slot.is_some() => {
             let slot = def.equip_slot.expect("equip slot");
+            if st.slot_abolished(idx, slot) {
+                return Err(illegal("该装备栏已被废除"));
+            }
             take_card(st, idx, card_id)?;
             st.bump_counter("play_cards_used");
             let old = st.seats[idx].equips.insert(slot, Some(card_id.to_string()));

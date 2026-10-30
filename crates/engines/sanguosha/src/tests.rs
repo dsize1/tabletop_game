@@ -873,5 +873,7 @@ mod p74;
 mod p75;
 mod p76;
 mod p77;
+mod p78;
+mod p79;
 mod replay;
 mod view_contract;

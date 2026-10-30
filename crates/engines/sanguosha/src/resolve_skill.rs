@@ -676,6 +676,7 @@ fn qinglong_act(
             fangtian: false,
             damage_type: crate::resolve::DamageType::Normal,
             no_distance: false,
+            no_respond: false,
             virtual_card: false,
             tianyi: false,
         }),

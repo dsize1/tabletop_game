@@ -14,6 +14,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 const TESTS_DIR = resolve("crates", "engines", "sanguosha", "src", "tests");
+const SRC_DIR = resolve("crates", "engines", "sanguosha", "src");
 const SKILLS_RS = resolve("crates", "engines", "sanguosha", "src", "skills.rs");
 const DATA_RS = resolve("crates", "engines", "sanguosha", "src", "data.rs");
 
@@ -58,6 +59,46 @@ async function collectTests() {
 }
 
 /** gid → 武将名（data.rs）。 */
+/**
+ * 觉醒授予技能检查：`<skill>_awaken` 中的 `grant_skill(st, seat, "<extra>")`，
+ * 若授予的技能未实现（`implemented:false`），输出告警（`--strict-granted` 时失败）。
+ */
+async function loadGrantedInactive() {
+  const skillsRs = await readFile(SKILLS_RS, "utf8");
+  const extraRe = /pub static EXTRA_SKILLS:\s*&\[SkillDef\]\s*=\s*&\[([\s\S]*?)\n\];/;
+  const m = extraRe.exec(skillsRs);
+  const extras = new Map();
+  if (m) {
+    for (const e of m[1].split("SkillDef {").slice(1)) {
+      const code = /code:\s*"([a-z0-9_]+)"/.exec(e)?.[1];
+      const name = /name:\s*"([^"]+)"/.exec(e)?.[1];
+      if (!code || !name) continue;
+      extras.set(code, { name, implemented: /implemented:\s*true/.test(e) });
+    }
+  }
+  if (extras.size === 0) return [];
+  const files = (await readdir(SRC_DIR)).filter(
+    (f) => f.startsWith("resolve") && f.endsWith(".rs"),
+  );
+  const out = [];
+  for (const f of files) {
+    const text = await readFile(resolve(SRC_DIR, f), "utf8");
+    const fnRe = /fn\s+([a-z0-9_]+)\s*\([\s\S]*?\n\}/g;
+    for (const fm of text.matchAll(fnRe)) {
+      const fnRaw = fm[1];
+      const skillCode = /^([a-z0-9]+)_(awaken|awakening)$/.exec(fnRaw)?.[1];
+      if (!skillCode) continue;
+      for (const gm of fm[0].matchAll(/grant_skill\(st,\s*[^,]+,\s*"([a-z0-9_]+)"\)/g)) {
+        const granted = extras.get(gm[1]);
+        if (granted && !granted.implemented) {
+          out.push({ skillCode, extra: gm[1], extraName: granted.name, file: f });
+        }
+      }
+    }
+  }
+  return out;
+}
+
 async function loadGeneralNames() {
   const text = await readFile(DATA_RS, "utf8");
   const names = new Map();
@@ -154,7 +195,7 @@ if (missing.length) {
 // 转换技（ADR-0028）：要求「阳 / 阴」两面均有用例覆盖。
 // 判定口径：测试体**写入** `flags.insert("yj:<code>", true)` → 阴面用例；
 // 其余引用该技能 code 的用例 → 阳面用例（显式 `flags.remove("yj:<code>")` 视为阳面）。
-const TRANSFORM_SKILLS = ["juzhan", "shenshi", "chenglue"];
+const TRANSFORM_SKILLS = ["juzhan", "shenshi", "chenglue", "zhenliang"];
 const transformMissing = [];
 console.log("[check] 转换技两面覆盖：");
 for (const code of TRANSFORM_SKILLS) {
@@ -184,6 +225,23 @@ if (transformMissing.length) {
       '（阴面用例需在测试内写 `flags.insert("yj:<code>", true)`）',
   );
   process.exit(1);
+}
+
+// 觉醒授予技能已实现性（提示；`--strict-granted` 时作为失败项）。
+const strictGranted = process.argv.includes("--strict-granted");
+const inactiveGranted = await loadGrantedInactive();
+if (inactiveGranted.length > 0) {
+  console.log("[check] 觉醒授予技能：");
+  for (const g of inactiveGranted) {
+    console.log(
+      `  ${strictGranted ? "FAIL" : "WARN"} ${g.skillCode} 授予 ${g.extra}（${g.extraName}）未实现` +
+        "（待补官方文本；见 skills.md §4.1）",
+    );
+  }
+  if (strictGranted) {
+    console.error("[check] 失败：存在未实现的授予技能（--strict-granted）");
+    process.exit(1);
+  }
 }
 
 const min = Math.min(...Object.values(counts));
