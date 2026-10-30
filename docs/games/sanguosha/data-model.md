@@ -397,7 +397,7 @@ CREATE INDEX IF NOT EXISTS idx_prop_status_log_entity
 }
 ```
 
-说明：`equips` 的键就是 `sgs_card_defs.equip_slot`（武器/护具/进攻马/防御马/特殊），玩家装备区按槽位判定；`special_zones` 是通用占位，具体字段由技能实现定义（观星、五谷丰登、判定展示等），未出现时为空对象。观星的完整字段、交互与回写口径见 `special-zones.md` §5 与 `ui-spec.md` §7（**P2.5 引擎契约已落地**：`arrange:<csv>` 校验 + `settle_slots()` 纯函数）；五谷丰登见 `special-zones.md` §6（P2.5 已实现）。
+说明：`equips` 的键就是 `sgs_card_defs.equip_slot`（武器/护具/进攻马/防御马/特殊），玩家装备区按槽位判定；P4.4.1 的「视为装备」（八阵）不写入 `equips`/`cards`，由 `skills::virtual_equip` 在规则与视图投影时临时生效；拼点（驱虎/天义）只通过结算栈 `PindianFrame` + `Outcome::Pindian` 存在，不落持久字段。`special_zones` 是通用占位，具体字段由技能实现定义（观星、五谷丰登、判定展示等），未出现时为空对象。观星的完整字段、交互与回写口径见 `special-zones.md` §5 与 `ui-spec.md` §7（**P2.5 引擎契约已落地**：`arrange:<csv>` 校验 + `settle_slots()` 纯函数）；五谷丰登见 `special-zones.md` §6（P2.5 已实现）。
 
 ### 4.2 视图三分区（ADR-0020）
 

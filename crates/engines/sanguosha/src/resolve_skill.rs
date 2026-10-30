@@ -677,6 +677,7 @@ fn qinglong_act(
             damage_type: crate::resolve::DamageType::Normal,
             no_distance: false,
             virtual_card: false,
+            tianyi: false,
         }),
     );
     let need = if crate::skills::has(st, f.user, "wushuang") {

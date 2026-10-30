@@ -1688,6 +1688,14 @@ pub(crate) fn target_action(
             crate::resolve_wind::tianxiang_target(st, pending, action).map(Some)
         }
         Some(Frame::Jiewei(_)) => crate::resolve_wind::jiewei_target(st, pending, action).map(Some),
+        Some(Frame::Qiangxi(_)) => {
+            crate::resolve_fire::qiangxi_target(st, pending, action).map(Some)
+        }
+        Some(Frame::Quhu(_)) => crate::resolve_fire::quhu_target(st, pending, action).map(Some),
+        Some(Frame::Jieming(_)) => {
+            crate::resolve_fire::jieming_target(st, pending, action).map(Some)
+        }
+        Some(Frame::Tianyi(_)) => crate::resolve_fire::tianyi_target(st, pending, action).map(Some),
         _ => Ok(None),
     }
 }

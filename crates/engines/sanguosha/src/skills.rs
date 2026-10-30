@@ -414,6 +414,101 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
             implemented: true,
         },
     ];
+    // P4.4.1 火包：典韦 / 荀彧 / 庞统 / 卧龙诸葛亮 / 太史慈 / 庞德 / 颜良文丑 / 袁绍。
+    const DIANWEI: &[SkillDef] = &[SkillDef {
+        code: "qiangxi",
+        name: "强袭",
+        kind: SkillType::Normal,
+        implemented: true,
+    }];
+    const XUNYU: &[SkillDef] = &[
+        SkillDef {
+            code: "quhu",
+            name: "驱虎",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "jieming",
+            name: "节命",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const PANGTONG: &[SkillDef] = &[
+        SkillDef {
+            code: "lianhuan",
+            name: "连环",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "niepan",
+            name: "涅槃",
+            kind: SkillType::Limited,
+            implemented: true,
+        },
+    ];
+    const WOLONG: &[SkillDef] = &[
+        SkillDef {
+            code: "bazhen",
+            name: "八阵",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "huoji",
+            name: "火计",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "kanpo",
+            name: "看破",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const TAISHICI: &[SkillDef] = &[SkillDef {
+        code: "tianyi",
+        name: "天义",
+        kind: SkillType::Normal,
+        implemented: true,
+    }];
+    const PANGDE: &[SkillDef] = &[
+        SkillDef {
+            code: "mashu",
+            name: "马术",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "jiandu",
+            name: "鞬出",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const YANLIANGWENCHOU: &[SkillDef] = &[SkillDef {
+        code: "shuangxiong",
+        name: "双雄",
+        kind: SkillType::Normal,
+        implemented: true,
+    }];
+    const YUANSHAO: &[SkillDef] = &[
+        SkillDef {
+            code: "luanji",
+            name: "乱击",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "xueyi",
+            name: "血裔",
+            kind: SkillType::Lord,
+            implemented: true,
+        },
+    ];
     match general {
         "sgs_hero_1" => LIUBEI,
         "sgs_hero_15" => CAOCAO,
@@ -448,6 +543,14 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
         "sgs_hero_210" => ZHOUTAI,
         "sgs_hero_211" => YUJI,
         "sgs_hero_212" => ZHANGJIAO,
+        "sgs_hero_34" => DIANWEI,
+        "sgs_hero_35" => XUNYU,
+        "sgs_hero_36" => PANGTONG,
+        "sgs_hero_37" => WOLONG,
+        "sgs_hero_38" => TAISHICI,
+        "sgs_hero_39" => PANGDE,
+        "sgs_hero_40" => YANLIANGWENCHOU,
+        "sgs_hero_41" => YUANSHAO,
         _ => &[],
     }
 }
@@ -621,9 +724,19 @@ pub static EQUIPMENT_SKILLS: &[EquipmentSkillDef] = &[
 
 /// 是否拥有某装备技能（装备效果统一判断入口）。
 pub fn has_equipment_skill(st: &SgsState, seat: usize, code: &str) -> bool {
-    EQUIPMENT_SKILLS
-        .iter()
-        .any(|d| d.code == code && st.has_equip(seat, d.card))
+    EQUIPMENT_SKILLS.iter().any(|d| {
+        d.code == code
+            && (st.has_equip(seat, d.card) || virtual_equip(st, seat).is_some_and(|v| v == d.card))
+    })
+}
+
+/// 视为装备（P4.4 八阵）：防具槽为空时视为装备【八卦阵】。
+pub fn virtual_equip(st: &SgsState, seat: usize) -> Option<&'static str> {
+    if has(st, seat, "bazhen") && st.equip_def(seat, EquipSlot::Armor).is_none() {
+        Some("bagua_zhen")
+    } else {
+        None
+    }
 }
 
 /// 按时机收集持有者（座位升序 → 注册序，确定性）。
@@ -631,7 +744,9 @@ pub fn triggered(st: &SgsState, trigger: Trigger) -> Vec<(usize, &'static Equipm
     let mut out = Vec::new();
     for seat in 0..st.seats.len() {
         for def in EQUIPMENT_SKILLS.iter().filter(|d| d.trigger == trigger) {
-            if st.has_equip(seat, def.card) {
+            if st.has_equip(seat, def.card)
+                || virtual_equip(st, seat).is_some_and(|v| v == def.card)
+            {
                 out.push((seat, def));
             }
         }
@@ -730,6 +845,12 @@ pub fn conversion_for(
             // 急救：回合外（非自己的回合）红色牌当【桃】。
             if has(st, seat, "jijiu") && red && st.turn != seat {
                 return Some(("jijiu", "急救"));
+            }
+        }
+        "wuxie_keji" => {
+            // 看破：黑色手牌当【无懈可击】。
+            if has(st, seat, "kanpo") && black {
+                return Some(("kanpo", "看破"));
             }
         }
         _ => {}
@@ -901,10 +1022,19 @@ pub fn hand_limit(st: &SgsState, seat: usize) -> usize {
         return buqu_cards(st, seat).len();
     }
     if has(st, seat, "keji") && st.counter("sha_used") == 0 {
-        usize::MAX
-    } else {
-        st.hand_limit(seat)
+        return usize::MAX;
     }
+    let mut limit = st.hand_limit(seat);
+    // 血裔（主公技，锁定）：其他群势力角色数 ×2 手牌上限。
+    if has(st, seat, "xueyi") && is_lord(st, seat) {
+        let allies = st
+            .alive_indices()
+            .into_iter()
+            .filter(|i| *i != seat && kingdom(st, *i) == "qun")
+            .count();
+        limit += allies * 2;
+    }
+    limit
 }
 
 /// 不屈「创」（武将牌上的牌）。
@@ -998,6 +1128,11 @@ pub fn fenji_owner(st: &SgsState, lost_by: usize) -> Option<usize> {
     candidates
         .into_iter()
         .find(|i| st.seats.get(*i).is_some_and(|s| s.alive) && has(st, *i, "fenji"))
+}
+
+/// 天义（没赢）：本回合不能使用【杀】。
+pub fn sha_blocked(st: &SgsState, seat: usize) -> bool {
+    has(st, seat, "tianyi") && st.counter("tianyi_lose") > 0
 }
 
 /// 奇才：使用锦囊无距离限制。

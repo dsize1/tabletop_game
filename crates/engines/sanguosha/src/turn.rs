@@ -108,13 +108,17 @@ pub(crate) fn judge_zone_has(st: &SgsState, idx: usize, def_code: &str) -> bool 
 
 /// 出牌阶段【杀】次数上限（咆哮 / 诸葛连弩 → 无限）。
 pub(crate) fn sha_limit(st: &SgsState, idx: usize) -> u32 {
+    // 天义（没赢）：本回合不能使用【杀】。
+    if crate::skills::sha_blocked(st, idx) {
+        return 0;
+    }
     if crate::skills::has_equipment_skill(st, idx, "zhuge_liannu")
         || crate::skills::has(st, idx, "paoxiao")
     {
         u32::MAX
     } else {
-        // 奇谋：本回合【杀】限制次数 +X。
-        1 + st.counter("qimou")
+        // 奇谋/天义：本回合【杀】限制次数 +X。
+        1 + st.counter("qimou") + st.counter("tianyi")
     }
 }
 
@@ -320,6 +324,18 @@ pub(crate) fn phase_step(
                 };
                 st.push_log(Some(&st.seats[idx].player_id.clone()), reason);
                 st.turn_phase = TurnPhase::Play;
+                return Ok(true);
+            }
+            // 双雄（可选）：改为判定并获得判定牌（本回合异色手牌当【决斗】）。
+            if crate::skills::has(st, idx, "shuangxiong") && st.counter("shuangxiong_offered") == 0
+            {
+                st.set_counter("shuangxiong_offered", 1);
+                resolve::push(
+                    st,
+                    resolve::Frame::Shuangxiong(crate::resolve_fire::ShuangxiongFrame {
+                        actor: idx,
+                    }),
+                );
                 return Ok(true);
             }
             // 裸衣（可选）：摸牌阶段先询问是否少摸 1 张换本回合杀/决斗伤害 +1。
@@ -776,6 +792,115 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
             description: "蛊惑：扣置一张手牌当任意基本牌或普通锦囊使用".into(),
         });
     }
+    // 强袭：出牌阶段限两次，失 1 体力或弃武器 → 对未指定过的角色 1 伤。
+    if crate::skills::has(st, idx, "qiangxi")
+        && st.counter("qiangxi_used") < 2
+        && (st.seats[idx].hp > 0 || st.equip_def(idx, EquipSlot::Weapon).is_some())
+        && !crate::resolve_fire::qiangxi_targets(st, idx).is_empty()
+    {
+        out.push(Action {
+            id: "skill:qiangxi".into(),
+            description: "强袭：失去 1 点体力或弃武器，对一名角色造成 1 点伤害".into(),
+        });
+    }
+    // 驱虎：出牌阶段限一次，与体力大于你的角色拼点。
+    if crate::skills::has(st, idx, "quhu")
+        && st.counter("quhu_used") == 0
+        && !st.seats[idx].hand.is_empty()
+        && st
+            .alive_indices()
+            .into_iter()
+            .any(|t| t != idx && st.seats[t].hp > st.seats[idx].hp && !st.seats[t].hand.is_empty())
+    {
+        out.push(Action {
+            id: "skill:quhu".into(),
+            description: "驱虎：与体力值大于你的角色拼点".into(),
+        });
+    }
+    // 天义：出牌阶段限一次，与一名有手牌的角色拼点。
+    if crate::skills::has(st, idx, "tianyi")
+        && st.counter("tianyi_used") == 0
+        && !st.seats[idx].hand.is_empty()
+        && st
+            .alive_indices()
+            .into_iter()
+            .any(|t| t != idx && !st.seats[t].hand.is_empty())
+    {
+        out.push(Action {
+            id: "skill:tianyi".into(),
+            description: "天义：拼点；赢则本回合杀次数+1/无距离/多目标".into(),
+        });
+    }
+    // 连环：梅花手牌当【铁索连环】使用。
+    if crate::skills::has(st, idx, "lianhuan") && st.alive_indices().into_iter().any(|t| t != idx) {
+        for card_id in hand_ids(st, idx) {
+            if st.cards.get(&card_id).is_some_and(|c| c.suit == Suit::Club) {
+                out.push(Action {
+                    id: format!("skill:lianhuan:{card_id}"),
+                    description: format!(
+                        "连环：将【{}】当【铁索连环】使用",
+                        card_label(st, &card_id)
+                    ),
+                });
+            }
+        }
+    }
+    // 火计：红色手牌当【火攻】使用。
+    if crate::skills::has(st, idx, "huoji")
+        && st
+            .alive_indices()
+            .into_iter()
+            .any(|t| t != idx && !st.seats[t].hand.is_empty())
+    {
+        for card_id in hand_ids(st, idx) {
+            if st
+                .cards
+                .get(&card_id)
+                .is_some_and(|c| crate::skills::is_red(c.suit))
+            {
+                out.push(Action {
+                    id: format!("skill:huoji:{card_id}"),
+                    description: format!("火计：将【{}】当【火攻】使用", card_label(st, &card_id)),
+                });
+            }
+        }
+    }
+    // 双雄：本回合异色手牌当【决斗】使用。
+    if crate::skills::has(st, idx, "shuangxiong")
+        && st
+            .alive_indices()
+            .into_iter()
+            .any(|t| t != idx && !crate::skills::kongcheng_blocks(st, t))
+    {
+        for card_id in hand_ids(st, idx) {
+            if crate::resolve_fire::shuangxiong_conversion(st, idx, &card_id).is_some() {
+                out.push(Action {
+                    id: format!("skill:shuangxiong:{card_id}"),
+                    description: format!("双雄：将【{}】当【决斗】使用", card_label(st, &card_id)),
+                });
+            }
+        }
+    }
+    // 乱击：两张同花色手牌当【万箭齐发】使用。
+    if crate::skills::has(st, idx, "luanji") && st.alive_indices().len() > 1 {
+        let hand = hand_ids(st, idx);
+        for i in 0..hand.len() {
+            for j in (i + 1)..hand.len() {
+                let same = st.cards.get(&hand[i]).map(|c| c.suit)
+                    == st.cards.get(&hand[j]).map(|c| c.suit);
+                if same {
+                    out.push(Action {
+                        id: format!("skill:luanji:{},{}", hand[i], hand[j]),
+                        description: format!(
+                            "乱击：将【{}】【{}】当【万箭齐发】使用",
+                            card_label(st, &hand[i]),
+                            card_label(st, &hand[j])
+                        ),
+                    });
+                }
+            }
+        }
+    }
     // 奇谋（限定技）：失去任意点体力，本回合距离/杀次数修正。
     if crate::skills::has(st, idx, "qimou")
         && !st.seats[idx].flags.contains_key("qimou_used")
@@ -797,9 +922,12 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
             }
         }
     }
-    // 重铸：铁索连环可弃置并摸 1 张。
+    // 重铸：铁索连环（或连环：梅花手牌）可弃置并摸 1 张。
     for card_id in hand_ids(st, idx) {
-        if card_def(st, &card_id).is_some_and(|d| d.code == "tiesuo_lianhuan") {
+        let is_tiesuo = card_def(st, &card_id).is_some_and(|d| d.code == "tiesuo_lianhuan");
+        let lianhuan_club = crate::skills::has(st, idx, "lianhuan")
+            && st.cards.get(&card_id).is_some_and(|c| c.suit == Suit::Club);
+        if is_tiesuo || lianhuan_club {
             out.push(Action {
                 id: format!("recast:{card_id}"),
                 description: format!("重铸：弃置【{}】并摸 1 张", card_label(st, &card_id)),
@@ -1106,6 +1234,150 @@ pub fn execute(
         crate::resolve_wind::begin_guhuo_play(st, idx)?;
         st.push_log(Some(player_id), "发动蛊惑");
         "蛊惑：请选择要扣置的手牌".to_string()
+    } else if action == "skill:qiangxi" {
+        if !crate::skills::has(st, idx, "qiangxi") {
+            return Err(illegal("没有该技能"));
+        }
+        if st.counter("qiangxi_used") >= 2 {
+            return Err(illegal("本阶段已发动过两次强袭"));
+        }
+        resolve::push(
+            st,
+            resolve::Frame::Qiangxi(crate::resolve_fire::QiangxiFrame {
+                actor: idx,
+                stage: crate::resolve_fire::QiangxiStage::Cost,
+            }),
+        );
+        st.push_log(Some(player_id), "发动强袭");
+        "强袭：请选择代价".to_string()
+    } else if action == "skill:quhu" {
+        if !crate::skills::has(st, idx, "quhu") {
+            return Err(illegal("没有该技能"));
+        }
+        if st.counter("quhu_used") > 0 {
+            return Err(illegal("本阶段已发动过驱虎"));
+        }
+        if st.seats[idx].hand.is_empty() {
+            return Err(illegal("没有手牌可拼点"));
+        }
+        st.set_counter("quhu_used", 1);
+        resolve::push(
+            st,
+            resolve::Frame::Quhu(crate::resolve_fire::QuhuFrame {
+                actor: idx,
+                target: None,
+                stage: crate::resolve_fire::QuhuStage::Target,
+            }),
+        );
+        st.push_log(Some(player_id), "发动驱虎");
+        "驱虎：请选择拼点目标".to_string()
+    } else if action == "skill:tianyi" {
+        if !crate::skills::has(st, idx, "tianyi") {
+            return Err(illegal("没有该技能"));
+        }
+        if st.counter("tianyi_used") > 0 {
+            return Err(illegal("本阶段已发动过天义"));
+        }
+        if st.seats[idx].hand.is_empty() {
+            return Err(illegal("没有手牌可拼点"));
+        }
+        st.set_counter("tianyi_used", 1);
+        resolve::push(
+            st,
+            resolve::Frame::Tianyi(crate::resolve_fire::TianyiFrame {
+                actor: idx,
+                target: None,
+                stage: crate::resolve_fire::TianyiStage::Target,
+            }),
+        );
+        st.push_log(Some(player_id), "发动天义");
+        "天义：请选择拼点目标".to_string()
+    } else if let Some(card_id) = action.strip_prefix("skill:lianhuan:") {
+        if !crate::skills::has(st, idx, "lianhuan") {
+            return Err(illegal("没有该技能"));
+        }
+        if !st.seats[idx].hand.iter().any(|c| c == card_id) {
+            return Err(illegal("手牌中没有该牌"));
+        }
+        if !st.cards.get(card_id).is_some_and(|c| c.suit == Suit::Club) {
+            return Err(illegal("连环只能使用梅花手牌"));
+        }
+        let label = card_label(st, card_id);
+        take_card(st, idx, card_id)?;
+        st.deck.processing.push(card_id.to_string());
+        resolve::start_virtual_trick(st, idx, card_id, "tiesuo_lianhuan")?;
+        st.push_log(Some(player_id), format!("连环：将【{label}】当铁索连环"));
+        "请选择铁索连环的目标".to_string()
+    } else if let Some(card_id) = action.strip_prefix("skill:huoji:") {
+        if !crate::skills::has(st, idx, "huoji") {
+            return Err(illegal("没有该技能"));
+        }
+        if !st.seats[idx].hand.iter().any(|c| c == card_id) {
+            return Err(illegal("手牌中没有该牌"));
+        }
+        if !st
+            .cards
+            .get(card_id)
+            .is_some_and(|c| crate::skills::is_red(c.suit))
+        {
+            return Err(illegal("火计只能使用红色手牌"));
+        }
+        let label = card_label(st, card_id);
+        take_card(st, idx, card_id)?;
+        st.deck.processing.push(card_id.to_string());
+        resolve::start_virtual_trick(st, idx, card_id, "huo_gong")?;
+        let mut ev = Vec::new();
+        crate::skills::on_non_delayed_trick_used(st, idx, &mut ev);
+        st.push_log(Some(player_id), format!("火计：将【{label}】当火攻"));
+        "请选择火攻的目标".to_string()
+    } else if let Some(card_id) = action.strip_prefix("skill:shuangxiong:") {
+        if crate::resolve_fire::shuangxiong_conversion(st, idx, card_id).is_none() {
+            return Err(illegal("双雄：该牌颜色与判定牌相同"));
+        }
+        if !st.seats[idx].hand.iter().any(|c| c == card_id) {
+            return Err(illegal("手牌中没有该牌"));
+        }
+        let label = card_label(st, card_id);
+        take_card(st, idx, card_id)?;
+        st.deck.processing.push(card_id.to_string());
+        resolve::start_virtual_trick(st, idx, card_id, "juedou")?;
+        let mut ev = Vec::new();
+        crate::skills::on_non_delayed_trick_used(st, idx, &mut ev);
+        st.push_log(Some(player_id), format!("双雄：将【{label}】当决斗"));
+        "请选择决斗的目标".to_string()
+    } else if let Some(pair) = action.strip_prefix("skill:luanji:") {
+        if !crate::skills::has(st, idx, "luanji") {
+            return Err(illegal("没有该技能"));
+        }
+        let (c1, c2) = pair
+            .split_once(',')
+            .ok_or_else(|| illegal("乱击需要两张牌"))?;
+        if c1 == c2 {
+            return Err(illegal("乱击需要两张不同的手牌"));
+        }
+        for c in [c1, c2] {
+            if !st.seats[idx].hand.iter().any(|h| h == c) {
+                return Err(illegal("手牌中没有该牌"));
+            }
+        }
+        let s1 = st.cards.get(c1).map(|c| c.suit);
+        let s2 = st.cards.get(c2).map(|c| c.suit);
+        if s1.is_none() || s1 != s2 {
+            return Err(illegal("乱击需要两张同花色手牌"));
+        }
+        let (l1, l2) = (card_label(st, c1), card_label(st, c2));
+        take_card(st, idx, c2)?;
+        to_discard_card(st, c2);
+        take_card(st, idx, c1)?;
+        st.deck.processing.push(c1.to_string());
+        resolve::start_virtual_trick(st, idx, c1, "wanjian_qifa")?;
+        let mut ev = Vec::new();
+        crate::skills::on_non_delayed_trick_used(st, idx, &mut ev);
+        st.push_log(
+            Some(player_id),
+            format!("乱击：将【{l1}】【{l2}】当万箭齐发"),
+        );
+        "使用【万箭齐发】".to_string()
     } else if action == "skill:qimou" {
         if !crate::skills::has(st, idx, "qimou") {
             return Err(illegal("没有该技能"));
@@ -1147,8 +1419,11 @@ pub fn execute(
         if !st.seats[idx].hand.iter().any(|c| c == card_id) {
             return Err(illegal("手牌中没有该牌"));
         }
-        if card_def(st, card_id).map(|d| d.code) != Some("tiesuo_lianhuan") {
-            return Err(illegal("只有铁索连环可以重铸"));
+        let is_tiesuo = card_def(st, card_id).map(|d| d.code) == Some("tiesuo_lianhuan");
+        let lianhuan_club = crate::skills::has(st, idx, "lianhuan")
+            && st.cards.get(card_id).is_some_and(|c| c.suit == Suit::Club);
+        if !is_tiesuo && !lianhuan_club {
+            return Err(illegal("只有铁索连环（或连环的梅花手牌）可以重铸"));
         }
         let label = card_label(st, card_id);
         take_card(st, idx, card_id)?;
@@ -1297,6 +1572,10 @@ fn play_card(
             if sha_targets(st, idx).is_empty() {
                 return Err(illegal("攻击范围内没有目标"));
             }
+            if crate::skills::sha_blocked(st, idx) {
+                return Err(illegal("天义没赢：本回合不能使用【杀】"));
+            }
+            let tianyi = st.counter("tianyi") > 0;
             let fangtian = crate::skills::has_equipment_skill(st, idx, "fangtian_huaji")
                 && st.seats[idx].hand.len() == 1;
             let dtype = match def.code {
@@ -1305,7 +1584,7 @@ fn play_card(
                 _ => resolve::DamageType::Normal,
             };
             take_card(st, idx, card_id)?;
-            resolve::start_sha_with(st, idx, card_id, fangtian, dtype)?;
+            resolve::start_sha_flags(st, idx, card_id, fangtian, dtype, tianyi, tianyi)?;
             st.push_log(Some(&actor), format!("使用【{label}】"));
             Ok("请选择【杀】的目标".to_string())
         }

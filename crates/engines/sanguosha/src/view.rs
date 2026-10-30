@@ -166,6 +166,7 @@ fn equipment_skills_view(st: &SgsState, seat: usize) -> Vec<Value> {
         crate::skills::Trigger::JudgeBefore => "judge_before",
     };
     let mut out = Vec::new();
+    let virtual_equip = crate::skills::virtual_equip(st, seat);
     for def in crate::skills::EQUIPMENT_SKILLS {
         let Some(slot) = EquipSlot::ALL.into_iter().find(|slot| {
             st.seats[seat]
@@ -174,6 +175,7 @@ fn equipment_skills_view(st: &SgsState, seat: usize) -> Vec<Value> {
                 .and_then(|v| v.as_ref())
                 .and_then(|id| st.cards.get(id))
                 .is_some_and(|c| c.def == def.card)
+                || (*slot == EquipSlot::Armor && virtual_equip == Some(def.card))
         }) else {
             continue;
         };

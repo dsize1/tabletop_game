@@ -77,6 +77,14 @@ pub enum Frame {
     Shensu(crate::resolve_wind::ShensuFrame),
     Tianxiang(crate::resolve_wind::TianxiangFrame),
     Guhuo(crate::resolve_wind::GuhuoFrame),
+    /// P4.4.1 火包帧。
+    Pindian(crate::resolve_fire::PindianFrame),
+    Qiangxi(crate::resolve_fire::QiangxiFrame),
+    Quhu(crate::resolve_fire::QuhuFrame),
+    Jieming(crate::resolve_fire::JiemingFrame),
+    Tianyi(crate::resolve_fire::TianyiFrame),
+    Jiandu(crate::resolve_fire::JianduFrame),
+    Shuangxiong(crate::resolve_fire::ShuangxiongFrame),
     /// 五谷丰登（P2.5 特殊区 `wugu`）。
     Wugu(crate::resolve_zone::WuguFrame),
     /// 观星排序提交（P2.5 特殊区 `guanxing`，`arrange:<csv>`）。
@@ -157,6 +165,9 @@ pub struct ShaFrame {
     /// 视为使用的虚拟【杀】（无物理牌；`card` 为空串）。
     #[serde(default)]
     pub virtual_card: bool,
+    /// 天义（赢）：本【杀】无距离限制且可多指定一个目标。
+    #[serde(default)]
+    pub tianyi: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -398,6 +409,12 @@ pub enum Outcome {
     JudgeRewritten {
         card: Option<String>,
     },
+    /// 拼点结果（`winner = None` 表示平手，发起者未赢）。
+    Pindian {
+        winner: Option<usize>,
+        initiator: usize,
+        target: usize,
+    },
 }
 
 // ---------------------------------------------------------------------------
@@ -599,6 +616,13 @@ fn step(
         Frame::Shensu(f) => crate::resolve_wind::step_shensu(st, f),
         Frame::Tianxiang(f) => crate::resolve_wind::step_tianxiang(st, f),
         Frame::Guhuo(f) => crate::resolve_wind::step_guhuo(st, f),
+        Frame::Pindian(f) => crate::resolve_fire::step_pindian(st, f),
+        Frame::Qiangxi(f) => crate::resolve_fire::step_qiangxi(st, f),
+        Frame::Quhu(f) => crate::resolve_fire::step_quhu(st, f),
+        Frame::Jieming(f) => crate::resolve_fire::step_jieming(st, f),
+        Frame::Tianyi(f) => crate::resolve_fire::step_tianyi(st, f),
+        Frame::Jiandu(f) => crate::resolve_fire::step_jiandu(st, f),
+        Frame::Shuangxiong(f) => crate::resolve_fire::step_shuangxiong(st, f),
         Frame::Wugu(f) => crate::resolve_zone::step_wugu(st, f, events),
         Frame::Arrange(f) => crate::resolve_zone::step_arrange(st, f, events),
     }
@@ -665,6 +689,20 @@ fn step_wuxie(st: &mut SgsState, mut f: WuxieFrame) -> Result<bool, EngineError>
             id: format!("skill:jiewei:{id}"),
             label: format!("解围：将装备【{}】当【无懈可击】", turn::card_label(st, id)),
         });
+    }
+    // 看破：黑色手牌当【无懈可击】。
+    if !chanyuan_locked {
+        for id in &st.seats[seat].hand {
+            if let Some((_, name)) = crate::skills::conversion_for(st, seat, id, "wuxie_keji") {
+                options.push(PendingOption {
+                    id: format!("respond:{id}"),
+                    label: format!(
+                        "{name}：将【{}】当【无懈可击】打出",
+                        turn::card_label(st, id)
+                    ),
+                });
+            }
+        }
     }
     // 蛊惑：任意手牌当【无懈可击】（每回合限一次）。
     if !chanyuan_locked && crate::resolve_wind::guhuo_available(st, seat) {
@@ -752,6 +790,26 @@ fn step_sha(st: &mut SgsState, mut f: ShaFrame) -> Result<bool, EngineError> {
                     });
                 }
             }
+            // 天义（赢）：可多指定一个目标（恰好 2 个）。
+            if f.tianyi && targets.len() >= 2 {
+                for combo in fangtian_combos(&targets, 2) {
+                    if combo.len() != 2 {
+                        continue;
+                    }
+                    let ids: Vec<String> = combo
+                        .iter()
+                        .map(|t| st.seats[*t].player_id.clone())
+                        .collect();
+                    let names: Vec<String> = combo
+                        .iter()
+                        .map(|t| st.seats[*t].general_name.clone())
+                        .collect();
+                    options.push(PendingOption {
+                        id: format!("targets:{}", ids.join(",")),
+                        label: format!("天义：同时指定 {}", names.join("、")),
+                    });
+                }
+            }
             if options.is_empty() {
                 discard_from_processing(st, &f.card);
                 pop(st);
@@ -828,6 +886,19 @@ pub fn start_sha_with(
     fangtian: bool,
     damage_type: DamageType,
 ) -> Result<(), EngineError> {
+    start_sha_flags(st, user, card, fangtian, damage_type, false, false)
+}
+
+/// 带「无距离/天义多目标」标记的【杀】。
+pub fn start_sha_flags(
+    st: &mut SgsState,
+    user: usize,
+    card: &str,
+    fangtian: bool,
+    damage_type: DamageType,
+    no_distance: bool,
+    tianyi: bool,
+) -> Result<(), EngineError> {
     st.deck.processing.push(card.to_string());
     st.bump_counter("sha_used");
     push(
@@ -840,8 +911,9 @@ pub fn start_sha_with(
             pending_targets: Vec::new(),
             fangtian,
             damage_type,
-            no_distance: false,
+            no_distance,
             virtual_card: false,
+            tianyi,
         }),
     );
     Ok(())
@@ -1534,9 +1606,10 @@ fn step_respond(st: &mut SgsState, f: RespondFrame) -> Result<bool, EngineError>
     if needed == "shan"
         && !f.ignore_armor
         && !f.bagua_used
-        && st
+        && (st
             .equip_def(f.actor, EquipSlot::Armor)
             .is_some_and(|d| d.code == "bagua_zhen")
+            || crate::skills::virtual_equip(st, f.actor).is_some_and(|v| v == "bagua_zhen"))
     {
         options.insert(
             options.len().saturating_sub(1),
@@ -1649,6 +1722,16 @@ fn step_dying(
                 label: format!("蛊惑：将【{}】当【桃】使用", turn::card_label(st, id)),
             });
         }
+    }
+    // 涅槃（限定）：濒死时可发动（仅濒死者本人）。
+    if f.victim == seat
+        && crate::skills::has(st, seat, "niepan")
+        && !st.seats[seat].flags.contains_key("niepan_used")
+    {
+        options.push(PendingOption {
+            id: "skill:niepan".into(),
+            label: "涅槃：弃置区域内所有牌，复原武将牌，摸 3 张并回复至 3 点体力".into(),
+        });
     }
     // 缠怨：体力值为 1 时不能使用或打出手牌。
     if crate::skills::chanyuan_locked(st, seat) {
@@ -1849,8 +1932,8 @@ fn step_quick_judge(
             let label = turn::card_label(st, &judge_id);
             let black = suit.map(crate::skills::is_black).unwrap_or(false);
             pop(st);
-            // 洛神：黑色判定牌由技能获得；其余判定牌正常进弃牌堆。
-            if f.reason == "luoshen" && black {
+            // 洛神：黑色判定牌由技能获得；双雄：判定牌由技能获得；其余正常进弃牌堆。
+            if (f.reason == "luoshen" && black) || f.reason == "shuangxiong" {
                 leave_processing(st, &judge_id);
                 st.seats[f.owner].hand.push(judge_id.clone());
                 let over = st.seats[f.owner]
@@ -1903,6 +1986,17 @@ fn step_quick_judge(
                     } else {
                         st.push_log(Some(&pid), format!("洛神：判定【{label}】红色，洛神结束"));
                     }
+                }
+                "shuangxiong" => {
+                    let color = if black { 2 } else { 1 };
+                    st.set_counter("shuangxiong_color", color);
+                    st.push_log(
+                        Some(&pid),
+                        format!(
+                            "双雄：判定【{label}】{}，获得该牌（本回合异色手牌当【决斗】）",
+                            if black { "黑色" } else { "红色" }
+                        ),
+                    );
                 }
                 "bagua" => {
                     let red = matches!(suit, Some(Suit::Heart) | Some(Suit::Diamond));
@@ -2271,6 +2365,10 @@ pub fn execute_pending(
             Some("shensu") => crate::resolve_wind::act_shensu(st, action)?,
             Some("tianxiang") => crate::resolve_wind::act_tianxiang(st, action)?,
             Some("guhuo") => crate::resolve_wind::act_guhuo(st, action)?,
+            Some("pindian") => crate::resolve_fire::act_pindian(st, action)?,
+            Some("qiangxi") => crate::resolve_fire::act_qiangxi(st, action)?,
+            Some("jiandu") => crate::resolve_fire::act_jiandu(st, action)?,
+            Some("shuangxiong") => crate::resolve_fire::act_shuangxiong(st, action)?,
             _ => crate::resolve_skill::act_jianxiong(st, action)?,
         },
         "choose_many" => match top(st) {
@@ -2345,22 +2443,33 @@ fn act_wuxie(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Strin
     let card_id = action
         .strip_prefix("respond:")
         .ok_or_else(|| illegal("需要打出无懈可击或选择不出"))?;
-    if turn::card_def(st, card_id).map(|d| d.code) != Some("wuxie_keji") {
-        return Err(illegal("只能打出【无懈可击】"));
-    }
+    let actual = turn::card_def(st, card_id).map(|d| d.code);
+    let conversion = if actual == Some("wuxie_keji") {
+        None
+    } else {
+        Some(
+            crate::skills::conversion_for(st, seat, card_id, "wuxie_keji")
+                .ok_or_else(|| illegal("只能打出【无懈可击】"))?,
+        )
+    };
     turn::take_card(st, seat, card_id)?;
     turn::to_discard_card(st, card_id);
     f.count += 1;
     f.cursor = 0;
     f.passed = 0;
-    st.push_log(
-        Some(&pid),
-        format!(
+    let label = match conversion {
+        Some((_, name)) => format!(
+            "{name}：将【{}】当【无懈可击】（层数 {}）",
+            turn::card_label(st, card_id),
+            f.count
+        ),
+        None => format!(
             "打出【{}】（无懈层数 {}）",
             turn::card_label(st, card_id),
             f.count
         ),
-    );
+    };
+    st.push_log(Some(&pid), label);
     let count = f.count;
     replace_top(st, Frame::Wuxie(f));
     // 集智：使用非延时锦囊（无懈）也摸 1
@@ -2443,6 +2552,28 @@ fn act_target(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Stri
                 }),
             );
             return Ok("流离：请选择是否弃牌转移".to_string());
+        }
+        // 鞬出：使用【杀】指定目标后，可弃其一张牌（弃装备→不能闪；非装备→其获得此杀）。
+        if crate::skills::has(st, f.user, "jiandu")
+            && !f.card.is_empty()
+            && crate::resolve_fire::target_has_cards(st, target)
+        {
+            push(
+                st,
+                Frame::Jiandu(crate::resolve_fire::JianduFrame {
+                    user: f.user,
+                    target,
+                    card: f.card.clone(),
+                    need,
+                    no_shan,
+                    ignore_armor: crate::skills::has_equipment_skill(st, f.user, "qinggang_jian"),
+                    damage_type: f.damage_type,
+                }),
+            );
+            return Ok(format!(
+                "鞬出：请选择 {} 的一张牌",
+                st.seats[target].general_name
+            ));
         }
         crate::resolve_skill::push_sha_target_response(
             st,
@@ -2559,9 +2690,10 @@ fn act_respond(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Str
             return Err(illegal("本次响应已经使用过【八卦阵】"));
         }
         if f.ignore_armor
-            || !st
+            || !(st
                 .equip_def(actor, EquipSlot::Armor)
                 .is_some_and(|d| d.code == "bagua_zhen")
+                || crate::skills::virtual_equip(st, actor).is_some_and(|v| v == "bagua_zhen"))
         {
             return Err(illegal("没有可用的【八卦阵】"));
         }
@@ -3059,6 +3191,54 @@ fn act_dying(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Strin
         replace_top(st, Frame::Dying(f));
         return Ok("放弃救援".to_string());
     }
+    if action == "skill:niepan" {
+        if f.victim != seat {
+            return Err(illegal("涅槃只能自救"));
+        }
+        if !crate::skills::has(st, seat, "niepan") {
+            return Err(illegal("没有该技能"));
+        }
+        if st.seats[seat].flags.contains_key("niepan_used") {
+            return Err(illegal("涅槃（限定技）本局已发动过"));
+        }
+        st.seats[seat].flags.insert("niepan_used".into(), true);
+        let hand = std::mem::take(&mut st.seats[seat].hand);
+        let equips: Vec<String> = st.seats[seat]
+            .equips
+            .values_mut()
+            .filter_map(Option::take)
+            .collect();
+        let judge = std::mem::take(&mut st.seats[seat].judge_zone);
+        let marks: Vec<String> = st.seats[seat]
+            .marks
+            .values_mut()
+            .flat_map(|v| v.drain(..))
+            .collect();
+        for c in hand.into_iter().chain(equips).chain(judge).chain(marks) {
+            turn::to_discard_card(st, &c);
+        }
+        st.seats[seat].flipped = false;
+        st.seats[seat].hp = st.seats[seat].max_hp.min(3);
+        st.phase = Phase::Turn;
+        pop(st);
+        let mut ev = Vec::new();
+        let drawn = turn::draw_cards(st, seat, 3, &mut ev);
+        let over = st.seats[seat]
+            .hand
+            .len()
+            .saturating_sub(st.config.max_hand_cards as usize);
+        if over > 0 {
+            push_discard(st, seat, over, "hand_cap");
+        }
+        st.push_log(
+            Some(&pending.actor.clone()),
+            format!(
+                "涅槃：弃置区域内所有牌，复原武将牌，摸 {drawn} 张并回复至 {} 点体力",
+                st.seats[seat].hp
+            ),
+        );
+        return Ok("涅槃：已回复至 3 点体力".to_string());
+    }
     if let Some(card_id) = action.strip_prefix("skill:guhuo:") {
         if f.victim != seat {
             return Err(illegal("蛊惑当【桃】只能用于自救"));
@@ -3359,6 +3539,13 @@ fn apply_damage_inner(
                 }),
             );
         }
+    }
+    // 节命：受到伤害后，可令一名角色摸至体力上限（至多 5）。
+    if amount > 0 && st.seats[victim].hp > 0 && crate::skills::has(st, victim, "jieming") {
+        push(
+            st,
+            Frame::Jieming(crate::resolve_fire::JiemingFrame { actor: victim }),
+        );
     }
     // 反馈：受到伤害后获得伤害来源的一张牌（存活时；不含判定区）。
     if let Some(src) = source {

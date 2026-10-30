@@ -2,6 +2,15 @@
 
 > 记录项目关键节点与验证结果，按时间倒序。重大技术决策见 `decisions/`。
 
+## M25：三国杀 P4.4.1 火包 8 将 ✅
+
+- **日期**：2026-10-30
+- **机制**（ADR-0025）：通用拼点 `PindianFrame`（双方选牌比点、同点发起者未赢、`Outcome::Pindian`）；`virtual_equip` 八阵（防具槽空时视为八卦阵）；天义无距离/多目标（`ShaFrame.no_distance/tianyi`）；涅槃限定自救（弃置所有区域 + 复原武将牌 + 摸 3 + 回复至 3）；鞬出目标指定后弃牌分支；双雄判定获得 + 异色当决斗；血裔主公技手牌上限
+- **技能**：典韦·强袭；荀彧·驱虎/节命；庞统·连环/涅槃；卧龙诸葛亮·八阵/火计/看破；太史慈·天义；庞德·马术/鞬出；颜良文丑·双雄；袁绍·乱击/血裔
+- **验证**：`cargo test -p sanguosha` **267** 全绿；`check:sgs-skill-cases`（249 条 / 41 位已实现武将 ≥3）、`check:sgs-engine-data`（73 将）、`check:sgs-view-contract`、`check:interaction-primitives`、`npm --prefix apps run test:web`、MCP 冒烟通过
+- **已知边界**：ADR-0025 §3（天义与方天不叠加、流离优先于鞬出、涅槃不重置铁索/限定/觉醒、八阵不产生牌实例）
+- **详见**：`docs/games/sanguosha/development-plan.md` P4.4.1 火包记录、`skills.md` §2.2、ADR-0025、`rules-rulings.md` §11
+
 ## M24：三国杀 P4.4.0 / P4.4.1 —— 风林火山包开关 + 风包 8 将 ✅
 
 - **日期**：2026-10-30

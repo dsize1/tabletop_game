@@ -680,6 +680,7 @@ fn shensu_sha(st: &mut SgsState, actor: usize) {
             damage_type: DamageType::Normal,
             no_distance: true,
             virtual_card: true,
+            tianyi: false,
         }),
     );
 }

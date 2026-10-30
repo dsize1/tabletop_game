@@ -8,6 +8,7 @@
 
 mod data;
 mod resolve;
+mod resolve_fire;
 mod resolve_more;
 mod resolve_skill;
 mod resolve_wind;
