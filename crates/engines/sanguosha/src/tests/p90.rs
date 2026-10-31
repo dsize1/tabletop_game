@@ -273,7 +273,7 @@ fn duodao_gains_weapon() {
             .into_iter()
             .next()
             .expect("sha");
-        crate::resolve::apply_damage(
+        damage_and_advance(
             st,
             seat,
             1,
@@ -281,8 +281,6 @@ fn duodao_gains_weapon() {
             crate::resolve::DamageType::Normal,
             Some(&sha),
         );
-        let mut ev = Vec::new();
-        crate::resolve::advance(st, &mut ev).unwrap();
     });
     let st = state_of(&mgr, &room);
     assert_eq!(pending_skill(&st), Some("duodao"));
@@ -740,7 +738,7 @@ fn enyuan_source_loses_hp() {
         source_pid = st.seats[source].player_id.clone();
         give_def(st, source, "sha");
         hp = st.seats[source].hp;
-        crate::resolve::apply_damage(
+        damage_and_advance(
             st,
             seat,
             1,
@@ -748,8 +746,6 @@ fn enyuan_source_loses_hp() {
             crate::resolve::DamageType::Normal,
             None,
         );
-        let mut ev = Vec::new();
-        crate::resolve::advance(st, &mut ev).unwrap();
     });
     let st = state_of(&mgr, &room);
     assert_eq!(pending_skill(&st), Some("enyuan"));

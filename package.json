@@ -30,6 +30,7 @@
     "check:sgs-view-contract": "cargo test --manifest-path crates/Cargo.toml -p sanguosha view_contract",
     "check:interaction-primitives": "cargo test --manifest-path crates/Cargo.toml -p sanguosha interaction_",
     "sgs:batch-status": "node apps/scripts/sgs-batch-status.mjs",
+    "sgs:batch-scaffold": "node apps/scripts/sgs-batch-scaffold.mjs",
     "sgs:check": "node apps/scripts/check-sgs-all.mjs",
     "sgs:check:fast": "node apps/scripts/check-sgs-all.mjs --fast",
     "sgs:check:full": "node apps/scripts/check-sgs-all.mjs --full",

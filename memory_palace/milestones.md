@@ -11,6 +11,18 @@
 - **每批收尾**：`p67` 的「一将成名已实现数」+8；`skills.md` §2.7.x + `rules-rulings.md` 新节；`milestones.md` 新增 M 条目
 - **门禁**：`npm run sgs:check`（每批收尾）、`npm run sgs:check:full`（含 MCP 冒烟）、`npm run sgs:check:fast`（改码自检）
 
+## M41：三国杀批次 harness 二期（脚手架 + 共享数据 lib + 用例边界修复）✅
+
+- **日期**：2026-10-31
+- **完成**：
+  - `apps/scripts/sgs-data-lib.mjs`：scripts 共用数据读取（ready/data.rs/批次表/p67），`sgs-batch-status.mjs` 改为复用（行为不变）。
+  - `apps/scripts/sgs-batch-scaffold.mjs` + `npm run sgs:batch-scaffold`：自动取下一批（或 `--batch/--gids/--module/--tests`）打印武将元数据、`skills.rs` 常量+match 模板、`skills.md` 表行、用例/文档/收尾清单。
+  - `tests/support.rs` 新增 `damage_and_advance`（伤害后技能用例高频样板），`p90` 已复用。
+  - 修复 `check-sgs-skill-cases.mjs` 用例体边界（按顶层 `fn` 截断）：此前测试之间的私有助手会被算进上一条用例覆盖，Y2 出现误判；`p89` 助手已移到文件顶部，关平/朱然用例补显式技能 code 断言。
+  - `batch-playbook.md` 增补「开工脚手架」与「覆盖统计口径」两条坑位。
+- **验证**：`npm run sgs:check` 10/10；`cargo test -p sanguosha` 565；`sgs:batch-scaffold` 输出 Y3 8 将清单正确。
+- **详见**：`memory_palace/plan/01a19274-1de6-7668-91f6-e77bbdcc2f44.md`「harness 优化项」
+
 ## M40：三国杀 P4.4.2 批次 Y2（一将成名 179–186：8 将）✅
 
 - **日期**：2026-10-31

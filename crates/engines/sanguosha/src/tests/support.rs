@@ -118,6 +118,20 @@ pub(super) fn run_phase(
     mgr.restore(next);
 }
 
+/// 造成伤害并立刻结算到 pending（伤害后技能用例的高频样板）。
+pub(super) fn damage_and_advance(
+    st: &mut SgsState,
+    victim: usize,
+    amount: i32,
+    source: Option<usize>,
+    dtype: crate::resolve::DamageType,
+    card: Option<&str>,
+) {
+    crate::resolve::apply_damage(st, victim, amount, source, dtype, card);
+    let mut ev = Vec::new();
+    crate::resolve::advance(st, &mut ev).expect("advance");
+}
+
 /// 当前 pending 的技能 code（无 pending 时为 None）。
 pub(super) fn pending_skill(st: &SgsState) -> Option<&str> {
     st.pending.as_ref().and_then(|p| p.skill.as_deref())

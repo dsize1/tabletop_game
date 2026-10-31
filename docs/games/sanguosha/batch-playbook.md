@@ -17,7 +17,7 @@
 
 ## 2. 一批 8 将的标准流程
 
-1. **查数据**：`docs/games/sanguosha/data/heroes.json` 取 gid 的技能名/描述；读 `data.rs` 确认 `code/gid/name/pack/kingdom/max_hp/gender`。
+1. **开工脚手架**：`npm run sgs:batch-scaffold`（自动取下一批；也可 `--batch Y4` / `--gids 187,188 --module resolve_yijiang5 --tests p91`）→ 打印武将元数据、`skills.rs` 常量/match 模板、`skills.md` 表行、用例/文档/门禁清单；技能描述再查 `data/heroes.json`。
 2. **注册技能**：`crates/engines/sanguosha/src/skills.rs`
    - 每位武将一个 `const XXX: &[SkillDef]`（`code/name/kind/implemented:true`）；
    - `match general { "sgs_hero_<gid>" => XXX, ... }`；
@@ -158,6 +158,7 @@ fn demo_triggers_and_applies() {
 | `npm run sgs:check` | 上面 + `test:web` + `test:sgs-web` | **每批收尾必跑** |
 | `npm run sgs:check:full` | 上面 + MCP 冒烟 `verify:sanguosha` | 批次合并/里程碑收尾 |
 | `npm run sgs:batch-status` | 各包进度、批次表完成度、p67 计数一致性、下一批名单 | 开工前/提交前 |
+| `npm run sgs:batch-scaffold` | 下一批开工脚手架（武将元数据 + 代码/文档模板 + 收尾清单） | 批次开工第一步 |
 
 单项命令仍可单独跑：`check:sgs-skill-cases`、`check:sgs-skill-docs`、`check:sgs-engine-data`、`check:sgs-pack-pool`、`check:sgs-view-contract`、`check:interaction-primitives`、`test:sgs-web`、`verify:sanguosha`。
 
@@ -170,6 +171,7 @@ fn demo_triggers_and_applies() {
 - **手牌上限**：改上限一律加到 `skills::hand_limit`（视图 `hand_limit` 自动跟随），不要改 `SgsState::hand_limit`。
 - **同名/同拼音技能 code**：技能 code 复用见 ADR-0024；不同技能的拼音撞车（如宗室/纵适）另起 code 并在文档登记。
 - **p67 计数**：+8 是硬编码断言，`sgs:batch-status --check` 会抓不一致。
+- **用例的「覆盖统计」是文本匹配**：`check:sgs-skill-cases` 按「测试体内是否出现 `sgs_hero_<gid>` 或 `"<code>"`」计数，且用例体在下一个**顶层 `fn`** 处截断（2026-10-31 修复）。因此：①批次私有助手放在文件顶部（或在 `support.rs`），不要夹在用例之间；②用例里要显式出现武将 code 或技能 code（如 `assert!(skills::has(&st, seat, "danshou"))`），否则把 `set_general` 全放进助手会导致该将覆盖为 0。
 - **`cargo fmt`**：只对自己新增/修改的文件跑 `rustfmt`（仓库既有文件存在未格式化片段，整包 fmt 会产生无关 diff）。
 
 ## 6. 批次完成定义（DoD）
