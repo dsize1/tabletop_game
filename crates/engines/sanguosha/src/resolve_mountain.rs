@@ -986,7 +986,7 @@ pub(crate) fn act_beige(st: &mut SgsState, action: &str) -> Result<String, Engin
             judge_card: None,
             rewrite_order: Vec::new(),
             rewrite_cursor: 0,
-            data: json!({ "target": f.target, "source": f.source }),
+            data: json!({ "target": f.target, "source": f.source, "discarded": card }),
             saved_outcome: None,
         }),
     );

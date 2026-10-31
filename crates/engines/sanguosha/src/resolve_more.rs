@@ -1865,6 +1865,23 @@ pub(crate) fn multiselect_confirm(
             );
             Some(Ok("长标：请选择【杀】的目标".to_string()))
         }
+        "shuangxiong_jie" => {
+            if f.selected.len() > 1 {
+                return Some(Err(illegal("双雄最多弃置 1 张牌")));
+            }
+            if let Some(id) = f.selected.first() {
+                if turn::take_card(st, f.actor, id).is_err() {
+                    return Some(Err(illegal("手牌中没有该牌")));
+                }
+                turn::to_discard_card(st, id);
+                crate::resolve_jiexian5::set_shuangxiong_jie_color(st, id);
+                pop(st);
+                Some(Ok("双雄：已弃置一张牌，本回合异色牌当【决斗】".to_string()))
+            } else {
+                pop(st);
+                Some(Ok("双雄：不弃牌".to_string()))
+            }
+        }
         "qiaobian" => {
             if f.selected.len() != 1 {
                 return Some(Err(illegal("巧变需弃置 1 张手牌")));

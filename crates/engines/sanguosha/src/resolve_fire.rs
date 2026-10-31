@@ -267,7 +267,11 @@ pub(crate) fn step_qiangxi(st: &mut SgsState, f: QiangxiFrame) -> Result<bool, E
             if st.seats[f.actor].hp > 0 {
                 options.push(PendingOption {
                     id: "choose:qiangxi:hp".into(),
-                    label: "强袭：失去 1 点体力".into(),
+                    label: if skills::is_jiexian(st, f.actor) {
+                        "强袭：受到 1 点伤害".into()
+                    } else {
+                        "强袭：失去 1 点体力".into()
+                    },
                 });
             }
             if st.equip_def(f.actor, EquipSlot::Weapon).is_some() {
@@ -331,10 +335,22 @@ pub(crate) fn act_qiangxi(st: &mut SgsState, action: &str) -> Result<String, Eng
     }
     match action {
         "choose:qiangxi:hp" => {
-            st.seats[f.actor].hp -= 1;
+            // 界强袭（界典韦）：代价改为「受到 1 点伤害」。
+            if skills::is_jiexian(st, f.actor) {
+                crate::resolve::apply_damage_now(
+                    st,
+                    f.actor,
+                    1,
+                    None,
+                    DamageType::Normal,
+                    None,
+                );
+            } else {
+                st.seats[f.actor].hp -= 1;
+            }
             let hp = st.seats[f.actor].hp;
             let pid = st.seats[f.actor].player_id.clone();
-            st.push_log(Some(&pid), format!("强袭：失去 1 点体力（{hp}）"));
+            st.push_log(Some(&pid), format!("强袭：代价已支付（体力 {hp}）"));
             if hp <= 0 {
                 pop(st);
                 crate::resolve::push_dying(st, f.actor, None);
@@ -596,6 +612,10 @@ pub(crate) fn step_jieming(st: &mut SgsState, f: JiemingFrame) -> Result<bool, E
         .alive_indices()
         .into_iter()
         .filter(|i| {
+            // 界节命（界荀彧）：先摸 X 再弃至 X → 手牌已满也可选。
+            if skills::is_jiexian(st, f.actor) {
+                return true;
+            }
             let target = (st.seats[*i].max_hp.max(0) as usize).min(5);
             st.seats[*i].hand.len() < target
         })
@@ -644,17 +664,28 @@ pub(crate) fn jieming_target(
     let target = st.seat_index(pid).ok_or_else(|| illegal("目标不在座"))?;
     pop(st);
     let want = (st.seats[target].max_hp.max(0) as usize).min(5);
-    let need = want.saturating_sub(st.seats[target].hand.len()) as u32;
-    let drawn = if need > 0 {
+    // 界节命（界荀彧）：先摸 X 张，再将手牌弃至 X 张。
+    let jie = skills::is_jiexian(st, f.actor);
+    let drawn = if jie {
         let mut ev = Vec::new();
-        turn::draw_cards(st, target, need, &mut ev)
+        turn::draw_cards(st, target, want as u32, &mut ev)
     } else {
-        0
+        let need = want.saturating_sub(st.seats[target].hand.len()) as u32;
+        if need > 0 {
+            let mut ev = Vec::new();
+            turn::draw_cards(st, target, need, &mut ev)
+        } else {
+            0
+        }
     };
-    let over = st.seats[target]
-        .hand
-        .len()
-        .saturating_sub(st.config.max_hand_cards as usize);
+    let over = if jie {
+        st.seats[target].hand.len().saturating_sub(want)
+    } else {
+        st.seats[target]
+            .hand
+            .len()
+            .saturating_sub(st.config.max_hand_cards as usize)
+    };
     if over > 0 {
         crate::resolve::push_discard(st, target, over, "hand_cap");
     }

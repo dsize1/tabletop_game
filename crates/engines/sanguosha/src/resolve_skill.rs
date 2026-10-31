@@ -154,7 +154,10 @@ pub(crate) fn push_sha_respond_with(
     damage_type: crate::resolve::DamageType,
 ) {
     // 界烈弓②-2：你的体力值不大于其 → 此【杀】伤害 +1。
-    let damage = 1 + crate::skills::liegong_damage_bonus(st, user, victim);
+    // 界破军（界徐盛）：目标手牌与装备均不多于你 → 伤害 +1。
+    let damage = 1
+        + crate::skills::liegong_damage_bonus(st, user, victim)
+        + crate::resolve_jiexian5::pojun_damage_bonus(st, user, victim);
     crate::resolve::push(
         st,
         crate::resolve::Frame::Respond(crate::resolve::RespondFrame {

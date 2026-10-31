@@ -101,6 +101,20 @@ pub(crate) fn discard_by(st: &mut SgsState, seat: Option<usize>, card_id: &str) 
     crate::resolve_yijiang::on_card_discarded(st, seat, card_id);
     // 界激昂（界孙策）。
     crate::resolve_jiexian3::jiang_jie_on_discard(st, card_id);
+    // 界固政（界张昭张纮）：统计该角色本阶段弃置的牌（每阶段限一次）。
+    if let Some(seat) = seat {
+        st.bump_counter(&format!("discarded_by:{seat}"));
+        if st.alive_indices().into_iter().any(|i| {
+            i != seat
+                && crate::skills::has(st, i, "guzheng")
+                && crate::skills::is_jiexian(st, i)
+        }) {
+            st.seats[seat]
+                .flags
+                .insert(format!("gz_jie:{seat}:{card_id}"), true);
+        }
+        crate::resolve_jiexian5::guzheng_jie_on_discard(st, seat);
+    }
     // 界屯田（界邓艾）：回合内弃置【杀】后也可判定。
     if let Some(seat) = seat {
         let own_turn = st.turn == seat;
@@ -732,6 +746,7 @@ pub(crate) fn phase_step(
             }
             // 再起（可选）：已受伤时改为亮 X 张、红桃回血并获得亮出牌。
             if crate::skills::has(st, idx, "zaizhi")
+                && !crate::skills::is_jiexian(st, idx)
                 && st.seats[idx].hp < st.seats[idx].max_hp
                 && st.counter("zaizhi_offered") == 0
             {
@@ -741,6 +756,15 @@ pub(crate) fn phase_step(
                     resolve::Frame::Zaizhi(crate::resolve_forest::ZaizhiFrame { actor: idx }),
                 );
                 return Ok(true);
+            }
+            // 截辎（界徐晃）：「辎」在摸牌阶段结束移除并执行额外摸牌阶段（简化为多摸 2 张）。
+            if crate::resolve_jiexian5::jiezi_jie_extra_draw(st, idx) {
+                let mut ev = Vec::new();
+                let drawn = draw_cards(st, idx, 2, &mut ev);
+                st.push_log(
+                    Some(&st.seats[idx].player_id.clone()),
+                    format!("截辎：额外摸牌阶段，摸 {drawn} 张"),
+                );
             }
             // 好施（可选）：摸牌阶段多摸 2 张（之后若手牌>5 需交一半）。
             if crate::skills::has(st, idx, "haoshi") && st.counter("haoshi_offered") == 0 {
@@ -754,7 +778,29 @@ pub(crate) fn phase_step(
                 return Ok(true);
             }
             // 双雄（可选）：改为判定并获得判定牌（本回合异色手牌当【决斗】）。
-            if crate::skills::has(st, idx, "shuangxiong") && st.counter("shuangxiong_offered") == 0
+            // 界双雄（界颜良文丑）：摸牌阶段结束时弃一张牌，本回合异色牌当【决斗】。
+            if crate::skills::has(st, idx, "shuangxiong")
+                && crate::skills::is_jiexian(st, idx)
+                && st.counter("sx_jie_offered") == 0
+                && !st.seats[idx].hand.is_empty()
+            {
+                st.set_counter("sx_jie_offered", 1);
+                resolve::push(
+                    st,
+                    resolve::Frame::MultiSelect(crate::resolve::MultiSelectFrame {
+                        actor: idx,
+                        purpose: "shuangxiong_jie".into(),
+                        selected: Vec::new(),
+                        min: 0,
+                        max: 1,
+                        data: json!({}),
+                    }),
+                );
+                return Ok(true);
+            }
+            if crate::skills::has(st, idx, "shuangxiong")
+                && !crate::skills::is_jiexian(st, idx)
+                && st.counter("shuangxiong_offered") == 0
             {
                 st.set_counter("shuangxiong_offered", 1);
                 resolve::push(
@@ -1172,6 +1218,12 @@ pub(crate) fn phase_step(
                 "phase_start",
                 json!({ "phase": "end", "seat": st.turn, "player": pid }),
             ));
+            // 界双雄（界颜良文丑）：结束阶段获得本回合对你造成过伤害的牌。
+            crate::resolve_jiexian5::shuangxiong_jie_gain(st, st.turn);
+            // 界再起（界孟获）：结束阶段按本回合红牌弃置数依次结算。
+            if crate::resolve_jiexian5::zaizhi_jie_trigger(st, st.turn) {
+                return Ok(true);
+            }
             // 界巧变（界张郃）：结束阶段手牌数与以往均不相同 → +1 「变」。
             crate::resolve_jiexian4::qiaobian_end_check(st, st.turn);
             // 界魂姿（界孙策）：觉醒当回合结束阶段，摸两张或回复 1 点。
@@ -2746,7 +2798,9 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
                 t != idx
                     && !judge_zone_has(st, t, "bingliang_cunduan")
                     && (st.seats[t].hand.len() >= st.seats[idx].hand.len()
-                        || trick_distance_ok(st, idx, t))
+                        || trick_distance_ok(st, idx, t)
+                        || (crate::skills::is_jiexian(st, idx)
+                            && st.counter("damage_dealt") == 0))
             });
             if has_target {
                 out.push(Action {

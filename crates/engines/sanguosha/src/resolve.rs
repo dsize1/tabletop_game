@@ -181,6 +181,10 @@ pub enum Frame {
     LianHuanPick(crate::resolve_jiexian3::LianHuanPickFrame),
     /// P4.4.2 界限突破 J3 帧。
     TiaoxinWait(crate::resolve_jiexian4::TiaoxinWaitFrame),
+    /// P4.4.2 界限突破 J4 帧。
+    ZaiQiJie(crate::resolve_jiexian5::ZaiQiJieFrame),
+    JieZiJie(crate::resolve_jiexian5::JieZiJieFrame),
+    GuZhengJie(crate::resolve_jiexian5::GuZhengJieFrame),
     /// P4.4.2 一将成名（批次 2）。
     JiangChi(crate::resolve_yijiang2::JiangChiFrame),
     Qice(crate::resolve_yijiang2::QiceFrame),
@@ -937,6 +941,9 @@ fn step(
         Frame::NiePanSkill(f) => crate::resolve_jiexian3::step_niepan_skill(st, f),
         Frame::LianHuanPick(f) => crate::resolve_jiexian3::step_lianhuan_pick(st, f),
         Frame::TiaoxinWait(f) => crate::resolve_jiexian4::step_tiaoxin_wait(st, f),
+        Frame::ZaiQiJie(f) => crate::resolve_jiexian5::step_zaizhi_jie(st, f),
+        Frame::JieZiJie(f) => crate::resolve_jiexian5::step_jiezi_jie(st, f),
+        Frame::GuZhengJie(f) => crate::resolve_jiexian5::step_guzheng_jie(st, f),
         Frame::QinXue(f) => crate::resolve_jiexian::step_qinxue(st, f),
         Frame::GongXin(f) => crate::resolve_jiexian::step_gongxin(st, f),
         Frame::LianYing(f) => crate::resolve_jiexian::step_lianying(st, f),
@@ -1745,7 +1752,13 @@ fn step_trick(
                                 && (turn::trick_distance_ok(st, f.user, *i)
                                     || crate::skills::has(st, f.user, "shenduan")
                                     || (crate::skills::has(st, f.user, "duanliang")
-                                        && st.seats[*i].hand.len() >= st.seats[f.user].hand.len()))
+                                        && if crate::skills::is_jiexian(st, f.user) {
+                                            // 界断粮：本回合未造成过伤害 → 无距离限制。
+                                            st.counter("damage_dealt") == 0
+                                        } else {
+                                            st.seats[*i].hand.len()
+                                                >= st.seats[f.user].hand.len()
+                                        }))
                                 && !turn::judge_zone_has(st, *i, "bingliang_cunduan")
                                 && !st.seats[*i].judge_abolished
                                 && !crate::skills::qianjie_blocks_target(st, *i)
@@ -3097,6 +3110,38 @@ fn step_quick_judge(
                         }
                         None => {}
                     }
+                    // 界悲歌（界蔡文姬）：判定牌与弃置牌花色相同 → 获得判定牌；
+                    // 点数相同 → 获得弃置的牌。
+                    if crate::skills::has(st, f.owner, "beige")
+                        && crate::skills::is_jiexian(st, f.owner)
+                    {
+                        let owner = f.owner;
+                        let judge_rank = st.cards.get(&judge_id).map(|c| c.rank);
+                        if let Some(disc) = f.data["discarded"].as_str() {
+                            let disc_suit = st.cards.get(disc).map(|c| c.suit);
+                            let disc_rank = st.cards.get(disc).map(|c| c.rank);
+                            if suit.is_some() && suit == disc_suit {
+                                if st.deck.discard.iter().any(|c| c == &judge_id) {
+                                    st.deck.discard.retain(|c| c != &judge_id);
+                                    st.seats[owner].hand.push(judge_id.clone());
+                                    st.push_log(
+                                        Some(&pid),
+                                        "悲歌：判定牌与弃置牌花色相同，获得判定牌",
+                                    );
+                                }
+                            } else if judge_rank.is_some() && judge_rank == disc_rank {
+                                let disc = disc.to_string();
+                                if st.deck.discard.iter().any(|c| c == &disc) {
+                                    st.deck.discard.retain(|c| c != &disc);
+                                    st.seats[owner].hand.push(disc);
+                                    st.push_log(
+                                        Some(&pid),
+                                        "悲歌：判定牌与弃置牌点数相同，获得弃置牌",
+                                    );
+                                }
+                            }
+                        }
+                    }
                 }
                 "piaoling" => {
                     let actor = f.data["user"].as_u64().unwrap_or(f.owner as u64) as usize;
@@ -3588,6 +3633,11 @@ pub fn execute_pending(
             Some("wulie") => crate::resolve_jiexian3::act_wulie(st, action)?,
             Some("niepan_skill") => crate::resolve_jiexian3::act_niepan_skill(st, action)?,
             Some("lianhuan_pick") => crate::resolve_jiexian3::act_lianhuan_pick(st, action)?,
+            Some("zaizhi_jie") | Some("zaizhi_jie_choice") => {
+                crate::resolve_jiexian5::act_zaizhi_jie(st, action)?
+            }
+            Some("jiezi") => crate::resolve_jiexian5::act_jiezi_jie(st, action)?,
+            Some("guzheng_jie") => crate::resolve_jiexian5::act_guzheng_jie(st, action)?,
             Some("jiangchi") => crate::resolve_yijiang2::act_jiangchi(st, action)?,
             Some("qice") => crate::resolve_yijiang2::act_qice(st, action)?,
             Some("qianxi") => crate::resolve_yijiang2::act_qianxi(st, action)?,
@@ -5516,6 +5566,14 @@ fn apply_damage_inner(
     // 界挑衅（界姜维）：此【杀】造成伤害 → 挑衅不再弃牌。
     if amount > 0 {
         crate::resolve_jiexian4::tiaoxin_on_damage(st, victim, source);
+    }
+    // 狞恶（界典韦，锁定）：一名角色本回合第二次受到伤害 → 摸 1 并弃置其一张牌。
+    if amount > 0 {
+        crate::resolve_jiexian5::ninge_on_damage(st, victim, source);
+    }
+    // 界双雄（界颜良文丑）：记录本回合对你造成过伤害的牌。
+    if amount > 0 {
+        crate::resolve_jiexian5::shuangxiong_jie_on_damage(st, victim, card);
     }
     // 长标（界祝融）：长标【杀】造成伤害 → 阶段结束摸牌累计。
     if amount > 0 {

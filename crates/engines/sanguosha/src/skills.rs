@@ -1817,6 +1817,103 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
         kind: SkillType::Normal,
         implemented: true,
     }];
+    // ---- P4.4.2 界限突破（批次 J4：8 将 / 14 技能）----
+    const JIE_MENGHUO: &[SkillDef] = &[
+        SkillDef {
+            code: "huoshou",
+            name: "祸首",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "zaizhi",
+            name: "再起",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_XUHUANG: &[SkillDef] = &[
+        SkillDef {
+            code: "duanliang",
+            name: "断粮",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "jiezi",
+            name: "截辎",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_CAIWENJI: &[SkillDef] = &[
+        SkillDef {
+            code: "duanchang",
+            name: "断肠",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "beige",
+            name: "悲歌",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_XUNYU: &[SkillDef] = &[
+        SkillDef {
+            code: "quhu",
+            name: "驱虎",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "jieming",
+            name: "节命",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_DIANWEI: &[SkillDef] = &[
+        SkillDef {
+            code: "qiangxi",
+            name: "强袭",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "ninge",
+            name: "狞恶",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+    ];
+    const JIE_YANLIANGWENCHOU: &[SkillDef] = &[SkillDef {
+        code: "shuangxiong",
+        name: "双雄",
+        kind: SkillType::Normal,
+        implemented: true,
+    }];
+    const JIE_ZHANGZHAO: &[SkillDef] = &[
+        SkillDef {
+            code: "zhijian",
+            name: "直谏",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "guzheng",
+            name: "固政",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_XUSHENG: &[SkillDef] = &[SkillDef {
+        code: "pojun",
+        name: "破军",
+        kind: SkillType::Normal,
+        implemented: true,
+    }];
     // ---- P4.4.2 一将成名（批次 2：8 将 / 16 技能）----
     const ZHANGCHUNHUA: &[SkillDef] = &[
         SkillDef {
@@ -2822,6 +2919,14 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
         "sgs_hero_484" => JIE_JIAXU,
         "sgs_hero_485" => JIE_LUSU,
         "sgs_hero_486" => JIE_ZHANGHE,
+        "sgs_hero_492" => JIE_MENGHUO,
+        "sgs_hero_496" => JIE_XUHUANG,
+        "sgs_hero_505" => JIE_CAIWENJI,
+        "sgs_hero_515" => JIE_XUNYU,
+        "sgs_hero_526" => JIE_DIANWEI,
+        "sgs_hero_550" => JIE_YANLIANGWENCHOU,
+        "sgs_hero_563" => JIE_ZHANGZHAO,
+        "sgs_hero_587" => JIE_XUSHENG,
         _ => &[],
     }
 }
@@ -4492,6 +4597,11 @@ pub fn wansha_blocks(st: &SgsState, seat: usize, victim: usize) -> bool {
 pub fn jiezi_on_skip_draw(st: &mut SgsState, skipper: usize) {
     for i in st.alive_indices() {
         if i == skipper || !has(st, i, "jiezi") {
+            continue;
+        }
+        // 界截辎（界徐晃）：改为选择一名角色获得「辎」或摸一张。
+        if is_jiexian(st, i) {
+            crate::resolve_jiexian5::push_jiezi_jie(st, i);
             continue;
         }
         let mut ev = Vec::new();
