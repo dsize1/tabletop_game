@@ -1820,6 +1820,125 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
             implemented: true,
         },
     ];
+    // ---- P4.4.2 一将成名（批次 Y4：8 将 / 17 技能）----
+    const SUNLUBAN: &[SkillDef] = &[
+        SkillDef {
+            code: "zanhui",
+            name: "谮毁",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "jiaojin",
+            name: "骄矜",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const ZHUHUAN: &[SkillDef] = &[
+        SkillDef {
+            code: "fenli",
+            name: "奋励",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "pingkou",
+            name: "平寇",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const GUYONG: &[SkillDef] = &[
+        SkillDef {
+            code: "shenxing",
+            name: "慎行",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "bingyi",
+            name: "秉壹",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JUSHU: &[SkillDef] = &[
+        SkillDef {
+            code: "jianying",
+            name: "渐营",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "shibei",
+            name: "矢北",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+    ];
+    const CAIFUREN: &[SkillDef] = &[
+        SkillDef {
+            code: "qieting",
+            name: "窃听",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "xianzhou",
+            name: "献州",
+            kind: SkillType::Limited,
+            implemented: true,
+        },
+    ];
+    const CAORUI: &[SkillDef] = &[
+        SkillDef {
+            code: "huituo",
+            name: "恢拓",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "mingjian",
+            name: "明鉴",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "xingshuai",
+            name: "兴衰",
+            kind: SkillType::Lord,
+            implemented: true,
+        },
+    ];
+    const CAOXIU: &[SkillDef] = &[
+        SkillDef {
+            code: "qianju",
+            name: "千驹",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "qingxi",
+            name: "倾袭",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const ZHONGYOU: &[SkillDef] = &[
+        SkillDef {
+            code: "huomo",
+            name: "活墨",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "zuoding",
+            name: "佐定",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
     match general {
         "sgs_hero_1" => LIUBEI,
         "sgs_hero_15" => CAOCAO,
@@ -1934,6 +2053,14 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
         "sgs_hero_324" => WUYI,
         "sgs_hero_325" => ZHOUCANG,
         "sgs_hero_326" => ZHANGSONG,
+        "sgs_hero_327" => SUNLUBAN,
+        "sgs_hero_328" => ZHUHUAN,
+        "sgs_hero_329" => GUYONG,
+        "sgs_hero_330" => JUSHU,
+        "sgs_hero_331" => CAIFUREN,
+        "sgs_hero_332" => CAORUI,
+        "sgs_hero_333" => CAOXIU,
+        "sgs_hero_334" => ZHONGYOU,
         "sgs_hero_299" => JIE_LIUBEI,
         "sgs_hero_300" => JIE_GUANYU,
         "sgs_hero_301" => JIE_ZHANGFEI,
@@ -2343,6 +2470,17 @@ pub fn restore_general(st: &mut SgsState, seat: usize) -> bool {
         faen_trigger(st, seat);
     }
     was
+}
+
+/// 千驹（曹休，锁定）：每损失 1 点体力，计算与其他角色的距离 -1。
+pub fn qianju_bonus(st: &SgsState, seat: usize) -> i32 {
+    if !has(st, seat, "qianju") {
+        return 0;
+    }
+    st.seats
+        .get(seat)
+        .map(|s| (s.max_hp - s.hp).max(0))
+        .unwrap_or(0)
 }
 
 /// 奔袭（吴懿，锁定）：本回合每使用一张牌，计算与其他角色的距离 -1。
@@ -3151,6 +3289,14 @@ pub fn hand_limit(st: &SgsState, seat: usize) -> usize {
     // 权计（钟会）：每有一张「权」手牌上限 +1。
     if has(st, seat, "quanji") {
         limit += quan_count(st, seat);
+    }
+    // 明鉴（曹叡）：被交给所有手牌的角色下回合手牌上限 +1。
+    if st
+        .seats
+        .get(seat)
+        .is_some_and(|s| s.flags.contains_key("mingjian"))
+    {
+        limit += 1;
     }
     // 精策（郭淮）：本回合每使用一种花色的手牌，手牌上限 +1。
     if has(st, seat, "jingce") {

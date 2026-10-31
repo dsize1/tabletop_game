@@ -96,6 +96,10 @@ pub(crate) fn on_card_discarded(st: &mut SgsState, from: Option<usize>, card: &s
     if !st.cards.contains_key(card) {
         return;
     }
+    // 秉壹（顾雍）：自己的牌被弃置后可展示手牌。
+    if let Some(seat) = from {
+        crate::resolve_yijiang6::bingyi_after_discard(st, seat);
+    }
     // 慎断（韩浩史涣）：黑色基本牌被弃置后可当【兵粮寸断】。
     crate::resolve_yijiang5::shenduan_on_discarded(st, from, card);
     // 纵玄（虞翻）：自己弃置的牌可选择置于牌堆顶。

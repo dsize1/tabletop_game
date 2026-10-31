@@ -209,6 +209,19 @@ pub enum Frame {
     ZhongYong(crate::resolve_yijiang5::ZhongYongFrame),
     QiangShi(crate::resolve_yijiang5::QiangShiFrame),
     XianTu(crate::resolve_yijiang5::XianTuFrame),
+    /// P4.4.2 一将成名（批次 Y4）。
+    ZanHui(crate::resolve_yijiang6::ZanHuiFrame),
+    JiaoJin(crate::resolve_yijiang6::JiaoJinFrame),
+    FenLi(crate::resolve_yijiang6::FenLiFrame),
+    PingKou(crate::resolve_yijiang6::PingKouFrame),
+    ShenXing(crate::resolve_yijiang6::ShenXingFrame),
+    BingYi(crate::resolve_yijiang6::BingYiFrame),
+    QieTing(crate::resolve_yijiang6::QieTingFrame),
+    XianZhou(crate::resolve_yijiang6::XianZhouFrame),
+    HuiTuo(crate::resolve_yijiang6::HuiTuoFrame),
+    MingJian(crate::resolve_yijiang6::MingJianFrame),
+    QingXi(crate::resolve_yijiang6::QingXiFrame),
+    ZuoDing(crate::resolve_yijiang6::ZuoDingFrame),
     /// 五谷丰登（P2.5 特殊区 `wugu`）。
     Wugu(crate::resolve_zone::WuguFrame),
     /// 观星排序提交（P2.5 特殊区 `guanxing`，`arrange:<csv>`）。
@@ -900,6 +913,18 @@ fn step(
         Frame::ZhongYong(f) => crate::resolve_yijiang5::step_zhongyong(st, f),
         Frame::QiangShi(f) => crate::resolve_yijiang5::step_qiangshi(st, f),
         Frame::XianTu(f) => crate::resolve_yijiang5::step_xiantu(st, f),
+        Frame::ZanHui(f) => crate::resolve_yijiang6::step_zanhui(st, f),
+        Frame::JiaoJin(f) => crate::resolve_yijiang6::step_jiaojin(st, f),
+        Frame::FenLi(f) => crate::resolve_yijiang6::step_fenli(st, f),
+        Frame::PingKou(f) => crate::resolve_yijiang6::step_pingkou(st, f),
+        Frame::ShenXing(f) => crate::resolve_yijiang6::step_shenxing(st, f),
+        Frame::BingYi(f) => crate::resolve_yijiang6::step_bingyi(st, f),
+        Frame::QieTing(f) => crate::resolve_yijiang6::step_qieting(st, f),
+        Frame::XianZhou(f) => crate::resolve_yijiang6::step_xianzhou(st, f),
+        Frame::HuiTuo(f) => crate::resolve_yijiang6::step_huituo(st, f),
+        Frame::MingJian(f) => crate::resolve_yijiang6::step_mingjian(st, f),
+        Frame::QingXi(f) => crate::resolve_yijiang6::step_qingxi(st, f),
+        Frame::ZuoDing(f) => crate::resolve_yijiang6::step_zuoding(st, f),
         Frame::Wugu(f) => crate::resolve_zone::step_wugu(st, f, events),
         Frame::Arrange(f) => crate::resolve_zone::step_arrange(st, f, events),
     }
@@ -1690,6 +1715,9 @@ fn step_trick(
             } else {
                 f.targets[f.idx]
             };
+            if target != f.user {
+                st.bump_counter("targeted_others");
+            }
             // 奋威：已被宣告无效的目标跳过结算。
             if crate::resolve_jiexian::fenwei_void(st, target) {
                 st.push_log(
@@ -2639,6 +2667,34 @@ fn step_quick_judge(
                         }
                     }
                 }
+                "huituo" => {
+                    let target = f.data["target"].as_u64().unwrap_or(f.owner as u64) as usize;
+                    let amount = f.data["amount"].as_u64().unwrap_or(1) as u32;
+                    let red = matches!(suit, Some(Suit::Heart) | Some(Suit::Diamond));
+                    if red {
+                        if st.seats[target].hp < st.seats[target].max_hp {
+                            st.seats[target].hp += 1;
+                        }
+                        let hp = st.seats[target].hp;
+                        st.push_log(
+                            Some(&pid),
+                            format!(
+                                "恢拓：判定【{label}】红色，{} 回复 1 点体力（{hp}）",
+                                st.seats[target].general_name
+                            ),
+                        );
+                    } else {
+                        let mut ev = Vec::new();
+                        let drawn = turn::draw_cards(st, target, amount, &mut ev);
+                        st.push_log(
+                            Some(&pid),
+                            format!(
+                                "恢拓：判定【{label}】黑色，{} 摸 {drawn} 张",
+                                st.seats[target].general_name
+                            ),
+                        );
+                    }
+                }
                 "ganglie" => {
                     let victim = f.data["victim"].as_u64().unwrap_or(f.owner as u64) as usize;
                     let source = f.data["source"].as_u64().unwrap_or(0) as usize;
@@ -3239,6 +3295,18 @@ pub fn execute_pending(
             Some("zhongyong") => crate::resolve_yijiang5::act_zhongyong(st, action)?,
             Some("qiangshi") => crate::resolve_yijiang5::act_qiangshi(st, action)?,
             Some("xiantu") => crate::resolve_yijiang5::act_xiantu(st, action)?,
+            Some("zanhui") => crate::resolve_yijiang6::act_zanhui(st, action)?,
+            Some("jiaojin") => crate::resolve_yijiang6::act_jiaojin(st, action)?,
+            Some("fenli") => crate::resolve_yijiang6::act_fenli(st, action)?,
+            Some("pingkou") => crate::resolve_yijiang6::act_pingkou(st, action)?,
+            Some("shenxing") => crate::resolve_yijiang6::act_shenxing(st, action)?,
+            Some("bingyi") => crate::resolve_yijiang6::act_bingyi(st, action)?,
+            Some("qieting") => crate::resolve_yijiang6::act_qieting(st, action)?,
+            Some("xianzhou") => crate::resolve_yijiang6::act_xianzhou(st, action)?,
+            Some("huituo") => crate::resolve_yijiang6::act_huituo(st, action)?,
+            Some("mingjian") => crate::resolve_yijiang6::act_mingjian(st, action)?,
+            Some("qingxi") => crate::resolve_yijiang6::act_qingxi(st, action)?,
+            Some("zuoding") => crate::resolve_yijiang6::act_zuoding(st, action)?,
             _ => crate::resolve_skill::act_jianxiong(st, action)?,
         },
         "choose_many" => match top(st) {
@@ -3501,6 +3569,38 @@ fn act_target(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Stri
                 "鞬出：请选择 {} 的一张牌",
                 st.seats[target].general_name
             ));
+        }
+        // 谮毁（孙鲁班）：使用【杀】指定唯一目标时，可令另一名角色代用或成为额外目标。
+        if crate::skills::has(st, f.user, "zanhui")
+            && st.counter("zanhui_used") == 0
+            && st
+                .alive_indices()
+                .into_iter()
+                .any(|i| i != f.user && i != target)
+        {
+            push(
+                st,
+                Frame::ZanHui(crate::resolve_yijiang6::ZanHuiFrame {
+                    owner: f.user,
+                    user: f.user,
+                    target,
+                    card: f.card.clone(),
+                    need,
+                    no_shan,
+                    ignore_armor,
+                    damage_type: f.damage_type,
+                    stage: crate::resolve_yijiang6::ZanHuiStage::Helper,
+                    helper: None,
+                }),
+            );
+            return Ok("谮毁：请选择协助角色".to_string());
+        }
+        if target != f.user {
+            st.bump_counter("targeted_others");
+        }
+        // 佐定（钟繇）：其他角色出牌阶段使用黑桃牌指定目标后。
+        if !f.card.is_empty() {
+            crate::resolve_yijiang6::zuoding_trigger(st, f.user, &f.card, target);
         }
         // 贞烈（王异）：成为【杀】目标后，可失去 1 点体力令此【杀】对其无效。
         if crate::skills::has(st, target, "zhenlie")
@@ -3869,6 +3969,23 @@ fn respond_give_up(st: &mut SgsState, f: &RespondFrame) {
             // 白银狮子：受到的伤害改为 1。
             if crate::skills::has_equipment_skill(st, actor, "baiyin_shizi") && amount > 1 {
                 amount = 1;
+            }
+            // 倾袭（曹休）：有武器时令目标二选一（弃牌并弃武器 / 伤害 +1）。
+            if let Some(range) = crate::resolve_yijiang6::qingxi_available(st, f.source) {
+                if f.source != actor {
+                    push(
+                        st,
+                        Frame::QingXi(crate::resolve_yijiang6::QingXiFrame {
+                            user: f.source,
+                            target: actor,
+                            card: card.clone(),
+                            damage: amount,
+                            damage_type: f.damage_type,
+                            range,
+                        }),
+                    );
+                    return;
+                }
             }
             // 寒冰剑（damage_before）：可防止此伤害，改为弃置目标两张牌。
             if f.is_sha && crate::resolve_skill::hanbing_available_for(st, f.source, actor) {
@@ -4687,6 +4804,25 @@ fn apply_damage_inner(
             return;
         }
     }
+    // 骄矜（孙鲁班）：男性角色对你造成伤害时，可弃一张装备牌令伤害 -1。
+    if allow_tianxiang
+        && amount > 0
+        && source.is_some_and(|src| src != victim && crate::skills::is_male(st, src))
+        && crate::skills::has(st, victim, "jiaojin")
+        && crate::resolve_yijiang6::jiaojin_available(st, victim)
+    {
+        push(
+            st,
+            Frame::JiaoJin(crate::resolve_yijiang6::JiaoJinFrame {
+                owner: victim,
+                amount,
+                source,
+                damage_type: dtype,
+                card: card.map(str::to_string),
+            }),
+        );
+        return;
+    }
     // 陷阵（拼点赢）：无视被拼点目标的防具（藤甲/白银狮子等不生效）。
     let armor_ignored = source.is_some_and(|src| {
         crate::resolve_yijiang::xianzhen_ignore_armor(st, victim) && src != victim
@@ -4751,6 +4887,10 @@ fn apply_damage_inner(
         }
     }
     st.seats[victim].hp -= amount;
+    // 矢北（沮授，锁定）：本回合首次受伤回复 1；再受伤失去 1 点体力。
+    if amount > 0 {
+        crate::resolve_yijiang6::shibei_on_damage(st, victim);
+    }
     // 诈降（界黄盖，锁定）：失去 1 点体力后摸 3 张（按伤害点数逐点触发）。
     if amount > 0 {
         for _ in 0..amount {
@@ -4769,6 +4909,7 @@ fn apply_damage_inner(
     if source == Some(st.turn) {
         st.bump_counter("damage_dealt");
     }
+    st.bump_counter("phase_damage");
     let pid = st.seats[victim].player_id.clone();
     st.push_log(
         None,
@@ -4953,6 +5094,16 @@ fn apply_damage_inner(
                 ),
             );
         }
+    }
+    // 恢拓（曹叡）：受到伤害后，可令一名角色判定。
+    if amount > 0 && st.seats[victim].hp > 0 && crate::skills::has(st, victim, "huituo") {
+        push(
+            st,
+            Frame::HuiTuo(crate::resolve_yijiang6::HuiTuoFrame {
+                owner: victim,
+                amount,
+            }),
+        );
     }
     // 权计（钟会）：每受到 1 点伤害后，摸 1 张并将一张手牌置于武将牌上为「权」。
     if amount > 0 && st.seats[victim].hp > 0 && crate::skills::has(st, victim, "quanji") {
@@ -5255,6 +5406,12 @@ pub fn push_dying(st: &mut SgsState, victim: usize, source: Option<usize>) {
                     return;
                 }
             }
+        }
+    }
+    // 兴衰（曹叡，主公技 / 限定）：濒死时其他魏势力角色令其回复体力。
+    if crate::resolve_yijiang6::xingshuai_on_dying(st, victim) {
+        if st.seats[victim].hp > 0 {
+            return;
         }
     }
     // 补益（吴国太）：角色进入濒死时，可展示其一张手牌，非基本牌则弃置并回复 1。

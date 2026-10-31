@@ -11,6 +11,15 @@
 - **每批收尾**：`p67` 的「一将成名已实现数」+8；`skills.md` §2.7.x + `rules-rulings.md` 新节；`milestones.md` 新增 M 条目
 - **门禁**：`npm run sgs:check`（每批收尾）、`npm run sgs:check:full`（含 MCP 冒烟）、`npm run sgs:check:fast`（改码自检）
 
+## M43：三国杀 P4.4.2 批次 Y4（一将成名 327–334：8 将 / 17 技能）✅
+
+- **日期**：2026-10-31
+- **完成**：孙鲁班（谮毁/骄矜）、朱桓（奋励/平寇）、顾雍（慎行/秉壹）、沮授（渐营/矢北）、蔡夫人（窃听/献州）、曹叡（恢拓/明鉴/兴衰）、曹休（千驹/倾袭）、钟繇（活墨/佐定）
+- **机制**：`Frame::ZanHui/JiaoJin/FenLi/PingKou/ShenXing/BingYi/QieTing/XianZhou/HuiTuo/MingJian/QingXi/ZuoDing`（`resolve_yijiang6.rs`）；`targeted_others`/`phase_damage`/`fenli_skipped`/`huomo_used` 计数、`mingjian` 标记、QuickJudge `huituo` 判定分支
+- **验证**：`cargo test -p sanguosha` **613** 全绿；`tests/p92.rs` 24 条（每将 ≥3）；`p67` 一将成名已实现数 48
+- **已知边界**：谮毁仅【杀】；活墨不含【闪】；佐定仅【杀】目标窗口；兴衰自动结算；秉壹/献州自动选区（详见 §26）
+- **详见**：`skills.md` §2.7.5、`rules-rulings.md` §26、`development-plan.md` P4.4.2 批次 Y4
+
 ## M42：三国杀 P4.4.2 批次 Y3（一将成名 187/188/321–326：8 将）✅
 
 - **日期**：2026-10-31
