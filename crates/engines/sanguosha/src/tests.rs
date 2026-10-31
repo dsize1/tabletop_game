@@ -882,5 +882,6 @@ mod p80;
 mod p81;
 mod p82;
 mod p83;
+mod p84;
 mod replay;
 mod view_contract;

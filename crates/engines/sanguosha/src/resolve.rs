@@ -155,6 +155,10 @@ pub enum Frame {
     QinXue(crate::resolve_jiexian::QinXueFrame),
     GongXin(crate::resolve_jiexian::GongXinFrame),
     LianYing(crate::resolve_jiexian::LianYingFrame),
+    /// P4.4.2 界标·魏帧（批次 4）。
+    QingJian(crate::resolve_jiexian::QingJianFrame),
+    XunXun(crate::resolve_jiexian::XunXunFrame),
+    WangXi(crate::resolve_jiexian::WangXiFrame),
     /// 五谷丰登（P2.5 特殊区 `wugu`）。
     Wugu(crate::resolve_zone::WuguFrame),
     /// 观星排序提交（P2.5 特殊区 `guanxing`，`arrange:<csv>`）。
@@ -786,6 +790,9 @@ fn step(
         Frame::QinXue(f) => crate::resolve_jiexian::step_qinxue(st, f),
         Frame::GongXin(f) => crate::resolve_jiexian::step_gongxin(st, f),
         Frame::LianYing(f) => crate::resolve_jiexian::step_lianying(st, f),
+        Frame::QingJian(f) => crate::resolve_jiexian::step_qingjian(st, f),
+        Frame::XunXun(f) => crate::resolve_jiexian::step_xunxun(st, f),
+        Frame::WangXi(f) => crate::resolve_jiexian::step_wangxi(st, f),
         Frame::Wugu(f) => crate::resolve_zone::step_wugu(st, f, events),
         Frame::Arrange(f) => crate::resolve_zone::step_arrange(st, f, events),
     }
@@ -1410,9 +1417,7 @@ fn step_trick(
                     _ => st
                         .alive_indices()
                         .into_iter()
-                        .filter(|i| {
-                            *i != f.user && !crate::skills::deny_target(st, f.user, *i)
-                        })
+                        .filter(|i| *i != f.user && !crate::skills::deny_target(st, f.user, *i))
                         .collect(),
                 };
                 let candidates: Vec<usize> = candidates
@@ -2357,12 +2362,17 @@ fn step_quick_judge(
             if (f.reason == "luoshen" && black) || f.reason == "shuangxiong" {
                 leave_processing(st, &judge_id);
                 st.seats[f.owner].hand.push(judge_id.clone());
-                let over = st.seats[f.owner]
-                    .hand
-                    .len()
-                    .saturating_sub(st.config.max_hand_cards as usize);
-                if over > 0 {
-                    push_discard(st, f.owner, over, "hand_cap");
+                if crate::skills::is_jiexian(st, f.owner) && f.reason == "luoshen" {
+                    // 界洛神：获得的牌本回合不计入手牌上限（不立即弃牌）。
+                    st.bump_counter("luoshen_free");
+                } else {
+                    let over = st.seats[f.owner]
+                        .hand
+                        .len()
+                        .saturating_sub(st.config.max_hand_cards as usize);
+                    if over > 0 {
+                        push_discard(st, f.owner, over, "hand_cap");
+                    }
                 }
             } else if tuotian_keep {
                 leave_processing(st, &judge_id);
@@ -2458,7 +2468,26 @@ fn step_quick_judge(
                 "ganglie" => {
                     let victim = f.data["victim"].as_u64().unwrap_or(f.owner as u64) as usize;
                     let source = f.data["source"].as_u64().unwrap_or(0) as usize;
-                    if suit == Some(Suit::Heart) {
+                    if crate::skills::is_jiexian(st, victim) {
+                        // 界刚烈：红色 → 对来源造成 1 点伤害；黑色 → 弃来源一张牌。
+                        let red = matches!(suit, Some(Suit::Heart) | Some(Suit::Diamond));
+                        if red {
+                            st.push_log(
+                                Some(&pid),
+                                format!("刚烈：判定【{label}】红色，对伤害来源造成 1 点伤害"),
+                            );
+                            apply_damage(st, source, 1, Some(victim), DamageType::Normal, None);
+                        } else {
+                            let card = crate::resolve_jiexian::discard_one_from(st, source);
+                            let what = card
+                                .map(|c| turn::card_label(st, &c))
+                                .unwrap_or_else(|| "（无牌可弃）".to_string());
+                            st.push_log(
+                                Some(&pid),
+                                format!("刚烈：判定【{label}】黑色，弃置来源的{what}"),
+                            );
+                        }
+                    } else if suit == Some(Suit::Heart) {
                         st.push_log(Some(&pid), format!("刚烈：判定【{label}】红桃，未生效"));
                     } else {
                         st.push_log(
@@ -2738,8 +2767,12 @@ fn rewrite_order(st: &SgsState, owner: usize) -> Vec<usize> {
     order
         .into_iter()
         .filter(|i| {
+            let has_cards = !st.seats[*i].hand.is_empty()
+                || (crate::skills::is_jiexian(st, *i)
+                    && crate::skills::has(st, *i, "guicai")
+                    && st.seats[*i].equips.values().any(|c| c.is_some()));
             st.seats.get(*i).is_some_and(|s| s.alive)
-                && !st.seats[*i].hand.is_empty()
+                && has_cards
                 && (crate::skills::has(st, *i, "guicai") || crate::skills::has(st, *i, "guidao"))
         })
         .collect()
@@ -2758,7 +2791,7 @@ fn rewrite_skill(st: &SgsState, seat: usize) -> &'static str {
 fn rewrite_options(st: &SgsState, seat: usize) -> Vec<PendingOption> {
     let black_only =
         !crate::skills::has(st, seat, "guicai") && crate::skills::has(st, seat, "guidao");
-    let mut options: Vec<PendingOption> = st.seats[seat]
+    let mut ids: Vec<String> = st.seats[seat]
         .hand
         .iter()
         .filter(|id| {
@@ -2768,6 +2801,25 @@ fn rewrite_options(st: &SgsState, seat: usize) -> Vec<PendingOption> {
                     .get(*id)
                     .is_some_and(|c| crate::skills::is_black(c.suit))
         })
+        .cloned()
+        .collect();
+    // 界鬼才：装备区的牌也可用于改判。
+    if crate::skills::is_jiexian(st, seat) && crate::skills::has(st, seat, "guicai") {
+        for slot in EquipSlot::ALL {
+            if let Some(id) = st.seats[seat].equips.get(&slot).cloned().flatten() {
+                if !black_only
+                    || st
+                        .cards
+                        .get(&id)
+                        .is_some_and(|c| crate::skills::is_black(c.suit))
+                {
+                    ids.push(id);
+                }
+            }
+        }
+    }
+    let mut options: Vec<PendingOption> = ids
+        .iter()
         .map(|id| PendingOption {
             id: format!("respond:{id}"),
             label: format!("改判：{}", turn::card_label(st, id)),
@@ -2807,7 +2859,30 @@ fn act_judge_rewrite(
     let seat = st
         .seat_index(&pending.actor)
         .ok_or_else(|| internal("玩家不在座"))?;
-    turn::take_card(st, seat, card_id)?;
+    if st.seats[seat].hand.iter().any(|c| c == card_id) {
+        turn::take_card(st, seat, card_id)?;
+    } else {
+        // 界鬼才：从装备区取牌改判。
+        let mut used = false;
+        for slot in EquipSlot::ALL {
+            if st.seats[seat]
+                .equips
+                .get(&slot)
+                .cloned()
+                .flatten()
+                .as_deref()
+                == Some(card_id)
+            {
+                st.seats[seat].equips.insert(slot, None);
+                crate::skills::xiaoji_on_lose_equip(st, seat);
+                used = true;
+                break;
+            }
+        }
+        if !used {
+            return Err(illegal("手牌/装备区中没有该牌"));
+        }
+    }
     st.deck.processing.push(card_id.to_string());
     let before = judge_card
         .as_deref()
@@ -2943,6 +3018,9 @@ pub fn execute_pending(
             Some("qinxue") => crate::resolve_jiexian::act_qinxue(st, action)?,
             Some("gongxin") => crate::resolve_jiexian::act_gongxin(st, action)?,
             Some("lianying") => crate::resolve_jiexian::act_lianying(st, action)?,
+            Some("qingjian") => crate::resolve_jiexian::act_qingjian(st, action)?,
+            Some("xunxun") => crate::resolve_jiexian::act_xunxun(st, action)?,
+            Some("wangxi") => crate::resolve_jiexian::act_wangxi(st, action)?,
             _ => crate::resolve_skill::act_jianxiong(st, action)?,
         },
         "choose_many" => match top(st) {
@@ -3102,8 +3180,8 @@ fn act_target(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Stri
         // 陷阵（拼点赢）：无视被拼点者防具。
         let xianzhen_target = crate::resolve_yijiang::xianzhen_win_target(st) == Some(target)
             && crate::skills::has(st, f.user, "xianzhen");
-        let ignore_armor = crate::skills::has_equipment_skill(st, f.user, "qinggang_jian")
-            || xianzhen_target;
+        let ignore_armor =
+            crate::skills::has_equipment_skill(st, f.user, "qinggang_jian") || xianzhen_target;
         if no_shan && crate::skills::has(st, f.user, "liegong") {
             let user_pid = st.seats[f.user].player_id.clone();
             st.push_log(Some(&user_pid), "烈弓：目标不能使用【闪】");
@@ -3449,6 +3527,12 @@ fn act_respond(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Str
 /// 先出栈再结算（伤害可能压入濒死帧）；剑/刀等「未出杀」后果也在这里处理。
 /// 裸衣：本回合（摸牌阶段少摸 1 张后）使用【杀】/【决斗】造成的伤害 +1。
 fn luoyi_bonus(st: &SgsState, source: Option<usize>) -> i32 {
+    if let Some(src) = source {
+        // 界裸衣：直到下回合开始，来源的【杀】/【决斗】伤害 +1。
+        if crate::skills::has(st, src, "luoyi") && st.seats[src].flags.contains_key("luoyi_bonus") {
+            return 1;
+        }
+    }
     match source {
         Some(src)
             if st.turn == src
@@ -3487,10 +3571,7 @@ fn respond_give_up(st: &mut SgsState, f: &RespondFrame) {
             if f.is_sha
                 && crate::skills::has(st, f.source, "yijue")
                 && st.counter(&format!("yijue_heart:{actor}")) > 0
-                && st
-                    .cards
-                    .get(&card)
-                    .is_some_and(|c| c.suit == Suit::Heart)
+                && st.cards.get(&card).is_some_and(|c| c.suit == Suit::Heart)
                 && !card.is_empty()
             {
                 amount += 1;
@@ -3875,6 +3956,13 @@ fn act_pick(st: &mut SgsState, pending: &Pending, action: &str) -> Result<String
         }
     }
     pop(st);
+    // 清俭（界夏侯惇）：摸牌阶段外获得牌后触发（须在 pop 之后压帧）。
+    if matches!(
+        f.mode,
+        PickMode::Shunshou | PickMode::Fankui | PickMode::Juzhan
+    ) {
+        crate::resolve_jiexian::qingjian_trigger(st, f.user);
+    }
     if f.mode == PickMode::Qizhi {
         crate::resolve_sp::qizhi_done(st, f.user, target);
     }
@@ -3896,10 +3984,7 @@ fn act_pick(st: &mut SgsState, pending: &Pending, action: &str) -> Result<String
     }
     if !matches!(
         f.mode,
-        PickMode::Guohe
-            | PickMode::Tiaoxin
-            | PickMode::Qizhi
-            | PickMode::Chezheng
+        PickMode::Guohe | PickMode::Tiaoxin | PickMode::Qizhi | PickMode::Chezheng
     ) {
         let user = f.user;
         let over = st.seats[user]
@@ -4231,8 +4316,9 @@ fn apply_damage_inner(
         return;
     }
     // 陷阵（拼点赢）：无视被拼点目标的防具（藤甲/白银狮子等不生效）。
-    let armor_ignored = source
-        .is_some_and(|src| crate::resolve_yijiang::xianzhen_ignore_armor(st, victim) && src != victim);
+    let armor_ignored = source.is_some_and(|src| {
+        crate::resolve_yijiang::xianzhen_ignore_armor(st, victim) && src != victim
+    });
     // 藤甲：火焰伤害 +1；普通【杀】/南蛮/万箭伤害无效。
     if !armor_ignored && crate::skills::has_equipment_skill(st, victim, "tengjia") {
         let code = card
@@ -4297,6 +4383,15 @@ fn apply_damage_inner(
     if amount > 0 {
         for _ in 0..amount {
             crate::skills::zhaxiang_on_lose_hp(st, victim);
+        }
+    }
+    // 忘隙（界李典）：造成/受到 1 点伤害后摸 2 并交给对方一张。
+    if amount == 1 {
+        if let Some(src) = source {
+            if src != victim {
+                crate::resolve_jiexian::wangxi_trigger(st, src, victim);
+                crate::resolve_jiexian::wangxi_trigger(st, victim, src);
+            }
         }
     }
     if source == Some(st.turn) {
@@ -4518,7 +4613,8 @@ fn apply_damage_inner(
 
 pub fn push_dying(st: &mut SgsState, victim: usize, source: Option<usize>) {
     // 补益（吴国太）：角色进入濒死时，可展示其一张手牌，非基本牌则弃置并回复 1。
-    if st.seats.get(victim).is_some_and(|s| s.alive) && crate::resolve_yijiang::buyi_on_dying(st, victim)
+    if st.seats.get(victim).is_some_and(|s| s.alive)
+        && crate::resolve_yijiang::buyi_on_dying(st, victim)
     {
         return;
     }

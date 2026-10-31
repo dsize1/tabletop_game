@@ -141,7 +141,27 @@ try {
   assert(picked === 5, `应完成 5 人选将，实际 ${picked}`);
 
   // —— 发牌后的公共视图 ——
-  const view = await callJson("get_state", { room_id: roomId });
+  let view = await callJson("get_state", { room_id: roomId });
+  // 准备阶段技能（观星/洛神/勤学等）可能产生 pending：先按安全策略推进到出牌阶段。
+  for (let i = 0; i < 40; i += 1) {
+    const b = view.data.public_board;
+    if (!b.pending) break;
+    const legal = await callJson("get_legal_actions", {
+      room_id: roomId,
+      player_id: b.pending.actor,
+    });
+    assert(legal.length > 0, `pending ${b.pending.kind} 无合法动作`);
+    const preferred =
+      legal.find((a) => a.id === "pass") ??
+      legal.find((a) => a.id.startsWith("choose:")) ??
+      legal[0];
+    await callJson("execute_action", {
+      room_id: roomId,
+      player_id: b.pending.actor,
+      action: preferred.id,
+    });
+    view = await callJson("get_state", { room_id: roomId });
+  }
   const board = view.data.public_board;
   const total = deckTotal(board);
   assert(view.data.phase === "turn", `选将后应进入 turn，实际 ${view.data.phase}`);

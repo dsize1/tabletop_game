@@ -264,8 +264,9 @@ fn pack_pool_prefers_jiexian_variant() {
         .filter(|c| skills::general_ready(c))
         .collect(),
     );
-    // 界标·蜀 7 + 吴 8 已实现：同名原版被界版本替换，池子仍为 25 位。
-    assert_eq!(pool.len(), crate::data::STANDARD_GENERAL_COUNT);
+    // 界标·蜀 7 + 吴 8 + 魏 8 已实现：同名原版被界版本替换；
+    // 界李典（317）在标准包无同名原版，故池子为 25 - 22 + 23 = 26 位。
+    assert_eq!(pool.len(), 26);
     for code in [
         "sgs_hero_299",
         "sgs_hero_300",
@@ -282,6 +283,14 @@ fn pack_pool_prefers_jiexian_variant() {
         "sgs_hero_310",
         "sgs_hero_442",
         "sgs_hero_443",
+        "sgs_hero_311",
+        "sgs_hero_312",
+        "sgs_hero_313",
+        "sgs_hero_314",
+        "sgs_hero_315",
+        "sgs_hero_316",
+        "sgs_hero_317",
+        "sgs_hero_444",
     ] {
         assert!(pool.contains(&code), "{code} 应在池中");
     }
@@ -301,6 +310,13 @@ fn pack_pool_prefers_jiexian_variant() {
         "sgs_hero_13",
         "sgs_hero_14",
         "sgs_hero_25",
+        "sgs_hero_15",
+        "sgs_hero_16",
+        "sgs_hero_17",
+        "sgs_hero_18",
+        "sgs_hero_19",
+        "sgs_hero_20",
+        "sgs_hero_21",
     ] {
         assert!(!pool.contains(&code), "同名原版 {code} 应被界版本替换");
     }

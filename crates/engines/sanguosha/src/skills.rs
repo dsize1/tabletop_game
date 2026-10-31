@@ -1288,6 +1288,103 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
             implemented: true,
         },
     ];
+    // ---- P4.4.2 界标 25 将（批次 4：魏 8 将）----
+    const JIE_CAOCAO: &[SkillDef] = &[
+        SkillDef {
+            code: "jianxiong",
+            name: "奸雄",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "hujia",
+            name: "护驾",
+            kind: SkillType::Lord,
+            implemented: true,
+        },
+    ];
+    const JIE_SIMAYI: &[SkillDef] = &[
+        SkillDef {
+            code: "fankui",
+            name: "反馈",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "guicai",
+            name: "鬼才",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_XIAHOUDUN: &[SkillDef] = &[
+        SkillDef {
+            code: "ganglie",
+            name: "刚烈",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "qingjian",
+            name: "清俭",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_ZHANGLIAO: &[SkillDef] = &[SkillDef {
+        code: "tuxi",
+        name: "突袭",
+        kind: SkillType::Normal,
+        implemented: true,
+    }];
+    const JIE_XUCHU: &[SkillDef] = &[SkillDef {
+        code: "luoyi",
+        name: "裸衣",
+        kind: SkillType::Normal,
+        implemented: true,
+    }];
+    const JIE_GUOJIA: &[SkillDef] = &[
+        SkillDef {
+            code: "tiandu",
+            name: "天妒",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "yiji",
+            name: "遗计",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_LIDIAN: &[SkillDef] = &[
+        SkillDef {
+            code: "xunxun",
+            name: "恂恂",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "wangxi",
+            name: "忘隙",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_ZHENJI: &[SkillDef] = &[
+        SkillDef {
+            code: "qingguo",
+            name: "倾国",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "luoshen",
+            name: "洛神",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
     match general {
         "sgs_hero_1" => LIUBEI,
         "sgs_hero_15" => CAOCAO,
@@ -1385,6 +1482,14 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
         "sgs_hero_310" => JIE_LUXUN,
         "sgs_hero_442" => JIE_SUNQUAN,
         "sgs_hero_443" => JIE_SUNSHANGXIANG,
+        "sgs_hero_311" => JIE_CAOCAO,
+        "sgs_hero_312" => JIE_SIMAYI,
+        "sgs_hero_313" => JIE_XIAHOUDUN,
+        "sgs_hero_314" => JIE_ZHANGLIAO,
+        "sgs_hero_315" => JIE_XUCHU,
+        "sgs_hero_316" => JIE_GUOJIA,
+        "sgs_hero_317" => JIE_LIDIAN,
+        "sgs_hero_444" => JIE_ZHENJI,
         _ => &[],
     }
 }
@@ -2071,6 +2176,29 @@ pub fn note_discard_suit(st: &mut SgsState, card: &str) {
     st.set_counter("discard_suits", cur | bit);
 }
 
+/// 界护驾：其他魏势力角色于其回合外代出【闪】后，主公摸 1（每回合限一次）。
+pub fn hujia_lord_draw(st: &mut SgsState, by: usize) {
+    if st.turn == by {
+        return;
+    }
+    let Some(lord) = st.lord_index() else {
+        return;
+    };
+    if !has(st, lord, "hujia") || !is_jiexian(st, lord) {
+        return;
+    }
+    if st.counter("hujia_lord_draw") > 0 {
+        return;
+    }
+    st.set_counter("hujia_lord_draw", 1);
+    let mut ev = Vec::new();
+    let drawn = crate::turn::draw_cards(st, lord, 1, &mut ev);
+    st.push_log(
+        Some(&st.seats[lord].player_id.clone()),
+        format!("护驾：其他魏势力角色回合外代出【闪】，摸 {drawn} 张"),
+    );
+}
+
 /// 界救援：其他吴势力角色于其回合内回复体力时，可改为让主公回复 1，然后其摸 1。
 /// 返回 `true` 表示已改为救援主公（调用方不再回复原角色）。
 pub fn jie_jiuyuan_redirect(st: &mut SgsState, seat: usize) -> bool {
@@ -2112,6 +2240,7 @@ pub fn tiandu_gain(st: &mut SgsState, owner: usize, judge_id: &str) -> bool {
     let label = crate::turn::card_label(st, judge_id);
     let pid = st.seats[owner].player_id.clone();
     st.push_log(Some(&pid), format!("天妒：获得判定牌【{label}】"));
+    crate::resolve_jiexian::qingjian_trigger(st, owner);
     let over = st.seats[owner]
         .hand
         .len()
@@ -2259,9 +2388,21 @@ pub fn hand_limit(st: &SgsState, seat: usize) -> usize {
         return usize::MAX;
     }
     let mut limit = st.hand_limit(seat);
+    // 清俭（界夏侯惇）：交牌后当前回合角色手牌上限 +1。
+    if has(st, seat, "qingjian") && is_jiexian(st, seat) {
+        limit += st.counter("qingjian_limit") as usize;
+    }
+    // 界洛神：本回合以此法获得的牌不计入手牌上限。
+    if has(st, seat, "luoshen") && is_jiexian(st, seat) {
+        limit += st.counter("luoshen_free") as usize;
+    }
     // 界英姿（锁定）：手牌上限为体力上限。
     if has(st, seat, "yingzi") && is_jiexian(st, seat) {
-        limit = st.seats.get(seat).map(|s| s.max_hp.max(0) as usize).unwrap_or(limit);
+        limit = st
+            .seats
+            .get(seat)
+            .map(|s| s.max_hp.max(0) as usize)
+            .unwrap_or(limit);
     }
     // 界集智：本回合弃置基本牌换手牌上限 +1。
     if has(st, seat, "jizhi") && is_jiexian(st, seat) {
@@ -2662,7 +2803,9 @@ pub fn fuyin_blocks(st: &SgsState, owner: usize, user: usize) -> bool {
 
 /// 往烈：「本阶段不能再使用牌」。
 pub fn no_card_use(st: &SgsState, seat: usize) -> bool {
-    st.seats.get(seat).is_some_and(|_| st.counter("no_card_use") > 0)
+    st.seats
+        .get(seat)
+        .is_some_and(|_| st.counter("no_card_use") > 0)
 }
 
 /// 雄乱：本回合手牌被封（不能使用/打出手牌）。

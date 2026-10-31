@@ -283,6 +283,8 @@ pub(crate) fn phase_step(
     match st.turn_phase {
         TurnPhase::Prepare => {
             let idx = st.turn;
+            // 界裸衣：伤害加成持续到「你的下回合开始」。
+            st.seats[idx].flags.remove("luoyi_bonus");
             // 翻面：跳过本回合，随后翻回正面（解围可在此发动）。
             if st.seats[idx].flipped {
                 st.seats[idx].flipped = false;
@@ -323,7 +325,8 @@ pub(crate) fn phase_step(
                 resolve::push(st, crate::resolve_zone::start_guanxing(st.turn));
             }
             // 箜声（周妃）：准备阶段可将任意张牌置于武将牌上。
-            if crate::skills::has(st, st.turn, "kongsheng") && st.counter("kongsheng_offered") == 0 {
+            if crate::skills::has(st, st.turn, "kongsheng") && st.counter("kongsheng_offered") == 0
+            {
                 st.set_counter("kongsheng_offered", 1);
                 resolve::push(
                     st,
@@ -419,9 +422,7 @@ pub(crate) fn phase_step(
                     .insert("qinxue_offered".into(), true);
                 resolve::push(
                     st,
-                    resolve::Frame::QinXue(crate::resolve_jiexian::QinXueFrame {
-                        actor: st.turn,
-                    }),
+                    resolve::Frame::QinXue(crate::resolve_jiexian::QinXueFrame { actor: st.turn }),
                 );
                 return Ok(true);
             }
@@ -467,6 +468,19 @@ pub(crate) fn phase_step(
         }
         TurnPhase::Draw => {
             let idx = st.turn;
+            // 恂恂（界李典）：摸牌阶段开始时观看牌堆顶 4 张，2 张置顶、其余置底。
+            if crate::skills::has(st, idx, "xunxun") && st.counter("xunxun_offered") == 0 {
+                st.set_counter("xunxun_offered", 1);
+                resolve::push(
+                    st,
+                    resolve::Frame::XunXun(crate::resolve_jiexian::XunXunFrame {
+                        actor: idx,
+                        cards: Vec::new(),
+                        selected: Vec::new(),
+                    }),
+                );
+                return Ok(true);
+            }
             // 整论（陆绩）：无「橘」时，可跳过摸牌阶段并获得 1 枚「橘」。
             if crate::skills::has(st, idx, "zhenglun")
                 && crate::skills::ju_count(st, idx) == 0
@@ -803,8 +817,7 @@ pub(crate) fn phase_step(
                 let mut kong = crate::skills::mark_cards(st, st.turn, "kong");
                 let mut equips = Vec::new();
                 for card in kong.drain(..) {
-                    let is_equip =
-                        card_def(st, &card).is_some_and(|d| d.equip_slot.is_some());
+                    let is_equip = card_def(st, &card).is_some_and(|d| d.equip_slot.is_some());
                     crate::skills::remove_mark(st, st.turn, "kong", &card);
                     if is_equip {
                         equips.push(card);
@@ -833,9 +846,7 @@ pub(crate) fn phase_step(
                     .insert("qinxue_offered".into(), true);
                 resolve::push(
                     st,
-                    resolve::Frame::QinXue(crate::resolve_jiexian::QinXueFrame {
-                        actor: st.turn,
-                    }),
+                    resolve::Frame::QinXue(crate::resolve_jiexian::QinXueFrame { actor: st.turn }),
                 );
                 return Ok(true);
             }
@@ -1224,10 +1235,9 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
             _ if def.category == Category::Trick || def.category == Category::DelayedTrick => {
                 st.alive_indices().into_iter().any(|t| t != idx)
             }
-            _ if def.equip_slot.is_some() => {
-                !def.equip_slot
-                    .is_some_and(|slot| st.slot_abolished(idx, slot))
-            }
+            _ if def.equip_slot.is_some() => !def
+                .equip_slot
+                .is_some_and(|slot| st.slot_abolished(idx, slot)),
             _ => false,
         };
         if playable {
@@ -1299,7 +1309,11 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
     if crate::skills::has(st, idx, "jieyin")
         && st.counter("jieyin_used") == 0
         && st.seats[idx].hand.len()
-            >= if crate::skills::is_jiexian(st, idx) { 1 } else { 2 }
+            >= if crate::skills::is_jiexian(st, idx) {
+                1
+            } else {
+                2
+            }
         && st.alive_indices().into_iter().any(|i| {
             i != idx
                 && crate::skills::is_male(st, i)
@@ -1338,10 +1352,7 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
             if crate::skills::conversion_for(st, idx, &card_id, "jiu").is_some() {
                 out.push(Action {
                     id: format!("skill:longdan:{card_id}"),
-                    description: format!(
-                        "龙胆：将【{}】当【酒】使用",
-                        card_label(st, &card_id)
-                    ),
+                    description: format!("龙胆：将【{}】当【酒】使用", card_label(st, &card_id)),
                 });
             }
         }
@@ -2028,13 +2039,15 @@ pub fn execute(
             format!("龙胆：将【{label}】当【酒】（下一张杀 +1）"),
         );
         "已使用【酒】".to_string()
-    } else if let Some((skill, card_id)) = ["wusheng", "longdan", "jixi", "jinjiu"]
-        .iter()
-        .find_map(|code| {
-        action
-            .strip_prefix(&format!("skill:{code}:"))
-            .map(|card| (*code, card))
-    }) {
+    } else if let Some((skill, card_id)) =
+        ["wusheng", "longdan", "jixi", "jinjiu"]
+            .iter()
+            .find_map(|code| {
+                action
+                    .strip_prefix(&format!("skill:{code}:"))
+                    .map(|card| (*code, card))
+            })
+    {
         if !crate::skills::has(st, idx, skill) {
             return Err(illegal("没有该技能"));
         }
@@ -2059,7 +2072,10 @@ pub fn execute(
         // 界武圣：方片牌当【杀】无距离限制。
         if skill == "wusheng"
             && crate::skills::is_jiexian(st, idx)
-            && st.cards.get(card_id).is_some_and(|c| c.suit == Suit::Diamond)
+            && st
+                .cards
+                .get(card_id)
+                .is_some_and(|c| c.suit == Suit::Diamond)
         {
             resolve::mark_sha_no_distance(st);
         }
@@ -2681,16 +2697,16 @@ pub fn execute(
             st.push_log(Some(player_id), "发动反间");
             "反间：请选择要展示并交出的手牌".to_string()
         } else {
-        resolve::push(
-            st,
-            resolve::Frame::Fanjian(crate::resolve_more::FanjianFrame {
-                actor: idx,
-                stage: crate::resolve_more::FanjianStage::Target,
-                target: None,
-            }),
-        );
-        st.push_log(Some(player_id), "发动反间");
-        "请选择反间目标".to_string()
+            resolve::push(
+                st,
+                resolve::Frame::Fanjian(crate::resolve_more::FanjianFrame {
+                    actor: idx,
+                    stage: crate::resolve_more::FanjianStage::Target,
+                    target: None,
+                }),
+            );
+            st.push_log(Some(player_id), "发动反间");
+            "请选择反间目标".to_string()
         }
     } else if action == "skill:zhiheng" {
         if !crate::skills::has(st, idx, "zhiheng") {
@@ -2867,7 +2883,10 @@ pub fn execute(
                 f.no_respond = true;
                 st.resolution.push(resolve::Frame::Sha(f));
             }
-            st.push_log(Some(player_id), format!("往烈：使用【{label}】（不能被响应）"));
+            st.push_log(
+                Some(player_id),
+                format!("往烈：使用【{label}】（不能被响应）"),
+            );
             st.set_counter("no_card_use", 1);
             "往烈：请选择【杀】的目标".to_string()
         } else {

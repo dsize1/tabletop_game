@@ -396,7 +396,7 @@ pub(crate) fn step_yajiao(st: &mut SgsState, f: YaJiaoFrame) -> Result<bool, Eng
 }
 
 /// 从某座位区域取一张牌弃置（判定区 → 装备区 → 手牌随机），返回牌 id。
-fn discard_one_from(st: &mut SgsState, seat: usize) -> Option<String> {
+pub(crate) fn discard_one_from(st: &mut SgsState, seat: usize) -> Option<String> {
     if let Some(card) = st.seats[seat].judge_zone.pop() {
         turn::discard_by(st, Some(seat), &card);
         return Some(card);
@@ -1296,4 +1296,313 @@ pub(crate) fn zhaxiang_red_active(st: &SgsState, seat: usize, card: &str) -> boo
             .cards
             .get(card)
             .is_some_and(|c| crate::skills::is_red(c.suit))
+}
+
+// ---------------------------------------------------------------------------
+// 清俭（界夏侯惇）：摸牌阶段外获得牌后，交给一名其他角色一张牌换手牌上限
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct QingJianFrame {
+    pub actor: usize,
+}
+
+/// 清俭触发：摸牌阶段外获得牌后（每回合限一次）。
+pub(crate) fn qingjian_trigger(st: &mut SgsState, seat: usize) {
+    if !has(st, seat, "qingjian")
+        || st.counter("qingjian_used") > 0
+        || st.counter("qingjian_offered") > 0
+        || st.seats[seat].hand.is_empty()
+        || (st.turn == seat && st.turn_phase == TurnPhase::Draw)
+    {
+        return;
+    }
+    st.set_counter("qingjian_offered", 1);
+    push(st, Frame::QingJian(QingJianFrame { actor: seat }));
+}
+
+pub(crate) fn step_qingjian(st: &mut SgsState, f: QingJianFrame) -> Result<bool, EngineError> {
+    let mut options: Vec<PendingOption> = st
+        .alive_indices()
+        .into_iter()
+        .filter(|i| *i != f.actor)
+        .map(|i| PendingOption {
+            id: format!("target:{}", st.seats[i].player_id),
+            label: format!("交给 {} 一张牌（手牌上限 +1）", st.seats[i].general_name),
+        })
+        .collect();
+    options.push(PendingOption {
+        id: "pass".into(),
+        label: "不发动清俭".into(),
+    });
+    st.pending = Some(Pending {
+        kind: "choice".into(),
+        actor: pid(st, f.actor),
+        skill: Some("qingjian".into()),
+        options,
+        data: json!({}),
+    });
+    replace_top(st, Frame::QingJian(f));
+    Ok(true)
+}
+
+pub(crate) fn act_qingjian(st: &mut SgsState, action: &str) -> Result<String, EngineError> {
+    let f = match top(st).cloned() {
+        Some(Frame::QingJian(f)) => f,
+        _ => return Err(internal("栈顶不是清俭帧")),
+    };
+    if action == "pass" {
+        pop(st);
+        return Ok("不发动清俭".to_string());
+    }
+    let target_pid = action
+        .strip_prefix("target:")
+        .ok_or_else(|| crate::illegal("需要选择目标"))?;
+    let target = st
+        .seat_index(target_pid)
+        .ok_or_else(|| crate::illegal("目标不在座"))?;
+    let Some(card) = st.seats[f.actor].hand.first().cloned() else {
+        pop(st);
+        return Ok("清俭：没有可交出的牌".to_string());
+    };
+    turn::take_card(st, f.actor, &card)?;
+    st.seats[target].hand.push(card.clone());
+    st.set_counter("qingjian_used", 1);
+    st.bump_counter("qingjian_limit");
+    let label = turn::card_label(st, &card);
+    st.push_log(
+        Some(&pid(st, f.actor)),
+        format!(
+            "清俭：交给 {} 【{label}】，当前回合角色手牌上限 +1",
+            st.seats[target].general_name
+        ),
+    );
+    pop(st);
+    Ok("清俭结算完成".to_string())
+}
+
+// ---------------------------------------------------------------------------
+// 恂恂（界李典）：摸牌阶段开始观看牌堆顶 4 张，2 张置顶、2 张置底
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct XunXunFrame {
+    pub actor: usize,
+    pub cards: Vec<String>,
+    pub selected: Vec<String>,
+}
+
+pub(crate) fn step_xunxun(st: &mut SgsState, mut f: XunXunFrame) -> Result<bool, EngineError> {
+    if f.cards.is_empty() {
+        let mut ev = Vec::new();
+        for _ in 0..4 {
+            let Some(id) = turn::draw_one(st, &mut ev) else {
+                break;
+            };
+            st.deck.processing.push(id.clone());
+            f.cards.push(id);
+        }
+        if f.cards.is_empty() {
+            pop(st);
+            return Ok(false);
+        }
+        let names: Vec<String> = f.cards.iter().map(|id| turn::card_label(st, id)).collect();
+        st.push_log(
+            Some(&pid(st, f.actor)),
+            format!("恂恂：观看牌堆顶 {}", names.join("、")),
+        );
+    }
+    let mut options: Vec<PendingOption> = f
+        .cards
+        .iter()
+        .map(|id| {
+            let mark = if f.selected.contains(id) { "✔ " } else { "" };
+            PendingOption {
+                id: format!("choose:{id}"),
+                label: format!("{mark}{}", turn::card_label(st, id)),
+            }
+        })
+        .collect();
+    let need = f.cards.len().min(2);
+    if f.selected.len() == need {
+        options.push(PendingOption {
+            id: "confirm".into(),
+            label: "确认（其余置底）".into(),
+        });
+    }
+    st.pending = Some(Pending {
+        kind: "choice".into(),
+        actor: pid(st, f.actor),
+        skill: Some("xunxun".into()),
+        options,
+        data: json!({ "selected": f.selected }),
+    });
+    replace_top(st, Frame::XunXun(f));
+    Ok(true)
+}
+
+pub(crate) fn act_xunxun(st: &mut SgsState, action: &str) -> Result<String, EngineError> {
+    let f = match top(st).cloned() {
+        Some(Frame::XunXun(f)) => f,
+        _ => return Err(internal("栈顶不是恂恂帧")),
+    };
+    if let Some(card) = action.strip_prefix("choose:") {
+        if !f.cards.iter().any(|c| c == card) {
+            return Err(crate::illegal("只能选择本次观看的牌"));
+        }
+        let mut selected = f.selected.clone();
+        if let Some(pos) = selected.iter().position(|c| c == card) {
+            selected.remove(pos);
+        } else {
+            if selected.len() >= f.cards.len().min(2) {
+                return Err(crate::illegal("恂恂最多选择 2 张置顶"));
+            }
+            selected.push(card.to_string());
+        }
+        replace_top(st, Frame::XunXun(XunXunFrame { selected, ..f }));
+        return Ok("已更新恂恂选择".to_string());
+    }
+    if action != "confirm" {
+        return Err(crate::illegal("未知的恂恂选项"));
+    }
+    let need = f.cards.len().min(2);
+    if f.selected.len() != need {
+        return Err(crate::illegal("请选择 2 张置于牌堆顶"));
+    }
+    for id in &f.selected {
+        leave_processing(st, id);
+    }
+    for id in f.cards.iter().filter(|c| !f.selected.contains(c)) {
+        leave_processing(st, id);
+        st.deck.draw.insert(0, id.clone());
+    }
+    for id in f.selected.iter().rev() {
+        st.deck.draw.push(id.clone());
+    }
+    st.set_counter("xunxun_done", 1);
+    st.push_log(
+        Some(&pid(st, f.actor)),
+        "恂恂：2 张置于牌堆顶，其余置于牌堆底",
+    );
+    pop(st);
+    Ok("恂恂结算完成".to_string())
+}
+
+// ---------------------------------------------------------------------------
+// 忘隙（界李典）：造成/受到 1 点伤害后，摸 2 并交给对方其中一张
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct WangXiFrame {
+    pub actor: usize,
+    pub target: usize,
+    pub cards: Vec<String>,
+}
+
+pub(crate) fn wangxi_trigger(st: &mut SgsState, actor: usize, target: usize) {
+    if actor == target || !st.seats.get(actor).is_some_and(|s| s.alive) || !has(st, actor, "wangxi")
+    {
+        return;
+    }
+    push(
+        st,
+        Frame::WangXi(WangXiFrame {
+            actor,
+            target,
+            cards: Vec::new(),
+        }),
+    );
+}
+
+pub(crate) fn step_wangxi(st: &mut SgsState, f: WangXiFrame) -> Result<bool, EngineError> {
+    let (options, actor) = if f.cards.is_empty() {
+        (
+            vec![
+                PendingOption {
+                    id: "choose:wangxi".into(),
+                    label: format!(
+                        "发动忘隙：摸 2 张并交给 {} 其中一张",
+                        st.seats[f.target].general_name
+                    ),
+                },
+                PendingOption {
+                    id: "pass".into(),
+                    label: "不发动忘隙".into(),
+                },
+            ],
+            f.actor,
+        )
+    } else {
+        (
+            f.cards
+                .iter()
+                .map(|id| PendingOption {
+                    id: format!("choose:{id}"),
+                    label: format!("交给对方 {}", turn::card_label(st, id)),
+                })
+                .collect(),
+            f.actor,
+        )
+    };
+    st.pending = Some(Pending {
+        kind: "choice".into(),
+        actor: pid(st, actor),
+        skill: Some("wangxi".into()),
+        options,
+        data: json!({}),
+    });
+    replace_top(st, Frame::WangXi(f));
+    Ok(true)
+}
+
+pub(crate) fn act_wangxi(st: &mut SgsState, action: &str) -> Result<String, EngineError> {
+    let f = match top(st).cloned() {
+        Some(Frame::WangXi(f)) => f,
+        _ => return Err(internal("栈顶不是忘隙帧")),
+    };
+    if action == "pass" {
+        pop(st);
+        return Ok("不发动忘隙".to_string());
+    }
+    if action == "choose:wangxi" {
+        let mut ev = Vec::new();
+        let mut drawn = Vec::new();
+        for _ in 0..2 {
+            if let Some(id) = turn::draw_one(st, &mut ev) {
+                st.seats[f.actor].hand.push(id.clone());
+                drawn.push(id);
+            }
+        }
+        if drawn.is_empty() {
+            pop(st);
+            return Ok("忘隙：无牌可摸".to_string());
+        }
+        replace_top(st, Frame::WangXi(WangXiFrame { cards: drawn, ..f }));
+        return Ok("忘隙：请选择交给对方的一张牌".to_string());
+    }
+    let card = action
+        .strip_prefix("choose:")
+        .ok_or_else(|| crate::illegal("需要选择交给对方的牌"))?;
+    if !f.cards.iter().any(|c| c == card) {
+        return Err(crate::illegal("只能交给对方本次摸到的牌"));
+    }
+    turn::take_card(st, f.actor, card)?;
+    st.seats[f.target].hand.push(card.to_string());
+    let label = turn::card_label(st, card);
+    st.push_log(
+        Some(&pid(st, f.actor)),
+        format!(
+            "忘隙：摸 2 张并交给 {} 【{label}】",
+            st.seats[f.target].general_name
+        ),
+    );
+    let over = st.seats[f.target]
+        .hand
+        .len()
+        .saturating_sub(st.config.max_hand_cards as usize);
+    if over > 0 {
+        crate::resolve::push_discard(st, f.target, over, "hand_cap");
+    }
+    pop(st);
+    Ok("忘隙结算完成".to_string())
 }

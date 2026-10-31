@@ -984,18 +984,29 @@ pub(crate) fn act_jianxiong(st: &mut SgsState, action: &str) -> Result<String, E
         if st.deck.processing.iter().any(|c| c == &f.card) {
             st.deck.processing.retain(|c| c != &f.card);
             st.seats[f.actor].hand.push(f.card.clone());
+            // 界奸雄：获得伤害牌时先摸 1 张。
+            if crate::skills::is_jiexian(st, f.actor) {
+                let mut ev = Vec::new();
+                crate::turn::draw_cards(st, f.actor, 1, &mut ev);
+                st.push_log(Some(&st.seats[f.actor].player_id.clone()), "奸雄：摸 1 张");
+            }
             st.push_log(
                 Some(&st.seats[f.actor].player_id.clone()),
                 format!("奸雄：获得【{name}】"),
             );
-            let over = st.seats[f.actor]
-                .hand
-                .len()
-                .saturating_sub(st.config.max_hand_cards as usize);
-            push_discard(st, f.actor, over, "hand_cap");
         }
     }
     pop(st);
+    if action == "choose:gain" {
+        let over = st.seats[f.actor]
+            .hand
+            .len()
+            .saturating_sub(st.config.max_hand_cards as usize);
+        if over > 0 {
+            push_discard(st, f.actor, over, "hand_cap");
+        }
+        crate::resolve_jiexian::qingjian_trigger(st, f.actor);
+    }
     Ok(format!("奸雄：{name}"))
 }
 
@@ -1084,9 +1095,7 @@ pub(crate) fn act_multiselect(st: &mut SgsState, action: &str) -> Result<String,
                 st.set_counter("zhiheng_used", 1);
                 let mut events = Vec::new();
                 // 界制衡：弃置所有手牌时额外摸 1 张。
-                let extra = u32::from(
-                    crate::skills::is_jiexian(st, f.actor) && n == all_hand,
-                );
+                let extra = u32::from(crate::skills::is_jiexian(st, f.actor) && n == all_hand);
                 let drawn = turn::draw_cards(st, f.actor, n as u32 + extra, &mut events);
                 st.push_log(
                     Some(&st.seats[f.actor].player_id.clone()),

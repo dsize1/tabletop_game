@@ -119,6 +119,7 @@ pub(crate) fn luoying_gain(st: &mut SgsState, owner: usize, card: &str) -> bool 
     };
     st.deck.discard.remove(pos);
     st.seats[owner].hand.push(card.to_string());
+    crate::resolve_jiexian::qingjian_trigger(st, owner);
     let over = st.seats[owner]
         .hand
         .len()

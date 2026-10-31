@@ -97,9 +97,11 @@ pub(crate) fn act_requisition(
         played_by: Some(by),
     });
     pop(st);
-    // 界激将：其他蜀势力角色于其回合外代出【杀】后，主公摸 1（每回合限一次）。
+    // 界激将/界护驾：其他同势力角色于其回合外代出【杀】/【闪】后，主公摸 1（每回合限一次）。
     if f.needed == "sha" {
         crate::resolve_jiexian::jijiang_lord_draw(st, by);
+    } else {
+        crate::skills::hujia_lord_draw(st, by);
     }
     Ok("已代替打出".to_string())
 }
@@ -1097,9 +1099,7 @@ pub(crate) fn jieyin_target(
         }
         st.push_log(
             Some(&actor_pid),
-            format!(
-                "结姻：{actor_name} 与 {target_name}（体力高者摸 1 / 低者回复 1；相同各摸 1）"
-            ),
+            format!("结姻：{actor_name} 与 {target_name}（体力高者摸 1 / 低者回复 1；相同各摸 1）"),
         );
         pop(st);
         return Ok(format!("与 {target_name} 结姻"));
@@ -1127,9 +1127,11 @@ pub(crate) fn step_yiji(st: &mut SgsState, f: YijiFrame) -> Result<bool, EngineE
         return Ok(false);
     };
     let label = turn::card_label(st, &card);
+    let jie = crate::skills::is_jiexian(st, f.actor);
     let options: Vec<PendingOption> = st
         .alive_indices()
         .into_iter()
+        .filter(|i| !jie || *i != f.actor)
         .map(|i| PendingOption {
             id: format!("target:{}", st.seats[i].player_id),
             label: if i == f.actor {
@@ -1222,11 +1224,15 @@ pub(crate) fn step_luoyi(st: &mut SgsState, f: LuoyiFrame) -> Result<bool, Engin
         options: vec![
             PendingOption {
                 id: "choose:luoyi".into(),
-                label: "发动裸衣：本回合少摸 1 张牌，使用【杀】/【决斗】造成的伤害 +1".into(),
+                label: if crate::skills::is_jiexian(st, f.actor) {
+                    "发动裸衣：亮出牌堆顶 3 张，跳过摸牌并获得基本牌/武器/【决斗】，伤害 +1 直到下回合开始".into()
+                } else {
+                    "发动裸衣：本回合少摸 1 张牌，使用【杀】/【决斗】造成的伤害 +1".into()
+                },
             },
             PendingOption {
                 id: "pass".into(),
-                label: "不发动裸衣（正常摸 2 张）".into(),
+                label: "不发动裸衣".into(),
             },
         ],
         data: json!({ "skill": "luoyi" }),
@@ -1236,7 +1242,63 @@ pub(crate) fn step_luoyi(st: &mut SgsState, f: LuoyiFrame) -> Result<bool, Engin
 }
 
 pub(crate) fn act_luoyi(st: &mut SgsState, action: &str) -> Result<String, EngineError> {
+    let actor = match top(st).cloned() {
+        Some(Frame::Luoyi(f)) => f.actor,
+        _ => return Err(internal("栈顶不是裸衣帧")),
+    };
     if action == "choose:luoyi" {
+        if crate::skills::is_jiexian(st, actor) {
+            let mut ev = Vec::new();
+            let mut revealed = Vec::new();
+            for _ in 0..3 {
+                let Some(id) = turn::draw_one(st, &mut ev) else {
+                    break;
+                };
+                st.deck.processing.push(id.clone());
+                revealed.push(id);
+            }
+            let mut keep = Vec::new();
+            let mut rest = Vec::new();
+            for id in revealed {
+                let def = st
+                    .cards
+                    .get(&id)
+                    .and_then(|c| crate::data::card_def(&c.def));
+                let keep_it = def.is_some_and(|d| {
+                    d.category == Category::Basic
+                        || d.code == "juedou"
+                        || d.equip_slot == Some(EquipSlot::Weapon)
+                });
+                if keep_it {
+                    keep.push(id);
+                } else {
+                    rest.push(id);
+                }
+            }
+            let names: Vec<String> = keep.iter().map(|id| turn::card_label(st, id)).collect();
+            for id in &keep {
+                crate::resolve::leave_processing(st, id);
+                st.seats[actor].hand.push(id.clone());
+            }
+            for id in &rest {
+                crate::resolve::discard_from_processing(st, id);
+            }
+            st.set_counter("skip_draw", 1);
+            st.seats[actor].flags.insert("luoyi_bonus".into(), true);
+            st.push_log(
+                Some(&st.seats[actor].player_id.clone()),
+                format!(
+                    "裸衣：亮出牌堆顶 3 张，获得{}；本回合跳过摸牌，直到下回合开始【杀】/【决斗】伤害 +1",
+                    if names.is_empty() {
+                        "（无基本牌/武器/决斗）".to_string()
+                    } else {
+                        names.join("、")
+                    }
+                ),
+            );
+            pop(st);
+            return Ok("界裸衣：跳过摸牌，伤害 +1".to_string());
+        }
         st.set_counter("luoyi", 1);
         pop(st);
         return Ok("发动裸衣：本回合【杀】/【决斗】伤害 +1".to_string());
@@ -1269,7 +1331,11 @@ pub(crate) fn step_tuxi_offer(st: &mut SgsState, f: TuxiOfferFrame) -> Result<bo
         options: vec![
             PendingOption {
                 id: "choose:tuxi".into(),
-                label: "发动突袭：放弃摸牌，获得至多两名角色各一张手牌".into(),
+                label: if crate::skills::is_jiexian(st, f.actor) {
+                    "发动突袭：少摸等量张数，获得至多两名角色各一张手牌".into()
+                } else {
+                    "发动突袭：放弃摸牌，获得至多两名角色各一张手牌".into()
+                },
             },
             PendingOption {
                 id: "pass".into(),
@@ -1378,6 +1444,22 @@ pub(crate) fn tuxi_target(
 
 fn finish_tuxi(st: &mut SgsState, f: TuxiFrame) {
     st.set_counter("skip_draw", 1);
+    if crate::skills::is_jiexian(st, f.actor) {
+        // 界突袭：少摸「获得张数」张，仍摸剩余的牌（随后跳过摸牌阶段）。
+        let draw = 2u32.saturating_sub(f.targets.len() as u32);
+        if draw > 0 {
+            let mut ev = Vec::new();
+            turn::draw_cards(st, f.actor, draw, &mut ev);
+        }
+        st.push_log(
+            Some(&st.seats[f.actor].player_id.clone()),
+            format!(
+                "突袭：获得 {} 张，少摸 {} 张",
+                f.targets.len(),
+                f.targets.len()
+            ),
+        );
+    }
     let over = st.seats[f.actor]
         .hand
         .len()
@@ -1607,7 +1689,11 @@ pub(crate) fn multiselect_confirm(
             Some(Ok("请选择回复目标".to_string()))
         }
         "jieyin" => {
-            let need = if crate::skills::is_jiexian(st, f.actor) { 1 } else { 2 };
+            let need = if crate::skills::is_jiexian(st, f.actor) {
+                1
+            } else {
+                2
+            };
             if f.selected.len() != need {
                 return Some(Err(illegal(format!("结姻需弃置 {need} 张手牌"))));
             }
@@ -1882,7 +1968,10 @@ pub(crate) fn multiselect_confirm(
             let pid = st.seats[f.actor].player_id.clone();
             st.push_log(
                 Some(&pid),
-                format!("成略：弃置 {} 张，本阶段同花色牌无距离与次数限制", f.selected.len()),
+                format!(
+                    "成略：弃置 {} 张，本阶段同花色牌无距离与次数限制",
+                    f.selected.len()
+                ),
             );
             pop(st);
             Some(Ok("成略：已完成".to_string()))
@@ -2064,7 +2153,9 @@ pub(crate) fn target_action(
         Some(Frame::XiongLuan(_)) => {
             crate::resolve_sp2::xiongluan_target(st, pending, action).map(Some)
         }
-        Some(Frame::CongJian(_)) => crate::resolve_sp2::congjian_target(st, pending, action).map(Some),
+        Some(Frame::CongJian(_)) => {
+            crate::resolve_sp2::congjian_target(st, pending, action).map(Some)
+        }
         Some(Frame::XianZhen(_)) => {
             crate::resolve_yijiang::xianzhen_target(st, pending, action).map(Some)
         }
@@ -2077,7 +2168,9 @@ pub(crate) fn target_action(
         Some(Frame::SanYao(_)) => {
             crate::resolve_yijiang::sanyao_target(st, pending, action).map(Some)
         }
-        Some(Frame::GanLu(_)) => crate::resolve_yijiang::ganlu_target(st, pending, action).map(Some),
+        Some(Frame::GanLu(_)) => {
+            crate::resolve_yijiang::ganlu_target(st, pending, action).map(Some)
+        }
         Some(Frame::ZhenJun(_)) => {
             crate::resolve_yijiang::zhenjun_target(st, pending, action).map(Some)
         }
