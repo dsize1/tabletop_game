@@ -170,6 +170,8 @@ pub(crate) fn effective_distance(st: &SgsState, from: usize, to: usize) -> i32 {
         - st.mashu_bonus(from)
         - crate::skills::qimou_bonus(st, from)
         - crate::skills::tuotian_bonus(st, from)
+        - crate::skills::yicong_attack_bonus(st, from)
+        + crate::skills::yicong_defense_bonus(st, to)
 }
 
 /// 顺手牵羊等「不含武器范围」的距离：`seat_distance + 防御马 - 进攻马 ≤ 1`。
@@ -1329,6 +1331,19 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
             },
         });
     }
+    // 除疠（界华佗）：出牌阶段限一次，选择势力各不相同的其他角色。
+    if crate::skills::has(st, idx, "chuli")
+        && st.counter("chuli_used") == 0
+        && st
+            .alive_indices()
+            .into_iter()
+            .any(|i| i != idx)
+    {
+        out.push(Action {
+            id: "skill:chuli".into(),
+            description: "除疠：弃置你与势力各不相同的其他角色各一张牌".into(),
+        });
+    }
     // 义绝（界关羽）：出牌阶段限一次，弃一张牌令一名其他角色展示手牌。
     if crate::skills::has(st, idx, "yijue")
         && st.counter("yijue_used") == 0
@@ -1836,10 +1851,13 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
             description: "仁德：将手牌交给其他角色".into(),
         });
     }
-    // 离间：每阶段一次，需弃 1 张且至少两名男性角色
+    // 离间：每阶段一次，需弃 1 张且至少两名男性角色（界版可弃装备牌）
+    let lijian_card = !st.seats[idx].hand.is_empty()
+        || (crate::skills::is_jiexian(st, idx)
+            && st.seats[idx].equips.values().any(|c| c.is_some()));
     if crate::skills::has(st, idx, "lijian")
         && st.counter("lijian_used") == 0
-        && !st.seats[idx].hand.is_empty()
+        && lijian_card
         && st
             .alive_indices()
             .into_iter()
@@ -2593,6 +2611,29 @@ pub fn execute(
         "已重铸".to_string()
     } else if let Some(msg) = crate::resolve_skill::play_phase_act(st, idx, action)? {
         msg
+    } else if action == "skill:chuli" {
+        if !crate::skills::has(st, idx, "chuli") {
+            return Err(illegal("没有该技能"));
+        }
+        if st.counter("chuli_used") > 0 {
+            return Err(illegal("本阶段已发动过除疠"));
+        }
+        if st
+            .alive_indices()
+            .into_iter()
+            .all(|i| i == idx)
+        {
+            return Err(illegal("没有可选择的其他角色"));
+        }
+        resolve::push(
+            st,
+            resolve::Frame::ChuLi(crate::resolve_jiexian::ChuLiFrame {
+                actor: idx,
+                selected: Vec::new(),
+            }),
+        );
+        st.push_log(Some(player_id), "发动除疠");
+        "除疠：请选择势力各不相同的角色".to_string()
     } else if action == "skill:gongxin" {
         if !crate::skills::has(st, idx, "gongxin") {
             return Err(illegal("没有该技能"));

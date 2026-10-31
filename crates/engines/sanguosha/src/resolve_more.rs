@@ -285,6 +285,18 @@ pub(crate) fn step_lijian(st: &mut SgsState, f: LijianFrame) -> Result<bool, Eng
                     label: format!("{mark}{}", turn::card_label(st, &id)),
                 });
             }
+            // 界离间：可弃置装备区的牌。
+            if crate::skills::is_jiexian(st, f.actor) {
+                for slot in EquipSlot::ALL {
+                    if let Some(Some(id)) = st.seats[f.actor].equips.get(&slot) {
+                        let mark = if f.selected.contains(id) { "✔ " } else { "" };
+                        options.push(PendingOption {
+                            id: format!("choose:{id}"),
+                            label: format!("{mark}装备区：{}", turn::card_label(st, id)),
+                        });
+                    }
+                }
+            }
             if f.selected.len() == 1 {
                 options.push(PendingOption {
                     id: "confirm".into(),
@@ -399,8 +411,27 @@ pub(crate) fn lijian_target(
         "defender" => {
             let attacker = f.attacker.ok_or_else(|| internal("缺少离间攻击者"))?;
             for id in &f.selected {
-                turn::take_card(st, f.actor, id)?;
-                turn::to_discard_card(st, id);
+                if st.seats[f.actor].hand.iter().any(|c| c == id) {
+                    turn::take_card(st, f.actor, id)?;
+                    turn::to_discard_card(st, id);
+                } else {
+                    // 界离间：弃置装备区的牌。
+                    let mut removed = false;
+                    for slot in EquipSlot::ALL {
+                        if st.seats[f.actor].equips.get(&slot).cloned().flatten().as_deref()
+                            == Some(id.as_str())
+                        {
+                            st.seats[f.actor].equips.insert(slot, None);
+                            crate::skills::xiaoji_on_lose_equip(st, f.actor);
+                            turn::to_discard_card(st, id);
+                            removed = true;
+                            break;
+                        }
+                    }
+                    if !removed {
+                        return Err(illegal("没有该牌可弃置"));
+                    }
+                }
             }
             st.set_counter("lijian_used", 1);
             st.push_log(
@@ -1559,8 +1590,15 @@ pub(crate) fn act_select_skill(st: &mut SgsState, action: &str) -> Result<String
         }
         Which::Lijian => {
             if let Some(Frame::Lijian(f)) = top(st).cloned() {
-                if !st.seats[f.actor].hand.iter().any(|c| c == card_id) {
-                    return Err(illegal("手牌中没有该牌"));
+                let in_hand = st.seats[f.actor].hand.iter().any(|c| c == card_id);
+                let in_equip = crate::skills::is_jiexian(st, f.actor)
+                    && st.seats[f.actor]
+                        .equips
+                        .values()
+                        .flatten()
+                        .any(|c| c == card_id);
+                if !in_hand && !in_equip {
+                    return Err(illegal("没有该牌可弃置"));
                 }
                 if selected.first().map(String::as_str) == Some(card_id) {
                     selected.clear();

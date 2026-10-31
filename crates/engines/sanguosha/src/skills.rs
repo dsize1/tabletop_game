@@ -1385,6 +1385,63 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
             implemented: true,
         },
     ];
+    // ---- P4.4.2 界标 25 将（批次 5：群 4 将）----
+    const JIE_HUATUO: &[SkillDef] = &[
+        SkillDef {
+            code: "jijiu",
+            name: "急救",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "chuli",
+            name: "除疠",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_LUBU: &[SkillDef] = &[
+        SkillDef {
+            code: "wushuang",
+            name: "无双",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "liyu",
+            name: "利驭",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_GONGSUNZAN: &[SkillDef] = &[
+        SkillDef {
+            code: "yicong",
+            name: "义从",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "qiaomeng",
+            name: "趫猛",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_DIAOCHAN: &[SkillDef] = &[
+        SkillDef {
+            code: "lijian",
+            name: "离间",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "biyue",
+            name: "闭月",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
     match general {
         "sgs_hero_1" => LIUBEI,
         "sgs_hero_15" => CAOCAO,
@@ -1490,6 +1547,10 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
         "sgs_hero_316" => JIE_GUOJIA,
         "sgs_hero_317" => JIE_LIDIAN,
         "sgs_hero_444" => JIE_ZHENJI,
+        "sgs_hero_318" => JIE_HUATUO,
+        "sgs_hero_319" => JIE_LUBU,
+        "sgs_hero_320" => JIE_GONGSUNZAN,
+        "sgs_hero_445" => JIE_DIAOCHAN,
         _ => &[],
     }
 }
@@ -2268,6 +2329,24 @@ pub fn is_male(st: &SgsState, seat: usize) -> bool {
         .unwrap_or(false)
 }
 
+/// 义从（锁定）：计算与其他角色的距离 -1。
+pub fn yicong_attack_bonus(st: &SgsState, seat: usize) -> i32 {
+    i32::from(has(st, seat, "yicong"))
+}
+
+/// 义从（锁定）：体力值 ≤2 时，其他角色计算与你的距离 +1。
+pub fn yicong_defense_bonus(st: &SgsState, seat: usize) -> i32 {
+    match st.seats.get(seat) {
+        Some(s) if s.hp <= 2 && has(st, seat, "yicong") => 1,
+        _ => 0,
+    }
+}
+
+/// 武将势力 code（`shu` / `wu` / `wei` / `qun`）。
+pub fn kingdom_of(st: &SgsState, seat: usize) -> &'static str {
+    kingdom(st, seat)
+}
+
 fn kingdom(st: &SgsState, seat: usize) -> &'static str {
     st.seats
         .get(seat)
@@ -2325,7 +2404,13 @@ pub fn on_phase_start(st: &mut SgsState, phase: TurnPhase, events: &mut Vec<Engi
     if !has(st, idx, "biyue") {
         return;
     }
-    let drawn = draw_and_cap(st, idx, 1, events);
+    // 界闭月：没有手牌摸 2 张，否则摸 1 张。
+    let n = if is_jiexian(st, idx) && st.seats[idx].hand.is_empty() {
+        2
+    } else {
+        1
+    };
+    let drawn = draw_and_cap(st, idx, n, events);
     st.push_log(
         Some(&st.seats[idx].player_id.clone()),
         format!("闭月：摸 {drawn} 张"),

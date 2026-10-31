@@ -585,6 +585,7 @@ impl EnginePlugin for SanguoshaEngine {
             shenshi_marks: Vec::new(),
             scheduled: Vec::new(),
             void_return: Vec::new(),
+            pending_liyu: Vec::new(),
             extra_turn: None,
             winner: None,
             abort_reason: None,

@@ -1606,3 +1606,389 @@ pub(crate) fn act_wangxi(st: &mut SgsState, action: &str) -> Result<String, Engi
     pop(st);
     Ok("忘隙结算完成".to_string())
 }
+
+// ---------------------------------------------------------------------------
+// 除疠（界华佗）：弃置你与势力各不相同的其他角色各一张牌，黑桃牌角色摸 1
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct ChuLiFrame {
+    pub actor: usize,
+    pub selected: Vec<usize>,
+}
+
+/// 从某座位区域取一张牌（不弃置；判定区 → 装备区 → 手牌随机）。
+pub(crate) fn take_one_from_region(st: &mut SgsState, seat: usize) -> Option<String> {
+    if let Some(card) = st.seats[seat].judge_zone.pop() {
+        return Some(card);
+    }
+    for slot in EquipSlot::ALL {
+        if let Some(card) = st.seats[seat].equips.get(&slot).cloned().flatten() {
+            st.seats[seat].equips.insert(slot, None);
+            crate::skills::xiaoji_on_lose_equip(st, seat);
+            return Some(card);
+        }
+    }
+    if st.seats[seat].hand.is_empty() {
+        return None;
+    }
+    let n = st.seats[seat].hand.len();
+    let idx = st.next_index(n);
+    let card = st.seats[seat].hand.remove(idx);
+    crate::skills::lianying_on_lose_last(st, seat);
+    Some(card)
+}
+
+pub(crate) fn step_chuli(st: &mut SgsState, f: ChuLiFrame) -> Result<bool, EngineError> {
+    let mut options: Vec<PendingOption> = Vec::new();
+    for i in st.alive_indices() {
+        if i == f.actor {
+            continue;
+        }
+        let mark = if f.selected.contains(&i) { "✔ " } else { "" };
+        let kingdom = crate::skills::kingdom_of(st, i);
+        let dup = f
+            .selected
+            .iter()
+            .any(|s| crate::skills::kingdom_of(st, *s) == kingdom);
+        if !f.selected.contains(&i) && dup {
+            continue;
+        }
+        options.push(PendingOption {
+            id: format!("choose:{}", st.seats[i].player_id),
+            label: format!("{mark}{}（{kingdom}）", st.seats[i].general_name),
+        });
+    }
+    if !f.selected.is_empty() {
+        options.push(PendingOption {
+            id: "confirm".into(),
+            label: format!("确认（{} 名角色 + 你）", f.selected.len()),
+        });
+    }
+    options.push(PendingOption {
+        id: "pass".into(),
+        label: "取消".into(),
+    });
+    st.pending = Some(Pending {
+        kind: "choice".into(),
+        actor: pid(st, f.actor),
+        skill: Some("chuli".into()),
+        options,
+        data: json!({}),
+    });
+    replace_top(st, Frame::ChuLi(f));
+    Ok(true)
+}
+
+pub(crate) fn act_chuli(st: &mut SgsState, action: &str) -> Result<String, EngineError> {
+    let f = match top(st).cloned() {
+        Some(Frame::ChuLi(f)) => f,
+        _ => return Err(internal("栈顶不是除疠帧")),
+    };
+    if action == "pass" {
+        pop(st);
+        return Ok("取消除疠".to_string());
+    }
+    if let Some(target_pid) = action.strip_prefix("choose:") {
+        let target = st
+            .seat_index(target_pid)
+            .ok_or_else(|| crate::illegal("目标不在座"))?;
+        if target == f.actor {
+            return Err(crate::illegal("不能选择自己"));
+        }
+        let mut selected = f.selected.clone();
+        if let Some(pos) = selected.iter().position(|s| *s == target) {
+            selected.remove(pos);
+        } else {
+            let kingdom = crate::skills::kingdom_of(st, target);
+            if selected
+                .iter()
+                .any(|s| crate::skills::kingdom_of(st, *s) == kingdom)
+            {
+                return Err(crate::illegal("除疠只能选择势力各不相同的角色"));
+            }
+            selected.push(target);
+        }
+        replace_top(st, Frame::ChuLi(ChuLiFrame { selected, ..f }));
+        return Ok("已更新除疠选择".to_string());
+    }
+    if action != "confirm" {
+        return Err(crate::illegal("未知的除疠选项"));
+    }
+    if f.selected.is_empty() {
+        return Err(crate::illegal("除疠至少选择 1 名其他角色"));
+    }
+    let mut seats = vec![f.actor];
+    seats.extend(f.selected.iter().copied());
+    st.set_counter("chuli_used", 1);
+    let mut log = Vec::new();
+    for seat in seats {
+        let Some(card) = take_one_from_region(st, seat) else {
+            continue;
+        };
+        let label = turn::card_label(st, &card);
+        let spade = st.cards.get(&card).is_some_and(|c| c.suit == Suit::Spade);
+        turn::discard_by(st, Some(seat), &card);
+        log.push(format!("{}【{label}】", st.seats[seat].general_name));
+        if spade {
+            let mut ev = Vec::new();
+            let drawn = turn::draw_cards(st, seat, 1, &mut ev);
+            st.push_log(
+                Some(&pid(st, seat)),
+                format!("除疠：黑桃牌被弃置，摸 {drawn} 张"),
+            );
+        }
+    }
+    st.push_log(
+        Some(&pid(st, f.actor)),
+        format!("除疠：弃置 {}", log.join("、")),
+    );
+    pop(st);
+    Ok("除疠结算完成".to_string())
+}
+
+// ---------------------------------------------------------------------------
+// 利驭（界吕布）：杀造成伤害后可获得其一张牌；装备牌则视为对其指定的角色决斗
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LiYuStage {
+    Ask,
+    Pick,
+    Designate,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct LiYuFrame {
+    pub actor: usize,
+    pub target: usize,
+    pub stage: LiYuStage,
+}
+
+pub(crate) fn liyu_trigger(st: &mut SgsState, actor: usize, target: usize) {
+    if actor == target || !has(st, actor, "liyu") {
+        return;
+    }
+    if !st.seats.get(target).is_some_and(|s| s.alive) || !turn::has_cards_to_take(st, target) {
+        return;
+    }
+    // 延后到栈空再询问，避免决斗 outcome 覆盖父帧（如【杀】的【闪】结算）。
+    st.pending_liyu.push((actor, target));
+}
+
+pub(crate) fn step_liyu(st: &mut SgsState, f: LiYuFrame) -> Result<bool, EngineError> {
+    let options: Vec<PendingOption> = match f.stage {
+        LiYuStage::Ask => vec![
+            PendingOption {
+                id: "choose:liyu".into(),
+                label: format!("发动利驭：获得 {} 一张牌", st.seats[f.target].general_name),
+            },
+            PendingOption {
+                id: "pass".into(),
+                label: "不发动利驭".into(),
+            },
+        ],
+        LiYuStage::Pick => {
+            let mut options: Vec<PendingOption> = Vec::new();
+            if !st.seats[f.target].hand.is_empty() {
+                options.push(PendingOption {
+                    id: "pick:hand".into(),
+                    label: format!("手牌：随机 1 张（共 {} 张）", st.seats[f.target].hand.len()),
+                });
+            }
+            for slot in EquipSlot::ALL {
+                if let Some(Some(id)) = st.seats[f.target].equips.get(&slot) {
+                    options.push(PendingOption {
+                        id: format!("pick:equip:{}", slot_code(slot)),
+                        label: format!("装备区：{}", turn::card_label(st, id)),
+                    });
+                }
+            }
+            options.push(PendingOption {
+                id: "pass".into(),
+                label: "不获得".into(),
+            });
+            options
+        }
+        LiYuStage::Designate => st
+            .alive_indices()
+            .into_iter()
+            .filter(|i| *i != f.actor && *i != f.target && !crate::skills::kongcheng_blocks(st, *i))
+            .map(|i| PendingOption {
+                id: format!("target:{}", st.seats[i].player_id),
+                label: format!(
+                    "令 {} 与 {} 决斗",
+                    st.seats[f.actor].general_name, st.seats[i].general_name
+                ),
+            })
+            .collect(),
+    };
+    if options.is_empty() {
+        pop(st);
+        return Ok(false);
+    }
+    st.pending = Some(Pending {
+        kind: "choice".into(),
+        actor: pid(st, f.actor),
+        skill: Some("liyu".into()),
+        options,
+        data: json!({}),
+    });
+    replace_top(st, Frame::LiYu(f));
+    Ok(true)
+}
+
+fn slot_code(slot: EquipSlot) -> &'static str {
+    match slot {
+        EquipSlot::Weapon => "weapon",
+        EquipSlot::Armor => "armor",
+        EquipSlot::HorseOffense => "horse_offense",
+        EquipSlot::HorseDefense => "horse_defense",
+        EquipSlot::Treasure => "treasure",
+    }
+}
+
+fn slot_from_code(code: &str) -> Option<EquipSlot> {
+    Some(match code {
+        "weapon" => EquipSlot::Weapon,
+        "armor" => EquipSlot::Armor,
+        "horse_offense" => EquipSlot::HorseOffense,
+        "horse_defense" => EquipSlot::HorseDefense,
+        "treasure" => EquipSlot::Treasure,
+        _ => return None,
+    })
+}
+
+pub(crate) fn act_liyu(st: &mut SgsState, action: &str) -> Result<String, EngineError> {
+    let f = match top(st).cloned() {
+        Some(Frame::LiYu(f)) => f,
+        _ => return Err(internal("栈顶不是利驭帧")),
+    };
+    match f.stage {
+        LiYuStage::Ask => {
+            if action == "pass" {
+                pop(st);
+                return Ok("不发动利驭".to_string());
+            }
+            if action != "choose:liyu" {
+                return Err(crate::illegal("未知的利驭选项"));
+            }
+            replace_top(
+                st,
+                Frame::LiYu(LiYuFrame {
+                    stage: LiYuStage::Pick,
+                    ..f
+                }),
+            );
+            Ok("利驭：请选择要获得的牌".to_string())
+        }
+        LiYuStage::Pick => {
+            if action == "pass" {
+                pop(st);
+                return Ok("不发动利驭".to_string());
+            }
+            let picked = if let Some(slot) = action.strip_prefix("pick:equip:") {
+                let slot = slot_from_code(slot).ok_or_else(|| crate::illegal("非法装备槽"))?;
+                let card = st.seats[f.target]
+                    .equips
+                    .get(&slot)
+                    .cloned()
+                    .flatten()
+                    .ok_or_else(|| crate::illegal("该槽位没有装备"))?;
+                st.seats[f.target].equips.insert(slot, None);
+                crate::skills::xiaoji_on_lose_equip(st, f.target);
+                card
+            } else if action == "pick:hand" {
+                if st.seats[f.target].hand.is_empty() {
+                    return Err(crate::illegal("目标没有手牌"));
+                }
+                let n = st.seats[f.target].hand.len();
+                let idx = st.next_index(n);
+                let card = st.seats[f.target].hand.remove(idx);
+                crate::skills::lianying_on_lose_last(st, f.target);
+                card
+            } else {
+                return Err(crate::illegal("未知的利驭拿牌选项"));
+            };
+            let label = turn::card_label(st, &picked);
+            let equip = st
+                .cards
+                .get(&picked)
+                .and_then(|c| crate::data::card_def(&c.def))
+                .is_some_and(|d| d.equip_slot.is_some());
+            st.seats[f.actor].hand.push(picked.clone());
+            st.push_log(
+                Some(&pid(st, f.actor)),
+                format!(
+                    "利驭：获得 {} 的【{label}】",
+                    st.seats[f.target].general_name
+                ),
+            );
+            if equip {
+                replace_top(
+                    st,
+                    Frame::LiYu(LiYuFrame {
+                        stage: LiYuStage::Designate,
+                        ..f
+                    }),
+                );
+                Ok("利驭：请由目标指定决斗对象".to_string())
+            } else {
+                let mut ev = Vec::new();
+                let drawn = turn::draw_cards(st, f.target, 1, &mut ev);
+                st.push_log(
+                    Some(&pid(st, f.target)),
+                    format!("利驭：获得的不是装备牌，摸 {drawn} 张"),
+                );
+                pop(st);
+                Ok("利驭结算完成".to_string())
+            }
+        }
+        LiYuStage::Designate => {
+            let target_pid = action
+                .strip_prefix("target:")
+                .ok_or_else(|| crate::illegal("需要指定决斗对象"))?;
+            let victim = st
+                .seat_index(target_pid)
+                .ok_or_else(|| crate::illegal("目标不在座"))?;
+            if victim == f.actor || victim == f.target {
+                return Err(crate::illegal("决斗对象不合法"));
+            }
+            pop(st);
+            st.push_log(
+                Some(&pid(st, f.actor)),
+                format!(
+                    "利驭：视为对 {} 使用【决斗】",
+                    st.seats[victim].general_name
+                ),
+            );
+            let need = if crate::skills::has(st, f.actor, "wushuang") {
+                2
+            } else {
+                1
+            };
+            push(
+                st,
+                Frame::Respond(crate::resolve::RespondFrame {
+                    kind: crate::resolve::RespondKind::Duel,
+                    actor: victim,
+                    card: String::new(),
+                    source: f.actor,
+                    target: Some(f.actor),
+                    damage: 1,
+                    damage_type: crate::resolve::DamageType::Normal,
+                    consume_card: false,
+                    ignore_armor: false,
+                    bagua_used: false,
+                    need,
+                    played: 0,
+                    no_shan: false,
+                    duel_initiator: Some(f.actor),
+                    is_sha: false,
+                }),
+            );
+            Ok("利驭：决斗开始".to_string())
+        }
+    }
+}

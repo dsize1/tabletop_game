@@ -159,6 +159,9 @@ pub enum Frame {
     QingJian(crate::resolve_jiexian::QingJianFrame),
     XunXun(crate::resolve_jiexian::XunXunFrame),
     WangXi(crate::resolve_jiexian::WangXiFrame),
+    /// P4.4.2 界标·群帧（批次 5）。
+    ChuLi(crate::resolve_jiexian::ChuLiFrame),
+    LiYu(crate::resolve_jiexian::LiYuFrame),
     /// 五谷丰登（P2.5 特殊区 `wugu`）。
     Wugu(crate::resolve_zone::WuguFrame),
     /// 观星排序提交（P2.5 特殊区 `guanxing`，`arrange:<csv>`）。
@@ -651,6 +654,19 @@ pub fn advance(st: &mut SgsState, events: &mut Vec<EngineEvent>) -> Result<(), E
         if st.pending.is_some() {
             return Ok(());
         }
+        // 利驭（界吕布）：栈空后询问（避免覆盖父帧 outcome）。
+        if top(st).is_none() && !st.pending_liyu.is_empty() {
+            let (actor, target) = st.pending_liyu.remove(0);
+            push(
+                st,
+                Frame::LiYu(crate::resolve_jiexian::LiYuFrame {
+                    actor,
+                    target,
+                    stage: crate::resolve_jiexian::LiYuStage::Ask,
+                }),
+            );
+            continue;
+        }
         // 界连营：失去所有手牌后，栈空时询问令一名角色摸 1。
         if top(st).is_none() {
             if let Some(seat) = crate::resolve_jiexian::lianying_ready(st) {
@@ -793,6 +809,8 @@ fn step(
         Frame::QingJian(f) => crate::resolve_jiexian::step_qingjian(st, f),
         Frame::XunXun(f) => crate::resolve_jiexian::step_xunxun(st, f),
         Frame::WangXi(f) => crate::resolve_jiexian::step_wangxi(st, f),
+        Frame::ChuLi(f) => crate::resolve_jiexian::step_chuli(st, f),
+        Frame::LiYu(f) => crate::resolve_jiexian::step_liyu(st, f),
         Frame::Wugu(f) => crate::resolve_zone::step_wugu(st, f, events),
         Frame::Arrange(f) => crate::resolve_zone::step_arrange(st, f, events),
     }
@@ -3021,6 +3039,8 @@ pub fn execute_pending(
             Some("qingjian") => crate::resolve_jiexian::act_qingjian(st, action)?,
             Some("xunxun") => crate::resolve_jiexian::act_xunxun(st, action)?,
             Some("wangxi") => crate::resolve_jiexian::act_wangxi(st, action)?,
+            Some("chuli") => crate::resolve_jiexian::act_chuli(st, action)?,
+            Some("liyu") => crate::resolve_jiexian::act_liyu(st, action)?,
             _ => crate::resolve_skill::act_jianxiong(st, action)?,
         },
         "choose_many" => match top(st) {
@@ -4409,6 +4429,51 @@ fn apply_damage_inner(
     if st.seats[victim].hp <= 0 {
         push_dying(st, victim, source);
         return;
+    }
+    // 趫猛（界公孙瓒）/ 利驭（界吕布）：使用【杀】造成伤害后。
+    if let (Some(card_id), Some(src)) = (card, source) {
+        let is_sha = st
+            .cards
+            .get(card_id)
+            .is_some_and(|c| matches!(c.def.as_str(), "sha" | "huo_sha" | "lei_sha"));
+        if is_sha
+            && src != victim
+            && st.seats[src].alive
+            && st.seats[victim].hp > 0
+        {
+            // 趫猛：弃置其区域一张牌；若为坐骑牌则获得之（自动）。
+            if crate::skills::has(st, src, "qiaomeng")
+                && crate::skills::is_jiexian(st, src)
+                && crate::turn::has_cards_to_take(st, victim)
+            {
+                if let Some(taken) = crate::resolve_jiexian::take_one_from_region(st, victim) {
+                    let label = turn::card_label(st, &taken);
+                    let mount = st
+                        .cards
+                        .get(&taken)
+                        .and_then(|c| crate::data::card_def(&c.def))
+                        .and_then(|d| d.equip_slot)
+                        .is_some_and(|sl| {
+                            matches!(sl, EquipSlot::HorseOffense | EquipSlot::HorseDefense)
+                        });
+                    if mount {
+                        st.seats[src].hand.push(taken.clone());
+                        st.push_log(
+                            Some(&st.seats[src].player_id.clone()),
+                            format!("趫猛：弃置并获得了坐骑牌【{label}】"),
+                        );
+                    } else {
+                        turn::discard_by(st, Some(victim), &taken);
+                        st.push_log(
+                            Some(&st.seats[src].player_id.clone()),
+                            format!("趫猛：弃置 {} 的【{label}】", st.seats[victim].general_name),
+                        );
+                    }
+                }
+            }
+            // 利驭：可获得其区域一张牌（装备牌则引发决斗）。
+            crate::resolve_jiexian::liyu_trigger(st, src, victim);
+        }
     }
     // 奸雄：受伤后（存活时）可获得造成伤害的牌
     if let Some(card_id) = card {

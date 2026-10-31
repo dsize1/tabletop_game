@@ -550,6 +550,9 @@ pub struct SgsState {
     /// 移出游戏待回置（P4.4.2 徐盛·破军）。
     #[serde(default)]
     pub void_return: Vec<VoidReturn>,
+    /// 利驭待结算（栈空后询问，避免覆盖父帧 outcome）：(吕布, 目标)。
+    #[serde(default)]
+    pub pending_liyu: Vec<(usize, usize)>,
     /// 放权等产生的额外回合（下一个执行的座位）。
     #[serde(default)]
     pub extra_turn: Option<usize>,
@@ -720,8 +723,12 @@ impl SgsState {
         if d == usize::MAX {
             return false;
         }
-        d as i32 - self.mashu_bonus(from) - crate::skills::qimou_bonus(self, from)
+        d as i32
+            - self.mashu_bonus(from)
+            - crate::skills::qimou_bonus(self, from)
+            - crate::skills::yicong_attack_bonus(self, from)
             + self.defense_bonus(to)
+            + crate::skills::yicong_defense_bonus(self, to)
             <= self.attack_range(from)
     }
 
