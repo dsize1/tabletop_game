@@ -54,12 +54,6 @@ fn move_to_judge(st: &mut SgsState, seat: usize, def: &str) -> String {
     id
 }
 
-fn hand_count(st: &SgsState, seat: usize) -> usize {
-    st.seats[seat].hand.len()
-        + st.seats[seat].judge_zone.len()
-        + st.seats[seat].equips.values().flatten().count()
-}
-
 // ---------------------------------------------------------------------------
 // 界甘宁 · 奇袭 / 奋威
 // ---------------------------------------------------------------------------

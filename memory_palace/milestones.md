@@ -5,9 +5,17 @@
 ## 🔖 续接指针（下次会话说「继续」时从这里开工）
 
 - **入口**：`docs/games/sanguosha/development-plan.md` → **P4.4.2「下一步」**
-- **顺序**：① 一将成名其余 56 位（下一批 171/172/173/174/175/176/177/178；界标 25 将已完成）→ ② 界限突破其余武将 → ③ 回填 SP-2 待补（清侧/怀柔，见 P4.4.2「待补」）→ ④ P4.4.3 验收
+- **顺序**：① 一将成名其余 56 位（下一批 171/172/173/174/175/176/177/178；界标 25 将已完成、授予技能已补齐）→ ② 界限突破其余武将 → ③ P4.4.3 验收
 - **批前必读**：`skills.md` §2.6–§2.8、`rules-rulings.md` §15–§16、ADR-0024（界化口径）、`docs/conventions/coding-standards.md`
 - **门禁**：`cargo test -p sanguosha`、`check:sgs-*` 全套、`test:web` / `test:sgs-web`、MCP 冒烟（收尾见 P4.4.3）
+
+## M36：三国杀 P4.4.2 授予技能补齐（清侧 / 怀柔）✅
+
+- **日期**：2026-10-30
+- **完成**：`EXTRA_SKILLS` 的 `qingce`（毌丘俭·鸿举）与 `huairou`（陆抗·破势）改为 `implemented:true`
+- **机制**：清侧（`Frame::QingCe`：移去「荣」+ 弃其他角色装备/延时锦囊，不能弃自己）；怀柔（重铸装备牌：弃置并摸 1）
+- **验证**：`cargo test -p sanguosha` **515** 全绿；`tests/p87.rs` 4 条；`check:sgs-skill-cases` 不再有授予技能告警
+- **详见**：`skills.md` §4.1、`rules-rulings.md` §22、`development-plan.md` P4.4.2 授予技能补齐、ADR-0029
 
 ## M35：三国杀 P4.4.2 批次 6（一将成名批次 2：8 将）✅
 

@@ -62,16 +62,6 @@ fn set_top(st: &mut SgsState, cards: &[String]) {
     }
 }
 
-fn equip_card(st: &mut SgsState, seat: usize, def: &str) -> String {
-    let card = give_def(st, seat, def);
-    st.seats[seat].hand.retain(|c| c != &card);
-    let slot = crate::data::card_def(def)
-        .and_then(|d| d.equip_slot)
-        .expect("equip slot");
-    st.seats[seat].equips.insert(slot, Some(card.clone()));
-    card
-}
-
 // ---------------------------------------------------------------------------
 // 张春华 · 绝情 / 伤逝
 // ---------------------------------------------------------------------------
@@ -164,7 +154,6 @@ fn jiangchi_opt1_draws_and_bans_sha() {
     let mgr = manager(1510);
     let room = start_and_pick(&mgr, 5);
     let (mut cur, mut cur_pid) = (0, String::new());
-    let mut before = 0;
     edit(&mgr, &room, |st| {
         clear_hands(st);
         cur = st.turn;
@@ -178,7 +167,7 @@ fn jiangchi_opt1_draws_and_bans_sha() {
         st.pending.as_ref().and_then(|p| p.skill.as_deref()),
         Some("jiangchi")
     );
-    before = st.seats[cur].hand.len();
+    let before = st.seats[cur].hand.len();
     mgr.execute_action(&room, &cur_pid, "opt1").unwrap();
     let st = state_of(&mgr, &room);
     assert_eq!(st.seats[cur].hand.len(), before + 1, "将驰①：摸 1 张");
@@ -345,7 +334,7 @@ fn zhiyu_mixed_color_no_discard() {
 fn dangxian_grants_extra_play_phase() {
     let mgr = manager(1530);
     let room = start_and_pick(&mgr, 5);
-    let (mut cur, mut cur_pid, mut in_extra, mut back) = (0, String::new(), false, false);
+    let (mut cur, mut cur_pid, mut in_extra) = (0, String::new(), false);
     edit(&mgr, &room, |st| {
         clear_hands(st);
         cur = st.turn;
@@ -360,8 +349,10 @@ fn dangxian_grants_extra_play_phase() {
     assert!(in_extra, "当先：回合开始时进入额外出牌阶段");
     mgr.execute_action(&room, &cur_pid, "end_play").unwrap();
     let st = state_of(&mgr, &room);
-    back = st.counter("dangxian_extra") == 0 && st.counter("dangxian_done") == 1;
-    assert!(back, "当先：额外出牌阶段结束，继续正常回合流程");
+    assert!(
+        st.counter("dangxian_extra") == 0 && st.counter("dangxian_done") == 1,
+        "当先：额外出牌阶段结束，继续正常回合流程"
+    );
 }
 
 #[test]

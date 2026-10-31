@@ -172,6 +172,8 @@ pub enum Frame {
     ChunLao(crate::resolve_yijiang2::ChunLaoFrame),
     GongQi(crate::resolve_yijiang2::GongQiFrame),
     JieFan(crate::resolve_yijiang2::JieFanFrame),
+    /// P4.4.2 授予技能（清侧）。
+    QingCe(crate::resolve_sp2::QingCeFrame),
     /// 五谷丰登（P2.5 特殊区 `wugu`）。
     Wugu(crate::resolve_zone::WuguFrame),
     /// 观星排序提交（P2.5 特殊区 `guanxing`，`arrange:<csv>`）。
@@ -830,6 +832,7 @@ fn step(
         Frame::ChunLao(f) => crate::resolve_yijiang2::step_chunlao(st, f),
         Frame::GongQi(f) => crate::resolve_yijiang2::step_gongqi(st, f),
         Frame::JieFan(f) => crate::resolve_yijiang2::step_jiefan(st, f),
+        Frame::QingCe(f) => crate::resolve_sp2::step_qingce(st, f),
         Frame::Wugu(f) => crate::resolve_zone::step_wugu(st, f, events),
         Frame::Arrange(f) => crate::resolve_zone::step_arrange(st, f, events),
     }
@@ -3085,6 +3088,7 @@ pub fn execute_pending(
             Some("chunlao") => crate::resolve_yijiang2::act_chunlao(st, action)?,
             Some("gongqi") => crate::resolve_yijiang2::act_gongqi(st, action)?,
             Some("jiefan") => crate::resolve_yijiang2::act_jiefan(st, action)?,
+            Some("qingce") => crate::resolve_sp2::act_qingce(st, action)?,
             _ => crate::resolve_skill::act_jianxiong(st, action)?,
         },
         "choose_many" => match top(st) {

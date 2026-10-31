@@ -1396,6 +1396,41 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
             },
         });
     }
+    // 清侧（毌丘俭·鸿举觉醒）：移去一张「荣」，弃置其他角色一张装备/延时锦囊。
+    if crate::skills::has(st, idx, "qingce")
+        && !crate::skills::mark_cards(st, idx, "rong").is_empty()
+        && st.alive_indices().into_iter().any(|i| {
+            i != idx
+                && (st.seats[i].equips.values().any(|c| c.is_some())
+                    || !st.seats[i].judge_zone.is_empty())
+        })
+    {
+        out.push(Action {
+            id: "skill:qingce".into(),
+            description: "清侧：移去一张「荣」，弃置其他角色一张装备/延时锦囊".into(),
+        });
+    }
+    // 怀柔（陆抗·破势觉醒）：重铸装备牌（弃置并摸一张）。
+    if crate::skills::has(st, idx, "huairou") {
+        for card_id in hand_ids(st, idx) {
+            let is_equip = crate::data::card_def(
+                &st.cards
+                    .get(&card_id)
+                    .map(|c| c.def.as_str())
+                    .unwrap_or_default(),
+            )
+            .is_some_and(|d| d.equip_slot.is_some());
+            if is_equip {
+                out.push(Action {
+                    id: format!("skill:huairou:{card_id}"),
+                    description: format!(
+                        "怀柔：重铸【{}】（弃置并摸一张）",
+                        card_label(st, &card_id)
+                    ),
+                });
+            }
+        }
+    }
     // 奇策（荀攸）：所有手牌当任意普通锦囊使用。
     if crate::skills::has(st, idx, "qice")
         && st.counter("qice_used") == 0
@@ -2753,6 +2788,45 @@ pub fn execute(
         "已重铸".to_string()
     } else if let Some(msg) = crate::resolve_skill::play_phase_act(st, idx, action)? {
         msg
+    } else if action == "skill:qingce" {
+        if !crate::skills::has(st, idx, "qingce") {
+            return Err(illegal("没有该技能"));
+        }
+        if crate::skills::mark_cards(st, idx, "rong").is_empty() {
+            return Err(illegal("没有「荣」可移去"));
+        }
+        resolve::push(
+            st,
+            resolve::Frame::QingCe(crate::resolve_sp2::QingCeFrame { actor: idx }),
+        );
+        st.push_log(Some(player_id), "发动清侧");
+        "清侧：请选择要弃置的场牌".to_string()
+    } else if let Some(card_id) = action.strip_prefix("skill:huairou:") {
+        if !crate::skills::has(st, idx, "huairou") {
+            return Err(illegal("没有该技能"));
+        }
+        if !st.seats[idx].hand.iter().any(|c| c == card_id) {
+            return Err(illegal("手牌中没有该牌"));
+        }
+        let is_equip = st
+            .cards
+            .get(card_id)
+            .and_then(|c| crate::data::card_def(&c.def))
+            .is_some_and(|d| d.equip_slot.is_some());
+        if !is_equip {
+            return Err(illegal("怀柔只能重铸装备牌"));
+        }
+        let label = card_label(st, card_id);
+        take_card(st, idx, card_id)?;
+        to_discard_card(st, card_id);
+        let mut ev = Vec::new();
+        let drawn = draw_cards(st, idx, 1, &mut ev);
+        st.bump_counter("play_cards_used");
+        st.push_log(
+            Some(player_id),
+            format!("怀柔：重铸【{label}】，摸 {drawn} 张"),
+        );
+        "怀柔：已重铸装备牌".to_string()
     } else if action == "skill:qice" {
         if !crate::skills::has(st, idx, "qice") {
             return Err(illegal("没有该技能"));

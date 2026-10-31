@@ -126,7 +126,11 @@ pub(crate) fn act_mingren(st: &mut SgsState, action: &str) -> Result<String, Eng
 }
 
 /// 明任替换（MultiSelect 确认后）：手牌 →「任」，原「任」→ 手牌。
-pub(crate) fn mingren_swap(st: &mut SgsState, seat: usize, card: &str) -> Result<String, EngineError> {
+pub(crate) fn mingren_swap(
+    st: &mut SgsState,
+    seat: usize,
+    card: &str,
+) -> Result<String, EngineError> {
     let ren = skills::mark_cards(st, seat, "ren")
         .into_iter()
         .next()
@@ -139,10 +143,7 @@ pub(crate) fn mingren_swap(st: &mut SgsState, seat: usize, card: &str) -> Result
     st.seats[seat].hand.push(ren.clone());
     st.push_log(
         Some(&st.seats[seat].player_id.clone()),
-        format!(
-            "明任：用【{}】替换「任」",
-            turn::card_label(st, card)
-        ),
+        format!("明任：用【{}】替换「任」", turn::card_label(st, card)),
     );
     Ok("明任：已替换「任」".to_string())
 }
@@ -180,7 +181,11 @@ fn same_color_hand(st: &SgsState, seat: usize) -> Option<String> {
     st.seats[seat]
         .hand
         .iter()
-        .find(|id| st.cards.get(*id).is_some_and(|c| skills::is_red(c.suit) == red))
+        .find(|id| {
+            st.cards
+                .get(*id)
+                .is_some_and(|c| skills::is_red(c.suit) == red)
+        })
         .cloned()
 }
 
@@ -198,10 +203,7 @@ pub struct ZhenLiangFrame {
     pub target: Option<usize>,
 }
 
-pub(crate) fn step_zhenliang(
-    st: &mut SgsState,
-    f: ZhenLiangFrame,
-) -> Result<bool, EngineError> {
+pub(crate) fn step_zhenliang(st: &mut SgsState, f: ZhenLiangFrame) -> Result<bool, EngineError> {
     match f.stage {
         ZhenLiangStage::Target => {
             let options: Vec<PendingOption> = zhenliang_targets(st, f.actor)
@@ -404,10 +406,7 @@ pub(crate) fn step_zhenliang_yin(
     }
 }
 
-pub(crate) fn act_zhenliang_yin(
-    st: &mut SgsState,
-    action: &str,
-) -> Result<String, EngineError> {
+pub(crate) fn act_zhenliang_yin(st: &mut SgsState, action: &str) -> Result<String, EngineError> {
     let f = match top(st).cloned() {
         Some(Frame::ZhenLiangYin(f)) => f,
         _ => return Err(internal("栈顶不是贞良（阴）帧")),
@@ -548,14 +547,20 @@ pub(crate) fn zhengu_adjust(st: &mut SgsState, owner: usize, target: usize) {
         let drawn = draw_capped(st, target, (want - cur) as u32);
         st.push_log(
             None,
-            format!("镇骨：{} 摸 {drawn} 张（手牌调整至 {want}）", general_name(st, target)),
+            format!(
+                "镇骨：{} 摸 {drawn} 张（手牌调整至 {want}）",
+                general_name(st, target)
+            ),
         );
     } else if cur > want {
         let over = cur - want;
         crate::resolve::push_discard(st, target, over, "zhengu");
         st.push_log(
             None,
-            format!("镇骨：{} 弃置 {over} 张（手牌调整至 {want}）", general_name(st, target)),
+            format!(
+                "镇骨：{} 弃置 {over} 张（手牌调整至 {want}）",
+                general_name(st, target)
+            ),
         );
     }
 }
@@ -630,12 +635,10 @@ pub(crate) fn start_zuilun(st: &mut SgsState) -> bool {
     let mut payload = serde_json::Map::new();
     payload.insert(
         "cards".into(),
-        json!(
-            cards
-                .iter()
-                .map(|c| crate::view::card_view(st, c))
-                .collect::<Vec<_>>()
-        ),
+        json!(cards
+            .iter()
+            .map(|c| crate::view::card_view(st, c))
+            .collect::<Vec<_>>()),
     );
     payload.insert("conditions".into(), json!(k));
     st.special_zones.insert(
@@ -798,7 +801,10 @@ pub(crate) fn zuilun_zero_target(
     pop(st);
     st.push_log(
         Some(&st.seats[f.actor].player_id.clone()),
-        format!("罪论：条件均不满足，与 {} 各失去 1 点体力", general_name(st, target)),
+        format!(
+            "罪论：条件均不满足，与 {} 各失去 1 点体力",
+            general_name(st, target)
+        ),
     );
     for seat in [f.actor, target] {
         st.seats[seat].hp -= 1;
@@ -1021,10 +1027,7 @@ pub(crate) fn liangyin_target(
         let b = draw_capped(st, other, 1);
         st.push_log(
             Some(&st.seats[f.owner].player_id.clone()),
-            format!(
-                "良姻：与 {} 各摸 1 张（{a}/{b}）",
-                general_name(st, other)
-            ),
+            format!("良姻：与 {} 各摸 1 张（{a}/{b}）", general_name(st, other)),
         );
     } else {
         for seat in [f.owner, other] {
@@ -1067,10 +1070,7 @@ pub struct KongShengFrame {
     pub cards: Vec<String>,
 }
 
-pub(crate) fn step_kongsheng(
-    st: &mut SgsState,
-    f: KongShengFrame,
-) -> Result<bool, EngineError> {
+pub(crate) fn step_kongsheng(st: &mut SgsState, f: KongShengFrame) -> Result<bool, EngineError> {
     match f.stage {
         KongShengStage::Keep => {
             if st.seats[f.actor].hand.is_empty() {
@@ -1096,7 +1096,10 @@ pub(crate) fn step_kongsheng(
                 .into_iter()
                 .map(|i| PendingOption {
                     id: format!("target:{}", st.seats[i].player_id),
-                    label: format!("箜声：令 {} 使用剩余装备并失去 1 点体力", general_name(st, i)),
+                    label: format!(
+                        "箜声：令 {} 使用剩余装备并失去 1 点体力",
+                        general_name(st, i)
+                    ),
                 })
                 .collect();
             if options.is_empty() {
@@ -1185,10 +1188,11 @@ pub(crate) fn zhengrong_trigger(st: &mut SgsState, user: usize, card: &str) {
     if !skills::has(st, user, "zhengrong") || st.turn != user {
         return;
     }
-    let has_target = st
-        .alive_indices()
-        .into_iter()
-        .any(|i| i != user && st.seats[i].hand.len() >= st.seats[user].hand.len() && !st.seats[i].hand.is_empty());
+    let has_target = st.alive_indices().into_iter().any(|i| {
+        i != user
+            && st.seats[i].hand.len() >= st.seats[user].hand.len()
+            && !st.seats[i].hand.is_empty()
+    });
     if !has_target {
         return;
     }
@@ -1201,10 +1205,7 @@ pub(crate) fn zhengrong_trigger(st: &mut SgsState, user: usize, card: &str) {
     );
 }
 
-pub(crate) fn step_zhengrong(
-    st: &mut SgsState,
-    f: ZhengRongFrame,
-) -> Result<bool, EngineError> {
+pub(crate) fn step_zhengrong(st: &mut SgsState, f: ZhengRongFrame) -> Result<bool, EngineError> {
     let options: Vec<PendingOption> = st
         .alive_indices()
         .into_iter()
@@ -1495,10 +1496,7 @@ pub struct XiongLuanFrame {
     pub actor: usize,
 }
 
-pub(crate) fn step_xiongluan(
-    st: &mut SgsState,
-    f: XiongLuanFrame,
-) -> Result<bool, EngineError> {
+pub(crate) fn step_xiongluan(st: &mut SgsState, f: XiongLuanFrame) -> Result<bool, EngineError> {
     let options: Vec<PendingOption> = st
         .alive_indices()
         .into_iter()
@@ -1609,7 +1607,12 @@ pub(crate) fn congjian_trigger(st: &mut SgsState, card: &str, targets: &[usize])
 
 pub(crate) fn step_congjian(st: &mut SgsState, f: CongJianFrame) -> Result<bool, EngineError> {
     if f.stage == CongJianStage::Give {
-        let others: Vec<usize> = f.targets.iter().copied().filter(|t| *t != f.owner).collect();
+        let others: Vec<usize> = f
+            .targets
+            .iter()
+            .copied()
+            .filter(|t| *t != f.owner)
+            .collect();
         let options: Vec<PendingOption> = others
             .into_iter()
             .map(|t| PendingOption {
@@ -1748,4 +1751,130 @@ fn congjian_give(
         ),
     );
     Ok("从谏：已完成".to_string())
+}
+
+// ---------------------------------------------------------------------------
+// 清侧（毌丘俭·鸿举觉醒授予）：移去一张「荣」，弃置场上一张装备/延时锦囊
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct QingCeFrame {
+    pub actor: usize,
+}
+
+fn qingce_candidates(st: &SgsState, actor: usize) -> Vec<(usize, String, bool)> {
+    // (座位, 牌 id, 是否装备区)；只允许其他角色的装备牌与判定区延时锦囊。
+    let mut out = Vec::new();
+    for seat in st.alive_indices() {
+        if seat == actor {
+            continue;
+        }
+        for slot in EquipSlot::ALL {
+            if let Some(id) = st.seats[seat].equips.get(&slot).cloned().flatten() {
+                out.push((seat, id, true));
+            }
+        }
+        for id in &st.seats[seat].judge_zone {
+            out.push((seat, id.clone(), false));
+        }
+    }
+    out
+}
+
+pub(crate) fn step_qingce(st: &mut SgsState, f: QingCeFrame) -> Result<bool, EngineError> {
+    let options: Vec<PendingOption> = qingce_candidates(st, f.actor)
+        .into_iter()
+        .map(|(seat, id, equip)| PendingOption {
+            id: format!("card:{}:{}", st.seats[seat].player_id, id),
+            label: format!(
+                "{}{}的【{}】",
+                st.seats[seat].general_name,
+                if equip { "装备区" } else { "判定区" },
+                turn::card_label(st, &id)
+            ),
+        })
+        .collect();
+    if options.is_empty() {
+        pop(st);
+        return Ok(false);
+    }
+    st.pending = Some(Pending {
+        kind: "choice".into(),
+        actor: st.seats[f.actor].player_id.clone(),
+        skill: Some("qingce".into()),
+        options,
+        data: json!({}),
+    });
+    replace_top(st, Frame::QingCe(f));
+    Ok(true)
+}
+
+pub(crate) fn act_qingce(st: &mut SgsState, action: &str) -> Result<String, EngineError> {
+    let f = match top(st).cloned() {
+        Some(Frame::QingCe(f)) => f,
+        _ => return Err(internal("栈顶不是清侧帧")),
+    };
+    let rest = action
+        .strip_prefix("card:")
+        .ok_or_else(|| illegal("需要选择要弃置的场牌"))?;
+    let (pid, card) = rest
+        .split_once(':')
+        .ok_or_else(|| illegal("清侧目标格式错误"))?;
+    let owner = st.seat_index(pid).ok_or_else(|| illegal("目标不在座"))?;
+    if owner == f.actor {
+        return Err(illegal("清侧不能弃置自己的牌"));
+    }
+    let candidates = qingce_candidates(st, f.actor);
+    if !candidates
+        .iter()
+        .any(|(seat, id, _)| *seat == owner && id == card)
+    {
+        return Err(illegal("该牌不在清侧可选范围"));
+    }
+    if skills::mark_cards(st, f.actor, "rong").is_empty() {
+        return Err(illegal("没有「荣」可移去"));
+    }
+    let rong = skills::mark_cards(st, f.actor, "rong")
+        .into_iter()
+        .next()
+        .unwrap_or_default();
+    if !rong.is_empty() {
+        skills::remove_mark(st, f.actor, "rong", &rong);
+        turn::discard_by(st, Some(f.actor), &rong);
+    }
+    // 弃置目标牌：判定区 / 装备区。
+    if let Some(pos) = st.seats[owner].judge_zone.iter().position(|c| c == card) {
+        st.seats[owner].judge_zone.remove(pos);
+    } else {
+        let mut removed = false;
+        for slot in EquipSlot::ALL {
+            if st.seats[owner]
+                .equips
+                .get(&slot)
+                .cloned()
+                .flatten()
+                .as_deref()
+                == Some(card)
+            {
+                st.seats[owner].equips.insert(slot, None);
+                skills::xiaoji_on_lose_equip(st, owner);
+                removed = true;
+                break;
+            }
+        }
+        if !removed {
+            return Err(illegal("目标牌已不在原区域"));
+        }
+    }
+    let label = turn::card_label(st, card);
+    turn::discard_by(st, Some(owner), card);
+    st.push_log(
+        Some(&st.seats[f.actor].player_id.clone()),
+        format!(
+            "清侧：移去一张「荣」，弃置 {} 的【{label}】",
+            st.seats[owner].general_name
+        ),
+    );
+    pop(st);
+    Ok("清侧结算完成".to_string())
 }

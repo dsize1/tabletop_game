@@ -2073,18 +2073,18 @@ pub static EXTRA_SKILLS: &[SkillDef] = &[
         kind: SkillType::Normal,
         implemented: true,
     },
-    // SP-2 觉醒授予（仓库无官方文本 → 先登记为未实现，见 ADR-0029 §3）。
+    // SP-2 觉醒授予（2026-10-30 补齐官方文本后实现）。
     SkillDef {
         code: "qingce",
         name: "清侧",
         kind: SkillType::Normal,
-        implemented: false,
+        implemented: true,
     },
     SkillDef {
         code: "huairou",
         name: "怀柔",
         kind: SkillType::Normal,
-        implemented: false,
+        implemented: true,
     },
     // 界吕蒙·勤学（觉醒获得）：观看一名其他角色手牌，可弃置其中一张红桃牌。
     SkillDef {
