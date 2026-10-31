@@ -64,11 +64,11 @@ node apps/scripts/gen-sanguosha-heroes-md.mjs
 # 生成牌表 docs/games/sanguosha/cards.md
 node apps/scripts/gen-sanguosha-cards-md.mjs
 
-# 生成引擎内置数据（默认：标准 25 + 风林火山 48 = 73 将 / 160 张牌）
+# 生成引擎内置数据（默认：全量 232 将 / 160 张牌）
 node apps/scripts/gen-sanguosha-engine-data.mjs
-# 只生成部分武将包（调试用；未实现武将仍不会进选将池）
+# 只生成部分武将包（调试用；未实现武将不会进选将池）
 node apps/scripts/gen-sanguosha-engine-data.mjs --general-packs standard
-# 生成全部已登记武将包
+# 生成全部已登记武将包（标准 25 + 风林火山 48 + 一将成名 72 + 界限突破 87 = 232）
 node apps/scripts/gen-sanguosha-engine-data.mjs --general-packs all
 # 逐字节校验仓库内 data.rs 是否最新
 node apps/scripts/gen-sanguosha-engine-data.mjs --check

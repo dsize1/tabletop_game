@@ -104,6 +104,34 @@ try {
   );
   console.log("[sgs] lobby:set_general_packs OK");
 
+  // —— P4.4.3：全量预设 + 界限突破包开关（同名去重）——
+  const lobbyActs = await callJson("get_legal_actions", { room_id: roomId, player_id: HOST });
+  const packIds = lobbyActs
+    .map((a) => a.id)
+    .filter((id) => id.startsWith("lobby:set_general_packs:"));
+  assert(packIds.length === 7, `大厅应给出其余 7 个武将包预设，实际 ${packIds.length}`);
+  assert(
+    packIds.includes("lobby:set_general_packs:standard+jiexian"),
+    "缺少 standard+jiexian 预设",
+  );
+  await callJson("execute_action", {
+    room_id: roomId,
+    player_id: HOST,
+    action: "lobby:set_general_packs:standard+jiexian",
+  });
+  const jiePacked = await callJson("get_state", { room_id: roomId });
+  assert(
+    (jiePacked.data.public_board.config.general_packs ?? []).join("+") === "standard+jiexian",
+    "界限突破包开关未写入 config.general_packs",
+  );
+  // 恢复风林火山组合，保持后续流程口径（旧包 + 风包已实现武将）。
+  await callJson("execute_action", {
+    room_id: roomId,
+    player_id: HOST,
+    action: "lobby:set_general_packs:standard+wind_fire_forest_mountain",
+  });
+  console.log("[sgs] lobby:set_general_packs:standard+jiexian OK（预设 7 个）");
+
   // —— 开赛（发身份 → 主公候选）——
   const started = await callJson("execute_action", {
     room_id: roomId,

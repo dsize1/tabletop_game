@@ -163,44 +163,45 @@ pub(crate) fn prefer_jiexian(codes: Vec<&'static str>) -> Vec<&'static str> {
         .collect()
 }
 
-fn general_pack_mode_label(mode: &str) -> (&'static str, usize) {
+fn general_pack_mode_label(mode: &str) -> (String, usize) {
     let packs = parse_general_packs(mode).unwrap_or_default();
     // 与实际选将池一致：含同名去重（界优先）。
     let count = available_codes_for_packs(&packs).len();
-    let label = match packs.len() {
-        1 => "标准",
-        _ => {
-            let names: Vec<&str> = packs
-                .iter()
-                .filter(|p| p.as_str() != "standard")
-                .map(|p| match p.as_str() {
-                    "wind_fire_forest_mountain" => "风林火山",
-                    "yijiang" => "一将成名",
-                    "jiexian" => "界限突破",
-                    other => other,
-                })
-                .collect();
-            if names.is_empty() {
-                "标准"
-            } else {
-                // 静态字符串有限：用穷举覆盖已注册组合。
-                mode_label(names.as_slice())
-            }
-        }
-    };
+    let mut label = String::from("标准");
+    for p in packs.iter().filter(|p| p.as_str() != "standard") {
+        label.push_str(" + ");
+        label.push_str(match p.as_str() {
+            "wind_fire_forest_mountain" => "风林火山",
+            "yijiang" => "一将成名",
+            "jiexian" => "界限突破",
+            other => other,
+        });
+    }
     (label, count)
 }
 
-fn mode_label(names: &[&str]) -> &'static str {
-    match names {
-        ["风林火山"] => "标准 + 风林火山",
-        ["一将成名"] => "标准 + 一将成名",
-        ["界限突破"] => "标准 + 界限突破",
-        ["风林火山", "一将成名"] => "标准 + 风林火山 + 一将成名",
-        ["风林火山", "界限突破"] => "标准 + 风林火山 + 界限突破",
-        ["风林火山", "一将成名", "界限突破"] => "标准 + 风林火山 + 一将成名 + 界限突破",
-        _ => "标准 + 多包",
+/// lobby 提供的武将包组合：`standard` + 其余包的全部子集（2^(N-1)，含全量）。
+///
+/// 顺序按 `data::GENERAL_PACK_KEYS` 生成、再按包数升序稳定排序（单包 → 全量）。
+/// 标准包恒为基数（与牌堆 `standard` 基数一致）。
+fn general_pack_presets() -> Vec<String> {
+    let others: Vec<&str> = crate::data::GENERAL_PACK_KEYS
+        .iter()
+        .copied()
+        .filter(|p| *p != "standard")
+        .collect();
+    let mut out: Vec<String> = Vec::new();
+    for mask in 0usize..(1usize << others.len()) {
+        let mut keys = vec!["standard"];
+        for (i, p) in others.iter().enumerate() {
+            if mask & (1 << i) != 0 {
+                keys.push(*p);
+            }
+        }
+        out.push(keys.join("+"));
     }
+    out.sort_by_key(|mode| mode.matches('+').count());
+    out
 }
 
 /// 给主公发候选：启用包内全部主公将 + `lord_candidate_count` 张非主公。
@@ -728,15 +729,9 @@ impl EnginePlugin for SanguoshaEngine {
                         }
                     }
                     // 武将包组合（全局开关；旧对局按创建时的 config 固定）
-                    for mode in [
-                        "standard",
-                        "standard+wind_fire_forest_mountain",
-                        "standard+wind_fire_forest_mountain+yijiang",
-                        "standard+wind_fire_forest_mountain+jiexian",
-                        "standard+wind_fire_forest_mountain+yijiang+jiexian",
-                    ] {
+                    for mode in general_pack_presets() {
                         if st.config.general_packs_mode() != mode {
-                            let (label, count) = general_pack_mode_label(mode);
+                            let (label, count) = general_pack_mode_label(&mode);
                             out.push(Action {
                                 id: format!("lobby:set_general_packs:{mode}"),
                                 description: format!("武将包：{label}（可用 {count} 位）"),

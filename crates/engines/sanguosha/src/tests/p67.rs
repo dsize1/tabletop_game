@@ -7,6 +7,7 @@ use crate::state::*;
 
 #[test]
 fn general_packs_default_and_parse() {
+    // 默认仍为仅标准包（旧局/旧快照口径不变）；全量组合在 lobby 预设中切换。
     let cfg = Config::default();
     assert_eq!(cfg.general_packs, vec!["standard".to_string()]);
     assert_eq!(cfg.general_packs_mode(), "standard");
@@ -20,7 +21,7 @@ fn general_packs_default_and_parse() {
     );
     assert!(parse_general_packs("").is_err());
     assert!(parse_general_packs("standard+unknown").is_err());
-    // 风林火山包 48 将已生成；当前只实现风包 8 将 → 选将池 33。
+    // 风林火山包 48 将已全部实现（P4.4.1）→ 标准 + 风林火山选将池 73。
     assert_eq!(crate::data::WIND_FIRE_FOREST_MOUNTAIN_GENERALS.len(), 48);
     assert_eq!(
         crate::data::general_codes_in_packs(&["wind_fire_forest_mountain".to_string()]).len(),
@@ -40,7 +41,7 @@ fn general_packs_default_and_parse() {
 
 #[test]
 fn general_pack_switch_filters_offer_pool() {
-    // 标准包：候选池不应出现风林火山武将。
+    // 标准包：候选池不应出现其他包武将。
     let mgr = manager(401);
     let room = start_and_pick(&mgr, 5);
     let st = state_of(&mgr, &room);
@@ -430,4 +431,167 @@ fn pack_pool_parse_combinations_are_normalized() {
         vec!["standard".to_string()],
         "重复包去重"
     );
+}
+
+// ---------------------------------------------------------------------------
+// P4.4.3 验收：包开关全量预设 / 疆界池候选 / 旧对局固定
+// ---------------------------------------------------------------------------
+
+#[test]
+fn pack_switch_presets_match_pool_counts() {
+    let presets = crate::general_pack_presets();
+    assert_eq!(presets.len(), 8, "四包全量子集 = 2^(4-1) = 8：{presets:?}");
+    assert_eq!(presets[0], "standard");
+    assert_eq!(
+        presets[presets.len() - 1],
+        "standard+wind_fire_forest_mountain+yijiang+jiexian",
+        "全量组合必须作为预设"
+    );
+    // 预设顺序按包数升序（单包 → 全量），便于大厅阅读。
+    let depths: Vec<usize> = presets.iter().map(|m| m.matches('+').count()).collect();
+    assert!(depths.windows(2).all(|w| w[0] <= w[1]), "{depths:?}");
+    // 每个预设：标签 + 可用人数 与实际选将池（含同名去重）一致。
+    let expected = [
+        ("standard", "标准", 25usize),
+        ("standard+wind_fire_forest_mountain", "标准 + 风林火山", 73),
+        ("standard+yijiang", "标准 + 一将成名", 97),
+        ("standard+jiexian", "标准 + 界限突破", 87),
+        (
+            "standard+wind_fire_forest_mountain+yijiang",
+            "标准 + 风林火山 + 一将成名",
+            145,
+        ),
+        (
+            "standard+wind_fire_forest_mountain+jiexian",
+            "标准 + 风林火山 + 界限突破",
+            107,
+        ),
+        (
+            "standard+yijiang+jiexian",
+            "标准 + 一将成名 + 界限突破",
+            129,
+        ),
+        (
+            "standard+wind_fire_forest_mountain+yijiang+jiexian",
+            "标准 + 风林火山 + 一将成名 + 界限突破",
+            149,
+        ),
+    ];
+    for (mode, label, count) in expected {
+        assert!(presets.iter().any(|p| p == mode), "预设缺少 {mode}");
+        let packs = parse_general_packs(mode).expect("parse");
+        let pool = crate::available_codes_for_packs(&packs);
+        assert_eq!(pool.len(), count, "{mode} 选将池人数");
+        assert_eq!(
+            crate::general_pack_mode_label(mode),
+            (label.to_string(), count),
+            "{mode} 标签/人数"
+        );
+    }
+}
+
+#[test]
+fn pack_switch_lobby_lists_all_other_presets() {
+    let mgr = manager(407);
+    let room = super::lobby_with(&mgr, 5);
+    let acts = mgr.legal_actions(&room, "u1").expect("actions");
+    let presets: Vec<&str> = acts
+        .iter()
+        .filter_map(|a| a.id.strip_prefix("lobby:set_general_packs:"))
+        .collect();
+    // 默认仅标准 → 大厅给出其余 7 个组合（含全量）。
+    let acts = mgr.legal_actions(&room, "u1").expect("actions");
+    let presets: Vec<&str> = acts
+        .iter()
+        .filter_map(|a| a.id.strip_prefix("lobby:set_general_packs:"))
+        .collect();
+    assert_eq!(presets.len(), 7, "{presets:?}");
+    assert!(
+        presets.contains(&"standard+wind_fire_forest_mountain+yijiang+jiexian"),
+        "应能一键切全量四包"
+    );
+    assert!(
+        presets.contains(&"standard+jiexian"),
+        "应能单独开启标准 + 界限突破"
+    );
+    assert!(
+        presets.contains(&"standard+yijiang"),
+        "应能单独开启标准 + 一将成名"
+    );
+    // 描述带去重后的可用人数。
+    let desc = acts
+        .iter()
+        .find(|a| a.id == "lobby:set_general_packs:standard+jiexian")
+        .map(|a| a.description.clone())
+        .expect("description");
+    assert!(desc.contains("界限突破") && desc.contains("87"), "{desc}");
+}
+
+#[test]
+fn pack_switch_jiexian_pool_dedupes_same_name() {
+    let mgr = manager(408);
+    let room = super::start_with_config(&mgr, 5, |cfg| {
+        cfg.general_packs = vec![
+            "standard".to_string(),
+            "wind_fire_forest_mountain".to_string(),
+            "jiexian".to_string(),
+        ];
+    });
+    let st = state_of(&mgr, &room);
+    let offered: Vec<String> = st.setup.offered.iter().cloned().collect();
+    assert!(
+        offered.iter().any(|c| c == "sgs_hero_299"),
+        "界刘备（界主公将）应进候选：{offered:?}"
+    );
+    assert!(
+        !offered.contains(&"sgs_hero_1".to_string()),
+        "标准刘备应被界版替换"
+    );
+    assert!(
+        !offered.contains(&"sgs_hero_212".to_string()),
+        "风包张角应被界版替换"
+    );
+    for code in offered.iter().chain(st.setup.pool.iter()) {
+        let def = crate::data::general(code).expect("known general");
+        assert!(
+            matches!(
+                def.pack,
+                "standard" | "wind_fire_forest_mountain" | "jiexian"
+            ),
+            "候选出现未启用包的武将：{code} ({})",
+            def.pack
+        );
+        assert!(skills::general_ready(code), "候选出现未实现武将：{code}");
+    }
+}
+
+#[test]
+fn pack_switch_old_game_snapshot_stays_on_its_packs() {
+    // 旧局（仅标准）：持久化往返后包组合/选将池/牌堆均不变，且开局后不可切包。
+    let mgr = manager(409);
+    let room = super::start_with_config(&mgr, 5, |cfg| {
+        cfg.general_packs = vec!["standard".to_string()];
+    });
+    let data = mgr.get_state(&room).expect("state").data;
+    let st = SgsState::parse(&data).expect("parse snapshot");
+    assert_eq!(st.config.general_packs, vec!["standard".to_string()]);
+    let pool = crate::available_general_codes(&st);
+    assert_eq!(pool.len(), crate::data::STANDARD_GENERAL_COUNT);
+    assert!(pool
+        .iter()
+        .all(|c| crate::data::general(c).is_some_and(|g| g.pack == "standard")));
+    // 武将包不影响牌堆：仍为 标准 + 军争 160 张。
+    assert_eq!(
+        st.config.packs,
+        vec!["standard".to_string(), "junzheng".to_string()]
+    );
+    assert_eq!(
+        st.check_conservation().expect("conservation").instances,
+        crate::data::FULL_DECK_SIZE
+    );
+    // 已开局：切包被拒（旧局固定）。
+    let err = mgr
+        .execute_action(&room, "u1", "lobby:set_general_packs:standard+jiexian")
+        .expect_err("开局后应拒绝切包");
+    assert!(format!("{err:?}").contains("已开局"), "{err:?}");
 }

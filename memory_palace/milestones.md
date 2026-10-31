@@ -4,12 +4,22 @@
 
 ## 🔖 续接指针（下次会话说「继续」时从这里开工）
 
-- **入口**：`docs/games/sanguosha/development-plan.md` → **P4.4.2 已完成（界限突破 87/87）** → 下一步 P4.4.3 验收
-- **顺序**：① 界限突破 87/87 已完成 → ② P4.4.3 包开关/全套门禁验收（下一步）
+- **入口**：`docs/games/sanguosha/development-plan.md` → **P4.4.3 已验收（包开关全量预设 + 全套门禁）** → 下一步 P4.5（武将流程工作台）/ 其他批次
+- **顺序**：① 界限突破 87/87 已完成 → ② P4.4.3 包开关/全套门禁验收 ✅ → ③ 待定（P5 工作台 / 新包）
 - **开工命令**：`npm run sgs:batch-status`（看下一批名单/计数一致性）；流程与模板见 `docs/games/sanguosha/batch-playbook.md`
 - **批前必读**：`skills.md` §2.8.12、`rules-rulings.md` §37、`docs/conventions/coding-standards.md`
 - **每批收尾**：`p67` 池断言（如涉及界版池）；`skills.md` §2.8.x + `rules-rulings.md` 新节；`milestones.md` 新增 M 条目
 - **门禁**：`npm run sgs:check`（每批收尾）、`npm run sgs:check:full`（含 MCP 冒烟）、`npm run sgs:check:fast`（改码自检）
+
+## M56：三国杀 P4.4.3 验收（包开关全量预设 + 全套门禁）✅
+
+- **日期**：2026-10-31
+- **完成**：lobby 武将包预设由 5 个手工组合扩为**全量 8 组合**（`general_pack_presets`），标签动态生成；可用人数 25 / 73 / 97 / 87 / 145 / 107 / 129 / 149（去重后）
+- **默认口径**：`Config.general_packs` 仍默认 `["standard"]`；旧局/旧快照不回溯追加包
+- **回归用例**：`tests/p67.rs` 新增 4 条（预设↔标签↔池人数、大厅预设列表、疆界池候选去重、旧对局快照固定）
+- **门禁**：`cargo test -p sanguosha` **874** 全绿；`sgs:check` / `sgs:check:full`（含 MCP 冒烟）全绿；MCP 冒烟新增 `standard+jiexian` 断言
+- **文档**：`data-model.md` §3.7、`legal-actions.md` §3、`skills.md` §2.8/§4、`data/README.md` 同步
+- **详见**：`memory_palace/plan/01a1931e-2adb-7668-91f6-e77ed68dc2b6.md`
 
 ## M55：三国杀 P4.4.2 批次 J8（界限突破 752/753/756/775：4 将 / 8 技能，界限突破 87/87 收官）✅
 

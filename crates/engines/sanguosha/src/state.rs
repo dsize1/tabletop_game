@@ -155,7 +155,10 @@ pub enum TargetMode {
     Aoe,
 }
 
-/// 默认武将包组合（`Config.general_packs`）；风林火山需在 lobby 手动开启。
+/// 默认武将包组合（`Config.general_packs`）：仅标准包（旧局口径不变）。
+///
+/// 其余包（风林火山 / 一将成名 / 界限突破）在 lobby 用 `lobby:set_general_packs`
+/// 切换（预设覆盖全量组合，见 `lib.rs::general_pack_presets`）。
 pub fn default_general_packs() -> Vec<String> {
     vec!["standard".to_string()]
 }
@@ -240,7 +243,7 @@ pub struct Config {
     #[serde(default = "default_packs")]
     pub packs: Vec<String>,
     /// 武将包组合（全局，一局一个；旧对局按创建时的 config 固定）。
-    /// 默认 `["standard"]`；开启 `wind_fire_forest_mountain` 后选将池按包扩大。
+    /// 默认 `["standard"]`；lobby 切换后选将池按包扩大。
     #[serde(default = "default_general_packs")]
     pub general_packs: Vec<String>,
 }

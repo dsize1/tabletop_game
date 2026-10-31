@@ -300,16 +300,29 @@ CREATE INDEX IF NOT EXISTS idx_prop_status_log_entity
 | `STANDARD_DECK_SIZE` / `JUNZHENG_DECK_SIZE` / `FULL_DECK_SIZE` | 108 / 52 / 160 |
 | `DECK_PACKS` | 支持的牌堆包（顺序即建堆顺序：`standard` → `junzheng`） |
 | `deck_cards(&packs)` | 按 `Config.packs` 组堆；未知包/空组合报错；同一牌堆内 `pack` 必须与牌堆名一致 |
-| `STANDARD_GENERALS` / `WIND_FIRE_FOREST_MOUNTAIN_GENERALS` | 武将（标准 25 / 风林火山 48；`GeneralDef.pack` 为武将包 code） |
-| `GENERAL_PACK_KEYS` / `GENERAL_PACKS` | 武将包 key 表（`standard` → `wind_fire_forest_mountain`）与按包拼接的静态数据 |
+| `STANDARD_GENERALS` / `WIND_FIRE_FOREST_MOUNTAIN_GENERALS` / `YIJIANG_GENERALS` / `JIEXIAN_GENERALS` | 武将（标准 25 / 风林火山 48 / 一将成名 72 / 界限突破 87；`GeneralDef.pack` 为武将包 code） |
+| `GENERAL_PACK_KEYS` / `GENERAL_PACKS` | 武将包 key 表（`standard` → `wind_fire_forest_mountain` → `yijiang` → `jiexian`）与按包拼接的静态数据 |
 | `general_codes_in_packs(&packs)` | 按 `Config.general_packs` 过滤武将码（选将池）；未实现武将再由 `skills::general_ready` 过滤 |
 
 - 生成：`npm run gen:sgs-engine-data`；门禁：`npm run check:sgs-engine-data`（`--check` 逐字节比对）。
-- 默认生成标准 25 + 风林火山 48 = **73 将**（`DEFAULT_GENERAL_PACKS`）；`--general-packs` 可裁剪（新增包需在脚本 `GENERAL_PACKS` 登记 gids 与性别表）。
-- 选将池：`Config.general_packs`（默认 `["standard"]`，旧快照自动补齐）→ 包过滤 → `skills::general_ready`（技能全部 implemented）→ 候选。风林火山当前只实现风包 8 将，其余 40 位不进池。
+- 默认生成 **232 将**（标准 25 + 风林火山 48 + 一将成名 72 + 界限突破 87，`DEFAULT_GENERAL_PACKS`）；`--general-packs` 可裁剪（新增包需在脚本 `GENERAL_PACKS` 登记 gids 与性别表）。
+- 选将池：`Config.general_packs`（默认 `["standard"]`，旧快照自动补齐）→ 包过滤 → `skills::general_ready`（技能全部 implemented）→ 同名去重（`lib.rs::prefer_jiexian`，界优先）。当前 232 位技能全部实现，只有同名去重会缩池。
 - 牌堆口径：默认 `["standard","junzheng"]` = **160 张**，可在 lobby 切到 `standard` = 108 张（`lobby:set_packs`）。
-- 武将包口径：默认 `["standard"]`，可在 lobby 切到 `["standard","wind_fire_forest_mountain"]`（`lobby:set_general_packs`；风林火山 48 位数据已生成，未实现武将不进池）。
-- 旧快照兼容：schema v2 及以前没有 `config.packs` / `config.general_packs`，反序列化分别按默认 `["standard","junzheng"]` / `["standard"]` 补齐（**不重建已有牌堆**，实例仍以快照中的 `cards` 为准）。
+- 武将包口径：默认 `["standard"]`（P4.4.3 保持旧局口径）；lobby 预设为**全量组合**（`lib.rs::general_pack_presets`，标准 + 其余包全部子集 = 8 个，按包数升序），可一键切换：
+
+| 预设（`lobby:set_general_packs:<mode>`） | 标签 | 可用武将（去重后） |
+|---|---|---|
+| `standard` | 标准 | 25 |
+| `standard+wind_fire_forest_mountain` | 标准 + 风林火山 | 73 |
+| `standard+yijiang` | 标准 + 一将成名 | 97 |
+| `standard+jiexian` | 标准 + 界限突破 | 87 |
+| `standard+wind_fire_forest_mountain+yijiang` | 标准 + 风林火山 + 一将成名 | 145 |
+| `standard+wind_fire_forest_mountain+jiexian` | 标准 + 风林火山 + 界限突破 | 107 |
+| `standard+yijiang+jiexian` | 标准 + 一将成名 + 界限突破 | 129 |
+| `standard+wind_fire_forest_mountain+yijiang+jiexian` | 标准 + 风林火山 + 一将成名 + 界限突破（全量） | 149 |
+
+- 同名去重（ADR-0024 口径 A）：启用 `jiexian` 时，与「界化」武将同名的原版不进池；全量四包去重 83 位（界标 25 位 + 风包 48 位 + 一将成名 10 位同名原版）。
+- 旧快照兼容：schema v2 及以前没有 `config.packs` / `config.general_packs`，反序列化分别按默认 `["standard","junzheng"]` / `["standard"]` 补齐（**不重建已有牌堆**，实例仍以快照中的 `cards` 为准；武将包同样不回溯追加）。
 
 ## 4. 运行时状态模型（不建实体表）
 
