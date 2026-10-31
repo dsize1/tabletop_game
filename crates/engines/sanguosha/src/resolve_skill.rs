@@ -153,6 +153,8 @@ pub(crate) fn push_sha_respond_with(
     ignore_armor: bool,
     damage_type: crate::resolve::DamageType,
 ) {
+    // 界烈弓②-2：你的体力值不大于其 → 此【杀】伤害 +1。
+    let damage = 1 + crate::skills::liegong_damage_bonus(st, user, victim);
     crate::resolve::push(
         st,
         crate::resolve::Frame::Respond(crate::resolve::RespondFrame {
@@ -161,7 +163,7 @@ pub(crate) fn push_sha_respond_with(
             card: card.to_string(),
             source: user,
             target: Some(victim),
-            damage: 1,
+            damage,
             damage_type,
             consume_card: false,
             ignore_armor,

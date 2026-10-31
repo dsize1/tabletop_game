@@ -162,6 +162,14 @@ pub enum Frame {
     /// P4.4.2 界标·群帧（批次 5）。
     ChuLi(crate::resolve_jiexian::ChuLiFrame),
     LiYu(crate::resolve_jiexian::LiYuFrame),
+    /// P4.4.2 界限突破 J1 帧。
+    ZhuHai(crate::resolve_jiexian2::ZhuHaiFrame),
+    JianYan(crate::resolve_jiexian2::JianYanFrame),
+    ShiZhan(crate::resolve_jiexian2::ShiZhanFrame),
+    SiShu(crate::resolve_jiexian2::SiShuFrame),
+    XueYi(crate::resolve_jiexian2::XueYiFrame),
+    LeijiJie(crate::resolve_jiexian2::LeijiJieFrame),
+    LuanJiPick(crate::resolve_jiexian2::LuanJiPickFrame),
     /// P4.4.2 一将成名（批次 2）。
     JiangChi(crate::resolve_yijiang2::JiangChiFrame),
     Qice(crate::resolve_yijiang2::QiceFrame),
@@ -902,6 +910,13 @@ fn step(
         Frame::FenWei(f) => crate::resolve_jiexian::step_fenwei(st, f),
         Frame::JieFanJian(f) => crate::resolve_jiexian::step_jie_fanjian(st, f),
         Frame::GuoSe(f) => crate::resolve_jiexian::step_guose(st, f),
+        Frame::ZhuHai(f) => crate::resolve_jiexian2::step_zhuhai(st, f),
+        Frame::JianYan(f) => crate::resolve_jiexian2::step_jianyan(st, f),
+        Frame::ShiZhan(f) => crate::resolve_jiexian2::step_shizhan(st, f),
+        Frame::SiShu(f) => crate::resolve_jiexian2::step_sishu(st, f),
+        Frame::XueYi(f) => crate::resolve_jiexian2::step_xueyi(st, f),
+        Frame::LeijiJie(f) => crate::resolve_jiexian2::step_leiji_jie(st, f),
+        Frame::LuanJiPick(f) => crate::resolve_jiexian2::step_luanji_pick(st, f),
         Frame::QinXue(f) => crate::resolve_jiexian::step_qinxue(st, f),
         Frame::GongXin(f) => crate::resolve_jiexian::step_gongxin(st, f),
         Frame::LianYing(f) => crate::resolve_jiexian::step_lianying(st, f),
@@ -1145,7 +1160,7 @@ fn step_sha(st: &mut SgsState, mut f: ShaFrame) -> Result<bool, EngineError> {
                     })
                     .collect()
             } else {
-                turn::sha_targets(st, f.user)
+                turn::sha_targets_card(st, f.user, &f.card)
             };
             let mut options: Vec<PendingOption> = targets
                 .iter()
@@ -1402,7 +1417,7 @@ fn trick_targets(st: &SgsState, code: &str, user: usize, card: &str) -> Vec<usiz
 
 /// 开始一张锦囊（调用前牌已从手牌移入 `processing`）。
 pub fn start_trick(st: &mut SgsState, user: usize, card: &str) -> Result<(), EngineError> {
-    start_trick_code(st, user, card, None)
+    start_trick_code_ext(st, user, card, None, None)
 }
 
 /// 转化技（如奇袭）：用原牌但按指定锦囊结算。
@@ -1415,17 +1430,49 @@ pub fn start_virtual_trick(
     start_trick_code(st, user, card, Some(code))
 }
 
+/// 转化技（指定目标集合；界乱击「少选一个目标」用）。
+pub(crate) fn start_virtual_trick_targets(
+    st: &mut SgsState,
+    user: usize,
+    card: &str,
+    code: &str,
+    targets: Vec<usize>,
+) -> Result<(), EngineError> {
+    start_trick_code_ext(st, user, card, Some(code), Some(targets))
+}
+
+/// 锦囊默认目标列表（转出帧外时供技能预计算）。
+pub(crate) fn trick_targets_for(
+    st: &SgsState,
+    code: &str,
+    user: usize,
+    card: &str,
+) -> Vec<usize> {
+    trick_targets(st, code, user, card)
+}
+
 fn start_trick_code(
     st: &mut SgsState,
     user: usize,
     card: &str,
     override_code: Option<&str>,
 ) -> Result<(), EngineError> {
+    start_trick_code_ext(st, user, card, override_code, None)
+}
+
+fn start_trick_code_ext(
+    st: &mut SgsState,
+    user: usize,
+    card: &str,
+    override_code: Option<&str>,
+    explicit_targets: Option<Vec<usize>>,
+) -> Result<(), EngineError> {
     let code = override_code
         .map(str::to_string)
         .unwrap_or_else(|| card_code(st, card));
-    let mut targets = trick_targets(st, &code, user, card);
-    if code == "wuzhong_shengyou" || code == "shandian" {
+    let explicit = explicit_targets.is_some();
+    let mut targets = explicit_targets.unwrap_or_else(|| trick_targets(st, &code, user, card));
+    if !explicit && (code == "wuzhong_shengyou" || code == "shandian") {
         // 无中生有与闪电都只作用于自己（闪电置入自己判定区，下回合最先判定）。
         targets = vec![user];
         targets.retain(|i| !crate::skills::weimu_blocks(st, *i, card));
@@ -1454,6 +1501,7 @@ fn start_trick_code(
         crate::skills::shicai_trigger(st, user, "trick", card);
     }
     let fenwei_targets = targets.clone();
+    let is_shandian = code == "shandian";
     push(
         st,
         Frame::Trick(TrickFrame {
@@ -1470,6 +1518,17 @@ fn start_trick_code(
     );
     // 奋威（界甘宁，限定技）：多目标锦囊指定目标后，可令任意个目标无效。
     crate::resolve_jiexian::maybe_fenwei(st, &fenwei_targets);
+    // 界雷击（界张角）：使用【闪电】时先判定（后选目标）。
+    if is_shandian
+        && crate::skills::has(st, user, "leiji")
+        && crate::skills::is_jiexian(st, user)
+        && st.alive_indices().len() > 1
+    {
+        push(
+            st,
+            Frame::Leiji(crate::resolve_wind::LeijiFrame { actor: user }),
+        );
+    }
     if st.turn == user {
         st.bump_counter("play_cards_used");
     }
@@ -2831,8 +2890,51 @@ fn step_quick_judge(
                 }
                 "leiji" => {
                     let user = f.data["user"].as_u64().unwrap_or(f.owner as u64) as usize;
+                    let jie = f.data["jie"].as_bool().unwrap_or(false);
                     let target = f.data["target"].as_u64().unwrap_or(0) as usize;
-                    if suit == Some(Suit::Spade) {
+                    // 界雷击：判定后按结果选目标（黑桃 2 伤 / 梅花回复 1 + 可选 1 伤）。
+                    if jie {
+                        match suit {
+                            Some(Suit::Spade) => {
+                                st.push_log(
+                                    Some(&pid),
+                                    format!("雷击：判定【{label}】黑桃，可造成 2 点雷电伤害"),
+                                );
+                                push(
+                                    st,
+                                    Frame::LeijiJie(
+                                        crate::resolve_jiexian2::LeijiJieFrame {
+                                            owner: user,
+                                            damage: 2,
+                                        },
+                                    ),
+                                );
+                            }
+                            Some(Suit::Club) => {
+                                st.seats[user].hp = (st.seats[user].hp + 1).min(st.seats[user].max_hp);
+                                let hp = st.seats[user].hp;
+                                st.push_log(
+                                    Some(&pid),
+                                    format!(
+                                        "雷击：判定【{label}】梅花，回复 1 点体力（{hp}），可造成 1 点雷电伤害"
+                                    ),
+                                );
+                                push(
+                                    st,
+                                    Frame::LeijiJie(
+                                        crate::resolve_jiexian2::LeijiJieFrame {
+                                            owner: user,
+                                            damage: 1,
+                                        },
+                                    ),
+                                );
+                            }
+                            _ => st.push_log(
+                                Some(&pid),
+                                format!("雷击：判定【{label}】非黑桃/梅花，未生效"),
+                            ),
+                        }
+                    } else if suit == Some(Suit::Spade) {
                         st.push_log(
                             Some(&pid),
                             format!("雷击：判定【{label}】黑桃，造成 2 点雷电伤害"),
@@ -3217,6 +3319,20 @@ fn act_judge_rewrite(
         .as_deref()
         .map(|id| turn::card_label(st, id))
         .unwrap_or_default();
+    // 界鬼道：改为黑桃 2~9 时摸一张。
+    if crate::skills::has(st, seat, "guidao")
+        && crate::skills::is_jiexian(st, seat)
+        && st
+            .cards
+            .get(card_id)
+            .is_some_and(|c| c.suit == Suit::Spade && (2..=9).contains(&c.rank))
+    {
+        let mut ev = Vec::new();
+        let drawn = turn::draw_cards(st, seat, 1, &mut ev);
+        if drawn > 0 {
+            st.push_log(Some(&pending.actor), "鬼道：黑桃 2~9，摸 1 张");
+        }
+    }
     let skill_name = if crate::skills::has(st, seat, "guicai") {
         "鬼才"
     } else {
@@ -3352,6 +3468,13 @@ pub fn execute_pending(
             Some("wangxi") => crate::resolve_jiexian::act_wangxi(st, action)?,
             Some("chuli") => crate::resolve_jiexian::act_chuli(st, action)?,
             Some("liyu") => crate::resolve_jiexian::act_liyu(st, action)?,
+            Some("zhuhai") => crate::resolve_jiexian2::act_zhuhai(st, action)?,
+            Some("jianyan") => crate::resolve_jiexian2::act_jianyan(st, action)?,
+            Some("shizhan") => crate::resolve_jiexian2::act_shizhan(st, action)?,
+            Some("sishu") => crate::resolve_jiexian2::act_sishu(st, action)?,
+            Some("xueyi") => crate::resolve_jiexian2::act_xueyi(st, action)?,
+            Some("leiji_jie") => crate::resolve_jiexian2::act_leiji_jie(st, action)?,
+            Some("luanji_pick") => crate::resolve_jiexian2::act_luanji_pick(st, action)?,
             Some("jiangchi") => crate::resolve_yijiang2::act_jiangchi(st, action)?,
             Some("qice") => crate::resolve_yijiang2::act_qice(st, action)?,
             Some("qianxi") => crate::resolve_yijiang2::act_qianxi(st, action)?,
@@ -5208,6 +5331,39 @@ fn apply_damage_inner(
     }
     if source == Some(st.turn) {
         st.bump_counter("damage_dealt");
+    }
+    // 诛害（界徐庶）：记录该角色本回合造成过伤害（回合结束时检查）。
+    if let Some(src) = source {
+        st.set_counter(&format!("dealt:{src}"), 1);
+    }
+    // 耀武（界华雄，锁定）：受到伤害时，若造成伤害的牌为红色 → 伤害来源摸 1；否则你摸 1。
+    if amount > 0 && crate::skills::has(st, victim, "yaowu") {
+        let red = card
+            .and_then(|id| st.cards.get(id))
+            .is_some_and(|c| crate::skills::is_red(c.suit));
+        let who = if red {
+            source.filter(|s| *s != victim).unwrap_or(victim)
+        } else {
+            victim
+        };
+        let mut ev = Vec::new();
+        let drawn = turn::draw_cards(st, who, 1, &mut ev);
+        if drawn > 0 {
+            st.push_log(
+                Some(&st.seats[who].player_id.clone()),
+                if red {
+                    "耀武：伤害牌为红色，伤害来源摸 1 张"
+                } else {
+                    "耀武：伤害牌不为红色，你摸 1 张"
+                },
+            );
+        }
+    }
+    // 潜心（界徐庶，觉醒）：造成伤害后若已受伤 → 减 1 上限并获得「荐言」。
+    if amount > 0 {
+        if let Some(src) = source {
+            crate::resolve_jiexian2::qianxin_on_damage(st, src);
+        }
     }
     st.bump_counter("phase_damage");
     let pid = st.seats[victim].player_id.clone();

@@ -2,6 +2,7 @@
 
 use crate::resolve::{pop, push, replace_top, top, DamageType, Frame, Outcome};
 use crate::skills;
+use crate::skills::is_jiexian;
 use crate::state::*;
 use crate::turn;
 use crate::{illegal, internal};
@@ -824,26 +825,36 @@ pub(crate) fn step_huashen(st: &mut SgsState, f: HuashenFrame) -> Result<bool, E
         .iter()
         .find(|g| Some(*g) != active.as_ref())
         .cloned();
-    let Some(other) = other else {
+    let jie = is_jiexian(st, f.actor);
+    if other.is_none() && !jie {
         pop(st);
         return Ok(false);
-    };
+    }
+    let mut options: Vec<PendingOption> = Vec::new();
+    if let Some(other) = &other {
+        options.push(PendingOption {
+            id: "choose:huashen".into(),
+            label: format!(
+                "化身：替换为 {}",
+                crate::data::general(other)
+                    .map(|g| g.name)
+                    .unwrap_or(other)
+            ),
+        });
+    }
+    // 界化身：移去至多两张化身牌并获得等量新的化身牌。
+    if jie {
+        options.push(PendingOption {
+            id: "choose:exchange".into(),
+            label: "化身：移去至多两张化身牌，获得等量新的化身牌".into(),
+        });
+    }
+    options.push(pass_option("保持当前化身"));
     st.pending = Some(Pending {
         kind: "choice".into(),
         actor: st.seats[f.actor].player_id.clone(),
         skill: Some("huashen".into()),
-        options: vec![
-            PendingOption {
-                id: "choose:huashen".into(),
-                label: format!(
-                    "化身：替换为 {}",
-                    crate::data::general(&other)
-                        .map(|g| g.name)
-                        .unwrap_or(&other)
-                ),
-            },
-            pass_option("保持当前化身"),
-        ],
+        options,
         data: json!({ "skill": "huashen" }),
     });
     replace_top(st, Frame::Huashen(f));
@@ -855,9 +866,13 @@ pub(crate) fn act_huashen(st: &mut SgsState, action: &str) -> Result<String, Eng
         Some(Frame::Huashen(f)) => f,
         _ => return Err(internal("栈顶不是化身帧")),
     };
-    if action != "choose:huashen" {
+    if action != "choose:huashen" && action != "choose:exchange" {
         pop(st);
         return Ok("保持当前化身".to_string());
+    }
+    if action == "choose:exchange" {
+        pop(st);
+        return Ok(huashen_exchange(st, f.actor));
     }
     let active = st.seats[f.actor].huashen_active.clone();
     let other = st.seats[f.actor]
@@ -966,21 +981,70 @@ pub(crate) fn act_beige(st: &mut SgsState, action: &str) -> Result<String, Engin
     Ok("悲歌：判定中".to_string())
 }
 
+/// 界化身：移去至多两张（优先非展示的）化身牌，获得等量新的化身牌。
+fn huashen_exchange(st: &mut SgsState, actor: usize) -> String {
+    let active = st.seats[actor].huashen_active.clone();
+    let all = st.seats[actor].huashen.clone();
+    let mut removed = 0;
+    let mut keep = Vec::new();
+    for g in all {
+        if Some(&g) == active.as_ref() || removed >= 2 {
+            keep.push(g);
+        } else {
+            removed += 1;
+        }
+    }
+    if removed == 0 {
+        return "化身：没有可移去的化身牌".to_string();
+    }
+    st.seats[actor].huashen = keep;
+    let mut gained = Vec::new();
+    for _ in 0..removed {
+        let pool: Vec<String> = crate::data::general_codes_in_packs(&st.config.general_packs)
+            .into_iter()
+            .filter(|code| skills::general_ready(code))
+            .map(str::to_string)
+            .filter(|code| !st.seats[actor].huashen.contains(code))
+            .collect();
+        if pool.is_empty() {
+            break;
+        }
+        let idx = st.next_index(pool.len());
+        let code = pool[idx].clone();
+        st.seats[actor].huashen.push(code.clone());
+        gained.push(
+            crate::data::general(&code)
+                .map(|g| g.name.to_string())
+                .unwrap_or(code),
+        );
+    }
+    st.push_log(
+        Some(&st.seats[actor].player_id.clone()),
+        format!(
+            "化身：移去 {removed} 张化身牌，获得 {}",
+            gained.join("、")
+        ),
+    );
+    format!("化身：已换入 {}", gained.join("、"))
+}
+
 /// 初始化身（finish_setup 调用）：随机两张已实现武将牌，展示第一张并获得其一个技能。
 pub(crate) fn init_huashen(st: &mut SgsState, seat: usize) {
     if !skills::has(st, seat, "huashen") {
         return;
     }
+    // 界化身：开局获得三张化身牌。
+    let want = if is_jiexian(st, seat) { 3 } else { 2 };
     let pool: Vec<String> = crate::data::general_codes_in_packs(&st.config.general_packs)
         .into_iter()
         .filter(|code| skills::general_ready(code))
         .map(str::to_string)
         .collect();
-    if pool.len() < 2 {
+    if pool.len() < want {
         return;
     }
     let mut picked = Vec::new();
-    while picked.len() < 2 {
+    while picked.len() < want {
         let idx = (st.next_u64() as usize) % pool.len();
         let code = pool[idx].clone();
         if !picked.contains(&code) {
@@ -1053,7 +1117,7 @@ pub(crate) fn awaken_triggers(st: &mut SgsState) {
             "魂姿：觉醒，减少 1 点体力上限并获得「英姿」「英魂」",
         );
     }
-    // 若愚：主公且体力最小 → 增 1 上限、回复 1 并获得激将。
+    // 若愚：主公且体力最小 → 增 1 上限、回复并获得激将（界版回复至 3 并获得思蜀）。
     if skills::has(st, seat, "ruoyu")
         && skills::is_lord(st, seat)
         && !st.seats[seat].flags.contains_key("awaken_ruoyu")
@@ -1064,9 +1128,19 @@ pub(crate) fn awaken_triggers(st: &mut SgsState) {
     {
         st.seats[seat].flags.insert("awaken_ruoyu".into(), true);
         st.seats[seat].max_hp += 1;
-        st.seats[seat].hp = (st.seats[seat].hp + 1).min(st.seats[seat].max_hp);
-        skills::grant_skill(st, seat, "jijiang");
-        st.push_log(Some(&pid), "若愚：觉醒，增加 1 点体力上限并获得「激将」");
+        if is_jiexian(st, seat) {
+            st.seats[seat].hp = 3.min(st.seats[seat].max_hp);
+            skills::grant_skill(st, seat, "jijiang");
+            skills::grant_skill(st, seat, "sishu");
+            st.push_log(
+                Some(&pid),
+                "若愚：觉醒，增加 1 点体力上限，回复至 3 点体力并获得「激将」「思蜀」",
+            );
+        } else {
+            st.seats[seat].hp = (st.seats[seat].hp + 1).min(st.seats[seat].max_hp);
+            skills::grant_skill(st, seat, "jijiang");
+            st.push_log(Some(&pid), "若愚：觉醒，增加 1 点体力上限并获得「激将」");
+        }
     }
 }
 

@@ -578,6 +578,28 @@ pub struct LeijiFrame {
 }
 
 pub(crate) fn step_leiji(st: &mut SgsState, f: LeijiFrame) -> Result<bool, EngineError> {
+    // 界雷击：先判定，判定后按结果选择目标（黑桃 2 伤 / 梅花回复 1 + 可选 1 伤）。
+    if crate::skills::is_jiexian(st, f.actor) {
+        pop(st);
+        st.push_log(
+            Some(&st.seats[f.actor].player_id.clone()),
+            "雷击：判定中",
+        );
+        push(
+            st,
+            Frame::QuickJudge(crate::resolve::QuickJudgeFrame {
+                owner: f.actor,
+                reason: "leiji".into(),
+                stage: crate::resolve::QuickJudgeStage::Reveal,
+                judge_card: None,
+                rewrite_order: Vec::new(),
+                rewrite_cursor: 0,
+                data: json!({ "user": f.actor, "jie": true }),
+                saved_outcome: None,
+            }),
+        );
+        return Ok(false);
+    }
     let mut options: Vec<PendingOption> = Vec::new();
     for t in st.alive_indices() {
         if t == f.actor {
@@ -1361,21 +1383,62 @@ pub(crate) fn step_guhuo(st: &mut SgsState, f: GuhuoFrame) -> Result<bool, Engin
             let real = actual == declared;
             let pid = st.seats[f.user].player_id.clone();
             if let Some(q) = f.questioner {
+                let jie = crate::skills::is_jiexian(st, f.user);
                 if real {
                     st.seats[q].flags.insert("chanyuan".into(), true);
-                    st.push_log(
-                        Some(&pid),
-                        format!(
-                            "蛊惑：{} 质疑，展示【{}】为真，质疑者获得「缠怨」",
-                            st.seats[q].general_name,
-                            turn::card_label(st, &card)
-                        ),
-                    );
+                    if jie {
+                        st.seats[q].flags.insert("chanyuan_jie".into(), true);
+                        // 界蛊惑：质疑者弃置一张牌或失去 1 点体力（无牌时失体力）。
+                        if !st.seats[q].hand.is_empty() {
+                            let draw_card = st.seats[q].hand[0].clone();
+                            turn::take_card(st, q, &draw_card)?;
+                            turn::to_discard_card(st, &draw_card);
+                            st.push_log(
+                                Some(&pid),
+                                format!(
+                                    "蛊惑：{} 质疑，展示【{}】为真，其获得「缠怨」并弃置【{}】",
+                                    st.seats[q].general_name,
+                                    turn::card_label(st, &card),
+                                    turn::card_label(st, &draw_card)
+                                ),
+                            );
+                        } else {
+                            st.seats[q].hp -= 1;
+                            let hp = st.seats[q].hp;
+                            st.push_log(
+                                Some(&pid),
+                                format!(
+                                    "蛊惑：{} 质疑，展示【{}】为真，其获得「缠怨」并失去 1 点体力（{hp}）",
+                                    st.seats[q].general_name,
+                                    turn::card_label(st, &card)
+                                ),
+                            );
+                            if hp <= 0 {
+                                crate::resolve::push_dying(st, q, Some(f.user));
+                            }
+                        }
+                    } else {
+                        st.push_log(
+                            Some(&pid),
+                            format!(
+                                "蛊惑：{} 质疑，展示【{}】为真，质疑者获得「缠怨」",
+                                st.seats[q].general_name,
+                                turn::card_label(st, &card)
+                            ),
+                        );
+                    }
                 } else {
                     // 假：此牌作废（弃置），不产生效果；响应帧保留以便继续响应。
                     turn::take_card(st, f.user, &card)?;
                     turn::to_discard_card(st, &card);
                     pop(st);
+                    // 界蛊惑：牌为假时，质疑者摸一张牌。
+                    if jie {
+                        let drawn = crate::turn::draw_cards(st, q, 1, &mut Vec::new());
+                        if drawn > 0 {
+                            st.push_log(Some(&pid), "蛊惑：牌为假，质疑者摸 1 张");
+                        }
+                    }
                     st.push_log(
                         Some(&pid),
                         format!(

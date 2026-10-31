@@ -4,12 +4,21 @@
 
 ## 🔖 续接指针（下次会话说「继续」时从这里开工）
 
-- **入口**：`docs/games/sanguosha/development-plan.md` → **P4.4.2「一将成名剩余 48 位（新会话开工口径）」**（Y1 已完成；含 Y2–Y7 批次表）
-- **顺序**：① 一将成名剩余 48 位，按 Y2（179–186）→ Y3（187/188/321–326）→ Y4（327–334）→ Y5（335–342）→ Y6（380–387）→ Y7（388–395）逐批完成（界标 25 将已完成、授予技能已补齐）→ ② 界限突破其余 60 位 → ③ P4.4.3 验收
+- **入口**：`docs/games/sanguosha/development-plan.md` → **P4.4.2「界限突破剩余 52 位」**（J1 已完成，含 J2–J8 批次表）
+- **顺序**：① 界限突破其余 52 位，按 J2（452…）→ J3 → J4 → J5 → J6 → J7 → J8（4 将）逐批完成（一将成名 72/72、界标 25 将、J1 已完成）→ ② P4.4.3 验收
 - **开工命令**：`npm run sgs:batch-status`（看下一批名单/计数一致性）；流程与模板见 `docs/games/sanguosha/batch-playbook.md`
-- **批前必读**：`skills.md` §2.7/§2.7.2、`rules-rulings.md` §16/§21/§23、`docs/conventions/coding-standards.md`
-- **每批收尾**：`p67` 的「一将成名已实现数」+8；`skills.md` §2.7.x + `rules-rulings.md` 新节；`milestones.md` 新增 M 条目
+- **批前必读**：`skills.md` §2.8.5、`rules-rulings.md` §30、`docs/conventions/coding-standards.md`
+- **每批收尾**：`p67` 池断言（如涉及界版池）；`skills.md` §2.8.x + `rules-rulings.md` 新节；`milestones.md` 新增 M 条目
 - **门禁**：`npm run sgs:check`（每批收尾）、`npm run sgs:check:full`（含 MCP 冒烟）、`npm run sgs:check:fast`（改码自检）
+
+## M48：三国杀 P4.4.2 批次 J1（界限突破 26/304/446–451：8 将 / 16 技能 + 2 授予技）✅
+
+- **日期**：2026-10-31
+- **完成**：界黄忠（烈弓）、界徐庶（诛害/潜心 + ☆荐言）、界华雄（耀武/势斩）、界左慈（化身/新生）、界张角（雷击/鬼道/黄天）、界于吉（蛊惑 + 界缠怨）、界袁绍（乱击/血裔）、界刘禅（享乐/放权/若愚 + ☆思蜀）
+- **机制**：`resolve_jiexian2.rs`（`Frame::ZhuHai/JianYan/ShiZhan/SiShu/XueYi/LeijiJie/LuanJiPick`）；界烈弓点数距离 + 双效果；`dealt:<seat>` 回合内伤害记录；界化身 3 张 + 换牌 + 势力/性别覆盖；界雷击判定后选目标（含使用【闪电】触发）；`mark_counts["yi"]`（裔）；`sishu_reverse` 判定反转；`start_virtual_trick_targets`（指定目标集合）
+- **用例**：`tests/p96.rs` 26 条；`cargo test -p sanguosha` **711** 全绿；`p67` 池断言 27 → 35
+- **已知边界**：见 `rules-rulings.md` §30（诛害按项目数据视为使用【杀】；荐言限一次；界蛊惑「弃牌或失体力」自动口径；界化身换牌固定移去非展示牌；界乱击最多少选 1 个目标）
+- **详见**：`memory_palace/plan/01a192cd-9c3e-7668-91f6-e77ceff1a5f9.md`
 
 ## M47：三国杀 harness 三期（界限突破批次表 / 双包脚手架 / 用例稳定性指南）✅
 

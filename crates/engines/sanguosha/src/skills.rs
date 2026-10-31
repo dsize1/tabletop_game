@@ -1442,6 +1442,115 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
             implemented: true,
         },
     ];
+    // ---- P4.4.2 界限突破（批次 J1：8 将 / 16 技能）----
+    const JIE_HUANGZHONG: &[SkillDef] = &[SkillDef {
+        code: "liegong",
+        name: "烈弓",
+        kind: SkillType::Normal,
+        implemented: true,
+    }];
+    const JIE_XUSHU: &[SkillDef] = &[
+        SkillDef {
+            code: "zhuhai",
+            name: "诛害",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "qianxin",
+            name: "潜心",
+            kind: SkillType::Awaken,
+            implemented: true,
+        },
+    ];
+    const JIE_HUAXIONG: &[SkillDef] = &[
+        SkillDef {
+            code: "yaowu",
+            name: "耀武",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "shizhan",
+            name: "势斩",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_ZUOCI: &[SkillDef] = &[
+        SkillDef {
+            code: "huashen",
+            name: "化身",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "xinsheng",
+            name: "新生",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_ZHANGJIAO: &[SkillDef] = &[
+        SkillDef {
+            code: "leiji",
+            name: "雷击",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "guidao",
+            name: "鬼道",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "huangtian",
+            name: "黄天",
+            kind: SkillType::Lord,
+            implemented: true,
+        },
+    ];
+    const JIE_YUJI: &[SkillDef] = &[SkillDef {
+        code: "guhuo",
+        name: "蛊惑",
+        kind: SkillType::Normal,
+        implemented: true,
+    }];
+    const JIE_YUANSHAO: &[SkillDef] = &[
+        SkillDef {
+            code: "luanji",
+            name: "乱击",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "xueyi",
+            name: "血裔",
+            kind: SkillType::Lord,
+            implemented: true,
+        },
+    ];
+    const JIE_LIUSHAN: &[SkillDef] = &[
+        SkillDef {
+            code: "xiangle",
+            name: "享乐",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "fangquan",
+            name: "放权",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "ruoyu",
+            name: "若愚",
+            kind: SkillType::Lord,
+            implemented: true,
+        },
+    ];
     // ---- P4.4.2 一将成名（批次 2：8 将 / 16 技能）----
     const ZHANGCHUNHUA: &[SkillDef] = &[
         SkillDef {
@@ -2423,6 +2532,14 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
         "sgs_hero_319" => JIE_LUBU,
         "sgs_hero_320" => JIE_GONGSUNZAN,
         "sgs_hero_445" => JIE_DIAOCHAN,
+        "sgs_hero_26" => JIE_HUANGZHONG,
+        "sgs_hero_304" => JIE_XUSHU,
+        "sgs_hero_446" => JIE_HUAXIONG,
+        "sgs_hero_447" => JIE_ZUOCI,
+        "sgs_hero_448" => JIE_ZHANGJIAO,
+        "sgs_hero_449" => JIE_YUJI,
+        "sgs_hero_450" => JIE_YUANSHAO,
+        "sgs_hero_451" => JIE_LIUSHAN,
         _ => &[],
     }
 }
@@ -2641,11 +2758,24 @@ pub fn is_jiexian(st: &SgsState, seat: usize) -> bool {
         .is_some_and(|g| g.pack == "jiexian")
 }
 
+/// 界化身：展示的化身牌（势力/性别视为与之相同）；仅界左慈生效。
+fn huashen_variant(st: &SgsState, seat: usize) -> Option<&'static data::GeneralDef> {
+    let s = st.seats.get(seat)?;
+    if !is_jiexian(st, seat) || !has(st, seat, "huashen") {
+        return None;
+    }
+    s.huashen_active.as_deref().and_then(data::general)
+}
+
 /// 是否拥有某技能（只有已实现的技能会触发）。
 pub fn has(st: &SgsState, seat: usize, code: &str) -> bool {
     let Some(seat_state) = st.seats.get(seat) else {
         return false;
     };
+    // 界缠怨（界于吉授予）：体力值为 1 时，你的所有其他技能失效。
+    if seat_state.hp == 1 && seat_state.flags.contains_key("chanyuan_jie") {
+        return false;
+    }
     // 断肠：杀死蔡文姬的角色失去所有技能。
     if seat_state.flags.contains_key("skills_lost") {
         return false;
@@ -3065,6 +3195,20 @@ pub static EXTRA_SKILLS: &[SkillDef] = &[
         kind: SkillType::Normal,
         implemented: true,
     },
+    // 界徐庶·潜心（觉醒获得）：出牌阶段限一次，声明一种类别或颜色，亮出牌堆中一张牌交给男性角色。
+    SkillDef {
+        code: "jianyan",
+        name: "荐言",
+        kind: SkillType::Normal,
+        implemented: true,
+    },
+    // 界刘禅·若愚（觉醒获得）：出牌阶段开始时，令一名角色本局【乐不思蜀】的判定效果反转。
+    SkillDef {
+        code: "sishu",
+        name: "思蜀",
+        kind: SkillType::Normal,
+        implemented: true,
+    },
 ];
 
 /// 按 code 查技能定义（武将原始技能 + 额外技能）。
@@ -3413,6 +3557,10 @@ pub fn kongcheng_blocks(st: &SgsState, seat: usize) -> bool {
 
 /// 是否男性（用于离间等）。
 pub fn is_male(st: &SgsState, seat: usize) -> bool {
+    // 界化身：性别视为与展示的化身牌相同。
+    if let Some(g) = huashen_variant(st, seat) {
+        return g.gender == "male";
+    }
     st.seats
         .get(seat)
         .and_then(|s| s.general.as_deref())
@@ -3440,6 +3588,10 @@ pub fn kingdom_of(st: &SgsState, seat: usize) -> &'static str {
 }
 
 fn kingdom(st: &SgsState, seat: usize) -> &'static str {
+    // 界化身：势力视为与展示的化身牌相同。
+    if let Some(g) = huashen_variant(st, seat) {
+        return g.kingdom;
+    }
     st.seats
         .get(seat)
         .and_then(|s| s.general.as_deref())
@@ -3615,14 +3767,18 @@ pub fn hand_limit(st: &SgsState, seat: usize) -> usize {
             .count();
         limit += sha_count;
     }
-    // 血裔（主公技，锁定）：其他群势力角色数 ×2 手牌上限。
+    // 血裔（主公技）：标准锁定（其他群势力角色数 ×2）；界版按「裔」标记数。
     if has(st, seat, "xueyi") && is_lord(st, seat) {
-        let allies = st
-            .alive_indices()
-            .into_iter()
-            .filter(|i| *i != seat && kingdom(st, *i) == "qun")
-            .count();
-        limit += allies * 2;
+        if is_jiexian(st, seat) {
+            limit += xueyi_marks(st, seat) as usize;
+        } else {
+            let allies = st
+                .alive_indices()
+                .into_iter()
+                .filter(|i| *i != seat && kingdom(st, *i) == "qun")
+                .count();
+            limit += allies * 2;
+        }
     }
     // 宗室（刘表，锁定）：全场每有一个势力，手牌上限 +1。
     if has(st, seat, "zongshi") {
@@ -3766,10 +3922,77 @@ pub fn liegong_blocks(st: &SgsState, attacker: usize, victim: usize) -> bool {
     if !has(st, attacker, "liegong") {
         return false;
     }
+    // 界烈弓②-1：你的手牌数不小于其 → 其不能使用【闪】响应此【杀】。
+    if is_jiexian(st, attacker) {
+        return st.seats[attacker].hand.len() >= st.seats[victim].hand.len();
+    }
     let hand = st.seats[victim].hand.len() as i32;
     let hp = st.seats[attacker].hp.max(0);
     let range = st.attack_range(attacker);
     hand >= hp || hand <= range
+}
+
+/// 界烈弓②-2：你的体力值不大于其 → 此【杀】对其伤害 +1。
+pub fn liegong_damage_bonus(st: &SgsState, attacker: usize, victim: usize) -> i32 {
+    if is_jiexian(st, attacker)
+        && has(st, attacker, "liegong")
+        && st.seats[attacker].hp <= st.seats[victim].hp
+    {
+        1
+    } else {
+        0
+    }
+}
+
+/// 界烈弓①：若你计算与其的距离不超过此【杀】点数，则使用此【杀】无距离限制。
+pub fn liegong_range_ok(st: &SgsState, attacker: usize, card: &str, target: usize) -> bool {
+    if !is_jiexian(st, attacker) || !has(st, attacker, "liegong") || card.is_empty() {
+        return false;
+    }
+    let Some(rank) = st.cards.get(card).map(|c| i32::from(c.rank)) else {
+        return false;
+    };
+    crate::turn::effective_distance(st, attacker, target) <= rank
+}
+
+/// 界血裔：「裔」标记数（每枚手牌上限 +1）。
+pub fn xueyi_marks(st: &SgsState, seat: usize) -> u32 {
+    st.seats
+        .get(seat)
+        .and_then(|s| s.mark_counts.get("yi"))
+        .copied()
+        .unwrap_or(0)
+}
+
+/// 界血裔：获得 n 枚「裔」。
+pub fn add_xueyi_marks(st: &mut SgsState, seat: usize, n: u32) {
+    if let Some(s) = st.seats.get_mut(seat) {
+        *s.mark_counts.entry("yi".into()).or_insert(0) += n;
+    }
+}
+
+/// 界血裔：移去 1 枚「裔」（无标记返回 false）。
+pub fn remove_xueyi_mark(st: &mut SgsState, seat: usize) -> bool {
+    let Some(s) = st.seats.get_mut(seat) else {
+        return false;
+    };
+    let cur = s.mark_counts.get("yi").copied().unwrap_or(0);
+    if cur == 0 {
+        return false;
+    }
+    if cur == 1 {
+        s.mark_counts.remove("yi");
+    } else {
+        s.mark_counts.insert("yi".into(), cur - 1);
+    }
+    true
+}
+
+/// 思蜀（界刘禅）：该角色本局【乐不思蜀】判定效果反转。
+pub fn sishu_reversed(st: &SgsState, seat: usize) -> bool {
+    st.seats
+        .get(seat)
+        .is_some_and(|s| s.flags.contains_key("sishu_reverse"))
 }
 
 /// 天香：受到伤害时是否有可用红桃手牌。
@@ -3878,6 +4101,10 @@ pub fn tuotian_on_lose(st: &mut SgsState, seat: usize) {
 
 /// 女性角色（离间/雌雄/肉林等）。
 pub fn is_female(st: &SgsState, seat: usize) -> bool {
+    // 界化身：性别视为与展示的化身牌相同。
+    if let Some(g) = huashen_variant(st, seat) {
+        return g.gender == "female";
+    }
     st.seats
         .get(seat)
         .and_then(|s| s.general.as_deref())

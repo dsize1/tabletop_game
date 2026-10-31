@@ -2127,6 +2127,9 @@ pub(crate) fn target_action(
         Some(Frame::Fanjian(_)) => fanjian_target(st, pending, action).map(Some),
         Some(Frame::Liuli(_)) => liuli_target(st, pending, action).map(Some),
         Some(Frame::Leiji(_)) => crate::resolve_wind::leiji_target(st, pending, action).map(Some),
+        Some(Frame::ShiZhan(_)) => {
+            crate::resolve_jiexian2::act_shizhan(st, action).map(Some)
+        }
         Some(Frame::Tianxiang(_)) => {
             crate::resolve_wind::tianxiang_target(st, pending, action).map(Some)
         }
