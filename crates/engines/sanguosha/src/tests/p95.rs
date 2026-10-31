@@ -5,25 +5,6 @@ use super::support::*;
 use super::{clear_hands, edit, manager, state_of, take_card};
 use crate::state::*;
 
-fn stage_play(st: &mut SgsState, seat: usize) {
-    st.turn = seat;
-    st.turn_phase = TurnPhase::Play;
-    st.turn_counters.clear();
-}
-
-fn give_def(st: &mut SgsState, seat: usize, def: &str) -> String {
-    super::support::give_def(st, seat, def)
-}
-
-fn equip_slot_card(st: &mut SgsState, seat: usize, slot: EquipSlot) -> String {
-    let card = give_card(st, seat, |c| {
-        crate::data::card_def(&c.def).is_some_and(|d| d.equip_slot == Some(slot))
-    });
-    take_card(st, &card);
-    st.seats[seat].equips.insert(slot, Some(card.clone()));
-    card
-}
-
 // ---------------------------------------------------------------------------
 // 辛宪英 · 忠鉴 / 才识
 // ---------------------------------------------------------------------------
@@ -833,7 +814,7 @@ fn bizhuan_adds_shu_when_targeted_by_spade() {
             .expect("target");
         set_general(st, owner, "sgs_hero_395");
         owner_pid = st.seats[owner].player_id.clone();
-        give_card(st, user, |c| c.suit == Suit::Spade && c.def == "sha");
+        give_def_suit(st, user, "sha", Suit::Spade);
         give_def(st, owner, "shan");
     });
     let st = state_of(&mgr, &room);

@@ -28,6 +28,9 @@ const DOC_KIND_ALIASES = {
   限定: ["limited"],
   觉醒: ["awaken"],
   转换: ["normal"],
+  // 主公技同时是限定技时（如曹叡·兴衰），允许合并标注。
+  "主公/限定": ["lord"],
+  "限定/主公": ["lord"],
   "主公/觉醒": ["lord", "awaken"],
 };
 

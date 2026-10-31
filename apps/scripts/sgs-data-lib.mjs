@@ -73,19 +73,24 @@ export function loadGenerals() {
   return out;
 }
 
-/** development-plan.md：批次表行（`| Y3 | 187 王异、... |`）。 */
+/** development-plan.md：批次表行（`| Y3 | 187 王异、... |` 或 `| J1 | 26 界黄忠、... |`）。 */
 export function loadBatches() {
   const text = readFile(PATHS.planMd);
   const batches = [];
   for (const line of text.split(/\r?\n/)) {
-    const m = /^\|\s*(Y\d+)(\s*✅)?\s*\|\s*(.+?)\s*\|\s*$/.exec(line);
+    const m = /^\|\s*([YJ]\d+)(\s*✅)?\s*\|\s*(.+?)\s*\|\s*$/.exec(line);
     if (!m) continue;
     const entries = [];
-    for (const e of m[3].matchAll(/(\d{3})\s+([^、|（(]+)/g)) {
+    for (const e of m[3].matchAll(/(\d{1,3})\s+([^、|（(]+)/g)) {
       entries.push({ gid: Number(e[1]), name: e[2].trim() });
     }
     if (entries.length === 0) continue;
-    batches.push({ batch: m[1], done: Boolean(m[2]), entries });
+    batches.push({
+      batch: m[1],
+      pack: m[1].startsWith("J") ? "jiexian" : "yijiang",
+      done: Boolean(m[2]),
+      entries,
+    });
   }
   return batches;
 }
@@ -97,7 +102,7 @@ export function loadP67Count() {
   return m ? Number(m[1]) : null;
 }
 
-/** 批次完成度报告 + 下一批。 */
+/** 批次完成度报告 + 每组下一批（`Y` = 一将成名 / `J` = 界限突破）。 */
 export function batchReport() {
   const ready = loadReadyGenerals();
   const batches = loadBatches();
@@ -106,9 +111,12 @@ export function batchReport() {
     const missing = b.entries.filter((e) => !ready.has(e.gid));
     return { ...b, doneCount: done.length, total: b.entries.length, missing };
   });
+  const nextOf = (prefix) =>
+    report.find((b) => b.batch.startsWith(prefix) && b.doneCount < b.total) ?? null;
   return {
     ready,
     report,
-    next: report.find((b) => b.doneCount < b.total) ?? null,
+    next: nextOf("Y"),
+    nextJiexian: nextOf("J"),
   };
 }

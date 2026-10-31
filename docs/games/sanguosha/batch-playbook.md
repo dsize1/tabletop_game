@@ -15,6 +15,10 @@
 
 数据已在 `data.rs` 全量生成（一将成名 72 位 / 界限突破 87 位），**不需要重跑生成脚本**；未实现的武将 `general_ready=false` 自动不进池。
 
+> **批次类型**：一将成名（`Y*`，已 72/72 完成）与界限突破（`J*`，剩余 60 位）共用本流程。
+> 界限突破批次额外注意：同名技能**复用 code**（ADR-0024），公共逻辑用 `skills::is_jiexian(st, seat)` 分支；不要改动标准版行为（回归 `tests/p46`–`p55`）。
+> 取下一批：`npm run sgs:batch-scaffold -- --pack jiexian`。
+
 ## 2. 一批 8 将的标准流程
 
 1. **开工脚手架**：`npm run sgs:batch-scaffold`（自动取下一批；也可 `--batch Y4` / `--gids 187,188 --module resolve_yijiang5 --tests p91`）→ 打印武将元数据、`skills.rs` 常量/match 模板、`skills.md` 表行、用例/文档/门禁清单；技能描述再查 `data/heroes.json`。
@@ -158,7 +162,7 @@ fn demo_triggers_and_applies() {
 | `npm run sgs:check` | 上面 + `test:web` + `test:sgs-web` | **每批收尾必跑** |
 | `npm run sgs:check:full` | 上面 + MCP 冒烟 `verify:sanguosha` | 批次合并/里程碑收尾 |
 | `npm run sgs:batch-status` | 各包进度、批次表完成度、p67 计数一致性、下一批名单 | 开工前/提交前 |
-| `npm run sgs:batch-scaffold` | 下一批开工脚手架（武将元数据 + 代码/文档模板 + 收尾清单） | 批次开工第一步 |
+| `npm run sgs:batch-scaffold` | 下一批开工脚手架（`--pack jiexian` 取界限突破） | 批次开工第一步 |
 
 单项命令仍可单独跑：`check:sgs-skill-cases`、`check:sgs-skill-docs`、`check:sgs-engine-data`、`check:sgs-pack-pool`、`check:sgs-view-contract`、`check:interaction-primitives`、`test:sgs-web`、`verify:sanguosha`。
 
@@ -173,6 +177,11 @@ fn demo_triggers_and_applies() {
 - **p67 计数**：+8 是硬编码断言，`sgs:batch-status --check` 会抓不一致。
 - **用例的「覆盖统计」是文本匹配**：`check:sgs-skill-cases` 按「测试体内是否出现 `sgs_hero_<gid>` 或 `"<code>"`」计数，且用例体在下一个**顶层 `fn`** 处截断（2026-10-31 修复）。因此：①批次私有助手放在文件顶部（或在 `support.rs`），不要夹在用例之间；②用例里要显式出现武将 code 或技能 code（如 `assert!(skills::has(&st, seat, "danshou"))`），否则把 `set_general` 全放进助手会导致该将覆盖为 0。
 - **`cargo fmt`**：只对自己新增/修改的文件跑 `rustfmt`（仓库既有文件存在未格式化片段，整包 fmt 会产生无关 diff）。
+- **用例要抗随机**：牌堆/座次/候选武将都是随机的，不要断言绝对张数或固定座位。常见做法：
+  1. 断言历史文本（`st.history.iter().any(|e| e.text.contains("..."))`）；
+  2. 断言「相对变化」（`>= before`、`len() > before`）而非精确值；
+  3. 需要特定花色/牌名时用 `support::give_def_suit` / `give_rank` / `equip_slot_card`；
+  4. 需要指定座位时用 `seats_from_left_of` 或 `find(|i| st.in_attack_range(...))`，不要假定 `other_seats(...)[0]` 一定在攻击范围内。
 
 ## 6. 批次完成定义（DoD）
 

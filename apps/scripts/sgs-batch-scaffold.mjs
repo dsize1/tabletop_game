@@ -22,7 +22,8 @@ function opt(name, fallback = null) {
 }
 
 const generals = loadGenerals();
-const { report, next } = batchReport();
+const { report, next, nextJiexian } = batchReport();
+const pack = opt("pack", "yijiang");
 
 let batch = opt("batch");
 let gids = opt("gids");
@@ -34,12 +35,13 @@ if (gids) {
     .filter((n) => Number.isInteger(n))
     .map((gid) => ({ gid, name: generals.get(gid)?.name ?? "?" }));
 } else {
-  const row = batch ? report.find((b) => b.batch === batch) : next;
+  const fallback = pack === "jiexian" ? nextJiexian : next;
+  const row = batch ? report.find((b) => b.batch === batch) : fallback;
   if (!row) {
     console.error(
       batch
         ? `[scaffold] 批次表里找不到 ${batch}`
-        : "[scaffold] 一将成名批次已全部完成，用 --batch/--gids 指定其他包",
+        : `[scaffold] ${pack} 批次已全部完成，用 --batch/--gids 指定`,
     );
     process.exit(1);
   }
@@ -57,6 +59,12 @@ const totalSkills = entries.reduce(
 console.log(
   `# 批次 ${batch ?? ""} 开工脚手架（${entries.length} 将 / ${totalSkills} 技能）`,
 );
+if ((batch ?? "").startsWith("J")) {
+  console.log("");
+  console.log(
+    "> 界限突破注意：与标准/一将成名同名技能**复用 code**，公共逻辑用 `skills::is_jiexian(st, seat)` 分支；不要改动原版行为。",
+  );
+}
 console.log("");
 console.log("## 1. 武将数据（data.rs）");
 for (const e of entries) {

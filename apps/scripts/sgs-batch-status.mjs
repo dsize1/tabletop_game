@@ -22,7 +22,7 @@ const args = new Set(process.argv.slice(2));
 const check = args.has("--check");
 const jsonOut = args.has("--json");
 
-const { ready, report: batchReportRows } = batchReport();
+const { ready, report: batchReportRows, nextJiexian } = batchReport();
 const generals = loadGenerals();
 const p67 = loadP67Count();
 
@@ -37,12 +37,15 @@ for (const g of generals.values()) {
 
 const batchReportOut = batchReportRows.map((b) => ({
   batch: b.batch,
+  pack: b.pack,
   total: b.total,
   done: b.doneCount,
   missing: b.missing,
   markedDone: b.done,
 }));
-const nextBatch = batchReportOut.find((b) => b.done < b.total) ?? null;
+const nextBatch = batchReportOut.find((b) => b.pack === "yijiang" && b.done < b.total) ?? null;
+const nextJ =
+  batchReportOut.find((b) => b.pack === "jiexian" && b.done < b.total) ?? null;
 
 const yijiang = byPack.get("yijiang") ?? { ready: 0, total: 0, remaining: [] };
 const problems = [];
@@ -70,6 +73,7 @@ if (jsonOut) {
         packs: Object.fromEntries(byPack),
         batches: batchReportOut,
         nextBatch,
+        nextJiexian: nextJ,
         p67,
         yijiangReady: yijiang.ready,
         problems,
@@ -87,7 +91,17 @@ if (jsonOut) {
     );
   }
   console.log("[sgs] 一将成名批次：");
-  for (const b of batchReportOut) {
+  for (const b of batchReportOut.filter((x) => x.pack === "yijiang")) {
+    const mark = b.markedDone ? "✅" : b.done === b.total ? "✅(未标记)" : "  ";
+    console.log(
+      `  ${b.batch} ${mark} ${b.done}/${b.total}` +
+        (b.missing.length
+          ? `  缺失：${b.missing.map((m) => `${m.gid} ${m.name}`).join("、")}`
+          : ""),
+    );
+  }
+  console.log("[sgs] 界限突破批次：");
+  for (const b of batchReportOut.filter((x) => x.pack === "jiexian")) {
     const mark = b.markedDone ? "✅" : b.done === b.total ? "✅(未标记)" : "  ";
     console.log(
       `  ${b.batch} ${mark} ${b.done}/${b.total}` +
@@ -101,11 +115,19 @@ if (jsonOut) {
   );
   if (nextBatch) {
     console.log(
-      `[sgs] 下一批：${nextBatch.batch}（${nextBatch.done}/${nextBatch.total}）→ ` +
+      `[sgs] 下一批（一将成名）：${nextBatch.batch}（${nextBatch.done}/${nextBatch.total}）→ ` +
         nextBatch.missing.map((m) => `${m.gid} ${m.name}`).join("、"),
     );
   } else {
     console.log("[sgs] 一将成名批次表已全部完成 🎉");
+  }
+  if (nextJ) {
+    console.log(
+      `[sgs] 下一批（界限突破）：${nextJ.batch}（${nextJ.done}/${nextJ.total}）→ ` +
+        nextJ.missing.map((m) => `${m.gid} ${m.name}`).join("、"),
+    );
+  } else {
+    console.log("[sgs] 界限突破批次表已全部完成 🎉");
   }
   if (problems.length) {
     console.log("[sgs] ⚠️ 一致性问题：");

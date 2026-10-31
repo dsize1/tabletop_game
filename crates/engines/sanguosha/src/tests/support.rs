@@ -53,6 +53,28 @@ pub(super) fn give_card(
     found
 }
 
+/// 把座位推进到出牌阶段并清空回合计数。
+pub(super) fn stage_play(st: &mut SgsState, seat: usize) {
+    st.turn = seat;
+    st.turn_phase = TurnPhase::Play;
+    st.turn_counters.clear();
+}
+
+/// 按定义码与花色发牌（如黑桃【杀】、红桃【桃】）。
+pub(super) fn give_def_suit(st: &mut SgsState, seat: usize, def: &str, suit: Suit) -> String {
+    give_card(st, seat, |c| c.def == def && c.suit == suit)
+}
+
+/// 发一张指定槽位的装备牌并直接置入装备区。
+pub(super) fn equip_slot_card(st: &mut SgsState, seat: usize, slot: EquipSlot) -> String {
+    let card = give_card(st, seat, |c| {
+        crate::data::card_def(&c.def).is_some_and(|d| d.equip_slot == Some(slot))
+    });
+    take_card(st, &card);
+    st.seats[seat].equips.insert(slot, Some(card.clone()));
+    card
+}
+
 /// 按定义码发牌（如 `sha` / `wuzhong_shengyou`）。
 pub(super) fn give_def(st: &mut SgsState, seat: usize, def: &str) -> String {
     give_card(st, seat, |c| c.def == def)

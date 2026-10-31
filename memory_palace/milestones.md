@@ -11,6 +11,18 @@
 - **每批收尾**：`p67` 的「一将成名已实现数」+8；`skills.md` §2.7.x + `rules-rulings.md` 新节；`milestones.md` 新增 M 条目
 - **门禁**：`npm run sgs:check`（每批收尾）、`npm run sgs:check:full`（含 MCP 冒烟）、`npm run sgs:check:fast`（改码自检）
 
+## M47：三国杀 harness 三期（界限突破批次表 / 双包脚手架 / 用例稳定性指南）✅
+
+- **日期**：2026-10-31
+- **完成**：
+  - `development-plan.md` 新增**界限突破剩余 60 位 J1–J8 批次表**（J8 为 4 将）。
+  - `sgs-data-lib.mjs` 批次解析支持 `Y*`/`J*`；`sgs-batch-status` 同时输出两包批次进度与「下一批（界限突破）」；`sgs-batch-scaffold --pack jiexian` 取 J 批并提示「同名技能复用 code + `is_jiexian` 分支」。
+  - `tests/support.rs` 新增 `stage_play` / `give_def_suit` / `equip_slot_card`（p95 已复用，删除本地重复）。
+  - `check-sgs-skill-docs.mjs` 允许「主公/限定」合并标注（曹叡·兴衰）。
+  - `batch-playbook.md` 增加界限突破批次说明与**「用例要抗随机」**（历史文本/相对变化/指定花色/座位不假定）四条准则。
+- **验证**：`npm run sgs:check` 10/10；`cargo test -p sanguosha` 685；`sgs:batch-status` 显示 Y1–Y7 全 ✅、J1–J8 待开工（下一批 J1 26 界黄忠…451 界刘禅）。
+- **详见**：`memory_palace/plan/01a19274-1de6-7668-91f6-e77bbdcc2f44.md`
+
 ## M46：三国杀 P4.4.2 批次 Y7（一将成名 388–395：8 将 / 17 技能，一将成名 72/72 收尾）✅
 
 - **日期**：2026-10-31
