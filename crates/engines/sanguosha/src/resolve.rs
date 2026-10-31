@@ -143,6 +143,11 @@ pub enum Frame {
     GanLu(crate::resolve_yijiang::GanLuFrame),
     PoJun(crate::resolve_yijiang::PoJunFrame),
     ZhenJun(crate::resolve_yijiang::ZhenJunFrame),
+    /// P4.4.2 界标·蜀帧（批次 2）。
+    YiJue(crate::resolve_jiexian::YiJueFrame),
+    RendeBasic(crate::resolve_jiexian::RendeBasicFrame),
+    YaJiao(crate::resolve_jiexian::YaJiaoFrame),
+    TieQi(crate::resolve_jiexian::TieQiFrame),
     /// 五谷丰登（P2.5 特殊区 `wugu`）。
     Wugu(crate::resolve_zone::WuguFrame),
     /// 观星排序提交（P2.5 特殊区 `guanxing`，`arrange:<csv>`）。
@@ -752,6 +757,10 @@ fn step(
         Frame::GanLu(f) => crate::resolve_yijiang::step_ganlu(st, f),
         Frame::PoJun(f) => crate::resolve_yijiang::step_pojun(st, f),
         Frame::ZhenJun(f) => crate::resolve_yijiang::step_zhenjun(st, f),
+        Frame::YiJue(f) => crate::resolve_jiexian::step_yijue(st, f),
+        Frame::RendeBasic(f) => crate::resolve_jiexian::step_rende_basic(st, f),
+        Frame::YaJiao(f) => crate::resolve_jiexian::step_yajiao(st, f),
+        Frame::TieQi(f) => crate::resolve_jiexian::step_tieqi(st, f),
         Frame::Wugu(f) => crate::resolve_zone::step_wugu(st, f, events),
         Frame::Arrange(f) => crate::resolve_zone::step_arrange(st, f, events),
     }
@@ -1021,6 +1030,16 @@ pub fn start_sha_with(
     damage_type: DamageType,
 ) -> Result<(), EngineError> {
     start_sha_flags(st, user, card, fangtian, damage_type, false, false)
+}
+
+/// 把当前结算栈上最近的【杀】标记为无距离（界武圣·方片杀）。
+pub(crate) fn mark_sha_no_distance(st: &mut SgsState) {
+    for f in st.resolution.iter_mut().rev() {
+        if let Frame::Sha(s) = f {
+            s.no_distance = true;
+            return;
+        }
+    }
 }
 
 /// 带「无距离/天义多目标」标记的【杀】。
@@ -1745,9 +1764,21 @@ fn step_trick(
 
 // --- 拿牌选择 -------------------------------------------------------------
 
+/// 该拿牌模式是否属于「弃置」（界奇才只防止弃置，不防止获得）。
+fn pick_mode_discards(mode: PickMode) -> bool {
+    matches!(
+        mode,
+        PickMode::Guohe | PickMode::Tiaoxin | PickMode::Qizhi | PickMode::Chezheng
+    )
+}
+
 fn step_pick(st: &mut SgsState, f: PickCardFrame) -> Result<bool, EngineError> {
     let mut options: Vec<PendingOption> = Vec::new();
+    let discarding = pick_mode_discards(f.mode);
     for slot in EquipSlot::ALL {
+        if discarding && crate::skills::qicai_blocks_discard(st, f.target, f.user, slot) {
+            continue;
+        }
         if let Some(Some(id)) = st.seats[f.target].equips.get(&slot) {
             options.push(PendingOption {
                 id: format!("pick:equip:{}", slot_code(slot)),
@@ -2050,8 +2081,8 @@ fn step_dying(
     // 完杀：贾诩回合内，仅濒死者本人可使用【桃】。
     if crate::skills::wansha_blocks(st, seat, f.victim) {
         options = vec![pending_pass()];
-    } else if crate::skills::chanyuan_locked(st, seat) {
-        // 缠怨：体力值为 1 时不能使用或打出手牌。
+    } else if crate::skills::chanyuan_locked(st, seat) || crate::skills::hand_sealed(st, seat) {
+        // 缠怨/义绝：不能使用或打出手牌。
         options = vec![pending_pass()];
     } else {
         options.push(pending_pass());
@@ -2287,15 +2318,29 @@ fn step_quick_judge(
                     let card = f.data["card"].as_str().unwrap_or_default().to_string();
                     let need = f.data["need"].as_u64().unwrap_or(1) as u32;
                     let ignore_armor = f.data["ignore_armor"].as_bool().unwrap_or(false);
-                    crate::resolve_skill::push_sha_respond(
-                        st,
-                        user,
-                        target,
-                        &card,
-                        need,
-                        red,
-                        ignore_armor,
-                    );
+                    if crate::skills::is_jiexian(st, user) {
+                        // 界铁骑：目标须弃同花色牌，否则不能使用【闪】。
+                        let suit = suit.unwrap_or(Suit::Spade);
+                        crate::resolve_jiexian::push_tieqi(
+                            st,
+                            user,
+                            target,
+                            &card,
+                            need,
+                            ignore_armor,
+                            suit,
+                        );
+                    } else {
+                        crate::resolve_skill::push_sha_respond(
+                            st,
+                            user,
+                            target,
+                            &card,
+                            need,
+                            red,
+                            ignore_armor,
+                        );
+                    }
                 }
                 "luoshen" => {
                     if black {
@@ -2816,6 +2861,10 @@ pub fn execute_pending(
             Some("zhiman") => crate::resolve_yijiang::act_zhiman(st, action)?,
             Some("pojun") => crate::resolve_yijiang::act_pojun(st, action)?,
             Some("zhenjun") => crate::resolve_yijiang::act_zhenjun(st, action)?,
+            Some("yijue") => crate::resolve_jiexian::act_yijue(st, action)?,
+            Some("rende_basic") => crate::resolve_jiexian::act_rende_basic(st, action)?,
+            Some("yajiao") => crate::resolve_jiexian::act_yajiao(st, action)?,
+            Some("tieqi") => crate::resolve_jiexian::act_tieqi(st, action)?,
             _ => crate::resolve_skill::act_jianxiong(st, action)?,
         },
         "choose_many" => match top(st) {
@@ -2919,6 +2968,8 @@ fn act_wuxie(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Strin
     st.push_log(Some(&pid), label);
     let count = f.count;
     replace_top(st, Frame::Wuxie(f));
+    // 涯角（界赵云）：回合外打出【无懈可击】后展示牌堆顶。
+    crate::resolve_jiexian::yajiao_trigger(st, seat, card_id);
     // 集智：使用非延时锦囊（无懈）也摸 1
     let mut ev = Vec::new();
     crate::skills::on_non_delayed_trick_used(st, seat, &mut ev);
@@ -3346,6 +3397,26 @@ fn respond_give_up(st: &mut SgsState, f: &RespondFrame) {
         RespondKind::Shan => {
             let card = f.card.clone();
             let mut amount = f.damage + luoyi_bonus(st, Some(f.source));
+            // 界咆哮：被抵消后本回合下一次【杀】伤害 +1。
+            if f.is_sha
+                && crate::skills::has(st, f.source, "paoxiao")
+                && st.counter("paoxiao_bonus") > 0
+            {
+                amount += 1;
+                st.set_counter("paoxiao_bonus", 0);
+            }
+            // 义绝（界关羽）：本回合对其使用的红桃【杀】伤害 +1。
+            if f.is_sha
+                && crate::skills::has(st, f.source, "yijue")
+                && st.counter(&format!("yijue_heart:{actor}")) > 0
+                && st
+                    .cards
+                    .get(&card)
+                    .is_some_and(|c| c.suit == Suit::Heart)
+                && !card.is_empty()
+            {
+                amount += 1;
+            }
             // 古锭刀：目标无手牌时【杀】伤害 +1（物理【杀】）。
             if f.is_sha
                 && crate::skills::has_equipment_skill(st, f.source, "guding_dao")
@@ -3508,6 +3579,19 @@ pub(crate) fn finish_respond_play(
             });
             pop(st);
             maybe_leiji(st, played_by);
+            // 界咆哮：本回合下一次【杀】伤害 +1（被【闪】抵消后）。
+            if f.is_sha
+                && crate::skills::has(st, f.source, "paoxiao")
+                && crate::skills::is_jiexian(st, f.source)
+            {
+                st.set_counter("paoxiao_bonus", 1);
+                st.push_log(
+                    Some(&st.seats[f.source].player_id.clone()),
+                    "咆哮：【杀】被抵消，本回合下一次【杀】伤害 +1",
+                );
+            }
+            // 涯角（界赵云）：回合外使用/打出手牌后展示牌堆顶。
+            crate::resolve_jiexian::yajiao_trigger(st, played_by, card_id);
             // 青龙偃月刀 / 贯石斧：被【闪】抵消后的追加窗口（压在原【杀】帧之上）。
             if crate::resolve_skill::push_after_dodge_if_available(st, &f) {
                 return Ok("【闪】抵消，等待装备追加结算".to_string());
@@ -3521,6 +3605,7 @@ pub(crate) fn finish_respond_play(
                 played_by: Some(played_by),
             });
             pop(st);
+            crate::resolve_jiexian::yajiao_trigger(st, played_by, card_id);
             Ok("已打出【杀】响应南蛮入侵".to_string())
         }
         RespondKind::Duel => {
@@ -3560,6 +3645,7 @@ pub(crate) fn finish_respond_play(
                     is_sha: false,
                 }),
             );
+            crate::resolve_jiexian::yajiao_trigger(st, played_by, card_id);
             Ok("已打出【杀】，轮到对方".to_string())
         }
         RespondKind::Jiedao => {
@@ -3596,6 +3682,7 @@ pub(crate) fn finish_respond_play(
                     is_sha: true,
                 }),
             );
+            crate::resolve_jiexian::yajiao_trigger(st, played_by, card_id);
             Ok("A 已出杀，等待目标响应".to_string())
         }
     }
@@ -3620,6 +3707,11 @@ fn act_pick(st: &mut SgsState, pending: &Pending, action: &str) -> Result<String
     let mut from_hand = false;
     let picked = if let Some(rest) = action.strip_prefix("pick:equip:") {
         let slot = slot_from_code(rest).ok_or_else(|| illegal("非法装备槽"))?;
+        if pick_mode_discards(f.mode)
+            && crate::skills::qicai_blocks_discard(st, target, f.user, slot)
+        {
+            return Err(illegal("奇才：不能弃置其防具/宝物牌"));
+        }
         let card = st.seats[target]
             .equips
             .get(&slot)

@@ -406,6 +406,8 @@ pub(crate) fn phase_step(
                     }),
                 );
             }
+            // 替身（界张飞，限定技）：准备阶段回复所有体力，每回复 1 点摸一张。
+            crate::resolve_jiexian::tishen_prepare(st, st.turn);
             st.turn_phase = TurnPhase::Judge;
             Ok(true)
         }
@@ -804,6 +806,16 @@ pub(crate) fn phase_step(
                     );
                     return Ok(true);
                 }
+            }
+            // 界观星：若准备阶段全部置于牌堆底，结束阶段可再次发动。
+            if crate::skills::has(st, st.turn, "guanxing")
+                && crate::skills::is_jiexian(st, st.turn)
+                && st.counter("guanxing_bottom") > 0
+                && st.counter("guanxing_end") == 0
+            {
+                st.set_counter("guanxing_end", 1);
+                resolve::push(st, crate::resolve_zone::start_guanxing(st.turn));
+                return Ok(true);
             }
             // 进趋（王基）：结束阶段可摸 2 张，然后将手牌弃至本回合奇制次数。
             if crate::skills::has(st, st.turn, "jinzou") && st.counter("jinzou_done") == 0 {
@@ -1218,6 +1230,37 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
             id: "skill:jieyin".into(),
             description: "结姻：弃 2 张手牌，与一名已受伤男性各回复 1 点体力".into(),
         });
+    }
+    // 义绝（界关羽）：出牌阶段限一次，弃一张牌令一名其他角色展示手牌。
+    if crate::skills::has(st, idx, "yijue")
+        && st.counter("yijue_used") == 0
+        && !st.seats[idx].hand.is_empty()
+        && st
+            .alive_indices()
+            .into_iter()
+            .any(|i| i != idx && !st.seats[i].hand.is_empty())
+    {
+        out.push(Action {
+            id: "skill:yijue".into(),
+            description: "义绝：弃一张牌，令一名其他角色展示一张手牌".into(),
+        });
+    }
+    // 龙胆（界赵云）：桃当酒使用。
+    if crate::skills::has(st, idx, "longdan")
+        && crate::skills::is_jiexian(st, idx)
+        && st.counter("jiu_used") == 0
+    {
+        for card_id in hand_ids(st, idx) {
+            if crate::skills::conversion_for(st, idx, &card_id, "jiu").is_some() {
+                out.push(Action {
+                    id: format!("skill:longdan:{card_id}"),
+                    description: format!(
+                        "龙胆：将【{}】当【酒】使用",
+                        card_label(st, &card_id)
+                    ),
+                });
+            }
+        }
     }
     // 蛊惑：每回合限一次，扣置一张手牌当任意基本牌/普通锦囊使用。
     if crate::resolve_wind::guhuo_available(st, idx) {
@@ -1744,6 +1787,7 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
             !a.id.starts_with("play:")
                 && !a.id.starts_with("skill:wusheng:")
                 && !a.id.starts_with("skill:longdan:")
+                && !a.id.starts_with("skill:yijue")
                 && !a.id.starts_with("skill:guose:")
                 && !a.id.starts_with("skill:qixi:")
                 && !a.id.starts_with("skill:zhangba:")
@@ -1839,6 +1883,54 @@ pub fn execute(
         resolve::start_virtual_trick(st, idx, card_id, "guohe_chaiqiao")?;
         st.push_log(Some(player_id), format!("奇袭：将【{label}】当过河拆桥"));
         "请选择过河拆桥的目标".to_string()
+    } else if action == "skill:yijue" {
+        if !crate::skills::has(st, idx, "yijue") {
+            return Err(illegal("没有该技能"));
+        }
+        if st.counter("yijue_used") > 0 {
+            return Err(illegal("义绝本阶段已使用过"));
+        }
+        if st.seats[idx].hand.is_empty() {
+            return Err(illegal("没有手牌"));
+        }
+        st.set_counter("yijue_used", 1);
+        resolve::push(
+            st,
+            resolve::Frame::YiJue(crate::resolve_jiexian::YiJueFrame {
+                actor: idx,
+                stage: crate::resolve_jiexian::YiJueStage::Card,
+            }),
+        );
+        "义绝：请选择弃置的牌".to_string()
+    } else if action.starts_with("skill:longdan:")
+        && crate::skills::is_jiexian(st, idx)
+        && st
+            .cards
+            .get(action.trim_start_matches("skill:longdan:"))
+            .is_some_and(|c| c.def == "tao")
+    {
+        // 界龙胆：桃当酒（其余龙胆转化仍由下方统一处理）。
+        let card_id = action.trim_start_matches("skill:longdan:");
+        if !st.seats[idx].hand.iter().any(|c| c == card_id) {
+            return Err(illegal("手牌中没有该牌"));
+        }
+        if !crate::skills::has(st, idx, "longdan") {
+            return Err(illegal("没有该技能"));
+        }
+        if st.counter("jiu_used") > 0 {
+            return Err(illegal("本回合已使用过【酒】"));
+        }
+        let label = card_label(st, card_id);
+        st.set_counter("jiu_used", 1);
+        st.set_counter("jiu", 1);
+        take_card(st, idx, card_id)?;
+        to_discard_card(st, card_id);
+        st.bump_counter("play_cards_used");
+        st.push_log(
+            Some(player_id),
+            format!("龙胆：将【{label}】当【酒】（下一张杀 +1）"),
+        );
+        "已使用【酒】".to_string()
     } else if let Some((skill, card_id)) = ["wusheng", "longdan", "jixi", "jinjiu"]
         .iter()
         .find_map(|code| {
@@ -1867,6 +1959,13 @@ pub fn execute(
             && st.seats[idx].hand.len() == 1;
         take_card(st, idx, card_id)?;
         resolve::start_sha(st, idx, card_id, fangtian)?;
+        // 界武圣：方片牌当【杀】无距离限制。
+        if skill == "wusheng"
+            && crate::skills::is_jiexian(st, idx)
+            && st.cards.get(card_id).is_some_and(|c| c.suit == Suit::Diamond)
+        {
+            resolve::mark_sha_no_distance(st);
+        }
         st.push_log(
             Some(player_id),
             format!("{name}：将【{label}】当【杀】使用"),

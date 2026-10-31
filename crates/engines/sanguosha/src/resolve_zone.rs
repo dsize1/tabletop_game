@@ -351,9 +351,23 @@ pub struct ArrangeFrame {
     pub cards: Vec<String>,
 }
 
-/// 观星张数：`min(存活角色数, 5)`。
+/// 观星张数：标准版 `min(存活角色数, 5)`；界观星在存活 <4 时固定 3 张，否则 5 张。
 pub fn guanxing_count(st: &SgsState) -> usize {
-    st.alive_indices().len().clamp(1, GUANXING_MAX_CARDS)
+    let alive = st.alive_indices().len();
+    let jie = st
+        .seats
+        .get(st.turn)
+        .is_some_and(|_| crate::skills::has(st, st.turn, "guanxing"))
+        && crate::skills::is_jiexian(st, st.turn);
+    if jie {
+        if alive < 4 {
+            3
+        } else {
+            5
+        }
+    } else {
+        alive.clamp(1, GUANXING_MAX_CARDS)
+    }
 }
 
 /// 起始帧（准备阶段由 `turn::phase_step` 压入）。
@@ -585,10 +599,25 @@ pub(crate) fn act_arrange(st: &mut SgsState, action: &str) -> Result<String, Eng
         return Err(internal("观星特殊区与取出牌不一致"));
     }
 
-    // 回写牌堆：`draw` 末尾 = 牌堆顶，故按最终顺序倒序压入。
-    for id in ids.iter().rev() {
-        leave_processing(st, id);
-        st.deck.draw.push(id.clone());
+    // 界观星：全部置于右列（牌堆底）时，塞到牌堆底部并标记结束阶段可再次发动。
+    let all_bottom = crate::skills::has(st, f.owner, "guanxing")
+        && crate::skills::is_jiexian(st, f.owner)
+        && slots
+            .iter()
+            .filter(|(_, v)| v.is_some())
+            .all(|(k, _)| k.starts_with('R'));
+    if all_bottom {
+        for id in ids.iter().rev() {
+            leave_processing(st, id);
+            st.deck.draw.insert(0, id.clone());
+        }
+        st.set_counter("guanxing_bottom", 1);
+    } else {
+        // 回写牌堆：`draw` 末尾 = 牌堆顶，故按最终顺序倒序压入。
+        for id in ids.iter().rev() {
+            leave_processing(st, id);
+            st.deck.draw.push(id.clone());
+        }
     }
     st.special_zones.remove(&f.zone);
     pop(st);

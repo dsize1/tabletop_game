@@ -264,10 +264,34 @@ fn pack_pool_prefers_jiexian_variant() {
         .filter(|c| skills::general_ready(c))
         .collect(),
     );
-    // 界标 25 将尚未实现：池中只有标准包（去重后仍为 25 位、无界化武将）。
-    assert!(pool.iter().all(|c| crate::data::general(c)
-        .is_some_and(|g| g.pack == "standard")));
+    // 界标·蜀 7 将已实现：同名原版被界版本替换，池子仍为 25 位。
     assert_eq!(pool.len(), crate::data::STANDARD_GENERAL_COUNT);
+    for code in [
+        "sgs_hero_299",
+        "sgs_hero_300",
+        "sgs_hero_301",
+        "sgs_hero_302",
+        "sgs_hero_303",
+        "sgs_hero_440",
+        "sgs_hero_441",
+    ] {
+        assert!(pool.contains(&code), "{code} 应在池中");
+    }
+    for code in [
+        "sgs_hero_1",
+        "sgs_hero_2",
+        "sgs_hero_3",
+        "sgs_hero_4",
+        "sgs_hero_5",
+        "sgs_hero_6",
+        "sgs_hero_7",
+    ] {
+        assert!(!pool.contains(&code), "同名原版 {code} 应被界版本替换");
+    }
+    assert!(pool.iter().all(|c| {
+        let g = crate::data::general(c).expect("general");
+        g.pack == "standard" || g.pack == "jiexian"
+    }));
     // 内部逻辑：一旦界化武将进池，同名原版必须消失。
     let synthetic = vec!["sgs_hero_1", "sgs_hero_299", "sgs_hero_3"];
     let kept = crate::prefer_jiexian(synthetic);

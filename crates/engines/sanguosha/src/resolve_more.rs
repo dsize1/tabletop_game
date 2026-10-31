@@ -97,6 +97,10 @@ pub(crate) fn act_requisition(
         played_by: Some(by),
     });
     pop(st);
+    // 界激将：其他蜀势力角色于其回合外代出【杀】后，主公摸 1（每回合限一次）。
+    if f.needed == "sha" {
+        crate::resolve_jiexian::jijiang_lord_draw(st, by);
+    }
     Ok("已代替打出".to_string())
 }
 
@@ -192,16 +196,26 @@ pub(crate) fn rende_target(
     if target == f.actor {
         return Err(illegal("不能交给自己"));
     }
+    let jie = crate::skills::is_jiexian(st, f.actor);
+    // 界仁德：每名角色每阶段限一次。
+    if jie && st.counter(&format!("rende_target:{target}")) > 0 {
+        return Err(illegal("界仁德本阶段已对该角色发动过"));
+    }
     let cards = f.selected.clone();
     let n = cards.len();
     for id in &cards {
         turn::take_card(st, f.actor, id)?;
         st.seats[target].hand.push(id.clone());
     }
-    let given = st.counter("rende_given") + n as u32;
+    let before = st.counter("rende_given");
+    let given = before + n as u32;
     st.set_counter("rende_given", given);
+    if jie {
+        st.set_counter(&format!("rende_target:{target}"), 1);
+    }
     let mut healed = false;
-    if given >= 2
+    if !jie
+        && given >= 2
         && st.counter("rende_healed") == 0
         && st.seats[f.actor].hp < st.seats[f.actor].max_hp
     {
@@ -217,7 +231,22 @@ pub(crate) fn rende_target(
             if healed { "，回复 1 点体力" } else { "" }
         ),
     );
+    // 界仁德：本阶段给出第二张牌时，可视为使用一张基本牌。
+    let mut basic = false;
+    if jie && before < 2 && given >= 2 && st.counter("rende_basic_offered") == 0 {
+        st.set_counter("rende_basic_offered", 1);
+        basic = true;
+    }
     pop(st);
+    if basic {
+        crate::resolve::push(
+            st,
+            crate::resolve::Frame::RendeBasic(crate::resolve_jiexian::RendeBasicFrame {
+                actor: f.actor,
+            }),
+        );
+        return Ok("仁德：可视为使用一张基本牌".to_string());
+    }
     let _ = pending;
     Ok(format!("已交给 {} {n} 张", st.seats[target].general_name))
 }

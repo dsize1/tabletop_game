@@ -10,6 +10,7 @@ mod data;
 mod resolve;
 mod resolve_fire;
 mod resolve_forest;
+mod resolve_jiexian;
 mod resolve_more;
 mod resolve_mountain;
 mod resolve_skill;

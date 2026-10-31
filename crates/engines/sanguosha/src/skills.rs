@@ -1070,6 +1070,105 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
             implemented: true,
         },
     ];
+    // ---- P4.4.2 界标 25 将（批次 2：蜀 7 将）----
+    const JIE_LIUBEI: &[SkillDef] = &[
+        SkillDef {
+            code: "rende",
+            name: "仁德",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "jijiang",
+            name: "激将",
+            kind: SkillType::Lord,
+            implemented: true,
+        },
+    ];
+    const JIE_GUANYU: &[SkillDef] = &[
+        SkillDef {
+            code: "yijue",
+            name: "义绝",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "wusheng",
+            name: "武圣",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_ZHANGFEI: &[SkillDef] = &[
+        SkillDef {
+            code: "tishen",
+            name: "替身",
+            kind: SkillType::Limited,
+            implemented: true,
+        },
+        SkillDef {
+            code: "paoxiao",
+            name: "咆哮",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+    ];
+    const JIE_ZHAOYUN: &[SkillDef] = &[
+        SkillDef {
+            code: "yajiao",
+            name: "涯角",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "longdan",
+            name: "龙胆",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_MA_CHAO: &[SkillDef] = &[
+        SkillDef {
+            code: "mashu",
+            name: "马术",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "tieqi",
+            name: "铁骑",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_ZHUGELIANG: &[SkillDef] = &[
+        SkillDef {
+            code: "kongcheng",
+            name: "空城",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "guanxing",
+            name: "观星",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_HUANGYUEYING: &[SkillDef] = &[
+        SkillDef {
+            code: "jizhi",
+            name: "集智",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "qicai",
+            name: "奇才",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+    ];
     match general {
         "sgs_hero_1" => LIUBEI,
         "sgs_hero_15" => CAOCAO,
@@ -1152,6 +1251,13 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
         "sgs_hero_157" => WUGUOTAI,
         "sgs_hero_158" => XUSHENG,
         "sgs_hero_160" => YUJIN,
+        "sgs_hero_299" => JIE_LIUBEI,
+        "sgs_hero_300" => JIE_GUANYU,
+        "sgs_hero_301" => JIE_ZHANGFEI,
+        "sgs_hero_302" => JIE_ZHAOYUN,
+        "sgs_hero_303" => JIE_MA_CHAO,
+        "sgs_hero_440" => JIE_ZHUGELIANG,
+        "sgs_hero_441" => JIE_HUANGYUEYING,
         _ => &[],
     }
 }
@@ -1361,6 +1467,15 @@ pub fn general_ready(general: &str) -> bool {
     !defs.is_empty() && defs.iter().all(|s| s.implemented)
 }
 
+/// 界化武将（`pack = "jiexian"`）：同为技能 code 时的界版分支判定。
+pub fn is_jiexian(st: &SgsState, seat: usize) -> bool {
+    st.seats
+        .get(seat)
+        .and_then(|s| s.general.as_deref())
+        .and_then(data::general)
+        .is_some_and(|g| g.pack == "jiexian")
+}
+
 /// 是否拥有某技能（只有已实现的技能会触发）。
 pub fn has(st: &SgsState, seat: usize, code: &str) -> bool {
     let Some(seat_state) = st.seats.get(seat) else {
@@ -1373,6 +1488,22 @@ pub fn has(st: &SgsState, seat: usize, code: &str) -> bool {
     // 破势等：失去某个基础技能（按 code 禁用）。
     if seat_state.flags.contains_key(&format!("lost:{code}")) {
         return false;
+    }
+    // 义绝（界关羽）：本回合非锁定技失效。
+    if st.counter(&format!("nonlocked_lost:{seat}")) > 0 {
+        let locked = seat_state
+            .general
+            .as_deref()
+            .and_then(|g| {
+                skills_of(g)
+                    .iter()
+                    .find(|s| s.code == code)
+                    .map(|s| s.kind == SkillType::Locked)
+            })
+            .unwrap_or(false);
+        if !locked {
+            return false;
+        }
     }
     if seat_state.extra_skills.iter().any(|c| c == code) {
         return true;
@@ -1678,6 +1809,10 @@ pub fn conversion_for(
             if has(st, seat, "jijiu") && red && st.turn != seat {
                 return Some(("jijiu", "急救"));
             }
+            // 龙胆（界赵云）：【酒】当【桃】。
+            if has(st, seat, "longdan") && inst.def == "jiu" && is_jiexian(st, seat) {
+                return Some(("longdan", "龙胆"));
+            }
         }
         "wuxie_keji" => {
             // 看破：黑色手牌当【无懈可击】。
@@ -1689,6 +1824,10 @@ pub fn conversion_for(
             // 酒池：黑桃手牌当【酒】。
             if has(st, seat, "jiuchi") && inst.suit == Suit::Spade {
                 return Some(("jiuchi", "酒池"));
+            }
+            // 龙胆（界赵云）：【桃】当【酒】。
+            if has(st, seat, "longdan") && inst.def == "tao" && is_jiexian(st, seat) {
+                return Some(("longdan", "龙胆"));
             }
         }
         _ => {}
@@ -1854,9 +1993,44 @@ pub fn on_phase_start(st: &mut SgsState, phase: TurnPhase, events: &mut Vec<Engi
     );
 }
 
-/// 使用锦囊后的钩子：集智（使用非延时锦囊时摸 1）。
+/// 使用锦囊后的钩子：集智（使用非延时锦囊时摸 1；界版可弃基本牌换手牌上限）。
 pub fn on_non_delayed_trick_used(st: &mut SgsState, seat: usize, events: &mut Vec<EngineEvent>) {
     if !has(st, seat, "jizhi") {
+        return;
+    }
+    if is_jiexian(st, seat) {
+        // 界集智：摸 1；若摸到基本牌，可弃置之使本回合手牌上限 +1（自动）。
+        let Some(card) = crate::turn::draw_one(st, events) else {
+            return;
+        };
+        let basic = st
+            .cards
+            .get(&card)
+            .and_then(|c| data::card_def(&c.def))
+            .is_some_and(|d| d.category == crate::state::Category::Basic);
+        let label = crate::turn::card_label(st, &card);
+        if basic {
+            crate::turn::discard_by(st, Some(seat), &card);
+            st.bump_counter("jizhi_hand_limit");
+            st.push_log(
+                Some(&st.seats[seat].player_id.clone()),
+                format!("集智：摸到基本牌【{label}】，弃置后本回合手牌上限 +1"),
+            );
+        } else {
+            st.seats[seat].hand.push(card);
+            st.push_log(
+                Some(&st.seats[seat].player_id.clone()),
+                format!("集智：摸 1 张（{label}）"),
+            );
+        }
+        // 超出手牌上限时立即弃牌（与 draw_and_cap 一致）。
+        let over = st.seats[seat]
+            .hand
+            .len()
+            .saturating_sub(st.config.max_hand_cards as usize);
+        if over > 0 {
+            crate::resolve::push_discard(st, seat, over, "hand_cap");
+        }
         return;
     }
     let drawn = draw_and_cap(st, seat, 1, events);
@@ -1875,6 +2049,10 @@ pub fn hand_limit(st: &SgsState, seat: usize) -> usize {
         return usize::MAX;
     }
     let mut limit = st.hand_limit(seat);
+    // 界集智：本回合弃置基本牌换手牌上限 +1。
+    if has(st, seat, "jizhi") && is_jiexian(st, seat) {
+        limit += st.counter("jizhi_hand_limit") as usize;
+    }
     // 决堰（防具栏）：本回合手牌上限 +3。
     if has(st, seat, "jueyan") {
         limit += st.counter("jueyan_hand_limit") as usize;
@@ -2281,6 +2459,14 @@ pub fn hand_sealed(st: &SgsState, seat: usize) -> bool {
 /// 决堰（坐骑栏 / 雄乱）：使用牌无距离限制。
 pub fn no_distance_turn(st: &SgsState, seat: usize) -> bool {
     st.counter("jueyan_no_distance") > 0 || st.counter(&format!("xl_seat:{seat}")) > 0
+}
+
+/// 界奇才（锁定）：防止其他角色弃置你装备区里的防具/宝物牌。
+pub fn qicai_blocks_discard(st: &SgsState, target: usize, user: usize, slot: EquipSlot) -> bool {
+    target != user
+        && has(st, target, "qicai")
+        && is_jiexian(st, target)
+        && matches!(slot, EquipSlot::Armor | EquipSlot::Treasure)
 }
 
 /// 雄乱目标（本回合对其使用牌无距离与次数限制）。
