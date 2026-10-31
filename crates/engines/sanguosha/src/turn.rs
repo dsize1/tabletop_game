@@ -391,6 +391,8 @@ pub(crate) fn phase_step(
                     Some(&st.seats[idx].player_id.clone()),
                     "当先：回合开始时执行一个额外出牌阶段",
                 );
+                // 界当先（界廖化）：额外阶段开始时获得一张【杀】，未造成伤害则阶段结束自伤 1。
+                crate::resolve_jiexian7::dangxian_jie_start(st, idx);
                 st.turn_phase = TurnPhase::Play;
                 return Ok(true);
             }
@@ -1620,11 +1622,22 @@ pub(crate) fn phase_step(
                 }
             }
             // 秘计（王异）：结束阶段摸 X（已损失体力），然后可交给其他角色 X 张手牌。
+            let miji_extra =
+                crate::skills::is_jiexian(st, st.turn) && st.counter("miji_extra") > 0;
             if crate::skills::has(st, st.turn, "miji") && st.counter("miji_offered") == 0 {
+                if miji_extra {
+                    // 界贞烈（界王异）：本回合结束阶段额外发动一次秘计（一次结算内连发）。
+                    st.set_counter("miji_extra", 0);
+                }
                 let lost = (st.seats[st.turn].max_hp - st.seats[st.turn].hp).max(0) as u32;
                 if lost > 0 {
                     st.set_counter("miji_offered", 1);
-                    let drawn = draw_cards(st, st.turn, lost, events);
+                    let times = if miji_extra { 2 } else { 1 };
+                    st.set_counter("miji_extra_times", times);
+                    let mut drawn = 0;
+                    for _ in 0..times {
+                        drawn += draw_cards(st, st.turn, lost, events);
+                    }
                     st.push_log(
                         Some(&st.seats[st.turn].player_id.clone()),
                         format!("秘计：摸 {drawn} 张"),
@@ -2962,6 +2975,20 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
             description: "长标：将任意张手牌当无距离限制的【杀】使用（造成伤害则阶段结束摸牌）".into(),
         });
     }
+    // 翦灭（界张春华）：出牌阶段限一次。
+    if crate::skills::has(st, idx, "jianmie")
+        && crate::skills::is_jiexian(st, idx)
+        && st.counter("jianmie_used") == 0
+        && !st.seats[idx].hand.is_empty()
+        && st.alive_indices()
+            .into_iter()
+            .any(|i| i != idx && !st.seats[i].hand.is_empty())
+    {
+        out.push(Action {
+            id: "skill:jianmie".into(),
+            description: "翦灭：同时选颜色各弃手牌，弃牌多者视为使用【决斗】".into(),
+        });
+    }
     // 界巧说（界简雍）：出牌阶段主动拼点（每阶段一次）。
     if crate::skills::has(st, idx, "qiaoshuo")
         && crate::skills::is_jiexian(st, idx)
@@ -4086,6 +4113,28 @@ pub fn execute(
         );
         st.push_log(Some(player_id), "发动长标");
         "长标：请选择任意张手牌当【杀】".to_string()
+    } else if action == "skill:jianmie" {
+        if !crate::skills::has(st, idx, "jianmie") || !crate::skills::is_jiexian(st, idx) {
+            return Err(illegal("没有该技能"));
+        }
+        if st.counter("jianmie_used") > 0 {
+            return Err(illegal("本阶段已发动过翦灭"));
+        }
+        if st.seats[idx].hand.is_empty() {
+            return Err(illegal("没有手牌"));
+        }
+        st.set_counter("jianmie_used", 1);
+        resolve::push(
+            st,
+            resolve::Frame::JianMie(crate::resolve_jiexian7::JianMieFrame {
+                actor: idx,
+                target: None,
+                stage: crate::resolve_jiexian7::JianMieStage::Target,
+                owner_color: None,
+            }),
+        );
+        st.push_log(Some(player_id), "翦灭：请选择一名其他角色");
+        "翦灭：请选择一名其他角色".to_string()
     } else if action == "skill:qiaoshuo" {
         if !crate::skills::has(st, idx, "qiaoshuo") || !crate::skills::is_jiexian(st, idx) {
             return Err(illegal("没有该技能"));
@@ -5244,6 +5293,8 @@ pub fn execute(
         }
         crate::resolve_sp::chezheng_end_phase(st, idx);
         st.phase_discarded.clear();
+        // 界当先（界廖化）：额外出牌阶段未造成伤害则自伤 1。
+        crate::resolve_jiexian7::dangxian_jie_end(st, idx);
         // 当先（廖化）：额外出牌阶段结束后回到准备阶段继续正常回合。
         if st.counter("dangxian_extra") > 0 {
             st.set_counter("dangxian_extra", 0);

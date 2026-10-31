@@ -59,7 +59,10 @@ pub struct ChengXiangFrame {
 pub(crate) fn start_chengxiang(st: &mut SgsState, actor: usize) {
     let mut ev = Vec::new();
     let mut cards = Vec::new();
-    for _ in 0..4 {
+    // 界称象（界曹冲）：上次点数和恰好为 13 → 本次多亮一张。
+    let n = 4 + st.counter("chengxiang_bonus");
+    st.set_counter("chengxiang_bonus", 0);
+    for _ in 0..n {
         match turn::draw_one(st, &mut ev) {
             Some(card) => {
                 st.deck.processing.push(card.clone());
@@ -172,6 +175,14 @@ pub(crate) fn act_chengxiang(st: &mut SgsState, action: &str) -> Result<String, 
     }
     if action != "confirm" || f.selected.is_empty() {
         return Err(illegal("请选择至少 1 张牌"));
+    }
+    // 界称象（界曹冲）：点数和恰好为 13 → 下次多亮一张。
+    if crate::skills::is_jiexian(st, f.actor) && chengxiang_sum(st, &f.selected) == 13 {
+        st.set_counter("chengxiang_bonus", 1);
+        st.push_log(
+            Some(&pid(st, f.actor)),
+            "称象：点数和恰好为 13，下次称象多亮一张",
+        );
     }
     let gained = f.selected.len();
     for id in &f.cards {

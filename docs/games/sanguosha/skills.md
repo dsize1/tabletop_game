@@ -424,7 +424,7 @@
 
 ## 2.8 界限突破（界化武将）
 
-> 数据：`JIEXIAN_GENERALS` 87 位（`sgs_hero_299+` / `界<名>`）。**界标 25 将 + 批次 J1–J5 各 8 将已实现**；其余界化武将仍仅登记数据。
+> 数据：`JIEXIAN_GENERALS` 87 位（`sgs_hero_299+` / `界<名>`）。**界标 25 将 + 批次 J1–J6 各 8 将已实现**；其余界化武将仍仅登记数据。
 
 - 同名口径见 ADR-0024：武将 code 独立、技能 code 复用（按武将分支）、选将池「界优先去重」（`lib.rs::prefer_jiexian`）。
 - 未实现的界化武将 `general_ready=false`，不进选将池；`check:sgs-engine-data` 覆盖全量 232 位。
@@ -625,7 +625,30 @@
 | 界程普 `sgs_hero_620` | 醇醪 | `chunlao` | 普通 | **你或相邻角色的【杀】因弃置进入弃牌堆后自动置于「醇」（至多 9）**；濒死时移去「醇」视为使用【酒】（同标准，X 计数未实现） |
 
 本批引入：`Frame::ZaiQiJie` / `JieZiJie` / `GuZhengJie`（`resolve_jiexian5.rs`）；`red_discarded`（界再起）、`mark_counts["zai"]` + `zai_extra_draw`（截辎）、`dmg_count:<seat>`（狞恶）、`shuangxiong_color` 复用 + `sx_dmg:<card>`（双雄）、`discarded_by:<seat>` + `gz_jie:<seat>:<card>`（固政）、`pojun_damage_bonus`。见 `tests/p99.rs` 25 条用例。
+### 2.8.10 批次 J6：界限突破 8 将（17 技能，P4.4.2）
+
+| 武将 | 技能 | code | 类型 | 实现要点 |
+|---|---|---|---|---|
+| 界王异 `sgs_hero_621` | 贞烈 | `zhenlie` | 普通 | 成为【杀】/普通锦囊目标后可失去 1 体力令其无效；**界版无效后二选一：获得使用者一张牌 / 本回合结束阶段额外发动一次「秘计」**（`Frame::ZhenLieJie`） |
+| 界王异 `sgs_hero_621` | 秘计 | `miji` | 普通 | 结束阶段摸已损失体力张，然后可交给其他角色（同标准）；界贞烈可追加一次（`miji_extra_times`） |
+| 界张春华 `sgs_hero_625` | 绝情 | `jueqing` | 锁定 | 造成的伤害视为失去体力（同标准） |
+| 界张春华 `sgs_hero_625` | 伤逝 | `shangshi` | 普通 | 手牌数低于已损失体力时补至该数（同标准） |
+| 界张春华 `sgs_hero_625` | 翦灭 | `jianmie` | 普通 | 出牌阶段限一次：与一名其他角色同时选颜色，各弃该色手牌；**弃牌较多者视为对对方使用【决斗】**（`Frame::JianMie`，平手不发生） |
+| 界刘表 `sgs_hero_626` | 自守 | `zishou` | 普通 | 摸牌阶段可多摸势力数张（同标准；界版移除「防止你造成伤害」，改为结束阶段按使用伤害牌弃牌——后者未实现，登记边界） |
+| 界刘表 `sgs_hero_626` | 宗室 | `zongshi` | 锁定 | 每个势力手牌上限 +1；**其他角色对你造成伤害时，每个势力限一次：防止此伤害并令其获得你区域一张牌**（`zongshi_guard`） |
+| 界蔡夫人 `sgs_hero_627` | 献州 | `xianzhou` | 限定 | 交付装备区所有牌，目标二选一（回复 / 造成伤害）（同标准） |
+| 界蔡夫人 `sgs_hero_627` | 窃听 | `qieting` | 普通 | 其他角色回合结束后若未对其他角色用过牌可二选一（同标准；**界版放宽触发与双选项未实现**，登记边界） |
+| 界曹冲 `sgs_hero_628` | 称象 | `chengxiang` | 普通 | 受伤后亮牌堆顶 4 张取点数和 ≤13；**点数和恰好 13 → 下次多亮一张**（`chengxiang_bonus`） |
+| 界曹冲 `sgs_hero_628` | 仁心 | `renxin` | 普通 | 体力 1 的其他角色受伤时可弃装备翻面防止（同标准；**界版「进入濒死时回复至 1」未实现**，登记边界） |
+| 界曹植 `sgs_hero_629` | 落英 | `luoying` | 普通 | 其他角色梅花牌因弃置/判定入弃牌堆时可获得（同标准） |
+| 界曹植 `sgs_hero_629` | 酒诗 | `jiushi` | 普通 | 翻至背面视为使用【酒】；受伤后可翻回（同标准；**界版「背面时落英牌无距离且不可响应」「累计落英翻回」未实现**，登记边界） |
+| 界吴国太 `sgs_hero_640` | 甘露 | `ganlu` | 普通 | 出牌阶段限一次交换两名角色装备区；**界版允许差额超过已损失体力，但须先弃置差额张牌** |
+| 界吴国太 `sgs_hero_640` | 补益 | `buyi` | 普通 | 角色濒死时可令其展示一张手牌，非基本牌则弃置并回复 1（同标准；**界版「任意区域选牌」未实现**，登记边界） |
+| 界廖化 `sgs_hero_641` | 当先 | `dangxian` | 普通 | 回合开始时执行额外出牌阶段（同标准）；**界版额外阶段开始获得一张【杀】，该阶段未造成伤害则阶段结束自伤 1**（`dangxian_jie_start/end`） |
+| 界廖化 `sgs_hero_641` | 伏枥 | `fuli` | 限定 | 濒死时回复至势力数点并翻面（同标准；界版「摸至 X 张 + 条件翻面」未实现，登记边界） |
+
 本批引入：`resolve_jiexian6.rs`（相邻/上家判定、`chunlao_place`、`mingce_on_damage`、`lihuo_jie_cost`、`zhiyan_upper_trigger`、`jinjiu_blocks_jiu`）；`lost_by:<seat>`（旋风）、`jiangchi_no_ban` / `sha_limit_penalty`（将驰）、`mingce_sha:<owner>`（明策）。见 `tests/p100.rs` 24 条用例。
+本批引入：`resolve_jiexian7.rs`（`Frame::ZhenLieJie` / `JianMie` + `zongshi_guard` + `dangxian_jie_*`）；`miji_extra_times`（界贞烈）、`chengxiang_bonus`（界称象）、`zongshi_guard:<kingdom>`、`dangxian_jie_no_dmg`。见 `tests/p101.rs` 25 条用例。
 
 ## 3. 触发钩子（引擎接入点）
 

@@ -2011,6 +2011,125 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
             implemented: true,
         },
     ];
+    // ---- P4.4.2 界限突破（批次 J6：8 将 / 17 技能）----
+    const JIE_WANGYI: &[SkillDef] = &[
+        SkillDef {
+            code: "zhenlie",
+            name: "贞烈",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "miji",
+            name: "秘计",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_ZHANGCHUNHUA: &[SkillDef] = &[
+        SkillDef {
+            code: "jueqing",
+            name: "绝情",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "shangshi",
+            name: "伤逝",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "jianmie",
+            name: "翦灭",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_LIUBIAO: &[SkillDef] = &[
+        SkillDef {
+            code: "zishou",
+            name: "自守",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "zongshi",
+            name: "宗室",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+    ];
+    const JIE_CAIFUREN: &[SkillDef] = &[
+        SkillDef {
+            code: "xianzhou",
+            name: "献州",
+            kind: SkillType::Limited,
+            implemented: true,
+        },
+        SkillDef {
+            code: "qieting",
+            name: "窃听",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_CAOCHONG: &[SkillDef] = &[
+        SkillDef {
+            code: "chengxiang",
+            name: "称象",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "renxin",
+            name: "仁心",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_CAOZHI: &[SkillDef] = &[
+        SkillDef {
+            code: "luoying",
+            name: "落英",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "jiushi",
+            name: "酒诗",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_WUGUOTAI: &[SkillDef] = &[
+        SkillDef {
+            code: "ganlu",
+            name: "甘露",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "buyi",
+            name: "补益",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_LIAOHUA: &[SkillDef] = &[
+        SkillDef {
+            code: "dangxian",
+            name: "当先",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "fuli",
+            name: "伏枥",
+            kind: SkillType::Limited,
+            implemented: true,
+        },
+    ];
     // ---- P4.4.2 一将成名（批次 2：8 将 / 16 技能）----
     const ZHANGCHUNHUA: &[SkillDef] = &[
         SkillDef {
@@ -3032,6 +3151,14 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
         "sgs_hero_604" => JIE_GAOSHUN,
         "sgs_hero_610" => JIE_FAZHENG,
         "sgs_hero_620" => JIE_CHENGPU,
+        "sgs_hero_621" => JIE_WANGYI,
+        "sgs_hero_625" => JIE_ZHANGCHUNHUA,
+        "sgs_hero_626" => JIE_LIUBIAO,
+        "sgs_hero_627" => JIE_CAIFUREN,
+        "sgs_hero_628" => JIE_CAOCHONG,
+        "sgs_hero_629" => JIE_CAOZHI,
+        "sgs_hero_640" => JIE_WUGUOTAI,
+        "sgs_hero_641" => JIE_LIAOHUA,
         _ => &[],
     }
 }

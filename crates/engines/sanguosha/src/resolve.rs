@@ -185,6 +185,9 @@ pub enum Frame {
     ZaiQiJie(crate::resolve_jiexian5::ZaiQiJieFrame),
     JieZiJie(crate::resolve_jiexian5::JieZiJieFrame),
     GuZhengJie(crate::resolve_jiexian5::GuZhengJieFrame),
+    /// P4.4.2 界限突破 J6 帧。
+    ZhenLieJie(crate::resolve_jiexian7::ZhenLieJieFrame),
+    JianMie(crate::resolve_jiexian7::JianMieFrame),
     /// P4.4.2 一将成名（批次 2）。
     JiangChi(crate::resolve_yijiang2::JiangChiFrame),
     Qice(crate::resolve_yijiang2::QiceFrame),
@@ -944,6 +947,8 @@ fn step(
         Frame::ZaiQiJie(f) => crate::resolve_jiexian5::step_zaizhi_jie(st, f),
         Frame::JieZiJie(f) => crate::resolve_jiexian5::step_jiezi_jie(st, f),
         Frame::GuZhengJie(f) => crate::resolve_jiexian5::step_guzheng_jie(st, f),
+        Frame::ZhenLieJie(f) => crate::resolve_jiexian7::step_zhenlie_jie(st, f),
+        Frame::JianMie(f) => crate::resolve_jiexian7::step_jianmie(st, f),
         Frame::QinXue(f) => crate::resolve_jiexian::step_qinxue(st, f),
         Frame::GongXin(f) => crate::resolve_jiexian::step_gongxin(st, f),
         Frame::LianYing(f) => crate::resolve_jiexian::step_lianying(st, f),
@@ -3638,6 +3643,8 @@ pub fn execute_pending(
             }
             Some("jiezi") => crate::resolve_jiexian5::act_jiezi_jie(st, action)?,
             Some("guzheng_jie") => crate::resolve_jiexian5::act_guzheng_jie(st, action)?,
+            Some("zhenlie_jie") => crate::resolve_jiexian7::act_zhenlie_jie(st, action)?,
+            Some("jianmie") => crate::resolve_jiexian7::act_jianmie(st, action)?,
             Some("jiangchi") => crate::resolve_yijiang2::act_jiangchi(st, action)?,
             Some("qice") => crate::resolve_yijiang2::act_qice(st, action)?,
             Some("qianxi") => crate::resolve_yijiang2::act_qianxi(st, action)?,
@@ -5297,6 +5304,10 @@ fn apply_damage_inner(
             }
         }
     }
+    // 界宗室（界刘表，锁定）：每个势力限一次，防止伤害并令来源获得你一张牌。
+    if amount > 0 && crate::resolve_jiexian7::zongshi_guard(st, victim, source) {
+        return;
+    }
     // 界帷幕（界贾诩，锁定）：回合内受到的伤害防止，并摸所防止伤害值两倍数量的牌。
     if amount > 0 && crate::resolve_jiexian4::weimu_prevent_damage(st, victim, amount) {
         return;
@@ -5566,6 +5577,10 @@ fn apply_damage_inner(
     // 界挑衅（界姜维）：此【杀】造成伤害 → 挑衅不再弃牌。
     if amount > 0 {
         crate::resolve_jiexian4::tiaoxin_on_damage(st, victim, source);
+    }
+    // 界当先（界廖化）：额外出牌阶段造成伤害则免自伤。
+    if amount > 0 {
+        crate::resolve_jiexian7::dangxian_jie_on_damage(st, source);
     }
     // 界明策（界陈宫）：虚拟【杀】造成伤害 → 陈宫与其各摸 1 张。
     if amount > 0 {

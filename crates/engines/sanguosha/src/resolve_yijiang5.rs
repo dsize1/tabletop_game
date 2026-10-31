@@ -141,6 +141,31 @@ pub(crate) fn act_zhenlie(st: &mut SgsState, action: &str) -> Result<String, Eng
     let hp = st.seats[f.owner].hp;
     crate::skills::zhaxiang_on_lose_hp(st, f.owner);
     crate::skills::set_zhenlie_void(st, &f.card, f.owner);
+    if crate::skills::is_jiexian(st, f.owner) {
+        // 界贞烈（界王异）：无效后二选一（获得使用者一张牌 / 本回合额外秘计）。
+        st.push_log(
+            Some(&pid(st, f.owner)),
+            format!("贞烈：令此牌无效（体力 {hp}）"),
+        );
+        pop(st);
+        if f.kind == ZhenLieKind::Sha {
+            st.outcome = Some(Outcome::Respond {
+                played: None,
+                played_by: None,
+            });
+        }
+        crate::resolve::push(
+            st,
+            Frame::ZhenLieJie(crate::resolve_jiexian7::ZhenLieJieFrame {
+                owner: f.owner,
+                user: f.user,
+            }),
+        );
+        if hp <= 0 {
+            crate::resolve::push_dying(st, f.owner, Some(f.user));
+        }
+        return Ok("贞烈：此牌对王异无效".to_string());
+    }
     let stolen = crate::resolve_jiexian::take_one_from_region(st, f.user);
     if let Some(card) = &stolen {
         let label = turn::card_label(st, card);

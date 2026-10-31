@@ -1147,13 +1147,32 @@ pub(crate) fn ganlu_target(
             let lost = (st.seats[f.actor].max_hp - st.seats[f.actor].hp).max(0) as usize;
             let na = equip_cards(st, a).len();
             let nb = equip_cards(st, b).len();
-            pop(st);
-            if na + nb == 0 || na.abs_diff(nb) > lost {
+            let diff = na.abs_diff(nb);
+            let jie = crate::skills::is_jiexian(st, f.actor);
+            if !jie && (na + nb == 0 || diff > lost) {
+                pop(st);
                 st.push_log(
                     Some(&st.seats[f.actor].player_id.clone()),
                     "甘露：条件不满足，未交换装备区",
                 );
                 return Ok("甘露：条件不满足，未交换".to_string());
+            }
+            if na + nb == 0 {
+                pop(st);
+                return Ok("甘露：双方装备区均为空".to_string());
+            }
+            pop(st);
+            // 界甘露（界吴国太）：差额大于已损失体力时，须先弃置差额张牌。
+            if jie && diff > lost {
+                let need = (diff - lost) as u32;
+                let n = need.min(st.seats[f.actor].hand.len() as u32);
+                if n > 0 {
+                    crate::resolve::push_discard(st, f.actor, n as usize, "ganlu");
+                    st.push_log(
+                        Some(&st.seats[f.actor].player_id.clone()),
+                        format!("甘露：差额 {diff} 超过已损失体力 {lost}，需弃置 {n} 张牌"),
+                    );
+                }
             }
             swap_equips(st, a, b);
             st.set_counter("ganlu_used", 1);

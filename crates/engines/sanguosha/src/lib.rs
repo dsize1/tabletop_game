@@ -16,6 +16,7 @@ mod resolve_jiexian3;
 mod resolve_jiexian4;
 mod resolve_jiexian5;
 mod resolve_jiexian6;
+mod resolve_jiexian7;
 mod resolve_more;
 mod resolve_mountain;
 mod resolve_skill;
