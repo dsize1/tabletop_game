@@ -10,6 +10,7 @@ import {
   SUIT_LABEL,
   SUIT_RED,
   cardLabel,
+  handLimitLabel,
   hpPips,
   playerName,
   rankLabel,
@@ -62,7 +63,7 @@ export function renderGeneralDetail(seat: SgsSeat, names?: Record<string, string
       escapeHtml(seat.identity ? IDENTITY_LABEL[seat.identity] ?? seat.identity : "未公开"),
     ),
     row("体力", `${hpPips(seat.hp, seat.max_hp)}<span class="muted"> ${seat.hp}/${seat.max_hp}</span>`),
-    row("手牌", `×${seat.hand_count}`),
+    row("手牌", `×${seat.hand_count} / ${handLimitLabel(seat.hand_limit)}`),
     row("状态", seat.alive ? "存活" : "阵亡"),
   ];
   return `<table class="sgs-detail">${rows.join("")}</table>`;

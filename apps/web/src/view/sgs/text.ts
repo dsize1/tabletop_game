@@ -12,6 +12,7 @@ import {
   KINGDOM_LABEL,
   PHASE_LABEL,
   cardLabel,
+  handLimitLabel,
   playerName,
 } from "./format.js";
 import type { SgsViewData } from "./types.js";
@@ -67,7 +68,7 @@ export function renderSgsTextBody(
       return (
         `<li><b>${escapeHtml(playerName(names, s.player_id))}</b>（${escapeHtml(general)}` +
         `${s.kingdom ? ` ${KINGDOM_LABEL[s.kingdom] ?? s.kingdom}` : ""}，${escapeHtml(identity)}）` +
-        ` 体力 ${s.hp}/${s.max_hp}，手牌 ${s.hand_count}` +
+        ` 体力 ${s.hp}/${s.max_hp}，手牌 ${s.hand_count}/${handLimitLabel(s.hand_limit)}` +
         (equips ? `，装备 ${escapeHtml(equips)}` : "") +
         (judge ? `，判定 ${escapeHtml(judge)}` : "") +
         (s.alive ? "" : "（阵亡）") +

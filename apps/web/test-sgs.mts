@@ -62,10 +62,13 @@ const seats: SgsPublicBoard["seats"] = [
   hp: 3,
   max_hp: 4,
   hand_count: i + 1,
+  hand_limit: 4,
   equips: { weapon: i === 1 ? card("c9", "青釭剑", "spade", 6, "qinggang_jian") : null },
   judge_zone: i === 2 ? [card("c8", "乐不思蜀", "club", 6, "lebu_sishu")] : [],
   alive: i !== 4,
 }));
+
+seats[4].hand_limit = null;
 
 const board: SgsPublicBoard = {
   phase: "turn",
@@ -93,6 +96,7 @@ const me: SgsPlayerArea = {
   kingdom: "shu",
   hp: 4,
   max_hp: 5,
+  hand_limit: 5,
   hand: [card("c1", "杀", "spade", 7), card("c2", "桃", "heart", 3, "tao")],
   equips: { weapon: null, armor: null, horse_offense: null, horse_defense: null, treasure: null },
   judge_zone: [],
@@ -146,7 +150,8 @@ assert.equal(cardLabel(card("c1", "杀", "spade", 7)), "杀♠7");
 const publicHtml = renderPublicArea(view, 0, names);
 assert.ok(publicHtml.includes("李四"), "应显示其他玩家昵称");
 assert.ok(publicHtml.includes("曹操") && publicHtml.includes("吕布"), "应显示其他玩家武将名");
-assert.ok(publicHtml.includes("×2"), "应显示手牌数量");
+assert.ok(publicHtml.includes("×2/4"), "应显示手牌数量/上限");
+assert.ok(publicHtml.includes("×5/∞"), "无上限（null）时显示 ∞");
 assert.ok(publicHtml.includes("乐"), "判定区应有一字图标");
 assert.ok(publicHtml.includes("青釭剑"), "装备应可见");
 assert.ok(!publicHtml.includes("sgs-card-rank"), "公共区不得出现手牌正面");
@@ -178,6 +183,7 @@ assert.ok(stackedHtml.includes("×20"), "数量标记展示真实张数");
 // —— 个人区：手牌正面 / 技能 / 操作条 / pending ——
 const meHtml = renderPersonalArea(me, board, {}, names);
 assert.ok(meHtml.includes("杀♠7") && meHtml.includes("桃♥3"), "个人区应显示手牌正面");
+assert.ok(meHtml.includes("手牌") && meHtml.includes("2/5"), "个人区应显示手牌数/上限");
 assert.ok(meHtml.includes('data-skill="rende"'), "技能按钮");
 assert.ok(meHtml.includes("确认打出") && meHtml.includes("disabled"), "未选中时确认按钮置灰");
 assert.ok(meHtml.includes('data-action="end_play"'), "结束出牌按钮");

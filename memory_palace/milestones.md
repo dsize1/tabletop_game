@@ -9,6 +9,14 @@
 - **批前必读**：`skills.md` §2.6–§2.8、`rules-rulings.md` §15–§16、ADR-0024（界化口径）、`docs/conventions/coding-standards.md`
 - **门禁**：`cargo test -p sanguosha`、`check:sgs-*` 全套、`test:web` / `test:sgs-web`、MCP 冒烟（收尾见 P4.4.3）
 
+## M37：三国杀视图增强 —— 手牌上限展示 ✅
+
+- **日期**：2026-10-30
+- **背景**：部分技能会修改弃牌阶段手牌上限（英姿=体力上限、将驰/奇才/清俭等 +N、克己=无上限），不能由体力推断。
+- **完成**：引擎公共视图/个人区新增 `hand_limit`（`null` = 无上限，如克己）；Web 公共座位、个人区标题、详情浮层、文本态统一显示 `手牌数/上限`（∞ 表无上限）。
+- **验证**：`cargo test -p sanguosha` **517** 全绿（`tests/p88.rs` 2 条：英姿上限=体力上限、克己 null）；`check:sgs-view-contract` 字段集同步；`test:web` / `test:sgs-web` / MCP 冒烟。
+- **详见**：`ui-spec.md` §3.2、`view.rs`、`apps/web/src/view/sgs/{public,personal,detail,text}.ts`
+
 ## M36：三国杀 P4.4.2 授予技能补齐（清侧 / 怀柔）✅
 
 - **日期**：2026-10-30

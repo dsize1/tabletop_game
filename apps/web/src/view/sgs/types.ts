@@ -53,6 +53,8 @@ export interface SgsSeat {
   hp: number;
   max_hp: number;
   hand_count: number;
+  /** 手牌上限（`null` = 本回合无上限，如克己）。 */
+  hand_limit?: number | null;
   equips: SgsEquips;
   judge_zone: SgsCard[];
   /** 武将牌上的标记（code → 牌）。 */
@@ -118,6 +120,8 @@ export interface SgsPlayerArea {
   general_name?: string;
   hp: number;
   max_hp: number;
+  /** 手牌上限（`null` = 本回合无上限）。 */
+  hand_limit?: number | null;
   hand: SgsCard[];
   equips: SgsEquips;
   judge_zone: SgsCard[];

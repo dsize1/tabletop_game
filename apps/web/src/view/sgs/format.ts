@@ -17,6 +17,11 @@ export const SUIT_RED: Record<Suit, boolean> = {
   diamond: true,
 };
 
+/** 手牌上限展示：`null` = 本回合无上限。 */
+export function handLimitLabel(limit?: number | null): string {
+  return limit === null || limit === undefined ? "∞" : String(limit);
+}
+
 /** 点数：1→A、11→J、12→Q、13→K。 */
 export function rankLabel(rank: number): string {
   if (rank === 1) return "A";

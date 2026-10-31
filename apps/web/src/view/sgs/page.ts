@@ -107,6 +107,7 @@ button { font: inherit; color: inherit; }
 .sgs-equip { display:flex; gap:4px; align-items:center; background:#1c232c; border:1px solid #2b3644;
   border-radius:8px; padding:3px 6px; font-size:11px; }
 .sgs-equip-label { color:var(--sgs-muted); font-size:10px; }
+.sgs-hand-head { display:flex; align-items:center; gap:6px; font-size:11px; color:#c9d1d9; }
 .sgs-hand { display:flex; gap:6px; overflow-x:auto; padding:2px 2px 6px; scrollbar-width:thin;
   overscroll-behavior:contain; -webkit-overflow-scrolling:touch; min-height:76px; }
 .sgs-card { flex:0 0 auto; width:clamp(48px, 7vw, 64px); height:clamp(66px, 9.4vw, 88px);

@@ -112,6 +112,16 @@ fn transforms_view(st: &SgsState, seat: usize) -> Value {
     Value::Object(out)
 }
 
+/// 手牌上限（公共信息）：`null` 表示本回合无上限（如克己）。
+fn hand_limit_view(st: &SgsState, seat: usize) -> Value {
+    let limit = crate::skills::hand_limit(st, seat);
+    if limit == usize::MAX {
+        Value::Null
+    } else {
+        json!(limit)
+    }
+}
+
 /// 公共局面区。
 pub fn public_board(st: &SgsState) -> Value {
     // 选将期间不公开其他玩家已选武将（选将完成后统一亮明）。
@@ -137,6 +147,7 @@ pub fn public_board(st: &SgsState) -> Value {
                 "hp": s.hp,
                 "max_hp": s.max_hp,
                 "hand_count": s.hand.len(),
+                "hand_limit": hand_limit_view(st, i),
                 "equips": equips_view(st, s),
                 "judge_zone": s.judge_zone.iter().map(|id| card_view(st, id)).collect::<Vec<_>>(),
                 "marks": marks_view(st, s),
@@ -307,6 +318,7 @@ pub fn player_area(st: &SgsState, viewer: &str) -> Option<Value> {
         "hp": s.hp,
         "max_hp": s.max_hp,
         "hand": s.hand.iter().map(|id| card_view(st, id)).collect::<Vec<_>>(),
+        "hand_limit": hand_limit_view(st, idx),
         "equips": equips_view(st, s),
         "judge_zone": s.judge_zone.iter().map(|id| card_view(st, id)).collect::<Vec<_>>(),
         "marks": marks_view(st, s),

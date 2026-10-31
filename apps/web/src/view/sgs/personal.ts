@@ -13,6 +13,7 @@ import {
   cardChipHtml,
   cardFaceHtml,
   cardLabel,
+  handLimitLabel,
   hpPips,
   judgeIcon,
   playerName,
@@ -199,6 +200,7 @@ export function renderPersonalArea(
     `<div class="sgs-equips">${equips}</div>` +
     `<div class="sgs-judge"><span class="sgs-equip-label">判定</span>${area.judge_abolished ? `<span class="muted">废除</span>` : judge || `<span class="muted">无</span>`}</div>` +
     `</div>` +
+    `<div class="sgs-hand-head"><span class="sgs-equip-label">手牌</span> ${(area.hand ?? []).length}/${handLimitLabel(area.hand_limit)}</div>` +
     `<div class="sgs-hand" role="list">${hand || `<span class="muted">无手牌</span>`}</div>` +
     pendingSummary(area) +
     wuguPanel(zones, names) +

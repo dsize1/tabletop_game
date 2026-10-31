@@ -11,6 +11,7 @@ import {
   cardBackHtml,
   cardChipHtml,
   cardLabel,
+  handLimitLabel,
   hpPips,
   judgeIcon,
   playerName,
@@ -69,7 +70,7 @@ function seatCard(
     `<div class="sgs-opponent-head">${name}${identity}</div>` +
     general +
     `<div class="sgs-hp">${hpPips(seat.hp, seat.max_hp)}<span class="sgs-hp-num">${seat.hp}/${seat.max_hp}</span></div>` +
-    `<div class="sgs-hand-mini">${handDots}<span class="sgs-hand-count">×${seat.hand_count}</span></div>` +
+    `<div class="sgs-hand-mini" title="手牌数 / 手牌上限">${handDots}<span class="sgs-hand-count">×${seat.hand_count}/${handLimitLabel(seat.hand_limit)}</span></div>` +
     (marks ? `<div class="sgs-mini-row marks">${escapeHtml(marks)}</div>` : "") +
     (equips ? `<div class="sgs-mini-row">${equips}</div>` : "") +
     (judge ? `<div class="sgs-mini-row judge">${judge}</div>` : "") +

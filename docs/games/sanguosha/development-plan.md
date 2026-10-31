@@ -277,7 +277,7 @@
 
 - **手势**（`apps/web/src/client/sgs-gestures.ts`）：`classifyPress` 纯函数（短按 <400ms、长按 ≥400ms、位移 >8px 取消、`pointercancel` 不产生点击、长按到时后 up 不再点击）；`bindPress` 事件委托（`data-press` 元素），长按到时即反馈（`.pressed` 描边）。
 - **浮层**（`view/sgs/overlay.ts` 纯模板 + `client/sgs-overlay.ts` DOM 管理）：单层、遮罩、`body.overflow=hidden` 滚动锁、Esc / 遮罩 / 关闭按钮 / **浏览器返回键**关闭、焦点移入关闭按钮并在关闭后还原；打开时 `history.pushState`，关闭 `history.back()`（返回键只关浮层）。
-- **详情内容**（`view/sgs/detail.ts`）：牌面（花色点数/类别/装备槽/攻击距离）、武将（玩家/武将/势力/公开身份/体力/手牌数/状态）、弃牌堆列表（顶→底）。为支持「弃牌堆全量列表」，引擎公共视图新增 `public_board.discard`（公共信息），`check:sgs-view-contract` 字段集同步。
+- **详情内容**（`view/sgs/detail.ts`）：牌面（花色点数/类别/装备槽/攻击距离）、武将（玩家/武将/势力/公开身份/体力/手牌数/手牌上限/状态）、弃牌堆列表（顶→底）。为支持「弃牌堆全量列表」，引擎公共视图新增 `public_board.discard`（公共信息），`check:sgs-view-contract` 字段集同步。
 - **客户端接线**：手牌短按选中/取消（`.selected` + 操作条「已选：牌名」，提交在 P3.3）；长按手牌/装备/判定小标记打开牌面详情；点他人武将打开武将详情；点弃牌堆打开列表；首帧立即拉 `/state`（详情依赖客户端数据），浮层打开时轮询不打断界面。
 - **实测（Playwright + Edge，390×844）**：长按 460ms → 浮层打开、标题「桃♥8」、滚动锁生效、焦点在关闭按钮、`history.state.sgsOverlay=true`；Esc → 关闭 + 滚动恢复 + `history.back()` 生效；遮罩点击关闭；短按选中/再按取消；位移 30px 不选中。
 
