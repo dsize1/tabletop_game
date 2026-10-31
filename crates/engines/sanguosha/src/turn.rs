@@ -380,6 +380,31 @@ pub(crate) fn phase_step(
             crate::resolve_sp2::poshi_awaken(st, st.turn);
             // 自立（钟会，觉醒技）：准备阶段「权」≥3。
             crate::resolve_yijiang3::zili_awaken(st, st.turn);
+            // 匡弼（孙登）：准备阶段获得武将牌上的「匡弼」牌，原角色摸等量张。
+            let kuangbi = crate::skills::mark_cards(st, st.turn, "kuangbi");
+            if !kuangbi.is_empty() {
+                let helper_plus = st.counter("kuangbi_helper");
+                let n = kuangbi.len();
+                for card in &kuangbi {
+                    crate::skills::remove_mark(st, st.turn, "kuangbi", card);
+                    st.seats[st.turn].hand.push(card.clone());
+                }
+                st.set_counter("kuangbi_helper", 0);
+                st.push_log(
+                    Some(&st.seats[st.turn].player_id.clone()),
+                    format!("匡弼：获得 {n} 张「匡弼」牌"),
+                );
+                if helper_plus > 0 {
+                    let helper = (helper_plus - 1) as usize;
+                    if st.seats[helper].alive {
+                        let drawn = draw_cards(st, helper, n as u32, events);
+                        st.push_log(
+                            Some(&st.seats[helper].player_id.clone()),
+                            format!("匡弼：摸 {drawn} 张"),
+                        );
+                    }
+                }
+            }
             // 陷嗣（刘封）：准备阶段将至多两名角色各一张牌置于武将牌上为「逆」。
             if crate::skills::has(st, st.turn, "xiansi")
                 && st.counter("xiansi_offered") == 0
@@ -715,6 +740,14 @@ pub(crate) fn phase_step(
             }
             // 自守（刘表）：本回合摸牌阶段多摸 X 张（X = 全场势力数）。
             draw_n += st.counter("zishou_draw");
+            // 督粮（李严）：被指定角色下回合摸牌阶段多摸 1 张。
+            if st.seats[idx].flags.remove("duliang").is_some() {
+                draw_n += 1;
+                st.push_log(
+                    Some(&st.seats[idx].player_id.clone()),
+                    "督粮：摸牌阶段多摸 1 张",
+                );
+            }
             let drawn = draw_cards(st, idx, draw_n, events);
             let pid = st.seats[idx].player_id.clone();
             st.push_log(Some(&pid), format!("摸牌阶段：摸 {drawn} 张"));
@@ -1001,6 +1034,15 @@ pub(crate) fn phase_step(
                 );
                 return Ok(true);
             }
+            // 瑰藻（孙资刘放）：本阶段弃置 ≥2 张且花色均不相同。
+            if crate::resolve_yijiang8::guizao_ready(st, idx) {
+                st.set_counter("guizao_offered", 1);
+                resolve::push(
+                    st,
+                    resolve::Frame::GuiZao(crate::resolve_yijiang8::GuiZaoFrame { owner: idx }),
+                );
+                return Ok(true);
+            }
             st.phase_discarded.clear();
             st.turn_phase = TurnPhase::End;
             Ok(true)
@@ -1159,6 +1201,35 @@ pub(crate) fn phase_step(
                 resolve::push(
                     st,
                     resolve::Frame::Jinzou(crate::resolve_sp::JinzouFrame { actor: st.turn }),
+                );
+                return Ok(true);
+            }
+            // 寝情（黄皓）：结束阶段弃置攻击范围含主公的角色各一张牌，再令其各摸一张。
+            if crate::skills::has(st, st.turn, "qinqing") && st.counter("qinqing_offered") == 0 {
+                st.set_counter("qinqing_offered", 1);
+                resolve::push(
+                    st,
+                    resolve::Frame::QinQing(crate::resolve_yijiang8::QinQingFrame {
+                        actor: st.turn,
+                        selected: Vec::new(),
+                    }),
+                );
+                return Ok(true);
+            }
+            // 极奢（岑昏）：结束阶段若没有手牌，每有 1 点体力可令一名角色进入连环状态。
+            if crate::skills::has(st, st.turn, "jishe")
+                && st.counter("jishe_end_offered") == 0
+                && st.seats[st.turn].hand.is_empty()
+                && st.seats[st.turn].hp > 0
+            {
+                st.set_counter("jishe_end_offered", 1);
+                let remaining = st.seats[st.turn].hp as u32;
+                resolve::push(
+                    st,
+                    resolve::Frame::JiSheEnd(crate::resolve_yijiang8::JiSheEndFrame {
+                        actor: st.turn,
+                        remaining,
+                    }),
                 );
                 return Ok(true);
             }
@@ -1356,6 +1427,7 @@ fn end_turn(st: &mut SgsState, events: &mut Vec<EngineEvent>) {
             );
         }
     }
+    crate::resolve_yijiang8::clear_jiazhao(st, cur);
     st.seats[cur].flags.remove("mingjian");
     st.seats[cur].flags.remove("jigong");
     if st.seats[cur].flags.remove("fuhen_granted").is_some() {
@@ -1842,6 +1914,117 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
         out.push(Action {
             id: "skill:jiefan".into(),
             description: "解烦：选择一名角色，攻击范围含其者弃武器或令其摸 1".into(),
+        });
+    }
+    // 矫诏（郭皇后）：展示一张手牌，令最近角色声明基本牌。
+    if crate::skills::has(st, idx, "jiazhao")
+        && st.counter("jiazhao_used") == 0
+        && !st.seats[idx].hand.is_empty()
+    {
+        out.push(Action {
+            id: "skill:jiazhao".into(),
+            description: "矫诏：展示一张手牌，令最近角色声明一种基本牌".into(),
+        });
+    }
+    // 矫诏：使用展示牌当声明的基本牌。
+    for card_id in hand_ids(st, idx) {
+        if let Some(code) = crate::resolve_yijiang8::jiazhao_code(st, idx, &card_id) {
+            let usable = match code.as_str() {
+                "sha" => {
+                    !sha_targets(st, idx).is_empty()
+                        && st.counter("sha_used") < crate::turn::sha_limit(st, idx)
+                }
+                "tao" => st.seats[idx].hp < st.seats[idx].max_hp,
+                "jiu" => st.counter("jiu_used") == 0,
+                _ => false,
+            };
+            if usable {
+                let name = match code.as_str() {
+                    "sha" => "杀",
+                    "tao" => "桃",
+                    _ => "酒",
+                };
+                out.push(Action {
+                    id: format!("skill:jiazhao_use:{card_id}"),
+                    description: format!(
+                        "矫诏：将【{}】当【{name}】使用",
+                        card_label(st, &card_id)
+                    ),
+                });
+            }
+        }
+    }
+    // 督粮（李严）：出牌阶段限一次。
+    if crate::skills::has(st, idx, "duliang")
+        && st.counter("duliang_used") == 0
+        && st
+            .alive_indices()
+            .into_iter()
+            .any(|i| i != idx && !st.seats[i].hand.is_empty())
+    {
+        out.push(Action {
+            id: "skill:duliang".into(),
+            description: "督粮：获得一名其他角色一张手牌，然后令其二选一".into(),
+        });
+    }
+    // 匡弼（孙登）：出牌阶段限一次。
+    if crate::skills::has(st, idx, "kuangbi")
+        && st.counter("kuangbi_used") == 0
+        && crate::skills::mark_cards(st, idx, "kuangbi").is_empty()
+        && st
+            .alive_indices()
+            .into_iter()
+            .any(|i| i != idx && !st.seats[i].hand.is_empty())
+    {
+        out.push(Action {
+            id: "skill:kuangbi".into(),
+            description: "匡弼：令一名其他角色将至多三张牌置于你武将牌上".into(),
+        });
+    }
+    // 止戈（刘虞）：手牌数大于体力值时。
+    if crate::skills::has(st, idx, "zhige")
+        && st.counter("zhige_used") == 0
+        && st.seats[idx].hand.len() > st.seats[idx].hp.max(0) as usize
+        && st
+            .alive_indices()
+            .into_iter()
+            .any(|i| i != idx && st.in_attack_range(i, idx))
+    {
+        out.push(Action {
+            id: "skill:zhige".into(),
+            description: "止戈：令攻击范围含你的一名角色使用【杀】或交装备".into(),
+        });
+    }
+    // 极奢（岑昏）：摸一张并令本回合手牌上限 -1。
+    if crate::resolve_yijiang8::jishe_available(st, idx) {
+        out.push(Action {
+            id: "skill:jishe".into(),
+            description: "极奢：摸一张牌，本回合手牌上限 -1".into(),
+        });
+    }
+    // 讥谀（孙资刘放）：令一名角色弃一张手牌并封锁花色。
+    if crate::resolve_yijiang8::jiyu_available(st, idx) {
+        out.push(Action {
+            id: "skill:jiyu".into(),
+            description: "讥谀：令一名角色弃置一张手牌，本回合不能使用该花色".into(),
+        });
+    }
+    // 滔乱（张让）：一张牌当任意基本牌/普通锦囊（每种牌名限一次）。
+    for (card_id, code) in crate::resolve_yijiang8::taoluan_options(st, idx) {
+        let name = match code {
+            "sha" => "杀",
+            "tao" => "桃",
+            "jiu" => "酒",
+            "wuzhong_shengyou" => "无中生有",
+            "guohe_chaiqiao" => "过河拆桥",
+            "shunshou_qianyang" => "顺手牵羊",
+            "juedou" => "决斗",
+            "nanman_ruqin" => "南蛮入侵",
+            _ => "万箭齐发",
+        };
+        out.push(Action {
+            id: format!("skill:taoluan:{card_id}:{code}"),
+            description: format!("滔乱：将【{}】当【{name}】使用", card_label(st, &card_id)),
         });
     }
     // 战绝（刘谌）：所有手牌当【决斗】使用。
@@ -2653,6 +2836,19 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
                 });
             }
         }
+    }
+    // 讥谀（孙资刘放）：本回合不能使用被封锁花色的手牌。
+    let jiyu_banned: Vec<String> = hand_ids(st, idx)
+        .into_iter()
+        .filter(|id| crate::resolve_yijiang8::jiyu_banned(st, idx, id))
+        .collect();
+    if !jiyu_banned.is_empty() {
+        out.retain(|a| {
+            !jiyu_banned.iter().any(|c| a.id.ends_with(c.as_str()))
+                && !jiyu_banned
+                    .iter()
+                    .any(|c| a.id.split(|ch| ch == ':' || ch == ',').any(|seg| seg == c))
+        });
     }
     // 将驰（曹彰）：本回合不能使用/打出【杀】。
     if crate::skills::sha_play_banned(st, idx) {
@@ -3959,6 +4155,98 @@ pub fn execute(
             .split_once(',')
             .ok_or_else(|| illegal("父魂需要两张手牌"))?;
         crate::resolve_yijiang5::use_fuhen_sha(st, idx, c1, c2)?
+    } else if action == "skill:jiazhao" {
+        if !crate::skills::has(st, idx, "jiazhao") {
+            return Err(illegal("没有该技能"));
+        }
+        if st.counter("jiazhao_used") > 0 {
+            return Err(illegal("本阶段已发动过矫诏"));
+        }
+        if st.seats[idx].hand.is_empty() {
+            return Err(illegal("没有手牌"));
+        }
+        resolve::push(
+            st,
+            resolve::Frame::JiaoZhao(crate::resolve_yijiang8::JiaoZhaoFrame {
+                actor: idx,
+                stage: crate::resolve_yijiang8::JiaoZhaoStage::Card,
+                card: None,
+                declaimer: idx,
+            }),
+        );
+        st.push_log(Some(player_id), "发动矫诏");
+        "矫诏：请选择展示的手牌".to_string()
+    } else if let Some(card_id) = action.strip_prefix("skill:jiazhao_use:") {
+        crate::resolve_yijiang8::use_jiazhao(st, idx, card_id)?
+    } else if action == "skill:duliang" {
+        if !crate::skills::has(st, idx, "duliang") {
+            return Err(illegal("没有该技能"));
+        }
+        if st.counter("duliang_used") > 0 {
+            return Err(illegal("本阶段已发动过督粮"));
+        }
+        resolve::push(
+            st,
+            resolve::Frame::DuLiang(crate::resolve_yijiang8::DuLiangFrame {
+                actor: idx,
+                stage: crate::resolve_yijiang8::DuLiangStage::Target,
+                target: None,
+            }),
+        );
+        st.push_log(Some(player_id), "发动督粮");
+        "督粮：请选择目标".to_string()
+    } else if action == "skill:kuangbi" {
+        if !crate::skills::has(st, idx, "kuangbi") {
+            return Err(illegal("没有该技能"));
+        }
+        if st.counter("kuangbi_used") > 0 {
+            return Err(illegal("本阶段已发动过匡弼"));
+        }
+        resolve::push(
+            st,
+            resolve::Frame::KuangBi(crate::resolve_yijiang8::KuangBiFrame {
+                actor: idx,
+                stage: crate::resolve_yijiang8::KuangBiStage::Target,
+                helper: None,
+                selected: Vec::new(),
+            }),
+        );
+        st.push_log(Some(player_id), "发动匡弼");
+        "匡弼：请选择目标".to_string()
+    } else if action == "skill:zhige" {
+        if !crate::skills::has(st, idx, "zhige") {
+            return Err(illegal("没有该技能"));
+        }
+        if st.counter("zhige_used") > 0 {
+            return Err(illegal("本阶段已发动过止戈"));
+        }
+        resolve::push(
+            st,
+            resolve::Frame::ZhiGe(crate::resolve_yijiang8::ZhiGeFrame {
+                actor: idx,
+                stage: crate::resolve_yijiang8::ZhiGeStage::Target,
+                target: None,
+            }),
+        );
+        st.push_log(Some(player_id), "发动止戈");
+        "止戈：请选择目标".to_string()
+    } else if action == "skill:jishe" {
+        crate::resolve_yijiang8::use_jishe(st, idx)?
+    } else if action == "skill:jiyu" {
+        if !crate::resolve_yijiang8::jiyu_available(st, idx) {
+            return Err(illegal("讥谀不可用"));
+        }
+        resolve::push(
+            st,
+            resolve::Frame::JiYu(crate::resolve_yijiang8::JiYuFrame { actor: idx }),
+        );
+        st.push_log(Some(player_id), "发动讥谀");
+        "讥谀：请选择目标".to_string()
+    } else if let Some(rest) = action.strip_prefix("skill:taoluan:") {
+        let (card, code) = rest
+            .split_once(':')
+            .ok_or_else(|| illegal("滔乱需要选择牌与牌名"))?;
+        crate::resolve_yijiang8::use_taoluan(st, idx, card, code)?
     } else if action == "skill:zhanjue" {
         crate::resolve_yijiang7::use_zhanjue(st, idx)?
     } else if action == "skill:qinwang" {
@@ -4361,6 +4649,10 @@ fn play_card(
     if crate::skills::sha_play_banned(st, idx) && matches!(def.code, "sha" | "huo_sha" | "lei_sha")
     {
         return Err(illegal("将驰：本回合不能使用【杀】"));
+    }
+    // 讥谀（孙资刘放）：本回合不能使用被封锁花色的牌。
+    if crate::resolve_yijiang8::jiyu_banned(st, idx, card_id) {
+        return Err(illegal("讥谀：本回合不能使用该花色的牌"));
     }
     // 司敌（曹真）：本阶段不能使用被封锁颜色的牌。
     if crate::skills::sidiqu_banned(st, idx, card_id) {

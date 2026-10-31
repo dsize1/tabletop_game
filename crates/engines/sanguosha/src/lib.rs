@@ -24,6 +24,7 @@ mod resolve_yijiang4;
 mod resolve_yijiang5;
 mod resolve_yijiang6;
 mod resolve_yijiang7;
+mod resolve_yijiang8;
 mod resolve_zone;
 mod skills;
 mod state;
@@ -355,6 +356,8 @@ fn finish_setup(st: &mut SgsState) -> Result<Vec<EngineEvent>, EngineError> {
     for i in 0..st.seats.len() {
         crate::resolve_sp::init_huaiju(st, i);
     }
+    // 宗祚（刘虞）：开局按势力数增加体力上限并回复 1。
+    crate::resolve_yijiang8::init_zongzuo(st);
     // 明任（卢植）：开局摸 2 并选择「任」。
     for i in 0..st.seats.len() {
         crate::resolve_sp2::init_mingren(st, i);

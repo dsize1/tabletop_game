@@ -233,6 +233,18 @@ pub enum Frame {
     YaoMing(crate::resolve_yijiang7::YaoMingFrame),
     HuaiYi(crate::resolve_yijiang7::HuaiYiFrame),
     JiGong(crate::resolve_yijiang7::JiGongFrame),
+    /// P4.4.2 一将成名（批次 Y6）。
+    JiaoZhao(crate::resolve_yijiang8::JiaoZhaoFrame),
+    DanXin(crate::resolve_yijiang8::DanXinFrame),
+    DuLiang(crate::resolve_yijiang8::DuLiangFrame),
+    KuangBi(crate::resolve_yijiang8::KuangBiFrame),
+    ZhiGe(crate::resolve_yijiang8::ZhiGeFrame),
+    JiSheEnd(crate::resolve_yijiang8::JiSheEndFrame),
+    GuiZao(crate::resolve_yijiang8::GuiZaoFrame),
+    JiYu(crate::resolve_yijiang8::JiYuFrame),
+    QinQing(crate::resolve_yijiang8::QinQingFrame),
+    HuiSheng(crate::resolve_yijiang8::HuiShengFrame),
+    TaoLuan(crate::resolve_yijiang8::TaoLuanFrame),
     /// 五谷丰登（P2.5 特殊区 `wugu`）。
     Wugu(crate::resolve_zone::WuguFrame),
     /// 观星排序提交（P2.5 特殊区 `guanxing`，`arrange:<csv>`）。
@@ -946,6 +958,17 @@ fn step(
         Frame::YaoMing(f) => crate::resolve_yijiang7::step_yaoming(st, f),
         Frame::HuaiYi(f) => crate::resolve_yijiang7::step_huaiyi(st, f),
         Frame::JiGong(f) => crate::resolve_yijiang7::step_jigong(st, f),
+        Frame::JiaoZhao(f) => crate::resolve_yijiang8::step_jiazhao(st, f),
+        Frame::DanXin(f) => crate::resolve_yijiang8::step_danxin(st, f),
+        Frame::DuLiang(f) => crate::resolve_yijiang8::step_duliang(st, f),
+        Frame::KuangBi(f) => crate::resolve_yijiang8::step_kuangbi(st, f),
+        Frame::ZhiGe(f) => crate::resolve_yijiang8::step_zhige(st, f),
+        Frame::JiSheEnd(f) => crate::resolve_yijiang8::step_jishe_end(st, f),
+        Frame::GuiZao(f) => crate::resolve_yijiang8::step_guizao(st, f),
+        Frame::JiYu(f) => crate::resolve_yijiang8::step_jiyu(st, f),
+        Frame::QinQing(f) => crate::resolve_yijiang8::step_qinqing(st, f),
+        Frame::HuiSheng(f) => crate::resolve_yijiang8::step_huisheng(st, f),
+        Frame::TaoLuan(f) => crate::resolve_yijiang8::step_taoluan(st, f),
         Frame::Wugu(f) => crate::resolve_zone::step_wugu(st, f, events),
         Frame::Arrange(f) => crate::resolve_zone::step_arrange(st, f, events),
     }
@@ -3348,6 +3371,17 @@ pub fn execute_pending(
             Some("yaoming") => crate::resolve_yijiang7::act_yaoming(st, action)?,
             Some("huaiyi") => crate::resolve_yijiang7::act_huaiyi(st, action)?,
             Some("jigong") => crate::resolve_yijiang7::act_jigong(st, action)?,
+            Some("jiazhao") => crate::resolve_yijiang8::act_jiazhao(st, action)?,
+            Some("danxin") => crate::resolve_yijiang8::act_danxin(st, action)?,
+            Some("duliang") => crate::resolve_yijiang8::act_duliang(st, action)?,
+            Some("kuangbi") => crate::resolve_yijiang8::act_kuangbi(st, action)?,
+            Some("zhige") => crate::resolve_yijiang8::act_zhige(st, action)?,
+            Some("jishe") => crate::resolve_yijiang8::act_jishe_end(st, action)?,
+            Some("guizao") => crate::resolve_yijiang8::act_guizao(st, action)?,
+            Some("jiyu") => crate::resolve_yijiang8::act_jiyu(st, action)?,
+            Some("qinqing") => crate::resolve_yijiang8::act_qinqing(st, action)?,
+            Some("huisheng") => crate::resolve_yijiang8::act_huisheng(st, action)?,
+            Some("taoluan") => crate::resolve_yijiang8::act_taoluan(st, action)?,
             _ => crate::resolve_skill::act_jianxiong(st, action)?,
         },
         "choose_many" => match top(st) {
@@ -4900,6 +4934,30 @@ fn apply_damage_inner(
         );
         return;
     }
+    // 贿生（黄皓）：受到其他角色伤害时，可令其观看你一张牌并二选一。
+    if allow_tianxiang && amount > 0 {
+        if let Some(src) = source {
+            if crate::resolve_yijiang8::huisheng_available(st, victim, src)
+                && !st.seats[victim].hand.is_empty()
+            {
+                let n = st.seats[victim].hand.len();
+                let idx = st.next_index(n);
+                let revealed = st.seats[victim].hand[idx].clone();
+                push(
+                    st,
+                    Frame::HuiSheng(crate::resolve_yijiang8::HuiShengFrame {
+                        owner: victim,
+                        source: src,
+                        amount,
+                        card: revealed,
+                        damage_type: dtype,
+                        damage_card: card.map(str::to_string),
+                    }),
+                );
+                return;
+            }
+        }
+    }
     // 陷阵（拼点赢）：无视被拼点目标的防具（藤甲/白银狮子等不生效）。
     let armor_ignored = source.is_some_and(|src| {
         crate::resolve_yijiang::xianzhen_ignore_armor(st, victim) && src != victim
@@ -4931,6 +4989,10 @@ fn apply_damage_inner(
         if amount == 0 {
             return;
         }
+    }
+    // 链祸（岑昏，锁定）：受到火焰伤害且处于连环状态（传导起点）时 +1。
+    if amount > 0 {
+        amount += crate::resolve_yijiang8::lianhuo_bonus(st, victim, dtype);
     }
     // 铁索连环：属性伤害在同横置角色间传导（先全部重置，避免级联）。
     let chain_targets: Vec<usize> = if amount > 0
@@ -5171,6 +5233,13 @@ fn apply_damage_inner(
                 ),
             );
         }
+    }
+    // 殚心（郭皇后）：受到伤害后，可摸一张或修改矫诏。
+    if amount > 0 && st.seats[victim].hp > 0 && crate::skills::has(st, victim, "danxin") {
+        push(
+            st,
+            Frame::DanXin(crate::resolve_yijiang8::DanXinFrame { owner: victim }),
+        );
     }
     // 战绝（刘谌）：因该【决斗】受伤后，刘谌与受伤者各摸一张。
     if let Some(card_id) = card {
@@ -5544,6 +5613,7 @@ fn death(
     }
     st.seats[victim].alive = false;
     st.seats[victim].hp = 0;
+    crate::resolve_yijiang8::zongzuo_on_death(st, victim);
     // 断肠：杀死蔡文姬的角色失去所有技能。
     if crate::skills::has(st, victim, "duanchang") {
         if let Some(src) = source {

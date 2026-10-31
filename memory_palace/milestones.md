@@ -11,6 +11,15 @@
 - **每批收尾**：`p67` 的「一将成名已实现数」+8；`skills.md` §2.7.x + `rules-rulings.md` 新节；`milestones.md` 新增 M 条目
 - **门禁**：`npm run sgs:check`（每批收尾）、`npm run sgs:check:full`（含 MCP 冒烟）、`npm run sgs:check:fast`（改码自检）
 
+## M45：三国杀 P4.4.2 批次 Y6（一将成名 380–387：8 将 / 14 技能）✅
+
+- **日期**：2026-10-31
+- **完成**：郭皇后（矫诏/殚心）、李严（督粮/腹鳞）、孙登（匡弼）、刘虞（止戈/宗祚）、岑昏（极奢/链祸）、孙资刘放（瑰藻/讥谀）、黄皓（寝情/贿生）、张让（滔乱）
+- **机制**：`Frame::JiaoZhao/DanXin/DuLiang/KuangBi/ZhiGe/JiSheEnd/GuiZao/JiYu/QinQing/HuiSheng/TaoLuan`（`resolve_yijiang8.rs`）；`jiazhao:*` 转化标记、`jiyu_banned` 花色封锁、`taoluan_used:*` 牌名限次、开局宗祚与死亡减上限
+- **验证**：`cargo test -p sanguosha` **661** 全绿；`tests/p94.rs` 24 条（每将 ≥3）；`p67` 一将成名已实现数 64
+- **已知边界**：矫诏「闪」仅响应未实现；腹鳞仅统计督粮；滔乱锦囊限 6 种（§28）
+- **详见**：`skills.md` §2.7.7、`rules-rulings.md` §28、`development-plan.md` P4.4.2 批次 Y6
+
 ## M44：三国杀 P4.4.2 批次 Y5（一将成名 335–342：8 将 / 14 技能）✅
 
 - **日期**：2026-10-31

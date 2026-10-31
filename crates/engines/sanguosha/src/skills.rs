@@ -2034,6 +2034,103 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
             implemented: true,
         },
     ];
+    // ---- P4.4.2 一将成名（批次 Y6：8 将 / 14 技能）----
+    const GUOHUANGHOU: &[SkillDef] = &[
+        SkillDef {
+            code: "jiazhao",
+            name: "矫诏",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "danxin",
+            name: "殚心",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const LIYAN: &[SkillDef] = &[
+        SkillDef {
+            code: "duliang",
+            name: "督粮",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "fulin",
+            name: "腹鳞",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+    ];
+    const SUNDENG: &[SkillDef] = &[SkillDef {
+        code: "kuangbi",
+        name: "匡弼",
+        kind: SkillType::Normal,
+        implemented: true,
+    }];
+    const LIUYU: &[SkillDef] = &[
+        SkillDef {
+            code: "zhige",
+            name: "止戈",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "zongzuo",
+            name: "宗祚",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+    ];
+    const CENHUN: &[SkillDef] = &[
+        SkillDef {
+            code: "jishe",
+            name: "极奢",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "lianhuo",
+            name: "链祸",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+    ];
+    const SUNZILIUIFANG: &[SkillDef] = &[
+        SkillDef {
+            code: "guizao",
+            name: "瑰藻",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "jiyu",
+            name: "讥谀",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const HUANGHAO: &[SkillDef] = &[
+        SkillDef {
+            code: "qinqing",
+            name: "寝情",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "huisheng",
+            name: "贿生",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const ZHANGRANG: &[SkillDef] = &[SkillDef {
+        code: "taoluan",
+        name: "滔乱",
+        kind: SkillType::Normal,
+        implemented: true,
+    }];
     match general {
         "sgs_hero_1" => LIUBEI,
         "sgs_hero_15" => CAOCAO,
@@ -2164,6 +2261,14 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
         "sgs_hero_340" => QUANCONG,
         "sgs_hero_341" => GONGSUNYUAN,
         "sgs_hero_342" => GUOTUFENGJI,
+        "sgs_hero_380" => GUOHUANGHOU,
+        "sgs_hero_381" => LIYAN,
+        "sgs_hero_382" => SUNDENG,
+        "sgs_hero_383" => LIUYU,
+        "sgs_hero_384" => CENHUN,
+        "sgs_hero_385" => SUNZILIUIFANG,
+        "sgs_hero_386" => HUANGHAO,
+        "sgs_hero_387" => ZHANGRANG,
         "sgs_hero_299" => JIE_LIUBEI,
         "sgs_hero_300" => JIE_GUANYU,
         "sgs_hero_301" => JIE_ZHANGFEI,
@@ -3399,6 +3504,14 @@ pub fn hand_limit(st: &SgsState, seat: usize) -> usize {
     // 权计（钟会）：每有一张「权」手牌上限 +1。
     if has(st, seat, "quanji") {
         limit += quan_count(st, seat);
+    }
+    // 腹鳞（李严，锁定）：本回合获得的牌不计入手牌上限（当前仅统计督粮获得）。
+    if has(st, seat, "fulin") {
+        limit += st.counter("fulin_gain") as usize;
+    }
+    // 极奢（岑昏）：每次发动本回合手牌上限 -1。
+    if has(st, seat, "jishe") {
+        limit = limit.saturating_sub(st.counter("jishe_used") as usize);
     }
     // 急攻（郭图逢纪）：发动后本回合手牌上限等于本阶段造成的伤害值。
     if has(st, seat, "jigong")
