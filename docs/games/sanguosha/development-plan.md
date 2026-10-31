@@ -589,9 +589,9 @@
 
 - **状态**：一将成名 72 位中已实现 24 位（151/152/153/155/156/157/158/160 + 161/162/164/166/167/168/169/170 + Y1 171–178）；剩余 48 位按下表每批 8 将，**在全新会话中逐批完成**。
 - **数据/包开关**：`data.rs` 已全量生成 72 位、`GENERAL_PACKS` 已含 `yijiang`，无需再跑生成脚本；未实现的武将 `general_ready=false` 不进池。
-- **每批流程**：① `skills.rs` 注册（code/name/kind/implemented）→ ② 实现技能帧/钩子（新文件 `resolve_yijiang3.rs` 起按批次命名）→ ③ 每将 ≥3 条用例（`tests/p89.rs` 起按批次续号）→ ④ `skills.md` 新增 `§2.7.x` 表 + `rules-rulings.md` 新增一节 → ⑤ `p67` 的「一将成名已实现数」断言 +8 → ⑥ 全套门禁 → ⑦ 提交。
+- **每批流程**：① `skills.rs` 注册（code/name/kind/implemented）→ ② 实现技能帧/钩子（`resolve_yijiangN.rs` 按批次续号）→ ③ 每将 ≥3 条用例（`tests/p89.rs` 起按批次续号，复用 `tests/support.rs` 助手）→ ④ `skills.md` 新增 `§2.7.x` 表 + `rules-rulings.md` 新增一节 → ⑤ `p67` 的「一将成名已实现数」断言 +8（`npm run sgs:batch-status` 校验）→ ⑥ `npm run sgs:check` 全套门禁 → ⑦ 提交。**模板/坑位/DoD 见 `docs/games/sanguosha/batch-playbook.md`**。
 - **批前必读**：`skills.md` §2.7/§2.7.2、`rules-rulings.md` §16/§21/§23、`docs/conventions/coding-standards.md`、`docs/conventions/message-protocol.md`（若涉及交互原语）。
-- **门禁**：`cargo test -p sanguosha`、`check:sgs-skill-cases`（每将 ≥3 条）、`check:sgs-skill-docs`（表行同步）、`check:sgs-engine-data`、`check:sgs-pack-pool`、`check:sgs-view-contract`、`check:interaction-primitives`、`test:web`、`test:sgs-web`、MCP 冒烟（`node apps/verify-sanguosha.mjs`）。
+- **门禁**：`npm run sgs:check`（= `cargo test -p sanguosha` + skill-cases/skill-docs/engine-data/batch-status/pack-pool/view-contract/interaction + `test:web`/`test:sgs-web`）；`npm run sgs:check:fast` 快速自检；`npm run sgs:check:full` 追加 MCP 冒烟 `verify:sanguosha`。
 
 | 批次 | 武将（gid 名称） |
 |---|---|

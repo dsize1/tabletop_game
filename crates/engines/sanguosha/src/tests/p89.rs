@@ -1,79 +1,9 @@
 //! P4.4.2 一将成名批次 Y1（8 将）：将华雄 / 刘表 / 钟会 / 曹冲 / 郭淮 / 满宠 / 关平 / 简雍。
 
 use super::p24::{set_general, start_and_pick};
+use super::support::*;
 use super::{clear_hands, edit, manager, place_mark, state_of, take_card};
 use crate::state::*;
-
-fn other_seats(st: &SgsState, cur: usize) -> Vec<usize> {
-    st.alive_indices()
-        .into_iter()
-        .filter(|i| *i != cur)
-        .collect()
-}
-
-fn give_card(st: &mut SgsState, seat: usize, pred: impl Fn(&CardInst) -> bool) -> String {
-    let id = st
-        .cards
-        .iter()
-        .find(|(id, c)| {
-            pred(c)
-                && !st.seats.iter().any(|s| s.hand.iter().any(|h| h == *id))
-                && !st
-                    .seats
-                    .iter()
-                    .any(|s| s.marks.values().flatten().any(|h| h == *id))
-                && !st.deck.processing.iter().any(|d| d == *id)
-                && !st
-                    .seats
-                    .iter()
-                    .any(|s| s.judge_zone.iter().any(|h| h == *id))
-                && !st
-                    .seats
-                    .iter()
-                    .any(|s| s.equips.values().flatten().any(|h| h == *id))
-        })
-        .map(|(id, _)| id.clone())
-        .expect("没有可用的牌");
-    take_card(st, &id);
-    st.seats[seat].hand.push(id.clone());
-    id
-}
-
-fn give_def(st: &mut SgsState, seat: usize, def: &str) -> String {
-    give_card(st, seat, |c| c.def == def)
-}
-
-fn give_suit(st: &mut SgsState, seat: usize, suit: Suit) -> String {
-    give_card(st, seat, |c| c.suit == suit)
-}
-
-fn give_equip(st: &mut SgsState, seat: usize) -> String {
-    give_card(st, seat, |c| {
-        crate::data::card_def(&c.def).is_some_and(|d| d.equip_slot.is_some())
-    })
-}
-
-fn run_phase(
-    mgr: &game_engine_core::GameManager,
-    room: &str,
-    seat: usize,
-    phase: TurnPhase,
-    clear_counters: bool,
-) {
-    let full = mgr.get_state(room).unwrap();
-    let mut st = SgsState::parse(&full.data).unwrap();
-    st.turn = seat;
-    st.turn_phase = phase;
-    if clear_counters {
-        st.turn_counters.clear();
-    }
-    let mut ev = Vec::new();
-    crate::turn::phase_step(&mut st, &mut ev).unwrap();
-    crate::resolve::advance(&mut st, &mut ev).unwrap();
-    let mut next = full.clone();
-    next.data = serde_json::to_value(&st).unwrap();
-    mgr.restore(next);
-}
 
 // ---------------------------------------------------------------------------
 // 将华雄 · 恃勇
@@ -190,11 +120,7 @@ fn zishou_draws_extra_and_prevents_damage() {
     });
     run_phase(&mgr, &room, seat, TurnPhase::Draw, false);
     let st = state_of(&mgr, &room);
-    assert_eq!(
-        st.pending.as_ref().and_then(|p| p.skill.as_deref()),
-        Some("zishou"),
-        "自守：摸牌阶段询问"
-    );
+    assert_eq!(pending_skill(&st), Some("zishou"), "自守：摸牌阶段询问");
     mgr.execute_action(&room, &pid, "opt1").unwrap();
     let st = state_of(&mgr, &room);
     assert_eq!(
@@ -329,11 +255,7 @@ fn zili_awaken_grants_paiyi() {
     });
     run_phase(&mgr, &room, seat, TurnPhase::Prepare, false);
     let st = state_of(&mgr, &room);
-    assert_eq!(
-        st.pending.as_ref().and_then(|p| p.skill.as_deref()),
-        Some("zili"),
-        "自立：准备阶段觉醒"
-    );
+    assert_eq!(pending_skill(&st), Some("zili"), "自立：准备阶段觉醒");
     mgr.execute_action(&room, &pid, "opt2").unwrap();
     let st = state_of(&mgr, &room);
     assert_eq!(st.seats[seat].max_hp, before - 1, "自立：体力上限 -1");
@@ -402,20 +324,11 @@ fn chengxiang_gains_cards_within_13() {
         crate::resolve::advance(st, &mut ev).unwrap();
     });
     let st = state_of(&mgr, &room);
-    assert_eq!(
-        st.pending.as_ref().and_then(|p| p.skill.as_deref()),
-        Some("chengxiang")
-    );
-    let first = st
-        .pending
-        .as_ref()
-        .unwrap()
-        .options
-        .iter()
-        .find(|o| o.id.starts_with("choose:"))
-        .expect("亮出的牌")
-        .id
-        .clone();
+    assert_eq!(pending_skill(&st), Some("chengxiang"));
+    let first = pending_options_with(&st, "choose:")
+        .into_iter()
+        .next()
+        .expect("亮出的牌");
     before = st.seats[seat].hand.len();
     mgr.execute_action(&room, &pid, &first).unwrap();
     mgr.execute_action(&room, &pid, "confirm").unwrap();
@@ -436,31 +349,16 @@ fn chengxiang_rejects_sum_over_13() {
         set_general(st, seat, "sgs_hero_174");
         st.turn_counters.clear();
         pid = st.seats[seat].player_id.clone();
-        let kings: Vec<String> = st
-            .cards
-            .iter()
-            .filter(|(_, c)| c.rank == 13)
-            .map(|(id, _)| id.clone())
-            .take(4)
-            .collect();
+        let kings = find_cards(st, |c| c.rank == 13, 4);
         assert_eq!(kings.len(), 4, "需要 4 张 K");
-        for id in &kings {
-            take_card(st, id);
-            st.deck.draw.push(id.clone());
-        }
+        set_top(st, &kings);
         crate::resolve::apply_damage(st, seat, 1, None, crate::resolve::DamageType::Normal, None);
         let mut ev = Vec::new();
         crate::resolve::advance(st, &mut ev).unwrap();
     });
     let st = state_of(&mgr, &room);
-    let picks: Vec<String> = st
-        .pending
-        .as_ref()
-        .unwrap()
-        .options
-        .iter()
-        .filter(|o| o.id.starts_with("choose:"))
-        .map(|o| o.id.clone())
+    let picks: Vec<String> = pending_options_with(&st, "choose:")
+        .into_iter()
         .take(2)
         .collect();
     mgr.execute_action(&room, &pid, &picks[0]).unwrap();
@@ -499,10 +397,7 @@ fn renxin_prevents_damage_with_equipment() {
         crate::resolve::advance(st, &mut ev).unwrap();
     });
     let st = state_of(&mgr, &room);
-    assert_eq!(
-        st.pending.as_ref().and_then(|p| p.skill.as_deref()),
-        Some("renxin")
-    );
+    assert_eq!(pending_skill(&st), Some("renxin"));
     mgr.execute_action(&room, &owner_pid, &format!("equip:{equip}"))
         .unwrap();
     let st = state_of(&mgr, &room);
@@ -687,10 +582,7 @@ fn yuce_source_choice_heals() {
         assert_eq!(st.seats[seat].hp, 1);
     });
     let st = state_of(&mgr, &room);
-    assert_eq!(
-        st.pending.as_ref().and_then(|p| p.skill.as_deref()),
-        Some("yuce")
-    );
+    assert_eq!(pending_skill(&st), Some("yuce"));
     mgr.execute_action(&room, &pid, &format!("choose:{shown}"))
         .unwrap();
     mgr.execute_action(&room, &source_pid, "opt2").unwrap();
@@ -751,7 +643,7 @@ fn longyin_prevents_sha_count() {
     play_sha(&mgr, &room, &user_pid, user);
     let st = state_of(&mgr, &room);
     assert_eq!(
-        st.pending.as_ref().and_then(|p| p.skill.as_deref()),
+        pending_skill(&st),
         Some("longyin"),
         "龙吟：使用【杀】时询问"
     );
@@ -809,10 +701,10 @@ fn setup_qiaoshuo(
         target = other_seats(st, seat)[0];
         set_general(st, target, "sgs_hero_1");
         target_pid = st.seats[target].player_id.clone();
-        give_card(st, seat, |c| c.rank == if own_high { 13 } else { 1 });
+        give_rank(st, seat, if own_high { 13 } else { 1 });
         give_def(st, seat, "sha");
-        give_card(st, seat, |c| c.rank == 5);
-        give_card(st, target, |c| c.rank == if own_high { 1 } else { 13 });
+        give_rank(st, seat, 5);
+        give_rank(st, target, if own_high { 1 } else { 13 });
     });
     run_phase(mgr, room, seat, TurnPhase::Play, false);
     (seat, pid, target, target_pid)
@@ -824,10 +716,7 @@ fn qiaoshuo_win_enables_extra_sha_target() {
     let room = start_and_pick(&mgr, 5);
     let (seat, pid, _target, target_pid) = setup_qiaoshuo(&mgr, &room, true);
     let st = state_of(&mgr, &room);
-    assert_eq!(
-        st.pending.as_ref().and_then(|p| p.skill.as_deref()),
-        Some("qiaoshuo")
-    );
+    assert_eq!(pending_skill(&st), Some("qiaoshuo"));
     mgr.execute_action(&room, &pid, &format!("target:{target_pid}"))
         .unwrap();
     let st = state_of(&mgr, &room);
@@ -853,9 +742,7 @@ fn qiaoshuo_win_enables_extra_sha_target() {
     play_sha(&mgr, &room, &pid, seat);
     let st = state_of(&mgr, &room);
     assert!(
-        st.pending
-            .as_ref()
-            .is_some_and(|p| p.options.iter().any(|o| o.id.starts_with("targets:"))),
+        !pending_options_with(&st, "targets:").is_empty(),
         "巧说：下一张【杀】可多指定一个目标"
     );
 }

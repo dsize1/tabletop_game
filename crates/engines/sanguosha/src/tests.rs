@@ -831,6 +831,7 @@ fn general_skill_registry_matches_generated_data() {
 }
 
 mod interaction_contract;
+mod support;
 mod p22;
 mod p23;
 mod p24;

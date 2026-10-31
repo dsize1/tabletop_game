@@ -6,9 +6,21 @@
 
 - **入口**：`docs/games/sanguosha/development-plan.md` → **P4.4.2「一将成名剩余 48 位（新会话开工口径）」**（Y1 已完成；含 Y2–Y7 批次表）
 - **顺序**：① 一将成名剩余 48 位，按 Y2（179–186）→ Y3（187/188/321–326）→ Y4（327–334）→ Y5（335–342）→ Y6（380–387）→ Y7（388–395）逐批完成（界标 25 将已完成、授予技能已补齐）→ ② 界限突破其余 60 位 → ③ P4.4.3 验收
+- **开工命令**：`npm run sgs:batch-status`（看下一批名单/计数一致性）；流程与模板见 `docs/games/sanguosha/batch-playbook.md`
 - **批前必读**：`skills.md` §2.7/§2.7.2、`rules-rulings.md` §16/§21/§23、`docs/conventions/coding-standards.md`
 - **每批收尾**：`p67` 的「一将成名已实现数」+8；`skills.md` §2.7.x + `rules-rulings.md` 新节；`milestones.md` 新增 M 条目
-- **门禁**：`cargo test -p sanguosha`、`check:sgs-*` 全套、`test:web` / `test:sgs-web`、MCP 冒烟（收尾见 P4.4.3）
+- **门禁**：`npm run sgs:check`（每批收尾）、`npm run sgs:check:full`（含 MCP 冒烟）、`npm run sgs:check:fast`（改码自检）
+
+## M39：三国杀批次 harness（测试助手 + 聚合门禁 + 进度脚本 + playbook）✅
+
+- **日期**：2026-10-31
+- **完成**：
+  - `crates/engines/sanguosha/src/tests/support.rs`：公共测试助手（`give_card/give_def/give_suit/give_rank/give_equip/set_top/find_cards/run_phase/pending_skill/pending_options_with`），`p89` 已改为复用，后续批次不再复制样板。
+  - `apps/scripts/check-sgs-all.mjs` + `npm run sgs:check`（`sgs:check:fast` / `sgs:check:full`）：一条命令跑完 Rust 单测 + 4 个文档/数据/批次门禁 + pack-pool/view-contract/interaction + Web/e2e（`--full` 追加 MCP 冒烟），逐步计时 + 失败汇总。
+  - `apps/scripts/sgs-batch-status.mjs` + `npm run sgs:batch-status`：按包统计已实现/剩余，解析 development-plan 批次表给出完成度与下一批名单，校验 `p67` 一将成名计数（`--check` 不一致 exit 1，已接入聚合门禁）。
+  - `docs/games/sanguosha/batch-playbook.md`：批次 7 步流程、技能/帧/用例/文档模板、门禁命令、常见坑、DoD；`AGENTS.md` 索引与 `development-plan.md` 已引用。
+- **验证**：`npm run sgs:check:fast` 8/8 通过；`cargo test -p sanguosha` 541 全绿；`sgs:batch-status` 显示一将成名 24/72、Y1 ✅、下一批 Y2 名单正确。
+- **详见**：`memory_palace/plan/01a19274-1de6-7668-91f6-e77bbdcc2f44.md`「harness 优化项」
 
 ## M38：三国杀 P4.4.2 批次 Y1（一将成名 171–178：8 将）✅
 
