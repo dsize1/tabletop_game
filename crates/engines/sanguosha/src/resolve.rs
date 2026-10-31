@@ -222,6 +222,17 @@ pub enum Frame {
     MingJian(crate::resolve_yijiang6::MingJianFrame),
     QingXi(crate::resolve_yijiang6::QingXiFrame),
     ZuoDing(crate::resolve_yijiang6::ZuoDingFrame),
+    /// P4.4.2 一将成名（批次 Y5）。
+    QiaoShi(crate::resolve_yijiang7::QiaoShiFrame),
+    YanYu(crate::resolve_yijiang7::YanYuFrame),
+    WuRong(crate::resolve_yijiang7::WuRongFrame),
+    YanZhu(crate::resolve_yijiang7::YanZhuFrame),
+    XingXue(crate::resolve_yijiang7::XingXueFrame),
+    ZhaoFu(crate::resolve_yijiang7::ZhaoFuFrame),
+    AnGuo(crate::resolve_yijiang7::AnGuoFrame),
+    YaoMing(crate::resolve_yijiang7::YaoMingFrame),
+    HuaiYi(crate::resolve_yijiang7::HuaiYiFrame),
+    JiGong(crate::resolve_yijiang7::JiGongFrame),
     /// 五谷丰登（P2.5 特殊区 `wugu`）。
     Wugu(crate::resolve_zone::WuguFrame),
     /// 观星排序提交（P2.5 特殊区 `guanxing`，`arrange:<csv>`）。
@@ -925,6 +936,16 @@ fn step(
         Frame::MingJian(f) => crate::resolve_yijiang6::step_mingjian(st, f),
         Frame::QingXi(f) => crate::resolve_yijiang6::step_qingxi(st, f),
         Frame::ZuoDing(f) => crate::resolve_yijiang6::step_zuoding(st, f),
+        Frame::QiaoShi(f) => crate::resolve_yijiang7::step_qiaoshi(st, f),
+        Frame::YanYu(f) => crate::resolve_yijiang7::step_yanyu(st, f),
+        Frame::WuRong(f) => crate::resolve_yijiang7::step_wurong(st, f),
+        Frame::YanZhu(f) => crate::resolve_yijiang7::step_yanzhu(st, f),
+        Frame::XingXue(f) => crate::resolve_yijiang7::step_xingxue(st, f),
+        Frame::ZhaoFu(f) => crate::resolve_yijiang7::step_zhaofu(st, f),
+        Frame::AnGuo(f) => crate::resolve_yijiang7::step_anguo(st, f),
+        Frame::YaoMing(f) => crate::resolve_yijiang7::step_yaoming(st, f),
+        Frame::HuaiYi(f) => crate::resolve_yijiang7::step_huaiyi(st, f),
+        Frame::JiGong(f) => crate::resolve_yijiang7::step_jigong(st, f),
         Frame::Wugu(f) => crate::resolve_zone::step_wugu(st, f, events),
         Frame::Arrange(f) => crate::resolve_zone::step_arrange(st, f, events),
     }
@@ -2222,6 +2243,16 @@ fn step_respond(st: &mut SgsState, f: RespondFrame) -> Result<bool, EngineError>
             },
         );
     }
+    // 饰非（郭图逢纪）：需要【闪】时可用（令当前回合角色摸 1，非唯一最多则弃最多者一张）。
+    if needed == "shan" && crate::skills::has(st, f.actor, "shifei") {
+        options.insert(
+            options.len().saturating_sub(1),
+            PendingOption {
+                id: "skill:shifei".into(),
+                label: "饰非：令当前回合角色摸一张，视为出【闪】".into(),
+            },
+        );
+    }
     if crate::skills::requisition_available(st, f.actor, needed) {
         let (action, label) = if needed == "sha" {
             ("skill:jijiang", "发动【激将】（蜀势力代出杀）")
@@ -3307,6 +3338,16 @@ pub fn execute_pending(
             Some("mingjian") => crate::resolve_yijiang6::act_mingjian(st, action)?,
             Some("qingxi") => crate::resolve_yijiang6::act_qingxi(st, action)?,
             Some("zuoding") => crate::resolve_yijiang6::act_zuoding(st, action)?,
+            Some("qiaoshi") => crate::resolve_yijiang7::act_qiaoshi(st, action)?,
+            Some("yanyu") => crate::resolve_yijiang7::act_yanyu(st, action)?,
+            Some("wurong") => crate::resolve_yijiang7::act_wurong(st, action)?,
+            Some("yanzhu") => crate::resolve_yijiang7::act_yanzhu(st, action)?,
+            Some("xingxue") => crate::resolve_yijiang7::act_xingxue(st, action)?,
+            Some("zhaofu") => crate::resolve_yijiang7::act_zhaofu(st, action)?,
+            Some("anguo") => crate::resolve_yijiang7::act_anguo(st, action)?,
+            Some("yaoming") => crate::resolve_yijiang7::act_yaoming(st, action)?,
+            Some("huaiyi") => crate::resolve_yijiang7::act_huaiyi(st, action)?,
+            Some("jigong") => crate::resolve_yijiang7::act_jigong(st, action)?,
             _ => crate::resolve_skill::act_jianxiong(st, action)?,
         },
         "choose_many" => match top(st) {
@@ -3831,6 +3872,42 @@ fn act_respond(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Str
     if action == "pass" {
         respond_give_up(st, &f);
         return Ok("已放弃响应".to_string());
+    }
+    if action == "skill:shifei" {
+        if !pending.options.iter().any(|o| o.id == "skill:shifei") {
+            return Err(illegal("饰非不可用"));
+        }
+        let cur = st.turn;
+        let mut ev = Vec::new();
+        let drawn = turn::draw_cards(st, cur, 1, &mut ev);
+        let max_hand = st
+            .alive_indices()
+            .into_iter()
+            .map(|i| st.seats[i].hand.len())
+            .max()
+            .unwrap_or(0);
+        let max_seats: Vec<usize> = st
+            .alive_indices()
+            .into_iter()
+            .filter(|i| st.seats[*i].hand.len() == max_hand)
+            .collect();
+        let unique_cur = max_seats.len() == 1 && max_seats[0] == cur;
+        let mut extra = String::new();
+        if !unique_cur && max_hand > 0 {
+            let victim = max_seats[0];
+            let n = st.seats[victim].hand.len();
+            let idx = st.next_index(n);
+            let card = st.seats[victim].hand.remove(idx);
+            let label = turn::card_label(st, &card);
+            turn::discard_by(st, Some(victim), &card);
+            extra = format!("，弃置 {} 的【{label}】", st.seats[victim].general_name);
+        }
+        st.push_log(
+            Some(&st.seats[f.actor].player_id.clone()),
+            format!("饰非：当前回合角色摸 {drawn} 张{extra}，视为出【闪】"),
+        );
+        finish_respond_dodge(st, &f);
+        return Ok("饰非：视为打出【闪】".to_string());
     }
 
     let card_id = action
@@ -5094,6 +5171,19 @@ fn apply_damage_inner(
                 ),
             );
         }
+    }
+    // 战绝（刘谌）：因该【决斗】受伤后，刘谌与受伤者各摸一张。
+    if let Some(card_id) = card {
+        crate::resolve_yijiang7::zhanjue_on_damage(st, source, victim, card_id);
+    }
+    // 邀名（全琮）：造成/受到伤害后，每回合限一次。
+    if amount > 0 {
+        if let Some(src) = source {
+            if src != victim {
+                crate::resolve_yijiang7::yaoming_trigger(st, src);
+            }
+        }
+        crate::resolve_yijiang7::yaoming_trigger(st, victim);
     }
     // 恢拓（曹叡）：受到伤害后，可令一名角色判定。
     if amount > 0 && st.seats[victim].hp > 0 && crate::skills::has(st, victim, "huituo") {

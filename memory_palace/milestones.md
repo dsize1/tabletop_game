@@ -11,6 +11,15 @@
 - **每批收尾**：`p67` 的「一将成名已实现数」+8；`skills.md` §2.7.x + `rules-rulings.md` 新节；`milestones.md` 新增 M 条目
 - **门禁**：`npm run sgs:check`（每批收尾）、`npm run sgs:check:full`（含 MCP 冒烟）、`npm run sgs:check:fast`（改码自检）
 
+## M44：三国杀 P4.4.2 批次 Y5（一将成名 335–342：8 将 / 14 技能）✅
+
+- **日期**：2026-10-31
+- **完成**：刘谌（战绝/勤王）、夏侯氏（樵拾/燕语）、张嶷（怃戎/矢志）、孙休（宴诛/兴学/诏缚）、朱治（安国）、全琮（邀名）、公孙渊（怀异）、郭图逢纪（急攻/饰非）
+- **机制**：`Frame::QiaoShi/YanYu/WuRong/YanZhu/XingXue/ZhaoFu/AnGuo/YaoMing/HuaiYi/JiGong`（`resolve_yijiang7.rs`）；战绝虚拟【决斗】+ 受伤摸牌、诏缚攻击范围覆盖、饰非复用响应窗口（视为出【闪】）
+- **验证**：`cargo test -p sanguosha` **637** 全绿；`tests/p93.rs` 24 条（每将 ≥3）；`p67` 一将成名已实现数 56
+- **已知边界**：战绝按本回合【决斗】伤害近似；兴学/安国选牌随机；诏缚只影响攻击范围（§27）
+- **详见**：`skills.md` §2.7.6、`rules-rulings.md` §27、`development-plan.md` P4.4.2 批次 Y5
+
 ## M43：三国杀 P4.4.2 批次 Y4（一将成名 327–334：8 将 / 17 技能）✅
 
 - **日期**：2026-10-31

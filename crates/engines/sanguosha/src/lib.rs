@@ -23,6 +23,7 @@ mod resolve_yijiang3;
 mod resolve_yijiang4;
 mod resolve_yijiang5;
 mod resolve_yijiang6;
+mod resolve_yijiang7;
 mod resolve_zone;
 mod skills;
 mod state;

@@ -723,6 +723,15 @@ impl SgsState {
         if from == to {
             return false;
         }
+        // 诏缚（孙休）：被指定角色视为在所有其他吴势力角色的攻击范围内。
+        if self
+            .seats
+            .get(to)
+            .is_some_and(|s| s.flags.contains_key("zhaofu"))
+            && crate::skills::kingdom_is(self, from, "wu")
+        {
+            return true;
+        }
         let d = self.seat_distance(from, to);
         if d == usize::MAX {
             return false;

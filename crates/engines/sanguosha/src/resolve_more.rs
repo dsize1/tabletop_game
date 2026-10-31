@@ -97,6 +97,8 @@ pub(crate) fn act_requisition(
         played_by: Some(by),
     });
     pop(st);
+    // 勤王（刘谌）：以此法代出【杀】的响应者摸 1。
+    crate::resolve_yijiang7::qinwang_on_respond(st, by);
     // 界激将/界护驾：其他同势力角色于其回合外代出【杀】/【闪】后，主公摸 1（每回合限一次）。
     if f.needed == "sha" {
         crate::resolve_jiexian::jijiang_lord_draw(st, by);

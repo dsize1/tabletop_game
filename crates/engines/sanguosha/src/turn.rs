@@ -795,6 +795,15 @@ pub(crate) fn phase_step(
                 );
                 return Ok(true);
             }
+            // 急攻（郭图逢纪）：出牌阶段开始时，可摸 2 张，本回合手牌上限=本阶段伤害值。
+            if crate::skills::has(st, st.turn, "jigong") && st.counter("jigong_offered") == 0 {
+                st.set_counter("jigong_offered", 1);
+                resolve::push(
+                    st,
+                    resolve::Frame::JiGong(crate::resolve_yijiang7::JiGongFrame { actor: st.turn }),
+                );
+                return Ok(true);
+            }
             // 司敌（曹真）：其他角色出牌阶段开始时，可弃同色非基本牌封锁颜色。
             if st.counter("sidi_offered") == 0 {
                 if let Some(owner) = st.alive_indices().into_iter().find(|i| {
@@ -1153,6 +1162,38 @@ pub(crate) fn phase_step(
                 );
                 return Ok(true);
             }
+            // 樵拾（夏侯氏）：其他角色结束阶段手牌数相等时，各摸一张。
+            if st.counter("qiaoshi_checked") == 0 {
+                if let Some(owner) = crate::resolve_yijiang7::qiaoshi_owner(st, st.turn) {
+                    st.set_counter("qiaoshi_checked", 1);
+                    resolve::push(
+                        st,
+                        resolve::Frame::QiaoShi(crate::resolve_yijiang7::QiaoShiFrame {
+                            owner,
+                            current: st.turn,
+                        }),
+                    );
+                    return Ok(true);
+                }
+            }
+            // 兴学（孙休）：结束阶段每有 1 点体力，可令一名角色摸一张并置于牌堆顶。
+            if crate::skills::has(st, st.turn, "xingxue") && st.counter("xingxue_offered") == 0 {
+                st.set_counter("xingxue_offered", 1);
+                let upgraded = st.seats[st.turn].flags.contains_key("xingxue_upgraded");
+                let remaining = if upgraded {
+                    1
+                } else {
+                    st.seats[st.turn].hp.max(1) as u32
+                };
+                resolve::push(
+                    st,
+                    resolve::Frame::XingXue(crate::resolve_yijiang7::XingXueFrame {
+                        actor: st.turn,
+                        remaining,
+                    }),
+                );
+                return Ok(true);
+            }
             // 平寇（朱桓）：本回合每跳过一个阶段，可对一名其他角色造成 1 点伤害。
             if crate::skills::has(st, st.turn, "pingkou")
                 && st.counter("pingkou_offered") == 0
@@ -1316,6 +1357,7 @@ fn end_turn(st: &mut SgsState, events: &mut Vec<EngineEvent>) {
         }
     }
     st.seats[cur].flags.remove("mingjian");
+    st.seats[cur].flags.remove("jigong");
     if st.seats[cur].flags.remove("fuhen_granted").is_some() {
         crate::skills::revoke_skill(st, cur, "wusheng");
         crate::skills::revoke_skill(st, cur, "paoxiao");
@@ -1800,6 +1842,96 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
         out.push(Action {
             id: "skill:jiefan".into(),
             description: "解烦：选择一名角色，攻击范围含其者弃武器或令其摸 1".into(),
+        });
+    }
+    // 战绝（刘谌）：所有手牌当【决斗】使用。
+    if crate::resolve_yijiang7::zhanjue_available(st, idx) {
+        out.push(Action {
+            id: "skill:zhanjue".into(),
+            description: "战绝：将所有手牌当【决斗】使用".into(),
+        });
+    }
+    // 勤王（刘谌，主公技）：弃一张牌发动“激将”。
+    if crate::skills::has(st, idx, "qinwang")
+        && crate::skills::is_lord(st, idx)
+        && !st.seats[idx].hand.is_empty()
+        && !crate::skills::requisition_order(st, idx, "sha").is_empty()
+    {
+        out.push(Action {
+            id: "skill:qinwang".into(),
+            description: "勤王：弃一张牌发动【激将】（响应者摸一张）".into(),
+        });
+    }
+    // 燕语（夏侯氏）：重铸【杀】。
+    if crate::skills::has(st, idx, "yanyu") {
+        for card_id in hand_ids(st, idx) {
+            if matches!(
+                card_def(st, &card_id).map(|d| d.code),
+                Some("sha" | "huo_sha" | "lei_sha")
+            ) {
+                out.push(Action {
+                    id: format!("skill:yanyu:{card_id}"),
+                    description: format!(
+                        "燕语：重铸【{}】（弃置并摸一张）",
+                        card_label(st, &card_id)
+                    ),
+                });
+            }
+        }
+    }
+    // 怃戎（张嶷）：出牌阶段限一次，与一名其他角色同时展示一张手牌。
+    if crate::skills::has(st, idx, "wurong")
+        && st.counter("wurong_used") == 0
+        && !st.seats[idx].hand.is_empty()
+        && st
+            .alive_indices()
+            .into_iter()
+            .any(|i| i != idx && !st.seats[i].hand.is_empty())
+    {
+        out.push(Action {
+            id: "skill:wurong".into(),
+            description: "怃戎：与一名其他角色同时展示一张手牌".into(),
+        });
+    }
+    // 宴诛（孙休）：出牌阶段限一次，令一名其他角色二选一。
+    if crate::skills::has(st, idx, "yanzhu")
+        && st.counter("yanzhu_used") == 0
+        && st.alive_indices().into_iter().any(|i| i != idx)
+    {
+        out.push(Action {
+            id: "skill:yanzhu".into(),
+            description: "宴诛：令一名其他角色交出装备或弃牌".into(),
+        });
+    }
+    // 诏缚（孙休，主公技 / 限定）：选择至多两名角色。
+    if crate::skills::has(st, idx, "zhaofu")
+        && crate::skills::is_lord(st, idx)
+        && !st.seats[idx].flags.contains_key("zhaofu_used")
+        && st.alive_indices().into_iter().any(|i| i != idx)
+    {
+        out.push(Action {
+            id: "skill:zhaofu".into(),
+            description: "诏缚：选择至多两名角色（视为在其他吴势力攻击范围内）".into(),
+        });
+    }
+    // 安国（朱治）：出牌阶段限一次，按全场最少的三项条件结算。
+    if crate::skills::has(st, idx, "anguo")
+        && st.counter("anguo_used") == 0
+        && st.alive_indices().into_iter().any(|i| i != idx)
+    {
+        out.push(Action {
+            id: "skill:anguo".into(),
+            description: "安国：令一名其他角色按最少项摸牌/回复/装备".into(),
+        });
+    }
+    // 怀异（公孙渊）：出牌阶段限一次，展示手牌弃一种颜色并获得牌。
+    if crate::skills::has(st, idx, "huaiyi")
+        && st.counter("huaiyi_used") == 0
+        && !st.seats[idx].hand.is_empty()
+    {
+        out.push(Action {
+            id: "skill:huaiyi".into(),
+            description: "怀异：展示所有手牌，弃一种颜色并获得牌".into(),
         });
     }
     // 慎行（顾雍）：弃两张牌摸一张（可重复）。
@@ -3827,6 +3959,126 @@ pub fn execute(
             .split_once(',')
             .ok_or_else(|| illegal("父魂需要两张手牌"))?;
         crate::resolve_yijiang5::use_fuhen_sha(st, idx, c1, c2)?
+    } else if action == "skill:zhanjue" {
+        crate::resolve_yijiang7::use_zhanjue(st, idx)?
+    } else if action == "skill:qinwang" {
+        if !crate::skills::has(st, idx, "qinwang") || !crate::skills::is_lord(st, idx) {
+            return Err(illegal("没有该技能"));
+        }
+        if st.seats[idx].hand.is_empty() {
+            return Err(illegal("勤王需要弃置一张牌"));
+        }
+        let order = crate::skills::requisition_order(st, idx, "sha");
+        if order.is_empty() {
+            return Err(illegal("没有可响应的同势力角色"));
+        }
+        let cost = hand_ids(st, idx)
+            .into_iter()
+            .next()
+            .ok_or_else(|| illegal("没有手牌"))?;
+        let label = card_label(st, &cost);
+        take_card(st, idx, &cost)?;
+        to_discard_card(st, &cost);
+        st.set_counter("qinwang", 1);
+        resolve::push(
+            st,
+            resolve::Frame::Requisition(crate::resolve_more::RequisitionFrame {
+                lord: idx,
+                needed: "sha".into(),
+                order,
+                cursor: 0,
+            }),
+        );
+        st.push_log(Some(player_id), format!("勤王：弃置【{label}】发动激将"));
+        "勤王：等待同势力角色代出【杀】".to_string()
+    } else if let Some(card_id) = action.strip_prefix("skill:yanyu:") {
+        crate::resolve_yijiang7::recast_sha(st, idx, card_id)?
+    } else if action == "skill:wurong" {
+        if !crate::skills::has(st, idx, "wurong") {
+            return Err(illegal("没有该技能"));
+        }
+        if st.counter("wurong_used") > 0 {
+            return Err(illegal("本阶段已发动过怃戎"));
+        }
+        resolve::push(
+            st,
+            resolve::Frame::WuRong(crate::resolve_yijiang7::WuRongFrame {
+                actor: idx,
+                stage: crate::resolve_yijiang7::WuRongStage::Card,
+                card: None,
+                target: None,
+            }),
+        );
+        st.push_log(Some(player_id), "发动怃戎");
+        "怃戎：请选择要展示的手牌".to_string()
+    } else if action == "skill:yanzhu" {
+        if !crate::skills::has(st, idx, "yanzhu") {
+            return Err(illegal("没有该技能"));
+        }
+        if st.counter("yanzhu_used") > 0 {
+            return Err(illegal("本阶段已发动过宴诛"));
+        }
+        st.set_counter("yanzhu_used", 1);
+        resolve::push(
+            st,
+            resolve::Frame::YanZhu(crate::resolve_yijiang7::YanZhuFrame {
+                actor: idx,
+                stage: crate::resolve_yijiang7::YanZhuStage::Target,
+                target: None,
+            }),
+        );
+        st.push_log(Some(player_id), "发动宴诛");
+        "宴诛：请选择目标".to_string()
+    } else if action == "skill:zhaofu" {
+        if !crate::skills::has(st, idx, "zhaofu") || !crate::skills::is_lord(st, idx) {
+            return Err(illegal("没有该技能"));
+        }
+        if st.seats[idx].flags.contains_key("zhaofu_used") {
+            return Err(illegal("诏缚（限定技）已使用过"));
+        }
+        resolve::push(
+            st,
+            resolve::Frame::ZhaoFu(crate::resolve_yijiang7::ZhaoFuFrame {
+                actor: idx,
+                selected: Vec::new(),
+            }),
+        );
+        st.push_log(Some(player_id), "发动诏缚");
+        "诏缚：请选择至多两名角色".to_string()
+    } else if action == "skill:anguo" {
+        if !crate::skills::has(st, idx, "anguo") {
+            return Err(illegal("没有该技能"));
+        }
+        if st.counter("anguo_used") > 0 {
+            return Err(illegal("本阶段已发动过安国"));
+        }
+        resolve::push(
+            st,
+            resolve::Frame::AnGuo(crate::resolve_yijiang7::AnGuoFrame { actor: idx }),
+        );
+        st.push_log(Some(player_id), "发动安国");
+        "安国：请选择目标".to_string()
+    } else if action == "skill:huaiyi" {
+        if !crate::skills::has(st, idx, "huaiyi") {
+            return Err(illegal("没有该技能"));
+        }
+        if st.counter("huaiyi_used") > 0 {
+            return Err(illegal("本阶段已发动过怀异"));
+        }
+        if st.seats[idx].hand.is_empty() {
+            return Err(illegal("没有手牌"));
+        }
+        resolve::push(
+            st,
+            resolve::Frame::HuaiYi(crate::resolve_yijiang7::HuaiYiFrame {
+                actor: idx,
+                stage: crate::resolve_yijiang7::HuaiYiStage::Color,
+                remaining: 0,
+                gained: 0,
+            }),
+        );
+        st.push_log(Some(player_id), "发动怀异");
+        "怀异：请选择弃置的颜色".to_string()
     } else if action == "skill:shenxing" {
         if !crate::skills::has(st, idx, "shenxing") {
             return Err(illegal("没有该技能"));
@@ -4024,6 +4276,13 @@ pub fn execute(
         }
         msg
     } else if action == "end_play" {
+        // 燕语（夏侯氏）：本阶段重铸过 ≥2 张【杀】时，可令一名男性角色摸 2。
+        if crate::skills::has(st, idx, "yanyu") && st.counter("yanyu_count") >= 2 {
+            resolve::push(
+                st,
+                resolve::Frame::YanYu(crate::resolve_yijiang7::YanYuFrame { actor: idx }),
+            );
+        }
         // 献图 / 司敌：出牌阶段结束时的延迟结算。
         crate::resolve_yijiang5::xiantu_end_phase(st, idx);
         crate::resolve_yijiang5::sidi_end_phase(st, idx);

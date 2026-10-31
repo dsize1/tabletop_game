@@ -1939,6 +1939,101 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
             implemented: true,
         },
     ];
+    // ---- P4.4.2 一将成名（批次 Y5：8 将 / 14 技能）----
+    const LIUCHEN: &[SkillDef] = &[
+        SkillDef {
+            code: "zhanjue",
+            name: "战绝",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "qinwang",
+            name: "勤王",
+            kind: SkillType::Lord,
+            implemented: true,
+        },
+    ];
+    const XIAHOUSHI: &[SkillDef] = &[
+        SkillDef {
+            code: "qiaoshi",
+            name: "樵拾",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "yanyu",
+            name: "燕语",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const ZHANGYI: &[SkillDef] = &[
+        SkillDef {
+            code: "wurong",
+            name: "怃戎",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "shizhi",
+            name: "矢志",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+    ];
+    const SUNXIU: &[SkillDef] = &[
+        SkillDef {
+            code: "yanzhu",
+            name: "宴诛",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "xingxue",
+            name: "兴学",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "zhaofu",
+            name: "诏缚",
+            kind: SkillType::Lord,
+            implemented: true,
+        },
+    ];
+    const ZHUZHI: &[SkillDef] = &[SkillDef {
+        code: "anguo",
+        name: "安国",
+        kind: SkillType::Normal,
+        implemented: true,
+    }];
+    const QUANCONG: &[SkillDef] = &[SkillDef {
+        code: "yaoming",
+        name: "邀名",
+        kind: SkillType::Normal,
+        implemented: true,
+    }];
+    const GONGSUNYUAN: &[SkillDef] = &[SkillDef {
+        code: "huaiyi",
+        name: "怀异",
+        kind: SkillType::Normal,
+        implemented: true,
+    }];
+    const GUOTUFENGJI: &[SkillDef] = &[
+        SkillDef {
+            code: "jigong",
+            name: "急攻",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "shifei",
+            name: "饰非",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
     match general {
         "sgs_hero_1" => LIUBEI,
         "sgs_hero_15" => CAOCAO,
@@ -2061,6 +2156,14 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
         "sgs_hero_332" => CAORUI,
         "sgs_hero_333" => CAOXIU,
         "sgs_hero_334" => ZHONGYOU,
+        "sgs_hero_335" => LIUCHEN,
+        "sgs_hero_336" => XIAHOUSHI,
+        "sgs_hero_337" => ZHANGYI,
+        "sgs_hero_338" => SUNXIU,
+        "sgs_hero_339" => ZHUZHI,
+        "sgs_hero_340" => QUANCONG,
+        "sgs_hero_341" => GONGSUNYUAN,
+        "sgs_hero_342" => GUOTUFENGJI,
         "sgs_hero_299" => JIE_LIUBEI,
         "sgs_hero_300" => JIE_GUANYU,
         "sgs_hero_301" => JIE_ZHANGFEI,
@@ -2845,6 +2948,13 @@ pub fn conversion_for(
             if has(st, seat, "jinjiu") && inst.def == "jiu" {
                 return Some(("jinjiu", "禁酒"));
             }
+            // 矢志（张嶷，锁定）：体力值为 1 时【闪】视为【杀】。
+            if has(st, seat, "shizhi")
+                && inst.def == "shan"
+                && st.seats.get(seat).is_some_and(|s| s.hp == 1)
+            {
+                return Some(("shizhi", "矢志"));
+            }
         }
         "shan" => {
             if has(st, seat, "longdan") && inst.def == "sha" {
@@ -3289,6 +3399,15 @@ pub fn hand_limit(st: &SgsState, seat: usize) -> usize {
     // 权计（钟会）：每有一张「权」手牌上限 +1。
     if has(st, seat, "quanji") {
         limit += quan_count(st, seat);
+    }
+    // 急攻（郭图逢纪）：发动后本回合手牌上限等于本阶段造成的伤害值。
+    if has(st, seat, "jigong")
+        && st
+            .seats
+            .get(seat)
+            .is_some_and(|s| s.flags.contains_key("jigong"))
+    {
+        limit = st.counter("damage_dealt") as usize;
     }
     // 明鉴（曹叡）：被交给所有手牌的角色下回合手牌上限 +1。
     if st
