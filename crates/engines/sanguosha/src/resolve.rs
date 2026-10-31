@@ -148,6 +148,13 @@ pub enum Frame {
     RendeBasic(crate::resolve_jiexian::RendeBasicFrame),
     YaJiao(crate::resolve_jiexian::YaJiaoFrame),
     TieQi(crate::resolve_jiexian::TieQiFrame),
+    /// P4.4.2 界标·吴帧（批次 3）。
+    FenWei(crate::resolve_jiexian::FenWeiFrame),
+    JieFanJian(crate::resolve_jiexian::JieFanJianFrame),
+    GuoSe(crate::resolve_jiexian::GuoSeFrame),
+    QinXue(crate::resolve_jiexian::QinXueFrame),
+    GongXin(crate::resolve_jiexian::GongXinFrame),
+    LianYing(crate::resolve_jiexian::LianYingFrame),
     /// 五谷丰登（P2.5 特殊区 `wugu`）。
     Wugu(crate::resolve_zone::WuguFrame),
     /// 观星排序提交（P2.5 特殊区 `guanxing`，`arrange:<csv>`）。
@@ -516,6 +523,7 @@ fn card_code(st: &SgsState, id: &str) -> String {
 
 fn to_discard(st: &mut SgsState, id: &str) {
     st.deck.discard.push(id.to_string());
+    crate::skills::note_discard_suit(st, id);
 }
 
 /// 牌仍在处理区时才弃置（被奸雄等拿走的不再重复弃置）。
@@ -639,6 +647,17 @@ pub fn advance(st: &mut SgsState, events: &mut Vec<EngineEvent>) -> Result<(), E
         if st.pending.is_some() {
             return Ok(());
         }
+        // 界连营：失去所有手牌后，栈空时询问令一名角色摸 1。
+        if top(st).is_none() {
+            if let Some(seat) = crate::resolve_jiexian::lianying_ready(st) {
+                st.set_counter(&format!("lianying_pending:{seat}"), 0);
+                push(
+                    st,
+                    Frame::LianYing(crate::resolve_jiexian::LianYingFrame { actor: seat }),
+                );
+                continue;
+            }
+        }
         if top(st).is_some() {
             let frame = top(st).cloned().expect("frame");
             let waiting = step(st, frame, events)?;
@@ -761,6 +780,12 @@ fn step(
         Frame::RendeBasic(f) => crate::resolve_jiexian::step_rende_basic(st, f),
         Frame::YaJiao(f) => crate::resolve_jiexian::step_yajiao(st, f),
         Frame::TieQi(f) => crate::resolve_jiexian::step_tieqi(st, f),
+        Frame::FenWei(f) => crate::resolve_jiexian::step_fenwei(st, f),
+        Frame::JieFanJian(f) => crate::resolve_jiexian::step_jie_fanjian(st, f),
+        Frame::GuoSe(f) => crate::resolve_jiexian::step_guose(st, f),
+        Frame::QinXue(f) => crate::resolve_jiexian::step_qinxue(st, f),
+        Frame::GongXin(f) => crate::resolve_jiexian::step_gongxin(st, f),
+        Frame::LianYing(f) => crate::resolve_jiexian::step_lianying(st, f),
         Frame::Wugu(f) => crate::resolve_zone::step_wugu(st, f, events),
         Frame::Arrange(f) => crate::resolve_zone::step_arrange(st, f, events),
     }
@@ -1042,6 +1067,16 @@ pub(crate) fn mark_sha_no_distance(st: &mut SgsState) {
     }
 }
 
+/// 把当前结算栈上最近的【杀】标记为「不可响应」（诈降·红杀）。
+pub(crate) fn mark_sha_no_respond(st: &mut SgsState) {
+    for f in st.resolution.iter_mut().rev() {
+        if let Frame::Sha(s) = f {
+            s.no_respond = true;
+            return;
+        }
+    }
+}
+
 /// 带「无距离/天义多目标」标记的【杀】。
 pub fn start_sha_flags(
     st: &mut SgsState,
@@ -1178,6 +1213,7 @@ fn start_trick_code(
     if !delayed {
         crate::skills::shicai_trigger(st, user, "trick", card);
     }
+    let fenwei_targets = targets.clone();
     push(
         st,
         Frame::Trick(TrickFrame {
@@ -1192,6 +1228,8 @@ fn start_trick_code(
             no_wuxie: false,
         }),
     );
+    // 奋威（界甘宁，限定技）：多目标锦囊指定目标后，可令任意个目标无效。
+    crate::resolve_jiexian::maybe_fenwei(st, &fenwei_targets);
     if st.turn == user {
         st.bump_counter("play_cards_used");
     }
@@ -1527,6 +1565,40 @@ fn step_trick(
             } else {
                 f.targets[f.idx]
             };
+            // 奋威：已被宣告无效的目标跳过结算。
+            if crate::resolve_jiexian::fenwei_void(st, target) {
+                st.push_log(
+                    None,
+                    format!("奋威：此锦囊对 {} 无效", st.seats[target].general_name),
+                );
+                advance_trick_target(st, f)?;
+                return Ok(false);
+            }
+            // 界谦逊：其他角色使用的锦囊仅指定你时，可将所有手牌移出游戏直到回合结束。
+            if target != f.user
+                && f.targets.len() <= 1
+                && crate::skills::has(st, target, "qianxun")
+                && crate::skills::is_jiexian(st, target)
+                && !st.seats[target].hand.is_empty()
+            {
+                let cards = std::mem::take(&mut st.seats[target].hand);
+                let n = cards.len();
+                for c in cards {
+                    st.deck.void.push(c.clone());
+                    st.void_return.push(VoidReturn {
+                        owner: target,
+                        card: c,
+                        due_seat: st.turn,
+                    });
+                }
+                st.push_log(
+                    None,
+                    format!(
+                        "谦逊：{} 将 {n} 张手牌移出游戏直到回合结束",
+                        st.seats[target].general_name
+                    ),
+                );
+            }
             match f.code.as_str() {
                 "nanman_ruqin" => {
                     let source = crate::skills::huoshou_owner(st, f.user).unwrap_or(f.user);
@@ -2865,6 +2937,12 @@ pub fn execute_pending(
             Some("rende_basic") => crate::resolve_jiexian::act_rende_basic(st, action)?,
             Some("yajiao") => crate::resolve_jiexian::act_yajiao(st, action)?,
             Some("tieqi") => crate::resolve_jiexian::act_tieqi(st, action)?,
+            Some("fenwei") => crate::resolve_jiexian::act_fenwei(st, action)?,
+            Some("fanjian_jie") => crate::resolve_jiexian::act_jie_fanjian(st, action)?,
+            Some("guose") => crate::resolve_jiexian::act_guose(st, action)?,
+            Some("qinxue") => crate::resolve_jiexian::act_qinxue(st, action)?,
+            Some("gongxin") => crate::resolve_jiexian::act_gongxin(st, action)?,
+            Some("lianying") => crate::resolve_jiexian::act_lianying(st, action)?,
             _ => crate::resolve_skill::act_jianxiong(st, action)?,
         },
         "choose_many" => match top(st) {
@@ -3965,6 +4043,11 @@ fn act_dying(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Strin
     turn::take_card(st, seat, card_id)?;
     turn::to_discard_card(st, card_id);
     let victim = f.victim;
+    // 界救援（主公技）：吴势力角色于其回合内自救时，可改为令主公回复 1 并摸 1。
+    if seat == victim && crate::skills::jie_jiuyuan_redirect(st, seat) {
+        pop(st);
+        return Ok("救援：改为令主公回复 1 点体力".to_string());
+    }
     let bonus = crate::skills::tao_bonus(st, seat, victim);
     st.seats[victim].hp += 1 + bonus;
     let hp = st.seats[victim].hp;
@@ -4210,6 +4293,12 @@ fn apply_damage_inner(
         }
     }
     st.seats[victim].hp -= amount;
+    // 诈降（界黄盖，锁定）：失去 1 点体力后摸 3 张（按伤害点数逐点触发）。
+    if amount > 0 {
+        for _ in 0..amount {
+            crate::skills::zhaxiang_on_lose_hp(st, victim);
+        }
+    }
     if source == Some(st.turn) {
         st.bump_counter("damage_dealt");
     }

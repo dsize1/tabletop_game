@@ -1169,6 +1169,125 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
             implemented: true,
         },
     ];
+    // ---- P4.4.2 界标 25 将（批次 3：吴 8 将）----
+    const JIE_GANNING: &[SkillDef] = &[
+        SkillDef {
+            code: "qixi",
+            name: "奇袭",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "fenwei",
+            name: "奋威",
+            kind: SkillType::Limited,
+            implemented: true,
+        },
+    ];
+    const JIE_LVMENG: &[SkillDef] = &[
+        SkillDef {
+            code: "keji",
+            name: "克己",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "qinxue",
+            name: "勤学",
+            kind: SkillType::Awaken,
+            implemented: true,
+        },
+        SkillDef {
+            code: "botu",
+            name: "博图",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_HUANGGAI: &[SkillDef] = &[
+        SkillDef {
+            code: "kurou",
+            name: "苦肉",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "zhaxiang",
+            name: "诈降",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+    ];
+    const JIE_ZHOUYU: &[SkillDef] = &[
+        SkillDef {
+            code: "yingzi",
+            name: "英姿",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "fanjian",
+            name: "反间",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_DAQIAO: &[SkillDef] = &[
+        SkillDef {
+            code: "liuli",
+            name: "流离",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "guose",
+            name: "国色",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_LUXUN: &[SkillDef] = &[
+        SkillDef {
+            code: "qianxun",
+            name: "谦逊",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "lianying",
+            name: "连营",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_SUNQUAN: &[SkillDef] = &[
+        SkillDef {
+            code: "zhiheng",
+            name: "制衡",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "jiuyuan",
+            name: "救援",
+            kind: SkillType::Lord,
+            implemented: true,
+        },
+    ];
+    const JIE_SUNSHANGXIANG: &[SkillDef] = &[
+        SkillDef {
+            code: "xiaoji",
+            name: "枭姬",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "jieyin",
+            name: "结姻",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
     match general {
         "sgs_hero_1" => LIUBEI,
         "sgs_hero_15" => CAOCAO,
@@ -1258,6 +1377,14 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
         "sgs_hero_303" => JIE_MA_CHAO,
         "sgs_hero_440" => JIE_ZHUGELIANG,
         "sgs_hero_441" => JIE_HUANGYUEYING,
+        "sgs_hero_305" => JIE_GANNING,
+        "sgs_hero_306" => JIE_LVMENG,
+        "sgs_hero_307" => JIE_HUANGGAI,
+        "sgs_hero_308" => JIE_ZHOUYU,
+        "sgs_hero_309" => JIE_DAQIAO,
+        "sgs_hero_310" => JIE_LUXUN,
+        "sgs_hero_442" => JIE_SUNQUAN,
+        "sgs_hero_443" => JIE_SUNSHANGXIANG,
         _ => &[],
     }
 }
@@ -1680,6 +1807,13 @@ pub static EXTRA_SKILLS: &[SkillDef] = &[
         kind: SkillType::Normal,
         implemented: false,
     },
+    // 界吕蒙·勤学（觉醒获得）：观看一名其他角色手牌，可弃置其中一张红桃牌。
+    SkillDef {
+        code: "gongxin",
+        name: "攻心",
+        kind: SkillType::Normal,
+        implemented: true,
+    },
 ];
 
 /// 按 code 查技能定义（武将原始技能 + 额外技能）。
@@ -1837,12 +1971,18 @@ pub fn conversion_for(
 
 /// 谦逊（锁定技）：不能成为【顺手牵羊】/【过河拆桥】的目标。
 pub fn qianxun_blocks(st: &SgsState, seat: usize) -> bool {
-    has(st, seat, "qianxun")
+    // 界谦逊改为「将手牌移出游戏」，不再屏蔽【顺手牵羊】/【过河拆桥】。
+    has(st, seat, "qianxun") && !is_jiexian(st, seat)
 }
 
 /// 连营：失去最后的手牌后摸 1 张（自动发动）。
 pub fn lianying_on_lose_last(st: &mut SgsState, seat: usize) {
     if !st.seats.get(seat).is_some_and(|s| s.hand.is_empty()) || !has(st, seat, "lianying") {
+        return;
+    }
+    if is_jiexian(st, seat) {
+        // 界连营：栈空后询问令一名角色摸 1（X 按失去最后一张 = 1 实现）。
+        st.set_counter(&format!("lianying_pending:{seat}"), 1);
         return;
     }
     let mut ev = Vec::new();
@@ -1890,6 +2030,76 @@ pub fn xiaoji_on_lose_equip(st: &mut SgsState, seat: usize) {
             crate::resolve::push_discard(st, seat, over, "hand_cap");
         }
     }
+}
+
+/// 诈降（界黄盖，锁定）：失去 1 点体力后摸 3 张；出牌阶段内 +1【杀】次数且红杀无距离/不可抵消。
+pub fn zhaxiang_on_lose_hp(st: &mut SgsState, seat: usize) {
+    if !has(st, seat, "zhaxiang") {
+        return;
+    }
+    let mut ev = Vec::new();
+    let drawn = crate::turn::draw_cards(st, seat, 3, &mut ev);
+    if st.turn == seat && st.turn_phase == crate::state::TurnPhase::Play {
+        st.bump_counter("zhaxiang_sha_bonus");
+        st.set_counter("zhaxiang_red", 1);
+    }
+    st.push_log(
+        Some(&st.seats[seat].player_id.clone()),
+        format!("诈降：失去体力，摸 {drawn} 张"),
+    );
+    let over = st.seats[seat]
+        .hand
+        .len()
+        .saturating_sub(st.config.max_hand_cards as usize);
+    if over > 0 {
+        crate::resolve::push_discard(st, seat, over, "hand_cap");
+    }
+}
+
+/// 博图（界吕蒙）：记录本回合进入弃牌堆的牌的花色（bitmask：黑桃1/红桃2/梅花4/方片8）。
+pub fn note_discard_suit(st: &mut SgsState, card: &str) {
+    let Some(c) = st.cards.get(card) else {
+        return;
+    };
+    let bit = match c.suit {
+        Suit::Spade => 1,
+        Suit::Heart => 2,
+        Suit::Club => 4,
+        Suit::Diamond => 8,
+    };
+    let cur = st.counter("discard_suits");
+    st.set_counter("discard_suits", cur | bit);
+}
+
+/// 界救援：其他吴势力角色于其回合内回复体力时，可改为让主公回复 1，然后其摸 1。
+/// 返回 `true` 表示已改为救援主公（调用方不再回复原角色）。
+pub fn jie_jiuyuan_redirect(st: &mut SgsState, seat: usize) -> bool {
+    if st.turn != seat {
+        return false;
+    }
+    let Some(lord) = st.lord_index() else {
+        return false;
+    };
+    if lord == seat || !has(st, lord, "jiuyuan") || !is_jiexian(st, lord) {
+        return false;
+    }
+    if kingdom(st, seat) != "wu" || st.seats[seat].hp < st.seats[lord].hp {
+        return false;
+    }
+    if st.seats[lord].hp >= st.seats[lord].max_hp {
+        return false;
+    }
+    st.seats[lord].hp += 1;
+    let mut ev = Vec::new();
+    let drawn = crate::turn::draw_cards(st, seat, 1, &mut ev);
+    st.push_log(
+        Some(&st.seats[seat].player_id.clone()),
+        format!(
+            "救援：{} 改为令主公 {} 回复 1 点体力，摸 {drawn} 张",
+            st.seats[seat].general_name, st.seats[lord].general_name
+        ),
+    );
+    true
 }
 
 /// 天妒：判定牌生效后获得之（自动获得；口径见 `skills.md`）。返回是否已拿走判定牌。
@@ -2049,6 +2259,10 @@ pub fn hand_limit(st: &SgsState, seat: usize) -> usize {
         return usize::MAX;
     }
     let mut limit = st.hand_limit(seat);
+    // 界英姿（锁定）：手牌上限为体力上限。
+    if has(st, seat, "yingzi") && is_jiexian(st, seat) {
+        limit = st.seats.get(seat).map(|s| s.max_hp.max(0) as usize).unwrap_or(limit);
+    }
     // 界集智：本回合弃置基本牌换手牌上限 +1。
     if has(st, seat, "jizhi") && is_jiexian(st, seat) {
         limit += st.counter("jizhi_hand_limit") as usize;

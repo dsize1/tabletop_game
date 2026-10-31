@@ -264,7 +264,7 @@ fn pack_pool_prefers_jiexian_variant() {
         .filter(|c| skills::general_ready(c))
         .collect(),
     );
-    // 界标·蜀 7 将已实现：同名原版被界版本替换，池子仍为 25 位。
+    // 界标·蜀 7 + 吴 8 已实现：同名原版被界版本替换，池子仍为 25 位。
     assert_eq!(pool.len(), crate::data::STANDARD_GENERAL_COUNT);
     for code in [
         "sgs_hero_299",
@@ -274,6 +274,14 @@ fn pack_pool_prefers_jiexian_variant() {
         "sgs_hero_303",
         "sgs_hero_440",
         "sgs_hero_441",
+        "sgs_hero_305",
+        "sgs_hero_306",
+        "sgs_hero_307",
+        "sgs_hero_308",
+        "sgs_hero_309",
+        "sgs_hero_310",
+        "sgs_hero_442",
+        "sgs_hero_443",
     ] {
         assert!(pool.contains(&code), "{code} 应在池中");
     }
@@ -285,6 +293,14 @@ fn pack_pool_prefers_jiexian_variant() {
         "sgs_hero_5",
         "sgs_hero_6",
         "sgs_hero_7",
+        "sgs_hero_8",
+        "sgs_hero_9",
+        "sgs_hero_10",
+        "sgs_hero_11",
+        "sgs_hero_12",
+        "sgs_hero_13",
+        "sgs_hero_14",
+        "sgs_hero_25",
     ] {
         assert!(!pool.contains(&code), "同名原版 {code} 应被界版本替换");
     }

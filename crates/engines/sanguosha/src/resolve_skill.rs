@@ -1076,13 +1076,18 @@ pub(crate) fn act_multiselect(st: &mut SgsState, action: &str) -> Result<String,
         match f.purpose.as_str() {
             "zhiheng" => {
                 let n = f.selected.len();
+                let all_hand = st.seats[f.actor].hand.len();
                 for id in &f.selected {
                     turn::take_card(st, f.actor, id)?;
                     turn::to_discard_card(st, id);
                 }
                 st.set_counter("zhiheng_used", 1);
                 let mut events = Vec::new();
-                let drawn = turn::draw_cards(st, f.actor, n as u32, &mut events);
+                // 界制衡：弃置所有手牌时额外摸 1 张。
+                let extra = u32::from(
+                    crate::skills::is_jiexian(st, f.actor) && n == all_hand,
+                );
+                let drawn = turn::draw_cards(st, f.actor, n as u32 + extra, &mut events);
                 st.push_log(
                     Some(&st.seats[f.actor].player_id.clone()),
                     format!("制衡：弃置 {n} 张，摸 {drawn} 张"),

@@ -636,3 +636,664 @@ pub(crate) fn jijiang_lord_draw(st: &mut SgsState, by: usize) {
         format!("激将：其他蜀势力角色回合外代出【杀】，摸 {drawn} 张"),
     );
 }
+
+// ---------------------------------------------------------------------------
+// 奋威（界甘宁，限定技）：多目标锦囊可令任意个目标无效
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct FenWeiFrame {
+    pub owner: usize,
+    pub targets: Vec<usize>,
+    pub selected: Vec<usize>,
+}
+
+/// 多目标锦囊指定目标后，寻找可发动奋威的持有者并压入询问帧。
+pub(crate) fn maybe_fenwei(st: &mut SgsState, targets: &[usize]) -> bool {
+    if targets.len() < 2 {
+        return false;
+    }
+    let owner = (0..st.seats.len()).find(|i| {
+        st.seats[*i].alive
+            && has(st, *i, "fenwei")
+            && !st.seats[*i].flags.contains_key("fenwei_used")
+    });
+    let Some(owner) = owner else {
+        return false;
+    };
+    push(
+        st,
+        Frame::FenWei(FenWeiFrame {
+            owner,
+            targets: targets.to_vec(),
+            selected: Vec::new(),
+        }),
+    );
+    true
+}
+
+pub(crate) fn step_fenwei(st: &mut SgsState, f: FenWeiFrame) -> Result<bool, EngineError> {
+    let mut options: Vec<PendingOption> = f
+        .targets
+        .iter()
+        .map(|t| {
+            let mark = if f.selected.contains(t) { "✔ " } else { "" };
+            PendingOption {
+                id: format!("choose:{}", st.seats[*t].player_id),
+                label: format!("{mark}{}", st.seats[*t].general_name),
+            }
+        })
+        .collect();
+    options.push(PendingOption {
+        id: "confirm".into(),
+        label: format!("确认（令已选 {} 个目标无效）", f.selected.len()),
+    });
+    options.push(PendingOption {
+        id: "pass".into(),
+        label: "不发动奋威".into(),
+    });
+    st.pending = Some(Pending {
+        kind: "choice".into(),
+        actor: pid(st, f.owner),
+        skill: Some("fenwei".into()),
+        options,
+        data: json!({ "selected": f.selected.iter().map(|t| st.seats[*t].player_id.clone()).collect::<Vec<_>>() }),
+    });
+    replace_top(st, Frame::FenWei(f));
+    Ok(true)
+}
+
+pub(crate) fn act_fenwei(st: &mut SgsState, action: &str) -> Result<String, EngineError> {
+    let f = match top(st).cloned() {
+        Some(Frame::FenWei(f)) => f,
+        _ => return Err(internal("栈顶不是奋威帧")),
+    };
+    if let Some(target_pid) = action.strip_prefix("choose:") {
+        let target = st
+            .seat_index(target_pid)
+            .ok_or_else(|| crate::illegal("目标不在座"))?;
+        if !f.targets.contains(&target) {
+            return Err(crate::illegal("该目标不在本锦囊目标内"));
+        }
+        let mut selected = f.selected.clone();
+        if let Some(pos) = selected.iter().position(|t| *t == target) {
+            selected.remove(pos);
+        } else {
+            selected.push(target);
+        }
+        replace_top(st, Frame::FenWei(FenWeiFrame { selected, ..f }));
+        return Ok("已更新奋威目标".to_string());
+    }
+    if action == "pass" {
+        pop(st);
+        return Ok("不发动奋威".to_string());
+    }
+    if action != "confirm" {
+        return Err(crate::illegal("未知的奋威选项"));
+    }
+    st.seats[f.owner].flags.insert("fenwei_used".into(), true);
+    for target in &f.selected {
+        st.set_counter(&format!("fenwei_void:{target}"), 1);
+    }
+    let names: Vec<String> = f
+        .selected
+        .iter()
+        .map(|t| st.seats[*t].general_name.clone())
+        .collect();
+    st.push_log(
+        Some(&pid(st, f.owner)),
+        format!("奋威：令此锦囊对 {} 无效", names.join("、")),
+    );
+    pop(st);
+    Ok("奋威结算完成".to_string())
+}
+
+/// 奋威：该目标是否已被此牌无效。
+pub(crate) fn fenwei_void(st: &SgsState, target: usize) -> bool {
+    st.counter(&format!("fenwei_void:{target}")) > 0
+}
+
+// ---------------------------------------------------------------------------
+// 界反间（界周瑜）：展示并交给一张手牌，目标二选一
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum JieFanJianStage {
+    Card,
+    Target,
+    Choice,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct JieFanJianFrame {
+    pub actor: usize,
+    pub stage: JieFanJianStage,
+    pub card: Option<String>,
+    pub target: Option<usize>,
+}
+
+pub(crate) fn step_jie_fanjian(st: &mut SgsState, f: JieFanJianFrame) -> Result<bool, EngineError> {
+    let (options, actor, skill) = match f.stage {
+        JieFanJianStage::Card => {
+            let options = turn::hand_ids(st, f.actor)
+                .into_iter()
+                .map(|id| PendingOption {
+                    id: format!("choose:{id}"),
+                    label: format!("展示并交给 {}", turn::card_label(st, &id)),
+                })
+                .collect();
+            (options, f.actor, "fanjian_jie")
+        }
+        JieFanJianStage::Target => {
+            let options = st
+                .alive_indices()
+                .into_iter()
+                .filter(|i| *i != f.actor)
+                .map(|i| PendingOption {
+                    id: format!("target:{}", st.seats[i].player_id),
+                    label: format!("反间 {}", st.seats[i].general_name),
+                })
+                .collect();
+            (options, f.actor, "fanjian_jie")
+        }
+        JieFanJianStage::Choice => {
+            let target = f.target.ok_or_else(|| internal("反间缺少目标"))?;
+            let options = vec![
+                PendingOption {
+                    id: "discard".into(),
+                    label: "展示所有手牌，弃置与此牌相同花色的牌".into(),
+                },
+                PendingOption {
+                    id: "damage".into(),
+                    label: "失去 1 点体力".into(),
+                },
+            ];
+            (options, target, "fanjian_jie")
+        }
+    };
+    if options.is_empty() {
+        pop(st);
+        return Ok(false);
+    }
+    st.pending = Some(Pending {
+        kind: "choice".into(),
+        actor: pid(st, actor),
+        skill: Some(skill.into()),
+        options,
+        data: json!({}),
+    });
+    replace_top(st, Frame::JieFanJian(f));
+    Ok(true)
+}
+
+pub(crate) fn act_jie_fanjian(st: &mut SgsState, action: &str) -> Result<String, EngineError> {
+    let f = match top(st).cloned() {
+        Some(Frame::JieFanJian(f)) => f,
+        _ => return Err(internal("栈顶不是界反间帧")),
+    };
+    match f.stage {
+        JieFanJianStage::Card => {
+            let card = action
+                .strip_prefix("choose:")
+                .ok_or_else(|| crate::illegal("需要选择一张手牌"))?;
+            if !st.seats[f.actor].hand.iter().any(|c| c == card) {
+                return Err(crate::illegal("手牌中没有该牌"));
+            }
+            let label = turn::card_label(st, card);
+            st.push_log(
+                Some(&pid(st, f.actor)),
+                format!("反间：展示并交给一张手牌【{label}】"),
+            );
+            replace_top(
+                st,
+                Frame::JieFanJian(JieFanJianFrame {
+                    stage: JieFanJianStage::Target,
+                    card: Some(card.to_string()),
+                    target: None,
+                    ..f
+                }),
+            );
+            Ok("反间：请选择目标".to_string())
+        }
+        JieFanJianStage::Target => {
+            let target_pid = action
+                .strip_prefix("target:")
+                .ok_or_else(|| crate::illegal("需要选择目标"))?;
+            let target = st
+                .seat_index(target_pid)
+                .ok_or_else(|| crate::illegal("目标不在座"))?;
+            let card = f.card.clone().ok_or_else(|| internal("反间缺少牌"))?;
+            turn::take_card(st, f.actor, &card)?;
+            st.seats[target].hand.push(card.clone());
+            st.set_counter("fanjian_used", 1);
+            replace_top(
+                st,
+                Frame::JieFanJian(JieFanJianFrame {
+                    stage: JieFanJianStage::Choice,
+                    card: Some(card),
+                    target: Some(target),
+                    ..f
+                }),
+            );
+            Ok("反间：等待目标选择".to_string())
+        }
+        JieFanJianStage::Choice => {
+            let target = f.target.ok_or_else(|| internal("反间缺少目标"))?;
+            let card = f.card.clone().ok_or_else(|| internal("反间缺少牌"))?;
+            match action {
+                "damage" => {
+                    pop(st);
+                    crate::resolve::apply_damage(
+                        st,
+                        target,
+                        1,
+                        Some(f.actor),
+                        crate::resolve::DamageType::Normal,
+                        Some(&card),
+                    );
+                    st.push_log(Some(&pid(st, target)), "反间：选择失去 1 点体力");
+                    Ok("反间：目标失去 1 点体力".to_string())
+                }
+                "discard" => {
+                    let Some(inst) = st.cards.get(&card).cloned() else {
+                        return Err(internal("反间牌缺少实例"));
+                    };
+                    let suit = inst.suit;
+                    let hand = st.seats[target].hand.clone();
+                    let mut discarded = 0;
+                    for id in hand {
+                        if st.cards.get(&id).is_some_and(|c| c.suit == suit) {
+                            turn::take_card(st, target, &id)?;
+                            turn::discard_by(st, Some(target), &id);
+                            discarded += 1;
+                        }
+                    }
+                    pop(st);
+                    st.push_log(
+                        Some(&pid(st, f.actor)),
+                        format!(
+                            "反间：{} 展示手牌并弃置 {discarded} 张同花色牌",
+                            st.seats[target].general_name
+                        ),
+                    );
+                    Ok(format!("反间：弃置 {discarded} 张同花色牌"))
+                }
+                _ => Err(crate::illegal("未知的反间选项")),
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 界国色（界大乔）：选项二「弃方片 + 场上【乐不思蜀】」
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct GuoSeFrame {
+    pub actor: usize,
+}
+
+pub(crate) fn step_guose(st: &mut SgsState, f: GuoSeFrame) -> Result<bool, EngineError> {
+    let options: Vec<PendingOption> = turn::hand_ids(st, f.actor)
+        .into_iter()
+        .filter(|id| st.cards.get(id).is_some_and(|c| c.suit == Suit::Diamond))
+        .map(|id| PendingOption {
+            id: format!("choose:{id}"),
+            label: format!("弃置 {}", turn::card_label(st, &id)),
+        })
+        .collect();
+    if options.is_empty() {
+        pop(st);
+        return Ok(false);
+    }
+    st.pending = Some(Pending {
+        kind: "choice".into(),
+        actor: pid(st, f.actor),
+        skill: Some("guose".into()),
+        options,
+        data: json!({}),
+    });
+    replace_top(st, Frame::GuoSe(f));
+    Ok(true)
+}
+
+/// 场上第一张【乐不思蜀】（座位序、判定区序），返回 (座位, 牌 id)。
+pub(crate) fn find_lebu(st: &SgsState) -> Option<(usize, String)> {
+    for seat in st.alive_indices() {
+        for id in &st.seats[seat].judge_zone {
+            if st.effective_def_code(id) == Some("lebu_sishu") {
+                return Some((seat, id.clone()));
+            }
+        }
+    }
+    None
+}
+
+pub(crate) fn act_guose(st: &mut SgsState, action: &str) -> Result<String, EngineError> {
+    let f = match top(st).cloned() {
+        Some(Frame::GuoSe(f)) => f,
+        _ => return Err(internal("栈顶不是国色帧")),
+    };
+    let card = action
+        .strip_prefix("choose:")
+        .ok_or_else(|| crate::illegal("需要选择方片牌"))?;
+    if !st.seats[f.actor].hand.iter().any(|c| c == card)
+        || !st.cards.get(card).is_some_and(|c| c.suit == Suit::Diamond)
+    {
+        return Err(crate::illegal("国色需弃置一张方片牌"));
+    }
+    let Some((owner, lebu)) = find_lebu(st) else {
+        return Err(crate::illegal("场上没有【乐不思蜀】"));
+    };
+    turn::take_card(st, f.actor, card)?;
+    turn::discard_by(st, Some(f.actor), card);
+    if let Some(pos) = st.seats[owner].judge_zone.iter().position(|c| c == &lebu) {
+        st.seats[owner].judge_zone.remove(pos);
+    }
+    turn::discard_by(st, Some(owner), &lebu);
+    st.set_counter("guose_used", 1);
+    let label = turn::card_label(st, &lebu);
+    st.push_log(
+        Some(&pid(st, f.actor)),
+        format!("国色：弃置方片牌与{label}"),
+    );
+    let mut ev = Vec::new();
+    let _ = turn::draw_cards(st, f.actor, 1, &mut ev);
+    pop(st);
+    Ok("国色：弃置乐不思蜀并摸 1 张".to_string())
+}
+
+// ---------------------------------------------------------------------------
+// 界勤学（觉醒）/ 攻心（授予）
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct QinXueFrame {
+    pub actor: usize,
+}
+
+/// 勤学觉醒条件：手牌数比体力值多 2 或更多。
+pub(crate) fn qinxue_ready(st: &SgsState, seat: usize) -> bool {
+    has(st, seat, "qinxue")
+        && !st.seats[seat].flags.contains_key("qinxue_awakened")
+        && st.seats[seat].hand.len() as i32 >= st.seats[seat].hp + 2
+}
+
+pub(crate) fn step_qinxue(st: &mut SgsState, f: QinXueFrame) -> Result<bool, EngineError> {
+    let options = vec![
+        PendingOption {
+            id: "heal".into(),
+            label: "减 1 点体力上限并回复 1 点体力，获得【攻心】".into(),
+        },
+        PendingOption {
+            id: "draw".into(),
+            label: "减 1 点体力上限并摸 2 张，获得【攻心】".into(),
+        },
+        PendingOption {
+            id: "pass".into(),
+            label: "不发动勤学".into(),
+        },
+    ];
+    st.pending = Some(Pending {
+        kind: "choice".into(),
+        actor: pid(st, f.actor),
+        skill: Some("qinxue".into()),
+        options,
+        data: json!({}),
+    });
+    replace_top(st, Frame::QinXue(f));
+    Ok(true)
+}
+
+pub(crate) fn act_qinxue(st: &mut SgsState, action: &str) -> Result<String, EngineError> {
+    let f = match top(st).cloned() {
+        Some(Frame::QinXue(f)) => f,
+        _ => return Err(internal("栈顶不是勤学帧")),
+    };
+    if action == "pass" {
+        pop(st);
+        return Ok("不发动勤学".to_string());
+    }
+    if action != "heal" && action != "draw" {
+        return Err(crate::illegal("未知的勤学选项"));
+    }
+    let actor = f.actor;
+    st.seats[actor].max_hp -= 1;
+    if st.seats[actor].hp > st.seats[actor].max_hp {
+        st.seats[actor].hp = st.seats[actor].max_hp;
+    }
+    st.seats[actor].flags.insert("qinxue_awakened".into(), true);
+    crate::skills::grant_skill(st, actor, "gongxin");
+    let mut ev = Vec::new();
+    if action == "heal" {
+        st.seats[actor].hp += 1;
+    } else {
+        let _ = turn::draw_cards(st, actor, 2, &mut ev);
+    }
+    st.push_log(
+        Some(&pid(st, actor)),
+        format!(
+            "勤学：减 1 点体力上限，{}，获得【攻心】",
+            if action == "heal" {
+                "回复 1 点体力"
+            } else {
+                "摸 2 张"
+            }
+        ),
+    );
+    pop(st);
+    Ok("勤学觉醒完成".to_string())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GongXinStage {
+    Target,
+    Card,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct GongXinFrame {
+    pub actor: usize,
+    pub stage: GongXinStage,
+    pub target: Option<usize>,
+}
+
+pub(crate) fn step_gongxin(st: &mut SgsState, f: GongXinFrame) -> Result<bool, EngineError> {
+    let (options, actor) = match f.stage {
+        GongXinStage::Target => (
+            st.alive_indices()
+                .into_iter()
+                .filter(|i| *i != f.actor && !st.seats[*i].hand.is_empty())
+                .map(|i| PendingOption {
+                    id: format!("target:{}", st.seats[i].player_id),
+                    label: format!("观看 {} 的手牌", st.seats[i].general_name),
+                })
+                .collect(),
+            f.actor,
+        ),
+        GongXinStage::Card => {
+            let target = f.target.ok_or_else(|| internal("攻心缺少目标"))?;
+            let mut options: Vec<PendingOption> = st.seats[target]
+                .hand
+                .iter()
+                .filter(|id| st.cards.get(*id).is_some_and(|c| c.suit == Suit::Heart))
+                .flat_map(|id| {
+                    [
+                        PendingOption {
+                            id: format!("discard:{id}"),
+                            label: format!("弃置 {}", turn::card_label(st, id)),
+                        },
+                        PendingOption {
+                            id: format!("top:{id}"),
+                            label: format!("置于牌堆顶 {}", turn::card_label(st, id)),
+                        },
+                    ]
+                })
+                .collect();
+            options.push(PendingOption {
+                id: "pass".into(),
+                label: "不弃置/不置顶".into(),
+            });
+            (options, f.actor)
+        }
+    };
+    if options.is_empty() {
+        pop(st);
+        return Ok(false);
+    }
+    st.pending = Some(Pending {
+        kind: "choice".into(),
+        actor: pid(st, actor),
+        skill: Some("gongxin".into()),
+        options,
+        data: json!({}),
+    });
+    replace_top(st, Frame::GongXin(f));
+    Ok(true)
+}
+pub(crate) fn act_gongxin(st: &mut SgsState, action: &str) -> Result<String, EngineError> {
+    let f = match top(st).cloned() {
+        Some(Frame::GongXin(f)) => f,
+        _ => return Err(internal("栈顶不是攻心帧")),
+    };
+    match f.stage {
+        GongXinStage::Target => {
+            let target_pid = action
+                .strip_prefix("target:")
+                .ok_or_else(|| crate::illegal("需要选择目标"))?;
+            let target = st
+                .seat_index(target_pid)
+                .ok_or_else(|| crate::illegal("目标不在座"))?;
+            st.set_counter("gongxin_used", 1);
+            st.push_log(
+                Some(&pid(st, f.actor)),
+                format!("攻心：观看 {} 的手牌", st.seats[target].general_name),
+            );
+            replace_top(
+                st,
+                Frame::GongXin(GongXinFrame {
+                    stage: GongXinStage::Card,
+                    target: Some(target),
+                    ..f
+                }),
+            );
+            Ok("攻心：请选择红桃牌".to_string())
+        }
+        GongXinStage::Card => {
+            let target = f.target.ok_or_else(|| internal("攻心缺少目标"))?;
+            if action == "pass" {
+                pop(st);
+                return Ok("攻心：不弃置".to_string());
+            }
+            if let Some(card) = action.strip_prefix("discard:") {
+                if !st.seats[target].hand.iter().any(|c| c == card)
+                    || !st.cards.get(card).is_some_and(|c| c.suit == Suit::Heart)
+                {
+                    return Err(crate::illegal("攻心只能选择红桃手牌"));
+                }
+                turn::take_card(st, target, card)?;
+                turn::discard_by(st, Some(target), card);
+                let label = turn::card_label(st, card);
+                pop(st);
+                st.push_log(Some(&pid(st, f.actor)), format!("攻心：弃置{label}"));
+                return Ok("攻心：弃置红桃牌".to_string());
+            }
+            if let Some(card) = action.strip_prefix("top:") {
+                if !st.seats[target].hand.iter().any(|c| c == card)
+                    || !st.cards.get(card).is_some_and(|c| c.suit == Suit::Heart)
+                {
+                    return Err(crate::illegal("攻心只能选择红桃手牌"));
+                }
+                turn::take_card(st, target, card)?;
+                st.deck.draw.push(card.to_string());
+                let label = turn::card_label(st, card);
+                pop(st);
+                st.push_log(
+                    Some(&pid(st, f.actor)),
+                    format!("攻心：将{label}置于牌堆顶"),
+                );
+                return Ok("攻心：置于牌堆顶".to_string());
+            }
+            Err(crate::illegal("未知的攻心选项"))
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 界连营：栈空后选择一名角色摸 1
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct LianYingFrame {
+    pub actor: usize,
+}
+
+pub(crate) fn lianying_ready(st: &SgsState) -> Option<usize> {
+    (0..st.seats.len())
+        .find(|i| st.seats[*i].alive && st.counter(&format!("lianying_pending:{i}")) > 0)
+}
+
+pub(crate) fn step_lianying(st: &mut SgsState, f: LianYingFrame) -> Result<bool, EngineError> {
+    let mut options: Vec<PendingOption> = st
+        .alive_indices()
+        .into_iter()
+        .map(|i| PendingOption {
+            id: format!("target:{}", st.seats[i].player_id),
+            label: format!("令 {} 摸 1 张", st.seats[i].general_name),
+        })
+        .collect();
+    options.push(PendingOption {
+        id: "pass".into(),
+        label: "不发动连营".into(),
+    });
+    st.pending = Some(Pending {
+        kind: "choice".into(),
+        actor: pid(st, f.actor),
+        skill: Some("lianying".into()),
+        options,
+        data: json!({}),
+    });
+    replace_top(st, Frame::LianYing(f));
+    Ok(true)
+}
+
+pub(crate) fn act_lianying(st: &mut SgsState, action: &str) -> Result<String, EngineError> {
+    let f = match top(st).cloned() {
+        Some(Frame::LianYing(f)) => f,
+        _ => return Err(internal("栈顶不是连营帧")),
+    };
+    if action == "pass" {
+        pop(st);
+        return Ok("不发动连营".to_string());
+    }
+    let target_pid = action
+        .strip_prefix("target:")
+        .ok_or_else(|| crate::illegal("需要选择目标"))?;
+    let target = st
+        .seat_index(target_pid)
+        .ok_or_else(|| crate::illegal("目标不在座"))?;
+    let mut ev = Vec::new();
+    let drawn = turn::draw_cards(st, target, 1, &mut ev);
+    st.push_log(
+        Some(&pid(st, f.actor)),
+        format!("连营：令 {} 摸 {drawn} 张", st.seats[target].general_name),
+    );
+    pop(st);
+    Ok("连营结算完成".to_string())
+}
+
+// ---------------------------------------------------------------------------
+// 诈降（界黄盖）：红杀无距离/不可抵消
+// ---------------------------------------------------------------------------
+
+pub(crate) fn zhaxiang_red_active(st: &SgsState, seat: usize, card: &str) -> bool {
+    st.turn == seat
+        && st.turn_phase == TurnPhase::Play
+        && st.counter("zhaxiang_red") > 0
+        && st
+            .cards
+            .get(card)
+            .is_some_and(|c| crate::skills::is_red(c.suit))
+}

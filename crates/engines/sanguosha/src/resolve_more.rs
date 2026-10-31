@@ -1009,11 +1009,14 @@ pub(crate) fn qingnang_target(
 }
 
 pub(crate) fn step_jieyin(st: &mut SgsState, f: JieyinFrame) -> Result<bool, EngineError> {
+    let jie = crate::skills::is_jiexian(st, f.actor);
     let options: Vec<PendingOption> = st
         .alive_indices()
         .into_iter()
         .filter(|i| {
-            *i != f.actor && crate::skills::is_male(st, *i) && st.seats[*i].hp < st.seats[*i].max_hp
+            *i != f.actor
+                && crate::skills::is_male(st, *i)
+                && (jie || st.seats[*i].hp < st.seats[*i].max_hp)
         })
         .map(|i| PendingOption {
             id: format!("target:{}", st.seats[i].player_id),
@@ -1059,17 +1062,56 @@ pub(crate) fn jieyin_target(
         turn::take_card(st, f.actor, id)?;
         turn::to_discard_card(st, id);
     }
+    st.set_counter("jieyin_used", 1);
+    let actor_name = st.seats[f.actor].general_name.clone();
+    let target_name = st.seats[target].general_name.clone();
+    let actor_pid = st.seats[f.actor].player_id.clone();
+    if crate::skills::is_jiexian(st, f.actor) {
+        // 界结姻：体力值较大的角色摸 1，较小的角色回复 1（相同则各摸 1）。
+        let a_hp = st.seats[f.actor].hp;
+        let t_hp = st.seats[target].hp;
+        let (mut actor_draw, mut actor_heal, mut target_draw, mut target_heal) =
+            (false, false, false, false);
+        if a_hp > t_hp {
+            actor_draw = true;
+            target_heal = true;
+        } else if t_hp > a_hp {
+            target_draw = true;
+            actor_heal = true;
+        } else {
+            actor_draw = true;
+            target_draw = true;
+        }
+        let mut ev = Vec::new();
+        if actor_draw {
+            turn::draw_cards(st, f.actor, 1, &mut ev);
+        }
+        if target_draw {
+            turn::draw_cards(st, target, 1, &mut ev);
+        }
+        if actor_heal && st.seats[f.actor].hp < st.seats[f.actor].max_hp {
+            st.seats[f.actor].hp += 1;
+        }
+        if target_heal && st.seats[target].hp < st.seats[target].max_hp {
+            st.seats[target].hp += 1;
+        }
+        st.push_log(
+            Some(&actor_pid),
+            format!(
+                "结姻：{actor_name} 与 {target_name}（体力高者摸 1 / 低者回复 1；相同各摸 1）"
+            ),
+        );
+        pop(st);
+        return Ok(format!("与 {target_name} 结姻"));
+    }
     st.seats[target].hp += 1;
     let mut self_heal = false;
     if st.seats[f.actor].hp < st.seats[f.actor].max_hp {
         st.seats[f.actor].hp += 1;
         self_heal = true;
     }
-    st.set_counter("jieyin_used", 1);
-    let actor_name = st.seats[f.actor].general_name.clone();
-    let target_name = st.seats[target].general_name.clone();
     st.push_log(
-        Some(&st.seats[f.actor].player_id.clone()),
+        Some(&actor_pid),
         format!(
             "结姻：{actor_name} 与 {target_name} 各回复 1 点体力{}",
             if self_heal { "" } else { "（自己已满）" }
@@ -1565,8 +1607,9 @@ pub(crate) fn multiselect_confirm(
             Some(Ok("请选择回复目标".to_string()))
         }
         "jieyin" => {
-            if f.selected.len() != 2 {
-                return Some(Err(illegal("结姻需弃置 2 张手牌")));
+            let need = if crate::skills::is_jiexian(st, f.actor) { 1 } else { 2 };
+            if f.selected.len() != need {
+                return Some(Err(illegal(format!("结姻需弃置 {need} 张手牌"))));
             }
             replace_top(
                 st,
