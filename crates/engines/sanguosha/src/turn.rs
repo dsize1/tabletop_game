@@ -1256,6 +1256,50 @@ pub(crate) fn phase_step(
                 "phase_start",
                 json!({ "phase": "end", "seat": st.turn, "player": pid }),
             ));
+            // 界镇军（界于禁）：结束阶段令目标摸等量张。
+            let zj_keys: Vec<String> = st.seats[st.turn]
+                .mark_counts
+                .keys()
+                .filter(|k| k.starts_with("zhenjun_end_draw:"))
+                .cloned()
+                .collect();
+            if !zj_keys.is_empty() {
+                for key in zj_keys {
+                    let n = st.seats[st.turn]
+                        .mark_counts
+                        .remove(&key)
+                        .unwrap_or(0);
+                    if let Ok(target) = key.trim_start_matches("zhenjun_end_draw:").parse::<usize>() {
+                        if target < st.seats.len() && st.seats[target].alive {
+                            let mut ev2 = Vec::new();
+                            let drawn = draw_cards(st, target, n, &mut ev2);
+                            st.push_log(
+                                Some(&st.seats[st.turn].player_id.clone()),
+                                format!(
+                                    "镇军：{} 在结束阶段摸 {drawn} 张",
+                                    st.seats[target].general_name
+                                ),
+                            );
+                        }
+                    }
+                }
+            }
+            // 界追忆（界步练师）：结束阶段可发动限定技。
+            if crate::skills::has(st, st.turn, "zhuixi")
+                && crate::skills::is_jiexian(st, st.turn)
+                && st.counter("zhuixi_end_asked") == 0
+                && st.alive_indices().len() > 1
+            {
+                st.set_counter("zhuixi_end_asked", 1);
+                resolve::push(
+                    st,
+                    resolve::Frame::ZhuiYi(crate::resolve_yijiang2::ZhuiYiFrame {
+                        dead: st.turn,
+                        killer: None,
+                    }),
+                );
+                return Ok(true);
+            }
             // 界直言（界虞翻）：上家的结束阶段也可发动。
             crate::resolve_jiexian6::zhiyan_upper_trigger(st, st.turn);
             // 界双雄（界颜良文丑）：结束阶段获得本回合对你造成过伤害的牌。

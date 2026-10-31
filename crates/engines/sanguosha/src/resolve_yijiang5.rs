@@ -1454,6 +1454,7 @@ pub(crate) fn act_xiantu(st: &mut SgsState, action: &str) -> Result<String, Engi
     }
     st.set_counter("xiantu_owner", f.owner as u32 + 1);
     st.set_counter("xiantu_target", f.target as u32 + 1);
+    st.set_counter("xiantu_given", given);
     st.push_log(
         Some(&pid(st, f.owner)),
         format!("献图：摸 {drawn} 张，交出 {given} 张"),
@@ -1476,7 +1477,21 @@ pub(crate) fn xiantu_end_phase(st: &mut SgsState, current: usize) {
     if !st.seats[owner].alive {
         return;
     }
-    if st.counter("phase_kills") > 0 {
+    // 界献图（界张松）：此阶段造成的伤害 < 你交给其的牌数 → 失去 1 点体力。
+    if crate::skills::is_jiexian(st, owner) {
+        let given = st.counter("xiantu_given");
+        let dealt = st.counter(&format!("dealt:{current}"));
+        if dealt >= given {
+            st.push_log(
+                Some(&pid(st, owner)),
+                format!(
+                    "献图：{} 本阶段造成伤害 {dealt} ≥ 交给的 {given} 张，不失去体力",
+                    st.seats[current].general_name
+                ),
+            );
+            return;
+        }
+    } else if st.counter("phase_kills") > 0 {
         st.push_log(
             Some(&pid(st, owner)),
             format!(

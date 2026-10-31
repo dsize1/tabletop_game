@@ -2233,6 +2233,63 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
             implemented: true,
         },
     ];
+    // ---- P4.4.2 界限突破（批次 J8：4 将 / 8 技能，收官）----
+    const JIE_XIAHOUSHI: &[SkillDef] = &[
+        SkillDef {
+            code: "qiaoshi",
+            name: "樵拾",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "yanyu",
+            name: "燕语",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_ZHANGSONG: &[SkillDef] = &[
+        SkillDef {
+            code: "qiangshi",
+            name: "强识",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "xiantu",
+            name: "献图",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_YUJIN: &[SkillDef] = &[
+        SkillDef {
+            code: "zhenjun",
+            name: "镇军",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "yizhong",
+            name: "毅重",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+    ];
+    const JIE_BULIANSHI: &[SkillDef] = &[
+        SkillDef {
+            code: "anxu",
+            name: "安恤",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "zhuixi",
+            name: "追忆",
+            kind: SkillType::Limited,
+            implemented: true,
+        },
+    ];
     // ---- P4.4.2 一将成名（批次 2：8 将 / 16 技能）----
     const ZHANGCHUNHUA: &[SkillDef] = &[
         SkillDef {
@@ -3270,6 +3327,10 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
         "sgs_hero_696" => JIE_MADAI,
         "sgs_hero_726" => JIE_GUOHUANGHOU,
         "sgs_hero_749" => JIE_JUSHU,
+        "sgs_hero_752" => JIE_XIAHOUSHI,
+        "sgs_hero_753" => JIE_ZHANGSONG,
+        "sgs_hero_756" => JIE_YUJIN,
+        "sgs_hero_775" => JIE_BULIANSHI,
         _ => &[],
     }
 }

@@ -3906,6 +3906,36 @@ fn act_target(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Stri
         if f.no_respond {
             no_shan = true;
         }
+        // 毅重（界于禁，锁定）：①体力值 ≥ 你的角色的黑色【杀】对你无效；
+        // ②手牌数 ≤ 你的角色无法响应你的黑色【杀】。
+        let black_sha = !f.card.is_empty()
+            && st
+                .cards
+                .get(&f.card)
+                .is_some_and(|c| crate::skills::is_black(c.suit));
+        if black_sha
+            && crate::skills::has(st, target, "yizhong")
+            && crate::skills::is_jiexian(st, target)
+            && st.seats[f.user].hp >= st.seats[target].hp
+        {
+            discard_from_processing(st, &f.card);
+            pop(st);
+            st.push_log(
+                None,
+                format!(
+                    "毅重：{} 的黑色【杀】对 {} 无效",
+                    st.seats[f.user].general_name, st.seats[target].general_name
+                ),
+            );
+            return Ok("毅重：此【杀】无效".to_string());
+        }
+        if black_sha
+            && crate::skills::has(st, f.user, "yizhong")
+            && crate::skills::is_jiexian(st, f.user)
+            && st.seats[target].hand.len() <= st.seats[f.user].hand.len()
+        {
+            no_shan = true;
+        }
         // 陷阵（拼点赢）：无视被拼点者防具。
         let xianzhen_target = crate::resolve_yijiang::xianzhen_win_target(st) == Some(target)
             && crate::skills::has(st, f.user, "xianzhen");

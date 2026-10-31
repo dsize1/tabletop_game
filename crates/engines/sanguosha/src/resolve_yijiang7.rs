@@ -208,9 +208,16 @@ pub struct QiaoShiFrame {
 
 pub(crate) fn qiaoshi_owner(st: &SgsState, current: usize) -> Option<usize> {
     st.alive_indices().into_iter().find(|i| {
-        *i != current
-            && crate::skills::has(st, *i, "qiaoshi")
-            && st.seats[*i].hand.len() == st.seats[current].hand.len()
+        if *i == current || !crate::skills::has(st, *i, "qiaoshi") {
+            return false;
+        }
+        if crate::skills::is_jiexian(st, *i) {
+            // 界樵拾（界夏侯氏）：每个结束阶段均可发动；本轮失效后跳过。
+            return !st.seats[*i]
+                .flags
+                .contains_key(&format!("qiaoshi_off:{}", st.round));
+        }
+        st.seats[*i].hand.len() == st.seats[current].hand.len()
     })
 }
 
@@ -261,6 +268,17 @@ pub(crate) fn act_qiaoshi(st: &mut SgsState, action: &str) -> Result<String, Eng
     );
     cap_hand(st, f.owner);
     cap_hand(st, f.current);
+    // 界樵拾（界夏侯氏）：若双方手牌数不相等，本技能本轮失效。
+    if crate::skills::is_jiexian(st, f.owner)
+        && st.seats[f.owner].hand.len() != st.seats[f.current].hand.len()
+    {
+        let key = format!("qiaoshi_off:{}", st.round);
+        st.seats[f.owner].flags.insert(key, true);
+        st.push_log(
+            Some(&pid(st, f.owner)),
+            "樵拾：双方手牌数不等，本技能本轮失效",
+        );
+    }
     pop(st);
     Ok("樵拾结算完成".to_string())
 }

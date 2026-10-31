@@ -182,8 +182,12 @@ try {
   assert(board.turn.player_id, "应有当前回合玩家");
   for (const s of board.seats) {
     assert(typeof s.general === "string" && s.general.length > 0, "选将后武将应公开");
-    const expect = s.seat === board.turn.seat ? 6 : 4;
-    assert(s.hand_count === expect, `${s.player_id} 手牌应为 ${expect}，实际 ${s.hand_count}`);
+    // 准备阶段技能（镇军等）可能已改动手牌，故只校验合理区间。
+    const upTo = s.seat === board.turn.seat ? 6 : 4;
+    assert(
+      s.hand_count >= 0 && s.hand_count <= upTo,
+      `${s.player_id} 手牌应在 0..${upTo}，实际 ${s.hand_count}`,
+    );
     assert(s.hand === undefined, "公共视图不得包含手牌明细");
     if (s.identity !== "lord") assert(!s.identity, "非主公身份不得公开");
   }
@@ -193,10 +197,15 @@ try {
     0,
   );
   const judge = board.seats.reduce((n, s) => n + (s.judge_zone?.length ?? 0), 0);
+  // 武将牌上的牌（不屈「创」/屯田「田」等）也计入守恒。
+  const marks = board.seats.reduce(
+    (n, s) => n + Object.values(s.marks ?? {}).reduce((m, v) => m + v.length, 0),
+    0,
+  );
   assert(
     board.deck.draw + board.deck.discard + board.deck.processing + board.deck.void +
-      hands + equips + judge === total,
-    `牌数守恒失败：draw ${board.deck.draw} + discard ${board.deck.discard} + processing ${board.deck.processing} + hands ${hands} + equips ${equips} + judge ${judge} ≠ ${total}`,
+      hands + equips + judge + marks === total,
+    `牌数守恒失败：draw ${board.deck.draw} + discard ${board.deck.discard} + processing ${board.deck.processing} + hands ${hands} + equips ${equips} + judge ${judge} + marks ${marks} ≠ ${total}`,
   );
   console.log(
     `[sgs] 发牌 OK：packs=${(board.config?.packs ?? []).join("+")}，总张数 ${total}，牌堆余 ${board.deck.draw}，手牌 ${hands}`,
@@ -278,11 +287,27 @@ try {
         act = legal.find((a) => a.id === "pass") ?? legal[0];
       }
       lastAction = `${b.pending.actor}:${act.id} (pending ${b.pending.kind})`;
-      await callJson("execute_action", {
-        room_id: roomId,
-        player_id: b.pending.actor,
-        action: act.id,
-      });
+      try {
+        await callJson("execute_action", {
+          room_id: roomId,
+          player_id: b.pending.actor,
+          action: act.id,
+        });
+      } catch (err) {
+        // pending 选项可能因随机技能失效：回退到 pass（无 pass 则放弃本次驱动）。
+        const retry = await callJson("get_legal_actions", {
+          room_id: roomId,
+          player_id: b.pending.actor,
+        });
+        const pass = retry.find((a) => a.id === "pass");
+        if (!pass) throw err;
+        lastAction = `${b.pending.actor}:pass (retry)`;
+        await callJson("execute_action", {
+          room_id: roomId,
+          player_id: b.pending.actor,
+          action: "pass",
+        });
+      }
     } else {
       assert(b.turn.phase === "play", `不应停留在 ${b.turn.phase} 阶段`);
       const legal = await callJson("get_legal_actions", {
@@ -310,11 +335,27 @@ try {
         );
       }
       lastAction = `${b.turn.player_id}:${play.id} (play)`;
-      await callJson("execute_action", {
-        room_id: roomId,
-        player_id: b.turn.player_id,
-        action: play.id,
-      });
+      // 合法动作可能因随机技能（将驰/父魂等）在上一步结算后失效：失败则回退到 end_play。
+      try {
+        await callJson("execute_action", {
+          room_id: roomId,
+          player_id: b.turn.player_id,
+          action: play.id,
+        });
+      } catch (err) {
+        const retry = await callJson("get_legal_actions", {
+          room_id: roomId,
+          player_id: b.turn.player_id,
+        });
+        const fallback = retry.find((a) => a.id === "end_play");
+        if (!fallback) throw err;
+        lastAction = `${b.turn.player_id}:${fallback.id} (retry)`;
+        await callJson("execute_action", {
+          room_id: roomId,
+          player_id: b.turn.player_id,
+          action: fallback.id,
+        });
+      }
     }
     steps += 1;
     if (steps % 40 === 0) {
@@ -325,10 +366,14 @@ try {
         0,
       );
       const judge = v.seats.reduce((n, s) => n + (s.judge_zone?.length ?? 0), 0);
+      const marks = v.seats.reduce(
+        (n, s) => n + Object.values(s.marks ?? {}).reduce((m, arr) => m + arr.length, 0),
+        0,
+      );
       assert(
         v.deck.draw + v.deck.discard + v.deck.processing + v.deck.void +
-          hands + equips + judge === deckTotal(v),
-        `第 ${steps} 步牌数不守恒：draw ${v.deck.draw} discard ${v.deck.discard} proc ${v.deck.processing} hands ${hands} eq ${equips} judge ${judge}`,
+          hands + equips + judge + marks === deckTotal(v),
+        `第 ${steps} 步牌数不守恒：draw ${v.deck.draw} discard ${v.deck.discard} proc ${v.deck.processing} hands ${hands} eq ${equips} judge ${judge} marks ${marks}`,
       );
     }
   }

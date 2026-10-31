@@ -4,12 +4,21 @@
 
 ## 🔖 续接指针（下次会话说「继续」时从这里开工）
 
-- **入口**：`docs/games/sanguosha/development-plan.md` → **P4.4.2「J8（4 将）」**（J1–J7 已完成）
-- **顺序**：① J8（752 界夏侯氏、753 界张松、756 界于禁、775 界步练师）收官（一将成名 72/72、界标 25 将、J1–J7 已完成）→ ② P4.4.3 验收
+- **入口**：`docs/games/sanguosha/development-plan.md` → **P4.4.2 已完成（界限突破 87/87）** → 下一步 P4.4.3 验收
+- **顺序**：① 界限突破 87/87 已完成 → ② P4.4.3 包开关/全套门禁验收（下一步）
 - **开工命令**：`npm run sgs:batch-status`（看下一批名单/计数一致性）；流程与模板见 `docs/games/sanguosha/batch-playbook.md`
-- **批前必读**：`skills.md` §2.8.11、`rules-rulings.md` §36、`docs/conventions/coding-standards.md`
+- **批前必读**：`skills.md` §2.8.12、`rules-rulings.md` §37、`docs/conventions/coding-standards.md`
 - **每批收尾**：`p67` 池断言（如涉及界版池）；`skills.md` §2.8.x + `rules-rulings.md` 新节；`milestones.md` 新增 M 条目
 - **门禁**：`npm run sgs:check`（每批收尾）、`npm run sgs:check:full`（含 MCP 冒烟）、`npm run sgs:check:fast`（改码自检）
+
+## M55：三国杀 P4.4.2 批次 J8（界限突破 752/753/756/775：4 将 / 8 技能，界限突破 87/87 收官）✅
+
+- **日期**：2026-10-31
+- **完成**：界夏侯氏（樵拾/燕语）、界张松（强识/献图）、界于禁（镇军/毅重）、界步练师（安恤/追忆）
+- **机制**：界樵拾（任意结束阶段 + 本轮失效）、界献图（伤害 < 交牌数失体力）、界镇军（结束阶段延后摸牌）、毅重（黑杀免疫 / 黑杀不可响应）、界追忆（结束阶段发动）
+- **用例**：`tests/p103.rs` 12 条；`cargo test -p sanguosha` **870** 全绿；`p67` 池断言 83 → 87
+- **已知边界**：见 `rules-rulings.md` §37
+- **详见**：`memory_palace/plan/01a192cd-9c3e-7668-91f6-e77ceff1a5f9.md`
 
 ## M54：三国杀 P4.4.2 批次 J7（界限突破 642/658/671/676/690/696/726/749：8 将 / 15 技能）✅
 

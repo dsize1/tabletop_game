@@ -1513,6 +1513,20 @@ pub(crate) fn act_zhenjun(st: &mut SgsState, action: &str) -> Result<String, Eng
     pop(st);
     let n = f.non_equip;
     if action == "choose:zhenjun:draw" {
+        // 界镇军（界于禁）：改为「结束阶段其摸等量张」。
+        if crate::skills::is_jiexian(st, f.actor) {
+            let key = format!("zhenjun_end_draw:{target}");
+            st.seats[f.actor].mark_counts.insert(key, n as u32);
+            st.push_log(
+                Some(&st.seats[target].player_id.clone()),
+                format!(
+                    "镇军：{} 将于本回合结束阶段摸 {n} 张",
+                    general_name(st, target)
+                ),
+            );
+            pop(st);
+            return Ok("镇军：结束阶段摸牌".to_string());
+        }
         let drawn = draw_capped(st, target, n);
         st.push_log(
             Some(&st.seats[target].player_id.clone()),
