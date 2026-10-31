@@ -1442,6 +1442,111 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
             implemented: true,
         },
     ];
+    // ---- P4.4.2 一将成名（批次 2：8 将 / 16 技能）----
+    const ZHANGCHUNHUA: &[SkillDef] = &[
+        SkillDef {
+            code: "jueqing",
+            name: "绝情",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "shangshi",
+            name: "伤逝",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const CAOZHANG: &[SkillDef] = &[SkillDef {
+        code: "jiangchi",
+        name: "将驰",
+        kind: SkillType::Normal,
+        implemented: true,
+    }];
+    const XUNYOU: &[SkillDef] = &[
+        SkillDef {
+            code: "qice",
+            name: "奇策",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "zhiyu",
+            name: "智愚",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const LIAOHUA: &[SkillDef] = &[
+        SkillDef {
+            code: "dangxian",
+            name: "当先",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "fuli",
+            name: "伏枥",
+            kind: SkillType::Limited,
+            implemented: true,
+        },
+    ];
+    const MADAI: &[SkillDef] = &[
+        SkillDef {
+            code: "mashu",
+            name: "马术",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "qianxi",
+            name: "潜袭",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const BULIANSHI: &[SkillDef] = &[
+        SkillDef {
+            code: "anxu",
+            name: "安恤",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "zhuiyi",
+            name: "追忆",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const CHENGPU: &[SkillDef] = &[
+        SkillDef {
+            code: "lihuo",
+            name: "疠火",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "chunlao",
+            name: "醇醪",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const HANDANG: &[SkillDef] = &[
+        SkillDef {
+            code: "gongqi",
+            name: "弓骑",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "jiefan",
+            name: "解烦",
+            kind: SkillType::Limited,
+            implemented: true,
+        },
+    ];
     match general {
         "sgs_hero_1" => LIUBEI,
         "sgs_hero_15" => CAOCAO,
@@ -1524,6 +1629,14 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
         "sgs_hero_157" => WUGUOTAI,
         "sgs_hero_158" => XUSHENG,
         "sgs_hero_160" => YUJIN,
+        "sgs_hero_161" => ZHANGCHUNHUA,
+        "sgs_hero_162" => CAOZHANG,
+        "sgs_hero_164" => XUNYOU,
+        "sgs_hero_166" => LIAOHUA,
+        "sgs_hero_167" => MADAI,
+        "sgs_hero_168" => BULIANSHI,
+        "sgs_hero_169" => CHENGPU,
+        "sgs_hero_170" => HANDANG,
         "sgs_hero_299" => JIE_LIUBEI,
         "sgs_hero_300" => JIE_GUANYU,
         "sgs_hero_301" => JIE_ZHANGFEI,
@@ -2473,6 +2586,19 @@ pub fn hand_limit(st: &SgsState, seat: usize) -> usize {
         return usize::MAX;
     }
     let mut limit = st.hand_limit(seat);
+    // 将驰（曹彰，选项一）：本回合【杀】不计入手牌上限。
+    if has(st, seat, "jiangchi") && st.counter(&format!("sha_banned:{seat}")) > 0 {
+        let sha_count = st.seats[seat]
+            .hand
+            .iter()
+            .filter(|id| {
+                st.cards
+                    .get(*id)
+                    .is_some_and(|c| matches!(c.def.as_str(), "sha" | "huo_sha" | "lei_sha"))
+            })
+            .count();
+        limit += sha_count;
+    }
     // 清俭（界夏侯惇）：交牌后当前回合角色手牌上限 +1。
     if has(st, seat, "qingjian") && is_jiexian(st, seat) {
         limit += st.counter("qingjian_limit") as usize;
@@ -2645,6 +2771,49 @@ pub fn sha_blocked(st: &SgsState, seat: usize) -> bool {
 /// 奇才：使用锦囊无距离限制。
 pub fn trick_distance_unlimited(st: &SgsState, seat: usize) -> bool {
     has(st, seat, "qicai")
+}
+
+/// 将驰（曹彰）：本回合不能使用或打出【杀】。
+pub fn sha_play_banned(st: &SgsState, seat: usize) -> bool {
+    st.counter(&format!("sha_banned:{seat}")) > 0
+}
+
+/// 潜袭（马岱）：本回合不能使用/打出某种颜色的手牌（1=红 2=黑）。
+pub fn qianxi_banned(st: &SgsState, seat: usize, card: &str) -> bool {
+    let banned = st.counter(&format!("qianxi:{seat}"));
+    if banned == 0 {
+        return false;
+    }
+    let red = st.cards.get(card).is_some_and(|c| is_red(c.suit));
+    (banned == 1 && red) || (banned == 2 && !red)
+}
+
+/// 伤逝（张春华）：手牌数小于已损失体力值时，摸至该值。
+pub fn shangshi_draw(st: &mut SgsState, seat: usize) {
+    if !has(st, seat, "shangshi") {
+        return;
+    }
+    let lost = (st.seats[seat].max_hp - st.seats[seat].hp).max(0) as usize;
+    let hand = st.seats[seat].hand.len();
+    if lost > hand {
+        let mut ev = Vec::new();
+        let drawn = crate::turn::draw_cards(st, seat, (lost - hand) as u32, &mut ev);
+        if drawn > 0 {
+            st.push_log(
+                Some(&st.seats[seat].player_id.clone()),
+                format!("伤逝：摸至 {lost} 张（摸 {drawn}）"),
+            );
+        }
+    }
+}
+
+/// 醇醪「醇」数量（程普）。
+pub fn chun_count(st: &SgsState, seat: usize) -> usize {
+    st.seats
+        .get(seat)
+        .and_then(|s| s.marks.get("chun"))
+        .map(|v| v.len())
+        .unwrap_or(0)
 }
 
 /// 缠怨（蛊惑质疑惩罚）：体力值为 1 时不能使用或打出手牌；也不能质疑于吉。
@@ -2900,7 +3069,10 @@ pub fn hand_sealed(st: &SgsState, seat: usize) -> bool {
 
 /// 决堰（坐骑栏 / 雄乱）：使用牌无距离限制。
 pub fn no_distance_turn(st: &SgsState, seat: usize) -> bool {
-    st.counter("jueyan_no_distance") > 0 || st.counter(&format!("xl_seat:{seat}")) > 0
+    st.counter("jueyan_no_distance") > 0
+        || st.counter(&format!("xl_seat:{seat}")) > 0
+        || st.counter("jiangchi_no_distance") > 0
+        || st.counter("gongqi_unlimited") > 0
 }
 
 /// 界奇才（锁定）：防止其他角色弃置你装备区里的防具/宝物牌。

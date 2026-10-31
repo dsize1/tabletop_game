@@ -17,6 +17,7 @@ mod resolve_skill;
 mod resolve_sp;
 mod resolve_sp2;
 mod resolve_yijiang;
+mod resolve_yijiang2;
 mod resolve_wind;
 mod resolve_zone;
 mod skills;

@@ -162,6 +162,16 @@ pub enum Frame {
     /// P4.4.2 界标·群帧（批次 5）。
     ChuLi(crate::resolve_jiexian::ChuLiFrame),
     LiYu(crate::resolve_jiexian::LiYuFrame),
+    /// P4.4.2 一将成名（批次 2）。
+    JiangChi(crate::resolve_yijiang2::JiangChiFrame),
+    Qice(crate::resolve_yijiang2::QiceFrame),
+    QianXi(crate::resolve_yijiang2::QianXiFrame),
+    AnXu(crate::resolve_yijiang2::AnXuFrame),
+    ZhuiYi(crate::resolve_yijiang2::ZhuiYiFrame),
+    LiHuo(crate::resolve_yijiang2::LiHuoFrame),
+    ChunLao(crate::resolve_yijiang2::ChunLaoFrame),
+    GongQi(crate::resolve_yijiang2::GongQiFrame),
+    JieFan(crate::resolve_yijiang2::JieFanFrame),
     /// 五谷丰登（P2.5 特殊区 `wugu`）。
     Wugu(crate::resolve_zone::WuguFrame),
     /// 观星排序提交（P2.5 特殊区 `guanxing`，`arrange:<csv>`）。
@@ -811,6 +821,15 @@ fn step(
         Frame::WangXi(f) => crate::resolve_jiexian::step_wangxi(st, f),
         Frame::ChuLi(f) => crate::resolve_jiexian::step_chuli(st, f),
         Frame::LiYu(f) => crate::resolve_jiexian::step_liyu(st, f),
+        Frame::JiangChi(f) => crate::resolve_yijiang2::step_jiangchi(st, f),
+        Frame::Qice(f) => crate::resolve_yijiang2::step_qice(st, f),
+        Frame::QianXi(f) => crate::resolve_yijiang2::step_qianxi(st, f),
+        Frame::AnXu(f) => crate::resolve_yijiang2::step_anxu(st, f),
+        Frame::ZhuiYi(f) => crate::resolve_yijiang2::step_zhuiyi(st, f),
+        Frame::LiHuo(f) => crate::resolve_yijiang2::step_lihuo(st, f),
+        Frame::ChunLao(f) => crate::resolve_yijiang2::step_chunlao(st, f),
+        Frame::GongQi(f) => crate::resolve_yijiang2::step_gongqi(st, f),
+        Frame::JieFan(f) => crate::resolve_yijiang2::step_jiefan(st, f),
         Frame::Wugu(f) => crate::resolve_zone::step_wugu(st, f, events),
         Frame::Arrange(f) => crate::resolve_zone::step_arrange(st, f, events),
     }
@@ -1954,8 +1973,14 @@ fn respond_options(st: &SgsState, f: &RespondFrame) -> Vec<PendingOption> {
         RespondKind::Shan => "shan",
         RespondKind::Nanman | RespondKind::Duel | RespondKind::Jiedao => "sha",
     };
+    // 将驰（曹彰）：本回合不能打出【杀】。
+    if code == "sha" && crate::skills::sha_play_banned(st, f.actor) {
+        return vec![pending_pass()];
+    }
     let mut options: Vec<PendingOption> = turn::hand_cards_with_def(st, f.actor, code)
         .iter()
+        // 潜袭（马岱）：不能打出被封锁颜色的手牌。
+        .filter(|id| !crate::skills::qianxi_banned(st, f.actor, id))
         .map(|id| PendingOption {
             id: format!("respond:{id}"),
             label: format!("打出【{}】", turn::card_label(st, id)),
@@ -2162,6 +2187,16 @@ fn step_dying(
                 label: format!("蛊惑：将【{}】当【桃】使用", turn::card_label(st, id)),
             });
         }
+    }
+    // 伏枥（限定，廖化）：濒死时可回复至全场势力数并翻面。
+    if f.victim == seat
+        && crate::skills::has(st, seat, "fuli")
+        && !st.seats[seat].flags.contains_key("fuli_used")
+    {
+        options.push(PendingOption {
+            id: "skill:fuli".into(),
+            label: "伏枥：回复至全场势力数体力并翻面（限定技）".into(),
+        });
     }
     // 涅槃（限定）：濒死时可发动（仅濒死者本人）。
     if f.victim == seat
@@ -3041,6 +3076,15 @@ pub fn execute_pending(
             Some("wangxi") => crate::resolve_jiexian::act_wangxi(st, action)?,
             Some("chuli") => crate::resolve_jiexian::act_chuli(st, action)?,
             Some("liyu") => crate::resolve_jiexian::act_liyu(st, action)?,
+            Some("jiangchi") => crate::resolve_yijiang2::act_jiangchi(st, action)?,
+            Some("qice") => crate::resolve_yijiang2::act_qice(st, action)?,
+            Some("qianxi") => crate::resolve_yijiang2::act_qianxi(st, action)?,
+            Some("anxu") => crate::resolve_yijiang2::act_anxu(st, action)?,
+            Some("zhuiyi") => crate::resolve_yijiang2::act_zhuiyi(st, action)?,
+            Some("lihuo") => crate::resolve_yijiang2::act_lihuo(st, action)?,
+            Some("chunlao") => crate::resolve_yijiang2::act_chunlao(st, action)?,
+            Some("gongqi") => crate::resolve_yijiang2::act_gongqi(st, action)?,
+            Some("jiefan") => crate::resolve_yijiang2::act_jiefan(st, action)?,
             _ => crate::resolve_skill::act_jianxiong(st, action)?,
         },
         "choose_many" => match top(st) {
@@ -3717,6 +3761,13 @@ pub(crate) fn finish_respond_play(
         RespondKind::Shan => "shan",
         RespondKind::Nanman | RespondKind::Duel | RespondKind::Jiedao => "sha",
     };
+    // 潜袭/将驰：响应打出同样受限。
+    if crate::skills::qianxi_banned(st, played_by, card_id) {
+        return Err(illegal("潜袭：本回合不能打出该颜色的手牌"));
+    }
+    if expected == "sha" && crate::skills::sha_play_banned(st, played_by) {
+        return Err(illegal("将驰：本回合不能打出【杀】"));
+    }
     let actual = turn::card_def(st, card_id).map(|d| d.code);
     if actual != Some(expected) && conversion.is_none() {
         return Err(illegal("打出的牌不符合要求"));
@@ -4037,6 +4088,32 @@ fn act_dying(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Strin
         replace_top(st, Frame::Dying(f));
         return Ok("放弃救援".to_string());
     }
+    if action == "skill:fuli" {
+        if f.victim != seat {
+            return Err(illegal("伏枥只能自救"));
+        }
+        if !crate::skills::has(st, seat, "fuli") {
+            return Err(illegal("没有该技能"));
+        }
+        if st.seats[seat].flags.contains_key("fuli_used") {
+            return Err(illegal("伏枥（限定技）已使用过"));
+        }
+        st.seats[seat].flags.insert("fuli_used".into(), true);
+        let x = crate::skills::kingdom_count(st).max(1) as i32;
+        st.seats[seat].hp = x.min(st.seats[seat].max_hp);
+        let flipped = !st.seats[seat].flipped;
+        st.seats[seat].flipped = flipped;
+        pop(st);
+        st.phase = Phase::Turn;
+        st.push_log(
+            Some(&st.seats[seat].player_id.clone()),
+            format!(
+                "伏枥：回复至 {x} 点体力并翻面（体力 {}）",
+                st.seats[seat].hp
+            ),
+        );
+        return Ok(format!("伏枥：{} 脱离濒死", st.seats[seat].general_name));
+    }
     if action == "skill:niepan" {
         if f.victim != seat {
             return Err(illegal("涅槃只能自救"));
@@ -4284,6 +4361,29 @@ fn apply_damage_inner(
     card: Option<&str>,
     allow_tianxiang: bool,
 ) {
+    // 绝情（张春华，锁定）：你即将造成的伤害视为失去体力。
+    if amount > 0 {
+        if let Some(src) = source {
+            if src != victim && crate::skills::has(st, src, "jueqing") {
+                st.seats[victim].hp -= amount;
+                let hp = st.seats[victim].hp;
+                st.push_log(
+                    Some(&st.seats[src].player_id.clone()),
+                    format!(
+                        "绝情：{} 失去 {amount} 点体力（体力 {hp}）",
+                        st.seats[victim].general_name
+                    ),
+                );
+                for _ in 0..amount {
+                    crate::skills::zhaxiang_on_lose_hp(st, victim);
+                }
+                if hp <= 0 {
+                    push_dying(st, victim, source);
+                }
+                return;
+            }
+        }
+    }
     // 怀橘（陆绩）：有「橘」的角色受到伤害时，防止此伤害并移除 1 枚「橘」。
     if amount > 0 && crate::resolve_sp::huaiju_prevent(st, victim) {
         return;
@@ -4436,11 +4536,7 @@ fn apply_damage_inner(
             .cards
             .get(card_id)
             .is_some_and(|c| matches!(c.def.as_str(), "sha" | "huo_sha" | "lei_sha"));
-        if is_sha
-            && src != victim
-            && st.seats[src].alive
-            && st.seats[victim].hp > 0
-        {
+        if is_sha && src != victim && st.seats[src].alive && st.seats[victim].hp > 0 {
             // 趫猛：弃置其区域一张牌；若为坐骑牌则获得之（自动）。
             if crate::skills::has(st, src, "qiaomeng")
                 && crate::skills::is_jiexian(st, src)
@@ -4473,6 +4569,65 @@ fn apply_damage_inner(
             }
             // 利驭：可获得其区域一张牌（装备牌则引发决斗）。
             crate::resolve_jiexian::liyu_trigger(st, src, victim);
+        }
+    }
+    // 智愚（荀攸）：受到伤害后摸 1；若手牌颜色均相同，来源弃置一张手牌。
+    if st.seats[victim].hp > 0 && crate::skills::has(st, victim, "zhiyu") && amount > 0 {
+        let mut ev = Vec::new();
+        turn::draw_cards(st, victim, 1, &mut ev);
+        let colors: Vec<bool> = st.seats[victim]
+            .hand
+            .iter()
+            .filter_map(|id| st.cards.get(id).map(|c| crate::skills::is_red(c.suit)))
+            .collect();
+        let same = !colors.is_empty() && colors.iter().all(|c| *c == colors[0]);
+        st.push_log(
+            Some(&st.seats[victim].player_id.clone()),
+            format!(
+                "智愚：摸 1 张并展示手牌（{}）",
+                if same {
+                    "颜色均相同"
+                } else {
+                    "颜色不同"
+                }
+            ),
+        );
+        if same {
+            if let Some(src) = source {
+                if src != victim && !st.seats[src].hand.is_empty() {
+                    let n = st.seats[src].hand.len();
+                    let idx = st.next_index(n);
+                    let card = st.seats[src].hand.remove(idx);
+                    crate::skills::lianying_on_lose_last(st, src);
+                    let label = turn::card_label(st, &card);
+                    turn::discard_by(st, Some(src), &card);
+                    st.push_log(
+                        Some(&st.seats[src].player_id.clone()),
+                        format!("智愚：颜色均相同，弃置一张手牌【{label}】"),
+                    );
+                }
+            }
+        }
+    }
+    // 疠火（程普）：视为火【杀】造成伤害后，失去 1 点体力。
+    if amount > 0 {
+        if let Some(src) = source {
+            if let Some(card_id) = card {
+                let key = format!("lihuo:{card_id}");
+                if crate::skills::has(st, src, "lihuo") && st.counter(&key) > 0 {
+                    st.set_counter(&key, 0);
+                    st.seats[src].hp -= 1;
+                    let hp = st.seats[src].hp;
+                    st.push_log(
+                        Some(&st.seats[src].player_id.clone()),
+                        format!("疠火：失去 1 点体力（体力 {hp}）"),
+                    );
+                    crate::skills::zhaxiang_on_lose_hp(st, src);
+                    if hp <= 0 {
+                        push_dying(st, src, None);
+                    }
+                }
+            }
         }
     }
     // 奸雄：受伤后（存活时）可获得造成伤害的牌
@@ -4677,6 +4832,35 @@ fn apply_damage_inner(
 }
 
 pub fn push_dying(st: &mut SgsState, victim: usize, source: Option<usize>) {
+    // 醇醪（程普）：有「醇」的角色可令濒死者视为使用一张【酒】（回复 1），自动移去一张。
+    if st.seats.get(victim).is_some_and(|s| s.hp <= 0) {
+        if let Some(owner) = st
+            .alive_indices()
+            .into_iter()
+            .find(|i| crate::skills::chun_count(st, *i) > 0)
+        {
+            let card = crate::skills::mark_cards(st, owner, "chun")
+                .into_iter()
+                .next()
+                .unwrap_or_default();
+            if !card.is_empty() {
+                crate::skills::remove_mark(st, owner, "chun", &card);
+                turn::discard_by(st, Some(owner), &card);
+                st.seats[victim].hp += 1;
+                let hp = st.seats[victim].hp;
+                st.push_log(
+                    Some(&st.seats[owner].player_id.clone()),
+                    format!(
+                        "醇醪：移去一张「醇」，{} 视为使用【酒】（体力 {hp}）",
+                        st.seats[victim].general_name
+                    ),
+                );
+                if hp > 0 {
+                    return;
+                }
+            }
+        }
+    }
     // 补益（吴国太）：角色进入濒死时，可展示其一张手牌，非基本牌则弃置并回复 1。
     if st.seats.get(victim).is_some_and(|s| s.alive)
         && crate::resolve_yijiang::buyi_on_dying(st, victim)
@@ -4767,6 +4951,16 @@ fn death(
         push(
             st,
             Frame::Xingshang(crate::resolve_forest::XingshangFrame { victim, owner }),
+        );
+    }
+    // 追忆（步练师）：死亡时可令一名其他角色（杀死你的角色除外）摸 3 并回复 1。
+    if crate::skills::has(st, victim, "zhuiyi") && !game_over {
+        push(
+            st,
+            Frame::ZhuiYi(crate::resolve_yijiang2::ZhuiYiFrame {
+                dead: victim,
+                killer: source,
+            }),
         );
     }
 
