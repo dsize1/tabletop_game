@@ -4,9 +4,10 @@
 
 ## 🔖 续接指针（下次会话说「继续」时从这里开工）
 
-- **入口**：`docs/games/sanguosha/development-plan.md` → **P4.4.2「下一步」**
-- **顺序**：① 一将成名其余 56 位（下一批 171/172/173/174/175/176/177/178；界标 25 将已完成、授予技能已补齐）→ ② 界限突破其余武将 → ③ P4.4.3 验收
-- **批前必读**：`skills.md` §2.6–§2.8、`rules-rulings.md` §15–§16、ADR-0024（界化口径）、`docs/conventions/coding-standards.md`
+- **入口**：`docs/games/sanguosha/development-plan.md` → **P4.4.2「一将成名剩余 56 位（新会话开工口径）」**（含 Y1–Y7 批次表）
+- **顺序**：① 一将成名剩余 56 位，按 Y1（171–178）→ Y2（179–188）→ Y3（187/188/321–326）→ Y4（327–334）→ Y5（335–342）→ Y6（380–387）→ Y7（388–395）逐批完成（界标 25 将已完成、授予技能已补齐）→ ② 界限突破其余 60 位 → ③ P4.4.3 验收
+- **批前必读**：`skills.md` §2.7/§2.7.1、`rules-rulings.md` §16/§21、`docs/conventions/coding-standards.md`
+- **每批收尾**：`p67` 的「一将成名已实现数」+8；`skills.md` §2.7.x + `rules-rulings.md` 新节；`milestones.md` 新增 M 条目
 - **门禁**：`cargo test -p sanguosha`、`check:sgs-*` 全套、`test:web` / `test:sgs-web`、MCP 冒烟（收尾见 P4.4.3）
 
 ## M37：三国杀视图增强 —— 手牌上限展示 ✅
