@@ -11,6 +11,15 @@
 - **每批收尾**：`p67` 的「一将成名已实现数」+8；`skills.md` §2.7.x + `rules-rulings.md` 新节；`milestones.md` 新增 M 条目
 - **门禁**：`npm run sgs:check`（每批收尾）、`npm run sgs:check:full`（含 MCP 冒烟）、`npm run sgs:check:fast`（改码自检）
 
+## M42：三国杀 P4.4.2 批次 Y3（一将成名 187/188/321–326：8 将）✅
+
+- **日期**：2026-10-31
+- **完成**：王异（贞烈/秘计）、关兴张苞（父魂）、曹真（司敌）、韩浩史涣（慎断/勇略）、陈群（品第/法恩）、吴懿（奔袭）、周仓（忠勇）、张松（强识/献图）
+- **机制**：`Frame::ZhenLie/MiJi/SiDi/ShanDuan/YongLue/PinDi/BenXi/ZhongYong/QiangShi/XianTu`（`resolve_yijiang5.rs`）；贞烈取消目标、司敌颜色封锁、奔袭距离累计+四选二强化、品第类型位图、献图阶段末惩罚
+- **验证**：`cargo test -p sanguosha` **589** 全绿；`tests/p91.rs` 24 条（每将 ≥3）；`p67` 一将成名已实现数 40
+- **已知边界**：贞烈仅普通锦囊；父魂虚拟杀不触发按牌名加成；奔袭锦囊强化未实现；强识只统计主动使用（§25）
+- **详见**：`skills.md` §2.7.4、`rules-rulings.md` §25、`development-plan.md` P4.4.2 批次 Y3
+
 ## M41：三国杀批次 harness 二期（脚手架 + 共享数据 lib + 用例边界修复）✅
 
 - **日期**：2026-10-31

@@ -1739,6 +1739,87 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
             implemented: true,
         },
     ];
+    // ---- P4.4.2 一将成名（批次 Y3：8 将 / 12 技能）----
+    const WANGYI: &[SkillDef] = &[
+        SkillDef {
+            code: "zhenlie",
+            name: "贞烈",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "miji",
+            name: "秘计",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const GUANXINGZHANGBAO: &[SkillDef] = &[SkillDef {
+        code: "fuhen",
+        name: "父魂",
+        kind: SkillType::Normal,
+        implemented: true,
+    }];
+    const CAOZHEN: &[SkillDef] = &[SkillDef {
+        code: "sidi",
+        name: "司敌",
+        kind: SkillType::Normal,
+        implemented: true,
+    }];
+    const HANHAOSHIHUAN: &[SkillDef] = &[
+        SkillDef {
+            code: "shenduan",
+            name: "慎断",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "yonglue",
+            name: "勇略",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const CHENQUN: &[SkillDef] = &[
+        SkillDef {
+            code: "pindi",
+            name: "品第",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "faen",
+            name: "法恩",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const WUYI: &[SkillDef] = &[SkillDef {
+        code: "benxi",
+        name: "奔袭",
+        kind: SkillType::Locked,
+        implemented: true,
+    }];
+    const ZHOUCANG: &[SkillDef] = &[SkillDef {
+        code: "zhongyong",
+        name: "忠勇",
+        kind: SkillType::Normal,
+        implemented: true,
+    }];
+    const ZHANGSONG: &[SkillDef] = &[
+        SkillDef {
+            code: "qiangshi",
+            name: "强识",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "xiantu",
+            name: "献图",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
     match general {
         "sgs_hero_1" => LIUBEI,
         "sgs_hero_15" => CAOCAO,
@@ -1845,6 +1926,14 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
         "sgs_hero_184" => LIRU,
         "sgs_hero_185" => FAZHENG,
         "sgs_hero_186" => XUSHU,
+        "sgs_hero_187" => WANGYI,
+        "sgs_hero_188" => GUANXINGZHANGBAO,
+        "sgs_hero_321" => CAOZHEN,
+        "sgs_hero_322" => HANHAOSHIHUAN,
+        "sgs_hero_323" => CHENQUN,
+        "sgs_hero_324" => WUYI,
+        "sgs_hero_325" => ZHOUCANG,
+        "sgs_hero_326" => ZHANGSONG,
         "sgs_hero_299" => JIE_LIUBEI,
         "sgs_hero_300" => JIE_GUANYU,
         "sgs_hero_301" => JIE_ZHANGFEI,
@@ -2250,7 +2339,62 @@ pub fn restore_general(st: &mut SgsState, seat: usize) -> bool {
     };
     let was = s.flipped;
     s.flipped = false;
+    if was {
+        faen_trigger(st, seat);
+    }
     was
+}
+
+/// 奔袭（吴懿，锁定）：本回合每使用一张牌，计算与其他角色的距离 -1。
+pub fn benxi_bonus(st: &SgsState, seat: usize) -> i32 {
+    if has(st, seat, "benxi") {
+        st.counter("benxi") as i32
+    } else {
+        0
+    }
+}
+
+/// 司敌（曹真）：被封锁颜色的牌本阶段不能使用/打出（1=红，2=黑）。
+pub fn sidiqu_banned(st: &SgsState, seat: usize, card_id: &str) -> bool {
+    let blocked = st.counter(&format!("sidiqu:{seat}"));
+    if blocked == 0 {
+        return false;
+    }
+    st.cards.get(card_id).is_some_and(|c| {
+        let red = is_red(c.suit);
+        (red && blocked == 1) || (!red && blocked == 2)
+    })
+}
+
+/// 法恩（陈群）：翻至正面或进入连环状态后，令其摸一张（自动口径）。
+pub fn faen_trigger(st: &mut SgsState, seat: usize) {
+    if !has(st, seat, "faen") {
+        return;
+    }
+    let mut ev = Vec::new();
+    let drawn = crate::turn::draw_cards(st, seat, 1, &mut ev);
+    st.push_log(
+        Some(&st.seats[seat].player_id.clone()),
+        format!("法恩：摸 {drawn} 张"),
+    );
+}
+
+/// 贞烈（王异）：是否已跳过本次对该目标的询问（避免同一张牌重复询问）。
+pub fn zhenlie_skip(st: &SgsState, card: &str, target: usize) -> bool {
+    st.counter(&format!("zhenlie_skip:{card}:{target}")) > 0
+}
+
+pub fn set_zhenlie_skip(st: &mut SgsState, card: &str, target: usize) {
+    st.set_counter(&format!("zhenlie_skip:{card}:{target}"), 1);
+}
+
+/// 贞烈：该目标已令此牌无效。
+pub fn zhenlie_void(st: &SgsState, card: &str, target: usize) -> bool {
+    st.counter(&format!("zhenlie_void:{card}:{target}")) > 0
+}
+
+pub fn set_zhenlie_void(st: &mut SgsState, card: &str, target: usize) {
+    st.set_counter(&format!("zhenlie_void:{card}:{target}"), 1);
 }
 
 /// 自守（刘表）：本回合你防止对其他角色造成的伤害。

@@ -198,6 +198,17 @@ pub enum Frame {
     EnYuan(crate::resolve_yijiang4::EnYuanFrame),
     XuanHuo(crate::resolve_yijiang4::XuanHuoFrame),
     JuJian(crate::resolve_yijiang4::JuJianFrame),
+    /// P4.4.2 一将成名（批次 Y3）。
+    ZhenLie(crate::resolve_yijiang5::ZhenLieFrame),
+    MiJi(crate::resolve_yijiang5::MiJiFrame),
+    SiDi(crate::resolve_yijiang5::SiDiFrame),
+    ShanDuan(crate::resolve_yijiang5::ShanDuanFrame),
+    YongLue(crate::resolve_yijiang5::YongLueFrame),
+    PinDi(crate::resolve_yijiang5::PinDiFrame),
+    BenXi(crate::resolve_yijiang5::BenXiFrame),
+    ZhongYong(crate::resolve_yijiang5::ZhongYongFrame),
+    QiangShi(crate::resolve_yijiang5::QiangShiFrame),
+    XianTu(crate::resolve_yijiang5::XianTuFrame),
     /// 五谷丰登（P2.5 特殊区 `wugu`）。
     Wugu(crate::resolve_zone::WuguFrame),
     /// 观星排序提交（P2.5 特殊区 `guanxing`，`arrange:<csv>`）。
@@ -879,6 +890,16 @@ fn step(
         Frame::EnYuan(f) => crate::resolve_yijiang4::step_enyuan(st, f),
         Frame::XuanHuo(f) => crate::resolve_yijiang4::step_xuanhuo(st, f),
         Frame::JuJian(f) => crate::resolve_yijiang4::step_jujian(st, f),
+        Frame::ZhenLie(f) => crate::resolve_yijiang5::step_zhenlie(st, f),
+        Frame::MiJi(f) => crate::resolve_yijiang5::step_miji(st, f),
+        Frame::SiDi(f) => crate::resolve_yijiang5::step_sidi(st, f),
+        Frame::ShanDuan(f) => crate::resolve_yijiang5::step_shenduan(st, f),
+        Frame::YongLue(f) => crate::resolve_yijiang5::step_yonglue(st, f),
+        Frame::PinDi(f) => crate::resolve_yijiang5::step_pindi(st, f),
+        Frame::BenXi(f) => crate::resolve_yijiang5::step_benxi(st, f),
+        Frame::ZhongYong(f) => crate::resolve_yijiang5::step_zhongyong(st, f),
+        Frame::QiangShi(f) => crate::resolve_yijiang5::step_qiangshi(st, f),
+        Frame::XianTu(f) => crate::resolve_yijiang5::step_xiantu(st, f),
         Frame::Wugu(f) => crate::resolve_zone::step_wugu(st, f, events),
         Frame::Arrange(f) => crate::resolve_zone::step_arrange(st, f, events),
     }
@@ -1087,7 +1108,7 @@ fn step_sha(st: &mut SgsState, mut f: ShaFrame) -> Result<bool, EngineError> {
             Ok(true)
         }
         ShaStage::WaitRespond => match st.outcome.take() {
-            Some(Outcome::Respond { .. }) => {
+            Some(Outcome::Respond { played, .. }) => {
                 // 方天画戟：同一张【杀】依次对后续目标结算。
                 if let Some(next) = f.pending_targets.first().copied() {
                     f.pending_targets.remove(0);
@@ -1123,6 +1144,14 @@ fn step_sha(st: &mut SgsState, mut f: ShaFrame) -> Result<bool, EngineError> {
                     );
                 }
                 pop(st);
+                crate::resolve_yijiang5::yonglue_on_sha_finished(st, f.target);
+                crate::resolve_yijiang5::zhongyong_on_sha_finished(
+                    st,
+                    f.user,
+                    f.target,
+                    &f.card,
+                    played.clone(),
+                );
                 Ok(false)
             }
             _ => Err(internal("缺少【闪】结算结果")),
@@ -1486,6 +1515,7 @@ fn step_trick(
                         .filter(|i| {
                             *i != f.user
                                 && (turn::trick_distance_ok(st, f.user, *i)
+                                    || crate::skills::has(st, f.user, "shenduan")
                                     || (crate::skills::has(st, f.user, "duanliang")
                                         && st.seats[*i].hand.len() >= st.seats[f.user].hand.len()))
                                 && !turn::judge_zone_has(st, *i, "bingliang_cunduan")
@@ -1669,6 +1699,36 @@ fn step_trick(
                 advance_trick_target(st, f)?;
                 return Ok(false);
             }
+            // 贞烈（王异）：已宣告无效的目标跳过结算。
+            if crate::skills::zhenlie_void(st, &f.card, target) {
+                st.push_log(
+                    None,
+                    format!("贞烈：此锦囊对 {} 无效", st.seats[target].general_name),
+                );
+                advance_trick_target(st, f)?;
+                return Ok(false);
+            }
+            // 贞烈（王异）：成为普通锦囊目标后，可失去 1 点体力令此牌无效。
+            if target != f.user
+                && crate::skills::has(st, target, "zhenlie")
+                && !crate::skills::zhenlie_skip(st, &f.card, target)
+                && !matches!(f.code.as_str(), "wuzhong_shengyou" | "shandian")
+            {
+                push(
+                    st,
+                    Frame::ZhenLie(crate::resolve_yijiang5::ZhenLieFrame {
+                        owner: target,
+                        user: f.user,
+                        card: f.card.clone(),
+                        kind: crate::resolve_yijiang5::ZhenLieKind::Trick,
+                        need: 0,
+                        no_shan: false,
+                        ignore_armor: false,
+                        damage_type: DamageType::Normal,
+                    }),
+                );
+                return Ok(false);
+            }
             // 界谦逊：其他角色使用的锦囊仅指定你时，可将所有手牌移出游戏直到回合结束。
             if target != f.user
                 && f.targets.len() <= 1
@@ -1825,6 +1885,9 @@ fn step_trick(
                     }
                     st.seats[target].chained = !st.seats[target].chained;
                     let chained = st.seats[target].chained;
+                    if chained {
+                        crate::skills::faen_trigger(st, target);
+                    }
                     st.push_log(
                         None,
                         format!(
@@ -2034,6 +2097,7 @@ fn respond_options(st: &SgsState, f: &RespondFrame) -> Vec<PendingOption> {
         .iter()
         // 潜袭（马岱）：不能打出被封锁颜色的手牌。
         .filter(|id| !crate::skills::qianxi_banned(st, f.actor, id))
+        .filter(|id| !crate::skills::sidiqu_banned(st, f.actor, id))
         .map(|id| PendingOption {
             id: format!("respond:{id}"),
             label: format!("打出【{}】", turn::card_label(st, id)),
@@ -2054,6 +2118,10 @@ fn respond_options(st: &SgsState, f: &RespondFrame) -> Vec<PendingOption> {
                 });
             }
         }
+    }
+    // 父魂（关兴张苞）：两张手牌当【杀】打出。
+    if code == "sha" {
+        options.extend(crate::resolve_yijiang5::fuhen_respond_options(st, f.actor));
     }
     // 转化技（P4.1）：武圣（红色牌当杀）/ 龙胆（杀闪互转）/ 倾国（黑色牌当闪）。
     for id in &st.seats[f.actor].hand {
@@ -3161,6 +3229,16 @@ pub fn execute_pending(
             Some("enyuan") => crate::resolve_yijiang4::act_enyuan(st, action)?,
             Some("xuanhuo") => crate::resolve_yijiang4::act_xuanhuo(st, action)?,
             Some("jujian") => crate::resolve_yijiang4::act_jujian(st, action)?,
+            Some("zhenlie") => crate::resolve_yijiang5::act_zhenlie(st, action)?,
+            Some("miji") => crate::resolve_yijiang5::act_miji(st, action)?,
+            Some("sidi") => crate::resolve_yijiang5::act_sidi(st, action)?,
+            Some("shenduan") => crate::resolve_yijiang5::act_shenduan(st, action)?,
+            Some("yonglue") => crate::resolve_yijiang5::act_yonglue(st, action)?,
+            Some("pindi") => crate::resolve_yijiang5::act_pindi(st, action)?,
+            Some("benxi") => crate::resolve_yijiang5::act_benxi(st, action)?,
+            Some("zhongyong") => crate::resolve_yijiang5::act_zhongyong(st, action)?,
+            Some("qiangshi") => crate::resolve_yijiang5::act_qiangshi(st, action)?,
+            Some("xiantu") => crate::resolve_yijiang5::act_xiantu(st, action)?,
             _ => crate::resolve_skill::act_jianxiong(st, action)?,
         },
         "choose_many" => match top(st) {
@@ -3320,8 +3398,13 @@ fn act_target(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Stri
         // 陷阵（拼点赢）：无视被拼点者防具。
         let xianzhen_target = crate::resolve_yijiang::xianzhen_win_target(st) == Some(target)
             && crate::skills::has(st, f.user, "xianzhen");
-        let ignore_armor =
-            crate::skills::has_equipment_skill(st, f.user, "qinggang_jian") || xianzhen_target;
+        let benxi_armor = st.counter("benxi_armor") > 0;
+        if benxi_armor {
+            st.set_counter("benxi_armor", 0);
+        }
+        let ignore_armor = crate::skills::has_equipment_skill(st, f.user, "qinggang_jian")
+            || xianzhen_target
+            || benxi_armor;
         if no_shan && crate::skills::has(st, f.user, "liegong") {
             let user_pid = st.seats[f.user].player_id.clone();
             st.push_log(Some(&user_pid), "烈弓：目标不能使用【闪】");
@@ -3418,6 +3501,25 @@ fn act_target(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Stri
                 "鞬出：请选择 {} 的一张牌",
                 st.seats[target].general_name
             ));
+        }
+        // 贞烈（王异）：成为【杀】目标后，可失去 1 点体力令此【杀】对其无效。
+        if crate::skills::has(st, target, "zhenlie")
+            && !crate::skills::zhenlie_skip(st, &f.card, target)
+        {
+            push(
+                st,
+                Frame::ZhenLie(crate::resolve_yijiang5::ZhenLieFrame {
+                    owner: target,
+                    user: f.user,
+                    card: f.card.clone(),
+                    kind: crate::resolve_yijiang5::ZhenLieKind::Sha,
+                    need,
+                    no_shan,
+                    ignore_armor,
+                    damage_type: f.damage_type,
+                }),
+            );
+            return Ok("贞烈：请选择是否令此【杀】无效".to_string());
         }
         // 求援（伏皇后）：成为【杀】目标时，可令另一名角色交【闪】或成为额外目标。
         if crate::skills::has(st, target, "qiuyuan")
@@ -3641,10 +3743,12 @@ fn act_respond(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Str
     // 丈八蛇矛：respond:<c1>,<c2> 两张手牌当【杀】打出。
     if let Some((c1, c2)) = card_id.split_once(',') {
         if needed != "sha" {
-            return Err(illegal("丈八蛇矛只能用于打出【杀】"));
+            return Err(illegal("两张手牌当【杀】只能用于打出【杀】"));
         }
-        if !crate::skills::has_equipment_skill(st, actor, "zhangba_shemao") {
-            return Err(illegal("没有装备【丈八蛇矛】"));
+        let zhangba = crate::skills::has_equipment_skill(st, actor, "zhangba_shemao");
+        let fuhen = crate::skills::has(st, actor, "fuhen");
+        if !zhangba && !fuhen {
+            return Err(illegal("没有可将两张手牌当【杀】的技能/装备"));
         }
         if c1 == c2 {
             return Err(illegal("丈八蛇矛需要两张不同的手牌"));
@@ -3663,7 +3767,12 @@ fn act_respond(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Str
         }
         turn::take_card(st, actor, c2)?;
         turn::to_discard_card(st, c2);
-        return finish_respond_play(st, &f, c1, actor, Some(("zhangba", "丈八蛇矛")));
+        let (skill, name) = if zhangba {
+            ("zhangba", "丈八蛇矛")
+        } else {
+            ("fuhen", "父魂")
+        };
+        return finish_respond_play(st, &f, c1, actor, Some((skill, name)));
     }
     let actual = turn::card_def(st, card_id).map(|d| d.code);
     let conversion = if actual == Some(needed) {
@@ -4246,6 +4355,7 @@ fn act_dying(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Strin
             turn::to_discard_card(st, &c);
         }
         st.seats[seat].flipped = false;
+        crate::skills::faen_trigger(st, seat);
         st.seats[seat].hp = st.seats[seat].max_hp.min(3);
         st.phase = Phase::Turn;
         pop(st);
@@ -4757,6 +4867,26 @@ fn apply_damage_inner(
             }
         }
     }
+    // 父魂（关兴张苞）：以此法造成伤害后获得武圣/咆哮（本回合）。
+    if let (Some(src), Some(card_id)) = (source, card) {
+        if src != victim {
+            crate::resolve_yijiang5::fuhen_on_damage(st, src, card_id);
+        }
+    }
+    // 奔袭（吴懿）：选择「造成伤害后摸一张」时摸 1。
+    if amount > 0 {
+        if let Some(src) = source {
+            if crate::skills::has(st, src, "benxi") && st.counter("benxi_draw") > 0 {
+                st.set_counter("benxi_draw", 0);
+                let mut ev = Vec::new();
+                let drawn = turn::draw_cards(st, src, 1, &mut ev);
+                st.push_log(
+                    Some(&st.seats[src].player_id.clone()),
+                    format!("奔袭：造成伤害后摸 {drawn} 张"),
+                );
+            }
+        }
+    }
     // 智愚（荀攸）：受到伤害后摸 1；若手牌颜色均相同，来源弃置一张手牌。
     if st.seats[victim].hp > 0 && crate::skills::has(st, victim, "zhiyu") && amount > 0 {
         let mut ev = Vec::new();
@@ -5162,6 +5292,9 @@ fn death(
 ) -> Result<(), EngineError> {
     let pid = st.seats[victim].player_id.clone();
     let identity = st.seats[victim].identity;
+    if source == Some(st.turn) {
+        st.bump_counter("phase_kills");
+    }
     st.seats[victim].alive = false;
     st.seats[victim].hp = 0;
     // 断肠：杀死蔡文姬的角色失去所有技能。

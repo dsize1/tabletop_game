@@ -729,6 +729,7 @@ impl SgsState {
         }
         d as i32
             - self.mashu_bonus(from)
+            - crate::skills::benxi_bonus(self, from)
             - crate::skills::qimou_bonus(self, from)
             - crate::skills::yicong_attack_bonus(self, from)
             + self.defense_bonus(to)
