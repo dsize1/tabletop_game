@@ -172,3 +172,65 @@ pub(super) fn pending_options_with(st: &SgsState, prefix: &str) -> Vec<String> {
         })
         .unwrap_or_default()
 }
+
+/// 取一张**不在任何手牌中**的牌（批次用例防止与已发出的牌冲突）。
+pub(super) fn find_free_card(st: &SgsState, pred: impl Fn(&CardInst) -> bool) -> String {
+    st.cards
+        .iter()
+        .find(|(id, c)| pred(c) && !st.seats.iter().any(|s| s.hand.iter().any(|h| h == *id)))
+        .map(|(id, _)| id.clone())
+        .expect("需要满足条件的牌")
+}
+
+/// 按条件取一张牌放入手牌（不与其他手牌冲突）。
+pub(super) fn give_filtered(
+    st: &mut SgsState,
+    seat: usize,
+    pred: impl Fn(&CardInst) -> bool,
+) -> String {
+    let id = find_free_card(st, pred);
+    take_card(st, &id);
+    st.seats[seat].hand.push(id.clone());
+    id
+}
+
+/// 取一张满足条件的牌置于牌堆顶（`cards[0]` 最先被摸到）。
+pub(super) fn put_on_top(st: &mut SgsState, pred: impl Fn(&CardInst) -> bool) -> String {
+    let id = find_free_card(st, pred);
+    take_card(st, &id);
+    st.deck.draw.push(id.clone());
+    id
+}
+
+/// 取一张指定定义的牌放入判定区（延时锦囊）。
+pub(super) fn put_in_judge_zone(st: &mut SgsState, seat: usize, def: &str) -> String {
+    let id = find_free_card(st, |c| c.def == def);
+    take_card(st, &id);
+    st.seats[seat].judge_zone.push(id.clone());
+    id
+}
+
+/// 连续 `pass`（无懈窗口等），直到出现目标技能的 pending（或无法继续）。
+pub(super) fn pass_until_skill(mgr: &GameManager, room: &str, want: &str, limit: usize) {
+    for _ in 0..limit {
+        let full = match mgr.get_state(room) {
+            Some(s) => s,
+            None => return,
+        };
+        let st = match SgsState::parse(&full.data) {
+            Ok(st) => st,
+            Err(_) => return,
+        };
+        let Some(p) = st.pending.clone() else {
+            return;
+        };
+        if p.skill.as_deref() == Some(want) {
+            return;
+        }
+        if p.options.iter().any(|o| o.id == "pass") {
+            mgr.execute_action(room, &p.actor, "pass").unwrap();
+        } else {
+            return;
+        }
+    }
+}

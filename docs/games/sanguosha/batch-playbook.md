@@ -191,3 +191,24 @@ fn demo_triggers_and_applies() {
 - [ ] `skills.md` / `rules-rulings.md` / `development-plan.md` / `milestones.md` 已更新；
 - [ ] `npm run sgs:batch-status` 显示本批 ✅ 且下一批名单正确；
 - [ ] 单条 commit 提交。
+
+## 7. 界限突破批次（J*）check-list
+
+> 适用于 `development-plan.md` 的 J1–J8 批次（每批 8 将，J8 为 4 将）。J1（26/304/446–451）为范本。
+
+1. **开工**：`npm run sgs:batch-scaffold -- --pack jiexian`。脚手架会自动列出**同名技能复用 code** 清单（如 `烈弓→liegong`），并直接把这些 code 填进模板；占位符只留给新技能。
+2. **同名技能**：全部复用 code + `skills::is_jiexian(st, seat)` 分支，**不改标准版行为**；改完回归 `tests/p46`–`p55` 与 `check:sgs-skill-cases`。
+3. **授予技**（觉醒/主公技授予，如 J1 的「荐言 / 思蜀」）：进 `EXTRA_SKILLS` + `skills.md` §4.1 表格 + 授予点（`grant_skill`）在 `resolve_*.rs` 内。
+4. **计数**：界版批次**没有** p67 断言；但 `tests/p67.rs::pack_pool_prefers_jiexian_variant` 的 `standard+jiexian` 池断言要按新增界将数同步（J1 27→35）。
+5. **用例**：`check:sgs-skill-cases` 对**共享 code** 做去歧义——测试体内出现另一位 code 拥有者的 `sgs_hero_<gid>` 时，code 不再计入。因此每将用例请显式出现自己的 `sgs_hero_<gid>`。
+6. **测试助手**（`tests/support.rs`，J1 起）：`find_free_card` / `give_filtered` / `put_on_top` / `put_in_judge_zone` / `pass_until_skill`（无懈窗口连点 pass）/ `stage_play` / `damage_and_advance`。
+7. **文档**：`skills.md` 新 `§2.8.x` 表（含本批边界）+ `rules-rulings.md` 新一节 + `development-plan.md` 批次记录与表 ✅ + `milestones.md` 新 M 条目。
+8. **门禁**：`npm run sgs:check`（10）/ `sgs:check:full`（11）；`sgs:batch-status` 显示本批 ✅ 且下一批正确；单条 commit。
+
+### 7.1 J1 踩过的坑（供后续批次复用）
+
+- **判定前有无懈窗口**：`run_phase(.., TurnPhase::Judge, ..)` 会先停在 `kind=wuxie` 的 pending；用 `pass_until_skill(mgr, room, "<skill>", 8)` 连点 pass 再断言。
+- **界将可能是主公**：`set_general` 会按身份加 1 点体力上限（如界徐庶/界刘禅），断言请用**相对变化**而非绝对值。
+- **`SgsState::hand_limit` ≠ `skills::hand_limit`**：技能加成（血裔/权计等）只在后者，断言手牌上限务必用 `skills::hand_limit`。
+- **虚拟【杀】/【决斗】**：`ShaFrame{ card: "" }` + `push_sha_target_response`（诛害）；他人视为对你用【决斗】用 `RespondFrame(RespondKind::Duel)`（势斩）。
+- **额外回合会在 `advance` 内被消费**：放权结算后断言 `st.turn == target`，不要断言 `extra_turn`。

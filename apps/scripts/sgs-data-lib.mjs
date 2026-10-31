@@ -73,6 +73,22 @@ export function loadGenerals() {
   return out;
 }
 
+
+/**
+ * skills.rs：技能中文名 → code（含常量内全部条目，已实现与未实现都收录）。
+ * 供批次脚手架提示「同名技能复用 code」。
+ */
+export function loadSkillNameCodes() {
+  const text = readFile(PATHS.skillsRs);
+  const out = new Map();
+  for (const e of text.split("SkillDef {").slice(1)) {
+    const code = /code:\s*"([a-z0-9_]+)"/.exec(e)?.[1];
+    const name = /name:\s*"([^"]+)"/.exec(e)?.[1];
+    if (code && name && !out.has(name)) out.set(name, code);
+  }
+  return out;
+}
+
 /** development-plan.md：批次表行（`| Y3 | 187 王异、... |` 或 `| J1 | 26 界黄忠、... |`）。 */
 export function loadBatches() {
   const text = readFile(PATHS.planMd);

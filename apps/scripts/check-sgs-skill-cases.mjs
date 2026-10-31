@@ -143,9 +143,20 @@ async function loadImplementedGenerals() {
   return generals;
 }
 
-function covers(body, gid, skills) {
+/**
+ * 覆盖判定：
+ * - 测试体出现 `sgs_hero_<gid>` → 直接覆盖；
+ * - 出现技能 code（带引号）→ 覆盖，但**共享 code**（如界版复用标准技能）需排除
+ *   「测试体里出现该 code 的另一位拥有者 gid」的情况，避免界版/标准版互相顶数。
+ */
+function covers(body, gid, skills, codeOwners) {
   if (body.includes(`sgs_hero_${gid}`)) return true;
-  return skills.some((code) => body.includes(`"${code}"`));
+  return skills.some((code) => {
+    if (!body.includes(`"${code}"`)) return false;
+    const owners = codeOwners.get(code) ?? [];
+    if (owners.length <= 1) return true;
+    return !owners.some((other) => other !== gid && body.includes(`sgs_hero_${other}`));
+  });
 }
 
 const opts = parseArgs(process.argv.slice(2));
@@ -162,6 +173,25 @@ if (generals.size === 0) {
   process.exit(1);
 }
 
+// code → 拥有该 code 的已实现武将 gid（用于共享 code 的去歧义）。
+const codeOwners = new Map();
+for (const [gid, skills] of generals) {
+  for (const code of skills) {
+    const owners = codeOwners.get(code) ?? [];
+    owners.push(gid);
+    codeOwners.set(code, owners);
+  }
+}
+const sharedCodes = [...codeOwners.entries()]
+  .filter(([, owners]) => owners.length > 1)
+  .map(([code]) => code)
+  .sort();
+if (sharedCodes.length && opts.verbose) {
+  console.log(
+    `[check] 共享 code（${sharedCodes.length}）：计数需 gid 或唯一引用 —— ${sharedCodes.join(", ")}`,
+  );
+}
+
 const counts = {};
 const covered = {};
 for (const gid of generals.keys()) {
@@ -170,7 +200,7 @@ for (const gid of generals.keys()) {
 }
 for (const t of tests) {
   for (const [gid, skills] of generals) {
-    if (covers(t.body, gid, skills)) {
+    if (covers(t.body, gid, skills, codeOwners)) {
       counts[gid] += 1;
       covered[gid].push(`${t.file}::${t.name}`);
     }

@@ -2,67 +2,12 @@
 
 use super::p24::{set_general, start_and_pick};
 use super::support::*;
-use super::{clear_hands, edit, manager, state_of, take_card};
+use super::{clear_hands, edit, manager, state_of};
 use crate::skills;
 use crate::state::*;
 
-// ---------------------------------------------------------------------------
-// 批次私有助手（置于文件顶部：check-sgs-skill-cases 的用例体按顶层 fn 截断）
-// ---------------------------------------------------------------------------
-
-/// 取一张不在任何手牌中的牌（避免与已发出的牌冲突）。
-fn find_free(st: &SgsState, pred: impl Fn(&CardInst) -> bool) -> String {
-    st.cards
-        .iter()
-        .find(|(id, c)| pred(c) && !st.seats.iter().any(|s| s.hand.iter().any(|h| h == *id)))
-        .map(|(id, _)| id.clone())
-        .expect("需要满足条件的牌")
-}
-
-/// 按条件取一张牌放入手牌。
-fn give_filtered(st: &mut SgsState, seat: usize, pred: impl Fn(&CardInst) -> bool) -> String {
-    let id = find_free(st, pred);
-    take_card(st, &id);
-    st.seats[seat].hand.push(id.clone());
-    id
-}
-
-/// 取一张满足条件的牌置于牌堆顶。
-fn put_on_top(st: &mut SgsState, pred: impl Fn(&CardInst) -> bool) -> String {
-    let id = find_free(st, pred);
-    take_card(st, &id);
-    st.deck.draw.push(id.clone());
-    id
-}
-
-/// 取一张满足条件的牌放入判定区（延时锦囊）。
-fn put_in_judge_zone(st: &mut SgsState, seat: usize, def: &str) -> String {
-    let id = find_free(st, |c| c.def == def);
-    take_card(st, &id);
-    st.seats[seat].judge_zone.push(id.clone());
-    id
-}
-
 fn pid_of(st: &SgsState, seat: usize) -> String {
     st.seats[seat].player_id.clone()
-}
-
-/// 连续 pass（无懈窗口等），直到出现目标技能的 pending。
-fn pass_until_skill(mgr: &game_engine_core::GameManager, room: &str, want: &str, limit: usize) {
-    for _ in 0..limit {
-        let st = state_of(mgr, room);
-        let Some(p) = st.pending.clone() else {
-            return;
-        };
-        if p.skill.as_deref() == Some(want) {
-            return;
-        }
-        if p.options.iter().any(|o| o.id == "pass") {
-            mgr.execute_action(room, &p.actor, "pass").unwrap();
-        } else {
-            return;
-        }
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -638,7 +583,7 @@ fn guidao_jie_spade_two_to_nine_draws() {
 fn guhuo_jie_false_card_lets_questioner_draw() {
     let mgr = manager(3217);
     let room = start_and_pick(&mgr, 5);
-    let (mut yj, mut yj_pid, mut before, mut tao) = (0, String::new(), 0, String::new());
+    let (mut yj, mut yj_pid, mut tao) = (0, String::new(), String::new());
     edit(&mgr, &room, |st| {
         clear_hands(st);
         yj = st.turn;
@@ -655,7 +600,7 @@ fn guhuo_jie_false_card_lets_questioner_draw() {
     let st = state_of(&mgr, &room);
     let q_pid = st.pending.as_ref().expect("质疑窗口").actor.clone();
     let q = st.seat_index(&q_pid).expect("质疑者");
-    before = st.seats[q].hand.len();
+    let before = st.seats[q].hand.len();
     mgr.execute_action(&room, &q_pid, "choose:question")
         .unwrap();
     let st = state_of(&mgr, &room);

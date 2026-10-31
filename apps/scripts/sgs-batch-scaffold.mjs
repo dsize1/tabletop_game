@@ -13,7 +13,7 @@
 //   node apps/scripts/sgs-batch-scaffold.mjs --gids 187,188,321
 //   node apps/scripts/sgs-batch-scaffold.mjs --module resolve_yijiang5 --tests p91
 
-import { batchReport, loadGenerals } from "./sgs-data-lib.mjs";
+import { batchReport, loadGenerals, loadSkillNameCodes } from "./sgs-data-lib.mjs";
 
 const args = process.argv.slice(2);
 function opt(name, fallback = null) {
@@ -22,6 +22,7 @@ function opt(name, fallback = null) {
 }
 
 const generals = loadGenerals();
+const skillCodes = loadSkillNameCodes();
 const { report, next, nextJiexian } = batchReport();
 const pack = opt("pack", "yijiang");
 
@@ -59,6 +60,7 @@ const totalSkills = entries.reduce(
 console.log(
   `# 批次 ${batch ?? ""} 开工脚手架（${entries.length} 将 / ${totalSkills} 技能）`,
 );
+const packLabel = pack === "jiexian" ? "界限突破" : "一将成名";
 if ((batch ?? "").startsWith("J")) {
   console.log("");
   console.log(
@@ -83,15 +85,24 @@ console.log("## 2. skills.rs 片段（code 按拼音手工填写）");
 console.log("");
 console.log("```rust");
 console.log(
-  `// ---- P4.4.2 一将成名（批次 ${batch ?? ""}：${entries.length} 将 / ${totalSkills} 技能）----`,
+  `// ---- P4.4.2 ${packLabel}（批次 ${batch ?? ""}：${entries.length} 将 / ${totalSkills} 技能）----`,
 );
+/** 技能 code：同名技能复用已有 code（界版按 `is_jiexian` 分支），否则占位。 */
+const codeFor = (gid, skill, i, total) => {
+  const reused = skillCodes.get(skill);
+  if (reused) return { code: reused, reused: true };
+  return { code: total > 1 ? `TODO_${gid}_${i + 1}` : `TODO_${gid}`, reused: false };
+};
 for (const e of entries) {
   const g = generals.get(e.gid);
   if (!g) continue;
   const constNameFor = `G${g.gid}`;
   if (g.skills.length === 1) {
+    const c = codeFor(g.gid, g.skills[0], 0, 1);
     console.log(`const ${constNameFor}: &[SkillDef] = &[SkillDef {`);
-    console.log(`    code: "TODO_${g.gid}",  // ${g.skills[0]}`);
+    console.log(
+      `    code: "${c.code}",  // ${g.skills[0]}${c.reused ? "（复用已有 code）" : ""}`,
+    );
     console.log(`    name: "${g.skills[0]}",`);
     console.log(`    kind: SkillType::Normal,`);
     console.log(`    implemented: true,`);
@@ -99,8 +110,9 @@ for (const e of entries) {
   } else {
     console.log(`const ${constNameFor}: &[SkillDef] = &[`);
     for (const [i, s] of g.skills.entries()) {
+      const c = codeFor(g.gid, s, i, g.skills.length);
       console.log(`    SkillDef {`);
-      console.log(`        code: "TODO_${g.gid}_${i + 1}",  // ${s}`);
+      console.log(`        code: "${c.code}",  // ${s}${c.reused ? "（复用已有 code）" : ""}`);
       console.log(`        name: "${s}",`);
       console.log(`        kind: SkillType::Normal,`);
       console.log(`        implemented: true,`);
@@ -117,6 +129,17 @@ for (const e of entries) {
 console.log("// }");
 console.log("```");
 console.log("");
+const reusedSkills = entries
+  .flatMap((e) => (generals.get(e.gid)?.skills ?? []).map((name) => ({ name, e })))
+  .filter((x) => skillCodes.has(x.name));
+if (reusedSkills.length) {
+  console.log(
+    `> **同名技能复用 code（${reusedSkills.length}）**：` +
+      reusedSkills.map((x) => `${x.name}→\`${skillCodes.get(x.name)}\``).join("、") +
+      "；公共逻辑用 `skills::is_jiexian(st, seat)` 分支，并回归标准版用例。",
+  );
+  console.log("");
+}
 console.log("## 3. skills.md 表格行模板");
 console.log("");
 console.log("```md");
@@ -124,7 +147,7 @@ for (const e of entries) {
   const g = generals.get(e.gid);
   if (!g) continue;
   for (const [i, skill] of g.skills.entries()) {
-    const code = g.skills.length > 1 ? `TODO_${g.gid}_${i + 1}` : `TODO_${g.gid}`;
+    const code = codeFor(g.gid, skill, i, g.skills.length).code;
     console.log(
       `| ${g.name} \`${g.code}\` | ${skill} | \`${code}\` | 普通 | 实现要点（自动/可选口径写清楚） |`,
     );
