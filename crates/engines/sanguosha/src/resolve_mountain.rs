@@ -160,8 +160,15 @@ pub(crate) fn act_qiaobian(st: &mut SgsState, action: &str) -> Result<String, En
     let choice = action
         .strip_prefix("choose:qiaobian:")
         .ok_or_else(|| illegal("未知巧变选项"))?;
+    if !crate::resolve_jiexian4::qiaobian_can_pay(st, f.actor) {
+        return Err(illegal("巧变需要弃置一张手牌或移除 1 枚「变」"));
+    }
+    // 界巧变（界张郃）：无手牌时可用 1 枚「变」支付，直接进入所选阶段处理。
     if st.seats[f.actor].hand.is_empty() {
-        return Err(illegal("巧变需要弃置一张手牌"));
+        if !crate::resolve_jiexian4::qiaobian_pay_bian(st, f.actor) {
+            return Err(illegal("没有可支付的「变」"));
+        }
+        return apply_qiaobian_choice(st, f.actor, choice);
     }
     replace_top(
         st,
@@ -352,6 +359,11 @@ pub(crate) fn act_tiaoxin(st: &mut SgsState, action: &str) -> Result<String, Eng
         };
         turn::take_card(st, target, &card)?;
         st.deck.processing.push(card.clone());
+        // 界挑衅（界姜维）：此【杀】未造成伤害则仍弃其一张牌。
+        if crate::skills::is_jiexian(st, f.actor) {
+            st.set_counter("tiaoxin_hit", 0);
+            crate::resolve_jiexian4::push_tiaoxin_wait(st, f.actor, target);
+        }
         push(
             st,
             Frame::Sha(crate::resolve::ShaFrame {
@@ -1092,7 +1104,14 @@ pub(crate) fn awaken_triggers(st: &mut SgsState) {
         st.seats[seat].max_hp = (st.seats[seat].max_hp - 1).max(1);
         st.seats[seat].hp = st.seats[seat].hp.min(st.seats[seat].max_hp);
         skills::grant_skill(st, seat, "jixi");
-        st.push_log(Some(&pid), "凿险：觉醒，减少 1 点体力上限并获得「急袭」");
+        // 界凿险（界邓艾）：本回合结束后执行一个额外回合。
+        if skills::is_jiexian(st, seat) {
+            crate::resolve_jiexian4::mark_zaoxian_extra_turn(st, seat);
+        }
+        st.push_log(
+            Some(&pid),
+            "凿险：觉醒，减少 1 点体力上限并获得「急袭」",
+        );
     }
     // 志继：无手牌 → 二选一，减 1 上限并获得观星（帧内处理）。
     if skills::has(st, seat, "zhiji")
@@ -1193,4 +1212,45 @@ pub(crate) fn beige_owner(st: &SgsState) -> Option<usize> {
     st.alive_indices()
         .into_iter()
         .find(|i| skills::has(st, *i, "beige") && !st.seats[*i].hand.is_empty())
+}
+
+/// 巧变选项结算（弃牌后或支付「变」后）。
+pub(crate) fn apply_qiaobian_choice(
+    st: &mut SgsState,
+    actor: usize,
+    choice: &str,
+) -> Result<String, EngineError> {
+    match choice {
+        "judge" => {
+            st.set_counter("qiaobian_skip_judge", 1);
+            Ok("巧变：跳过判定阶段".to_string())
+        }
+        "draw" => {
+            st.set_counter("skip_draw", 1);
+            replace_top(
+                st,
+                Frame::Qiaobian(QiaobianFrame {
+                    actor,
+                    remaining: 2,
+                }),
+            );
+            Ok("巧变：请选择获得手牌的角色".to_string())
+        }
+        "play" => {
+            st.set_counter("skip_play", 1);
+            replace_top(
+                st,
+                Frame::Jiewei(crate::resolve_wind::JieweiFrame {
+                    actor,
+                    stage: crate::resolve_wind::JieweiStage::Move,
+                }),
+            );
+            Ok("巧变：请选择移动的场牌".to_string())
+        }
+        "discard" => {
+            st.set_counter("qiaobian_skip_discard", 1);
+            Ok("巧变：跳过弃牌阶段".to_string())
+        }
+        other => Err(illegal(format!("未知巧变选项：{other}"))),
+    }
 }

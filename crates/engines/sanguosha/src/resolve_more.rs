@@ -1825,20 +1825,52 @@ pub(crate) fn multiselect_confirm(
             }
             Some(Ok(format!("据守：已弃置【{label}】")))
         }
+        "changbiao" => {
+            if f.selected.is_empty() {
+                return Some(Err(illegal("长标至少选择 1 张手牌")));
+            }
+            let mut cards = Vec::new();
+            for id in &f.selected {
+                if turn::take_card(st, f.actor, id).is_err() {
+                    return Some(Err(illegal("手牌中没有该牌")));
+                }
+                cards.push(id.clone());
+            }
+            let main = cards.remove(0);
+            for c in &cards {
+                turn::to_discard_card(st, c);
+            }
+            st.deck.processing.push(main.clone());
+            st.set_counter("changbiao_used", 1);
+            st.bump_counter("sha_used");
+            st.seats[f.actor]
+                .flags
+                .insert(format!("changbiao_sha:{main}"), true);
+            pop(st);
+            crate::resolve::push(
+                st,
+                Frame::Sha(crate::resolve::ShaFrame {
+                    card: main,
+                    user: f.actor,
+                    target: None,
+                    stage: crate::resolve::ShaStage::Target,
+                    pending_targets: Vec::new(),
+                    fangtian: false,
+                    damage_type: crate::resolve::DamageType::Normal,
+                    no_distance: true,
+                    virtual_card: true,
+                    tianyi: false,
+                    no_respond: false,
+                }),
+            );
+            Some(Ok("长标：请选择【杀】的目标".to_string()))
+        }
         "qiaobian" => {
             if f.selected.len() != 1 {
                 return Some(Err(illegal("巧变需弃置 1 张手牌")));
             }
             let id = f.selected[0].clone();
-            // 界天香（界小乔）：允许弃置装备区的红桃牌。
-            let from_equip = crate::resolve_jiexian::equip_card_ids(st, f.actor)
-                .iter()
-                .any(|c| c == &id);
-            if from_equip {
-                if let Err(e) = crate::resolve_jiexian::take_equip_card(st, f.actor, &id) {
-                    return Some(Err(e));
-                }
-            } else if turn::take_card(st, f.actor, &id).is_err() {
+            if turn::take_card(st, f.actor, &id).is_err() {
                 return Some(Err(illegal("手牌中没有该牌")));
             }
             turn::to_discard_card(st, &id);
@@ -1884,15 +1916,7 @@ pub(crate) fn multiselect_confirm(
                 return Some(Err(illegal("享乐需弃置 1 张基本牌")));
             }
             let id = f.selected[0].clone();
-            // 界天香（界小乔）：允许弃置装备区的红桃牌。
-            let from_equip = crate::resolve_jiexian::equip_card_ids(st, f.actor)
-                .iter()
-                .any(|c| c == &id);
-            if from_equip {
-                if let Err(e) = crate::resolve_jiexian::take_equip_card(st, f.actor, &id) {
-                    return Some(Err(e));
-                }
-            } else if turn::take_card(st, f.actor, &id).is_err() {
+            if turn::take_card(st, f.actor, &id).is_err() {
                 return Some(Err(illegal("手牌中没有该牌")));
             }
             turn::to_discard_card(st, &id);

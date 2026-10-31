@@ -208,6 +208,8 @@ fn demo_triggers_and_applies() {
 ### 7.1 J1 踩过的坑（供后续批次复用）
 
 - **判定前有无懈窗口**：`run_phase(.., TurnPhase::Judge, ..)` 会先停在 `kind=wuxie` 的 pending；用 `pass_until_skill(mgr, room, "<skill>", 8)` 连点 pass 再断言。
+- **准备阶段类 pending**：`run_phase(.., TurnPhase::Prepare, ..)` 可能因「神速/巧变/洛神」等停住；断言阶段类效果时直接调用内部钩子（如 `awaken_triggers`）或在测试内显式消费 pending。
+- **MCP 冒烟的死循环**：`apps/verify-sanguosha.mjs` 的准备阶段 pending 驱动器已改为「记录已用动作 + 优先 confirm」，避免多选类 pending 反复 toggle（J3 随机武将下偶发）。
 - **界将可能是主公**：`set_general` 会按身份加 1 点体力上限（如界徐庶/界刘禅），断言请用**相对变化**而非绝对值。
 - **`SgsState::hand_limit` ≠ `skills::hand_limit`**：技能加成（血裔/权计等）只在后者，断言手牌上限务必用 `skills::hand_limit`。
 - **虚拟【杀】/【决斗】**：`ShaFrame{ card: "" }` + `push_sha_target_response`（诛害）；他人视为对你用【决斗】用 `RespondFrame(RespondKind::Duel)`（势斩）。

@@ -101,6 +101,21 @@ pub(crate) fn discard_by(st: &mut SgsState, seat: Option<usize>, card_id: &str) 
     crate::resolve_yijiang::on_card_discarded(st, seat, card_id);
     // 界激昂（界孙策）。
     crate::resolve_jiexian3::jiang_jie_on_discard(st, card_id);
+    // 界屯田（界邓艾）：回合内弃置【杀】后也可判定。
+    if let Some(seat) = seat {
+        let own_turn = st.turn == seat;
+        let is_sha = st
+            .cards
+            .get(card_id)
+            .is_some_and(|c| matches!(c.def.as_str(), "sha" | "huo_sha" | "lei_sha"));
+        if own_turn
+            && is_sha
+            && crate::skills::has(st, seat, "tuotian")
+            && crate::skills::is_jiexian(st, seat)
+        {
+            crate::skills::tuotian_on_lose(st, seat);
+        }
+    }
 }
 
 /// 是否有「顺手/过河」可拿的牌（手牌 / 装备 / 判定区至少其一）。
@@ -1157,6 +1172,8 @@ pub(crate) fn phase_step(
                 "phase_start",
                 json!({ "phase": "end", "seat": st.turn, "player": pid }),
             ));
+            // 界巧变（界张郃）：结束阶段手牌数与以往均不相同 → +1 「变」。
+            crate::resolve_jiexian4::qiaobian_end_check(st, st.turn);
             // 界魂姿（界孙策）：觉醒当回合结束阶段，摸两张或回复 1 点。
             if st.seats[st.turn].flags.remove("hunzi_end").is_some()
                 && st.counter("hunzi_end_asked") == 0
@@ -1231,6 +1248,7 @@ pub(crate) fn phase_step(
             // 崩坏：结束阶段若你不是体力值最小的角色，失 1 体力或减 1 体力上限。
             if crate::skills::has(st, st.turn, "bengkuai")
                 && st.counter("bengkuai_done") == 0
+                && st.counter("bengkuai_off") == 0
                 && st
                     .alive_indices()
                     .into_iter()
@@ -1667,6 +1685,10 @@ fn end_turn(st: &mut SgsState, events: &mut Vec<EngineEvent>) {
         .copied()
         .find(|i| *i > cur)
         .unwrap_or_else(|| alive[0]);
+    // 界凿险（界邓艾）：本回合结束后执行一个额外回合。
+    if st.seats[cur].flags.remove("zaoxian_extra").is_some() {
+        st.extra_turn = Some(cur);
+    }
     if let Some(extra) = st.extra_turn.take() {
         // 放权（他人额外回合）/ 博图（自己额外回合）都走这里。
         if st.seats.get(extra).is_some_and(|s| s.alive) {
@@ -1911,7 +1933,7 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
                     && !sha_targets_with_card(st, idx, Some(&card_id), free).is_empty()
             }
             // 酒：每回合限一次（本回合下一张【杀】伤害 +1）。
-            "jiu" => st.counter("jiu_used") == 0,
+            "jiu" => st.counter("jiu_used") == 0 || crate::skills::jiu_unlimited(st, idx),
             "tao" => st.seats[idx].hp < st.seats[idx].max_hp,
             "shan" | "wuxie_keji" => false,
             // 五谷丰登（P2.5）：亮牌 → 释放者先选 → 座位顺序
@@ -2158,7 +2180,7 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
                         && st.counter("sha_used") < crate::turn::sha_limit(st, idx)
                 }
                 "tao" => st.seats[idx].hp < st.seats[idx].max_hp,
-                "jiu" => st.counter("jiu_used") == 0,
+                "jiu" => st.counter("jiu_used") == 0 || crate::skills::jiu_unlimited(st, idx),
                 _ => false,
             };
             if usable {
@@ -2738,7 +2760,9 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
         }
     }
     // 酒池：黑桃手牌当【酒】使用。
-    if crate::skills::has(st, idx, "jiuchi") && st.counter("jiu_used") == 0 {
+    if crate::skills::has(st, idx, "jiuchi")
+        && (st.counter("jiu_used") == 0 || crate::skills::jiu_unlimited(st, idx))
+    {
         for card_id in hand_ids(st, idx) {
             if st
                 .cards
@@ -2773,8 +2797,9 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
         });
     }
     // 挑衅：出牌阶段限一次，令攻击范围含你的角色对你出杀，否则弃其一张牌。
+    let tiaoxin_limit = if crate::skills::is_jiexian(st, idx) { 2 } else { 1 };
     if crate::skills::has(st, idx, "tiaoxin")
-        && st.counter("tiaoxin_used") == 0
+        && st.counter("tiaoxin_used") < tiaoxin_limit
         && st.alive_indices().into_iter().any(|t| {
             t != idx
                 && st.in_attack_range(t, idx)
@@ -2831,6 +2856,18 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
         out.push(Action {
             id: "skill:qimou".into(),
             description: "奇谋：失去任意点体力，本回合距离 -X、杀次数 +X".into(),
+        });
+    }
+    // 长标（界祝融）：出牌阶段限一次，任意张手牌当无距离限制的【杀】。
+    if crate::skills::has(st, idx, "changbiao")
+        && st.counter("changbiao_used") == 0
+        && !st.seats[idx].hand.is_empty()
+        && st.counter("sha_used") < sha_limit
+        && st.alive_indices().len() > 1
+    {
+        out.push(Action {
+            id: "skill:changbiao".into(),
+            description: "长标：将任意张手牌当无距离限制的【杀】使用（造成伤害则阶段结束摸牌）".into(),
         });
     }
     // 界制霸（界孙策主公技）：出牌阶段限一次，主动与一名其他吴势力角色拼点。
@@ -3759,7 +3796,7 @@ pub fn execute(
         if !crate::skills::has(st, idx, "jiuchi") {
             return Err(illegal("没有该技能"));
         }
-        if st.counter("jiu_used") > 0 {
+        if st.counter("jiu_used") > 0 && !crate::skills::jiu_unlimited(st, idx) {
             return Err(illegal("本回合已使用过【酒】"));
         }
         if !st.seats[idx].hand.iter().any(|c| c == card_id) {
@@ -3823,8 +3860,8 @@ pub fn execute(
         if !crate::skills::has(st, idx, "tiaoxin") {
             return Err(illegal("没有该技能"));
         }
-        if st.counter("tiaoxin_used") > 0 {
-            return Err(illegal("本阶段已发动过挑衅"));
+        if st.counter("tiaoxin_used") >= if crate::skills::is_jiexian(st, idx) { 2 } else { 1 } {
+            return Err(illegal("本阶段挑衅已达上限"));
         }
         st.set_counter("tiaoxin_used", 1);
         resolve::push(
@@ -3920,6 +3957,29 @@ pub fn execute(
         );
         st.push_log(Some(player_id), "发动奇谋");
         "奇谋：请选择失去的体力值".to_string()
+    } else if action == "skill:changbiao" {
+        if !crate::skills::has(st, idx, "changbiao") {
+            return Err(illegal("没有该技能"));
+        }
+        if st.counter("changbiao_used") > 0 {
+            return Err(illegal("本阶段已发动过长标"));
+        }
+        if st.seats[idx].hand.is_empty() {
+            return Err(illegal("没有手牌"));
+        }
+        resolve::push(
+            st,
+            resolve::Frame::MultiSelect(crate::resolve::MultiSelectFrame {
+                actor: idx,
+                purpose: "changbiao".into(),
+                selected: Vec::new(),
+                min: 1,
+                max: st.seats[idx].hand.len(),
+                data: json!({}),
+            }),
+        );
+        st.push_log(Some(player_id), "发动长标");
+        "长标：请选择任意张手牌当【杀】".to_string()
     } else if action == "skill:zhiba_jie" {
         if !crate::skills::has(st, idx, "zhiba")
             || !crate::skills::is_jiexian(st, idx)
@@ -5035,6 +5095,16 @@ pub fn execute(
         // 献图 / 司敌：出牌阶段结束时的延迟结算。
         crate::resolve_yijiang5::xiantu_end_phase(st, idx);
         crate::resolve_yijiang5::sidi_end_phase(st, idx);
+        // 长标（界祝融）：本阶段长标【杀】造成过伤害 → 摸等量张。
+        if crate::skills::has(st, idx, "changbiao") && st.counter("changbiao_draw") > 0 {
+            let n = st.counter("changbiao_draw");
+            st.set_counter("changbiao_draw", 0);
+            let drawn = draw_cards(st, idx, n, &mut events);
+            st.push_log(
+                Some(player_id),
+                format!("长标：本阶段结束时摸 {drawn} 张"),
+            );
+        }
         // 精策（郭淮）：出牌阶段结束时摸 X 张（X = 本回合使用过的牌的类型数）。
         if crate::skills::has(st, idx, "jingce") {
             let x = crate::skills::jingce_type_count(st);

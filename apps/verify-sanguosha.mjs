@@ -142,8 +142,11 @@ try {
 
   // —— 发牌后的公共视图 ——
   let view = await callJson("get_state", { room_id: roomId });
-  // 准备阶段技能（观星/洛神/勤学等）可能产生 pending：先按安全策略推进到出牌阶段。
-  for (let i = 0; i < 40; i += 1) {
+  // 准备阶段技能（观星/洛神/神速/巧变等）可能产生 pending：先按安全策略推进到出牌阶段。
+  // 多选类 pending 需要「选牌 → confirm」，因此记录已用动作、优先选择未尝试过的选项，
+  // 避免在同一张牌上反复 toggle 导致死循环（随机武将下曾偶发）。
+  const usedByPending = new Map();
+  for (let i = 0; i < 60; i += 1) {
     const b = view.data.public_board;
     if (!b.pending) break;
     const legal = await callJson("get_legal_actions", {
@@ -151,10 +154,16 @@ try {
       player_id: b.pending.actor,
     });
     assert(legal.length > 0, `pending ${b.pending.kind} 无合法动作`);
+    const key = `${b.pending.kind}|${b.pending.skill ?? ""}|${b.pending.actor}`;
+    const used = usedByPending.get(key) ?? new Set();
     const preferred =
-      legal.find((a) => a.id === "pass") ??
-      legal.find((a) => a.id.startsWith("choose:")) ??
+      legal.find((a) => a.id === "pass" && !used.has(a.id)) ??
+      legal.find((a) => a.id === "confirm" && used.size > 0) ??
+      legal.find((a) => !used.has(a.id)) ??
+      legal.find((a) => a.id === "confirm") ??
       legal[0];
+    used.add(preferred.id);
+    usedByPending.set(key, used);
     await callJson("execute_action", {
       room_id: roomId,
       player_id: b.pending.actor,

@@ -179,6 +179,8 @@ pub enum Frame {
     WuLie(crate::resolve_jiexian3::WuLieFrame),
     NiePanSkill(crate::resolve_jiexian3::NiePanSkillFrame),
     LianHuanPick(crate::resolve_jiexian3::LianHuanPickFrame),
+    /// P4.4.2 界限突破 J3 帧。
+    TiaoxinWait(crate::resolve_jiexian4::TiaoxinWaitFrame),
     /// P4.4.2 一将成名（批次 2）。
     JiangChi(crate::resolve_yijiang2::JiangChiFrame),
     Qice(crate::resolve_yijiang2::QiceFrame),
@@ -934,6 +936,7 @@ fn step(
         Frame::WuLie(f) => crate::resolve_jiexian3::step_wulie(st, f),
         Frame::NiePanSkill(f) => crate::resolve_jiexian3::step_niepan_skill(st, f),
         Frame::LianHuanPick(f) => crate::resolve_jiexian3::step_lianhuan_pick(st, f),
+        Frame::TiaoxinWait(f) => crate::resolve_jiexian4::step_tiaoxin_wait(st, f),
         Frame::QinXue(f) => crate::resolve_jiexian::step_qinxue(st, f),
         Frame::GongXin(f) => crate::resolve_jiexian::step_gongxin(st, f),
         Frame::LianYing(f) => crate::resolve_jiexian::step_lianying(st, f),
@@ -1917,6 +1920,13 @@ fn step_trick(
             };
             if target != f.user {
                 st.bump_counter("targeted_others");
+            }
+            // 好施界（界鲁肃）：成为普通锦囊牌目标后，回礼者交给他一张手牌（自动）。
+            if !matches!(
+                f.code.as_str(),
+                "lebu_sishu" | "shandian" | "bingliang_cunduan"
+            ) {
+                crate::resolve_jiexian4::haoshi_back_auto(st, target);
             }
             // 奋威：已被宣告无效的目标跳过结算。
             if crate::resolve_jiexian::fenwei_void(st, target) {
@@ -3109,10 +3119,22 @@ fn step_quick_judge(
                 "baonue" => {
                     let lord = f.data["lord"].as_u64().unwrap_or(f.owner as u64) as usize;
                     if suit == Some(Suit::Spade) {
-                        st.seats[lord].hp += 1;
+                        st.seats[lord].hp = (st.seats[lord].hp + 1).min(st.seats[lord].max_hp);
+                        // 界暴虐（界董卓）：获得此判定牌。
+                        let mut gained = false;
+                        if crate::skills::is_jiexian(st, lord) {
+                            if st.deck.discard.iter().any(|c| c == &judge_id) {
+                                st.deck.discard.retain(|c| c != &judge_id);
+                                st.seats[lord].hand.push(judge_id.clone());
+                                gained = true;
+                            }
+                        }
                         st.push_log(
                             Some(&pid),
-                            format!("暴虐：判定【{label}】黑桃，回复 1 点体力"),
+                            format!(
+                                "暴虐：判定【{label}】黑桃，回复 1 点体力{}",
+                                if gained { "并获得此判定牌" } else { "" }
+                            ),
                         );
                     } else {
                         st.push_log(Some(&pid), format!("暴虐：判定【{label}】非黑桃，未生效"));
@@ -3819,6 +3841,8 @@ fn act_target(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Stri
         f.target = Some(target);
         f.stage = ShaStage::WaitRespond;
         replace_top(st, Frame::Sha(f.clone()));
+        // 好施界（界鲁肃）：成为【杀】目标后，回礼者交给他一张手牌（自动）。
+        crate::resolve_jiexian4::haoshi_back_auto(st, target);
         // 铁骑在 `push_sha_target_response` 内以 QuickJudge 处理；无双在此计算。
         // 烈弓：目标手牌数 ≥ 你的体力值或 ≤ 你的攻击范围 → 不能使用【闪】（自动发动）。
         let mut no_shan = crate::skills::liegong_blocks(st, f.user, target);
@@ -5223,6 +5247,10 @@ fn apply_damage_inner(
             }
         }
     }
+    // 界帷幕（界贾诩，锁定）：回合内受到的伤害防止，并摸所防止伤害值两倍数量的牌。
+    if amount > 0 && crate::resolve_jiexian4::weimu_prevent_damage(st, victim, amount) {
+        return;
+    }
     // 怀橘（陆绩）：有「橘」的角色受到伤害时，防止此伤害并移除 1 枚「橘」。
     if amount > 0 && crate::resolve_sp::huaiju_prevent(st, victim) {
         return;
@@ -5483,6 +5511,36 @@ fn apply_damage_inner(
     if amount > 0 {
         if let Some(src) = source {
             crate::resolve_jiexian2::qianxin_on_damage(st, src);
+        }
+    }
+    // 界挑衅（界姜维）：此【杀】造成伤害 → 挑衅不再弃牌。
+    if amount > 0 {
+        crate::resolve_jiexian4::tiaoxin_on_damage(st, victim, source);
+    }
+    // 长标（界祝融）：长标【杀】造成伤害 → 阶段结束摸牌累计。
+    if amount > 0 {
+        if let Some(src) = source {
+            crate::resolve_jiexian4::changbiao_on_damage(st, src, card);
+        }
+    }
+    // 界酒池（界董卓）：酒【杀】造成伤害后，本回合「崩坏」失效。
+    if amount > 0 {
+        if let Some(src) = source {
+            if crate::skills::has(st, src, "jiuchi")
+                && crate::skills::is_jiexian(st, src)
+                && card.is_some_and(|id| {
+                    st.cards
+                        .get(id)
+                        .is_some_and(|c| matches!(c.def.as_str(), "sha" | "huo_sha" | "lei_sha"))
+                })
+                && st.counter(&format!("jiu_boost:{victim}")) > 0
+            {
+                st.set_counter("bengkuai_off", 1);
+                st.push_log(
+                    Some(&st.seats[src].player_id.clone()),
+                    "酒池：酒【杀】造成伤害，本回合「崩坏」失效",
+                );
+            }
         }
     }
     st.bump_counter("phase_damage");

@@ -56,6 +56,36 @@ pub(crate) fn step_pindian(st: &mut SgsState, f: PindianFrame) -> Result<bool, E
         PindianStage::Initiator => (f.initiator, "initiator"),
         PindianStage::Target => (f.target, "target"),
     };
+    // 酣战（界太史慈）：当你拼点前，可令对方用随机手牌拼点（自动口径）。
+    let other = if f.stage == PindianStage::Initiator {
+        f.target
+    } else {
+        f.initiator
+    };
+    if crate::resolve_jiexian4::hanzhan_forces_random(st, seat, other)
+        && !st.seats[seat].hand.is_empty()
+    {
+        let idx = st.next_index(st.seats[seat].hand.len());
+        let card = st.seats[seat].hand[idx].clone();
+        st.push_log(
+            Some(&st.seats[seat].player_id.clone()),
+            format!("酣战：{} 以随机手牌【{}】拼点", st.seats[seat].general_name, turn::card_label(st, &card)),
+        );
+        let mut f = f;
+        match f.stage {
+            PindianStage::Initiator => {
+                f.initiator_card = Some(card);
+                f.stage = PindianStage::Target;
+                replace_top(st, Frame::Pindian(f));
+                return Ok(false);
+            }
+            PindianStage::Target => {
+                f.target_card = Some(card);
+                finish_pindian(st, f, None, None)?;
+                return Ok(false);
+            }
+        }
+    }
     let mut options: Vec<PendingOption> = st.seats[seat]
         .hand
         .iter()
@@ -188,6 +218,8 @@ fn finish_pindian(
     }
     // 纵适（简雍）：拼点结算后获得拼点牌。
     skills::zongshi_on_pindian(st, f.initiator, f.target, winner, &a, &b);
+    // 酣战（界太史慈）：拼点后获得拼点牌中点数最大的【杀】。
+    crate::resolve_jiexian4::hanzhan_gain_sha(st, f.initiator, f.target, &a, &b);
     st.outcome = Some(Outcome::Pindian {
         winner,
         initiator: f.initiator,

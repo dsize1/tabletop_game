@@ -767,6 +767,8 @@ pub(crate) fn haoshi_target(
         Some(&st.seats[f.actor].player_id.clone()),
         format!("好施：交给 {} {n} 张牌", st.seats[target].general_name),
     );
+    // 界好施（界鲁肃）：记录回礼者（此后成为【杀】/普通锦囊目标时可收其一张牌）。
+    crate::resolve_jiexian4::mark_haoshi_back(st, f.actor, target);
     pop(st);
     Ok(format!(
         "好施：交给 {} {n} 张",
@@ -925,6 +927,8 @@ pub(crate) fn step_luanwu(st: &mut SgsState, f: LuanwuFrame) -> Result<bool, Eng
     }
     if cursor >= f.order.len() {
         pop(st);
+        // 界乱武（界贾诩）：所有角色结算完毕后，视为使用一张无距离限制的【杀】。
+        crate::resolve_jiexian4::push_luanwu_final_sha(st, f.actor);
         return Ok(false);
     }
     let seat = f.order[cursor];

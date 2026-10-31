@@ -4,12 +4,21 @@
 
 ## 🔖 续接指针（下次会话说「继续」时从这里开工）
 
-- **入口**：`docs/games/sanguosha/development-plan.md` → **P4.4.2「界限突破剩余 44 位」**（J1/J2 已完成，含 J3–J8 批次表）
-- **顺序**：① 界限突破其余 44 位，按 J3（463 界太史慈…486 界张郃）→ J4 → J5 → J6 → J7 → J8（4 将）逐批完成（一将成名 72/72、界标 25 将、J1/J2 已完成）→ ② P4.4.3 验收
+- **入口**：`docs/games/sanguosha/development-plan.md` → **P4.4.2「界限突破剩余 36 位」**（J1/J2/J3 已完成，含 J4–J8 批次表）
+- **顺序**：① 界限突破其余 36 位，按 J4（492 界孟获…587 界徐盛）→ J5 → J6 → J7 → J8（4 将）逐批完成（一将成名 72/72、界标 25 将、J1–J3 已完成）→ ② P4.4.3 验收
 - **开工命令**：`npm run sgs:batch-status`（看下一批名单/计数一致性）；流程与模板见 `docs/games/sanguosha/batch-playbook.md`
-- **批前必读**：`skills.md` §2.8.6、`rules-rulings.md` §31、`docs/conventions/coding-standards.md`
+- **批前必读**：`skills.md` §2.8.7、`rules-rulings.md` §32、`docs/conventions/coding-standards.md`
 - **每批收尾**：`p67` 池断言（如涉及界版池）；`skills.md` §2.8.x + `rules-rulings.md` 新节；`milestones.md` 新增 M 条目
 - **门禁**：`npm run sgs:check`（每批收尾）、`npm run sgs:check:full`（含 MCP 冒烟）、`npm run sgs:check:fast`（改码自检）
+
+## M50：三国杀 P4.4.2 批次 J3（界限突破 463/470/471/479/480/484/485/486：8 将 / 19 技能）✅
+
+- **日期**：2026-10-31
+- **完成**：界太史慈（天义/酣战）、界董卓（肉林/崩坏/酒池/暴虐）、界邓艾（屯田/凿险）、界祝融（巨象/烈刃/长标）、界姜维（挑衅/志继）、界贾诩（帷幕/乱武/完杀）、界鲁肃（好施/缔盟）、界张郃（巧变）
+- **机制**：`Frame::TiaoxinWait`（`resolve_jiexian4.rs`）；酣战拼点随机 + 获得最大点数【杀】；`jiu_unlimited` / `bengkuai_off`；`changbiao_sha:<card>` + 阶段末摸牌；帷幕回合内防伤摸 2 倍；乱武结算后无距离【杀】；好施回礼（`haoshi_back:<receiver>`）；巧变「变」标记（`mark_counts["bian"]` + `qjb_end:<n>`）
+- **用例**：`tests/p98.rs` 24 条；`cargo test -p sanguosha` **760** 全绿；`p67` 池断言 43 → 51
+- **已知边界**：见 `rules-rulings.md` §32
+- **详见**：`memory_palace/plan/01a192cd-9c3e-7668-91f6-e77ceff1a5f9.md`
 
 ## M49：三国杀 P4.4.2 批次 J2（界限突破 452–458/462：8 将 / 20 技能）✅
 

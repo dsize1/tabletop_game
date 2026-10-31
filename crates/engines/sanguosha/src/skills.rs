@@ -1688,6 +1688,135 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
             implemented: true,
         },
     ];
+    // ---- P4.4.2 界限突破（批次 J3：8 将 / 19 技能）----
+    const JIE_TAISHICI: &[SkillDef] = &[
+        SkillDef {
+            code: "tianyi",
+            name: "天义",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "hanzhan",
+            name: "酣战",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_DONGZHUO: &[SkillDef] = &[
+        SkillDef {
+            code: "roulin",
+            name: "肉林",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "bengkuai",
+            name: "崩坏",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "jiuchi",
+            name: "酒池",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "baonue",
+            name: "暴虐",
+            kind: SkillType::Lord,
+            implemented: true,
+        },
+    ];
+    const JIE_DENGAI: &[SkillDef] = &[
+        SkillDef {
+            code: "tuotian",
+            name: "屯田",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "zaoxian",
+            name: "凿险",
+            kind: SkillType::Awaken,
+            implemented: true,
+        },
+    ];
+    const JIE_ZHURONG: &[SkillDef] = &[
+        SkillDef {
+            code: "juxiang",
+            name: "巨象",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "liereng",
+            name: "烈刃",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "changbiao",
+            name: "长标",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_JIANGWEI: &[SkillDef] = &[
+        SkillDef {
+            code: "tiaoxin",
+            name: "挑衅",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "zhiji",
+            name: "志继",
+            kind: SkillType::Awaken,
+            implemented: true,
+        },
+    ];
+    const JIE_JIAXU: &[SkillDef] = &[
+        SkillDef {
+            code: "weimu",
+            name: "帷幕",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "luanwu",
+            name: "乱武",
+            kind: SkillType::Limited,
+            implemented: true,
+        },
+        SkillDef {
+            code: "wansha",
+            name: "完杀",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+    ];
+    const JIE_LUSU: &[SkillDef] = &[
+        SkillDef {
+            code: "haoshi",
+            name: "好施",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "dimeng",
+            name: "缔盟",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_ZHANGHE: &[SkillDef] = &[SkillDef {
+        code: "qiaobian",
+        name: "巧变",
+        kind: SkillType::Normal,
+        implemented: true,
+    }];
     // ---- P4.4.2 一将成名（批次 2：8 将 / 16 技能）----
     const ZHANGCHUNHUA: &[SkillDef] = &[
         SkillDef {
@@ -2685,6 +2814,14 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
         "sgs_hero_457" => JIE_XIAOQIAO,
         "sgs_hero_458" => JIE_SUNJIAN,
         "sgs_hero_462" => JIE_PANGDE,
+        "sgs_hero_463" => JIE_TAISHICI,
+        "sgs_hero_470" => JIE_DONGZHUO,
+        "sgs_hero_471" => JIE_DENGAI,
+        "sgs_hero_479" => JIE_ZHURONG,
+        "sgs_hero_480" => JIE_JIANGWEI,
+        "sgs_hero_484" => JIE_JIAXU,
+        "sgs_hero_485" => JIE_LUSU,
+        "sgs_hero_486" => JIE_ZHANGHE,
         _ => &[],
     }
 }
@@ -4165,6 +4302,11 @@ pub fn remove_xueyi_mark(st: &mut SgsState, seat: usize) -> bool {
         s.mark_counts.insert("yi".into(), cur - 1);
     }
     true
+}
+
+/// 界酒池（界董卓）：使用【酒】无次数限制。
+pub fn jiu_unlimited(st: &SgsState, seat: usize) -> bool {
+    has(st, seat, "jiuchi") && is_jiexian(st, seat)
 }
 
 /// 界连环（界庞统）：使用【铁索连环】可多指定一个目标。

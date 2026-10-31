@@ -13,6 +13,7 @@ mod resolve_forest;
 mod resolve_jiexian;
 mod resolve_jiexian2;
 mod resolve_jiexian3;
+mod resolve_jiexian4;
 mod resolve_more;
 mod resolve_mountain;
 mod resolve_skill;
@@ -363,6 +364,8 @@ fn finish_setup(st: &mut SgsState) -> Result<Vec<EngineEvent>, EngineError> {
     crate::resolve_yijiang8::init_zongzuo(st);
     // 血裔（界袁绍）：开局按群势力角色数获得「裔」。
     crate::resolve_jiexian2::init_xueyi(st);
+    // 巧变（界张郃）：开局获得 2 枚「变」。
+    crate::resolve_jiexian4::init_qiaobian(st);
     // 明任（卢植）：开局摸 2 并选择「任」。
     for i in 0..st.seats.len() {
         crate::resolve_sp2::init_mingren(st, i);
