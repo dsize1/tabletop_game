@@ -4,11 +4,20 @@
 
 ## 🔖 续接指针（下次会话说「继续」时从这里开工）
 
-- **入口**：`docs/games/sanguosha/development-plan.md` → **P4.4.2「一将成名剩余 56 位（新会话开工口径）」**（含 Y1–Y7 批次表）
-- **顺序**：① 一将成名剩余 56 位，按 Y1（171–178）→ Y2（179–188）→ Y3（187/188/321–326）→ Y4（327–334）→ Y5（335–342）→ Y6（380–387）→ Y7（388–395）逐批完成（界标 25 将已完成、授予技能已补齐）→ ② 界限突破其余 60 位 → ③ P4.4.3 验收
-- **批前必读**：`skills.md` §2.7/§2.7.1、`rules-rulings.md` §16/§21、`docs/conventions/coding-standards.md`
+- **入口**：`docs/games/sanguosha/development-plan.md` → **P4.4.2「一将成名剩余 48 位（新会话开工口径）」**（Y1 已完成；含 Y2–Y7 批次表）
+- **顺序**：① 一将成名剩余 48 位，按 Y2（179–186）→ Y3（187/188/321–326）→ Y4（327–334）→ Y5（335–342）→ Y6（380–387）→ Y7（388–395）逐批完成（界标 25 将已完成、授予技能已补齐）→ ② 界限突破其余 60 位 → ③ P4.4.3 验收
+- **批前必读**：`skills.md` §2.7/§2.7.2、`rules-rulings.md` §16/§21/§23、`docs/conventions/coding-standards.md`
 - **每批收尾**：`p67` 的「一将成名已实现数」+8；`skills.md` §2.7.x + `rules-rulings.md` 新节；`milestones.md` 新增 M 条目
 - **门禁**：`cargo test -p sanguosha`、`check:sgs-*` 全套、`test:web` / `test:sgs-web`、MCP 冒烟（收尾见 P4.4.3）
+
+## M38：三国杀 P4.4.2 批次 Y1（一将成名 171–178：8 将）✅
+
+- **日期**：2026-10-31
+- **完成**：将华雄（恃勇）、刘表（自守/宗室）、钟会（权计/自立 + 授予排异）、曹冲（称象/仁心）、郭淮（精策）、满宠（峻刑/御策）、关平（龙吟）、简雍（巧说/纵适）
+- **机制**：`Frame::ChengXiang/RenXin/ZiLi/PaiYi/ZiShou/JunXing/YuCe/LongYin/QiaoShuo`（`resolve_yijiang3.rs`）；「权」武将牌标记 + 手牌上限、`jiu_boost` 酒杀标记、自守伤害防止、精策花色/类型位图、龙吟不计杀次数、巧说拼点（赢→多目标 / 没赢→禁锦囊）、纵适拼点牌回收
+- **验证**：`cargo test -p sanguosha` **541** 全绿；`tests/p89.rs` 24 条（每将 ≥3）；`p67` 一将成名已实现数 24
+- **已知边界**：权计置「权」自动随机；巧说只实现「多指定一个目标」；精策按 `play:` 记录（转化牌不计）；称象亮出牌暂存处理区
+- **详见**：`skills.md` §2.7.2、`rules-rulings.md` §23、`development-plan.md` P4.4.2 批次 Y1
 
 ## M37：三国杀视图增强 —— 手牌上限展示 ✅
 

@@ -174,6 +174,16 @@ pub enum Frame {
     JieFan(crate::resolve_yijiang2::JieFanFrame),
     /// P4.4.2 授予技能（清侧）。
     QingCe(crate::resolve_sp2::QingCeFrame),
+    /// P4.4.2 一将成名（批次 Y1）。
+    ChengXiang(crate::resolve_yijiang3::ChengXiangFrame),
+    RenXin(crate::resolve_yijiang3::RenXinFrame),
+    ZiLi(crate::resolve_yijiang3::ZiLiFrame),
+    PaiYi(crate::resolve_yijiang3::PaiYiFrame),
+    ZiShou(crate::resolve_yijiang3::ZiShouFrame),
+    JunXing(crate::resolve_yijiang3::JunXingFrame),
+    YuCe(crate::resolve_yijiang3::YuCeFrame),
+    LongYin(crate::resolve_yijiang3::LongYinFrame),
+    QiaoShuo(crate::resolve_yijiang3::QiaoShuoFrame),
     /// 五谷丰登（P2.5 特殊区 `wugu`）。
     Wugu(crate::resolve_zone::WuguFrame),
     /// 观星排序提交（P2.5 特殊区 `guanxing`，`arrange:<csv>`）。
@@ -833,6 +843,15 @@ fn step(
         Frame::GongQi(f) => crate::resolve_yijiang2::step_gongqi(st, f),
         Frame::JieFan(f) => crate::resolve_yijiang2::step_jiefan(st, f),
         Frame::QingCe(f) => crate::resolve_sp2::step_qingce(st, f),
+        Frame::ChengXiang(f) => crate::resolve_yijiang3::step_chengxiang(st, f),
+        Frame::RenXin(f) => crate::resolve_yijiang3::step_renxin(st, f),
+        Frame::ZiLi(f) => crate::resolve_yijiang3::step_zili(st, f),
+        Frame::PaiYi(f) => crate::resolve_yijiang3::step_paiyi(st, f),
+        Frame::ZiShou(f) => crate::resolve_yijiang3::step_zishou(st, f),
+        Frame::JunXing(f) => crate::resolve_yijiang3::step_junxing(st, f),
+        Frame::YuCe(f) => crate::resolve_yijiang3::step_yuce(st, f),
+        Frame::LongYin(f) => crate::resolve_yijiang3::step_longyin(st, f),
+        Frame::QiaoShuo(f) => crate::resolve_yijiang3::step_qiaoshuo(st, f),
         Frame::Wugu(f) => crate::resolve_zone::step_wugu(st, f, events),
         Frame::Arrange(f) => crate::resolve_zone::step_arrange(st, f, events),
     }
@@ -1157,6 +1176,10 @@ pub fn start_sha_flags(
             no_respond: false,
         }),
     );
+    // 龙吟（关平）：使用【杀】时（压在用牌帧之上先询问）。
+    if st.turn == user && st.turn_phase == TurnPhase::Play {
+        crate::skills::longyin_trigger(st, user, card);
+    }
     // 征荣（毌丘俭）：使用【杀】时（压在用牌帧之上先询问）。
     crate::resolve_sp2::zhengrong_trigger(st, user, card);
     // 贞良（阴，卢植）：回合外使用的牌进入弃牌堆（按使用时机结算）。
@@ -3089,6 +3112,15 @@ pub fn execute_pending(
             Some("gongqi") => crate::resolve_yijiang2::act_gongqi(st, action)?,
             Some("jiefan") => crate::resolve_yijiang2::act_jiefan(st, action)?,
             Some("qingce") => crate::resolve_sp2::act_qingce(st, action)?,
+            Some("chengxiang") => crate::resolve_yijiang3::act_chengxiang(st, action)?,
+            Some("renxin") => crate::resolve_yijiang3::act_renxin(st, action)?,
+            Some("zili") => crate::resolve_yijiang3::act_zili(st, action)?,
+            Some("paiyi") => crate::resolve_yijiang3::act_paiyi(st, action)?,
+            Some("zishou") => crate::resolve_yijiang3::act_zishou(st, action)?,
+            Some("junxing") => crate::resolve_yijiang3::act_junxing(st, action)?,
+            Some("yuce") => crate::resolve_yijiang3::act_yuce(st, action)?,
+            Some("longyin") => crate::resolve_yijiang3::act_longyin(st, action)?,
+            Some("qiaoshuo") => crate::resolve_yijiang3::act_qiaoshuo(st, action)?,
             _ => crate::resolve_skill::act_jianxiong(st, action)?,
         },
         "choose_many" => match top(st) {
@@ -3655,6 +3687,8 @@ fn respond_give_up(st: &mut SgsState, f: &RespondFrame) {
             if f.is_sha && st.counter("jiu") > 0 {
                 amount += 1;
                 st.set_counter("jiu", 0);
+                // 恃勇（将华雄）：标记此伤害为「酒【杀】」。
+                st.set_counter(&format!("jiu_boost:{actor}"), 1);
             }
             // 白银狮子：受到的伤害改为 1。
             if crate::skills::has_equipment_skill(st, actor, "baiyin_shizi") && amount > 1 {
@@ -4408,6 +4442,18 @@ fn apply_damage_inner(
             }
         }
     }
+    // 自守（刘表）：本回合你防止对其他角色造成的伤害。
+    if amount > 0 {
+        if let Some(src) = source {
+            if crate::skills::zishou_blocks_damage(st, src, victim) {
+                st.push_log(
+                    Some(&st.seats[src].player_id.clone()),
+                    format!("自守：防止对 {} 造成的伤害", st.seats[victim].general_name),
+                );
+                return;
+            }
+        }
+    }
     // 制蛮（马谡）：对其他角色造成伤害时，可防止此伤害并获得其一张牌。
     if amount > 0 && allow_tianxiang {
         if let Some(src) = source {
@@ -4438,6 +4484,23 @@ fn apply_damage_inner(
             }),
         );
         return;
+    }
+    // 仁心（曹冲）：体力值为 1 的其他角色受到伤害时，可弃一张装备牌并翻面防止之。
+    if allow_tianxiang && amount > 0 && st.seats.get(victim).is_some_and(|s| s.alive && s.hp == 1) {
+        if let Some(owner) = crate::resolve_yijiang3::renxin_owner(st, victim) {
+            push(
+                st,
+                Frame::RenXin(crate::resolve_yijiang3::RenXinFrame {
+                    owner,
+                    victim,
+                    amount,
+                    source,
+                    damage_type: dtype,
+                    card: card.map(str::to_string),
+                }),
+            );
+            return;
+        }
     }
     // 陷阵（拼点赢）：无视被拼点目标的防具（藤甲/白银狮子等不生效）。
     let armor_ignored = source.is_some_and(|src| {
@@ -4608,6 +4671,86 @@ fn apply_damage_inner(
                     st.push_log(
                         Some(&st.seats[src].player_id.clone()),
                         format!("智愚：颜色均相同，弃置一张手牌【{label}】"),
+                    );
+                }
+            }
+        }
+    }
+    // 恃勇（将华雄，锁定）：受到红色【杀】或【酒】【杀】造成的伤害后，减 1 点体力上限。
+    if amount > 0 && st.seats[victim].hp > 0 && crate::skills::has(st, victim, "shiyong") {
+        let red_sha = card.is_some_and(|id| {
+            st.cards.get(id).is_some_and(|c| {
+                matches!(c.def.as_str(), "sha" | "huo_sha" | "lei_sha")
+                    && crate::skills::is_red(c.suit)
+            })
+        });
+        let jiu_key = format!("jiu_boost:{victim}");
+        let jiu = st.counter(&jiu_key) > 0;
+        if jiu {
+            st.set_counter(&jiu_key, 0);
+        }
+        if red_sha || jiu {
+            st.seats[victim].max_hp = (st.seats[victim].max_hp - 1).max(1);
+            st.seats[victim].hp = st.seats[victim].hp.min(st.seats[victim].max_hp);
+            st.push_log(
+                Some(&st.seats[victim].player_id.clone()),
+                format!(
+                    "恃勇：{}",
+                    if red_sha {
+                        "受到红色【杀】伤害，减 1 点体力上限"
+                    } else {
+                        "受到【酒】【杀】伤害，减 1 点体力上限"
+                    }
+                ),
+            );
+        }
+    }
+    // 权计（钟会）：每受到 1 点伤害后，摸 1 张并将一张手牌置于武将牌上为「权」。
+    if amount > 0 && st.seats[victim].hp > 0 && crate::skills::has(st, victim, "quanji") {
+        for _ in 0..amount {
+            let mut ev = Vec::new();
+            turn::draw_cards(st, victim, 1, &mut ev);
+            let n = st.seats[victim].hand.len();
+            if n > 0 {
+                let idx = st.next_index(n);
+                let card = st.seats[victim].hand.remove(idx);
+                let label = turn::card_label(st, &card);
+                crate::skills::add_mark(st, victim, "quan", &card);
+                st.push_log(
+                    Some(&st.seats[victim].player_id.clone()),
+                    format!("权计：摸 1 张并将【{label}】置于武将牌上为「权」"),
+                );
+            }
+        }
+    }
+    // 称象（曹冲）：受到伤害后亮出牌堆顶 4 张，获得点数和 ≤13 的任意张。
+    if amount > 0 && st.seats[victim].hp > 0 && crate::skills::has(st, victim, "chengxiang") {
+        crate::resolve_yijiang3::start_chengxiang(st, victim);
+    }
+    // 御策（满宠）：受到伤害后展示一张手牌，令伤害来源二选一。
+    if amount > 0 && st.seats[victim].hp > 0 && crate::skills::has(st, victim, "yuce") {
+        if let Some(src) = source {
+            if src != victim && !st.seats[victim].hand.is_empty() {
+                if st.seats[src].hand.is_empty() {
+                    if st.seats[victim].hp < st.seats[victim].max_hp {
+                        st.seats[victim].hp += 1;
+                    }
+                    st.push_log(
+                        Some(&st.seats[victim].player_id.clone()),
+                        format!(
+                            "御策：来源无手牌可弃，回复 1 点体力（体力 {}）",
+                            st.seats[victim].hp
+                        ),
+                    );
+                } else {
+                    push(
+                        st,
+                        Frame::YuCe(crate::resolve_yijiang3::YuCeFrame {
+                            actor: victim,
+                            source: src,
+                            stage: crate::resolve_yijiang3::YuCeStage::Reveal,
+                            card: None,
+                        }),
                     );
                 }
             }

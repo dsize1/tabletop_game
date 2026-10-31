@@ -1547,6 +1547,95 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
             implemented: true,
         },
     ];
+    // ---- P4.4.2 一将成名（批次 Y1：8 将 / 14 技能 + 排异授予）----
+    const JIANGHUAXIONG: &[SkillDef] = &[SkillDef {
+        code: "shiyong",
+        name: "恃勇",
+        kind: SkillType::Locked,
+        implemented: true,
+    }];
+    const LIUBIAO: &[SkillDef] = &[
+        SkillDef {
+            code: "zishou",
+            name: "自守",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "zongshi",
+            name: "宗室",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+    ];
+    const ZHONGHUI: &[SkillDef] = &[
+        SkillDef {
+            code: "quanji",
+            name: "权计",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "zili",
+            name: "自立",
+            kind: SkillType::Awaken,
+            implemented: true,
+        },
+    ];
+    const CAOCHONG: &[SkillDef] = &[
+        SkillDef {
+            code: "chengxiang",
+            name: "称象",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "renxin",
+            name: "仁心",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const GUOHUAI: &[SkillDef] = &[SkillDef {
+        code: "jingce",
+        name: "精策",
+        kind: SkillType::Normal,
+        implemented: true,
+    }];
+    const MANCHONG: &[SkillDef] = &[
+        SkillDef {
+            code: "junxing",
+            name: "峻刑",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "yuce",
+            name: "御策",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const GUANPING: &[SkillDef] = &[SkillDef {
+        code: "longyin",
+        name: "龙吟",
+        kind: SkillType::Normal,
+        implemented: true,
+    }];
+    const JIANYONG: &[SkillDef] = &[
+        SkillDef {
+            code: "qiaoshuo",
+            name: "巧说",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "zongshi2",
+            name: "纵适",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
     match general {
         "sgs_hero_1" => LIUBEI,
         "sgs_hero_15" => CAOCAO,
@@ -1637,6 +1726,14 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
         "sgs_hero_168" => BULIANSHI,
         "sgs_hero_169" => CHENGPU,
         "sgs_hero_170" => HANDANG,
+        "sgs_hero_171" => JIANGHUAXIONG,
+        "sgs_hero_172" => LIUBIAO,
+        "sgs_hero_173" => ZHONGHUI,
+        "sgs_hero_174" => CAOCHONG,
+        "sgs_hero_175" => GUOHUAI,
+        "sgs_hero_176" => MANCHONG,
+        "sgs_hero_177" => GUANPING,
+        "sgs_hero_178" => JIANYONG,
         "sgs_hero_299" => JIE_LIUBEI,
         "sgs_hero_300" => JIE_GUANYU,
         "sgs_hero_301" => JIE_ZHANGFEI,
@@ -2007,6 +2104,113 @@ pub fn kingdom_count(st: &SgsState) -> u32 {
     (seen.len() as u32).max(1)
 }
 
+/// 「权」（钟会·权计）张数：武将牌上的牌。
+pub fn quan_count(st: &SgsState, seat: usize) -> usize {
+    mark_cards(st, seat, "quan").len()
+}
+
+/// 自守（刘表）：本回合你防止对其他角色造成的伤害。
+pub fn zishou_blocks_damage(st: &SgsState, source: usize, victim: usize) -> bool {
+    source != victim && has(st, source, "zishou") && st.counter("zishou") > 0
+}
+
+/// 精策（郭淮）：记录本回合使用的花色/牌类型（位图：花色 1/2/4/8，类型基本/锦囊/装备 1/2/4）。
+pub fn note_card_used(st: &mut SgsState, seat: usize, card_id: &str) {
+    if !has(st, seat, "jingce") {
+        return;
+    }
+    let Some(inst) = st.cards.get(card_id) else {
+        return;
+    };
+    let suit_bit = match inst.suit {
+        Suit::Spade => 1u32,
+        Suit::Heart => 2,
+        Suit::Club => 4,
+        Suit::Diamond => 8,
+    };
+    let type_bit = match data::card_def(&inst.def).map(|d| d.category) {
+        Some(Category::Basic) => 1u32,
+        Some(Category::Trick | Category::DelayedTrick) => 2,
+        Some(Category::Weapon | Category::Armor | Category::Horse | Category::Treasure) => 4,
+        None => 0,
+    };
+    let suits = st.counter("jingce_suits") | suit_bit;
+    st.set_counter("jingce_suits", suits);
+    let types = st.counter("jingce_types") | type_bit;
+    st.set_counter("jingce_types", types);
+}
+
+/// 精策：本回合使用过的牌的类型数（基本/锦囊/装备）。
+pub fn jingce_type_count(st: &SgsState) -> u32 {
+    st.counter("jingce_types").count_ones()
+}
+
+/// 龙吟（关平）：一名角色于其出牌阶段内使用【杀】时询问（弃一牌使该【杀】不计次数；红【杀】摸 1）。
+pub fn longyin_trigger(st: &mut SgsState, user: usize, card: &str) {
+    let Some(owner) = st
+        .alive_indices()
+        .into_iter()
+        .find(|i| has(st, *i, "longyin") && !st.seats[*i].hand.is_empty())
+    else {
+        return;
+    };
+    crate::resolve::push(
+        st,
+        crate::resolve::Frame::LongYin(crate::resolve_yijiang3::LongYinFrame {
+            owner,
+            user,
+            card: card.to_string(),
+        }),
+    );
+}
+
+/// 纵适（简雍）：拼点结算后获得拼点牌（赢 → 点数较小者；没赢 → 自己的拼点牌；自动）。
+pub fn zongshi_on_pindian(
+    st: &mut SgsState,
+    initiator: usize,
+    target: usize,
+    winner: Option<usize>,
+    initiator_card: &str,
+    target_card: &str,
+) {
+    for seat in [initiator, target] {
+        if !has(st, seat, "zongshi2") {
+            continue;
+        }
+        let own = if seat == initiator {
+            initiator_card
+        } else {
+            target_card
+        };
+        let other = if seat == initiator {
+            target_card
+        } else {
+            initiator_card
+        };
+        let wanted = if winner == Some(seat) {
+            let ro = st.cards.get(other).map(|c| c.rank).unwrap_or(0);
+            let rs = st.cards.get(own).map(|c| c.rank).unwrap_or(0);
+            if ro < rs {
+                other
+            } else {
+                own
+            }
+        } else {
+            own
+        };
+        let Some(pos) = st.deck.discard.iter().position(|c| c == wanted) else {
+            continue;
+        };
+        st.deck.discard.remove(pos);
+        st.seats[seat].hand.push(wanted.to_string());
+        let label = crate::turn::card_label(st, wanted);
+        st.push_log(
+            Some(&st.seats[seat].player_id.clone()),
+            format!("纵适：获得拼点牌【{label}】"),
+        );
+    }
+}
+
 /// 本回合禁止 `user` 对 `target` 使用牌（拒战）。
 pub fn deny_target(st: &SgsState, user: usize, target: usize) -> bool {
     st.counter(&format!("deny:{user}:{target}")) > 0
@@ -2090,6 +2294,13 @@ pub static EXTRA_SKILLS: &[SkillDef] = &[
     SkillDef {
         code: "gongxin",
         name: "攻心",
+        kind: SkillType::Normal,
+        implemented: true,
+    },
+    // 钟会·自立（觉醒获得）：移去一张「权」，令一名角色摸 2；若其手牌数大于你，你对其造成 1 点伤害。
+    SkillDef {
+        code: "paiyi",
+        name: "排异",
         kind: SkillType::Normal,
         implemented: true,
     },
@@ -2644,6 +2855,18 @@ pub fn hand_limit(st: &SgsState, seat: usize) -> usize {
             .filter(|i| *i != seat && kingdom(st, *i) == "qun")
             .count();
         limit += allies * 2;
+    }
+    // 宗室（刘表，锁定）：全场每有一个势力，手牌上限 +1。
+    if has(st, seat, "zongshi") {
+        limit += kingdom_count(st) as usize;
+    }
+    // 权计（钟会）：每有一张「权」手牌上限 +1。
+    if has(st, seat, "quanji") {
+        limit += quan_count(st, seat);
+    }
+    // 精策（郭淮）：本回合每使用一种花色的手牌，手牌上限 +1。
+    if has(st, seat, "jingce") {
+        limit += st.counter("jingce_suits").count_ones() as usize;
     }
     limit
 }

@@ -149,6 +149,8 @@ fn finish_pindian(
         turn::take_card(st, seat, &card)?;
         turn::to_discard_card(st, &card);
     }
+    // 纵适（简雍）：拼点结算后获得拼点牌。
+    skills::zongshi_on_pindian(st, f.initiator, f.target, winner, &a, &b);
     st.outcome = Some(Outcome::Pindian {
         winner,
         initiator: f.initiator,
