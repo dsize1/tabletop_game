@@ -36,7 +36,12 @@ fn general_packs_default_and_parse() {
             n += 1;
         }
     }
-    assert_eq!(n, 73, "标准 25 + 风 8 + 火 8 + 林 8 + 山 8 + SP-1 8 + SP-2 8");
+    // 计数从 data.rs 常量推导（扩包时不手改断言）。
+    assert_eq!(
+        n,
+        crate::data::STANDARD_GENERAL_COUNT + crate::data::WIND_FIRE_FOREST_MOUNTAIN_GENERAL_COUNT,
+        "标准 + 风林火山之选将池 = 两包已实现武将合计"
+    );
 }
 
 #[test]
@@ -241,12 +246,16 @@ fn pack_pool_only_ready_generals_enter_pool() {
     .into_iter()
     .filter(|c| skills::general_ready(c))
     .collect();
-    // 一将成名 72 位（Y1–Y7）全部实现。
+    // 一将成名 72 位（Y1–Y7）全部实现（计数从 data.rs 常量推导）。
     let yijiang: Vec<&str> = pool
         .into_iter()
         .filter(|c| crate::data::general(c).is_some_and(|g| g.pack == "yijiang"))
         .collect();
-    assert_eq!(yijiang.len(), 72, "一将成名 72 位全部实现");
+    assert_eq!(
+        yijiang.len(),
+        crate::data::YIJIANG_GENERAL_COUNT,
+        "一将成名全部实现"
+    );
     for code in [
         "sgs_hero_151",
         "sgs_hero_152",
@@ -337,11 +346,20 @@ fn pack_pool_prefers_jiexian_variant() {
         .filter(|c| skills::general_ready(c))
         .collect(),
     );
-    // 界标 25 将全部实现：标准 25 位全部被界版本替换；
-    // 界李典（317）与界公孙瓒（320）在标准包无同名原版（25 + 2 = 27）；
-    // P4.4.2 批次 J1–J7 各 8 位 + J8 4 位界化武将在 standard+jiexian 池中均无同名原版
-    // （标准 25 位已被界标替换）→ 27 + 8×7 + 4 = 87。
-    assert_eq!(pool.len(), 87);
+    // 计数从 data.rs 推导：界将全在池 + 无同名界版的标准将（当前为 0）。
+    let jie_names: Vec<&str> = crate::data::JIEXIAN_GENERALS
+        .iter()
+        .filter_map(|g| g.name.strip_prefix('界'))
+        .collect();
+    let uncovered_standard = crate::data::STANDARD_GENERALS
+        .iter()
+        .filter(|g| !jie_names.contains(&g.name))
+        .count();
+    assert_eq!(
+        pool.len(),
+        crate::data::JIEXIAN_GENERAL_COUNT + uncovered_standard,
+        "standard+jiexian 池 = 界将 + 无界版的标准将"
+    );
     for code in [
         "sgs_hero_299",
         "sgs_hero_300",

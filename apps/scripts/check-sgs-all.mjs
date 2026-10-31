@@ -28,6 +28,10 @@ const steps = [
   { name: "skill-docs（skills.md ↔ 注册表）", cmd: `${node} apps/scripts/check-sgs-skill-docs.mjs` },
   { name: "engine-data（data.rs 最新）", cmd: `${node} apps/scripts/gen-sanguosha-engine-data.mjs --check` },
   { name: "batch-status（批次/p67 一致性）", cmd: `${node} apps/scripts/sgs-batch-status.mjs --check` },
+  {
+    name: "pack-presets（武将包预设 ↔ data.rs ↔ data-model.md）",
+    cmd: `${node} apps/scripts/check-sgs-pack-presets.mjs`,
+  },
   { name: "pack-pool（选将池包过滤）", ...cargoTest("pack_pool") },
   { name: "view-contract（视图契约）", ...cargoTest("view_contract") },
   { name: "interaction（交互原语契约）", ...cargoTest("interaction_") },

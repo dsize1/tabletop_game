@@ -158,13 +158,13 @@ fn demo_triggers_and_applies() {
 
 | 命令 | 内容 | 何时用 |
 |---|---|---|
-| `npm run sgs:check:fast` | Rust 单测 + skill-cases/skill-docs/engine-data/batch-status/pack-pool/view-contract/interaction | 改代码时快速自检 |
+| `npm run sgs:check:fast` | Rust 单测 + skill-cases/skill-docs/engine-data/batch-status/pack-presets/pack-pool/view-contract/interaction | 改代码时快速自检 |
 | `npm run sgs:check` | 上面 + `test:web` + `test:sgs-web` | **每批收尾必跑** |
 | `npm run sgs:check:full` | 上面 + MCP 冒烟 `verify:sanguosha` | 批次合并/里程碑收尾 |
 | `npm run sgs:batch-status` | 各包进度、批次表完成度、p67 计数一致性、下一批名单 | 开工前/提交前 |
 | `npm run sgs:batch-scaffold` | 下一批开工脚手架（`--pack jiexian` 取界限突破） | 批次开工第一步 |
 
-单项命令仍可单独跑：`check:sgs-skill-cases`、`check:sgs-skill-docs`、`check:sgs-engine-data`、`check:sgs-pack-pool`、`check:sgs-view-contract`、`check:interaction-primitives`、`test:sgs-web`、`verify:sanguosha`。
+单项命令仍可单独跑：`check:sgs-skill-cases`、`check:sgs-skill-docs`、`check:sgs-engine-data`、`check:sgs-pack-presets`（预设 ↔ data.rs ↔ data-model）、`check:sgs-pack-pool`、`check:sgs-view-contract`、`check:interaction-primitives`、`test:sgs-web`、`verify:sanguosha`。
 
 ## 5. 常见坑
 
@@ -203,7 +203,7 @@ fn demo_triggers_and_applies() {
 5. **用例**：`check:sgs-skill-cases` 对**共享 code** 做去歧义——测试体内出现另一位 code 拥有者的 `sgs_hero_<gid>` 时，code 不再计入。因此每将用例请显式出现自己的 `sgs_hero_<gid>`。
 6. **测试助手**（`tests/support.rs`，J1 起）：`find_free_card` / `give_filtered` / `put_on_top` / `put_in_judge_zone` / `pass_until_skill`（无懈窗口连点 pass）/ `stage_play` / `damage_and_advance`。
 7. **文档**：`skills.md` 新 `§2.8.x` 表（含本批边界）+ `rules-rulings.md` 新一节 + `development-plan.md` 批次记录与表 ✅ + `milestones.md` 新 M 条目。
-8. **门禁**：`npm run sgs:check`（10）/ `sgs:check:full`（11）；`sgs:batch-status` 显示本批 ✅ 且下一批正确；单条 commit。
+8. **门禁**：`npm run sgs:check`（11）/ `sgs:check:full`（12）；`sgs:batch-status` 显示本批 ✅ 且下一批正确；单条 commit。
 
 ### 7.1 J1 踩过的坑（供后续批次复用）
 
@@ -214,3 +214,22 @@ fn demo_triggers_and_applies() {
 - **`SgsState::hand_limit` ≠ `skills::hand_limit`**：技能加成（血裔/权计等）只在后者，断言手牌上限务必用 `skills::hand_limit`。
 - **虚拟【杀】/【决斗】**：`ShaFrame{ card: "" }` + `push_sha_target_response`（诛害）；他人视为对你用【决斗】用 `RespondFrame(RespondKind::Duel)`（势斩）。
 - **额外回合会在 `advance` 内被消费**：放权结算后断言 `st.turn == target`，不要断言 `extra_turn`。
+
+## 8. P4.4.3 验收 checklist（包扩展收尾）
+
+> 适用：一个新武将包（或一批）全部实现后、对外宣称「包可用」之前。
+
+1. **包开关预设**：新增包后 `lib.rs::general_pack_presets()` 会自动枚举全量组合（`standard` + 其余包全部子集）；
+   确认大厅描述人数 = 去重后选将池，且 `npm run check:sgs-pack-presets` 通过。
+2. **同名去重**：`prefer_jiexian` 口径（ADR-0024 口径 A）在新包上仍生效——新包与已有包同名时，界优先。
+3. **回归用例**（`tests/p67.rs`）：预设↔标签↔人数、大厅预设列表、目标包候选池、旧对局快照固定（旧局不回溯追加包）。
+4. **文档同步**（缺一不可）：
+   - `data-model.md` §3.7：静态数据表（generals/keys）、默认生成武将数、预设表（mode/标签/人数）、去重口径；
+   - `legal-actions.md` §3：`lobby:set_general_packs:<mode>` 行；
+   - `skills.md` §2.x/§4：本包已实现数/测试数；
+   - `data/README.md`：生成命令口径（全量武将数）；
+   - `development-plan.md` 验收记录 + `milestones.md` 新 M 条目。
+5. **门禁**：`cargo test -p sanguosha` 全绿；`npm run sgs:check` / `sgs:check:full`（含 MCP 冒烟 + `standard+<新包>` 开关断言）；
+   `npm run sgs:batch-status --check` 一致；单条 commit。
+
+> **已执行**：P4.4.3（2026-10-31）界限突破验收，见 `development-plan.md` P4.4.3 记录 / `milestones.md` M56。

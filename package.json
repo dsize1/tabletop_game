@@ -26,6 +26,7 @@
     "check:sgs-engine-data": "node apps/scripts/gen-sanguosha-engine-data.mjs --check",
     "check:sgs-skill-cases": "node apps/scripts/check-sgs-skill-cases.mjs",
     "check:sgs-skill-docs": "node apps/scripts/check-sgs-skill-docs.mjs",
+    "check:sgs-pack-presets": "node apps/scripts/check-sgs-pack-presets.mjs",
     "check:sgs-pack-pool": "cargo test --manifest-path crates/Cargo.toml -p sanguosha pack_pool",
     "check:sgs-view-contract": "cargo test --manifest-path crates/Cargo.toml -p sanguosha view_contract",
     "check:interaction-primitives": "cargo test --manifest-path crates/Cargo.toml -p sanguosha interaction_",
