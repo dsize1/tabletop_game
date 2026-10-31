@@ -213,6 +213,11 @@ pub(crate) fn draw_one(st: &mut SgsState, events: &mut Vec<EngineEvent>) -> Opti
 }
 
 /// 从牌堆底摸一张（寸目）。
+pub(crate) fn draw_one_bottom_public(st: &mut SgsState) -> Option<String> {
+    let mut ev = Vec::new();
+    draw_one_bottom(st, &mut ev)
+}
+
 fn draw_one_bottom(st: &mut SgsState, events: &mut Vec<EngineEvent>) -> Option<String> {
     refill_deck(st, events);
     if st.deck.draw.is_empty() {
@@ -380,6 +385,17 @@ pub(crate) fn phase_step(
             crate::resolve_sp2::poshi_awaken(st, st.turn);
             // 自立（钟会，觉醒技）：准备阶段「权」≥3。
             crate::resolve_yijiang3::zili_awaken(st, st.turn);
+            // 绝响（嵇康）：受保护角色在自己回合开始时解除梅花保护。
+            st.seats[st.turn].flags.remove("juexiang");
+            // 福绵（吴苋）：准备阶段二选一。
+            if crate::skills::has(st, st.turn, "fumian") && st.counter("fumian_offered") == 0 {
+                st.set_counter("fumian_offered", 1);
+                resolve::push(
+                    st,
+                    resolve::Frame::FuMian(crate::resolve_yijiang9::FuMianFrame { actor: st.turn }),
+                );
+                return Ok(true);
+            }
             // 匡弼（孙登）：准备阶段获得武将牌上的「匡弼」牌，原角色摸等量张。
             let kuangbi = crate::skills::mark_cards(st, st.turn, "kuangbi");
             if !kuangbi.is_empty() {
@@ -617,6 +633,15 @@ pub(crate) fn phase_step(
                 );
                 return Ok(true);
             }
+            // 才识（辛宪英）：摸牌阶段开始二选一。
+            if crate::skills::has(st, idx, "caishi") && st.counter("caishi_offered") == 0 {
+                st.set_counter("caishi_offered", 1);
+                resolve::push(
+                    st,
+                    resolve::Frame::CaiShi(crate::resolve_yijiang9::CaiShiFrame { actor: idx }),
+                );
+                return Ok(true);
+            }
             // 奋励（朱桓）：手牌数为全场最多时可跳过摸牌阶段。
             if crate::skills::has(st, idx, "fenli")
                 && st.counter("fenli_draw_asked") == 0
@@ -740,6 +765,8 @@ pub(crate) fn phase_step(
             }
             // 自守（刘表）：本回合摸牌阶段多摸 X 张（X = 全场势力数）。
             draw_n += st.counter("zishou_draw");
+            // 福绵（吴苋）：摸牌阶段多摸 X 张。
+            draw_n += st.counter("fumian_draw");
             // 督粮（李严）：被指定角色下回合摸牌阶段多摸 1 张。
             if st.seats[idx].flags.remove("duliang").is_some() {
                 draw_n += 1;
@@ -774,6 +801,22 @@ pub(crate) fn phase_step(
                 .saturating_sub(st.config.max_hand_cards as usize);
             if over > 0 {
                 resolve::push_discard(st, idx, over, "hand_cap");
+            }
+            // 通博（蔡邕）：摸牌阶段结束后可替换「书」。
+            if crate::skills::has(st, idx, "tongbo")
+                && st.counter("tongbo_offered") == 0
+                && !crate::skills::mark_cards(st, idx, "shu").is_empty()
+            {
+                st.set_counter("tongbo_offered", 1);
+                resolve::push(
+                    st,
+                    resolve::Frame::TongBo(crate::resolve_yijiang9::TongBoFrame {
+                        owner: idx,
+                        stage: crate::resolve_yijiang9::TongBoStage::Swap,
+                        card: None,
+                    }),
+                );
+                return Ok(true);
             }
             // 好施：手牌 >5 时须将一半交给手牌最少的一名其他角色。
             if st.counter("haoshi") > 0 && st.seats[idx].hand.len() > 5 {
@@ -1303,6 +1346,64 @@ pub(crate) fn phase_step(
                     return Ok(true);
                 }
             }
+            // 怠宴（吴苋）：结束阶段令一名其他角色获得红桃基本牌。
+            if crate::skills::has(st, st.turn, "daiyan") && st.counter("daiyan_offered") == 0 {
+                st.set_counter("daiyan_offered", 1);
+                resolve::push(
+                    st,
+                    resolve::Frame::DaiYan(crate::resolve_yijiang9::DaiYanFrame { actor: st.turn }),
+                );
+                return Ok(true);
+            }
+            // 惠民（曹节）：结束阶段摸 X 张并依次分配。
+            if crate::skills::has(st, st.turn, "huimin") && st.counter("huimin_offered") == 0 {
+                let x = crate::resolve_yijiang9::huimin_x(st, st.turn);
+                if x > 0 {
+                    st.set_counter("huimin_offered", 1);
+                    let mut cards = Vec::new();
+                    for _ in 0..x {
+                        if let Some(card) = draw_one(st, events) {
+                            st.seats[st.turn].hand.push(card.clone());
+                            cards.push(card);
+                        }
+                    }
+                    st.push_log(
+                        Some(&st.seats[st.turn].player_id.clone()),
+                        format!("惠民：摸 {} 张并分配", cards.len()),
+                    );
+                    resolve::push(
+                        st,
+                        resolve::Frame::HuiMin(crate::resolve_yijiang9::HuiMinFrame {
+                            owner: st.turn,
+                            cards,
+                        }),
+                    );
+                    return Ok(true);
+                }
+            }
+            // 诫训（薛综）：结束阶段令一名其他角色摸牌后弃牌。
+            if crate::skills::has(st, st.turn, "jiexun") && st.counter("jiexun_offered") == 0 {
+                st.set_counter("jiexun_offered", 1);
+                resolve::push(
+                    st,
+                    resolve::Frame::JieXun(crate::resolve_yijiang9::JieXunFrame { owner: st.turn }),
+                );
+                return Ok(true);
+            }
+            // 伏诛（徐氏）：男性角色结束阶段，牌堆 ≤ 体力值×10 时。
+            if st.counter("fuzhu_offered") == 0 {
+                if let Some(owner) = crate::resolve_yijiang9::fuzhu_owner(st, st.turn) {
+                    st.set_counter("fuzhu_offered", 1);
+                    resolve::push(
+                        st,
+                        resolve::Frame::FuZhu(crate::resolve_yijiang9::FuZhuFrame {
+                            owner,
+                            current: st.turn,
+                        }),
+                    );
+                    return Ok(true);
+                }
+            }
             // 秘计（王异）：结束阶段摸 X（已损失体力），然后可交给其他角色 X 张手牌。
             if crate::skills::has(st, st.turn, "miji") && st.counter("miji_offered") == 0 {
                 let lost = (st.seats[st.turn].max_hp - st.seats[st.turn].hp).max(0) as u32;
@@ -1428,6 +1529,8 @@ fn end_turn(st: &mut SgsState, events: &mut Vec<EngineEvent>) {
         }
     }
     crate::resolve_yijiang8::clear_jiazhao(st, cur);
+    crate::resolve_yijiang9::clear_funan(st, cur);
+    st.seats[cur].flags.remove("caishi_no_self");
     st.seats[cur].flags.remove("mingjian");
     st.seats[cur].flags.remove("jigong");
     if st.seats[cur].flags.remove("fuhen_granted").is_some() {
@@ -2116,6 +2219,30 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
             id: "skill:huaiyi".into(),
             description: "怀异：展示所有手牌，弃一种颜色并获得牌".into(),
         });
+    }
+    // 忠鉴（辛宪英）：出牌阶段限一次（点数相同可再发动一次）。
+    if crate::skills::has(st, idx, "zhongjian")
+        && (st.counter("zhongjian_used") == 0
+            || (st.counter("zhongjian_used") == 1 && st.counter("zhongjian_extra") > 0))
+        && !st.seats[idx].hand.is_empty()
+        && st
+            .alive_indices()
+            .into_iter()
+            .any(|i| i != idx && !st.seats[i].hand.is_empty())
+    {
+        out.push(Action {
+            id: "skill:zhongjian".into(),
+            description: "忠鉴：展示一张手牌，查看一名其他角色体力值张手牌".into(),
+        });
+    }
+    // 问卦（徐氏）：每名角色出牌阶段限一次，交一张牌给徐氏换摸牌。
+    if st.counter(&format!("wengua:{idx}")) == 0 && !st.seats[idx].hand.is_empty() {
+        if let Some(owner) = crate::resolve_yijiang9::wengua_owner(st, idx) {
+            out.push(Action {
+                id: format!("skill:wengua:{owner}"),
+                description: "问卦：交给徐氏一张牌，然后双方从另一端各摸一张".into(),
+            });
+        }
     }
     // 慎行（顾雍）：弃两张牌摸一张（可重复）。
     if crate::skills::has(st, idx, "shenxing") && st.seats[idx].hand.len() >= 2 {
@@ -4367,6 +4494,40 @@ pub fn execute(
         );
         st.push_log(Some(player_id), "发动怀异");
         "怀异：请选择弃置的颜色".to_string()
+    } else if action == "skill:zhongjian" {
+        if !crate::skills::has(st, idx, "zhongjian") {
+            return Err(illegal("没有该技能"));
+        }
+        resolve::push(
+            st,
+            resolve::Frame::ZhongJian(crate::resolve_yijiang9::ZhongJianFrame {
+                actor: idx,
+                stage: crate::resolve_yijiang9::ZhongJianStage::Card,
+                card: None,
+                target: None,
+            }),
+        );
+        st.push_log(Some(player_id), "发动忠鉴");
+        "忠鉴：请选择展示的手牌".to_string()
+    } else if let Some(owner_str) = action.strip_prefix("skill:wengua:") {
+        if st.counter(&format!("wengua:{idx}")) > 0 {
+            return Err(illegal("本阶段已发动过问卦"));
+        }
+        let owner: usize = owner_str.parse().map_err(|_| illegal("问卦目标无效"))?;
+        if !crate::skills::has(st, owner, "wengua") {
+            return Err(illegal("该角色没有问卦"));
+        }
+        resolve::push(
+            st,
+            resolve::Frame::WenGua(crate::resolve_yijiang9::WenGuaFrame {
+                actor: idx,
+                owner,
+                stage: crate::resolve_yijiang9::WenGuaStage::Card,
+                card: None,
+            }),
+        );
+        st.push_log(Some(player_id), "发动问卦");
+        "问卦：请选择交给徐氏的牌".to_string()
     } else if action == "skill:shenxing" {
         if !crate::skills::has(st, idx, "shenxing") {
             return Err(illegal("没有该技能"));
@@ -4550,6 +4711,12 @@ pub fn execute(
         if crate::skills::has(st, idx, "benxi") {
             st.bump_counter("benxi");
         }
+        // 辟撰（蔡邕）：使用黑桃牌后可将牌堆顶一张置于武将牌上。
+        if st.cards.get(card_id).is_some_and(|c| c.suit == Suit::Spade)
+            && crate::skills::has(st, idx, "bizhuan")
+        {
+            crate::resolve_yijiang9::bizhuan_add(st, idx, "使用黑桃牌");
+        }
         // 渐营（沮授）：与上一张牌同花色/点数则摸 1。
         crate::resolve_yijiang6::jianying_on_use(st, idx, card_id);
         // 活墨（钟繇）：记录本回合已使用过的基本牌牌名。
@@ -4650,6 +4817,16 @@ fn play_card(
     {
         return Err(illegal("将驰：本回合不能使用【杀】"));
     }
+    // 复难（薛综）：本回合不能使用被其夺走的牌。
+    if crate::resolve_yijiang9::funan_banned(st, idx, card_id) {
+        return Err(illegal("复难：本回合不能使用此牌"));
+    }
+    // 才识（辛宪英）：本回合不能对自己使用牌。
+    if st.seats[idx].flags.contains_key("caishi_no_self")
+        && (def.code == "tao" || def.code == "wuzhong_shengyou" || def.equip_slot.is_some())
+    {
+        return Err(illegal("才识：本回合不能对自己使用牌"));
+    }
     // 讥谀（孙资刘放）：本回合不能使用被封锁花色的牌。
     if crate::resolve_yijiang8::jiyu_banned(st, idx, card_id) {
         return Err(illegal("讥谀：本回合不能使用该花色的牌"));
@@ -4677,6 +4854,22 @@ fn play_card(
             let tianyi = st.counter("tianyi") > 0;
             let fangtian = crate::skills::has_equipment_skill(st, idx, "fangtian_huaji")
                 && st.seats[idx].hand.len() == 1;
+            // 福绵（吴苋）：红色【杀】可多指定目标（无距离）。
+            let fumian_multi = if crate::skills::has(st, idx, "fumian")
+                && st.counter("fumian_multi") > 0
+                && st
+                    .cards
+                    .get(card_id)
+                    .is_some_and(|c| crate::skills::is_red(c.suit))
+            {
+                st.set_counter("fumian_multi", 0);
+                true
+            } else {
+                false
+            };
+            if fumian_multi {
+                st.set_counter("fumian_sha", 1);
+            }
             // 奔袭（吴懿）：单目标【杀】且距离均为 1 时选择至多两项强化（先询问）。
             if crate::skills::has(st, idx, "benxi")
                 && crate::resolve_yijiang5::benxi_all_distance_one(st, idx)
@@ -4714,7 +4907,8 @@ fn play_card(
             let qiaoshuo = st.counter("qiaoshuo_win") > 0;
             let multi = tianyi
                 || (crate::skills::has(st, idx, "lihuo") && def.code == "huo_sha")
-                || qiaoshuo;
+                || qiaoshuo
+                || fumian_multi;
             let no_distance = tianyi || free;
             take_card(st, idx, card_id)?;
             if qiaoshuo {

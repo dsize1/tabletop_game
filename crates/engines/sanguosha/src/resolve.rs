@@ -245,6 +245,22 @@ pub enum Frame {
     QinQing(crate::resolve_yijiang8::QinQingFrame),
     HuiSheng(crate::resolve_yijiang8::HuiShengFrame),
     TaoLuan(crate::resolve_yijiang8::TaoLuanFrame),
+    /// P4.4.2 一将成名（批次 Y7）。
+    ZhongJian(crate::resolve_yijiang9::ZhongJianFrame),
+    CaiShi(crate::resolve_yijiang9::CaiShiFrame),
+    FuMian(crate::resolve_yijiang9::FuMianFrame),
+    DaiYan(crate::resolve_yijiang9::DaiYanFrame),
+    WenGua(crate::resolve_yijiang9::WenGuaFrame),
+    FuZhu(crate::resolve_yijiang9::FuZhuFrame),
+    ShouXi(crate::resolve_yijiang9::ShouXiFrame),
+    HuiMin(crate::resolve_yijiang9::HuiMinFrame),
+    QingXian(crate::resolve_yijiang9::QingXianFrame),
+    JueXiang(crate::resolve_yijiang9::JueXiangFrame),
+    JianZheng(crate::resolve_yijiang9::JianZhengFrame),
+    ZhuanDui(crate::resolve_yijiang9::ZhuanDuiFrame),
+    FuNan(crate::resolve_yijiang9::FuNanFrame),
+    JieXun(crate::resolve_yijiang9::JieXunFrame),
+    TongBo(crate::resolve_yijiang9::TongBoFrame),
     /// 五谷丰登（P2.5 特殊区 `wugu`）。
     Wugu(crate::resolve_zone::WuguFrame),
     /// 观星排序提交（P2.5 特殊区 `guanxing`，`arrange:<csv>`）。
@@ -969,6 +985,21 @@ fn step(
         Frame::QinQing(f) => crate::resolve_yijiang8::step_qinqing(st, f),
         Frame::HuiSheng(f) => crate::resolve_yijiang8::step_huisheng(st, f),
         Frame::TaoLuan(f) => crate::resolve_yijiang8::step_taoluan(st, f),
+        Frame::ZhongJian(f) => crate::resolve_yijiang9::step_zhongjian(st, f),
+        Frame::CaiShi(f) => crate::resolve_yijiang9::step_caishi(st, f),
+        Frame::FuMian(f) => crate::resolve_yijiang9::step_fumian(st, f),
+        Frame::DaiYan(f) => crate::resolve_yijiang9::step_daiyan(st, f),
+        Frame::WenGua(f) => crate::resolve_yijiang9::step_wengua(st, f),
+        Frame::FuZhu(f) => crate::resolve_yijiang9::step_fuzhu(st, f),
+        Frame::ShouXi(f) => crate::resolve_yijiang9::step_shouxi(st, f),
+        Frame::HuiMin(f) => crate::resolve_yijiang9::step_huimin(st, f),
+        Frame::QingXian(f) => crate::resolve_yijiang9::step_qingxian(st, f),
+        Frame::JueXiang(f) => crate::resolve_yijiang9::step_juexiang(st, f),
+        Frame::JianZheng(f) => crate::resolve_yijiang9::step_jianzheng(st, f),
+        Frame::ZhuanDui(f) => crate::resolve_yijiang9::step_zhuandui(st, f),
+        Frame::FuNan(f) => crate::resolve_yijiang9::step_funan(st, f),
+        Frame::JieXun(f) => crate::resolve_yijiang9::step_jiexun(st, f),
+        Frame::TongBo(f) => crate::resolve_yijiang9::step_tongbo(st, f),
         Frame::Wugu(f) => crate::resolve_zone::step_wugu(st, f, events),
         Frame::Arrange(f) => crate::resolve_zone::step_arrange(st, f, events),
     }
@@ -1213,6 +1244,20 @@ fn step_sha(st: &mut SgsState, mut f: ShaFrame) -> Result<bool, EngineError> {
                     );
                 }
                 pop(st);
+                // 复难（薛综）：其他角色响应你使用的牌时。
+                if let Some(played) = &played {
+                    if crate::skills::has(st, f.user, "funan") {
+                        push(
+                            st,
+                            Frame::FuNan(crate::resolve_yijiang9::FuNanFrame {
+                                owner: f.user,
+                                responder: f.target.unwrap_or(f.user),
+                                used: f.card.clone(),
+                                respond: played.clone(),
+                            }),
+                        );
+                    }
+                }
                 crate::resolve_yijiang5::yonglue_on_sha_finished(st, f.target);
                 crate::resolve_yijiang5::zhongyong_on_sha_finished(
                     st,
@@ -3382,6 +3427,21 @@ pub fn execute_pending(
             Some("qinqing") => crate::resolve_yijiang8::act_qinqing(st, action)?,
             Some("huisheng") => crate::resolve_yijiang8::act_huisheng(st, action)?,
             Some("taoluan") => crate::resolve_yijiang8::act_taoluan(st, action)?,
+            Some("zhongjian") => crate::resolve_yijiang9::act_zhongjian(st, action)?,
+            Some("caishi") => crate::resolve_yijiang9::act_caishi(st, action)?,
+            Some("fumian") => crate::resolve_yijiang9::act_fumian(st, action)?,
+            Some("daiyan") => crate::resolve_yijiang9::act_daiyan(st, action)?,
+            Some("wengua") => crate::resolve_yijiang9::act_wengua(st, action)?,
+            Some("fuzhu") => crate::resolve_yijiang9::act_fuzhu(st, action)?,
+            Some("shouxi") => crate::resolve_yijiang9::act_shouxi(st, action)?,
+            Some("huimin") => crate::resolve_yijiang9::act_huimin(st, action)?,
+            Some("qingxian") => crate::resolve_yijiang9::act_qingxian(st, action)?,
+            Some("juexiang") => crate::resolve_yijiang9::act_juexiang(st, action)?,
+            Some("jianzheng") => crate::resolve_yijiang9::act_jianzheng(st, action)?,
+            Some("zhuandui") => crate::resolve_yijiang9::act_zhuandui(st, action)?,
+            Some("funan") => crate::resolve_yijiang9::act_funan(st, action)?,
+            Some("jiexun") => crate::resolve_yijiang9::act_jiexun(st, action)?,
+            Some("tongbo") => crate::resolve_yijiang9::act_tongbo(st, action)?,
             _ => crate::resolve_skill::act_jianxiong(st, action)?,
         },
         "choose_many" => match top(st) {
@@ -3644,6 +3704,107 @@ fn act_target(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Stri
                 "鞬出：请选择 {} 的一张牌",
                 st.seats[target].general_name
             ));
+        }
+        // 绝响（嵇康）：受保护角色不能成为梅花牌的目标。
+        if crate::resolve_yijiang9::juexiang_blocks(st, target, Some(&f.card)) {
+            st.push_log(
+                None,
+                format!(
+                    "绝响：{} 受保护，不能成为梅花【杀】的目标",
+                    st.seats[target].general_name
+                ),
+            );
+            st.outcome = Some(Outcome::Respond {
+                played: None,
+                played_by: None,
+            });
+            return Ok("绝响：此目标无效".to_string());
+        }
+        // 辟撰（蔡邕）：成为其他角色黑桃牌的目标后，可将牌堆顶一张置于武将牌上。
+        if target != f.user
+            && crate::skills::has(st, target, "bizhuan")
+            && st.cards.get(&f.card).is_some_and(|c| c.suit == Suit::Spade)
+        {
+            crate::resolve_yijiang9::bizhuan_add(st, target, "成为黑桃牌目标");
+        }
+        // 守玺（曹节）：成为【杀】目标后声明牌名，令使用者二选一。
+        if crate::skills::has(st, target, "shouxi") {
+            push(
+                st,
+                Frame::ShouXi(crate::resolve_yijiang9::ShouXiFrame {
+                    owner: target,
+                    user: f.user,
+                    sha: f.card.clone(),
+                    stage: crate::resolve_yijiang9::ShouXiStage::Declare,
+                    name: None,
+                    need,
+                    no_shan,
+                    ignore_armor,
+                    damage_type: f.damage_type,
+                }),
+            );
+            return Ok("守玺：请声明一种牌名".to_string());
+        }
+        // 专对（秦宓）：成为【杀】目标后可拼点，赢则此【杀】对其无效。
+        if crate::skills::has(st, target, "zhuandui")
+            && !st.seats[target].hand.is_empty()
+            && !st.seats[f.user].hand.is_empty()
+        {
+            push(
+                st,
+                Frame::ZhuanDui(crate::resolve_yijiang9::ZhuanDuiFrame {
+                    owner: target,
+                    user: f.user,
+                    target,
+                    card: f.card.clone(),
+                    kind: crate::resolve_yijiang9::ZhuanDuiKind::Target,
+                    stage: crate::resolve_yijiang9::ZhuanDuiStage::Ask,
+                    need,
+                    no_shan,
+                    ignore_armor,
+                    damage_type: f.damage_type,
+                }),
+            );
+            return Ok("专对：请选择是否拼点".to_string());
+        }
+        // 谏征（秦宓）：其他角色【杀】指定目标时，若秦宓在使用者攻击范围内。
+        if let Some(owner) = crate::resolve_yijiang9::jianzheng_available(st, f.user, target) {
+            push(
+                st,
+                Frame::JianZheng(crate::resolve_yijiang9::JianZhengFrame {
+                    owner,
+                    user: f.user,
+                    target,
+                    card: f.card.clone(),
+                    need,
+                    no_shan,
+                    ignore_armor,
+                    damage_type: f.damage_type,
+                }),
+            );
+            return Ok("谏征：请选择是否取消目标".to_string());
+        }
+        // 专对（秦宓，使用者）：使用【杀】指定目标后可拼点，赢则目标不能响应。
+        if crate::skills::has(st, f.user, "zhuandui")
+            && !st.seats[f.user].hand.is_empty()
+            && !st.seats[target].hand.is_empty()
+        {
+            push(
+                st,
+                Frame::ZhuanDui(crate::resolve_yijiang9::ZhuanDuiFrame {
+                    owner: f.user,
+                    user: f.user,
+                    target,
+                    card: f.card.clone(),
+                    kind: crate::resolve_yijiang9::ZhuanDuiKind::User,
+                    stage: crate::resolve_yijiang9::ZhuanDuiStage::Ask,
+                    need,
+                    no_shan,
+                    ignore_armor,
+                    damage_type: f.damage_type,
+                }),
+            );
+            return Ok("专对：请选择是否拼点".to_string());
         }
         // 谮毁（孙鲁班）：使用【杀】指定唯一目标时，可令另一名角色代用或成为额外目标。
         if crate::skills::has(st, f.user, "zanhui")
@@ -5234,6 +5395,24 @@ fn apply_damage_inner(
             );
         }
     }
+    // 清弦（嵇康）：受到伤害后（无角色濒死）令来源二选一。
+    if amount > 0
+        && st.seats[victim].hp > 0
+        && crate::skills::has(st, victim, "qingxian")
+        && st.phase != Phase::Dying
+    {
+        if let Some(src) = source {
+            if src != victim {
+                push(
+                    st,
+                    Frame::QingXian(crate::resolve_yijiang9::QingXianFrame {
+                        owner: victim,
+                        target: src,
+                    }),
+                );
+            }
+        }
+    }
     // 殚心（郭皇后）：受到伤害后，可摸一张或修改矫诏。
     if amount > 0 && st.seats[victim].hp > 0 && crate::skills::has(st, victim, "danxin") {
         push(
@@ -5667,6 +5846,13 @@ fn death(
         push(
             st,
             Frame::Xingshang(crate::resolve_forest::XingshangFrame { victim, owner }),
+        );
+    }
+    // 绝响（嵇康）：死亡时可令一名角色获得技能并受梅花保护。
+    if crate::skills::has(st, victim, "juexiang") && !game_over {
+        push(
+            st,
+            Frame::JueXiang(crate::resolve_yijiang9::JueXiangFrame { dead: victim }),
         );
     }
     // 追忆（步练师）：死亡时可令一名其他角色（杀死你的角色除外）摸 3 并回复 1。

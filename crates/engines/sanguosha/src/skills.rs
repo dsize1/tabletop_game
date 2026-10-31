@@ -2131,6 +2131,125 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
         kind: SkillType::Normal,
         implemented: true,
     }];
+    // ---- P4.4.2 一将成名（批次 Y7：8 将 / 17 技能）----
+    const XINXIANYING: &[SkillDef] = &[
+        SkillDef {
+            code: "zhongjian",
+            name: "忠鉴",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "caishi",
+            name: "才识",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const WUXIAN: &[SkillDef] = &[
+        SkillDef {
+            code: "fumian",
+            name: "福绵",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "daiyan",
+            name: "怠宴",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const XUSHI: &[SkillDef] = &[
+        SkillDef {
+            code: "wengua",
+            name: "问卦",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "fuzhu",
+            name: "伏诛",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const CAOJIE: &[SkillDef] = &[
+        SkillDef {
+            code: "shouxi",
+            name: "守玺",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "huimin",
+            name: "惠民",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIKANG: &[SkillDef] = &[
+        SkillDef {
+            code: "qingxian",
+            name: "清弦",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "juexiang",
+            name: "绝响",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const QINMI: &[SkillDef] = &[
+        SkillDef {
+            code: "jianzheng",
+            name: "谏征",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "zhuandui",
+            name: "专对",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "tianbian",
+            name: "天辩",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const XUEZONG: &[SkillDef] = &[
+        SkillDef {
+            code: "funan",
+            name: "复难",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "jiexun",
+            name: "诫训",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const CAIYONG: &[SkillDef] = &[
+        SkillDef {
+            code: "bizhuan",
+            name: "辟撰",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "tongbo",
+            name: "通博",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
     match general {
         "sgs_hero_1" => LIUBEI,
         "sgs_hero_15" => CAOCAO,
@@ -2269,6 +2388,14 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
         "sgs_hero_385" => SUNZILIUIFANG,
         "sgs_hero_386" => HUANGHAO,
         "sgs_hero_387" => ZHANGRANG,
+        "sgs_hero_388" => XINXIANYING,
+        "sgs_hero_389" => WUXIAN,
+        "sgs_hero_390" => XUSHI,
+        "sgs_hero_391" => CAOJIE,
+        "sgs_hero_392" => JIKANG,
+        "sgs_hero_393" => QINMI,
+        "sgs_hero_394" => XUEZONG,
+        "sgs_hero_395" => CAIYONG,
         "sgs_hero_299" => JIE_LIUBEI,
         "sgs_hero_300" => JIE_GUANYU,
         "sgs_hero_301" => JIE_ZHANGFEI,
@@ -3504,6 +3631,18 @@ pub fn hand_limit(st: &SgsState, seat: usize) -> usize {
     // 权计（钟会）：每有一张「权」手牌上限 +1。
     if has(st, seat, "quanji") {
         limit += quan_count(st, seat);
+    }
+    // 才识（辛宪英）：本回合手牌上限 +1。
+    if has(st, seat, "caishi") {
+        limit += st.counter("caishi_limit") as usize;
+    }
+    // 忠鉴（辛宪英）：皆不包含时本回合手牌上限 -1。
+    if has(st, seat, "zhongjian") {
+        limit = limit.saturating_sub(st.counter("zhongjian_penalty") as usize);
+    }
+    // 辟撰（蔡邕）：每有一张「书」手牌上限 +1。
+    if has(st, seat, "bizhuan") {
+        limit += mark_cards(st, seat, "shu").len();
     }
     // 腹鳞（李严，锁定）：本回合获得的牌不计入手牌上限（当前仅统计督粮获得）。
     if has(st, seat, "fulin") {

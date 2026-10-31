@@ -11,6 +11,15 @@
 - **每批收尾**：`p67` 的「一将成名已实现数」+8；`skills.md` §2.7.x + `rules-rulings.md` 新节；`milestones.md` 新增 M 条目
 - **门禁**：`npm run sgs:check`（每批收尾）、`npm run sgs:check:full`（含 MCP 冒烟）、`npm run sgs:check:fast`（改码自检）
 
+## M46：三国杀 P4.4.2 批次 Y7（一将成名 388–395：8 将 / 17 技能，一将成名 72/72 收尾）✅
+
+- **日期**：2026-10-31
+- **完成**：辛宪英（忠鉴/才识）、吴苋（福绵/怠宴）、徐氏（问卦/伏诛）、曹节（守玺/惠民）、嵇康（清弦/绝响）、秦宓（谏征/专对/天辩）、薛综（复难/诫训）、蔡邕（辟撰/通博）
+- **机制**：`Frame::ZhongJian/CaiShi/FuMian/DaiYan/WenGua/FuZhu/ShouXi/HuiMin/QingXian/JueXiang/JianZheng/ZhuanDui/FuNan/JieXun/TongBo`（`resolve_yijiang9.rs`）；天辩接入通用拼点（牌堆顶 + 红桃=K）、`draw_one_bottom_public`、守玺声明牌名限次、辟撰「书」标记
+- **验证**：`cargo test -p sanguosha` **685** 全绿；`tests/p95.rs` 24 条（每将 ≥3）；`p67` 一将成名已实现数 **72（全部）**
+- **已知边界**：伏诛不开放响应；福绵锦囊多目标未实现；清弦回复半未实现；绝响以清弦代替变体技能；诫训修改复难未实现；通博每次仅换 1 张（§29）
+- **详见**：`skills.md` §2.7.8、`rules-rulings.md` §29、`development-plan.md` P4.4.2 批次 Y7
+
 ## M45：三国杀 P4.4.2 批次 Y6（一将成名 380–387：8 将 / 14 技能）✅
 
 - **日期**：2026-10-31

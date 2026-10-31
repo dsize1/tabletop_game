@@ -56,7 +56,7 @@ pub(crate) fn step_pindian(st: &mut SgsState, f: PindianFrame) -> Result<bool, E
         PindianStage::Initiator => (f.initiator, "initiator"),
         PindianStage::Target => (f.target, "target"),
     };
-    let options: Vec<PendingOption> = st.seats[seat]
+    let mut options: Vec<PendingOption> = st.seats[seat]
         .hand
         .iter()
         .map(|id| PendingOption {
@@ -64,6 +64,13 @@ pub(crate) fn step_pindian(st: &mut SgsState, f: PindianFrame) -> Result<bool, E
             label: format!("拼点：{}", turn::card_label(st, id)),
         })
         .collect();
+    // 天辩（秦宓）：可用牌堆顶的牌拼点。
+    if crate::skills::has(st, seat, "tianbian") && !st.deck.draw.is_empty() {
+        options.push(PendingOption {
+            id: "choose:__deck".into(),
+            label: "天辩：用牌堆顶的牌拼点".into(),
+        });
+    }
     if options.is_empty() {
         // 无牌可拼：发起者没赢（简化处理，正常入口会过滤）。
         finish_pindian(st, f, None, None)?;
@@ -92,18 +99,38 @@ pub(crate) fn act_pindian(st: &mut SgsState, action: &str) -> Result<String, Eng
         PindianStage::Initiator => f.initiator,
         PindianStage::Target => f.target,
     };
-    if !st.seats[seat].hand.iter().any(|c| c == card) {
-        return Err(illegal("手牌中没有该牌"));
-    }
+    let card = if card == "__deck" {
+        if !crate::skills::has(st, seat, "tianbian") {
+            return Err(illegal("没有天辩"));
+        }
+        let mut ev = Vec::new();
+        let Some(top) = turn::draw_one(st, &mut ev) else {
+            return Err(illegal("牌堆为空"));
+        };
+        let label = turn::card_label(st, &top);
+        st.push_log(
+            Some(&st.seats[seat].player_id.clone()),
+            format!("天辩：以牌堆顶【{label}】拼点"),
+        );
+        top
+    } else {
+        if !st.seats[seat].hand.iter().any(|c| c == card) {
+            return Err(illegal("手牌中没有该牌"));
+        }
+        if !st.seats[seat].hand.iter().any(|c| c == card) {
+            return Err(illegal("手牌中没有该牌"));
+        }
+        card.to_string()
+    };
     match f.stage {
         PindianStage::Initiator => {
-            f.initiator_card = Some(card.to_string());
+            f.initiator_card = Some(card);
             f.stage = PindianStage::Target;
             replace_top(st, Frame::Pindian(f));
             Ok("拼点：请目标选择手牌".to_string())
         }
         PindianStage::Target => {
-            f.target_card = Some(card.to_string());
+            f.target_card = Some(card);
             finish_pindian(st, f, None, None)
         }
     }
@@ -121,8 +148,18 @@ fn finish_pindian(
         pop(st);
         return Ok("拼点取消".to_string());
     };
-    let ra = st.cards.get(&a).map(|c| c.rank).unwrap_or(0);
-    let rb = st.cards.get(&b).map(|c| c.rank).unwrap_or(0);
+    let rank_of = |st: &SgsState, seat: usize, card: &str| -> u8 {
+        let inst = st.cards.get(card);
+        let rank = inst.map(|c| c.rank).unwrap_or(0);
+        // 天辩（秦宓）：红桃拼点牌点数视为 K。
+        if crate::skills::has(st, seat, "tianbian") && inst.is_some_and(|c| c.suit == Suit::Heart) {
+            13
+        } else {
+            rank
+        }
+    };
+    let ra = rank_of(st, f.initiator, &a) as u32;
+    let rb = rank_of(st, f.target, &b) as u32;
     let winner = if ra > rb {
         Some(f.initiator)
     } else if rb > ra {
