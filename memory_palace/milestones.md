@@ -11,6 +11,16 @@
 - **每批收尾**：`p67` 的「一将成名已实现数」+8；`skills.md` §2.7.x + `rules-rulings.md` 新节；`milestones.md` 新增 M 条目
 - **门禁**：`npm run sgs:check`（每批收尾）、`npm run sgs:check:full`（含 MCP 冒烟）、`npm run sgs:check:fast`（改码自检）
 
+## M40：三国杀 P4.4.2 批次 Y2（一将成名 179–186：8 将）✅
+
+- **日期**：2026-10-31
+- **完成**：刘封（陷嗣）、潘璋马忠（夺刀/暗箭）、虞翻（纵玄/直言）、朱然（胆守）、伏皇后（惴恐/求援）、李儒（灭计/绝策/焚城）、法正（恩怨/眩惑）、徐庶（无言/举荐）
+- **机制**：`Frame::XianSi/DuoDao/ZongXuan/ZhiYan/DanShou/ZhuiKong/QiuYuan/MieJi/JueCe/FenCheng/EnYuan/XuanHuo/JuJian`（`resolve_yijiang4.rs`）；「逆」标记、`zhuikong:*` 距离覆盖、`danshou_used`/`xiansi_used`/`fencheng_used`、虚拟【杀】复用、`deny:*` 目标封锁
+- **验证**：`cargo test -p sanguosha` **565** 全绿；`tests/p90.rs` 24 条（每将 ≥3）；`p67` 一将成名已实现数 32；`npm run sgs:check` 10/10、`sgs:check:full` 11/11
+- **harness**：修复 `check-sgs-skill-cases.mjs` 用例体边界（按顶层 `fn` 切分，避免测试之间的助手被算进上一条用例覆盖）
+- **已知边界**：恩怨获牌半仅覆盖眩惑；纵玄/直言/灭计/焚城选牌按自动口径（详见 §24）
+- **详见**：`skills.md` §2.7.3、`rules-rulings.md` §24、`development-plan.md` P4.4.2 批次 Y2
+
 ## M39：三国杀批次 harness（测试助手 + 聚合门禁 + 进度脚本 + playbook）✅
 
 - **日期**：2026-10-31

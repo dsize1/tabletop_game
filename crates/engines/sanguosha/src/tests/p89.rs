@@ -5,6 +5,70 @@ use super::support::*;
 use super::{clear_hands, edit, manager, place_mark, state_of, take_card};
 use crate::state::*;
 
+fn setup_longyin(
+    mgr: &game_engine_core::GameManager,
+    room: &str,
+) -> (usize, String, usize, String, String) {
+    let (mut user, mut user_pid, mut owner, mut owner_pid, mut cost) =
+        (0, String::new(), 0, String::new(), String::new());
+    edit(mgr, room, |st| {
+        clear_hands(st);
+        user = st.turn;
+        set_general(st, user, "sgs_hero_1");
+        st.turn_phase = TurnPhase::Play;
+        st.turn_counters.clear();
+        user_pid = st.seats[user].player_id.clone();
+        owner = other_seats(st, user)[0];
+        set_general(st, owner, "sgs_hero_177");
+        owner_pid = st.seats[owner].player_id.clone();
+        cost = give_def(st, owner, "shan");
+        give_card(st, user, |c| {
+            c.def == "sha" && crate::skills::is_red(c.suit)
+        });
+    });
+    (user, user_pid, owner, owner_pid, cost)
+}
+
+fn play_sha(mgr: &game_engine_core::GameManager, room: &str, pid: &str, user: usize) {
+    let st = state_of(mgr, room);
+    let sha = st.seats[user]
+        .hand
+        .iter()
+        .find(|id| {
+            st.cards
+                .get(*id)
+                .is_some_and(|c| matches!(c.def.as_str(), "sha" | "huo_sha" | "lei_sha"))
+        })
+        .cloned()
+        .expect("sha");
+    mgr.execute_action(room, pid, &format!("play:{sha}"))
+        .unwrap();
+}
+
+fn setup_qiaoshuo(
+    mgr: &game_engine_core::GameManager,
+    room: &str,
+    own_high: bool,
+) -> (usize, String, usize, String) {
+    let (mut seat, mut pid, mut target, mut target_pid) = (0, String::new(), 0, String::new());
+    edit(mgr, room, |st| {
+        clear_hands(st);
+        seat = st.turn;
+        set_general(st, seat, "sgs_hero_178");
+        st.turn_counters.clear();
+        pid = st.seats[seat].player_id.clone();
+        target = other_seats(st, seat)[0];
+        set_general(st, target, "sgs_hero_1");
+        target_pid = st.seats[target].player_id.clone();
+        give_rank(st, seat, if own_high { 13 } else { 1 });
+        give_def(st, seat, "sha");
+        give_rank(st, seat, 5);
+        give_rank(st, target, if own_high { 1 } else { 13 });
+    });
+    run_phase(mgr, room, seat, TurnPhase::Play, false);
+    (seat, pid, target, target_pid)
+}
+
 // ---------------------------------------------------------------------------
 // 将华雄 · 恃勇
 // ---------------------------------------------------------------------------
@@ -595,51 +659,12 @@ fn yuce_source_choice_heals() {
 // 关平 · 龙吟
 // ---------------------------------------------------------------------------
 
-fn setup_longyin(
-    mgr: &game_engine_core::GameManager,
-    room: &str,
-) -> (usize, String, usize, String, String) {
-    let (mut user, mut user_pid, mut owner, mut owner_pid, mut cost) =
-        (0, String::new(), 0, String::new(), String::new());
-    edit(mgr, room, |st| {
-        clear_hands(st);
-        user = st.turn;
-        set_general(st, user, "sgs_hero_1");
-        st.turn_phase = TurnPhase::Play;
-        st.turn_counters.clear();
-        user_pid = st.seats[user].player_id.clone();
-        owner = other_seats(st, user)[0];
-        set_general(st, owner, "sgs_hero_177");
-        owner_pid = st.seats[owner].player_id.clone();
-        cost = give_def(st, owner, "shan");
-        give_card(st, user, |c| {
-            c.def == "sha" && crate::skills::is_red(c.suit)
-        });
-    });
-    (user, user_pid, owner, owner_pid, cost)
-}
-
-fn play_sha(mgr: &game_engine_core::GameManager, room: &str, pid: &str, user: usize) {
-    let st = state_of(mgr, room);
-    let sha = st.seats[user]
-        .hand
-        .iter()
-        .find(|id| {
-            st.cards
-                .get(*id)
-                .is_some_and(|c| matches!(c.def.as_str(), "sha" | "huo_sha" | "lei_sha"))
-        })
-        .cloned()
-        .expect("sha");
-    mgr.execute_action(room, pid, &format!("play:{sha}"))
-        .unwrap();
-}
-
 #[test]
 fn longyin_prevents_sha_count() {
     let mgr = manager(1918);
     let room = start_and_pick(&mgr, 5);
-    let (user, user_pid, _owner, owner_pid, cost) = setup_longyin(&mgr, &room);
+    let (user, user_pid, owner, owner_pid, cost) = setup_longyin(&mgr, &room);
+    assert!(crate::skills::has(&state_of(&mgr, &room), owner, "longyin"));
     play_sha(&mgr, &room, &user_pid, user);
     let st = state_of(&mgr, &room);
     assert_eq!(
@@ -659,6 +684,10 @@ fn longyin_draws_on_red_sha() {
     let mgr = manager(1919);
     let room = start_and_pick(&mgr, 5);
     let (user, user_pid, owner, owner_pid, cost) = setup_longyin(&mgr, &room);
+    assert!(
+        crate::skills::has(&state_of(&mgr, &room), owner, "longyin"),
+        "关平拥有龙吟"
+    );
     let before = state_of(&mgr, &room).seats[owner].hand.len();
     play_sha(&mgr, &room, &user_pid, user);
     mgr.execute_action(&room, &owner_pid, &format!("choose:{cost}"))
@@ -675,7 +704,11 @@ fn longyin_draws_on_red_sha() {
 fn longyin_pass_keeps_count() {
     let mgr = manager(1920);
     let room = start_and_pick(&mgr, 5);
-    let (user, user_pid, _owner, owner_pid, _cost) = setup_longyin(&mgr, &room);
+    let (user, user_pid, owner, owner_pid, _cost) = setup_longyin(&mgr, &room);
+    assert!(
+        crate::skills::has(&state_of(&mgr, &room), owner, "longyin"),
+        "关平拥有龙吟"
+    );
     play_sha(&mgr, &room, &user_pid, user);
     mgr.execute_action(&room, &owner_pid, "pass").unwrap();
     let st = state_of(&mgr, &room);
@@ -685,30 +718,6 @@ fn longyin_pass_keeps_count() {
 // ---------------------------------------------------------------------------
 // 简雍 · 巧说 / 纵适
 // ---------------------------------------------------------------------------
-
-fn setup_qiaoshuo(
-    mgr: &game_engine_core::GameManager,
-    room: &str,
-    own_high: bool,
-) -> (usize, String, usize, String) {
-    let (mut seat, mut pid, mut target, mut target_pid) = (0, String::new(), 0, String::new());
-    edit(mgr, room, |st| {
-        clear_hands(st);
-        seat = st.turn;
-        set_general(st, seat, "sgs_hero_178");
-        st.turn_counters.clear();
-        pid = st.seats[seat].player_id.clone();
-        target = other_seats(st, seat)[0];
-        set_general(st, target, "sgs_hero_1");
-        target_pid = st.seats[target].player_id.clone();
-        give_rank(st, seat, if own_high { 13 } else { 1 });
-        give_def(st, seat, "sha");
-        give_rank(st, seat, 5);
-        give_rank(st, target, if own_high { 1 } else { 13 });
-    });
-    run_phase(mgr, room, seat, TurnPhase::Play, false);
-    (seat, pid, target, target_pid)
-}
 
 #[test]
 fn qiaoshuo_win_enables_extra_sha_target() {

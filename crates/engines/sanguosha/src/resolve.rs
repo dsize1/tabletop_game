@@ -184,6 +184,20 @@ pub enum Frame {
     YuCe(crate::resolve_yijiang3::YuCeFrame),
     LongYin(crate::resolve_yijiang3::LongYinFrame),
     QiaoShuo(crate::resolve_yijiang3::QiaoShuoFrame),
+    /// P4.4.2 一将成名（批次 Y2）。
+    XianSi(crate::resolve_yijiang4::XianSiFrame),
+    DuoDao(crate::resolve_yijiang4::DuoDaoFrame),
+    ZongXuan(crate::resolve_yijiang4::ZongXuanFrame),
+    ZhiYan(crate::resolve_yijiang4::ZhiYanFrame),
+    DanShou(crate::resolve_yijiang4::DanShouFrame),
+    ZhuiKong(crate::resolve_yijiang4::ZhuiKongFrame),
+    QiuYuan(crate::resolve_yijiang4::QiuYuanFrame),
+    MieJi(crate::resolve_yijiang4::MieJiFrame),
+    JueCe(crate::resolve_yijiang4::JueCeFrame),
+    FenCheng(crate::resolve_yijiang4::FenChengFrame),
+    EnYuan(crate::resolve_yijiang4::EnYuanFrame),
+    XuanHuo(crate::resolve_yijiang4::XuanHuoFrame),
+    JuJian(crate::resolve_yijiang4::JuJianFrame),
     /// 五谷丰登（P2.5 特殊区 `wugu`）。
     Wugu(crate::resolve_zone::WuguFrame),
     /// 观星排序提交（P2.5 特殊区 `guanxing`，`arrange:<csv>`）。
@@ -852,6 +866,19 @@ fn step(
         Frame::YuCe(f) => crate::resolve_yijiang3::step_yuce(st, f),
         Frame::LongYin(f) => crate::resolve_yijiang3::step_longyin(st, f),
         Frame::QiaoShuo(f) => crate::resolve_yijiang3::step_qiaoshuo(st, f),
+        Frame::XianSi(f) => crate::resolve_yijiang4::step_xiansi(st, f),
+        Frame::DuoDao(f) => crate::resolve_yijiang4::step_duodao(st, f),
+        Frame::ZongXuan(f) => crate::resolve_yijiang4::step_zongxuan(st, f),
+        Frame::ZhiYan(f) => crate::resolve_yijiang4::step_zhiyan(st, f),
+        Frame::DanShou(f) => crate::resolve_yijiang4::step_danshou(st, f),
+        Frame::ZhuiKong(f) => crate::resolve_yijiang4::step_zhuikong(st, f),
+        Frame::QiuYuan(f) => crate::resolve_yijiang4::step_qiuyuan(st, f),
+        Frame::MieJi(f) => crate::resolve_yijiang4::step_mieji(st, f),
+        Frame::JueCe(f) => crate::resolve_yijiang4::step_juece(st, f),
+        Frame::FenCheng(f) => crate::resolve_yijiang4::step_fencheng(st, f),
+        Frame::EnYuan(f) => crate::resolve_yijiang4::step_enyuan(st, f),
+        Frame::XuanHuo(f) => crate::resolve_yijiang4::step_xuanhuo(st, f),
+        Frame::JuJian(f) => crate::resolve_yijiang4::step_jujian(st, f),
         Frame::Wugu(f) => crate::resolve_zone::step_wugu(st, f, events),
         Frame::Arrange(f) => crate::resolve_zone::step_arrange(st, f, events),
     }
@@ -3121,6 +3148,19 @@ pub fn execute_pending(
             Some("yuce") => crate::resolve_yijiang3::act_yuce(st, action)?,
             Some("longyin") => crate::resolve_yijiang3::act_longyin(st, action)?,
             Some("qiaoshuo") => crate::resolve_yijiang3::act_qiaoshuo(st, action)?,
+            Some("xiansi") => crate::resolve_yijiang4::act_xiansi(st, action)?,
+            Some("duodao") => crate::resolve_yijiang4::act_duodao(st, action)?,
+            Some("zongxuan") => crate::resolve_yijiang4::act_zongxuan(st, action)?,
+            Some("zhiyan") => crate::resolve_yijiang4::act_zhiyan(st, action)?,
+            Some("danshou") => crate::resolve_yijiang4::act_danshou(st, action)?,
+            Some("zhuikong") => crate::resolve_yijiang4::act_zhuikong(st, action)?,
+            Some("qiuyuan") => crate::resolve_yijiang4::act_qiuyuan(st, action)?,
+            Some("mieji") => crate::resolve_yijiang4::act_mieji(st, action)?,
+            Some("juece") => crate::resolve_yijiang4::act_juece(st, action)?,
+            Some("fencheng") => crate::resolve_yijiang4::act_fencheng(st, action)?,
+            Some("enyuan") => crate::resolve_yijiang4::act_enyuan(st, action)?,
+            Some("xuanhuo") => crate::resolve_yijiang4::act_xuanhuo(st, action)?,
+            Some("jujian") => crate::resolve_yijiang4::act_jujian(st, action)?,
             _ => crate::resolve_skill::act_jianxiong(st, action)?,
         },
         "choose_many" => match top(st) {
@@ -3378,6 +3418,29 @@ fn act_target(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Stri
                 "鞬出：请选择 {} 的一张牌",
                 st.seats[target].general_name
             ));
+        }
+        // 求援（伏皇后）：成为【杀】目标时，可令另一名角色交【闪】或成为额外目标。
+        if crate::skills::has(st, target, "qiuyuan")
+            && st
+                .alive_indices()
+                .into_iter()
+                .any(|v| v != target && v != f.user)
+        {
+            push(
+                st,
+                Frame::QiuYuan(crate::resolve_yijiang4::QiuYuanFrame {
+                    user: f.user,
+                    target,
+                    card: f.card.clone(),
+                    need,
+                    no_shan,
+                    ignore_armor,
+                    damage_type: f.damage_type,
+                    stage: crate::resolve_yijiang4::QiuYuanStage::Helper,
+                    helper: None,
+                }),
+            );
+            return Ok("求援：请选择协助角色".to_string());
         }
         crate::resolve_skill::push_sha_target_response(
             st,
@@ -3682,6 +3745,10 @@ fn respond_give_up(st: &mut SgsState, f: &RespondFrame) {
                 && st.seats[actor].hand.is_empty()
             {
                 amount += 1;
+            }
+            // 暗箭（潘璋马忠，锁定）：你不在其攻击范围内 → 伤害 +1。
+            if f.is_sha {
+                amount += crate::skills::anjian_bonus(st, f.source, actor);
             }
             // 酒：本回合下一张【杀】伤害 +1（用后清零）。
             if f.is_sha && st.counter("jiu") > 0 {
@@ -4454,6 +4521,14 @@ fn apply_damage_inner(
             }
         }
     }
+    // 无言（徐庶，锁定）：防止你使用和受到的锦囊牌造成的伤害。
+    if amount > 0 && crate::skills::wuyan_blocks(st, source.unwrap_or(victim), victim, card) {
+        st.push_log(
+            Some(&st.seats[victim].player_id.clone()),
+            "无言：锦囊牌造成的伤害被防止".to_string(),
+        );
+        return;
+    }
     // 制蛮（马谡）：对其他角色造成伤害时，可防止此伤害并获得其一张牌。
     if amount > 0 && allow_tianxiang {
         if let Some(src) = source {
@@ -4636,6 +4711,50 @@ fn apply_damage_inner(
             }
             // 利驭：可获得其区域一张牌（装备牌则引发决斗）。
             crate::resolve_jiexian::liyu_trigger(st, src, victim);
+        }
+    }
+    // 夺刀（潘璋马忠）：受到其他角色【杀】的伤害后，可弃一张牌获得其武器。
+    if amount > 0 && st.seats[victim].hp > 0 && crate::skills::has(st, victim, "duodao") {
+        if let Some(src) = source {
+            let has_weapon = st.seats[src]
+                .equips
+                .get(&EquipSlot::Weapon)
+                .cloned()
+                .flatten()
+                .is_some();
+            if src != victim
+                && has_weapon
+                && !st.seats[victim].hand.is_empty()
+                && card.is_some_and(|id| {
+                    st.cards
+                        .get(id)
+                        .is_some_and(|c| matches!(c.def.as_str(), "sha" | "huo_sha" | "lei_sha"))
+                })
+            {
+                push(
+                    st,
+                    Frame::DuoDao(crate::resolve_yijiang4::DuoDaoFrame {
+                        owner: victim,
+                        source: src,
+                    }),
+                );
+            }
+        }
+    }
+    // 恩怨（法正）：每受到 1 点伤害后，来源交一张手牌或失去 1 点体力。
+    if amount > 0 && st.seats[victim].hp > 0 && crate::skills::has(st, victim, "enyuan") {
+        if let Some(src) = source {
+            if src != victim {
+                for _ in 0..amount {
+                    push(
+                        st,
+                        Frame::EnYuan(crate::resolve_yijiang4::EnYuanFrame {
+                            owner: victim,
+                            source: src,
+                        }),
+                    );
+                }
+            }
         }
     }
     // 智愚（荀攸）：受到伤害后摸 1；若手牌颜色均相同，来源弃置一张手牌。

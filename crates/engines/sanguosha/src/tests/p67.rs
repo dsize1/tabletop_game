@@ -171,7 +171,7 @@ fn yijiang_and_jiexian_packs_are_registered() {
     assert!(crate::data::JIEXIAN_GENERALS
         .iter()
         .all(|g| g.pack == "jiexian"));
-    // 未实现武将不进池（批次 Y1 后已实现 24 位一将成名）。
+    // 未实现武将不进池（批次 Y2 后已实现 32 位一将成名）。
     let pool: Vec<&str> = crate::data::general_codes_in_packs(&[
         "standard".to_string(),
         "yijiang".to_string(),
@@ -182,8 +182,9 @@ fn yijiang_and_jiexian_packs_are_registered() {
     assert!(pool.contains(&"sgs_hero_151"), "曹植应进池");
     assert!(pool.contains(&"sgs_hero_161"), "批次 2 的张春华应进池");
     assert!(pool.contains(&"sgs_hero_171"), "批次 Y1 的将华雄应进池");
+    assert!(pool.contains(&"sgs_hero_179"), "批次 Y2 的刘封应进池");
     assert!(
-        !pool.contains(&"sgs_hero_179"),
+        !pool.contains(&"sgs_hero_187"),
         "未实现的一将成名武将不进池"
     );
     // 包组合解析（新增 key）。
@@ -237,12 +238,12 @@ fn pack_pool_only_ready_generals_enter_pool() {
     .into_iter()
     .filter(|c| skills::general_ready(c))
     .collect();
-    // 批次 1 + 批次 2 + 批次 Y1：一将成名已实现 24 位。
+    // 批次 1 + 批次 2 + 批次 Y1 + 批次 Y2：一将成名已实现 32 位。
     let yijiang: Vec<&str> = pool
         .into_iter()
         .filter(|c| crate::data::general(c).is_some_and(|g| g.pack == "yijiang"))
         .collect();
-    assert_eq!(yijiang.len(), 24, "一将成名已实现 24 位");
+    assert_eq!(yijiang.len(), 32, "一将成名已实现 32 位");
     for code in [
         "sgs_hero_151",
         "sgs_hero_152",
@@ -268,6 +269,14 @@ fn pack_pool_only_ready_generals_enter_pool() {
         "sgs_hero_176",
         "sgs_hero_177",
         "sgs_hero_178",
+        "sgs_hero_179",
+        "sgs_hero_180",
+        "sgs_hero_181",
+        "sgs_hero_182",
+        "sgs_hero_183",
+        "sgs_hero_184",
+        "sgs_hero_185",
+        "sgs_hero_186",
     ] {
         assert!(yijiang.contains(&code), "{code} 应在池中");
     }

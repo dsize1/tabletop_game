@@ -39,20 +39,24 @@ function parseArgs(argv) {
 }
 
 const TEST_RE = /#\[test\][\s\S]*?\n\s*fn\s+([A-Za-z0-9_]+)\s*\(/g;
+// 顶层 `fn` 边界（含 `pub(super) fn`）：用例体不得跨过下一个函数定义，
+// 否则测试之间的私有助手会被误算进上一条用例的覆盖范围（曾导致批次 Y2 误判）。
+const FN_RE = /^(?:pub(?:\([^)]*\))?\s+)?fn\s+([A-Za-z0-9_]+)/gm;
 
 async function collectTests() {
   const files = (await readdir(TESTS_DIR)).filter((f) => f.endsWith(".rs"));
   const tests = [];
   for (const file of files) {
     const text = await readFile(resolve(TESTS_DIR, file), "utf8");
+    const fnStarts = [...text.matchAll(FN_RE)].map((m) => m.index);
     const marks = [...text.matchAll(TEST_RE)].map((m) => ({
       name: m[1],
       start: m.index,
+      fnPos: m.index + m[0].lastIndexOf("fn"),
     }));
-    for (let i = 0; i < marks.length; i++) {
-      const start = marks[i].start;
-      const end = i + 1 < marks.length ? marks[i + 1].start : text.length;
-      tests.push({ file, name: marks[i].name, body: text.slice(start, end) });
+    for (const mark of marks) {
+      const end = fnStarts.find((pos) => pos > mark.fnPos) ?? text.length;
+      tests.push({ file, name: mark.name, body: text.slice(mark.start, end) });
     }
   }
   return tests;

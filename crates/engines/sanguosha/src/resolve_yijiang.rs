@@ -96,6 +96,10 @@ pub(crate) fn on_card_discarded(st: &mut SgsState, from: Option<usize>, card: &s
     if !st.cards.contains_key(card) {
         return;
     }
+    // 纵玄（虞翻）：自己弃置的牌可选择置于牌堆顶。
+    if let Some(seat) = from {
+        zongxuan_collect(st, seat, card);
+    }
     // 落英（曹植）：其他角色的梅花牌进入弃牌堆后，可获得之。
     if st.cards.get(card).is_some_and(|c| c.suit == Suit::Club) {
         if let Some(owner) = st.alive_indices().into_iter().find(|i| {
@@ -110,6 +114,31 @@ pub(crate) fn on_card_discarded(st: &mut SgsState, from: Option<usize>, card: &s
             );
         }
     }
+}
+
+/// 纵玄（虞翻）：你的牌因弃置进入弃牌堆后，可将其中任意张置于牌堆顶。
+///
+/// 同一次弃置的牌尽量合并到一个帧里（帧已在栈上则追加）。
+fn zongxuan_collect(st: &mut SgsState, seat: usize, card: &str) {
+    if !skills::has(st, seat, "zongxuan") {
+        return;
+    }
+    for frame in st.resolution.iter_mut().rev() {
+        if let Frame::ZongXuan(z) = frame {
+            if z.actor == seat && z.selected.is_empty() {
+                z.cards.push(card.to_string());
+                return;
+            }
+        }
+    }
+    push(
+        st,
+        Frame::ZongXuan(crate::resolve_yijiang4::ZongXuanFrame {
+            actor: seat,
+            cards: vec![card.to_string()],
+            selected: Vec::new(),
+        }),
+    );
 }
 
 /// 落英：从弃牌堆获得该牌（若仍在弃牌堆）。

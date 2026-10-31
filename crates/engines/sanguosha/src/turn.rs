@@ -373,6 +373,39 @@ pub(crate) fn phase_step(
             crate::resolve_sp2::poshi_awaken(st, st.turn);
             // 自立（钟会，觉醒技）：准备阶段「权」≥3。
             crate::resolve_yijiang3::zili_awaken(st, st.turn);
+            // 陷嗣（刘封）：准备阶段将至多两名角色各一张牌置于武将牌上为「逆」。
+            if crate::skills::has(st, st.turn, "xiansi")
+                && st.counter("xiansi_offered") == 0
+                && st
+                    .alive_indices()
+                    .into_iter()
+                    .any(|i| i != st.turn && has_cards_to_take(st, i))
+            {
+                st.set_counter("xiansi_offered", 1);
+                resolve::push(
+                    st,
+                    resolve::Frame::XianSi(crate::resolve_yijiang4::XianSiFrame {
+                        actor: st.turn,
+                        selected: Vec::new(),
+                    }),
+                );
+                return Ok(true);
+            }
+            // 惴恐（伏皇后）：其他角色回合开始时，若其已受伤可与其拼点。
+            if st.counter("zhuikong_offered") == 0 {
+                if let Some(owner) = crate::resolve_yijiang4::zhuikong_owner(st, st.turn) {
+                    st.set_counter("zhuikong_offered", 1);
+                    resolve::push(
+                        st,
+                        resolve::Frame::ZhuiKong(crate::resolve_yijiang4::ZhuiKongFrame {
+                            owner,
+                            current: st.turn,
+                            stage: crate::resolve_yijiang4::ZhuiKongStage::Ask,
+                        }),
+                    );
+                    return Ok(true);
+                }
+            }
             // 洛神（P4.1-C2）：准备阶段可反复判定黑色获得。
             if crate::skills::has(st, st.turn, "luoshen") && st.counter("luoshen_done") == 0 {
                 st.set_counter("luoshen_done", 1);
@@ -535,6 +568,19 @@ pub(crate) fn phase_step(
                 resolve::push(
                     st,
                     resolve::Frame::TuxiOffer(crate::resolve_more::TuxiOfferFrame { actor: idx }),
+                );
+                return Ok(true);
+            }
+            // 眩惑（法正）：摸牌阶段可改为令一名其他角色摸 2 并二选一。
+            if crate::skills::has(st, idx, "xuanhuo") && st.counter("xuanhuo_offered") == 0 {
+                st.set_counter("xuanhuo_offered", 1);
+                resolve::push(
+                    st,
+                    resolve::Frame::XuanHuo(crate::resolve_yijiang4::XuanHuoFrame {
+                        actor: idx,
+                        stage: crate::resolve_yijiang4::XuanHuoStage::Offer,
+                        helper: None,
+                    }),
                 );
                 return Ok(true);
             }
@@ -966,6 +1012,46 @@ pub(crate) fn phase_step(
                     resolve::Frame::Jinzou(crate::resolve_sp::JinzouFrame { actor: st.turn }),
                 );
                 return Ok(true);
+            }
+            // 直言（虞翻）：结束阶段令一名角色摸 1 展示，装备牌则使用并回复 1。
+            if crate::skills::has(st, st.turn, "zhiyan") && st.counter("zhiyan_offered") == 0 {
+                st.set_counter("zhiyan_offered", 1);
+                resolve::push(
+                    st,
+                    resolve::Frame::ZhiYan(crate::resolve_yijiang4::ZhiYanFrame { actor: st.turn }),
+                );
+                return Ok(true);
+            }
+            // 绝策（李儒）：结束阶段对一名没有手牌的其他角色造成 1 点伤害。
+            if crate::skills::has(st, st.turn, "juece") && st.counter("juece_offered") == 0 {
+                if !crate::resolve_yijiang4::juece_targets(st, st.turn).is_empty() {
+                    st.set_counter("juece_offered", 1);
+                    resolve::push(
+                        st,
+                        resolve::Frame::JueCe(crate::resolve_yijiang4::JueCeFrame {
+                            actor: st.turn,
+                        }),
+                    );
+                    return Ok(true);
+                }
+            }
+            // 举荐（徐庶）：结束阶段弃一张非基本牌，令一名其他角色三选一。
+            if crate::skills::has(st, st.turn, "jujian") && st.counter("jujian_offered") == 0 {
+                if !crate::resolve_yijiang4::jujian_cards(st, st.turn).is_empty()
+                    && st.alive_indices().len() > 1
+                {
+                    st.set_counter("jujian_offered", 1);
+                    resolve::push(
+                        st,
+                        resolve::Frame::JuJian(crate::resolve_yijiang4::JuJianFrame {
+                            actor: st.turn,
+                            stage: crate::resolve_yijiang4::JuJianStage::Card,
+                            card: None,
+                            target: None,
+                        }),
+                    );
+                    return Ok(true);
+                }
             }
             // 审时（阴）：当前回合结束阶段校验目标是否仍未失去该牌。
             crate::resolve_sp::shenshi_end_turn(st);
@@ -1508,6 +1594,62 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
             id: "skill:jiefan".into(),
             description: "解烦：选择一名角色，攻击范围含其者弃武器或令其摸 1".into(),
         });
+    }
+    // 胆守（朱然）：弃 X 张牌（X=本阶段发动次数）选择攻击范围内角色。
+    if crate::skills::has(st, idx, "danshou")
+        && st.seats[idx].hand.len() as u32 >= crate::resolve_yijiang4::danshou_x(st)
+        && st
+            .alive_indices()
+            .into_iter()
+            .any(|i| i != idx && st.in_attack_range(idx, i))
+    {
+        let x = crate::resolve_yijiang4::danshou_x(st);
+        out.push(Action {
+            id: "skill:danshou".into(),
+            description: format!("胆守：弃 {x} 张牌，对攻击范围内一名角色发动效果"),
+        });
+    }
+    // 灭计（李儒）：出牌阶段限一次，黑色锦囊置于牌堆顶并令一名角色弃牌。
+    if crate::skills::has(st, idx, "mieji")
+        && st.counter("mieji_used") == 0
+        && st.seats[idx].hand.iter().any(|id| {
+            let Some(c) = st.cards.get(id) else {
+                return false;
+            };
+            crate::skills::is_black(c.suit)
+                && crate::data::card_def(&c.def)
+                    .is_some_and(|d| matches!(d.category, Category::Trick | Category::DelayedTrick))
+        })
+        && st
+            .alive_indices()
+            .into_iter()
+            .any(|i| i != idx && !st.seats[i].hand.is_empty())
+    {
+        out.push(Action {
+            id: "skill:mieji".into(),
+            description: "灭计：将一张黑色锦囊置于牌堆顶，令一名角色弃锦囊或两张非锦囊".into(),
+        });
+    }
+    // 焚城（李儒，限定技）：其他角色依次弃更多牌或受 2 点火焰伤害。
+    if crate::skills::has(st, idx, "fencheng")
+        && !st.seats[idx].flags.contains_key("fencheng_used")
+        && st.alive_indices().len() > 1
+    {
+        out.push(Action {
+            id: "skill:fencheng".into(),
+            description: "焚城：其他角色依次弃更多牌，否则受到 2 点火焰伤害".into(),
+        });
+    }
+    // 陷嗣（刘封）：其他角色可移去两张「逆」视为对刘封使用【杀】。
+    if st.counter("xiansi_used") == 0 {
+        if let Some(owner) = crate::skills::find_owner(st, "xiansi") {
+            if owner != idx && st.seats[owner].alive && crate::skills::ni_count(st, owner) >= 2 {
+                out.push(Action {
+                    id: "skill:xiansi".into(),
+                    description: "陷嗣：移去两张「逆」，视为对刘封使用【杀】".into(),
+                });
+            }
+        }
     }
     // 峻刑（满宠）：出牌阶段限一次，弃任意张手牌令一名其他角色二选一。
     if crate::skills::has(st, idx, "junxing")
@@ -3396,6 +3538,66 @@ pub fn execute(
         );
         st.push_log(Some(player_id), "发动甘露");
         "甘露：请选择第一名角色".to_string()
+    } else if action == "skill:danshou" {
+        if !crate::skills::has(st, idx, "danshou") {
+            return Err(illegal("没有该技能"));
+        }
+        let x = crate::resolve_yijiang4::danshou_x(st);
+        if (st.seats[idx].hand.len() as u32) < x {
+            return Err(illegal(format!("胆守本次需弃 {x} 张牌")));
+        }
+        resolve::push(
+            st,
+            resolve::Frame::DanShou(crate::resolve_yijiang4::DanShouFrame {
+                actor: idx,
+                stage: crate::resolve_yijiang4::DanShouStage::Cost,
+                x,
+                selected: Vec::new(),
+            }),
+        );
+        st.push_log(Some(player_id), format!("发动胆守（第 {x} 次）"));
+        format!("胆守：请弃置 {x} 张牌")
+    } else if action == "skill:mieji" {
+        if !crate::skills::has(st, idx, "mieji") {
+            return Err(illegal("没有该技能"));
+        }
+        if st.counter("mieji_used") > 0 {
+            return Err(illegal("本阶段已发动过灭计"));
+        }
+        resolve::push(
+            st,
+            resolve::Frame::MieJi(crate::resolve_yijiang4::MieJiFrame {
+                actor: idx,
+                stage: crate::resolve_yijiang4::MieJiStage::Card,
+                card: None,
+                target: None,
+            }),
+        );
+        st.push_log(Some(player_id), "发动灭计");
+        "灭计：请选择一张黑色锦囊牌".to_string()
+    } else if action == "skill:fencheng" {
+        if !crate::skills::has(st, idx, "fencheng") {
+            return Err(illegal("没有该技能"));
+        }
+        if st.seats[idx].flags.contains_key("fencheng_used") {
+            return Err(illegal("焚城（限定技）已使用过"));
+        }
+        st.seats[idx].flags.insert("fencheng_used".into(), true);
+        resolve::push(
+            st,
+            resolve::Frame::FenCheng(crate::resolve_yijiang4::FenChengFrame {
+                actor: idx,
+                order: st.seats_from_left_of(idx),
+                cursor: 0,
+                last: 0,
+            }),
+        );
+        st.push_log(Some(player_id), "发动焚城");
+        "焚城：请依次选择".to_string()
+    } else if action == "skill:xiansi" {
+        let msg = crate::resolve_yijiang4::use_xiansi_sha(st, idx)?;
+        st.push_log(Some(player_id), "发动陷嗣");
+        msg
     } else if action == "skill:junxing" {
         if !crate::skills::has(st, idx, "junxing") {
             return Err(illegal("没有该技能"));

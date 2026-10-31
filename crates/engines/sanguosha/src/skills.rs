@@ -1636,6 +1636,109 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
             implemented: true,
         },
     ];
+    // ---- P4.4.2 一将成名（批次 Y2：8 将 / 13 技能）----
+    const LIUFENG: &[SkillDef] = &[SkillDef {
+        code: "xiansi",
+        name: "陷嗣",
+        kind: SkillType::Normal,
+        implemented: true,
+    }];
+    const PANZHANGMAZHONG: &[SkillDef] = &[
+        SkillDef {
+            code: "duodao",
+            name: "夺刀",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "anjian",
+            name: "暗箭",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+    ];
+    const YUFAN: &[SkillDef] = &[
+        SkillDef {
+            code: "zongxuan",
+            name: "纵玄",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "zhiyan",
+            name: "直言",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const ZHURAN: &[SkillDef] = &[SkillDef {
+        code: "danshou",
+        name: "胆守",
+        kind: SkillType::Normal,
+        implemented: true,
+    }];
+    const FUHOU: &[SkillDef] = &[
+        SkillDef {
+            code: "zhuikong",
+            name: "惴恐",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "qiuyuan",
+            name: "求援",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const LIRU: &[SkillDef] = &[
+        SkillDef {
+            code: "mieji",
+            name: "灭计",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "juece",
+            name: "绝策",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "fencheng",
+            name: "焚城",
+            kind: SkillType::Limited,
+            implemented: true,
+        },
+    ];
+    const FAZHENG: &[SkillDef] = &[
+        SkillDef {
+            code: "enyuan",
+            name: "恩怨",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "xuanhuo",
+            name: "眩惑",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const XUSHU: &[SkillDef] = &[
+        SkillDef {
+            code: "wuyan",
+            name: "无言",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "jujian",
+            name: "举荐",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
     match general {
         "sgs_hero_1" => LIUBEI,
         "sgs_hero_15" => CAOCAO,
@@ -1734,6 +1837,14 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
         "sgs_hero_176" => MANCHONG,
         "sgs_hero_177" => GUANPING,
         "sgs_hero_178" => JIANYONG,
+        "sgs_hero_179" => LIUFENG,
+        "sgs_hero_180" => PANZHANGMAZHONG,
+        "sgs_hero_181" => YUFAN,
+        "sgs_hero_182" => ZHURAN,
+        "sgs_hero_183" => FUHOU,
+        "sgs_hero_184" => LIRU,
+        "sgs_hero_185" => FAZHENG,
+        "sgs_hero_186" => XUSHU,
         "sgs_hero_299" => JIE_LIUBEI,
         "sgs_hero_300" => JIE_GUANYU,
         "sgs_hero_301" => JIE_ZHANGFEI,
@@ -2107,6 +2218,39 @@ pub fn kingdom_count(st: &SgsState) -> u32 {
 /// 「权」（钟会·权计）张数：武将牌上的牌。
 pub fn quan_count(st: &SgsState, seat: usize) -> usize {
     mark_cards(st, seat, "quan").len()
+}
+
+/// 「逆」（刘封·陷嗣）张数：武将牌上的牌。
+pub fn ni_count(st: &SgsState, seat: usize) -> usize {
+    mark_cards(st, seat, "ni").len()
+}
+
+/// 无言（徐庶，锁定）：锦囊牌造成的伤害被防止（你使用或受到）。
+pub fn wuyan_blocks(st: &SgsState, source: usize, victim: usize, card: Option<&str>) -> bool {
+    let is_trick = card
+        .and_then(|id| st.cards.get(id))
+        .and_then(|c| data::card_def(&c.def))
+        .is_some_and(|d| matches!(d.category, Category::Trick | Category::DelayedTrick));
+    is_trick && (has(st, source, "wuyan") || has(st, victim, "wuyan"))
+}
+
+/// 暗箭（潘璋马忠，锁定）：你使用【杀】对不在你攻击范围内的角色造成伤害时 +1。
+pub fn anjian_bonus(st: &SgsState, source: usize, victim: usize) -> i32 {
+    if has(st, source, "anjian") && source != victim && !st.in_attack_range(victim, source) {
+        1
+    } else {
+        0
+    }
+}
+
+/// 复原武将牌（举荐）：翻回正面；返回是否发生了翻面。
+pub fn restore_general(st: &mut SgsState, seat: usize) -> bool {
+    let Some(s) = st.seats.get_mut(seat) else {
+        return false;
+    };
+    let was = s.flipped;
+    s.flipped = false;
+    was
 }
 
 /// 自守（刘表）：本回合你防止对其他角色造成的伤害。

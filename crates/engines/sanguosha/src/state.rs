@@ -664,6 +664,10 @@ impl SgsState {
         ) else {
             return usize::MAX;
         };
+        // 惴恐（伏皇后）：拼点没赢的角色与其距离视为 1（本回合）。
+        if self.counter(&format!("zhuikong:{from}:{to}")) > 0 {
+            return 1;
+        }
         let fwd = (b + n - a) % n;
         let back = (a + n - b) % n;
         fwd.min(back)
