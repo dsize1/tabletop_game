@@ -90,6 +90,8 @@ pub(crate) fn take_card(st: &mut SgsState, idx: usize, card_id: &str) -> Result<
 pub(crate) fn to_discard_card(st: &mut SgsState, card_id: &str) {
     st.deck.discard.push(card_id.to_string());
     crate::skills::note_discard_suit(st, card_id);
+    // 界激昂（界孙策）：每回合首次【决斗】/红色【杀】因弃置进入弃牌堆。
+    crate::resolve_jiexian3::jiang_jie_on_discard(st, card_id);
 }
 
 /// 弃置并触发「进入弃牌堆」钩子（落英等）。
@@ -97,6 +99,8 @@ pub(crate) fn discard_by(st: &mut SgsState, seat: Option<usize>, card_id: &str) 
     st.deck.discard.push(card_id.to_string());
     crate::skills::note_discard_suit(st, card_id);
     crate::resolve_yijiang::on_card_discarded(st, seat, card_id);
+    // 界激昂（界孙策）。
+    crate::resolve_jiexian3::jiang_jie_on_discard(st, card_id);
 }
 
 /// 是否有「顺手/过河」可拿的牌（手牌 / 装备 / 判定区至少其一）。
@@ -138,6 +142,7 @@ pub(crate) fn sha_limit(st: &SgsState, idx: usize) -> u32 {
             + st.counter("lijun_sha_bonus")
             + st.counter("jueyan_sha_bonus")
             + st.counter("jiangchi_bonus")
+            + st.counter("jiandu_sha_bonus")
             + u32::from(
                 st.seats
                     .get(idx)
@@ -1152,6 +1157,40 @@ pub(crate) fn phase_step(
                 "phase_start",
                 json!({ "phase": "end", "seat": st.turn, "player": pid }),
             ));
+            // 界魂姿（界孙策）：觉醒当回合结束阶段，摸两张或回复 1 点。
+            if st.seats[st.turn].flags.remove("hunzi_end").is_some()
+                && st.counter("hunzi_end_asked") == 0
+            {
+                resolve::push(
+                    st,
+                    resolve::Frame::HunziEnd(crate::resolve_jiexian3::HunziEndFrame {
+                        actor: st.turn,
+                    }),
+                );
+                return Ok(true);
+            }
+            // 飘零（界小乔）：结束阶段判定，红桃则置顶或交给一名角色。
+            if crate::skills::has(st, st.turn, "piaoling") && st.counter("piaoling_asked") == 0 {
+                crate::resolve_jiexian3::piaoling_trigger(st, st.turn);
+                if st.counter("piaoling_asked") > 0 {
+                    return Ok(true);
+                }
+            }
+            // 武烈（界孙坚，限定技）：结束阶段失去任意点体力，令等量角色获得「烈」。
+            if crate::skills::has(st, st.turn, "wulie")
+                && !st.seats[st.turn].flags.contains_key("wulie_used")
+                && st.counter("wulie_asked") == 0
+            {
+                st.set_counter("wulie_asked", 1);
+                resolve::push(
+                    st,
+                    resolve::Frame::WuLie(crate::resolve_jiexian3::WuLieFrame {
+                        actor: st.turn,
+                        stage: crate::resolve_jiexian3::WuLieStage::Amount,
+                    }),
+                );
+                return Ok(true);
+            }
             // 诛害（界徐庶）：其他角色的结束阶段，若其本回合造成过伤害 → 可视为对其使用【杀】。
             if let Some(owner) = crate::resolve_jiexian2::zhuhai_available(st, st.turn) {
                 resolve::push(
@@ -2566,7 +2605,7 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
             description: "天义：拼点；赢则本回合杀次数+1/无距离/多目标".into(),
         });
     }
-    // 连环：梅花手牌当【铁索连环】使用。
+    // 连环：梅花手牌当【铁索连环】使用（界版可用装备区梅花牌）。
     if crate::skills::has(st, idx, "lianhuan") && st.alive_indices().into_iter().any(|t| t != idx) {
         for card_id in hand_ids(st, idx) {
             if st.cards.get(&card_id).is_some_and(|c| c.suit == Suit::Club) {
@@ -2577,6 +2616,19 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
                         card_label(st, &card_id)
                     ),
                 });
+            }
+        }
+        if crate::skills::is_jiexian(st, idx) {
+            for card_id in crate::resolve_jiexian::equip_card_ids(st, idx) {
+                if st.cards.get(&card_id).is_some_and(|c| c.suit == Suit::Club) {
+                    out.push(Action {
+                        id: format!("skill:lianhuan:{card_id}"),
+                        description: format!(
+                            "连环：将装备【{}】当【铁索连环】使用",
+                            card_label(st, &card_id)
+                        ),
+                    });
+                }
             }
         }
     }
@@ -2597,6 +2649,24 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
                     id: format!("skill:huoji:{card_id}"),
                     description: format!("火计：将【{}】当【火攻】使用", card_label(st, &card_id)),
                 });
+            }
+        }
+        // 界火计（界卧龙诸葛亮）：装备区的红色牌也可当【火攻】。
+        if crate::skills::is_jiexian(st, idx) {
+            for card_id in crate::resolve_jiexian::equip_card_ids(st, idx) {
+                if st
+                    .cards
+                    .get(&card_id)
+                    .is_some_and(|c| crate::skills::is_red(c.suit))
+                {
+                    out.push(Action {
+                        id: format!("skill:huoji:{card_id}"),
+                        description: format!(
+                            "火计：将装备【{}】当【火攻】使用",
+                            card_label(st, &card_id)
+                        ),
+                    });
+                }
             }
         }
     }
@@ -2761,6 +2831,21 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
         out.push(Action {
             id: "skill:qimou".into(),
             description: "奇谋：失去任意点体力，本回合距离 -X、杀次数 +X".into(),
+        });
+    }
+    // 界制霸（界孙策主公技）：出牌阶段限一次，主动与一名其他吴势力角色拼点。
+    if crate::skills::has(st, idx, "zhiba")
+        && crate::skills::is_jiexian(st, idx)
+        && crate::skills::is_lord(st, idx)
+        && st.counter("zhiba_jie_used") == 0
+        && !st.seats[idx].hand.is_empty()
+        && st.alive_indices().into_iter().any(|i| {
+            i != idx && crate::skills::kingdom_is(st, i, "wu") && !st.seats[i].hand.is_empty()
+        })
+    {
+        out.push(Action {
+            id: "skill:zhiba_jie".into(),
+            description: "制霸：与一名其他吴势力角色拼点（赢则获得两张拼点牌）".into(),
         });
     }
     // 荐言（界徐庶，觉醒获得）：出牌阶段限一次。
@@ -3522,34 +3607,62 @@ pub fn execute(
         if !crate::skills::has(st, idx, "lianhuan") {
             return Err(illegal("没有该技能"));
         }
-        if !st.seats[idx].hand.iter().any(|c| c == card_id) {
-            return Err(illegal("手牌中没有该牌"));
+        let from_equip = crate::resolve_jiexian::equip_card_ids(st, idx)
+            .iter()
+            .any(|c| c == card_id);
+        if !st.seats[idx].hand.iter().any(|c| c == card_id) && !from_equip {
+            return Err(illegal("手牌/装备区中没有该牌"));
         }
         if !st.cards.get(card_id).is_some_and(|c| c.suit == Suit::Club) {
-            return Err(illegal("连环只能使用梅花手牌"));
+            return Err(illegal("连环只能使用梅花牌"));
         }
         let label = card_label(st, card_id);
-        take_card(st, idx, card_id)?;
+        if from_equip {
+            crate::resolve_jiexian::take_equip_card(st, idx, card_id)?;
+        } else {
+            take_card(st, idx, card_id)?;
+        }
         st.deck.processing.push(card_id.to_string());
-        resolve::start_virtual_trick(st, idx, card_id, "tiesuo_lianhuan")?;
         st.push_log(Some(player_id), format!("连环：将【{label}】当铁索连环"));
-        "请选择铁索连环的目标".to_string()
+        // 界连环（界庞统）：可以多指定一个目标（先选目标再开结算）。
+        if crate::skills::lianhuan_extra_target(st, idx) {
+            resolve::push(
+                st,
+                resolve::Frame::LianHuanPick(crate::resolve_jiexian3::LianHuanPickFrame {
+                    actor: idx,
+                    card: card_id.to_string(),
+                    first: None,
+                }),
+            );
+            "连环：请选择目标（可多选一个）".to_string()
+        } else {
+            resolve::start_virtual_trick(st, idx, card_id, "tiesuo_lianhuan")?;
+            "请选择铁索连环的目标".to_string()
+        }
     } else if let Some(card_id) = action.strip_prefix("skill:huoji:") {
         if !crate::skills::has(st, idx, "huoji") {
             return Err(illegal("没有该技能"));
         }
-        if !st.seats[idx].hand.iter().any(|c| c == card_id) {
-            return Err(illegal("手牌中没有该牌"));
+        // 界火计（界卧龙诸葛亮）：手牌或装备区的红色牌。
+        let from_equip = crate::resolve_jiexian::equip_card_ids(st, idx)
+            .iter()
+            .any(|c| c == card_id);
+        if !st.seats[idx].hand.iter().any(|c| c == card_id) && !from_equip {
+            return Err(illegal("手牌/装备区中没有该牌"));
         }
         if !st
             .cards
             .get(card_id)
             .is_some_and(|c| crate::skills::is_red(c.suit))
         {
-            return Err(illegal("火计只能使用红色手牌"));
+            return Err(illegal("火计只能使用红色牌"));
         }
         let label = card_label(st, card_id);
-        take_card(st, idx, card_id)?;
+        if from_equip {
+            crate::resolve_jiexian::take_equip_card(st, idx, card_id)?;
+        } else {
+            take_card(st, idx, card_id)?;
+        }
         st.deck.processing.push(card_id.to_string());
         resolve::start_virtual_trick(st, idx, card_id, "huo_gong")?;
         let mut ev = Vec::new();
@@ -3807,6 +3920,29 @@ pub fn execute(
         );
         st.push_log(Some(player_id), "发动奇谋");
         "奇谋：请选择失去的体力值".to_string()
+    } else if action == "skill:zhiba_jie" {
+        if !crate::skills::has(st, idx, "zhiba")
+            || !crate::skills::is_jiexian(st, idx)
+            || !crate::skills::is_lord(st, idx)
+        {
+            return Err(illegal("没有该技能"));
+        }
+        if st.counter("zhiba_jie_used") > 0 {
+            return Err(illegal("本阶段已发动过制霸"));
+        }
+        if st.seats[idx].hand.is_empty() {
+            return Err(illegal("没有手牌可拼点"));
+        }
+        resolve::push(
+            st,
+            resolve::Frame::ZhiBaJie(crate::resolve_jiexian3::ZhiBaJieFrame {
+                actor: idx,
+                target: None,
+                stage: crate::resolve_jiexian3::ZhiBaJieStage::Target,
+            }),
+        );
+        st.push_log(Some(player_id), "制霸：选择拼点目标");
+        "制霸：请选择其他吴势力角色".to_string()
     } else if action == "skill:jianyan" {
         if !crate::skills::has(st, idx, "jianyan") {
             return Err(illegal("没有该技能"));
@@ -5122,6 +5258,8 @@ fn play_card(
             take_card(st, idx, card_id)?;
             st.deck.processing.push(card_id.to_string());
             resolve::start_trick(st, idx, card_id)?;
+            // 藏拙（界卧龙诸葛亮）：延时锦囊同样计入「使用过锦囊牌」。
+            st.bump_counter("trick_used");
             st.push_log(Some(&actor), format!("使用【{label}】"));
             Ok("请选择目标".to_string())
         }

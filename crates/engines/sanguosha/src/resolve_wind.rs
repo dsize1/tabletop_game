@@ -141,10 +141,20 @@ pub(crate) fn act_qimou(st: &mut SgsState, action: &str) -> Result<String, Engin
     st.set_counter("qimou", n as u32);
     st.seats[f.actor].hp -= n;
     let hp = st.seats[f.actor].hp;
-    st.push_log(
-        Some(&pid),
-        format!("奇谋：失去 {n} 点体力（体力 {hp}），距离 -{n}、杀次数 +{n}"),
-    );
+    // 界奇谋（界魏延）：额外摸 X 张牌。
+    if crate::skills::is_jiexian(st, f.actor) {
+        let mut ev = Vec::new();
+        let drawn = crate::turn::draw_cards(st, f.actor, n as u32, &mut ev);
+        st.push_log(
+            Some(&pid),
+            format!("奇谋：失去 {n} 点体力（体力 {hp}），摸 {drawn} 张，距离 -{n}、杀次数 +{n}"),
+        );
+    } else {
+        st.push_log(
+            Some(&pid),
+            format!("奇谋：失去 {n} 点体力（体力 {hp}），距离 -{n}、杀次数 +{n}"),
+        );
+    }
     if hp <= 0 {
         crate::resolve::push_dying(st, f.actor, None);
     }
@@ -192,6 +202,7 @@ pub(crate) fn act_jushou(st: &mut SgsState, action: &str) -> Result<String, Engi
     }
     let pid = st.seats[f.actor].player_id.clone();
     st.seats[f.actor].flipped = true;
+    crate::resolve_jiexian3::shebian_on_flip(st, f.actor);
     let mut ev = Vec::new();
     let drawn = turn::draw_cards(st, f.actor, 4, &mut ev);
     st.push_log(Some(&pid), format!("据守：翻面并摸 {drawn} 张"));
@@ -835,6 +846,7 @@ pub(crate) fn act_shensu(st: &mut SgsState, action: &str) -> Result<String, Engi
                 3 => {
                     st.set_counter("shensu_skip_discard", 1);
                     st.seats[f.actor].flipped = true;
+                    crate::resolve_jiexian3::shebian_on_flip(st, f.actor);
                     st.push_log(Some(&pid), "神速③：翻面并跳过弃牌阶段");
                 }
                 _ => return Err(illegal("未知神速选项")),
@@ -1008,12 +1020,20 @@ pub(crate) fn act_tianxiang(st: &mut SgsState, action: &str) -> Result<String, E
             if action != "choose:tianxiang" {
                 return Err(illegal("未知天香选项"));
             }
-            let heart_cards: Vec<String> = st.seats[f.victim]
+            let mut heart_cards: Vec<String> = st.seats[f.victim]
                 .hand
                 .iter()
                 .filter(|id| skills::effective_suit(st, f.victim, id) == Some(Suit::Heart))
                 .cloned()
                 .collect();
+            // 界天香（界小乔）：装备区的红桃牌也可弃置。
+            if skills::is_jiexian(st, f.victim) {
+                for id in crate::resolve_jiexian::equip_card_ids(st, f.victim) {
+                    if skills::effective_suit(st, f.victim, &id) == Some(Suit::Heart) {
+                        heart_cards.push(id);
+                    }
+                }
+            }
             replace_top(
                 st,
                 Frame::MultiSelect(MultiSelectFrame {

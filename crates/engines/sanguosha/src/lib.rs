@@ -12,6 +12,7 @@ mod resolve_fire;
 mod resolve_forest;
 mod resolve_jiexian;
 mod resolve_jiexian2;
+mod resolve_jiexian3;
 mod resolve_more;
 mod resolve_mountain;
 mod resolve_skill;

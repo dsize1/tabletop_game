@@ -254,6 +254,7 @@ pub(crate) fn act_jiushi(st: &mut SgsState, action: &str) -> Result<String, Engi
         return Ok("酒诗：已背面朝上".to_string());
     }
     st.seats[f.actor].flipped = true;
+    crate::resolve_jiexian3::shebian_on_flip(st, f.actor);
     st.set_counter("jiu_used", 1);
     st.set_counter("jiu", 1);
     st.push_log(

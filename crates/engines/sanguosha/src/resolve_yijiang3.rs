@@ -287,6 +287,7 @@ pub(crate) fn act_renxin(st: &mut SgsState, action: &str) -> Result<String, Engi
     let label = turn::card_label(st, card);
     turn::discard_by(st, Some(f.owner), card);
     st.seats[f.owner].flipped = !st.seats[f.owner].flipped;
+    crate::resolve_jiexian3::shebian_on_flip(st, f.owner);
     st.push_log(
         Some(&pid(st, f.owner)),
         format!(
@@ -694,6 +695,7 @@ pub(crate) fn act_junxing(st: &mut SgsState, action: &str) -> Result<String, Eng
                 return Err(illegal("需要选择一项"));
             }
             st.seats[target].flipped = !st.seats[target].flipped;
+            crate::resolve_jiexian3::shebian_on_flip(st, target);
             let n = f.selected.len() as u32;
             let drawn = draw_n(st, target, n);
             st.push_log(

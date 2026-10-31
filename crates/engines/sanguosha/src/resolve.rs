@@ -170,6 +170,15 @@ pub enum Frame {
     XueYi(crate::resolve_jiexian2::XueYiFrame),
     LeijiJie(crate::resolve_jiexian2::LeijiJieFrame),
     LuanJiPick(crate::resolve_jiexian2::LuanJiPickFrame),
+    /// P4.4.2 界限突破 J2 帧。
+    JiangJie(crate::resolve_jiexian3::JiangJieFrame),
+    HunziEnd(crate::resolve_jiexian3::HunziEndFrame),
+    ZhiBaJie(crate::resolve_jiexian3::ZhiBaJieFrame),
+    SheBian(crate::resolve_jiexian3::SheBianFrame),
+    PiaoLingPlace(crate::resolve_jiexian3::PiaoLingPlaceFrame),
+    WuLie(crate::resolve_jiexian3::WuLieFrame),
+    NiePanSkill(crate::resolve_jiexian3::NiePanSkillFrame),
+    LianHuanPick(crate::resolve_jiexian3::LianHuanPickFrame),
     /// P4.4.2 一将成名（批次 2）。
     JiangChi(crate::resolve_yijiang2::JiangChiFrame),
     Qice(crate::resolve_yijiang2::QiceFrame),
@@ -917,6 +926,14 @@ fn step(
         Frame::XueYi(f) => crate::resolve_jiexian2::step_xueyi(st, f),
         Frame::LeijiJie(f) => crate::resolve_jiexian2::step_leiji_jie(st, f),
         Frame::LuanJiPick(f) => crate::resolve_jiexian2::step_luanji_pick(st, f),
+        Frame::JiangJie(f) => crate::resolve_jiexian3::step_jiang_jie(st, f),
+        Frame::HunziEnd(f) => crate::resolve_jiexian3::step_hunzi_end(st, f),
+        Frame::ZhiBaJie(f) => crate::resolve_jiexian3::step_zhiba_jie(st, f),
+        Frame::SheBian(f) => crate::resolve_jiexian3::step_shebian(st, f),
+        Frame::PiaoLingPlace(f) => crate::resolve_jiexian3::step_piaoling_place(st, f),
+        Frame::WuLie(f) => crate::resolve_jiexian3::step_wulie(st, f),
+        Frame::NiePanSkill(f) => crate::resolve_jiexian3::step_niepan_skill(st, f),
+        Frame::LianHuanPick(f) => crate::resolve_jiexian3::step_lianhuan_pick(st, f),
         Frame::QinXue(f) => crate::resolve_jiexian::step_qinxue(st, f),
         Frame::GongXin(f) => crate::resolve_jiexian::step_gongxin(st, f),
         Frame::LianYing(f) => crate::resolve_jiexian::step_lianying(st, f),
@@ -1056,9 +1073,27 @@ fn step_wuxie(st: &mut SgsState, mut f: WuxieFrame) -> Result<bool, EngineError>
         Vec::new()
     };
     let chanyuan_locked = crate::skills::chanyuan_locked(st, seat);
-    // 无手牌（或缠怨锁手牌）且无解围装备 = 公共信息，无法打出任何响应牌，无需假犹豫。
+    // 界看破（界卧龙诸葛亮）：装备区黑牌可当【无懈可击】（空手牌也要询问）。
+    let kanpo_equips: Vec<String> = if !chanyuan_locked
+        && crate::skills::is_jiexian(st, seat)
+        && crate::skills::has(st, seat, "kanpo")
+    {
+        crate::resolve_jiexian::equip_card_ids(st, seat)
+            .into_iter()
+            .filter(|id| {
+                st.cards
+                    .get(id)
+                    .is_some_and(|c| crate::skills::is_black(c.suit))
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+    // 无手牌（或缠怨锁手牌）且无解围装备/看破装备 = 公共信息，无需假犹豫。
     if !alive_of_order(st, &pid)
-        || ((st.seats[seat].hand.is_empty() || chanyuan_locked) && jiewei_equips.is_empty())
+        || ((st.seats[seat].hand.is_empty() || chanyuan_locked)
+            && jiewei_equips.is_empty()
+            && kanpo_equips.is_empty())
     {
         f.cursor += 1;
         f.passed += 1;
@@ -1082,7 +1117,7 @@ fn step_wuxie(st: &mut SgsState, mut f: WuxieFrame) -> Result<bool, EngineError>
             label: format!("解围：将装备【{}】当【无懈可击】", turn::card_label(st, id)),
         });
     }
-    // 看破：黑色手牌当【无懈可击】。
+    // 看破：黑色手牌当【无懈可击】；界看破（界卧龙诸葛亮）装备区黑牌也可。
     if !chanyuan_locked {
         for id in &st.seats[seat].hand {
             if let Some((_, name)) = crate::skills::conversion_for(st, seat, id, "wuxie_keji") {
@@ -1093,6 +1128,23 @@ fn step_wuxie(st: &mut SgsState, mut f: WuxieFrame) -> Result<bool, EngineError>
                         turn::card_label(st, id)
                     ),
                 });
+            }
+        }
+        if crate::skills::is_jiexian(st, seat) && crate::skills::has(st, seat, "kanpo") {
+            for id in crate::resolve_jiexian::equip_card_ids(st, seat) {
+                if st
+                    .cards
+                    .get(&id)
+                    .is_some_and(|c| crate::skills::is_black(c.suit))
+                {
+                    options.push(PendingOption {
+                        id: format!("respond:{id}"),
+                        label: format!(
+                            "看破：将装备【{}】当【无懈可击】打出",
+                            turn::card_label(st, &id)
+                        ),
+                    });
+                }
             }
         }
     }
@@ -2564,6 +2616,17 @@ fn step_discard(st: &mut SgsState, f: DiscardFrame) -> Result<bool, EngineError>
 
 fn step_huogong(st: &mut SgsState, f: HuoGongFrame) -> Result<bool, EngineError> {
     let suit = crate::skills::effective_suit(st, f.target, &f.revealed);
+    // 界火计（界卧龙诸葛亮）：改为「弃置与展示牌颜色相同的牌」。
+    let jie = crate::skills::is_jiexian(st, f.user) && crate::skills::has(st, f.user, "huoji");
+    let base_red = suit.is_some_and(crate::skills::is_red);
+    let same = |st: &SgsState, id: &str| {
+        let s = crate::skills::effective_suit(st, f.user, id);
+        if jie {
+            s.is_some_and(|s| crate::skills::is_red(s) == base_red)
+        } else {
+            s == suit
+        }
+    };
     let label = turn::card_label(st, &f.revealed);
     let revealed_name = turn::card_label(st, &f.revealed);
     let target_name = st.seats[f.target].general_name.clone();
@@ -2571,11 +2634,12 @@ fn step_huogong(st: &mut SgsState, f: HuoGongFrame) -> Result<bool, EngineError>
     let mut options: Vec<PendingOption> = st.seats[f.user]
         .hand
         .iter()
-        .filter(|id| crate::skills::effective_suit(st, f.user, id) == suit)
+        .filter(|id| same(st, id))
         .map(|id| PendingOption {
             id: format!("choose:{id}"),
             label: format!(
-                "弃置同花色【{}】，造成 1 点火焰伤害",
+                "弃置同{}【{}】，造成 1 点火焰伤害",
+                if jie { "颜色" } else { "花色" },
                 turn::card_label(st, id)
             ),
         })
@@ -3011,6 +3075,7 @@ fn step_quick_judge(
                         Some(Suit::Spade) => {
                             if let Some(src) = source {
                                 st.seats[src].flipped = !st.seats[src].flipped;
+                                crate::resolve_jiexian3::shebian_on_flip(st, src);
                                 st.push_log(
                                     Some(&pid),
                                     format!(
@@ -3021,6 +3086,24 @@ fn step_quick_judge(
                             }
                         }
                         None => {}
+                    }
+                }
+                "piaoling" => {
+                    let actor = f.data["user"].as_u64().unwrap_or(f.owner as u64) as usize;
+                    if suit == Some(Suit::Heart) {
+                        // 判定牌仍在处理区，交给飘零帧选择去向。
+                        push(
+                            st,
+                            Frame::PiaoLingPlace(crate::resolve_jiexian3::PiaoLingPlaceFrame {
+                                actor,
+                                card: judge_id.clone(),
+                            }),
+                        );
+                    } else {
+                        st.push_log(
+                            Some(&pid),
+                            format!("飘零：判定【{label}】非红桃，未生效"),
+                        );
                     }
                 }
                 "baonue" => {
@@ -3475,6 +3558,14 @@ pub fn execute_pending(
             Some("xueyi") => crate::resolve_jiexian2::act_xueyi(st, action)?,
             Some("leiji_jie") => crate::resolve_jiexian2::act_leiji_jie(st, action)?,
             Some("luanji_pick") => crate::resolve_jiexian2::act_luanji_pick(st, action)?,
+            Some("jiang_jie") => crate::resolve_jiexian3::act_jiang_jie(st, action)?,
+            Some("hunzi_end") => crate::resolve_jiexian3::act_hunzi_end(st, action)?,
+            Some("zhiba_jie") => crate::resolve_jiexian3::act_zhiba_jie(st, action)?,
+            Some("shebian") => crate::resolve_jiexian3::act_shebian(st, action)?,
+            Some("piaoling") => crate::resolve_jiexian3::act_piaoling_place(st, action)?,
+            Some("wulie") => crate::resolve_jiexian3::act_wulie(st, action)?,
+            Some("niepan_skill") => crate::resolve_jiexian3::act_niepan_skill(st, action)?,
+            Some("lianhuan_pick") => crate::resolve_jiexian3::act_lianhuan_pick(st, action)?,
             Some("jiangchi") => crate::resolve_yijiang2::act_jiangchi(st, action)?,
             Some("qice") => crate::resolve_yijiang2::act_qice(st, action)?,
             Some("qianxi") => crate::resolve_yijiang2::act_qianxi(st, action)?,
@@ -3648,11 +3739,24 @@ fn act_wuxie(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Strin
                 .ok_or_else(|| illegal("只能打出【无懈可击】"))?,
         )
     };
-    turn::take_card(st, seat, card_id)?;
-    turn::to_discard_card(st, card_id);
+    // 界看破（界卧龙诸葛亮）：装备区黑牌当【无懈可击】。
+    let from_equip = crate::resolve_jiexian::equip_card_ids(st, seat)
+        .iter()
+        .any(|c| c == card_id);
+    if from_equip {
+        crate::resolve_jiexian::take_equip_card(st, seat, card_id)?;
+        turn::to_discard_card(st, card_id);
+    } else {
+        turn::take_card(st, seat, card_id)?;
+        turn::to_discard_card(st, card_id);
+    }
     f.count += 1;
     f.cursor = 0;
     f.passed = 0;
+    // 界看破：你的【无懈可击】不能被响应 → 直接结束无懈窗口。
+    if crate::skills::is_jiexian(st, seat) && crate::skills::has(st, seat, "kanpo") {
+        f.passed = f.order.len() as u32;
+    }
     let label = match conversion {
         Some((_, name)) => format!(
             "{name}：将【{}】当【无懈可击】（层数 {}）",
@@ -4829,6 +4933,7 @@ fn act_dying(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Strin
         st.seats[seat].hp = x.min(st.seats[seat].max_hp);
         let flipped = !st.seats[seat].flipped;
         st.seats[seat].flipped = flipped;
+        crate::resolve_jiexian3::shebian_on_flip(st, seat);
         pop(st);
         st.phase = Phase::Turn;
         st.push_log(
@@ -4871,6 +4976,13 @@ fn act_dying(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Strin
         st.seats[seat].hp = st.seats[seat].max_hp.min(3);
         st.phase = Phase::Turn;
         pop(st);
+        // 界涅槃（界庞统）：获得「八阵」「火计」「看破」中的一个。
+        if crate::skills::is_jiexian(st, seat) {
+            push(
+                st,
+                Frame::NiePanSkill(crate::resolve_jiexian3::NiePanSkillFrame { actor: seat }),
+            );
+        }
         let mut ev = Vec::new();
         let drawn = turn::draw_cards(st, seat, 3, &mut ev);
         let over = st.seats[seat]
@@ -5113,6 +5225,14 @@ fn apply_damage_inner(
     }
     // 怀橘（陆绩）：有「橘」的角色受到伤害时，防止此伤害并移除 1 枚「橘」。
     if amount > 0 && crate::resolve_sp::huaiju_prevent(st, victim) {
+        return;
+    }
+    // 武烈（界孙坚）：有「烈」的角色受到伤害时，移除 1 枚「烈」并防止此伤害。
+    if amount > 0 && crate::resolve_jiexian3::lie_blocks_damage(st, victim) {
+        st.push_log(
+            Some(&st.seats[victim].player_id.clone()),
+            "武烈：「烈」被移除，防止此次伤害",
+        );
         return;
     }
     // 掣政（孙亮，锁定）：出牌阶段内，目标攻击范围不含你的伤害被防止。

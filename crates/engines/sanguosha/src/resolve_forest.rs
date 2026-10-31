@@ -159,6 +159,7 @@ pub(crate) fn fangzhu_target(
     let target = st.seat_index(pid).ok_or_else(|| illegal("目标不在座"))?;
     pop(st);
     st.seats[target].flipped = !st.seats[target].flipped;
+    crate::resolve_jiexian3::shebian_on_flip(st, target);
     let lost = (st.seats[f.actor].max_hp - st.seats[f.actor].hp).max(0) as u32;
     let drawn = draw_capped(st, target, lost.min(5));
     st.push_log(

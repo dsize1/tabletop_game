@@ -1551,6 +1551,143 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
             implemented: true,
         },
     ];
+    // ---- P4.4.2 界限突破（批次 J2：8 将 / 20 技能）----
+    const JIE_SUNCE: &[SkillDef] = &[
+        SkillDef {
+            code: "zhiba",
+            name: "制霸",
+            kind: SkillType::Lord,
+            implemented: true,
+        },
+        SkillDef {
+            code: "jiang",
+            name: "激昂",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "hunzi",
+            name: "魂姿",
+            kind: SkillType::Awaken,
+            implemented: true,
+        },
+    ];
+    const JIE_XIAHOUYUAN: &[SkillDef] = &[
+        SkillDef {
+            code: "shensu",
+            name: "神速",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "shebian",
+            name: "设变",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_WOLONG: &[SkillDef] = &[
+        SkillDef {
+            code: "bazhen",
+            name: "八阵",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "cangzhuo",
+            name: "藏拙",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "huoji",
+            name: "火计",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "kanpo",
+            name: "看破",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_PANGTONG: &[SkillDef] = &[
+        SkillDef {
+            code: "lianhuan",
+            name: "连环",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "niepan",
+            name: "涅槃",
+            kind: SkillType::Limited,
+            implemented: true,
+        },
+    ];
+    const JIE_WEIYAN: &[SkillDef] = &[
+        SkillDef {
+            code: "kuanggu",
+            name: "狂骨",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "qimou",
+            name: "奇谋",
+            kind: SkillType::Limited,
+            implemented: true,
+        },
+    ];
+    const JIE_XIAOQIAO: &[SkillDef] = &[
+        SkillDef {
+            code: "hongyan",
+            name: "红颜",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "tianxiang",
+            name: "天香",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "piaoling",
+            name: "飘零",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_SUNJIAN: &[SkillDef] = &[
+        SkillDef {
+            code: "yinghun",
+            name: "英魂",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "wulie",
+            name: "武烈",
+            kind: SkillType::Limited,
+            implemented: true,
+        },
+    ];
+    const JIE_PANGDE: &[SkillDef] = &[
+        SkillDef {
+            code: "mashu",
+            name: "马术",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "jiandu",
+            name: "鞬出",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
     // ---- P4.4.2 一将成名（批次 2：8 将 / 16 技能）----
     const ZHANGCHUNHUA: &[SkillDef] = &[
         SkillDef {
@@ -2540,6 +2677,14 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
         "sgs_hero_449" => JIE_YUJI,
         "sgs_hero_450" => JIE_YUANSHAO,
         "sgs_hero_451" => JIE_LIUSHAN,
+        "sgs_hero_452" => JIE_SUNCE,
+        "sgs_hero_453" => JIE_XIAHOUYUAN,
+        "sgs_hero_454" => JIE_WOLONG,
+        "sgs_hero_455" => JIE_PANGTONG,
+        "sgs_hero_456" => JIE_WEIYAN,
+        "sgs_hero_457" => JIE_XIAOQIAO,
+        "sgs_hero_458" => JIE_SUNJIAN,
+        "sgs_hero_462" => JIE_PANGDE,
         _ => &[],
     }
 }
@@ -3663,6 +3808,10 @@ pub fn on_phase_start(st: &mut SgsState, phase: TurnPhase, events: &mut Vec<Engi
 
 /// 使用锦囊后的钩子：集智（使用非延时锦囊时摸 1；界版可弃基本牌换手牌上限）。
 pub fn on_non_delayed_trick_used(st: &mut SgsState, seat: usize, events: &mut Vec<EngineEvent>) {
+    // 藏拙（界卧龙诸葛亮）：记录本回合是否使用过锦囊。
+    if st.turn == seat {
+        st.bump_counter("trick_used");
+    }
     if !has(st, seat, "jizhi") {
         return;
     }
@@ -3717,6 +3866,36 @@ pub fn hand_limit(st: &SgsState, seat: usize) -> usize {
         return usize::MAX;
     }
     let mut limit = st.hand_limit(seat);
+    // 界红颜（界小乔）：装备区有红桃牌时，手牌上限等于体力上限。
+    if has(st, seat, "hongyan") && is_jiexian(st, seat) {
+        let has_heart_equip = EquipSlot::ALL.iter().any(|slot| {
+            st.seats[seat]
+                .equips
+                .get(slot)
+                .cloned()
+                .flatten()
+                .is_some_and(|id| effective_suit(st, seat, &id) == Some(Suit::Heart))
+        });
+        if has_heart_equip {
+            limit = st.seats[seat].max_hp.max(0) as usize;
+        }
+    }
+    // 藏拙（界卧龙诸葛亮，锁定）：本回合未使用过锦囊牌时，锦囊牌不计入手牌上限。
+    if has(st, seat, "cangzhuo") && st.counter("trick_used") == 0 {
+        let n = st.seats[seat]
+            .hand
+            .iter()
+            .filter(|id| {
+                st.cards
+                    .get(*id)
+                    .and_then(|c| data::card_def(&c.def))
+                    .is_some_and(|d| {
+                        matches!(d.category, Category::Trick | Category::DelayedTrick)
+                    })
+            })
+            .count();
+        limit += n;
+    }
     // 将驰（曹彰，选项一）：本回合【杀】不计入手牌上限。
     if has(st, seat, "jiangchi") && st.counter(&format!("sha_banned:{seat}")) > 0 {
         let sha_count = st.seats[seat]
@@ -3988,6 +4167,11 @@ pub fn remove_xueyi_mark(st: &mut SgsState, seat: usize) -> bool {
     true
 }
 
+/// 界连环（界庞统）：使用【铁索连环】可多指定一个目标。
+pub fn lianhuan_extra_target(st: &SgsState, seat: usize) -> bool {
+    has(st, seat, "lianhuan") && is_jiexian(st, seat)
+}
+
 /// 思蜀（界刘禅）：该角色本局【乐不思蜀】判定效果反转。
 pub fn sishu_reversed(st: &SgsState, seat: usize) -> bool {
     st.seats
@@ -3997,11 +4181,26 @@ pub fn sishu_reversed(st: &SgsState, seat: usize) -> bool {
 
 /// 天香：受到伤害时是否有可用红桃手牌。
 pub fn tianxiang_available(st: &SgsState, victim: usize) -> bool {
-    has(st, victim, "tianxiang")
-        && st.seats[victim]
-            .hand
-            .iter()
-            .any(|id| effective_suit(st, victim, id) == Some(Suit::Heart))
+    if !has(st, victim, "tianxiang") {
+        return false;
+    }
+    if st.seats[victim]
+        .hand
+        .iter()
+        .any(|id| effective_suit(st, victim, id) == Some(Suit::Heart))
+    {
+        return true;
+    }
+    // 界天香（界小乔）：装备区的红桃牌也可弃置。
+    is_jiexian(st, victim)
+        && EquipSlot::ALL.iter().any(|slot| {
+            st.seats[victim]
+                .equips
+                .get(slot)
+                .cloned()
+                .flatten()
+                .is_some_and(|id| effective_suit(st, victim, &id) == Some(Suit::Heart))
+        })
 }
 
 /// 奋激：手牌被弃置/获得后的可发动持有者（存活）。

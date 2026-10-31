@@ -1111,6 +1111,7 @@ pub(crate) fn act_jiyu(st: &mut SgsState, action: &str) -> Result<String, Engine
             st.seats[target].hp -= 1;
             let hp = st.seats[target].hp;
             st.seats[f.actor].flipped = !st.seats[f.actor].flipped;
+            crate::resolve_jiexian3::shebian_on_flip(st, f.actor);
             st.push_log(
                 Some(&pid(st, f.actor)),
                 format!(

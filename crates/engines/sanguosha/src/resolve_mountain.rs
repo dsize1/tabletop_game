@@ -1112,6 +1112,10 @@ pub(crate) fn awaken_triggers(st: &mut SgsState) {
         st.seats[seat].hp = st.seats[seat].hp.min(st.seats[seat].max_hp);
         skills::grant_skill(st, seat, "yingzi");
         skills::grant_skill(st, seat, "yinghun");
+        // 界魂姿（界孙策）：本回合结束阶段摸两张或回复 1 点。
+        if skills::is_jiexian(st, seat) {
+            st.seats[seat].flags.insert("hunzi_end".into(), true);
+        }
         st.push_log(
             Some(&pid),
             "魂姿：觉醒，减少 1 点体力上限并获得「英姿」「英魂」",

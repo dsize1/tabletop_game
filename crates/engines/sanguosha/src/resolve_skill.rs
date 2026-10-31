@@ -1112,7 +1112,17 @@ pub(crate) fn act_multiselect(st: &mut SgsState, action: &str) -> Result<String,
         let card_id = action
             .strip_prefix("choose:")
             .ok_or_else(|| illegal("未知选项"))?;
-        if !st.seats[f.actor].hand.iter().any(|c| c == card_id) {
+        // 手牌、装备区（界天香等）或在白名单内的牌均可选择。
+        let in_hand = st.seats[f.actor].hand.iter().any(|c| c == card_id);
+        let in_equip = crate::resolve_jiexian::equip_card_ids(st, f.actor)
+            .iter()
+            .any(|c| c == card_id);
+        let in_allowed = f
+            .data
+            .get("allowed")
+            .and_then(|v| v.as_array())
+            .is_some_and(|a| a.iter().any(|v| v.as_str() == Some(card_id)));
+        if !in_hand && !in_equip && !in_allowed {
             return Err(illegal("手牌中没有该牌"));
         }
         if f.data

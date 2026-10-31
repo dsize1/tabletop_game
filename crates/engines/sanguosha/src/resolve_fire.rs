@@ -862,6 +862,17 @@ pub(crate) fn act_jiandu(st: &mut SgsState, action: &str) -> Result<String, Engi
     if equipment {
         skills::xiaoji_on_lose_equip(st, f.target);
     }
+    // 界鞬出（界庞德）：按「基本牌 / 非基本牌」分支，而非装备牌 / 非装备牌。
+    let jie = skills::is_jiexian(st, f.user);
+    let basic = st
+        .cards
+        .get(&discarded)
+        .and_then(|c| crate::data::card_def(&c.def))
+        .is_some_and(|d| d.category == Category::Basic);
+    let no_dodge = if jie { !basic } else { equipment };
+    if jie && no_dodge {
+        st.bump_counter("jiandu_sha_bonus");
+    }
     let pid = st.seats[f.user].player_id.clone();
     st.push_log(
         Some(&pid),
@@ -869,15 +880,19 @@ pub(crate) fn act_jiandu(st: &mut SgsState, action: &str) -> Result<String, Engi
             "鞬出：弃置 {} 的【{}】{}",
             st.seats[f.target].general_name,
             turn::card_label(st, &discarded),
-            if equipment {
-                "，该角色不能使用【闪】"
+            if no_dodge {
+                if jie {
+                    "，其不能抵消此【杀】，本回合【杀】次数 +1"
+                } else {
+                    "，该角色不能使用【闪】"
+                }
             } else {
                 "，其获得此【杀】"
             }
         ),
     );
     pop(st);
-    if equipment {
+    if no_dodge {
         crate::resolve_skill::push_sha_target_response(
             st,
             f.user,

@@ -1992,3 +1992,31 @@ pub(crate) fn act_liyu(st: &mut SgsState, action: &str) -> Result<String, Engine
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// 装备区转化助手（P4.4.2 J2：界火计 / 界看破 / 界连环「含装备区」）
+// ---------------------------------------------------------------------------
+
+/// 装备区牌 id 列表。
+pub(crate) fn equip_card_ids(st: &SgsState, seat: usize) -> Vec<String> {
+    EquipSlot::ALL
+        .iter()
+        .filter_map(|slot| st.seats[seat].equips.get(slot).cloned().flatten())
+        .collect()
+}
+
+/// 从装备区取出一张牌（不直接弃置；调用方决定去向）。
+pub(crate) fn take_equip_card(
+    st: &mut SgsState,
+    seat: usize,
+    card_id: &str,
+) -> Result<(), game_engine_core::EngineError> {
+    for slot in EquipSlot::ALL {
+        if st.seats[seat].equips.get(&slot).cloned().flatten().as_deref() == Some(card_id) {
+            st.seats[seat].equips.insert(slot, None);
+            crate::skills::xiaoji_on_lose_equip(st, seat);
+            return Ok(());
+        }
+    }
+    Err(crate::illegal("装备区没有该牌"))
+}

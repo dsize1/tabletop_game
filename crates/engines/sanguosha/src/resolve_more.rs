@@ -1830,7 +1830,15 @@ pub(crate) fn multiselect_confirm(
                 return Some(Err(illegal("巧变需弃置 1 张手牌")));
             }
             let id = f.selected[0].clone();
-            if turn::take_card(st, f.actor, &id).is_err() {
+            // 界天香（界小乔）：允许弃置装备区的红桃牌。
+            let from_equip = crate::resolve_jiexian::equip_card_ids(st, f.actor)
+                .iter()
+                .any(|c| c == &id);
+            if from_equip {
+                if let Err(e) = crate::resolve_jiexian::take_equip_card(st, f.actor, &id) {
+                    return Some(Err(e));
+                }
+            } else if turn::take_card(st, f.actor, &id).is_err() {
                 return Some(Err(illegal("手牌中没有该牌")));
             }
             turn::to_discard_card(st, &id);
@@ -1876,7 +1884,15 @@ pub(crate) fn multiselect_confirm(
                 return Some(Err(illegal("享乐需弃置 1 张基本牌")));
             }
             let id = f.selected[0].clone();
-            if turn::take_card(st, f.actor, &id).is_err() {
+            // 界天香（界小乔）：允许弃置装备区的红桃牌。
+            let from_equip = crate::resolve_jiexian::equip_card_ids(st, f.actor)
+                .iter()
+                .any(|c| c == &id);
+            if from_equip {
+                if let Err(e) = crate::resolve_jiexian::take_equip_card(st, f.actor, &id) {
+                    return Some(Err(e));
+                }
+            } else if turn::take_card(st, f.actor, &id).is_err() {
                 return Some(Err(illegal("手牌中没有该牌")));
             }
             turn::to_discard_card(st, &id);
@@ -2078,7 +2094,15 @@ pub(crate) fn multiselect_confirm(
             if skills::effective_suit(st, f.actor, &id) != Some(Suit::Heart) {
                 return Some(Err(illegal("天香只能弃置红桃手牌")));
             }
-            if turn::take_card(st, f.actor, &id).is_err() {
+            // 界天香（界小乔）：允许弃置装备区的红桃牌。
+            let from_equip = crate::resolve_jiexian::equip_card_ids(st, f.actor)
+                .iter()
+                .any(|c| c == &id);
+            if from_equip {
+                if let Err(e) = crate::resolve_jiexian::take_equip_card(st, f.actor, &id) {
+                    return Some(Err(e));
+                }
+            } else if turn::take_card(st, f.actor, &id).is_err() {
                 return Some(Err(illegal("手牌中没有该牌")));
             }
             turn::to_discard_card(st, &id);
