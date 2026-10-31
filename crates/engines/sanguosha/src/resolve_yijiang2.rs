@@ -847,7 +847,10 @@ pub(crate) fn act_jiefan(st: &mut SgsState, action: &str) -> Result<String, Engi
     let target = st
         .seat_index(target_pid)
         .ok_or_else(|| crate::illegal("目标不在座"))?;
-    st.seats[f.actor].flags.insert("jiefan_used".into(), true);
+    // 界解烦（界韩当）：若此时为第一轮，回合结束时视为未发动过（简化为第一轮不记已发动）。
+    if !(crate::skills::is_jiexian(st, f.actor) && st.round <= 1) {
+        st.seats[f.actor].flags.insert("jiefan_used".into(), true);
+    }
     let voters: Vec<usize> = st
         .alive_indices()
         .into_iter()

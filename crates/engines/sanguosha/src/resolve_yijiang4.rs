@@ -982,10 +982,12 @@ pub(crate) fn step_mieji(st: &mut SgsState, f: MieJiFrame) -> Result<bool, Engin
             turn::hand_ids(st, f.actor)
                 .into_iter()
                 .filter(|id| {
-                    st.cards
-                        .get(id)
-                        .is_some_and(|c| crate::skills::is_black(c.suit))
-                        && is_trick(st, id)
+                    is_trick(st, id)
+                        && (crate::skills::is_jiexian(st, f.actor)
+                            || st
+                                .cards
+                                .get(id)
+                                .is_some_and(|c| crate::skills::is_black(c.suit)))
                 })
                 .map(|id| PendingOption {
                     id: format!("choose:{id}"),
@@ -1014,16 +1016,26 @@ pub(crate) fn step_mieji(st: &mut SgsState, f: MieJiFrame) -> Result<bool, Engin
                     label: "弃置一张锦囊牌".into(),
                 });
             }
-            let non_trick = st.seats[target]
-                .hand
-                .iter()
-                .filter(|id| !is_trick(st, id))
-                .count();
-            if non_trick >= 2 {
-                options.push(PendingOption {
-                    id: "opt2".into(),
-                    label: "依次弃置两张非锦囊牌".into(),
-                });
+            if crate::skills::is_jiexian(st, f.actor) {
+                // 界灭计（界李儒）：依次弃置两张牌（不限类型）。
+                if st.seats[target].hand.len() >= 2 {
+                    options.push(PendingOption {
+                        id: "opt2".into(),
+                        label: "依次弃置两张牌".into(),
+                    });
+                }
+            } else {
+                let non_trick = st.seats[target]
+                    .hand
+                    .iter()
+                    .filter(|id| !is_trick(st, id))
+                    .count();
+                if non_trick >= 2 {
+                    options.push(PendingOption {
+                        id: "opt2".into(),
+                        label: "依次弃置两张非锦囊牌".into(),
+                    });
+                }
             }
             (options, target)
         }
@@ -1057,12 +1069,13 @@ pub(crate) fn act_mieji(st: &mut SgsState, action: &str) -> Result<String, Engin
                 return Err(illegal("手牌中没有该牌"));
             }
             if !is_trick(st, card)
-                || !st
-                    .cards
-                    .get(card)
-                    .is_some_and(|c| crate::skills::is_black(c.suit))
+                || (!crate::skills::is_jiexian(st, f.actor)
+                    && !st
+                        .cards
+                        .get(card)
+                        .is_some_and(|c| crate::skills::is_black(c.suit)))
             {
-                return Err(illegal("灭计需要黑色锦囊牌"));
+                return Err(illegal("灭计需要锦囊牌（标准版需为黑色）"));
             }
             turn::take_card(st, f.actor, card)?;
             let label = turn::card_label(st, card);
@@ -1121,15 +1134,16 @@ pub(crate) fn act_mieji(st: &mut SgsState, action: &str) -> Result<String, Engin
             if action != "opt2" {
                 return Err(illegal("需要选择一项"));
             }
+            let jie = crate::skills::is_jiexian(st, f.actor);
             let cards: Vec<String> = st.seats[target]
                 .hand
                 .iter()
-                .filter(|id| !is_trick(st, id))
+                .filter(|id| jie || !is_trick(st, id))
                 .take(2)
                 .cloned()
                 .collect();
             if cards.len() < 2 {
-                return Err(illegal("非锦囊牌不足两张"));
+                return Err(illegal("可选牌不足两张"));
             }
             for card in &cards {
                 turn::take_card(st, target, card)?;
@@ -1156,9 +1170,19 @@ pub struct JueCeFrame {
 }
 
 pub(crate) fn juece_targets(st: &SgsState, actor: usize) -> Vec<usize> {
+    // 界绝策（界李儒）：目标手牌数小于等于你（标准为无手牌）。
+    let jie = crate::skills::is_jiexian(st, actor);
+    let actor_hand = st.seats[actor].hand.len();
     st.alive_indices()
         .into_iter()
-        .filter(|i| *i != actor && st.seats[*i].hand.is_empty())
+        .filter(|i| {
+            *i != actor
+                && if jie {
+                    st.seats[*i].hand.len() <= actor_hand
+                } else {
+                    st.seats[*i].hand.is_empty()
+                }
+        })
         .collect()
 }
 
@@ -1200,7 +1224,7 @@ pub(crate) fn act_juece(st: &mut SgsState, action: &str) -> Result<String, Engin
     let target = st
         .seat_index(target_pid)
         .ok_or_else(|| illegal("目标不在座"))?;
-    if !st.seats[target].hand.is_empty() {
+    if !crate::skills::is_jiexian(st, f.actor) && !st.seats[target].hand.is_empty() {
         return Err(illegal("绝策目标必须没有手牌"));
     }
     st.push_log(

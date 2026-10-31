@@ -2587,7 +2587,7 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
             let Some(c) = st.cards.get(id) else {
                 return false;
             };
-            crate::skills::is_black(c.suit)
+            (crate::skills::is_jiexian(st, idx) || crate::skills::is_black(c.suit))
                 && crate::data::card_def(&c.def)
                     .is_some_and(|d| matches!(d.category, Category::Trick | Category::DelayedTrick))
         })

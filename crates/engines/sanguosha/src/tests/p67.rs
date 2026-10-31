@@ -338,9 +338,9 @@ fn pack_pool_prefers_jiexian_variant() {
     );
     // 界标 25 将全部实现：标准 25 位全部被界版本替换；
     // 界李典（317）与界公孙瓒（320）在标准包无同名原版（25 + 2 = 27）；
-    // P4.4.2 批次 J1–J6 各新增 8 位界化武将，在 standard+jiexian 池中均无同名原版
-    // （标准 25 位已被界标替换）→ 27 + 8×6 = 75。
-    assert_eq!(pool.len(), 75);
+    // P4.4.2 批次 J1–J7 各新增 8 位界化武将，在 standard+jiexian 池中均无同名原版
+    // （标准 25 位已被界标替换）→ 27 + 8×7 = 83。
+    assert_eq!(pool.len(), 83);
     for code in [
         "sgs_hero_299",
         "sgs_hero_300",

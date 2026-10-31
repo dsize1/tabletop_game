@@ -4,12 +4,21 @@
 
 ## 🔖 续接指针（下次会话说「继续」时从这里开工）
 
-- **入口**：`docs/games/sanguosha/development-plan.md` → **P4.4.2「界限突破剩余 12 位」**（J1–J6 已完成，含 J7–J8 批次表）
-- **顺序**：① 界限突破其余 12 位，按 J7（642 界李儒…749 界沮授）→ J8（4 将）逐批完成（一将成名 72/72、界标 25 将、J1–J6 已完成）→ ② P4.4.3 验收
+- **入口**：`docs/games/sanguosha/development-plan.md` → **P4.4.2「J8（4 将）」**（J1–J7 已完成）
+- **顺序**：① J8（752 界夏侯氏、753 界张松、756 界于禁、775 界步练师）收官（一将成名 72/72、界标 25 将、J1–J7 已完成）→ ② P4.4.3 验收
 - **开工命令**：`npm run sgs:batch-status`（看下一批名单/计数一致性）；流程与模板见 `docs/games/sanguosha/batch-playbook.md`
-- **批前必读**：`skills.md` §2.8.10、`rules-rulings.md` §35、`docs/conventions/coding-standards.md`
+- **批前必读**：`skills.md` §2.8.11、`rules-rulings.md` §36、`docs/conventions/coding-standards.md`
 - **每批收尾**：`p67` 池断言（如涉及界版池）；`skills.md` §2.8.x + `rules-rulings.md` 新节；`milestones.md` 新增 M 条目
 - **门禁**：`npm run sgs:check`（每批收尾）、`npm run sgs:check:full`（含 MCP 冒烟）、`npm run sgs:check:fast`（改码自检）
+
+## M54：三国杀 P4.4.2 批次 J7（界限突破 642/658/671/676/690/696/726/749：8 将 / 15 技能）✅
+
+- **日期**：2026-10-31
+- **完成**：界李儒（灭计/焚城/绝策）、界郭淮（精策）、界伏皇后（惴恐/求援）、界韩当（弓骑/解烦）、界关兴张苞（父魂）、界马岱（马术/潜袭）、界郭皇后（矫诏/殚心）、界沮授（矢北/渐营）
+- **机制**：界绝策（目标手牌 ≤ 你）、界灭计（任意锦囊 + 任意两张弃牌）、界解烦（第一轮不记已发动）；其余界版强化登记为边界
+- **用例**：`tests/p102.rs` 24 条；`cargo test -p sanguosha` **858** 全绿；`p67` 池断言 75 → 83
+- **已知边界**：见 `rules-rulings.md` §36
+- **详见**：`memory_palace/plan/01a192cd-9c3e-7668-91f6-e77ceff1a5f9.md`
 
 ## M53：三国杀 P4.4.2 批次 J6（界限突破 621/625/626/627/628/629/640/641：8 将 / 17 技能）✅
 
