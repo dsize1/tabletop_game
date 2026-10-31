@@ -15,6 +15,7 @@ mod resolve_mountain;
 mod resolve_skill;
 mod resolve_sp;
 mod resolve_sp2;
+mod resolve_yijiang;
 mod resolve_wind;
 mod resolve_zone;
 mod skills;
@@ -106,26 +107,85 @@ fn parse(data: &Value) -> Result<SgsState, EngineError> {
 // 选将 / 发牌
 // ---------------------------------------------------------------------------
 
-/// 当前对局可用的武将码：`Config.general_packs` 过滤 + 技能全部已实现。
+/// 当前对局可用的武将码：`Config.general_packs` 过滤 + 技能全部已实现 + 同名去重。
+///
+/// 同名去重（ADR-0024 口径 A「界优先」）：同时启用 `jiexian` 与标准/风林火山时，
+/// 与「界化」武将同名的原版不进选将池（界化武将名如「界刘备」去掉前导「界」即原名）。
 fn available_general_codes(st: &SgsState) -> Vec<&'static str> {
-    data::general_codes_in_packs(&st.config.general_packs)
+    available_codes_for_packs(&st.config.general_packs)
+}
+
+/// 按包组合计算选将池（含实现门槛 + 同名去重）。
+fn available_codes_for_packs(packs: &[String]) -> Vec<&'static str> {
+    let codes: Vec<&'static str> = data::general_codes_in_packs(packs)
         .into_iter()
         .filter(|code| skills::general_ready(code))
+        .collect();
+    prefer_jiexian(codes)
+}
+
+/// 同名去重（ADR-0024 口径 A「界优先」）：与「界化」武将同名的原版从池中剔除。
+///
+/// 纯函数（不依赖技能实现状态），便于单测与后续界标 25 将接入后直接生效。
+pub(crate) fn prefer_jiexian(codes: Vec<&'static str>) -> Vec<&'static str> {
+    let jie_names: Vec<&'static str> = codes
+        .iter()
+        .filter_map(|c| data::general(c))
+        .filter(|g| g.pack == "jiexian")
+        .filter_map(|g| g.name.strip_prefix('界'))
+        .collect();
+    if jie_names.is_empty() {
+        return codes;
+    }
+    codes
+        .into_iter()
+        .filter(|code| {
+            let Some(g) = data::general(code) else {
+                return false;
+            };
+            g.pack == "jiexian" || !jie_names.contains(&g.name)
+        })
         .collect()
 }
 
 fn general_pack_mode_label(mode: &str) -> (&'static str, usize) {
     let packs = parse_general_packs(mode).unwrap_or_default();
-    let count = data::general_codes_in_packs(&packs)
-        .into_iter()
-        .filter(|code| skills::general_ready(code))
-        .count();
-    let label = if mode == "standard" {
-        "标准"
-    } else {
-        "标准 + 风林火山"
+    // 与实际选将池一致：含同名去重（界优先）。
+    let count = available_codes_for_packs(&packs).len();
+    let label = match packs.len() {
+        1 => "标准",
+        _ => {
+            let names: Vec<&str> = packs
+                .iter()
+                .filter(|p| p.as_str() != "standard")
+                .map(|p| match p.as_str() {
+                    "wind_fire_forest_mountain" => "风林火山",
+                    "yijiang" => "一将成名",
+                    "jiexian" => "界限突破",
+                    other => other,
+                })
+                .collect();
+            if names.is_empty() {
+                "标准"
+            } else {
+                // 静态字符串有限：用穷举覆盖已注册组合。
+                mode_label(names.as_slice())
+            }
+        }
     };
     (label, count)
+}
+
+fn mode_label(names: &[&str]) -> &'static str {
+    match names {
+        ["风林火山"] => "标准 + 风林火山",
+        ["一将成名"] => "标准 + 一将成名",
+        ["界限突破"] => "标准 + 界限突破",
+        ["风林火山", "一将成名"] => "标准 + 风林火山 + 一将成名",
+        ["风林火山", "界限突破"] => "标准 + 风林火山 + 界限突破",
+        ["风林火山", "一将成名", "界限突破"] => "标准 + 风林火山 + 一将成名 + 界限突破",
+        _ => "标准 + 多包",
+    }
 }
 
 /// 给主公发候选：启用包内全部主公将 + `lord_candidate_count` 张非主公。
@@ -523,6 +583,7 @@ impl EnginePlugin for SanguoshaEngine {
             phase_discarded: Vec::new(),
             shenshi_marks: Vec::new(),
             scheduled: Vec::new(),
+            void_return: Vec::new(),
             extra_turn: None,
             winner: None,
             abort_reason: None,
@@ -645,7 +706,13 @@ impl EnginePlugin for SanguoshaEngine {
                         }
                     }
                     // 武将包组合（全局开关；旧对局按创建时的 config 固定）
-                    for mode in ["standard", "standard+wind_fire_forest_mountain"] {
+                    for mode in [
+                        "standard",
+                        "standard+wind_fire_forest_mountain",
+                        "standard+wind_fire_forest_mountain+yijiang",
+                        "standard+wind_fire_forest_mountain+jiexian",
+                        "standard+wind_fire_forest_mountain+yijiang+jiexian",
+                    ] {
                         if st.config.general_packs_mode() != mode {
                             let (label, count) = general_pack_mode_label(mode);
                             out.push(Action {

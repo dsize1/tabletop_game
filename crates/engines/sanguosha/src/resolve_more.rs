@@ -1815,6 +1815,14 @@ pub(crate) fn multiselect_confirm(
             pop(st);
             Some(Ok("成略：已完成".to_string()))
         }
+        "mingce" => match crate::resolve_yijiang::mingce_confirm(st, f) {
+            Ok(msg) => Some(Ok(msg)),
+            Err(e) => Some(Err(e)),
+        },
+        "sanyao" => match crate::resolve_yijiang::sanyao_confirm(st, f) {
+            Ok(msg) => Some(Ok(msg)),
+            Err(e) => Some(Err(e)),
+        },
         "mingren_init" | "mingren" => {
             if f.selected.len() != 1 {
                 if f.purpose == "mingren_init" {
@@ -1985,6 +1993,22 @@ pub(crate) fn target_action(
             crate::resolve_sp2::xiongluan_target(st, pending, action).map(Some)
         }
         Some(Frame::CongJian(_)) => crate::resolve_sp2::congjian_target(st, pending, action).map(Some),
+        Some(Frame::XianZhen(_)) => {
+            crate::resolve_yijiang::xianzhen_target(st, pending, action).map(Some)
+        }
+        Some(Frame::MingCe(_)) => {
+            crate::resolve_yijiang::mingce_target(st, pending, action).map(Some)
+        }
+        Some(Frame::XuanFeng(_)) => {
+            crate::resolve_yijiang::xuanfeng_target(st, pending, action).map(Some)
+        }
+        Some(Frame::SanYao(_)) => {
+            crate::resolve_yijiang::sanyao_target(st, pending, action).map(Some)
+        }
+        Some(Frame::GanLu(_)) => crate::resolve_yijiang::ganlu_target(st, pending, action).map(Some),
+        Some(Frame::ZhenJun(_)) => {
+            crate::resolve_yijiang::zhenjun_target(st, pending, action).map(Some)
+        }
         _ => Ok(None),
     }
 }

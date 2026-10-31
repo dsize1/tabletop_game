@@ -961,6 +961,95 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
             implemented: true,
         },
     ];
+    // ---- P4.4.2 一将成名（批次 1：8 将 / 13 技能）----
+    const CAOZHI: &[SkillDef] = &[
+        SkillDef {
+            code: "luoying",
+            name: "落英",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "jiushi",
+            name: "酒诗",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const GAOSHUN: &[SkillDef] = &[
+        SkillDef {
+            code: "xianzhen",
+            name: "陷阵",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "jinjiu",
+            name: "禁酒",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+    ];
+    const CHENGONG: &[SkillDef] = &[
+        SkillDef {
+            code: "mingce",
+            name: "明策",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "zhichi",
+            name: "智迟",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+    ];
+    const LINGTONG: &[SkillDef] = &[SkillDef {
+        code: "xuanfeng",
+        name: "旋风",
+        kind: SkillType::Normal,
+        implemented: true,
+    }];
+    const MASU: &[SkillDef] = &[
+        SkillDef {
+            code: "sanyao",
+            name: "散谣",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "zhiman",
+            name: "制蛮",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const WUGUOTAI: &[SkillDef] = &[
+        SkillDef {
+            code: "ganlu",
+            name: "甘露",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "buyi",
+            name: "补益",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const XUSHENG: &[SkillDef] = &[SkillDef {
+        code: "pojun",
+        name: "破军",
+        kind: SkillType::Normal,
+        implemented: true,
+    }];
+    const YUJIN: &[SkillDef] = &[SkillDef {
+        code: "zhenjun",
+        name: "镇军",
+        kind: SkillType::Normal,
+        implemented: true,
+    }];
     const XUYOU: &[SkillDef] = &[
         SkillDef {
             code: "chenglue",
@@ -1055,6 +1144,14 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
         "sgs_hero_413" => GUANQIUJIAN,
         "sgs_hero_414" => LUKANG,
         "sgs_hero_415" => ZHANGXIU,
+        "sgs_hero_151" => CAOZHI,
+        "sgs_hero_152" => GAOSHUN,
+        "sgs_hero_153" => CHENGONG,
+        "sgs_hero_155" => LINGTONG,
+        "sgs_hero_156" => MASU,
+        "sgs_hero_157" => WUGUOTAI,
+        "sgs_hero_158" => XUSHENG,
+        "sgs_hero_160" => YUJIN,
         _ => &[],
     }
 }
@@ -1563,6 +1660,10 @@ pub fn conversion_for(
             {
                 return Some(("jixi", "急袭"));
             }
+            // 禁酒（高顺，锁定）：手牌【酒】视为【杀】。
+            if has(st, seat, "jinjiu") && inst.def == "jiu" {
+                return Some(("jinjiu", "禁酒"));
+            }
         }
         "shan" => {
             if has(st, seat, "longdan") && inst.def == "sha" {
@@ -1622,6 +1723,18 @@ pub fn lianying_on_lose_last(st: &mut SgsState, seat: usize) {
 
 /// 枭姬：失去装备区的牌后摸 2 张（自动发动）。
 pub fn xiaoji_on_lose_equip(st: &mut SgsState, seat: usize) {
+    // 旋风（凌统）：失去装备区的牌后触发（与枭姬同窗口）。
+    if has(st, seat, "xuanfeng") && st.counter(&format!("xuanfeng:{}", seat)) == 0 {
+        st.set_counter(&format!("xuanfeng:{}", seat), 1);
+        crate::resolve::push(
+            st,
+            crate::resolve::Frame::XuanFeng(crate::resolve_yijiang::XuanFengFrame {
+                owner: seat,
+                remaining: 2,
+                chosen: Vec::new(),
+            }),
+        );
+    }
     if !has(st, seat, "xiaoji") {
         return;
     }
@@ -1766,6 +1879,19 @@ pub fn hand_limit(st: &SgsState, seat: usize) -> usize {
     if has(st, seat, "jueyan") {
         limit += st.counter("jueyan_hand_limit") as usize;
     }
+    // 陷阵（没赢）：本回合【杀】不计入手牌上限（等价于上限 + 手牌中【杀】数）。
+    if has(st, seat, "xianzhen") && st.counter("xz_lose") > 0 {
+        let sha_count = st.seats[seat]
+            .hand
+            .iter()
+            .filter(|id| {
+                st.cards
+                    .get(*id)
+                    .is_some_and(|c| matches!(c.def.as_str(), "sha" | "huo_sha" | "lei_sha"))
+            })
+            .count();
+        limit += sha_count;
+    }
     // 血裔（主公技，锁定）：其他群势力角色数 ×2 手牌上限。
     if has(st, seat, "xueyi") && is_lord(st, seat) {
         let allies = st
@@ -1894,7 +2020,8 @@ pub fn fenji_owner(st: &SgsState, lost_by: usize) -> Option<usize> {
 
 /// 天义（没赢）：本回合不能使用【杀】。
 pub fn sha_blocked(st: &SgsState, seat: usize) -> bool {
-    has(st, seat, "tianyi") && st.counter("tianyi_lose") > 0
+    (has(st, seat, "tianyi") && st.counter("tianyi_lose") > 0)
+        || (has(st, seat, "xianzhen") && st.counter("xz_lose") > 0)
 }
 
 /// 奇才：使用锦囊无距离限制。

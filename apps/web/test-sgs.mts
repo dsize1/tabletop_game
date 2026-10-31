@@ -471,6 +471,13 @@ const abolishedPublic = renderPublicArea(
 assert.ok(abolishedPublic.includes("判定区已废除"), "公共区：判定区废除提示");
 assert.ok(abolishedPublic.includes("废除装备栏×2"), "公共区：废除装备栏数量");
 console.log("[sgs-web] 视图契约快照（marks_count / 转换技阳阴）单测通过 ✅");
+// SP-2/一将成名：移出游戏（徐盛·破军）牌数展示。
+const voidHtml = renderPublicArea(
+  { ...view, public_board: { ...board, deck: { ...board.deck, void: 2 } } },
+  0,
+  names,
+);
+assert.ok(voidHtml.includes("移出游戏") && voidHtml.includes(">2<"), "公共区：移出游戏牌数");
 console.log("[sgs-web] 视图契约快照（废除装备栏/判定区/罪论）单测通过 ✅");
 
 // —— P3.4 pending 浮层 ——

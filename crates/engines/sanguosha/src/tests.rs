@@ -749,7 +749,10 @@ fn every_standard_card_def_and_general_is_resolvable() {
     );
     assert_eq!(
         data::GENERAL_COUNT,
-        STANDARD_GENERAL_COUNT + data::WIND_FIRE_FOREST_MOUNTAIN_GENERAL_COUNT
+        STANDARD_GENERAL_COUNT
+            + data::WIND_FIRE_FOREST_MOUNTAIN_GENERAL_COUNT
+            + data::YIJIANG_GENERAL_COUNT
+            + data::JIEXIAN_GENERAL_COUNT
     );
     for pc in data::STANDARD_DECK.iter().chain(data::JUNZHENG_DECK) {
         let def = data::card_def(pc.def).unwrap_or_else(|| panic!("缺少定义 {}", pc.def));
@@ -771,10 +774,7 @@ fn every_standard_card_def_and_general_is_resolvable() {
     }
     let lords = data::STANDARD_GENERALS.iter().filter(|g| g.is_lord).count();
     assert_eq!(lords, 3, "标准包主公将应为 3 位");
-    assert_eq!(
-        data::all_general_codes().len(),
-        STANDARD_GENERAL_COUNT + data::WIND_FIRE_FOREST_MOUNTAIN_GENERAL_COUNT
-    );
+    assert_eq!(data::all_general_codes().len(), data::GENERAL_COUNT);
     assert!(data::STANDARD_GENERALS.iter().all(|g| g.pack == "standard"));
     assert!(data::WIND_FIRE_FOREST_MOUNTAIN_GENERALS
         .iter()
@@ -799,8 +799,11 @@ fn every_standard_card_def_and_general_is_resolvable() {
     ];
     assert_eq!(
         data::general_codes_in_packs(&both).len(),
-        data::GENERAL_COUNT
+        STANDARD_GENERAL_COUNT + data::WIND_FIRE_FOREST_MOUNTAIN_GENERAL_COUNT
     );
+    // 全包合计 = GENERAL_COUNT。
+    let all: Vec<String> = data::GENERAL_PACK_KEYS.iter().map(|k| k.to_string()).collect();
+    assert_eq!(data::general_codes_in_packs(&all).len(), data::GENERAL_COUNT);
 }
 
 #[test]
@@ -875,5 +878,7 @@ mod p76;
 mod p77;
 mod p78;
 mod p79;
+mod p80;
+mod p81;
 mod replay;
 mod view_contract;

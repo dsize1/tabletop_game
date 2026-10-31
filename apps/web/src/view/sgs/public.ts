@@ -145,6 +145,9 @@ export function renderPublicArea(
     `<div class="sgs-deck"><span class="sgs-deck-label">牌堆</span>${board.deck.draw}</div>` +
     `<button type="button" class="sgs-deck sgs-deck-btn" data-press="discard" aria-label="查看弃牌堆">` +
     `<span class="sgs-deck-label">弃牌</span>${board.deck.discard}${discardTop}</button>` +
+    (board.deck.void > 0
+      ? `<div class="sgs-deck" data-zone="void"><span class="sgs-deck-label">移出游戏</span>${board.deck.void}</div>`
+      : "") +
     `</div>` +
     pending +
     winner +

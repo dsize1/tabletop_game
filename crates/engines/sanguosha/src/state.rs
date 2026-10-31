@@ -474,6 +474,14 @@ pub struct ShenshiMark {
     pub card: String,
 }
 
+/// 移出游戏并待回置（P4.4.2 徐盛·破军）：`due_seat` 回合结束时回到 `owner` 手牌。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VoidReturn {
+    pub owner: usize,
+    pub card: String,
+    pub due_seat: usize,
+}
+
 /// 延迟结算条目（镇骨等）：`due_seat` 的回合结束时触发一次。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScheduledEffect {
@@ -539,6 +547,9 @@ pub struct SgsState {
     /// 延迟结算（P4.4.1 SP-2：郝昭·镇骨）：在指定座位回合结束时触发一次。
     #[serde(default)]
     pub scheduled: Vec<ScheduledEffect>,
+    /// 移出游戏待回置（P4.4.2 徐盛·破军）。
+    #[serde(default)]
+    pub void_return: Vec<VoidReturn>,
     /// 放权等产生的额外回合（下一个执行的座位）。
     #[serde(default)]
     pub extra_turn: Option<usize>,

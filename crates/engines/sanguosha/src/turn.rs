@@ -89,6 +89,12 @@ pub(crate) fn to_discard_card(st: &mut SgsState, card_id: &str) {
     st.deck.discard.push(card_id.to_string());
 }
 
+/// 弃置并触发「进入弃牌堆」钩子（落英等）。
+pub(crate) fn discard_by(st: &mut SgsState, seat: Option<usize>, card_id: &str) {
+    st.deck.discard.push(card_id.to_string());
+    crate::resolve_yijiang::on_card_discarded(st, seat, card_id);
+}
+
 /// 是否有「顺手/过河」可拿的牌（手牌 / 装备 / 判定区至少其一）。
 pub(crate) fn has_cards_to_take(st: &SgsState, idx: usize) -> bool {
     let Some(seat) = st.seats.get(idx) else {
@@ -323,6 +329,20 @@ pub(crate) fn phase_step(
                         actor: st.turn,
                         stage: crate::resolve_sp2::KongShengStage::Keep,
                         cards: Vec::new(),
+                    }),
+                );
+                return Ok(true);
+            }
+            // 镇军（于禁）：准备阶段弃置一名角色 X 张牌（X=手牌-体力，至少 1）。
+            if crate::skills::has(st, st.turn, "zhenjun") && st.counter("zhenjun_offered") == 0 {
+                st.set_counter("zhenjun_offered", 1);
+                resolve::push(
+                    st,
+                    resolve::Frame::ZhenJun(crate::resolve_yijiang::ZhenJunFrame {
+                        actor: st.turn,
+                        stage: crate::resolve_yijiang::ZhenJunStage::Target,
+                        target: None,
+                        non_equip: 0,
                     }),
                 );
                 return Ok(true);
@@ -649,6 +669,14 @@ pub(crate) fn phase_step(
                     }
                 }
             }
+            // 旋风（凌统）：弃牌阶段弃置 ≥2 张时发动。
+            if crate::skills::has(st, idx, "xuanfeng")
+                && st.phase_discarded.len() >= 2
+                && st.counter(&format!("xuanfeng:{}", idx)) == 0
+            {
+                crate::resolve_yijiang::push_xuanfeng(st);
+                return Ok(true);
+            }
             // 溃诛（孙亮）：弃牌阶段结束时，按本阶段弃牌数发动。
             if crate::skills::has(st, idx, "kuizhu")
                 && st.counter("kuizhu_done") == 0
@@ -798,6 +826,22 @@ pub(crate) fn phase_step(
 fn end_turn(st: &mut SgsState, events: &mut Vec<EngineEvent>) {
     let cur = st.turn;
     let pid = st.seats[cur].player_id.clone();
+    // 破军（徐盛）：回合结束把「移出游戏」的牌回置原主人手牌。
+    if st.void_return.iter().any(|e| e.due_seat == cur) {
+        let due: Vec<_> = st
+            .void_return
+            .iter()
+            .filter(|e| e.due_seat == cur)
+            .cloned()
+            .collect();
+        st.void_return.retain(|e| e.due_seat != cur);
+        for e in due {
+            if let Some(pos) = st.deck.void.iter().position(|c| c == &e.card) {
+                st.deck.void.remove(pos);
+                st.seats[e.owner].hand.push(e.card.clone());
+            }
+        }
+    }
     // 延迟结算（镇骨）：本座位回合结束时触发。
     if st.scheduled.iter().any(|e| e.due_seat == cur) {
         let due: Vec<_> = st
@@ -1000,6 +1044,7 @@ pub(crate) fn apply_judge_effect(
     }
     if !judge_gained {
         resolve::discard_from_processing(st, &judge_id);
+        crate::resolve_yijiang::on_card_discarded(st, None, &judge_id);
     }
 
     st.push_log(
@@ -1512,6 +1557,77 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
             }
         }
     }
+    // 酒诗（曹植）：翻至背面视为使用【酒】（正面朝上时）。
+    if crate::skills::has(st, idx, "jiushi")
+        && !st.seats[idx].flipped
+        && st.counter("jiu_used") == 0
+    {
+        out.push(Action {
+            id: "skill:jiushi".into(),
+            description: "酒诗：翻至背面，视为使用【酒】".into(),
+        });
+    }
+    // 陷阵（高顺）：出牌阶段限一次拼点。
+    if crate::skills::has(st, idx, "xianzhen")
+        && st.counter("xianzhen_used") == 0
+        && !st.seats[idx].hand.is_empty()
+        && st
+            .alive_indices()
+            .into_iter()
+            .any(|i| i != idx && !st.seats[i].hand.is_empty())
+    {
+        out.push(Action {
+            id: "skill:xianzhen".into(),
+            description: "陷阵：拼点；赢则本回合对其无距离/次数限制并无视其防具".into(),
+        });
+    }
+    // 明策（陈宫）：出牌阶段限一次，交【杀】/装备给其他角色。
+    if crate::skills::has(st, idx, "mingce")
+        && st.counter("mingce_used") == 0
+        && !crate::resolve_yijiang::mingce_cards(st, idx).is_empty()
+        && st.alive_indices().len() > 1
+    {
+        out.push(Action {
+            id: "skill:mingce".into(),
+            description: "明策：交给一名其他角色一张【杀】或装备牌".into(),
+        });
+    }
+    // 散谣（马谡）：对体力/手牌最大者各限一次。
+    if crate::skills::has(st, idx, "sanyao") && !st.seats[idx].hand.is_empty() {
+        for (id, key, label) in [
+            ("skill:sanyao:hp", "sanyao_hp_used", "体力值"),
+            ("skill:sanyao:hand", "sanyao_hand_used", "手牌数"),
+        ] {
+            let mode = if key == "sanyao_hp_used" {
+                crate::resolve_yijiang::SanYaoMode::Hp
+            } else {
+                crate::resolve_yijiang::SanYaoMode::Hand
+            };
+            if st.counter(key) == 0
+                && !crate::resolve_yijiang::sanyao_targets(st, idx, mode).is_empty()
+            {
+                out.push(Action {
+                    id: id.into(),
+                    description: format!("散谣：弃一张牌，对{label}最大的角色造成 1 点伤害"),
+                });
+            }
+        }
+    }
+    // 甘露（吴国太）：出牌阶段限一次，交换两名角色装备区。
+    if crate::skills::has(st, idx, "ganlu")
+        && st.counter("ganlu_used") == 0
+        && st
+            .alive_indices()
+            .into_iter()
+            .filter(|i| *i != idx && st.seats[*i].equips.values().any(|c| c.is_some()))
+            .count()
+            >= 2
+    {
+        out.push(Action {
+            id: "skill:ganlu".into(),
+            description: "甘露：交换两名角色装备区里的牌".into(),
+        });
+    }
     // 重铸：铁索连环（或连环：梅花手牌）可弃置并摸 1 张。
     for card_id in hand_ids(st, idx) {
         let is_tiesuo = card_def(st, &card_id).is_some_and(|d| d.code == "tiesuo_lianhuan");
@@ -1723,7 +1839,9 @@ pub fn execute(
         resolve::start_virtual_trick(st, idx, card_id, "guohe_chaiqiao")?;
         st.push_log(Some(player_id), format!("奇袭：将【{label}】当过河拆桥"));
         "请选择过河拆桥的目标".to_string()
-    } else if let Some((skill, card_id)) = ["wusheng", "longdan", "jixi"].iter().find_map(|code| {
+    } else if let Some((skill, card_id)) = ["wusheng", "longdan", "jixi", "jinjiu"]
+        .iter()
+        .find_map(|code| {
         action
             .strip_prefix(&format!("skill:{code}:"))
             .map(|card| (*code, card))
@@ -2462,6 +2580,110 @@ pub fn execute(
             st.set_counter("no_card_use", 1);
             "往烈：已使用（不可响应）".to_string()
         }
+    } else if action == "skill:jiushi" {
+        if !crate::skills::has(st, idx, "jiushi") {
+            return Err(illegal("没有该技能"));
+        }
+        if st.seats[idx].flipped {
+            return Err(illegal("已背面朝上"));
+        }
+        resolve::push(
+            st,
+            resolve::Frame::JiuShi(crate::resolve_yijiang::JiuShiFrame { actor: idx }),
+        );
+        st.push_log(Some(player_id), "发动酒诗");
+        "酒诗：请确认".to_string()
+    } else if action == "skill:xianzhen" {
+        if !crate::skills::has(st, idx, "xianzhen") {
+            return Err(illegal("没有该技能"));
+        }
+        if st.counter("xianzhen_used") > 0 {
+            return Err(illegal("本阶段已发动过陷阵"));
+        }
+        if st.seats[idx].hand.is_empty() {
+            return Err(illegal("没有手牌可拼点"));
+        }
+        st.set_counter("xianzhen_used", 1);
+        resolve::push(
+            st,
+            resolve::Frame::XianZhen(crate::resolve_yijiang::XianZhenFrame {
+                actor: idx,
+                target: None,
+                stage: crate::resolve_yijiang::XianZhenStage::Target,
+            }),
+        );
+        st.push_log(Some(player_id), "发动陷阵");
+        "陷阵：请选择拼点目标".to_string()
+    } else if action == "skill:mingce" {
+        if !crate::skills::has(st, idx, "mingce") {
+            return Err(illegal("没有该技能"));
+        }
+        if st.counter("mingce_used") > 0 {
+            return Err(illegal("本阶段已发动过明策"));
+        }
+        if crate::resolve_yijiang::mingce_cards(st, idx).is_empty() {
+            return Err(illegal("没有可交出的【杀】或装备牌"));
+        }
+        st.set_counter("mingce_used", 1);
+        resolve::push(
+            st,
+            resolve::Frame::MingCe(crate::resolve_yijiang::MingCeFrame {
+                actor: idx,
+                card: None,
+                target: None,
+                stage: crate::resolve_yijiang::MingCeStage::Card,
+            }),
+        );
+        st.push_log(Some(player_id), "发动明策");
+        "明策：请选择要交出的牌".to_string()
+    } else if action == "skill:sanyao:hp" || action == "skill:sanyao:hand" {
+        if !crate::skills::has(st, idx, "sanyao") {
+            return Err(illegal("没有该技能"));
+        }
+        let hp_mode = action.ends_with(":hp");
+        let key = if hp_mode {
+            "sanyao_hp_used"
+        } else {
+            "sanyao_hand_used"
+        };
+        if st.counter(key) > 0 {
+            return Err(illegal("本阶段已发动过该散谣选项"));
+        }
+        if st.seats[idx].hand.is_empty() {
+            return Err(illegal("没有手牌可弃置"));
+        }
+        let mode = if hp_mode {
+            crate::resolve_yijiang::SanYaoMode::Hp
+        } else {
+            crate::resolve_yijiang::SanYaoMode::Hand
+        };
+        resolve::push(
+            st,
+            resolve::Frame::SanYao(crate::resolve_yijiang::SanYaoFrame {
+                actor: idx,
+                mode,
+                stage: crate::resolve_sp::YiliStage::Cost,
+            }),
+        );
+        st.push_log(Some(player_id), "发动散谣");
+        "散谣：请选择要弃置的牌".to_string()
+    } else if action == "skill:ganlu" {
+        if !crate::skills::has(st, idx, "ganlu") {
+            return Err(illegal("没有该技能"));
+        }
+        if st.counter("ganlu_used") > 0 {
+            return Err(illegal("本阶段已发动过甘露"));
+        }
+        resolve::push(
+            st,
+            resolve::Frame::GanLu(crate::resolve_yijiang::GanLuFrame {
+                actor: idx,
+                stage: crate::resolve_yijiang::GanLuStage::First,
+                first: None,
+            }),
+        );
+        st.push_log(Some(player_id), "发动甘露");
+        "甘露：请选择第一名角色".to_string()
     } else if let Some(card_id) = action.strip_prefix("play:") {
         play_card(st, idx, card_id, &mut events)?
     } else if action == "end_play" {

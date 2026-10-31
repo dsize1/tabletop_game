@@ -468,3 +468,73 @@ fn view_contract_abolished_slots_and_judge_zone() {
     // 废除后该槽视为无装备（装备技能失效）。
     assert!(st.equip_def(cur, EquipSlot::Armor).is_none(), "废除栏无装备定义");
 }
+
+#[test]
+fn view_contract_deck_counts_and_void_zone() {
+    let mgr = manager(307);
+    let room = start(&mgr);
+    let (mut cur, mut card) = (0, String::new());
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        cur = st.turn;
+        card = super::find_card(st, "sha");
+        super::take_card(st, &card);
+        // 模拟破军：一张牌移出游戏（void）。
+        st.deck.void.push(card.clone());
+        st.void_return.push(crate::state::VoidReturn {
+            owner: cur,
+            card: card.clone(),
+            due_seat: cur,
+        });
+    });
+    let public = public_view(&mgr, &room);
+    let deck = &public["public_board"]["deck"];
+    assert_keys(deck, &["draw", "discard", "processing", "void"], "public_board.deck");
+    assert_eq!(deck["void"], serde_json::json!(1), "移出游戏牌数下发");
+}
+
+#[test]
+fn view_contract_equip_swap_after_ganlu() {
+    let mgr = manager(308);
+    let room = start(&mgr);
+    let (mut a, mut b) = (0, 0);
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        let cur = st.turn;
+        let others = st
+            .alive_indices()
+            .into_iter()
+            .filter(|i| *i != cur)
+            .collect::<Vec<_>>();
+        a = others[0];
+        b = others[1];
+        let wa = super::find_card(st, "qinggang_jian");
+        super::take_card(st, &wa);
+        st.seats[a]
+            .equips
+            .insert(crate::state::EquipSlot::Weapon, Some(wa));
+        let ab = super::find_card(st, "bagua_zhen");
+        super::take_card(st, &ab);
+        st.seats[b]
+            .equips
+            .insert(crate::state::EquipSlot::Armor, Some(ab));
+        // 直接交换（等价甘露结算后状态）。
+        let ea = st.seats[a].equips.clone();
+        let eb = st.seats[b].equips.clone();
+        st.seats[a].equips = eb;
+        st.seats[b].equips = ea;
+    });
+    let public = public_view(&mgr, &room);
+    let seats = public["public_board"]["seats"].as_array().expect("seats");
+    assert!(
+        seats[a]["equips"]["armor"].is_object(),
+        "甘露交换后 a 装备区出现防具"
+    );
+    assert!(
+        seats[b]["equips"]["weapon"].is_object(),
+        "甘露交换后 b 装备区出现武器"
+    );
+    for seat in seats {
+        assert_keys(&seat["equips"], EQUIP_SLOTS, "seat.equips");
+    }
+}

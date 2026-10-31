@@ -132,6 +132,17 @@ pub enum Frame {
     JueYan(crate::resolve_sp2::JueYanFrame),
     XiongLuan(crate::resolve_sp2::XiongLuanFrame),
     CongJian(crate::resolve_sp2::CongJianFrame),
+    /// P4.4.2 一将成名帧（批次 1）。
+    LuoYing(crate::resolve_yijiang::LuoYingFrame),
+    JiuShi(crate::resolve_yijiang::JiuShiFrame),
+    XianZhen(crate::resolve_yijiang::XianZhenFrame),
+    MingCe(crate::resolve_yijiang::MingCeFrame),
+    XuanFeng(crate::resolve_yijiang::XuanFengFrame),
+    SanYao(crate::resolve_yijiang::SanYaoFrame),
+    ZhiMan(crate::resolve_yijiang::ZhiManFrame),
+    GanLu(crate::resolve_yijiang::GanLuFrame),
+    PoJun(crate::resolve_yijiang::PoJunFrame),
+    ZhenJun(crate::resolve_yijiang::ZhenJunFrame),
     /// 五谷丰登（P2.5 特殊区 `wugu`）。
     Wugu(crate::resolve_zone::WuguFrame),
     /// 观星排序提交（P2.5 特殊区 `guanxing`，`arrange:<csv>`）。
@@ -731,6 +742,16 @@ fn step(
         Frame::JueYan(f) => crate::resolve_sp2::step_jueyan(st, f),
         Frame::XiongLuan(f) => crate::resolve_sp2::step_xiongluan(st, f),
         Frame::CongJian(f) => crate::resolve_sp2::step_congjian(st, f),
+        Frame::LuoYing(f) => crate::resolve_yijiang::step_luoying(st, f),
+        Frame::JiuShi(f) => crate::resolve_yijiang::step_jiushi(st, f),
+        Frame::XianZhen(f) => crate::resolve_yijiang::step_xianzhen(st, f),
+        Frame::MingCe(f) => crate::resolve_yijiang::step_mingce(st, f),
+        Frame::XuanFeng(f) => crate::resolve_yijiang::step_xuanfeng(st, f),
+        Frame::SanYao(f) => crate::resolve_yijiang::step_sanyao(st, f),
+        Frame::ZhiMan(f) => crate::resolve_yijiang::step_zhiman(st, f),
+        Frame::GanLu(f) => crate::resolve_yijiang::step_ganlu(st, f),
+        Frame::PoJun(f) => crate::resolve_yijiang::step_pojun(st, f),
+        Frame::ZhenJun(f) => crate::resolve_yijiang::step_zhenjun(st, f),
         Frame::Wugu(f) => crate::resolve_zone::step_wugu(st, f, events),
         Frame::Arrange(f) => crate::resolve_zone::step_arrange(st, f, events),
     }
@@ -1450,6 +1471,36 @@ fn step_trick(
             _ => Err(internal("缺少无懈结算结果")),
         },
         TrickStage::Effect => {
+            // 智迟（陈宫，锁定）：本回合普通锦囊对其无效。
+            if matches!(
+                f.code.as_str(),
+                "nanman_ruqin"
+                    | "wanjian_qifa"
+                    | "juedou"
+                    | "huo_gong"
+                    | "shunshou_qianyang"
+                    | "guohe_chaiqiao"
+                    | "tiesuo_lianhuan"
+                    | "wugu_fengdeng"
+                    | "taoyuan_jieyi"
+                    | "wuzhong_shengyou"
+            ) {
+                let t = if f.code == "jiedao_sharen" {
+                    f.first.unwrap_or(f.user)
+                } else if f.targets.is_empty() {
+                    f.user
+                } else {
+                    f.targets[f.idx]
+                };
+                if crate::resolve_yijiang::zhichi_active(st, t) {
+                    st.push_log(
+                        None,
+                        format!("智迟：锦囊对 {} 无效", st.seats[t].general_name),
+                    );
+                    advance_trick_target(st, f)?;
+                    return Ok(false);
+                }
+            }
             let target = if f.code == "jiedao_sharen" {
                 f.first.unwrap_or(f.user)
             } else if f.targets.is_empty() {
@@ -2758,6 +2809,13 @@ pub fn execute_pending(
             Some("liangyin") => crate::resolve_sp2::act_liangyin(st, action)?,
             Some("jueyan") => crate::resolve_sp2::act_jueyan(st, action)?,
             Some("congjian") => crate::resolve_sp2::act_congjian(st, action)?,
+            Some("luoying") => crate::resolve_yijiang::act_luoying(st, action)?,
+            Some("jiushi") => crate::resolve_yijiang::act_jiushi(st, action)?,
+            Some("mingce") => crate::resolve_yijiang::act_mingce(st, action)?,
+            Some("sanyao") => crate::resolve_yijiang::act_sanyao(st, action)?,
+            Some("zhiman") => crate::resolve_yijiang::act_zhiman(st, action)?,
+            Some("pojun") => crate::resolve_yijiang::act_pojun(st, action)?,
+            Some("zhenjun") => crate::resolve_yijiang::act_zhenjun(st, action)?,
             _ => crate::resolve_skill::act_jianxiong(st, action)?,
         },
         "choose_many" => match top(st) {
@@ -2912,9 +2970,24 @@ fn act_target(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Stri
         if f.no_respond {
             no_shan = true;
         }
+        // 陷阵（拼点赢）：无视被拼点者防具。
+        let xianzhen_target = crate::resolve_yijiang::xianzhen_win_target(st) == Some(target)
+            && crate::skills::has(st, f.user, "xianzhen");
+        let ignore_armor = crate::skills::has_equipment_skill(st, f.user, "qinggang_jian")
+            || xianzhen_target;
         if no_shan && crate::skills::has(st, f.user, "liegong") {
             let user_pid = st.seats[f.user].player_id.clone();
             st.push_log(Some(&user_pid), "烈弓：目标不能使用【闪】");
+        }
+        // 智迟（陈宫，锁定）：回合外受伤后，本回合【杀】对其无效。
+        if crate::resolve_yijiang::zhichi_active(st, target) {
+            crate::resolve::discard_from_processing(st, &f.card);
+            pop(st);
+            st.push_log(
+                None,
+                format!("智迟：【杀】对 {} 无效", st.seats[target].general_name),
+            );
+            return Ok("智迟：此【杀】无效".to_string());
         }
         // 父荫（诸葛瞻，锁定）：每回合首次成为【杀】目标且对方手牌 ≥ 你 → 此牌无效。
         if crate::resolve_sp2::fuyin_take(st, target, f.user) {
@@ -2964,7 +3037,7 @@ fn act_target(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Stri
                     card: f.card.clone(),
                     need,
                     no_shan,
-                    ignore_armor: crate::skills::has_equipment_skill(st, f.user, "qinggang_jian"),
+                    ignore_armor,
                     damage_type: f.damage_type,
                 }),
             );
@@ -3006,7 +3079,7 @@ fn act_target(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Stri
             &f.card,
             need,
             no_shan,
-            crate::skills::has_equipment_skill(st, f.user, "qinggang_jian"),
+            ignore_armor,
             f.damage_type,
         );
         // 拒战（严颜，转换技）：阳面（成为杀目标后）/ 阴面（使用杀指定目标后），
@@ -3023,6 +3096,8 @@ fn act_target(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Stri
                 }),
             );
         }
+        // 破军（徐盛）：使用【杀】指定目标后，可将目标至多 X 张牌移出游戏直到回合结束。
+        crate::resolve_yijiang::push_pojun(st, f.user, target, &f.card);
         // 立军（孙亮主公技）：其他吴势力使用【杀】后可交给孙亮。
         crate::resolve_sp::lijun_trigger(st, f.user, &f.card);
         return Ok(format!("已选择目标：{}", st.seats[target].general_name));
@@ -3885,6 +3960,10 @@ fn act_discard(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Str
             }),
         );
     }
+    // 弃牌堆钩子（落英等）必须在 pop/replace_top 之后压帧，避免被覆盖。
+    for id in &ids {
+        crate::resolve_yijiang::on_card_discarded(st, Some(f.actor), id);
+    }
     Ok(text)
 }
 
@@ -3945,6 +4024,16 @@ fn apply_damage_inner(
             }
         }
     }
+    // 制蛮（马谡）：对其他角色造成伤害时，可防止此伤害并获得其一张牌。
+    if amount > 0 && allow_tianxiang {
+        if let Some(src) = source {
+            if src != victim
+                && crate::resolve_yijiang::zhiman_trigger(st, src, victim, amount, dtype, card)
+            {
+                return;
+            }
+        }
+    }
     // 天香：受到伤害时，可弃红桃手牌防止伤害并转移。
     if allow_tianxiang
         && amount > 0
@@ -3966,8 +4055,11 @@ fn apply_damage_inner(
         );
         return;
     }
+    // 陷阵（拼点赢）：无视被拼点目标的防具（藤甲/白银狮子等不生效）。
+    let armor_ignored = source
+        .is_some_and(|src| crate::resolve_yijiang::xianzhen_ignore_armor(st, victim) && src != victim);
     // 藤甲：火焰伤害 +1；普通【杀】/南蛮/万箭伤害无效。
-    if crate::skills::has_equipment_skill(st, victim, "tengjia") {
+    if !armor_ignored && crate::skills::has_equipment_skill(st, victim, "tengjia") {
         let code = card
             .and_then(|id| st.cards.get(id))
             .map(|c| c.def.as_str())
@@ -4217,6 +4309,10 @@ fn apply_damage_inner(
             );
         }
     }
+    // 智迟（陈宫，锁定）：回合外受到伤害后 → 本回合【杀】与普通锦囊对其无效。
+    crate::resolve_yijiang::zhichi_on_damage(st, victim);
+    // 酒诗（曹植）：受伤后若背面朝上，可翻回正面。
+    crate::resolve_yijiang::jiushi_heal_flip(st, victim);
     // 审时（阴）：其他角色对你造成伤害后，可观看其手牌并交给其一张牌。
     if let Some(src) = source {
         if src != victim && st.seats[victim].hp > 0 && amount > 0 {
@@ -4240,6 +4336,11 @@ fn apply_damage_inner(
 }
 
 pub fn push_dying(st: &mut SgsState, victim: usize, source: Option<usize>) {
+    // 补益（吴国太）：角色进入濒死时，可展示其一张手牌，非基本牌则弃置并回复 1。
+    if st.seats.get(victim).is_some_and(|s| s.alive) && crate::resolve_yijiang::buyi_on_dying(st, victim)
+    {
+        return;
+    }
     // 不屈（锁定）：濒死时翻「创」，点数不重复则回复至 1 点体力。
     if st.seats.get(victim).is_some_and(|s| s.alive)
         && crate::skills::has(st, victim, "buqu")

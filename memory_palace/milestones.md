@@ -2,6 +2,17 @@
 
 > 记录项目关键节点与验证结果，按时间倒序。重大技术决策见 `decisions/`。
 
+## M30：三国杀 P4.4.2 批次 1（ADR-0024 + 数据扩包 + 一将成名 8 将）✅
+
+- **日期**：2026-10-30
+- **口径**（ADR-0024）：界化武将 code 独立 / 技能 code 复用 / 选将池「界优先去重」（`lib.rs::prefer_jiexian`）/ 旧局不变
+- **数据**：`gen-sanguosha-engine-data` 登记 `yijiang`(72) + `jiexian`(87)，`data.rs` 全量 **232** 位；`GENERAL_PACKS` 新增两包（未实现不进池）
+- **机制**：弃牌堆来源钩子（落英/旋风）、移出游戏并回合结束回置（破军 `void_return`）、陷阵无视防具/追加目标/杀不计上限、伤害防止获牌（制蛮）、濒死展示手牌（补益）、装备区交换（甘露）
+- **技能**：曹植（落英/酒诗）、高顺（陷阵/禁酒）、陈宫（明策/智迟）、凌统（旋风）、马谡（散谣/制蛮）、吴国太（甘露/补益）、徐盛（破军）、于禁（镇军）
+- **验证**：`cargo test -p sanguosha` **396** 全绿；`check:sgs-engine-data`（232 将）、`check:sgs-skill-cases`（81 位）、`check:sgs-skill-docs`（§2.7）、`check:sgs-view-contract`、`npm run test:web`、`npm run test:sgs-web`、MCP 冒烟
+- **已知边界**：ADR-0024 §3（界标 25 将待实现、去重按「界」前缀名匹配）+ §16（禁酒响应不提供、【杀】不计上限口径）
+- **详见**：`docs/games/sanguosha/skills.md` §2.7/§2.8、`development-plan.md` P4.4.2、ADR-0024、`rules-rulings.md` §16
+
 ## M29：三国杀 P4.4.1 SP-2 8 将（风林火山 48 将完成）✅
 
 - **日期**：2026-10-30

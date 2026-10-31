@@ -150,6 +150,22 @@ async function loadGrantSites() {
   return sites;
 }
 
+/**
+ * 解析 `data.rs`：`GeneralDef { ..., skills: &["a", "b"], }` → gid → 技能名数组。
+ * 用于校验「文档技能名」与该武将的数据技能名一一对应（防 gid 错位/漏登记）。
+ */
+async function loadDataSkillNames() {
+  const text = await readFile(DATA_RS, "utf8");
+  const map = new Map();
+  const re = /GeneralDef \{ code: "sgs_hero_\d+", gid: (\d+),[^}]*skills: &\[([^\]]*)\]/g;
+  for (const m of text.matchAll(re)) {
+    const gid = Number(m[1]);
+    const names = [...m[2].matchAll(/"([^"]+)"/g)].map((x) => x[1]);
+    map.set(gid, names);
+  }
+  return map;
+}
+
 async function loadGeneralNames() {
   const text = await readFile(DATA_RS, "utf8");
   const names = new Map();
@@ -165,6 +181,7 @@ const extras = await loadExtraSkills();
 const granted = await loadGrantedRows();
 const grantSites = await loadGrantSites();
 const names = await loadGeneralNames();
+const dataSkills = await loadDataSkillNames();
 
 if (code.size === 0) {
   console.error("[check] 未解析到任何已实现武将（skills.rs）");
@@ -209,6 +226,23 @@ for (const [gid, codeSkills] of code) {
   for (const c of docByCode.keys()) {
     if (!codeByCode.has(c)) {
       problems.push(`${label}：skills.md 登记了 ${c}，代码未注册或未实现`);
+    }
+  }
+  // 文档技能名 ↔ data.rs 该武将的技能名列表（防 gid 错位/漏登记）。
+  const dataNames = dataSkills.get(gid);
+  if (!dataNames) {
+    problems.push(`${label}：data.rs 缺少该武将的技能名列表`);
+  } else {
+    const docNames = new Set(docSkills.map((s) => s.name));
+    for (const name of dataNames) {
+      if (!docNames.has(name)) {
+        problems.push(`${label}：data.rs 技能「${name}」在 skills.md 未登记（可能 gid 错位）`);
+      }
+    }
+    for (const name of docNames) {
+      if (!dataNames.includes(name)) {
+        problems.push(`${label}：skills.md 技能「${name}」不在 data.rs 技能名列表（可能 gid 错位）`);
+      }
     }
   }
   if (verbose) console.log(`  ${label}：${codeSkills.length} 技能`);

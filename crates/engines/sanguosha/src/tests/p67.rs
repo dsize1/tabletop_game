@@ -150,3 +150,147 @@ fn general_ready_gates_unimplemented_generals() {
     edit(&mgr, &room, |_st| {});
     assert!(skills::general_ready("sgs_hero_1"));
 }
+
+// ---------------------------------------------------------------------------
+// P4.4.2 数据扩包（一将成名 / 界限突破）+ 同名去重（ADR-0024 口径 A）
+// ---------------------------------------------------------------------------
+
+#[test]
+fn yijiang_and_jiexian_packs_are_registered() {
+    assert_eq!(
+        crate::data::YIJIANG_GENERALS.len(),
+        crate::data::YIJIANG_GENERAL_COUNT
+    );
+    assert_eq!(
+        crate::data::JIEXIAN_GENERALS.len(),
+        crate::data::JIEXIAN_GENERAL_COUNT
+    );
+    assert!(crate::data::YIJIANG_GENERALS
+        .iter()
+        .all(|g| g.pack == "yijiang"));
+    assert!(crate::data::JIEXIAN_GENERALS
+        .iter()
+        .all(|g| g.pack == "jiexian"));
+    // 未实现武将不进池（批次 1 仅 8 位一将成名已实现）。
+    let pool: Vec<&str> = crate::data::general_codes_in_packs(&[
+        "standard".to_string(),
+        "yijiang".to_string(),
+    ])
+    .into_iter()
+    .filter(|c| skills::general_ready(c))
+    .collect();
+    assert!(pool.contains(&"sgs_hero_151"), "曹植应进池");
+    assert!(!pool.contains(&"sgs_hero_161"), "未实现的张春华不进池");
+    // 包组合解析（新增 key）。
+    let packs = crate::state::parse_general_packs("standard+yijiang+jiexian").unwrap();
+    assert_eq!(
+        packs,
+        vec![
+            "standard".to_string(),
+            "yijiang".to_string(),
+            "jiexian".to_string()
+        ]
+    );
+}
+
+#[test]
+fn prefer_jiexian_dedupes_same_name_generals() {
+    // 界刘备（299）与标准刘备（1）同名 → 只保留界版本。
+    let codes = vec!["sgs_hero_1", "sgs_hero_299", "sgs_hero_2"];
+    let kept = crate::prefer_jiexian(codes);
+    assert!(kept.contains(&"sgs_hero_299"), "保留界刘备");
+    assert!(!kept.contains(&"sgs_hero_1"), "剔除同名标准刘备");
+    assert!(kept.contains(&"sgs_hero_2"), "无关武将保留");
+    // 无界化武将时不剔除。
+    let plain = vec!["sgs_hero_1", "sgs_hero_2"];
+    assert_eq!(crate::prefer_jiexian(plain.clone()), plain);
+}
+
+// ---------------------------------------------------------------------------
+// `check:sgs-pack-pool` 门禁（harness）：选将池包过滤 + 同名去重（纯函数级）
+// ---------------------------------------------------------------------------
+
+#[test]
+fn pack_pool_standard_only_excludes_other_packs() {
+    let pool = crate::prefer_jiexian(
+        crate::data::general_codes_in_packs(&["standard".to_string()])
+            .into_iter()
+            .filter(|c| skills::general_ready(c))
+            .collect(),
+    );
+    assert_eq!(pool.len(), crate::data::STANDARD_GENERAL_COUNT);
+    assert!(pool.iter().all(|c| crate::data::general(c)
+        .is_some_and(|g| g.pack == "standard")));
+}
+
+#[test]
+fn pack_pool_only_ready_generals_enter_pool() {
+    let pool: Vec<&str> = crate::data::general_codes_in_packs(&[
+        "standard".to_string(),
+        "yijiang".to_string(),
+    ])
+    .into_iter()
+    .filter(|c| skills::general_ready(c))
+    .collect();
+    // 批次 1：一将成名只实现 8 位。
+    let yijiang: Vec<&str> = pool
+        .into_iter()
+        .filter(|c| crate::data::general(c).is_some_and(|g| g.pack == "yijiang"))
+        .collect();
+    assert_eq!(yijiang.len(), 8, "一将成名批次 1 已实现 8 位");
+    for code in [
+        "sgs_hero_151",
+        "sgs_hero_152",
+        "sgs_hero_153",
+        "sgs_hero_155",
+        "sgs_hero_156",
+        "sgs_hero_157",
+        "sgs_hero_158",
+        "sgs_hero_160",
+    ] {
+        assert!(yijiang.contains(&code), "{code} 应在池中");
+    }
+}
+
+#[test]
+fn pack_pool_prefers_jiexian_variant() {
+    // 同时启用 standard + jiexian：同名原版被剔除（界优先）。
+    let pool = crate::prefer_jiexian(
+        crate::data::general_codes_in_packs(&[
+            "standard".to_string(),
+            "jiexian".to_string(),
+        ])
+        .into_iter()
+        .filter(|c| skills::general_ready(c))
+        .collect(),
+    );
+    // 界标 25 将尚未实现：池中只有标准包（去重后仍为 25 位、无界化武将）。
+    assert!(pool.iter().all(|c| crate::data::general(c)
+        .is_some_and(|g| g.pack == "standard")));
+    assert_eq!(pool.len(), crate::data::STANDARD_GENERAL_COUNT);
+    // 内部逻辑：一旦界化武将进池，同名原版必须消失。
+    let synthetic = vec!["sgs_hero_1", "sgs_hero_299", "sgs_hero_3"];
+    let kept = crate::prefer_jiexian(synthetic);
+    assert!(kept.contains(&"sgs_hero_299") && !kept.contains(&"sgs_hero_1"));
+    assert!(kept.contains(&"sgs_hero_3"), "不同名武将保留");
+}
+
+#[test]
+fn pack_pool_parse_combinations_are_normalized() {
+    let order = crate::state::parse_general_packs("jiexian+standard+yijiang").unwrap();
+    assert_eq!(
+        order,
+        vec![
+            "standard".to_string(),
+            "yijiang".to_string(),
+            "jiexian".to_string()
+        ],
+        "包顺序按 GENERAL_PACK_KEYS 规范化"
+    );
+    assert!(crate::state::parse_general_packs("standard+unknown").is_err());
+    assert_eq!(
+        crate::state::parse_general_packs("standard+standard").unwrap(),
+        vec!["standard".to_string()],
+        "重复包去重"
+    );
+}
