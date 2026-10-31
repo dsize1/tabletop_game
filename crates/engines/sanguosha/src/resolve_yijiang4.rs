@@ -451,6 +451,23 @@ pub(crate) fn act_zhiyan(st: &mut SgsState, action: &str) -> Result<String, Engi
             st.seats[target].general_name
         ),
     );
+    // 界直言（界虞翻）：非装备牌且其体力值不等于你 → 其失去 1 点体力。
+    if drawn > 0 && !is_equip(st, &card) && crate::skills::is_jiexian(st, f.actor) {
+        if st.seats[target].hp != st.seats[f.actor].hp {
+            st.seats[target].hp -= 1;
+            let hp = st.seats[target].hp;
+            st.push_log(
+                Some(&pid(st, f.actor)),
+                format!(
+                    "直言：{} 展示非装备牌，体力值与虞翻不同，失去 1 点体力（{hp}）",
+                    st.seats[target].general_name
+                ),
+            );
+            if hp <= 0 {
+                crate::resolve::push_dying(st, target, Some(f.actor));
+            }
+        }
+    }
     if drawn > 0 && is_equip(st, &card) {
         let slot = st
             .cards
@@ -1279,10 +1296,23 @@ pub struct EnYuanFrame {
 
 pub(crate) fn step_enyuan(st: &mut SgsState, f: EnYuanFrame) -> Result<bool, EngineError> {
     let mut options = Vec::new();
-    if !st.seats[f.source].hand.is_empty() {
+    // 界恩怨（界法正）：仅可交给红色手牌。
+    let can_give = if crate::skills::is_jiexian(st, f.owner) {
+        st.seats[f.source].hand.iter().any(|id| {
+            crate::skills::effective_suit(st, f.source, id)
+                .is_some_and(crate::skills::is_red)
+        })
+    } else {
+        !st.seats[f.source].hand.is_empty()
+    };
+    if can_give {
         options.push(PendingOption {
             id: "opt1".into(),
-            label: format!("交给 {} 一张手牌", st.seats[f.owner].general_name),
+            label: if crate::skills::is_jiexian(st, f.owner) {
+                format!("交给 {} 一张红色手牌", st.seats[f.owner].general_name)
+            } else {
+                format!("交给 {} 一张手牌", st.seats[f.owner].general_name)
+            },
         });
     }
     options.push(PendingOption {
@@ -1310,7 +1340,18 @@ pub(crate) fn act_enyuan(st: &mut SgsState, action: &str) -> Result<String, Engi
         if n == 0 {
             return Err(illegal("没有手牌"));
         }
-        let idx = st.next_index(n);
+        let idx = if crate::skills::is_jiexian(st, f.owner) {
+            st.seats[f.source]
+                .hand
+                .iter()
+                .position(|id| {
+                    crate::skills::effective_suit(st, f.source, id)
+                        .is_some_and(crate::skills::is_red)
+                })
+                .ok_or_else(|| illegal("没有红色手牌"))?
+        } else {
+            st.next_index(n)
+        };
         let card = st.seats[f.source].hand.remove(idx);
         let label = turn::card_label(st, &card);
         st.seats[f.owner].hand.push(card);

@@ -115,6 +115,40 @@ pub(crate) fn discard_by(st: &mut SgsState, seat: Option<usize>, card_id: &str) 
         }
         crate::resolve_jiexian5::guzheng_jie_on_discard(st, seat);
     }
+    // 界旋风（界凌统）：一次性失去至少两张牌后（近似：同一阶段累计弃置 ≥2 张）。
+    if let Some(seat) = seat {
+        let n = st.counter(&format!("lost_by:{seat}")) + 1;
+        st.set_counter(&format!("lost_by:{seat}"), n);
+        if n == 2
+            && crate::skills::has(st, seat, "xuanfeng")
+            && crate::skills::is_jiexian(st, seat)
+        {
+            crate::resolve_yijiang::push_xuanfeng(st);
+        }
+    }
+    // 界醇醪（界程普）：自己或相邻角色的【杀】因弃置进入弃牌堆 → 置于「醇」（至多 9）。
+    if st
+        .cards
+        .get(card_id)
+        .is_some_and(|c| matches!(c.def.as_str(), "sha" | "huo_sha" | "lei_sha"))
+    {
+        if let Some(seat) = seat {
+            let owners: Vec<usize> = st
+                .alive_indices()
+                .into_iter()
+                .filter(|i| {
+                    crate::skills::has(st, *i, "chunlao")
+                        && crate::skills::is_jiexian(st, *i)
+                        && (*i == seat
+                            || crate::skills::kingdom_is(st, *i, "wu")
+                                && crate::resolve_jiexian6::adjacent(st, *i, seat))
+                })
+                .collect();
+            for owner in owners {
+                crate::resolve_jiexian6::chunlao_place(st, owner, card_id);
+            }
+        }
+    }
     // 界屯田（界邓艾）：回合内弃置【杀】后也可判定。
     if let Some(seat) = seat {
         let own_turn = st.turn == seat;
@@ -172,6 +206,7 @@ pub(crate) fn sha_limit(st: &SgsState, idx: usize) -> u32 {
             + st.counter("jueyan_sha_bonus")
             + st.counter("jiangchi_bonus")
             + st.counter("jiandu_sha_bonus")
+            - st.counter("sha_limit_penalty")
             + u32::from(
                 st.seats
                     .get(idx)
@@ -1048,6 +1083,7 @@ pub(crate) fn phase_step(
             }
             // 巧说（简雍）：出牌阶段开始时，可与一名其他角色拼点。
             if crate::skills::has(st, st.turn, "qiaoshuo")
+                && !crate::skills::is_jiexian(st, st.turn)
                 && st.counter("qiaoshuo_offered") == 0
                 && !st.seats[st.turn].hand.is_empty()
                 && st
@@ -1218,6 +1254,8 @@ pub(crate) fn phase_step(
                 "phase_start",
                 json!({ "phase": "end", "seat": st.turn, "player": pid }),
             ));
+            // 界直言（界虞翻）：上家的结束阶段也可发动。
+            crate::resolve_jiexian6::zhiyan_upper_trigger(st, st.turn);
             // 界双雄（界颜良文丑）：结束阶段获得本回合对你造成过伤害的牌。
             crate::resolve_jiexian5::shuangxiong_jie_gain(st, st.turn);
             // 界再起（界孟获）：结束阶段按本回合红牌弃置数依次结算。
@@ -2924,7 +2962,21 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
             description: "长标：将任意张手牌当无距离限制的【杀】使用（造成伤害则阶段结束摸牌）".into(),
         });
     }
-    // 界制霸（界孙策主公技）：出牌阶段限一次，主动与一名其他吴势力角色拼点。
+    // 界巧说（界简雍）：出牌阶段主动拼点（每阶段一次）。
+    if crate::skills::has(st, idx, "qiaoshuo")
+        && crate::skills::is_jiexian(st, idx)
+        && st.counter("qiaoshuo_used") == 0
+        && !st.seats[idx].hand.is_empty()
+        && st.alive_indices()
+            .into_iter()
+            .any(|i| i != idx && !st.seats[i].hand.is_empty())
+    {
+        out.push(Action {
+            id: "skill:qiaoshuo".into(),
+            description: "巧说：拼点；赢则下一张牌目标 ±1，没赢则本回合不能用锦囊".into(),
+        });
+    }
+    // 界制霸（界孙策主公技）：出牌阶段限一次，主动与另一名其他吴势力角色拼点。
     if crate::skills::has(st, idx, "zhiba")
         && crate::skills::is_jiexian(st, idx)
         && crate::skills::is_lord(st, idx)
@@ -4034,6 +4086,26 @@ pub fn execute(
         );
         st.push_log(Some(player_id), "发动长标");
         "长标：请选择任意张手牌当【杀】".to_string()
+    } else if action == "skill:qiaoshuo" {
+        if !crate::skills::has(st, idx, "qiaoshuo") || !crate::skills::is_jiexian(st, idx) {
+            return Err(illegal("没有该技能"));
+        }
+        if st.counter("qiaoshuo_used") > 0 {
+            return Err(illegal("本阶段已发动过巧说"));
+        }
+        if st.seats[idx].hand.is_empty() {
+            return Err(illegal("没有手牌可拼点"));
+        }
+        st.set_counter("qiaoshuo_used", 1);
+        resolve::push(
+            st,
+            resolve::Frame::QiaoShuo(crate::resolve_yijiang3::QiaoShuoFrame {
+                actor: idx,
+                stage: crate::resolve_yijiang3::QiaoShuoStage::Target,
+            }),
+        );
+        st.push_log(Some(player_id), "巧说：请选择拼点目标");
+        "巧说：请选择拼点目标".to_string()
     } else if action == "skill:zhiba_jie" {
         if !crate::skills::has(st, idx, "zhiba")
             || !crate::skills::is_jiexian(st, idx)
@@ -5219,6 +5291,10 @@ fn play_card(
             "【{}】的军争结算将在 P4.3 实现，当前不可使用",
             def.name
         )));
+    }
+    // 界禁酒（界高顺）：其他角色不能于高顺的回合使用【酒】。
+    if def.code == "jiu" && crate::resolve_jiexian6::jinjiu_blocks_jiu(st, idx) {
+        return Err(illegal("界禁酒：高顺的回合其他角色不能使用【酒】"));
     }
     // 巧说（简雍）没赢：本回合不能使用锦囊牌。
     if st.counter("qiaoshuo_fail") > 0

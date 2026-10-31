@@ -1914,6 +1914,103 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
         kind: SkillType::Normal,
         implemented: true,
     }];
+    // ---- P4.4.2 界限突破（批次 J5：8 将 / 14 技能）----
+    const JIE_LINGTONG: &[SkillDef] = &[SkillDef {
+        code: "xuanfeng",
+        name: "旋风",
+        kind: SkillType::Normal,
+        implemented: true,
+    }];
+    const JIE_CHENGONG: &[SkillDef] = &[
+        SkillDef {
+            code: "zhichi",
+            name: "智迟",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+        SkillDef {
+            code: "mingce",
+            name: "明策",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_CAOZHANG: &[SkillDef] = &[SkillDef {
+        code: "jiangchi",
+        name: "将驰",
+        kind: SkillType::Normal,
+        implemented: true,
+    }];
+    const JIE_JIANYONG: &[SkillDef] = &[
+        SkillDef {
+            code: "zongshi",
+            name: "纵适",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "qiaoshuo",
+            name: "巧说",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_YUFAN: &[SkillDef] = &[
+        SkillDef {
+            code: "zongxuan",
+            name: "纵玄",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "zhiyan",
+            name: "直言",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_GAOSHUN: &[SkillDef] = &[
+        SkillDef {
+            code: "xianzhen",
+            name: "陷阵",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "jinjiu",
+            name: "禁酒",
+            kind: SkillType::Locked,
+            implemented: true,
+        },
+    ];
+    const JIE_FAZHENG: &[SkillDef] = &[
+        SkillDef {
+            code: "xuanhuo",
+            name: "眩惑",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "enyuan",
+            name: "恩怨",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
+    const JIE_CHENGPU: &[SkillDef] = &[
+        SkillDef {
+            code: "lihuo",
+            name: "疠火",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+        SkillDef {
+            code: "chunlao",
+            name: "醇醪",
+            kind: SkillType::Normal,
+            implemented: true,
+        },
+    ];
     // ---- P4.4.2 一将成名（批次 2：8 将 / 16 技能）----
     const ZHANGCHUNHUA: &[SkillDef] = &[
         SkillDef {
@@ -2927,6 +3024,14 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
         "sgs_hero_550" => JIE_YANLIANGWENCHOU,
         "sgs_hero_563" => JIE_ZHANGZHAO,
         "sgs_hero_587" => JIE_XUSHENG,
+        "sgs_hero_588" => JIE_LINGTONG,
+        "sgs_hero_597" => JIE_CHENGONG,
+        "sgs_hero_599" => JIE_CAOZHANG,
+        "sgs_hero_600" => JIE_JIANYONG,
+        "sgs_hero_603" => JIE_YUFAN,
+        "sgs_hero_604" => JIE_GAOSHUN,
+        "sgs_hero_610" => JIE_FAZHENG,
+        "sgs_hero_620" => JIE_CHENGPU,
         _ => &[],
     }
 }
@@ -4472,6 +4577,9 @@ pub fn trick_distance_unlimited(st: &SgsState, seat: usize) -> bool {
 
 /// 将驰（曹彰）：本回合不能使用或打出【杀】。
 pub fn sha_play_banned(st: &SgsState, seat: usize) -> bool {
+    if st.counter(&format!("jiangchi_no_ban:{seat}")) > 0 {
+        return false;
+    }
     st.counter(&format!("sha_banned:{seat}")) > 0
 }
 

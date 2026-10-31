@@ -5567,6 +5567,12 @@ fn apply_damage_inner(
     if amount > 0 {
         crate::resolve_jiexian4::tiaoxin_on_damage(st, victim, source);
     }
+    // 界明策（界陈宫）：虚拟【杀】造成伤害 → 陈宫与其各摸 1 张。
+    if amount > 0 {
+        if let Some(src) = source {
+            crate::resolve_jiexian6::mingce_on_damage(st, src);
+        }
+    }
     // 狞恶（界典韦，锁定）：一名角色本回合第二次受到伤害 → 摸 1 并弃置其一张牌。
     if amount > 0 {
         crate::resolve_jiexian5::ninge_on_damage(st, victim, source);
@@ -5893,15 +5899,20 @@ fn apply_damage_inner(
                 let key = format!("lihuo:{card_id}");
                 if crate::skills::has(st, src, "lihuo") && st.counter(&key) > 0 {
                     st.set_counter(&key, 0);
-                    st.seats[src].hp -= 1;
-                    let hp = st.seats[src].hp;
-                    st.push_log(
-                        Some(&st.seats[src].player_id.clone()),
-                        format!("疠火：失去 1 点体力（体力 {hp}）"),
-                    );
-                    crate::skills::zhaxiang_on_lose_hp(st, src);
-                    if hp <= 0 {
-                        push_dying(st, src, None);
+                    if crate::skills::is_jiexian(st, src) {
+                        // 界疠火（界程普）：弃置一张牌或失去 1 点体力。
+                        crate::resolve_jiexian6::lihuo_jie_cost(st, src);
+                    } else {
+                        st.seats[src].hp -= 1;
+                        let hp = st.seats[src].hp;
+                        st.push_log(
+                            Some(&st.seats[src].player_id.clone()),
+                            format!("疠火：失去 1 点体力（体力 {hp}）"),
+                        );
+                        crate::skills::zhaxiang_on_lose_hp(st, src);
+                        if hp <= 0 {
+                            push_dying(st, src, None);
+                        }
                     }
                 }
             }

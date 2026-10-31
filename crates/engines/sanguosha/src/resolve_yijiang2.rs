@@ -91,11 +91,22 @@ pub(crate) fn act_jiangchi(st: &mut SgsState, action: &str) -> Result<String, En
         JiangChiStage::Choice => {
             if action == "opt1" {
                 let drawn = draw_n(st, f.actor, 1);
-                st.set_counter(&format!("sha_banned:{}", f.actor), 1);
-                st.push_log(
-                    Some(&pid(st, f.actor)),
-                    format!("将驰：摸 {drawn} 张，本回合不能使用/打出【杀】"),
-                );
+                if crate::skills::is_jiexian(st, f.actor) {
+                    // 界将驰①：摸一张，本回合【杀】次数 -1（仍可使用），【杀】不计入手牌上限。
+                    st.set_counter(&format!("sha_banned:{}", f.actor), 1);
+                    st.set_counter(&format!("jiangchi_no_ban:{}", f.actor), 1);
+                    st.set_counter("sha_limit_penalty", 1);
+                    st.push_log(
+                        Some(&pid(st, f.actor)),
+                        format!("将驰：摸 {drawn} 张，本回合【杀】次数 -1 且不计入手牌上限"),
+                    );
+                } else {
+                    st.set_counter(&format!("sha_banned:{}", f.actor), 1);
+                    st.push_log(
+                        Some(&pid(st, f.actor)),
+                        format!("将驰：摸 {drawn} 张，本回合不能使用/打出【杀】"),
+                    );
+                }
                 pop(st);
                 Ok("将驰①结算完成".to_string())
             } else if action == "opt2" {
@@ -118,6 +129,10 @@ pub(crate) fn act_jiangchi(st: &mut SgsState, action: &str) -> Result<String, En
             turn::take_card(st, f.actor, card)?;
             let label = turn::card_label(st, card);
             turn::discard_by(st, Some(f.actor), card);
+            // 界将驰②：重铸一张牌（弃置后摸一张）。
+            if crate::skills::is_jiexian(st, f.actor) {
+                draw_n(st, f.actor, 1);
+            }
             st.set_counter("jiangchi_bonus", 1);
             st.set_counter("jiangchi_no_distance", 1);
             st.push_log(

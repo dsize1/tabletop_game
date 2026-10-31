@@ -580,6 +580,12 @@ pub(crate) fn mingce_target(
             Some(&st.seats[user].player_id.clone()),
             format!("明策：视为对 {} 使用【杀】", general_name(st, seat)),
         );
+        // 界明策（界陈宫）：此【杀】造成伤害后，你与其各摸一张牌。
+        if skills::has(st, f.actor, "mingce") && skills::is_jiexian(st, f.actor) {
+            st.seats[user]
+                .flags
+                .insert(format!("mingce_sha:{}", f.actor), true);
+        }
         // 虚拟【杀】：不产生牌实例（不进处理区，保持牌数守恒）。
         crate::resolve::push(
             st,
@@ -648,10 +654,19 @@ pub(crate) fn act_mingce(st: &mut SgsState, action: &str) -> Result<String, Engi
     if action == "choose:mingce:draw" {
         pop(st);
         let drawn = draw_capped(st, target, 1);
-        st.push_log(
-            Some(&st.seats[target].player_id.clone()),
-            format!("明策：{} 选择摸 {drawn} 张", general_name(st, target)),
-        );
+        // 界明策（界陈宫）：你与其各摸一张牌。
+        if skills::has(st, f.actor, "mingce") && skills::is_jiexian(st, f.actor) {
+            let extra = draw_capped(st, f.actor, 1);
+            st.push_log(
+                Some(&st.seats[f.actor].player_id.clone()),
+                format!("明策：陈宫与 {} 各摸 1 张（{extra} / {drawn}）", general_name(st, target)),
+            );
+        } else {
+            st.push_log(
+                Some(&st.seats[target].player_id.clone()),
+                format!("明策：{} 选择摸 {drawn} 张", general_name(st, target)),
+            );
+        }
         return Ok("明策：目标摸牌".to_string());
     }
     if action != "choose:mingce:sha" {
