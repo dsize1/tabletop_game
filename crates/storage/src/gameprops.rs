@@ -518,7 +518,8 @@ impl Storage {
             ("general", "standard", "标准", 10),
             ("general", "wind_fire_forest_mountain", "风林火山", 20),
             ("general", "yijiang", "一将成名", 30),
-            ("general", "boundary_break", "界限突破", 40),
+            // 与引擎 `GENERAL_PACK_KEYS` 的 key 一致（`jiexian`），否则中台会出现两个界限突破包。
+            ("general", "jiexian", "界限突破", 40),
             ("general", "god", "神将", 50),
             ("general", "mou", "谋", 60),
             ("general", "clan", "门阀士族", 70),

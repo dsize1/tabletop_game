@@ -1031,5 +1031,17 @@ impl EnginePlugin for SanguoshaEngine {
     }
 }
 
+/// 引擎静态数据目录（供中台/工具同步「已制作」内容；不参与对局逻辑）。
+///
+/// 只读视图：牌定义、牌堆、武将包与技能注册表。中台
+/// `/internal/gameprops/import/engine` 用它把「引擎已实现」同步为元数据（`live`）。
+pub mod catalog {
+    pub use crate::data::{
+        CardDef, GeneralDef, PhysicalCard, ALL_DECKS, CARD_DEFS, GENERAL_PACK_KEYS, GENERAL_PACKS,
+    };
+    pub use crate::skills::{skills_of, SkillDef, SkillType};
+    pub use crate::state::{Category, EquipSlot, RangeType, Suit, TargetMode};
+}
+
 #[cfg(test)]
 mod tests;

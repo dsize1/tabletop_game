@@ -206,6 +206,251 @@ pub async fn import_heroes(
     ))
 }
 
+/// 从**引擎静态数据**同步牌定义 / 物理牌 / 武将 / 技能 / 关联（中台可见「已制作」）。
+///
+/// 口径：
+/// - 引擎（`crates/engines/sanguosha/src/data.rs` + `skills.rs`）是「已实现」的唯一真相；
+///   同步来的行状态写 `live`（引擎可玩即视为已上线元数据）。
+/// - `heroes.json` 导入（`/import/heroes`）仍是**官网原始数据**（`draft`），两者互补：
+///   引擎同步覆盖 232 位已实现武将 + 160 张牌；官网导入覆盖 696 位候选（含未实现）。
+/// - 幂等：牌定义/武将/技能按 code，物理牌按 `(pack_id, def_code, suit, rank)` 自然键。
+pub async fn import_engine(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<Value>, ApiError> {
+    use sanguosha::catalog::{
+        skills_of, Category, EquipSlot, RangeType, Suit, TargetMode, ALL_DECKS, CARD_DEFS,
+        GENERAL_PACKS,
+    };
+
+    require_admin(&state, &headers)?;
+
+    fn upsert(
+        state: &AppState,
+        table: &str,
+        row: serde_json::Map<String, Value>,
+    ) -> Result<Value, ApiError> {
+        state.storage.upsert_gameprops(table, &row).map_err(|e| {
+            err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("写入 {table} 失败: {e}"),
+            )
+        })
+    }
+
+    fn pack_id(
+        state: &AppState,
+        kind: &str,
+        code: &str,
+        name: &str,
+        sort: i64,
+    ) -> Result<i64, ApiError> {
+        let mut row = serde_json::Map::new();
+        row.insert("game_id".into(), json!("sanguosha"));
+        row.insert("kind".into(), json!(kind));
+        row.insert("code".into(), json!(code));
+        row.insert("name".into(), json!(name));
+        row.insert("sort_order".into(), json!(sort));
+        row.insert("enabled".into(), json!(1));
+        let out = upsert(state, "prop_packs", row)?;
+        Ok(out.get("id").and_then(Value::as_i64).unwrap_or(0))
+    }
+
+    // 1) 包（引擎 key 与中台 code 保持一致）
+    let general_packs: [(&str, &str, i64); 4] = [
+        ("standard", "标准", 10),
+        ("wind_fire_forest_mountain", "风林火山", 20),
+        ("yijiang", "一将成名", 30),
+        ("jiexian", "界限突破", 40),
+    ];
+    let mut gpack_ids: std::collections::HashMap<&str, i64> = Default::default();
+    for (code, name, sort) in general_packs {
+        gpack_ids.insert(code, pack_id(&state, "general", code, name, sort)?);
+    }
+    let card_packs: [(&str, &str, i64); 2] =
+        [("standard", "标准牌堆", 10), ("junzheng", "军争牌堆", 20)];
+    let mut cpack_ids: std::collections::HashMap<&str, i64> = Default::default();
+    for (code, name, sort) in card_packs {
+        cpack_ids.insert(code, pack_id(&state, "card", code, name, sort)?);
+    }
+
+    // 2) 牌定义
+    let mut card_defs = 0usize;
+    for d in CARD_DEFS {
+        let category = match d.category {
+            Category::Basic => "basic",
+            Category::Weapon => "weapon",
+            Category::Armor => "armor",
+            Category::Horse => "horse",
+            Category::Treasure => "treasure",
+            Category::DelayedTrick => "delayed_trick",
+            Category::Trick => {
+                if d.delayed {
+                    "delayed_trick"
+                } else {
+                    "trick"
+                }
+            }
+        };
+        let equip_slot = match d.equip_slot {
+            Some(EquipSlot::Weapon) => Some("weapon"),
+            Some(EquipSlot::Armor) => Some("armor"),
+            Some(EquipSlot::HorseOffense) => Some("horse_offense"),
+            Some(EquipSlot::HorseDefense) => Some("horse_defense"),
+            Some(EquipSlot::Treasure) => Some("treasure"),
+            None => None,
+        };
+        let range_type = match d.range_type {
+            Some(RangeType::Attack) => Some("attack"),
+            Some(RangeType::Defense) => Some("defense"),
+            None => None,
+        };
+        let target_mode = match d.target_mode {
+            Some(TargetMode::Single) => Some("single"),
+            Some(TargetMode::Aoe) => Some("aoe"),
+            None => None,
+        };
+        let mut row = serde_json::Map::new();
+        row.insert("code".into(), json!(d.code));
+        row.insert("name".into(), json!(d.name));
+        row.insert("category".into(), json!(category));
+        row.insert("description".into(), json!(""));
+        row.insert("range_value".into(), json!(d.range_value));
+        row.insert("target_mode".into(), json!(target_mode));
+        row.insert("equip_slot".into(), json!(equip_slot));
+        row.insert("range_type".into(), json!(range_type));
+        row.insert("status".into(), json!("live"));
+        upsert(&state, "sgs_card_defs", row)?;
+        card_defs += 1;
+    }
+
+    // 3) 物理牌（标准 108 + 军争 52）
+    // 牌堆允许「同牌名 + 同花色点数」重复，故用**保留 id 段**（1_000_000 起）做幂等：
+    // 先清掉上一次同步的行（id >= BASE），再按引擎顺序重写；手工录入行（自增 id）不受影响。
+    const ENGINE_CARD_ID_BASE: i64 = 1_000_000;
+    state
+        .storage
+        .exec_raw(&format!("DELETE FROM sgs_cards WHERE id >= {ENGINE_CARD_ID_BASE}"))
+        .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("清理旧同步牌失败: {e}")))?;
+    let mut cards = 0usize;
+    for &(pack, deck) in ALL_DECKS {
+        let Some(pid) = cpack_ids.get(pack) else {
+            continue;
+        };
+        for c in deck {
+            let suit = match c.suit {
+                Suit::Spade => "spade",
+                Suit::Heart => "heart",
+                Suit::Club => "club",
+                Suit::Diamond => "diamond",
+            };
+            let mut row = serde_json::Map::new();
+            row.insert("id".into(), json!(ENGINE_CARD_ID_BASE + cards as i64));
+            row.insert("pack_id".into(), json!(pid));
+            row.insert("def_code".into(), json!(c.def));
+            row.insert("suit".into(), json!(suit));
+            row.insert("rank".into(), json!(c.rank));
+            row.insert("status".into(), json!("live"));
+            upsert(&state, "sgs_cards", row)?;
+            cards += 1;
+        }
+    }
+
+    // 4) 武将 + 技能 + 关联（引擎 skills 注册表优先，缺失时回落武将声明的技能名）
+    let mut generals = 0usize;
+    let mut skills_n = 0usize;
+    let mut links = 0usize;
+    for pack_defs in GENERAL_PACKS {
+        for g in *pack_defs {
+            let Some(pid) = gpack_ids.get(g.pack) else {
+                continue;
+            };
+            let mut row = serde_json::Map::new();
+            row.insert("code".into(), json!(g.code));
+            row.insert(
+                "external_id".into(),
+                json!(format!("sanguosha.com:hero:{}", g.gid)),
+            );
+            row.insert("name".into(), json!(g.name));
+            row.insert("kingdom".into(), json!(g.kingdom));
+            row.insert("gender".into(), json!(g.gender));
+            row.insert("pack_id".into(), json!(pid));
+            row.insert("max_hp".into(), json!(g.max_hp));
+            row.insert("initial_hp".into(), json!(0));
+            row.insert("description".into(), json!(""));
+            row.insert("biography".into(), json!(""));
+            row.insert("status".into(), json!("live"));
+            upsert(&state, "sgs_generals", row)?;
+            generals += 1;
+
+            let registered = skills_of(g.code);
+            if !registered.is_empty() {
+                for (idx, s) in registered.iter().enumerate() {
+                    let mut srow = serde_json::Map::new();
+                    srow.insert("code".into(), json!(s.code));
+                    srow.insert("name".into(), json!(s.name));
+                    // 中台枚举是 `awakening`（引擎内部 code 为 `awaken`）
+                    let skill_type = match s.kind.code() {
+                        "awaken" => "awakening",
+                        other => other,
+                    };
+                    srow.insert("type".into(), json!(skill_type));
+                    srow.insert("description".into(), json!(""));
+                    srow.insert("status".into(), json!("live"));
+                    upsert(&state, "sgs_skills", srow)?;
+                    skills_n += 1;
+
+                    let mut link = serde_json::Map::new();
+                    link.insert("general_code".into(), json!(g.code));
+                    link.insert("skill_code".into(), json!(s.code));
+                    link.insert("sort_order".into(), json!(idx as i64));
+                    upsert(&state, "sgs_general_skills", link)?;
+                    links += 1;
+                }
+            } else {
+                for (idx, name) in g.skills.iter().enumerate() {
+                    let code = format!("sk_{:x}", fnv1a(name));
+                    let mut srow = serde_json::Map::new();
+                    srow.insert("code".into(), json!(code));
+                    srow.insert("name".into(), json!(name));
+                    srow.insert("type".into(), json!("normal"));
+                    srow.insert("description".into(), json!(""));
+                    srow.insert("status".into(), json!("live"));
+                    upsert(&state, "sgs_skills", srow)?;
+                    skills_n += 1;
+
+                    let mut link = serde_json::Map::new();
+                    link.insert("general_code".into(), json!(g.code));
+                    link.insert("skill_code".into(), json!(code));
+                    link.insert("sort_order".into(), json!(idx as i64));
+                    upsert(&state, "sgs_general_skills", link)?;
+                    links += 1;
+                }
+            }
+        }
+    }
+
+    Ok(Json(json!({
+        "imported": {
+            "card_defs": card_defs,
+            "cards": cards,
+            "generals": generals,
+            "skills": skills_n,
+            "general_skills": links,
+        },
+        "source": "engine: crates/engines/sanguosha/src/{data,skills}.rs",
+    })))
+}
+
+fn fnv1a(s: &str) -> u64 {
+    let mut hash: u64 = 0xcbf29ce484222325;
+    for b in s.as_bytes() {
+        hash ^= *b as u64;
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    hash
+}
+
 /// 兼容：`GET /internal/gameprops/{table}/{code}` 单行查询（便于关系页）。
 pub async fn get_one(
     State(state): State<AppState>,

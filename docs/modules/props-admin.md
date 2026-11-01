@@ -69,11 +69,21 @@ SERVER_URL=http://127.0.0.1:3100 npm --workspace @tabletop-game/props-admin run 
 | POST | `/internal/gameprops/{table}` | upsert 一行（JSON） |
 | POST | `/internal/gameprops/status` | `{table,entity_code,to_status,note?}` + 审计日志 |
 | POST | `/internal/gameprops/seed` | 身份/配比/包初始化（幂等） |
-| POST | `/internal/gameprops/import/heroes` | 导入 `heroes.json`（幂等） |
+| POST | `/internal/gameprops/import/heroes` | 导入 `heroes.json`（幂等，`draft`：官网候选 696 位） |
+| POST | `/internal/gameprops/import/engine` | **从引擎同步已制作数据**（幂等，`live`）：牌定义 43 / 物理牌 160 / 武将 232 / 技能 294 / 关联 443 |
 
 - 表白名单：`prop_packs` / `prop_assets` / `sgs_identities` / `sgs_identity_setup` / `sgs_card_defs` / `sgs_cards` / `sgs_generals` / `sgs_skills` / `sgs_general_skills` / `prop_status_log`。
 - 生命周期：`draft / testing / review / live / offline`；每次流转写 `prop_status_log`。
 - 导入的武将/技能状态为 `draft`，人工复核后上线；牌表按项目裁定人工录入（`cards.md` 仅参考）。
+
+## 引擎数据同步（2026-11-01）
+
+中台表与引擎代码是**两层**：引擎（`crates/engines/sanguosha/src/{data,skills}.rs`）是「已实现」的唯一真相，中台表只由导入写。
+
+- 「数据导入」页 → **同步引擎数据**（`POST /internal/gameprops/import/engine`）：写入牌定义/物理牌/武将/技能/关联，状态 `live`。
+- 幂等口径：牌定义/武将/技能按 `code` 覆盖；物理牌用**保留 id 段**（`1_000_000` 起）先清后写——因为真实牌堆允许「同牌名 + 同花色点数」重复（标准包 108 张里 11 组重复），**`sgs_cards` 不再建 `(pack_id, def_code, suit, rank)` 唯一索引**（历史索引由迁移 `DROP INDEX` 清理）。
+- 「官网武将」导入（`heroes.json`，`draft`）保留：用于未实现武将的候选元数据（696 位），与引擎同步互补。
+- 包 code 与引擎 `GENERAL_PACK_KEYS` 对齐（`standard` / `wind_fire_forest_mountain` / `yijiang` / `jiexian`）；`seed` 已改用 `jiexian`（旧 `boundary_break` 会残留空行，需手工删除）。
 
 ## 已知限制（P1）
 

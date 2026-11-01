@@ -21,6 +21,7 @@
 - **门禁**：`cargo test -p auth -p storage -p bot-adapter -p server -p sanguosha`（sanguosha **875**）、`test:agent-gateway` 22/22、`test:web`、`sgs:check` 12/12、`check:props-admin-boundary` 新口径通过；跨端登录 e2e（`apps/scripts/test-web-login.mjs`）注册/错人确认/换票/used/锁定/重置/不污染/中台全绿
 - **待真机**（P7 剩余）：真实群 5 人局 + 错链玩家 + 中台 + 重置；tunnel 公网链路；8 人局链接消息长度
 - **数据预留**：bot-adapter 记录 `union_openid`/`member_role`（`member_identities`）；`/auth/web/qq/*` 骨架 + `WEB_QQ_LOGIN_ENABLED=0`；探针 `npm run check:union-openid`
+- **追加（2026-11-01，用户反馈「中台看不到已制作卡牌/武将」）**：中台表与引擎是两层、且从未导入过 → 新增 `POST /internal/gameprops/import/engine`（幂等）从引擎 `{data,skills}.rs` 同步 **牌定义 43 / 物理牌 160 / 武将 232 / 技能 294 / 关联 443**（状态 `live`），「数据导入」页加「同步引擎数据」按钮；修正 `sgs_cards` 唯一索引（真实牌堆允许同花色点数重复，标准包 108 张含 11 组重复）→ 去掉 `(pack_id,def_code,suit,rank)` 唯一约束，引擎同步用保留 id 段（1_000_000 起）先清后写；`seed` 的界限突破包 code 改 `jiexian` 与引擎对齐
 - **详见**：`memory_palace/plan/01a196fa-0ed3-7007-ab1a-bc7cf43fb5b5.md`、`memory_palace/decisions/ADR-0031-web-cross-device-auth.md`
 
 ## M56：三国杀 P4.4.3 验收（包开关全量预设 + 全套门禁）✅

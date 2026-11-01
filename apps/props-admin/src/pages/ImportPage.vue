@@ -7,6 +7,24 @@ const message = useMessage();
 const loading = ref(false);
 const result = ref<string>("");
 const seedLoading = ref(false);
+const engineLoading = ref(false);
+
+async function importEngine() {
+  engineLoading.value = true;
+  result.value = "";
+  try {
+    const res = await api.importEngine();
+    result.value = JSON.stringify(res, null, 2);
+    const n = res.imported;
+    message.success(
+      `同步完成：牌定义 ${n.card_defs}，物理牌 ${n.cards}，武将 ${n.generals}，技能 ${n.skills}，关联 ${n.general_skills}`,
+    );
+  } catch (e) {
+    message.error((e as Error).message);
+  } finally {
+    engineLoading.value = false;
+  }
+}
 
 async function seed() {
   seedLoading.value = true;
@@ -45,6 +63,14 @@ async function importHeroes() {
         <p>写入 4 种身份、5–8 人身份配比（含 8 人双内）、武将包与标准/军争牌堆包。幂等，可重复执行。</p>
         <n-button type="primary" :loading="seedLoading" @click="seed">初始化基础数据</n-button>
       </n-card>
+      <n-card size="small" title="引擎已制作数据（推荐，先跑这个）">
+        <p>
+          从 <n-code code="crates/engines/sanguosha/src/{data,skills}.rs" /> 同步引擎里**已实现**的
+          牌定义、物理牌（标准 108 + 军争 52）、武将（232 位）与技能、武将技能关联。
+          同步后状态为 <n-code code="live" />；幂等，可重复执行（引擎更新后再跑一次即可）。
+        </p>
+        <n-button type="primary" :loading="engineLoading" @click="importEngine">同步引擎数据</n-button>
+      </n-card>
       <n-card size="small" title="官网武将（heroes.json）">
         <p>
           读取 <n-code code="docs/games/sanguosha/data/heroes.json" />，幂等导入武将、技能、武将技能关联。
@@ -53,10 +79,10 @@ async function importHeroes() {
         <n-button type="primary" :loading="loading" @click="importHeroes">导入武将</n-button>
       </n-card>
 
-      <n-card size="small" title="牌表（人工）">
+      <n-card size="small" title="牌表（人工补充）">
         <n-alert type="info">
-          官网无公开结构化牌表。按项目裁定牌表人工录入：先建牌定义，再到「定义↔物理牌」逐张添加花色/点数。
-          <n-code code="data/cards.json" /> / <n-code code="cards.md" /> 仅作参考，入库前需逐张核对。
+          引擎数据已覆盖全部**已实现**牌表；<n-code code="data/cards.json" /> / <n-code code="cards.md" />
+          仅作参考。需要补充未实现牌/自定义牌时，先建牌定义，再到「定义↔物理牌」逐张添加花色点数。
         </n-alert>
       </n-card>
 

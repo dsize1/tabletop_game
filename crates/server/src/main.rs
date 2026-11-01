@@ -225,6 +225,10 @@ async fn main() -> anyhow::Result<()> {
             post(gameprops_routes::import_heroes),
         )
         .route(
+            "/internal/gameprops/import/engine",
+            post(gameprops_routes::import_engine),
+        )
+        .route(
             "/internal/gameprops/status",
             post(gameprops_routes::set_status),
         )

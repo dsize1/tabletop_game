@@ -48,6 +48,15 @@ impl Storage {
         self.conn.lock().expect("storage mutex poisoned")
     }
 
+    /// 执行一条内部维护 SQL（仅 server 调用；不暴露给 SPA/浏览器）。
+    ///
+    /// 目前用于引擎同步时清理保留 id 段的旧行（见 `import_engine`）。
+    pub fn exec_raw(&self, sql: &str) -> anyhow::Result<()> {
+        let conn = self.lock();
+        conn.execute(sql, [])?;
+        Ok(())
+    }
+
     /// 写入一条群消息留档（进/出），event_id 幂等去重。
     pub fn insert_group_message(
         &self,
@@ -1122,9 +1131,10 @@ CREATE TABLE IF NOT EXISTS sgs_cards (
     created_at      TEXT NOT NULL,
     updated_at      TEXT NOT NULL
 );
-CREATE UNIQUE INDEX IF NOT EXISTS idx_sgs_cards_unique_full
-    ON sgs_cards (pack_id, def_code, suit, rank)
-    WHERE suit IS NOT NULL AND rank IS NOT NULL;
+-- 物理牌允许「同牌名 + 同花色点数」重复（真实牌堆如此：标准包 108 张里 11 组重复），
+-- 故**不建唯一索引**。引擎同步用保留 id 段（1_000_000 起）保证幂等，见
+-- `server::gameprops_routes::import_engine`；历史唯一索引就地清理。
+DROP INDEX IF EXISTS idx_sgs_cards_unique_full;
 CREATE INDEX IF NOT EXISTS idx_sgs_cards_def ON sgs_cards(def_code);
 CREATE TABLE IF NOT EXISTS sgs_generals (
     code            TEXT PRIMARY KEY,
@@ -1160,6 +1170,9 @@ CREATE TABLE IF NOT EXISTS sgs_skills (
     updated_at      TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_sgs_skills_name ON sgs_skills(name);
+-- 引擎同步的物理牌用保留 id 段（见 server import_engine）：牌堆允许同花色点数重复，
+-- 因此不改唯一约束。历史索引若存在则清理（2026-11-01 曾短暂引入自然键）。
+DROP INDEX IF EXISTS uq_sgs_cards_natural;
 CREATE TABLE IF NOT EXISTS sgs_general_skills (
     general_code    TEXT    NOT NULL REFERENCES sgs_generals(code),
     skill_code      TEXT    NOT NULL REFERENCES sgs_skills(code),

@@ -56,6 +56,17 @@ export const api = {
     }),
   seed: () =>
     request<{ seeded: Record<string, number> }>("/seed", { method: "POST" }),
+  importEngine: () =>
+    request<{
+      imported: {
+        card_defs: number;
+        cards: number;
+        generals: number;
+        skills: number;
+        general_skills: number;
+      };
+      source: string;
+    }>("/import/engine", { method: "POST" }),
   importHeroes: () =>
     request<{ imported: { generals: number; skills: number }; source: string }>(
       "/import/heroes",
