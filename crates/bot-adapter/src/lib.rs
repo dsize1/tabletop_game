@@ -134,6 +134,17 @@ async fn process_one(
             Some(raw_json),
         )?;
 
+        // ADR-0031 预留：保留 union_openid / member_role（当前平台均为空），
+        // 便于将来扫码登录打通后做「群内身份 ↔ 跨应用身份」映射。
+        storage
+            .upsert_member_identity(
+                &raw.raw.group_openid,
+                &raw.raw.author.member_openid,
+                Some(raw.raw.author.union_openid.as_str()),
+                Some(raw.raw.author.member_role.as_str()),
+            )
+            .ok();
+
         let event = InternalEvent::MessageGroupAt(MessageGroupAt {
             event_id,
             source: "qq-gateway".to_string(),

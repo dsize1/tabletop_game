@@ -21,9 +21,22 @@ export interface GameOption {
   summary: string;
   /** 可用别名（`#开局 <别名>`，大小写不敏感）。 */
   aliases: string[];
+  /**
+   * 是否允许 LLM 情景叙述（默认 true）。
+   * 三国杀为 false：局面由 Web 承载，群里只做极简播报（ADR-0031）。
+   */
+  narration?: boolean;
 }
 
 export const GAME_OPTIONS: GameOption[] = [
+  {
+    id: "sanguosha",
+    name: "三国杀",
+    mode: "lobby",
+    summary: "5–8 人 · 身份局（网页操作）",
+    aliases: ["sgs", "三国", "三国杀"],
+    narration: false,
+  },
   {
     id: "las-vegas",
     name: "拉斯维加斯",

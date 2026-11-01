@@ -608,6 +608,94 @@ impl Storage {
         Ok(())
     }
 
+    // ---- web_accounts（Web 跨端权鉴账号；ADR-0031） ----
+
+    /// 记录/刷新群成员身份观测（`union_openid` 目前为空，用于将来扫码登录打通）。
+    pub fn upsert_member_identity(
+        &self,
+        group_id: &str,
+        openid: &str,
+        union_openid: Option<&str>,
+        member_role: Option<&str>,
+    ) -> anyhow::Result<()> {
+        let now = now_secs();
+        let conn = self.lock();
+        conn.execute(
+            "INSERT INTO member_identities
+               (group_id, openid, union_openid, member_role, first_seen_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?5)
+             ON CONFLICT(group_id, openid) DO UPDATE SET
+               union_openid = COALESCE(NULLIF(excluded.union_openid, ''), member_identities.union_openid),
+               member_role  = COALESCE(NULLIF(excluded.member_role, ''), member_identities.member_role),
+               updated_at   = excluded.updated_at",
+            params![group_id, openid, union_openid, member_role, now],
+        )?;
+        Ok(())
+    }
+
+    /// 读一个 Web 账号（无 → None）。键 = `(group_id, openid)`。
+    pub fn get_web_account(
+        &self,
+        group_id: &str,
+        openid: &str,
+    ) -> anyhow::Result<Option<WebAccount>> {
+        let conn = self.lock();
+        let mut stmt = conn.prepare(
+            "SELECT group_id, openid, passcode_hash, passcode_algo, created_at, updated_at, last_login_at
+             FROM web_accounts WHERE group_id = ?1 AND openid = ?2",
+        )?;
+        let mut rows = stmt.query_map(params![group_id, openid], |row| {
+            Ok(WebAccount {
+                group_id: row.get(0)?,
+                openid: row.get(1)?,
+                passcode_hash: row.get(2)?,
+                passcode_algo: row.get(3)?,
+                created_at: row.get(4)?,
+                updated_at: row.get(5)?,
+                last_login_at: row.get(6)?,
+            })
+        })?;
+        match rows.next() {
+            Some(r) => Ok(Some(r?)),
+            None => Ok(None),
+        }
+    }
+
+    /// 写入/更新注册码哈希（**只在群内验证码确认成功后**调用，R1）。
+    pub fn upsert_web_account(
+        &self,
+        group_id: &str,
+        openid: &str,
+        passcode_hash: &str,
+        passcode_algo: &str,
+    ) -> anyhow::Result<()> {
+        let now = now_secs();
+        let conn = self.lock();
+        conn.execute(
+            "INSERT INTO web_accounts
+               (group_id, openid, passcode_hash, passcode_algo, created_at, updated_at, last_login_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?5, NULL)
+             ON CONFLICT(group_id, openid) DO UPDATE SET
+               passcode_hash = excluded.passcode_hash,
+               passcode_algo = excluded.passcode_algo,
+               updated_at    = excluded.updated_at",
+            params![group_id, openid, passcode_hash, passcode_algo, now],
+        )?;
+        Ok(())
+    }
+
+    /// 记录一次成功登录时刻。
+    pub fn touch_web_login(&self, group_id: &str, openid: &str) -> anyhow::Result<()> {
+        let now = now_secs();
+        let conn = self.lock();
+        conn.execute(
+            "UPDATE web_accounts SET last_login_at = ?3, updated_at = ?3
+             WHERE group_id = ?1 AND openid = ?2",
+            params![group_id, openid, now],
+        )?;
+        Ok(())
+    }
+
     /// 读一条画像（无 → None）。
     pub fn get_profile(&self, openid: &str) -> anyhow::Result<Option<UserProfile>> {
         let conn = self.lock();
@@ -704,6 +792,20 @@ pub struct ChatMessageRow {
     pub role: String,
     pub content: String,
     pub created_at: String,
+}
+
+/// Web 跨端权鉴账号（`web_accounts` 表行；键 = `(group_id, openid)`，ADR-0031）。
+///
+/// 注册码只存哈希（Argon2id），不存在任何可逆/明文字段。
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct WebAccount {
+    pub group_id: String,
+    pub openid: String,
+    pub passcode_hash: String,
+    pub passcode_algo: String,
+    pub created_at: String,
+    pub updated_at: String,
+    pub last_login_at: Option<String>,
 }
 
 /// 全局人物画像（user_profile 表行；跨群，ADR-0007）。
@@ -917,6 +1019,28 @@ CREATE TABLE IF NOT EXISTS user_profile (
     distilled_at TEXT,
     updated_at   TEXT NOT NULL
 );
+-- ===== 群成员身份观察（ADR-0031 预留：union_openid / member_role）=====
+CREATE TABLE IF NOT EXISTS member_identities (
+    group_id      TEXT NOT NULL,
+    openid        TEXT NOT NULL,
+    union_openid  TEXT,
+    member_role   TEXT,
+    first_seen_at TEXT NOT NULL,
+    updated_at    TEXT NOT NULL,
+    PRIMARY KEY (group_id, openid)
+);
+-- ===== Web 跨端权鉴账号（ADR-0031）=====
+-- 键 = (group_id, openid)：openid 是「群内」标识，跨群不通用。
+CREATE TABLE IF NOT EXISTS web_accounts (
+    group_id      TEXT NOT NULL,
+    openid        TEXT NOT NULL,
+    passcode_hash TEXT NOT NULL,
+    passcode_algo TEXT NOT NULL DEFAULT 'argon2id',
+    created_at    TEXT NOT NULL,
+    updated_at    TEXT NOT NULL,
+    last_login_at TEXT,
+    PRIMARY KEY (group_id, openid)
+);
 -- ===== 桌游道具中台（三国杀 P1）=====
 CREATE TABLE IF NOT EXISTS prop_packs (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1064,6 +1188,52 @@ mod tests {
 
     fn tmp_db(tag: &str) -> std::path::PathBuf {
         std::env::temp_dir().join(format!("tt_{}_{}.db", tag, std::process::id()))
+    }
+
+    #[test]
+    fn web_account_upsert_and_read_by_group_scope() {
+        let s = Storage::open(":memory:").unwrap();
+        assert!(s.get_web_account("g1", "u1").unwrap().is_none());
+        s.upsert_web_account("g1", "u1", "hash-a", "argon2id")
+            .unwrap();
+        let a = s.get_web_account("g1", "u1").unwrap().unwrap();
+        assert_eq!(a.passcode_hash, "hash-a");
+        assert_eq!(a.passcode_algo, "argon2id");
+        assert!(a.last_login_at.is_none());
+        // 同 openid 在另一个群不通用（openid 是群内标识）
+        assert!(s.get_web_account("g2", "u1").unwrap().is_none());
+        // 覆盖旧哈希（重置注册码）
+        s.upsert_web_account("g1", "u1", "hash-b", "argon2id")
+            .unwrap();
+        assert_eq!(
+            s.get_web_account("g1", "u1")
+                .unwrap()
+                .unwrap()
+                .passcode_hash,
+            "hash-b"
+        );
+        s.touch_web_login("g1", "u1").unwrap();
+        assert!(s
+            .get_web_account("g1", "u1")
+            .unwrap()
+            .unwrap()
+            .last_login_at
+            .is_some());
+    }
+
+    #[test]
+    fn web_accounts_table_has_no_plaintext_passcode_column() {
+        let s = Storage::open(":memory:").unwrap();
+        let conn = s.lock();
+        let cols: Vec<String> = conn
+            .prepare("SELECT name FROM pragma_table_info('web_accounts')")
+            .unwrap()
+            .query_map([], |r| r.get(0))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
+        assert!(cols.contains(&"passcode_hash".to_string()));
+        assert!(!cols.iter().any(|c| c == "passcode" || c == "password"));
     }
 
     #[test]

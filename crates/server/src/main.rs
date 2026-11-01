@@ -8,6 +8,7 @@
 
 mod auth_routes;
 mod dev_routes;
+mod web_auth_routes;
 mod game_routes;
 mod dev_state;
 mod docs_routes;
@@ -36,6 +37,10 @@ struct AppState {
     docs: shared::docs_config::DocsConfig,
     /// 开发白名单（ADR-0015：判定只在 server；空白名单 = 全拒）
     dev_whitelist: Arc<HashSet<String>>,
+    /// 中台白名单（ADR-0031：默认回落 DEV_WHITELIST；空白名单 = 全拒）
+    props_whitelist: Arc<HashSet<String>>,
+    /// Web 跨端登录会话（短效 token + 状态 + 验证码，ADR-0031）
+    weblogin: auth::weblogin::WebLoginService,
     /// 道具中台管理员 token（未设置 = 本机开发模式放行）
     props_admin_token: Option<String>,
     /// 道具数据目录（heroes.json / cards.json）
@@ -74,6 +79,16 @@ async fn main() -> anyhow::Result<()> {
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
         .collect();
+
+    // 中台白名单：未设置时回落 DEV_WHITELIST（与开发链路同一名单，ADR-0031）
+    let props_whitelist: HashSet<String> = match std::env::var("PROPS_ADMIN_WHITELIST") {
+        Ok(v) if !v.trim().is_empty() => v
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect(),
+        _ => dev_whitelist.clone(),
+    };
 
     // 后台启动 bot-adapter 消费循环（qq.raw → internal）
     let adapter_url = redis_url.clone();
@@ -117,6 +132,8 @@ async fn main() -> anyhow::Result<()> {
         plan_dir,
         docs: shared::docs_config::load(),
         dev_whitelist: Arc::new(dev_whitelist),
+        props_whitelist: Arc::new(props_whitelist),
+        weblogin: auth::weblogin::WebLoginService::new(&redis_url).await?,
         props_admin_token: std::env::var("PROPS_ADMIN_TOKEN")
             .ok()
             .filter(|s| !s.is_empty()),
@@ -128,6 +145,15 @@ async fn main() -> anyhow::Result<()> {
     };
     let app = Router::new()
         .route("/health", get(health))
+        .route("/auth/web/status", get(web_auth_routes::status))
+        .route("/auth/web/register", post(web_auth_routes::register))
+        .route("/auth/web/login", post(web_auth_routes::login))
+        .route("/auth/web/confirm", get(web_auth_routes::confirm))
+        .route("/auth/web/whoami", get(web_auth_routes::whoami))
+        .route("/auth/web/qq/start", get(web_auth_routes::qq_start))
+        .route("/auth/web/qq/callback", get(web_auth_routes::qq_callback))
+        .route("/internal/auth/web/link", post(web_auth_routes::link))
+        .route("/internal/auth/web/verify", post(web_auth_routes::verify))
         .route("/auth/issue", post(auth_routes::issue))
         .route("/auth/verify", post(auth_routes::verify))
         .route(

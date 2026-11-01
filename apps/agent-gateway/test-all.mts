@@ -16,6 +16,8 @@ const INCLUDED = [
   "test-dev-command.mts",
   "test-game-command.mts",
   "test-games.mts",
+  "test-web-auth.mts",
+  "test-sanguosha-chat.mts",
   "test-docs.mts",
   "test-link-fetch.mts",
   "test-time-context.mts",

@@ -71,7 +71,28 @@ import {
   type GameCommand,
   type LegalAction,
 } from "./game-command.js";
-import { directLaunchPrompt, formatGameMenu, resolveGameOption } from "./games.js";
+import {
+  GAME_OPTIONS,
+  directLaunchPrompt,
+  formatGameMenu,
+  resolveGameOption,
+} from "./games.js";
+import {
+  buildLoginUrl,
+  formatLinkLine,
+  parseAuthCommand,
+  WebAuthClient,
+  type AuthCommand,
+} from "./web-auth.js";
+import {
+  SGS_NO_GAME,
+  isSgsChatCommandAllowed,
+  sgsBoardText,
+  sgsLinkList,
+  sgsLobbyPrompt,
+  sgsRefuseHint,
+  sgsStartedPrompt,
+} from "./sanguosha-chat.js";
 
 const redisUrl = process.env.REDIS_URL ?? "redis://127.0.0.1:6379";
 const INTERNAL_STREAM = "internal";
@@ -84,6 +105,9 @@ const SERVER_URL = process.env.SERVER_URL ?? "http://127.0.0.1:3000";
 // web 公网基址（cloudflared 域名）；未配置则退回长文推送
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL ?? "").replace(/\/+$/, "");
 const authClient = new AuthClient(SERVER_URL);
+/** Web 跨端登录（ADR-0031）：短效链接签发 / 群内验证码判定。 */
+const webAuth = new WebAuthClient(SERVER_URL);
+const SANGUOSHA_GAME_ID = "sanguosha";
 
 // 全局人物画像（跨群，ADR-0007）：经 server /internal/* 读写；带 TTL 内存缓存避免每轮打 server
 const profileClient = new ProfileClient({ baseUrl: SERVER_URL });
@@ -408,9 +432,10 @@ async function sendGameReply(
   template: string,
   actionDesc?: string,
   stateSummary?: string,
+  narrationEnabled: boolean = NARRATION_ENABLED,
 ) {
   await pushReply(redis, event, template, 1);
-  if (NARRATION_ENABLED && actionDesc) {
+  if (narrationEnabled && actionDesc) {
     try {
       const profile = await profileCache.get(event.sender_id);
       const narration = await narrateGame({
@@ -830,6 +855,17 @@ async function executeIntent(
       const active = parseJson<GameState>(activeJson, {});
       if (active.room_id && hand && active.game_id === "rps") {
         await playRpsHand(redis, engine, event, content, hand, active.room_id);
+      } else if (active.room_id && active.game_id === SANGUOSHA_GAME_ID) {
+        // 三国杀：群里不做逐动作交互（不查/不播报合法动作）
+        const url = await makeLoginUrl({
+          groupId: event.group_id,
+          openid: event.sender_id,
+          displayName: await resolveActorName(redis, event),
+          scope: "game",
+          target: sgsTarget(active.room_id, event.sender_id),
+          roomId: active.room_id,
+        });
+        await pushReply(redis, event, sgsRefuseHint(url));
       } else if (active.room_id) {
         // 阶段 4b：合法动作 → 决策模型选择 → 执行；不可选则回清单兜底
         const legalRaw = await engine.getLegalActions(active.room_id, event.sender_id);
@@ -1051,6 +1087,79 @@ async function makeBoardUrl(
   }
 }
 
+/** 该游戏是否允许 LLM 情景叙述（默认允许；三国杀关闭，ADR-0031）。 */
+function narrationEnabledFor(gameId?: string): boolean {
+  if (!NARRATION_ENABLED) return false;
+  if (!gameId) return true;
+  const opt = GAME_OPTIONS.find((g) => g.id === gameId);
+  return opt?.narration !== false;
+}
+
+/** 签发「登录页」短链（短效 token 只在 URL；正式 token 由 web 写 Cookie）。 */
+async function makeLoginUrl(input: {
+  groupId: string;
+  openid: string;
+  displayName?: string;
+  scope: "game" | "props";
+  target: string;
+  roomId?: string;
+  mode?: "login" | "reset";
+}): Promise<string | undefined> {
+  if (!PUBLIC_BASE_URL) return undefined;
+  try {
+    const link = await webAuth.issueLink({
+      group_id: input.groupId,
+      openid: input.openid,
+      display_name: input.displayName,
+      scope: input.scope,
+      target: input.target,
+      room_id: input.roomId,
+      mode: input.mode,
+    });
+    return buildLoginUrl(PUBLIC_BASE_URL, link.token);
+  } catch (err) {
+    console.error(
+      "[agent-gateway] 签发登录链接失败:",
+      (err as Error)?.message ?? err,
+    );
+    return undefined;
+  }
+}
+
+/** 三国杀的牌局页 target（与登录页同源）。 */
+function sgsTarget(roomId: string, openid: string): string {
+  return (
+    `/tabletop_game/${encodeURIComponent(SANGUOSHA_GAME_ID)}` +
+    `/player/${encodeURIComponent(openid)}`
+  );
+}
+
+/** 列出本局全部「非机器人」玩家的登录链接（开局/开始时用）。 */
+async function issueSgsPlayerLinks(
+  redis: Redis,
+  groupId: string,
+  st: GameState,
+  roomId: string,
+): Promise<{ name: string; url: string }[]> {
+  const names = await loadNames(redis, groupId, st);
+  const out: { name: string; url: string }[] = [];
+  for (const seat of st.data?.seats ?? []) {
+    if (!seat?.player_id || seat.is_bot) continue;
+    const openid = seat.player_id;
+    const url = await makeLoginUrl({
+      groupId,
+      openid,
+      displayName: names[openid],
+      scope: "game",
+      target: sgsTarget(roomId, openid),
+      roomId,
+      mode: "login",
+    });
+    if (url) out.push({ name: names[openid] ?? `${openid.slice(0, 8)}…`, url });
+  }
+  return out;
+}
+
 /** 记录发送者昵称（每次 @bot 消息都刷新）。 */
 async function recordPlayerName(redis: Redis, event: MessageGroupAt): Promise<void> {
   const name = (event.sender_name ?? "").trim();
@@ -1215,6 +1324,8 @@ async function pushGameFeedback(
   names?: Record<string, string>,
   /** 本次动作的执行者展示名（叙述主体）；机器人批量播报传 undefined（动作文案已带名字）。 */
   actor?: string,
+  /** 该游戏是否允许 LLM 叙述（三国杀关闭；默认沿用全局开关）。 */
+  narrationEnabled: boolean = NARRATION_ENABLED,
 ) {
   const sub = (s: string) => applyNames(s, names ?? {});
   // 错误 / 中断（行政动作）不做 LLM 情景叙述。
@@ -1222,7 +1333,7 @@ async function pushGameFeedback(
     (resultMessage ?? feedback).startsWith("错误") ||
     (actionDesc ?? "").includes("lobby:abort");
   let narration: string | undefined;
-  if (NARRATION_ENABLED && actionDesc && !skipNarrate) {
+  if (narrationEnabled && actionDesc && !skipNarrate) {
     try {
       const profile = await profileCache.get(event.sender_id);
       narration = await narrateGame({
@@ -1325,6 +1436,139 @@ async function chooseGameAction(
   return null;
 }
 
+// ==================== Web 跨端登录命令（显式前缀，ADR-0031） ====================
+
+/** `#验证码#NNNN` / `#网页` / `#中台` / `#重置注册码`：确定性映射，不经决策模型。 */
+async function handleAuthCommand(
+  redis: Redis,
+  engine: GameEngineClient,
+  event: MessageGroupAt,
+  cmd: AuthCommand,
+): Promise<void> {
+  const active = parseJson<GameState>(await engine.getActiveGame(event.group_id), {});
+  const roomId = active.room_id;
+  const isSgs = Boolean(roomId) && active.game_id === SANGUOSHA_GAME_ID;
+  const name = await resolveActorName(redis, event);
+
+  if (cmd.cmd === "verify") {
+    let result: "confirmed" | "mismatch" | "unknown" = "unknown";
+    try {
+      result = await webAuth.verifyCode(event.group_id, cmd.code, event.sender_id);
+    } catch (err) {
+      console.error("[agent-gateway] 验证码判定失败:", (err as Error)?.message ?? err);
+      await pushReply(redis, event, "验证服务暂时不可用，请稍后重试。");
+      return;
+    }
+    if (result === "confirmed") {
+      await pushReply(redis, event, "✅ 身份验证成功，请回到网页继续（页面会自动进入）。");
+      console.log(`[agent-gateway] 验证码确认 openid=${event.sender_id} group=${event.group_id}`);
+      return;
+    }
+    if (result === "unknown") {
+      await pushReply(
+        redis,
+        event,
+        "这个验证码无效或已过期。请回网页刷新验证码；链接过期请发「#网页」（中台用「#中台」）重新获取。",
+      );
+      return;
+    }
+    // mismatch：给回复人**自己**的登录链接（不是验证码主人的）
+    let ownUrl: string | undefined;
+    if (isSgs && roomId) {
+      ownUrl = await makeLoginUrl({
+        groupId: event.group_id,
+        openid: event.sender_id,
+        displayName: name,
+        scope: "game",
+        target: sgsTarget(roomId, event.sender_id),
+        roomId,
+      });
+    }
+    await pushReply(
+      redis,
+      event,
+      ownUrl
+        ? "❌ 这个验证码不是你的。\n请用你自己的登录链接：\n" + ownUrl
+        : "❌ 这个验证码不是你的。\n请发「#网页」获取你自己的登录链接；中台请发「#中台」。",
+    );
+    return;
+  }
+
+  if (cmd.cmd === "web") {
+    if (!roomId) {
+      await pushReply(
+        redis,
+        event,
+        "本群没有进行中的对局。建局后发「#开局」；中台请发「#中台」。",
+      );
+      return;
+    }
+    const target = isSgs
+      ? sgsTarget(roomId, event.sender_id)
+      : `/tabletop_game/${encodeURIComponent(active.game_id ?? "")}/player/${encodeURIComponent(event.sender_id)}`;
+    const url = await makeLoginUrl({
+      groupId: event.group_id,
+      openid: event.sender_id,
+      displayName: name,
+      scope: "game",
+      target,
+      roomId,
+    });
+    await pushReply(
+      redis,
+      event,
+      url
+        ? `🔗 你的登录链接（10 分钟内有效，勿转发）：
+${url}`
+        : "暂时无法签发登录链接（未配置公网地址）。请联系管理员。",
+    );
+    return;
+  }
+
+  if (cmd.cmd === "props") {
+    if (!DEV_WHITELIST.has(event.sender_id)) {
+      await pushReply(redis, event, "[中台] 无权限：你不是开发白名单账号。");
+      return;
+    }
+    const url = await makeLoginUrl({
+      groupId: event.group_id,
+      openid: event.sender_id,
+      displayName: name,
+      scope: "props",
+      target: "/props-admin/",
+    });
+    await pushReply(
+      redis,
+      event,
+      url
+        ? `🛠 中台登录链接（10 分钟内有效，勿转发）：
+${url}`
+        : "暂时无法签发中台登录链接（未配置公网地址）。",
+    );
+    return;
+  }
+
+  // 重置注册码：复用登录流程，群内确认后不跳转
+  const target = isSgs && roomId ? sgsTarget(roomId, event.sender_id) : "/";
+  const url = await makeLoginUrl({
+    groupId: event.group_id,
+    openid: event.sender_id,
+    displayName: name,
+    scope: "game",
+    target,
+    roomId: roomId ?? undefined,
+    mode: "reset",
+  });
+  await pushReply(
+    redis,
+    event,
+    url
+      ? `🔑 重置注册码：打开链接设置新注册码，再回群发「#验证码#NNNN」确认。
+${url}`
+      : "暂时无法签发重置链接（未配置公网地址）。",
+  );
+}
+
 /** 处理显式游戏命令：create/board 之外统一走 MCP execute_action（引擎无条件重校验）。 */
 async function handleGameCommand(
   redis: Redis,
@@ -1367,9 +1611,34 @@ async function handleGameCommand(
       return;
     }
     const seats = st.data?.seats?.length ?? 1;
+    if (game.id === SANGUOSHA_GAME_ID) {
+      const url = await makeLoginUrl({
+        groupId: event.group_id,
+        openid: event.sender_id,
+        displayName: host,
+        scope: "game",
+        target: sgsTarget(st.room_id, event.sender_id),
+        roomId: st.room_id,
+      });
+      const text = [sgsLobbyPrompt(host, seats)];
+      if (url) text.push("你的登录链接（10 分钟内有效，勿转发）：\n" + url);
+      await pushReply(redis, event, text.join("\n"));
+      return;
+    }
     const n = st.data?.small_game_count ?? 3;
     await pushReply(redis, event, lobbyPrompt(host, seats, n));
     return;
+  }
+
+  if (cmd.cmd === "addbot" || cmd.cmd === "solo") {
+    if (roomId && active.game_id === SANGUOSHA_GAME_ID) {
+      await pushReply(
+        redis,
+        event,
+        "三国杀暂不支持机器人补位（机器人自动推进归 P6）。请 5–8 位真人玩家入局。",
+      );
+      return;
+    }
   }
 
   if (cmd.cmd === "addbot") {
@@ -1452,6 +1721,20 @@ async function handleGameCommand(
   }
 
   if (cmd.cmd === "board") {
+    if (active.game_id === SANGUOSHA_GAME_ID) {
+      // 极简：轮次/阶段/等待者 + 登录链接（不播报公共局面、不列合法动作）
+      const summary = (await fetchStateSummary(engine, roomId)) ?? "三国杀：进行中";
+      const url = await makeLoginUrl({
+        groupId: event.group_id,
+        openid: event.sender_id,
+        displayName: await resolveActorName(redis, event),
+        scope: "game",
+        target: sgsTarget(roomId, event.sender_id),
+        roomId,
+      });
+      await pushReply(redis, event, sgsBoardText(summary, url));
+      return;
+    }
     const boardUrl = await makeBoardUrl(roomId, event.sender_id);
     const st = parseJson<GameState>(await engine.getState(roomId), {});
     const names = await loadNames(redis, event.group_id, st);
@@ -1459,6 +1742,68 @@ async function handleGameCommand(
     const summary = (await fetchStateSummary(engine, roomId)) ?? "（暂无局面摘要）";
     const parts = [summary, guidance, boardUrl ? `📄 牌面页：${boardUrl}` : ""].filter(Boolean);
     await pushReply(redis, event, applyNames(parts.join("\n"), names));
+    return;
+  }
+
+  // 三国杀（lobby 命令）：确定性回执 + 登录链接；不做局面叙述、不列合法动作
+  if (active.game_id === SANGUOSHA_GAME_ID) {
+    const actionId = gameActionId(cmd);
+    if (!actionId) {
+      await pushReply(redis, event, sgsRefuseHint());
+      return;
+    }
+    const raw = await engine.executeAction(roomId, event.sender_id, actionId);
+    if (raw.startsWith("错误")) {
+      await pushReply(redis, event, raw);
+      return;
+    }
+    const result = parseJson<ActionResult>(raw, {});
+    const st = result.state ?? parseJson<GameState>(await engine.getState(roomId), {});
+    if (cmd.cmd === "join") {
+      const url = await makeLoginUrl({
+        groupId: event.group_id,
+        openid: event.sender_id,
+        displayName: await resolveActorName(redis, event),
+        scope: "game",
+        target: sgsTarget(roomId, event.sender_id),
+        roomId,
+      });
+      const count = st.data?.seats?.length ?? 0;
+      const parts = [
+        `🀄 已加入（${count}/8）。`,
+        url
+          ? "你的登录链接（10 分钟内有效，勿转发）：\n" + url
+          : "（未配置公网地址，无法签发登录链接）",
+        "请在网页完成选将与出牌。",
+      ];
+      await pushReply(redis, event, parts.join("\n"));
+      return;
+    }
+    if (cmd.cmd === "start") {
+      const links = await issueSgsPlayerLinks(redis, event.group_id, st, roomId);
+      const head = sgsStartedPrompt(st.data?.seats?.length ?? 0);
+      await pushReply(
+        redis,
+        event,
+        sgsLinkList(head, links),
+      );
+      return;
+    }
+    await pushReply(redis, event, result.message ?? raw);
+    return;
+  }
+
+  // 三国杀：群里不做逐动作交互（用户 2026-11-01：Q 群交互优先级最低）
+  if (active.game_id === SANGUOSHA_GAME_ID && !isSgsChatCommandAllowed(cmd.cmd)) {
+    const url = await makeLoginUrl({
+      groupId: event.group_id,
+      openid: event.sender_id,
+      displayName: await resolveActorName(redis, event),
+      scope: "game",
+      target: sgsTarget(roomId, event.sender_id),
+      roomId,
+    });
+    await pushReply(redis, event, sgsRefuseHint(url));
     return;
   }
 
@@ -1521,8 +1866,9 @@ async function handleGameCommand(
     fb.summary,
     names,
     actorName(names, event),
+    narrationEnabledFor(active.game_id),
   );
-  if (!result.finished) {
+  if (!result.finished && narrationEnabledFor(active.game_id)) {
     await driveBots(redis, engine, event, roomId, event.sender_id, boardUrl);
   }
 }
@@ -1543,6 +1889,17 @@ async function handle(
   if (healthStatus && healthStatus !== "ok") {
     await pushReply(redis, event, "服务繁忙，请稍后重试");
     console.log(`[agent-gateway] 降级回执 health=${healthStatus}`);
+    return;
+  }
+
+  // 0) Web 跨端登录命令（`#验证码#NNNN` / `#网页` / `#中台` / `#重置注册码`）
+  const authCmd = parseAuthCommand(event.content);
+  if (authCmd) {
+    await clearPending(redis, event.group_id, event.sender_id);
+    console.log(
+      `[agent-gateway] intent=auth via=prefix cmd=${authCmd.cmd} cid=${event.message_id} ← ${event.content}`,
+    );
+    await handleAuthCommand(redis, engine, event, authCmd);
     return;
   }
 

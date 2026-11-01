@@ -21,7 +21,9 @@
     "sgs:web-room": "node scripts/sgs-web-room.mjs",
     "check:sgs-engine-data": "node scripts/gen-sanguosha-engine-data.mjs --check",
     "test:sgs-web": "node scripts/test-sgs-web.mjs",
-    "sgs:history": "node scripts/sgs-history.mjs"
+    "sgs:history": "node scripts/sgs-history.mjs",
+    "test:web-login": "node scripts/test-web-login.mjs",
+    "check:union-openid": "node scripts/check-union-openid.mjs"
   },
   "workspaces": [
     "qq-gateway",

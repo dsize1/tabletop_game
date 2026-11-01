@@ -41,6 +41,7 @@ if (!fast) {
   steps.push(
     { name: "test:web（Web 视图单测）", cmd: "npm --prefix apps run test:web" },
     { name: "test:sgs-web（端到端）", cmd: `${node} apps/scripts/test-sgs-web.mjs` },
+    { name: "test:web-login（跨端登录 e2e）", cmd: `${node} apps/scripts/test-web-login.mjs` },
   );
 }
 if (full) {

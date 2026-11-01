@@ -18,17 +18,33 @@ fn err(code: StatusCode, msg: impl Into<String>) -> ApiError {
     (code, Json(json!({ "error": msg.into() })))
 }
 
+/// 准入（ADR-0031）：
+/// 1) `x-props-admin-token` 与服务端共享密钥一致（web 代理通道；未配置 = 本机放行）；
+/// 2) 或 `x-props-actor` 是白名单 openid（纵深：即使代理漏校验也不放行非白名单）。
 fn require_admin(state: &AppState, headers: &HeaderMap) -> Result<(), ApiError> {
-    if let Some(expected) = state.props_admin_token.as_deref().filter(|s| !s.is_empty()) {
-        let got = headers
-            .get("x-props-admin-token")
-            .and_then(|v| v.to_str().ok())
-            .unwrap_or("");
-        if got != expected {
-            return Err(err(StatusCode::UNAUTHORIZED, "缺少或错误的道具中台 token"));
+    let expected = state.props_admin_token.as_deref().filter(|s| !s.is_empty());
+    let token_ok = match expected {
+        Some(expected) => {
+            headers
+                .get("x-props-admin-token")
+                .and_then(|v| v.to_str().ok())
+                == Some(expected)
+        }
+        None => true,
+    };
+    if token_ok {
+        return Ok(());
+    }
+    if let Some(actor) = headers
+        .get("x-props-actor")
+        .and_then(|v| v.to_str().ok())
+        .filter(|s| !s.is_empty())
+    {
+        if crate::web_auth_routes::props_allowed(state, actor) {
+            return Ok(());
         }
     }
-    Ok(())
+    Err(err(StatusCode::UNAUTHORIZED, "缺少或错误的道具中台凭证"))
 }
 
 fn actor(headers: &HeaderMap) -> String {

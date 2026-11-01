@@ -305,6 +305,32 @@ fn drive_mgr_inject(mgr: &GameManager, room: &str, inject: &mut Vec<String>) {
 }
 
 #[test]
+fn summarize_public_only() {
+    let mgr = manager(11);
+    let room = lobby_with(&mgr, 5);
+    let lobby = mgr.state_summary(&room).unwrap();
+    assert!(lobby.contains("三国杀"), "{lobby}");
+    assert!(lobby.contains("5/8") || lobby.contains("5"), "{lobby}");
+
+    mgr.execute_action(&room, "u1", "lobby:start").unwrap();
+    pick_all(&mgr, &room);
+    // 推进到出牌阶段后取摘要
+    let summary = mgr.state_summary(&room).unwrap();
+    assert!(summary.contains("第 "), "{summary}");
+    assert!(summary.contains("阶段"), "摘要应含回合阶段：{summary}");
+    assert!(summary.contains("存活"), "摘要应含存活人数：{summary}");
+    // 不含任何隐藏信息（手牌/身份/合法动作）
+    for forbidden in ["hand", "hand_count", "identity", "rebel", "loyalist", "spy", "legal"] {
+        assert!(
+            !summary.contains(forbidden),
+            "摘要不得包含隐藏信息 {forbidden}: {summary}"
+        );
+    }
+    // 一行播报（Q 群 `#局面` 的要求）
+    assert_eq!(summary.lines().count(), 1, "{summary}");
+}
+
+#[test]
 fn lobby_requires_five_players_and_host() {
     let mgr = manager(1);
     let (st, _) = mgr.create_game("sanguosha", "g", "u1").unwrap();

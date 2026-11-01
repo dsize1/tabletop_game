@@ -1,0 +1,71 @@
+// 三国杀 Q 群侧命令白名单与文案单测（P7 最小化，ADR-0031）。
+// 运行：npx tsx test-sanguosha-chat.mts
+import assert from "node:assert";
+import {
+  SGS_NO_GAME,
+  isSgsChatCommandAllowed,
+  sgsBoardText,
+  sgsLinkList,
+  sgsLobbyPrompt,
+  sgsRefuseHint,
+  sgsStartedPrompt,
+} from "./src/sanguosha-chat.js";
+
+// —— 白名单：只允许大厅/查询类命令 ——
+for (const cmd of ["create", "join", "leave", "start", "abort", "board", "resume", "kick"] as const) {
+  assert.ok(isSgsChatCommandAllowed(cmd), `${cmd} 应在白名单`);
+}
+for (const cmd of [
+  "pick",
+  "pickcode",
+  "sg",
+  "sgrule",
+  "setsg",
+  "place",
+  "reroll",
+  "smallgames",
+  "addbot",
+  "solo",
+] as const) {
+  assert.ok(!isSgsChatCommandAllowed(cmd), `${cmd} 必须被拒绝（群内不做逐动作交互）`);
+}
+
+// —— 文案：不得出现拉斯维加斯专属内容 ——
+const lobby = sgsLobbyPrompt("甲", 3);
+assert.ok(lobby.includes("三国杀"), lobby);
+assert.ok(lobby.includes("甲"), lobby);
+assert.ok(lobby.includes("3 人"), lobby);
+assert.ok(lobby.includes("#加入") && lobby.includes("#开始") && lobby.includes("#中断"), lobby);
+assert.ok(!lobby.includes("小游戏"), "三国杀引导不得出现 #小游戏");
+assert.ok(!lobby.includes("筹码"), "三国杀引导不得出现筹码");
+
+const started = sgsStartedPrompt(5);
+assert.ok(started.includes("5 人"), started);
+assert.ok(started.includes("网页"), started);
+
+// —— 局面：一行播报 + 可选链接 ——
+const board = sgsBoardText("三国杀（进行中）：第 3 轮，轮到 甲，牌堆余 12", "https://x/login?t=1");
+assert.ok(board.split("\n")[0].includes("第 3 轮"), board);
+assert.ok(board.includes("https://x/login?t=1"), board);
+assert.equal(sgsBoardText(""), "三国杀：进行中");
+
+// —— 拒绝提示：引导到网页，不回显合法动作 ——
+const refuse = sgsRefuseHint("https://x/login?t=2");
+assert.ok(refuse.includes("网页"), refuse);
+assert.ok(refuse.includes("https://x/login?t=2"), refuse);
+assert.ok(refuse.includes("#局面"), refuse);
+assert.ok(!/legal|可选动作|1\)/.test(refuse), "拒绝提示不得列动作清单");
+
+// —— 链接列表 ——
+const list = sgsLinkList("标题", [
+  { name: "甲", url: "https://x/1" },
+  { name: "乙", url: "https://x/2" },
+]);
+assert.ok(list.startsWith("标题"), list);
+assert.equal(list.split("\n").length, 3);
+assert.ok(list.includes("甲：https://x/1"), list);
+assert.equal(sgsLinkList("只有标题", []), "只有标题");
+
+assert.ok(SGS_NO_GAME.includes("三国杀"), SGS_NO_GAME);
+
+console.log("✅ test-sanguosha-chat 通过");

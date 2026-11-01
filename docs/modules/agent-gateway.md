@@ -55,6 +55,7 @@
 | `#开局 <编号或名称>` / `#拉斯维加斯` | 按选择建局：lobby 型 `create_game(game_id, group, sender)`；direct 型（猜拳）`start_game` 直接开打 | 群内无 Active |
 | `#加入` / `#退出` | `lobby:join` / `lobby:leave` | 群成员 |
 | `#开始` / `#中断` | `lobby:start` / `lobby:abort` | 房主 |
+| `#网页` / `#中台` / `#重置注册码` | 签发登录页短链（见上节） | 群成员 / 开发白名单 |
 | `#踢 <openid>` | `lobby:kick:<openid>` | 房主 |
 | `#小游戏 <3~6>` | `lobby:set_small_game_count:<n>` | 房主 |
 | `#放 <1~6>`（也支持 `#放3`） | `place:<n>` | 当前玩家 |
@@ -74,10 +75,24 @@
 - **出站限额**（`external-constraints.md`）：同一条用户消息最多**被动回复 5 次**、`msg_seq` 递增。网关用 Redis 计数器 `msgseq:{message_id}` 递增；每个动作的「模板 + LLM 叙事」合并为**一条**回复。超过 5 条时**默认丢弃并告警**，仅 `PROACTIVE_MESSAGES_ENABLED=1`（需通过主动消息门禁）才降级为主动消息。错误/中断（`lobby:abort`）不做 LLM 叙事。
 - **主动消息门禁**（ADR-0009）：默认禁用；方案含主动消息须人工确认并写 `【主动消息已人工确认】`，`npm run check:proactive-gate` 校验。
 
+- **三国杀（P7 最小化，ADR-0031）**：群里只做 `#开局 三国杀` / `#加入` / `#退出` / `#开始` / `#中断` / `#踢` / `#局面` / `#恢复`；**动作类命令**（`#选` / `#动作` / `#放` / `#重投` / `#小游戏*` / `#加机器人` / `#单人`）一律回「请到网页操作」并附本人登录链接；`#局面` 只回**一行**（轮次 · 回合阶段（等待者）· 存活 k/n）+ 登录链接；LLM 情景叙述关闭；机器人在 sgs 下暂不支持（归 P6）。
 - **桌游目录**（`src/games.ts`）：`#开局` 的可选项单一数据源（id / 展示名 / 启动方式 / 别名）。新增引擎时在 `crates/game-engine-mcp` 注册后往 `GAME_OPTIONS` 追加一项即可出现在菜单里；`mode: "direct"` 表示无等待厅（建局即开打），`"lobby"` 走 `#加入` / `#开始`。
 - **自然语言路径**：`start_game` 意图（无猜拳手势时）→ 发「#开局」菜单让用户选桌游。猜拳 `rps` 既保留显式手势玩具路径，也可经 `#开局 猜拳` 直接开一局。
 - **动作选择（阶段 4b）**：`game_action` 意图 → `get_legal_actions(room, sender)` → SystemOne `choice`（≤26 个动作）选一个 → `execute_action`；动作数 >26 或决策不可用时回显编号清单兜底（`formatActionList`）。小游戏交互态的合法动作归 `pending.actor`，非该玩家无动作。
 - 命令 → 动作串映射与解析单测见 `src/game-command.ts` / `test-game-command.mts`；桌游目录与菜单单测见 `src/games.ts` / `test-games.mts`。
+
+### Web 跨端登录命令（ADR-0031，优先于一切路由）
+
+| 命令 | 行为 | 说明 |
+|---|---|---|
+| `#验证码#1234`（也接受 `#验证码 1234`） | 调 server `/internal/auth/web/verify`（码 + 回复人 openid） | 命中 → 回「验证成功」；码有效但不是本人 → 回「不是你的链接」+ 给回复人重签链接；无效/过期 → 提示刷新或重取 |
+| `#网页` / `#我的链接` / `#登录` | 为**本人**签发登录页短链（10 分钟） | 无对局时提示；这是「链接过期自助重取」入口 |
+| `#中台` | 先校验 `DEV_WHITELIST` → 签发中台登录短链 | 非白名单直接回「无权限」；server 侧还会再判一次 |
+| `#重置注册码` | 签发 `mode=reset` 短链 | 复用注册/登录流程；群内确认后**不跳转** |
+
+- 登录链接形如 `{PUBLIC_BASE_URL}/login?t=<短效token>`；**正式 token 只由 web 写 HttpOnly Cookie**，群里与 URL 都不出现。
+- 三国杀开局/开赛回执：`#开局 三国杀` 回 lobby 引导；`#加入` 回复本人链接；`#开始` 列出**全部非机器人玩家**的登录链接（8 人局较长，必要时拆两条被动回复）。
+- 命令解析纯函数：`src/web-auth.ts`（`parseAuthCommand` / `buildLoginUrl` / `WebAuthClient`），单测 `test-web-auth.mts`。
 
 ### 人物画像（全局层，ADR-0007）
 

@@ -283,7 +283,7 @@ export function renderSgsPage(view: GameView, opts: SgsPageOpts): string {
     renderPersonalArea(data.player_area, board, data.special_zones, names, actions) +
     `</div>` +
     `</div>` +
-    `<div class="sgs-statusbar"><span>token 仅存于本页链接</span>` +
+    `<div class="sgs-statusbar"><span>登录态由 Cookie 维持（链接不含 token）</span>` +
     `<span class="grow"></span><span id="sgs-msg"></span><span id="sgs-warn"></span>` +
     `<span id="sgs-updated">—</span></div>` +
     `<div class="sgs-overlay" id="sgs-overlay" role="dialog" aria-modal="true" aria-label="特殊区"></div>` +

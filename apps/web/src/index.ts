@@ -23,9 +23,14 @@ import {
 } from "./render.js";
 import { renderAppPage } from "./view/page.js";
 import { renderSgsPage } from "./view/sgs/page.js";
+import { renderLoginPage } from "./view/login.js";
 
 const SERVER_URL = process.env.SERVER_URL ?? "http://127.0.0.1:3000";
 const PORT = Number(process.env.WEB_PORT ?? process.env.PORT ?? 18080);
+/** web → server 的中台内部凭证（与 server `PROPS_ADMIN_TOKEN` 一致；未配置 = 本机放行）。 */
+const PROPS_ADMIN_TOKEN = (process.env.PROPS_ADMIN_TOKEN ?? "").trim();
+/** 中台构建产物目录（同源托管；ADR-0031）。 */
+const PROPS_ADMIN_DIR = fileURLToPath(new URL("../../props-admin/dist/", import.meta.url));
 
 // cloudflared 反代后源站只见回环，真实 IP 取 CF-Connecting-IP / X-Forwarded-For
 const app = express();
@@ -73,6 +78,82 @@ async function verifyToken(token: string): Promise<VerifyResult> {
   if (!r.ok) throw new Error(`server /auth/verify ${r.status}`);
   const body = (await r.json()) as { openid?: string; resource?: string };
   return { valid: true, openid: body.openid, resource: body.resource };
+}
+
+/** 读取 Cookie（不引入 cookie-parser，只取首个同名值）。 */
+function cookieValue(header: string | undefined, name: string): string | undefined {
+  if (!header) return undefined;
+  for (const part of header.split(";")) {
+    const i = part.indexOf("=");
+    if (i < 0) continue;
+    if (part.slice(0, i).trim() !== name) continue;
+    const raw = part.slice(i + 1).trim();
+    try {
+      return decodeURIComponent(raw);
+    } catch {
+      return raw;
+    }
+  }
+  return undefined;
+}
+
+/** 写 HttpOnly 会话 Cookie（正式 token 只经此下发，ADR-0031）。 */
+function setAuthCookie(
+  res: import("express").Response,
+  name: string,
+  token: string,
+  maxAgeSecs: number,
+  secure: boolean,
+): void {
+  const parts = [
+    `${name}=${encodeURIComponent(token)}`,
+    "Path=/",
+    "HttpOnly",
+    "SameSite=Lax",
+    `Max-Age=${Math.max(1, Math.floor(maxAgeSecs))}`,
+  ];
+  if (secure) parts.push("Secure");
+  res.append("Set-Cookie", parts.join("; "));
+}
+
+/**
+ * 解析游戏 token：显式 `?token=`（内部脚本/兼容）→ Cookie（玩家登录态）。
+ * 新流程下玩家链接只带短效 `t`，游戏页靠 Cookie。
+ */
+function resolveGameToken(req: import("express").Request, bodyToken?: unknown): string {
+  const q = typeof req.query.token === "string" ? req.query.token : "";
+  if (q) return q;
+  if (typeof bodyToken === "string" && bodyToken.trim()) return bodyToken.trim();
+  return cookieValue(req.headers.cookie, "tg_game") ?? "";
+}
+
+interface Whoami {
+  openid: string;
+  resource: string;
+  props_whitelisted: boolean;
+}
+
+/** 会话自检（server `/auth/web/whoami`）；失效 → undefined。 */
+async function whoami(token: string): Promise<Whoami | undefined> {
+  const r = await fetch(
+    `${SERVER_URL}/auth/web/whoami?token=${encodeURIComponent(token)}`,
+  );
+  if (!r.ok) return undefined;
+  return (await r.json()) as Whoami;
+}
+
+/** 请求自带的 Cookie 是否仍是该 openid 的有效会话（`used` 链接判断能否直接进入）。 */
+async function sessionMatches(
+  req: import("express").Request,
+  openid: string,
+): Promise<boolean> {
+  for (const name of ["tg_game", "tg_props"]) {
+    const token = cookieValue(req.headers.cookie, name);
+    if (!token) continue;
+    const v = await verifyToken(token);
+    if (v.valid && v.openid === openid) return true;
+  }
+  return false;
 }
 
 /** 拉取计划文档 markdown；404 → null。 */
@@ -246,9 +327,17 @@ app.get("/dev_docs/file", async (req, res) => {
 });
 
 app.get("/tabletop_game/:gameId/player/:openid", async (req, res) => {
-  const token = typeof req.query.token === "string" ? req.query.token : "";
+  // 新流程（ADR-0031）：玩家链接 → 登录页 → HttpOnly Cookie；此处 Cookie 优先兜底。
+  const token = resolveGameToken(req);
   if (!token) {
-    res.status(401).send(renderErrorPage(401, "缺少访问 token"));
+    res
+      .status(401)
+      .send(
+        renderErrorPage(
+          401,
+          "缺少访问凭证：请在群内发送「#网页」获取登录链接（旧链接可能已过期）",
+        ),
+      );
     return;
   }
   try {
@@ -291,7 +380,7 @@ app.get("/tabletop_game/:gameId/player/:openid", async (req, res) => {
  * 不缓存（token 在 query 中）。
  */
 app.get("/tabletop_game/:gameId/state", async (req, res) => {
-  const token = typeof req.query.token === "string" ? req.query.token : "";
+  const token = resolveGameToken(req);
   res.setHeader("Cache-Control", "no-store");
   if (!token) {
     res.status(401).json({ error: "missing_token" });
@@ -324,9 +413,7 @@ app.get("/tabletop_game/:gameId/state", async (req, res) => {
  */
 app.post("/tabletop_game/:gameId/action", async (req, res) => {
   const body = (req.body ?? {}) as Record<string, unknown>;
-  const token =
-    (typeof req.query.token === "string" ? req.query.token : "") ||
-    (typeof body.token === "string" ? body.token : "");
+  const token = resolveGameToken(req, body.token);
   const roomId = typeof body.room_id === "string" ? body.room_id : "";
   const action = typeof body.action === "string" ? body.action.trim() : "";
   const wantsJson = (req.get("accept") ?? "").includes("application/json");
@@ -347,14 +434,187 @@ app.post("/tabletop_game/:gameId/action", async (req, res) => {
       return;
     }
     // 无 JS 表单：POST → 303 回页面（浏览器会自动 GET 刷新）
+    // Cookie 会话不再把 token 拼进 URL（ADR-0031）；显式 `?token=` 通道仍兼容内部脚本。
+    const explicit = typeof req.query.token === "string" ? req.query.token : "";
     const back =
       `/tabletop_game/${encodeURIComponent(req.params.gameId)}` +
       `/player/${encodeURIComponent(v.openid)}` +
-      `?token=${encodeURIComponent(token)}&msg=${encodeURIComponent(out.message)}`;
+      `?${explicit ? `token=${encodeURIComponent(explicit)}&` : ""}msg=${encodeURIComponent(out.message)}`;
     res.redirect(303, back);
   } catch (err) {
     console.error("[web] 提交动作失败:", err);
     fail(503, "服务暂时不可用，请稍后重试");
+  }
+});
+
+
+// ==================== Web 跨端登录（ADR-0031） ====================
+
+/** 登录页：短效 token 只在 URL，页面不落 localStorage。 */
+app.get("/login", (req, res) => {
+  const t = typeof req.query.t === "string" ? req.query.t.trim() : "";
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.send(renderLoginPage({ token: t }));
+});
+
+/** 页面状态代理（同时判定浏览器是否已有可用的正式会话 Cookie）。 */
+app.get("/login/status", async (req, res) => {
+  const t = typeof req.query.t === "string" ? req.query.t : "";
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    const r = await fetch(`${SERVER_URL}/auth/web/status?token=${encodeURIComponent(t)}`);
+    const body = (await r.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!r.ok) {
+      res.status(r.status).json(body);
+      return;
+    }
+    const openid = typeof body.openid === "string" ? body.openid : "";
+    res.json({ ...body, has_session: openid ? await sessionMatches(req, openid) : false });
+  } catch (err) {
+    console.error("[web] 登录状态查询失败:", err);
+    res.status(503).json({ error: "服务暂时不可用，请稍后重试" });
+  }
+});
+
+/** 注册码提交代理（注册 / 登录）。 */
+for (const kind of ["register", "login"] as const) {
+  app.post(`/login/${kind}`, async (req, res) => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    res.setHeader("Cache-Control", "no-store");
+    try {
+      const r = await fetch(`${SERVER_URL}/auth/web/${kind}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          token: typeof body.t === "string" ? body.t : "",
+          passcode: typeof body.passcode === "string" ? body.passcode : "",
+          passcode_confirm:
+            typeof body.passcode_confirm === "string" ? body.passcode_confirm : undefined,
+        }),
+      });
+      const text = await r.text();
+      res.status(r.status).type("application/json").send(text);
+    } catch (err) {
+      console.error(`[web] 登录代理失败(${kind}):`, err);
+      res.status(503).json({ error: "服务暂时不可用，请稍后重试" });
+    }
+  });
+}
+
+/**
+ * 确认长轮询代理。
+ *
+ * 确认成功时由 web 写 **HttpOnly** Cookie（正式 8h token），响应体里**剔除** token，
+ * 页面只拿到 `{status:"confirmed", target}` 后跳转；这样 token 不落在页面/URL/JS 可读处。
+ */
+app.get("/login/confirm", async (req, res) => {
+  const t = typeof req.query.t === "string" ? req.query.t : "";
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    const r = await fetch(
+      `${SERVER_URL}/auth/web/confirm?token=${encodeURIComponent(t)}`,
+    );
+    const body = (await r.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!r.ok) {
+      res.status(r.status).json(body);
+      return;
+    }
+    if (body.status === "confirmed") {
+      const token = typeof body.token === "string" ? body.token : "";
+      const cookie = body.cookie === "tg_props" ? "tg_props" : "tg_game";
+      const maxAge = Number(body.expires_in_secs ?? 8 * 3600);
+      if (token) setAuthCookie(res, cookie, token, maxAge, req.secure);
+      delete body.token;
+      delete body.cookie;
+      res.json(body);
+      return;
+    }
+    if (body.status === "used") {
+      const openid = typeof body.openid === "string" ? body.openid : "";
+      res.json({ ...body, has_session: openid ? await sessionMatches(req, openid) : false });
+      return;
+    }
+    res.json(body);
+  } catch (err) {
+    console.error("[web] 登录确认轮询失败:", err);
+    res.status(503).json({ error: "服务暂时不可用，请稍后重试" });
+  }
+});
+
+// ==================== 中台（同源托管 + 白名单准入，ADR-0031） ====================
+
+/** 中台页面准入：Cookie 会话 + server 白名单判定（双重校验，server 侧也会再判）。 */
+async function propsSession(
+  req: import("express").Request,
+): Promise<Whoami | undefined> {
+  const token = cookieValue(req.headers.cookie, "tg_props");
+  if (!token) return undefined;
+  const who = await whoami(token);
+  if (!who || !who.props_whitelisted) return undefined;
+  return who;
+}
+
+app.use(
+  "/props-admin",
+  async (req, res, next) => {
+    res.setHeader("Cache-Control", "no-store");
+    const who = await propsSession(req).catch(() => undefined);
+    if (!who) {
+      res
+        .status(403)
+        .send(
+          renderErrorPage(
+            403,
+            "中台需要登录与白名单权限：请在 QQ 群发送「#中台」获取登录链接",
+          ),
+        );
+      return;
+    }
+    next();
+  },
+  express.static(PROPS_ADMIN_DIR, {
+    index: "index.html",
+    setHeaders: (res) => res.setHeader("Cache-Control", "no-store"),
+  }),
+);
+
+/** SPA 回退（Vue Router history 模式）。 */
+app.get("/props-admin/*", async (req, res) => {
+  const who = await propsSession(req).catch(() => undefined);
+  if (!who) {
+    res.status(403).send(renderErrorPage(403, "中台需要登录与白名单权限"));
+    return;
+  }
+  res.setHeader("Cache-Control", "no-store");
+  res.sendFile(path.join(PROPS_ADMIN_DIR, "index.html"));
+});
+
+/** 中台 API 代理：浏览器只与 web 同源通信；server 侧再校验白名单/凭据。 */
+app.all("/internal/gameprops/*", async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  const who = await propsSession(req).catch(() => undefined);
+  if (!who) {
+    res.status(401).json({ error: "需要中台登录（群内发 #中台）" });
+    return;
+  }
+  try {
+    const headers: Record<string, string> = {
+      "content-type": req.get("content-type") ?? "application/json",
+      "x-props-actor": who.openid,
+    };
+    if (PROPS_ADMIN_TOKEN) headers["x-props-admin-token"] = PROPS_ADMIN_TOKEN;
+    const method = req.method.toUpperCase();
+    const r = await fetch(`${SERVER_URL}${req.originalUrl}`, {
+      method,
+      headers,
+      body: method === "GET" || method === "HEAD" ? undefined : JSON.stringify(req.body ?? {}),
+    });
+    const text = await r.text();
+    res.status(r.status).type("application/json").send(text);
+  } catch (err) {
+    console.error("[web] 中台 API 代理失败:", err);
+    res.status(503).json({ error: "服务暂时不可用，请稍后重试" });
   }
 });
 

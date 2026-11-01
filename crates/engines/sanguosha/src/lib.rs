@@ -535,6 +535,19 @@ fn new_bot_id(st: &SgsState) -> String {
     "bot:overflow".to_string()
 }
 
+/// 回合阶段的中文标签（供 `summarize` 的极简播报；不含任何隐藏信息）。
+fn turn_phase_label(phase: crate::state::TurnPhase) -> &'static str {
+    use crate::state::TurnPhase;
+    match phase {
+        TurnPhase::Prepare => "准备阶段",
+        TurnPhase::Judge => "判定阶段",
+        TurnPhase::Draw => "摸牌阶段",
+        TurnPhase::Play => "出牌阶段",
+        TurnPhase::Discard => "弃牌阶段",
+        TurnPhase::End => "结束阶段",
+    }
+}
+
 fn describe(st: &SgsState) -> String {
     match st.phase {
         Phase::Lobby => format!("等待加入（{}/{}）", st.seats.len(), MAX_PLAYERS),
@@ -984,9 +997,26 @@ impl EnginePlugin for SanguoshaEngine {
                             .unwrap_or_default()
                     })
                     .unwrap_or_default();
+                let phase = turn_phase_label(st.turn_phase);
+                let alive = st.seats.iter().filter(|s| s.alive).count();
+                // 等待者：有 pending 时以 pending.actor 为准（如濒死求桃 / 响应），
+                // 否则就是当前回合玩家；这里只给**公开信息**（武将名/阶段/存活数），
+                // 不含手牌、身份、合法动作（Q 群 `#局面` 只用这一行）。
+                let wait = st
+                    .pending
+                    .as_ref()
+                    .and_then(|p| st.seat(&p.actor))
+                    .map(|s| s.general_name.clone())
+                    .filter(|n| !n.is_empty())
+                    .unwrap_or_else(|| cur.clone());
                 format!(
-                    "三国杀（{status}）：第 {} 轮，轮到 {cur}，牌堆余 {}",
+                    "三国杀（{status}）：第 {} 轮 · {} 的 {}（等待 {}）· 存活 {}/{} · 牌堆余 {}",
                     st.round,
+                    cur,
+                    phase,
+                    wait,
+                    alive,
+                    st.seats.len(),
                     st.deck.draw.len()
                 )
             }

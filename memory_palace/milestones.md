@@ -4,12 +4,24 @@
 
 ## 🔖 续接指针（下次会话说「继续」时从这里开工）
 
-- **入口**：`docs/games/sanguosha/development-plan.md` → **P4.4.3 已验收（包开关全量预设 + 全套门禁）** → 下一步 P4.5（武将流程工作台）/ 其他批次
-- **顺序**：① 界限突破 87/87 已完成 → ② P4.4.3 包开关/全套门禁验收 ✅ → ③ 待定（P5 工作台 / 新包）
-- **开工命令**：`npm run sgs:batch-status`（看下一批名单/计数一致性）；流程与模板见 `docs/games/sanguosha/batch-playbook.md`
-- **批前必读**：`skills.md` §2.8.12、`rules-rulings.md` §37、`docs/conventions/coding-standards.md`
-- **每批收尾**：`p67` 池断言（如涉及界版池）；`skills.md` §2.8.x + `rules-rulings.md` 新节；`milestones.md` 新增 M 条目
-- **门禁**：`npm run sgs:check`（每批收尾）、`npm run sgs:check:full`（含 MCP 冒烟）、`npm run sgs:check:fast`（改码自检）
+- **入口**：`docs/games/sanguosha/development-plan.md` → **M57 已验收（Web 跨端权鉴 + 中台白名单）** → 下一步 **P6（AI/机器人，方案在新会话规划）**
+- **顺序（用户 2026-11-01 定稿）**：① M57 Web 跨端权鉴 ✅ → ② **P6**：规则引擎 + 行为树 + 启发式评估的**快速落地方案**（AI 细分计划在新会话完成） → ③ P7 剩余验收（真机：5 人局/错链/中台/重置 + tunnel/8 人局长消息）→ ④ P8 上线验证+权鉴 → ⑤ P5 工作台+预览 → ⑥ 线上灰度验证与优化 → ⑦ 运营一段时间后再定：AI 增强 / 剩余武将包 / 其他
+- **P6 批次入口**：`crates/game-engine-mcp`（`bot_action` 现为 `RandomPolicy`，非 las-vegas）→ `GameManager`/`EnginePlugin`（合法动作 + 状态机已就绪）；缺口见 `docs/games/sanguosha/development-plan.md` P6 节
+- **开工命令**：`npm run sgs:batch-status`（武将批次，P6 期间暂停）；流程见 `docs/games/sanguosha/batch-playbook.md`
+- **门禁**：`npm run sgs:check`（每批收尾）、`npm run sgs:check:full`（含 MCP 冒烟）、`npm run sgs:check:fast`（改码自检）、`npm run test:web-login`（跨端登录 e2e，需 `dev:up` 或临时起 server/web）
+
+## M57：Web 跨端确认权鉴 + 中台白名单（ADR-0031）✅
+
+- **日期**：2026-11-01
+- **背景**：QQ 扫码登录不可行（工信部备案不可得 + QQ 互联「在线游戏应用暂不合作」+ 群事件 `union_openid` 实测全空且需平台运营特殊配置）→ 改为**系统自建跨端确认**
+- **机制**：短效登录会话（token + 状态 + 4 位验证码 + target 路由，**同生命周期 10 分钟**）→ Web 输注册码（6 位 alnum，Argon2id）→ 群内 `#验证码#NNNN` 与**回复人 openid** 比对 → 一次性换 8h token（**HttpOnly Cookie**，URL 不带 token）；注册码**确认成功后才落库**（错链注册不污染）；错人确认只回「不是你的链接」并给本人重签；失败 3 次锁 30 分钟
+- **命令**：`#验证码#NNNN`（优先于一切路由）/ `#网页` / `#中台`（白名单前置）/ `#重置注册码`（复用流程、确认后不跳转）；三国杀 `#开局/#加入/#开始` 回执列出所有非机器人玩家登录链接；`#局面` 一行播报（轮次 · 阶段（等待者）· 存活）
+- **中台边界变更**：`/props-admin` 与登录页**同源公网**，准入 = 会话 + `PROPS_ADMIN_WHITELIST`（默认回落 `DEV_WHITELIST`）；`/internal/gameprops/*` 仅经 web 代理（server 侧再按「共享 token 或白名单 actor」双重判定）；`PROPS_ADMIN_TOKEN` 降为内部凭证
+- **菜单顺序**：三国杀 1 / 拉斯维加斯 2 / 猜拳 3；三国杀关闭 LLM 叙述、拒绝一切动作类命令（Q 群交互优先级最低）
+- **门禁**：`cargo test -p auth -p storage -p bot-adapter -p server -p sanguosha`（sanguosha **875**）、`test:agent-gateway` 22/22、`test:web`、`sgs:check` 12/12、`check:props-admin-boundary` 新口径通过；跨端登录 e2e（`apps/scripts/test-web-login.mjs`）注册/错人确认/换票/used/锁定/重置/不污染/中台全绿
+- **待真机**（P7 剩余）：真实群 5 人局 + 错链玩家 + 中台 + 重置；tunnel 公网链路；8 人局链接消息长度
+- **数据预留**：bot-adapter 记录 `union_openid`/`member_role`（`member_identities`）；`/auth/web/qq/*` 骨架 + `WEB_QQ_LOGIN_ENABLED=0`；探针 `npm run check:union-openid`
+- **详见**：`memory_palace/plan/01a196fa-0ed3-7007-ab1a-bc7cf43fb5b5.md`、`memory_palace/decisions/ADR-0031-web-cross-device-auth.md`
 
 ## M56：三国杀 P4.4.3 验收（包开关全量预设 + 全套门禁）✅
 

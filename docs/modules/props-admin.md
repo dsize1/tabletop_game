@@ -31,11 +31,16 @@ SERVER_URL=http://127.0.0.1:3100 npm --workspace @tabletop-game/props-admin run 
 # 访问 http://localhost:4174/props-admin/
 ```
 
-> **P1 安全边界**：中台**不挂到公网 web / tunnel**，只允许本机访问（Vite dev/preview + server 127.0.0.1）。
-> 待 P8 完成游戏权鉴后，再把 `/props-admin` 与 `/internal/gameprops` 挂到 web/server 的公网入口。
+> **安全边界（ADR-0031，2026-11-01 起）**：中台改为**与登录页同源、公网可达**，但准入 = **登录会话 + 白名单**：
+> 1. 群内发 `#中台` → 机器人校验 `DEV_WHITELIST` 后回登录页链接（`scope=props`）；
+> 2. 登录页完成「注册码 + 群内 `#验证码#NNNN`」确认 → web 写 `tg_props`（HttpOnly，8h）；
+> 3. `/props-admin` 静态托管前先过 `propsSession`（会话 + `PROPS_ADMIN_WHITELIST`，默认回落 `DEV_WHITELIST`），非白名单 403；
+> 4. 浏览器**不直连** server：`/internal/gameprops/*` 由 web 代理，代理前同样校验会话，server 侧再按「共享 token 或白名单 actor」二次判定。
+> `PROPS_ADMIN_TOKEN` 降级为**本机/代理内部凭证**（web→server），不再由浏览器持有。
 
-- `PROPS_ADMIN_TOKEN`：设置后 SPA 必须携带 `x-props-admin-token`；未设置时仅本机可用（server 只监听 127.0.0.1）。
-- Token 在 SPA 右上角输入，存 `localStorage`（仅内部工具；完整权鉴 P8）。
+- `PROPS_ADMIN_TOKEN`：**web → server 的内部凭证**（与 server 同值）；浏览器不再需要输入（历史 localStorage token 输入保留兼容，但已不是准入主路径）。
+- `PROPS_ADMIN_WHITELIST`：中台白名单（逗号分隔 openid）；未设置时回落 `DEV_WHITELIST`。
+- 准入链路见 ADR-0031；开发模式（Vite 5174）仍需 `DEV_WHITELIST` 对应的登录会话。
 - `GAMEPROPS_DATA_DIR`：`heroes.json` 所在目录，默认 `docs/games/sanguosha/data`。
 
 ## 页面
@@ -75,7 +80,7 @@ SERVER_URL=http://127.0.0.1:3100 npm --workspace @tabletop-game/props-admin run 
 - 图片 `image_asset_id` 只留字段，上传/裁剪未实现。
 - 牌表未自动导入；需先在「牌定义」建定义，再到「定义↔物理牌」逐张加花色/点数。
 - `sgs_cards` 的 `pack_id` 目前为数字输入；可在「道具包」先建标准/军争牌堆包。
-- 管理端 token 为静态共享 token；完整游戏权鉴在 P8；**P1 不挂公网**。
+- 准入 = Web 跨端登录会话 + 白名单（ADR-0031）；`/internal/gameprops/*` 不直连、由 web 代理；公网暴露由 `check:props-admin-boundary` 守护（白名单准入 + 不直连）。
 - SPA 构建体积约 720KB（Naive UI 全量），后续可按需拆包。
 
 ## 测试

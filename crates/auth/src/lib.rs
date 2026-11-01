@@ -6,6 +6,8 @@
 //! - TTL 可配，默认 8 小时（`DEFAULT_TTL_SECS`）；局终态（游戏结束）调用 `revoke_resource` 清空该资源全部 token。
 //! - token 绑定 `openid` + 资源范围 `resource`（如 `dev_task:{sessionId}`、`game:{gameId}`）。
 
+pub mod weblogin;
+
 use redis::aio::ConnectionManager;
 use redis::AsyncCommands;
 use serde::{Deserialize, Serialize};
@@ -36,6 +38,10 @@ pub enum AuthError {
     EmptyOpenid,
     #[error("资源范围为空")]
     EmptyResource,
+    #[error("注册码格式非法（需 6 位 0-9a-zA-Z）")]
+    InvalidPasscode,
+    #[error("哈希计算失败")]
+    Hash,
     #[error(transparent)]
     Redis(#[from] redis::RedisError),
 }

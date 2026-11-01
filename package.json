@@ -38,6 +38,8 @@
     "verify:sanguosha": "node apps/verify-sanguosha.mjs",
     "sgs:web-room": "node apps/scripts/sgs-web-room.mjs",
     "test:sgs-web": "node apps/scripts/test-sgs-web.mjs",
-    "sgs:history": "node apps/scripts/sgs-history.mjs"
+    "sgs:history": "node apps/scripts/sgs-history.mjs",
+    "test:web-login": "node apps/scripts/test-web-login.mjs",
+    "check:union-openid": "node apps/scripts/check-union-openid.mjs"
   }
 }

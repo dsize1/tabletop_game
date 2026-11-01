@@ -10,10 +10,14 @@
   - `GET /dev_task/{sessionId}?token=xxx`：dev-task 计划文档页（校验 token → 拉 markdown → GFM 渲染 HTML）
   - `GET /dev_docs?token=xxx`：开发文档预览树页（校验 token → server 拉树 JSON → `<details>` 折叠；仅 `.md` 可点）
   - `GET /dev_docs/file?token=xxx&root=<name>&path=<rel>`：文档内容页（仅 `.md`，marked 渲染）
-  - `GET /tabletop_game/{gameId}/player/{openid}?token=xxx`：游戏资源页（**双模式**：默认**版图**，页内 `#board` / `#text` 切换；服务端 SSR 首屏 + 客户端 bundle，见 `docs/modules/board-view.md`）
+  - `GET /tabletop_game/{gameId}/player/{openid}`：游戏资源页（玩家入口现为登录页；token 优先取 `?token=`，否则读 `tg_game` Cookie）（**双模式**：默认**版图**，页内 `#board` / `#text` 切换；服务端 SSR 首屏 + 客户端 bundle，见 `docs/modules/board-view.md`）
   - `GET /tabletop_game/{gameId}/state?token=xxx`：**状态 JSON**（页面轮询用；同一套 token 校验，401/404/503 语义同页面）
   - `POST /tabletop_game/{gameId}/action`：**动作提交**（P3）。`fetch` 用 JSON（`Accept: application/json`）直接返回 `{ok,message}`；无 JS 时普通表单 `application/x-www-form-urlencoded` 提交后 `303` 回页面（PRG）。token 资源范围必须等于 `game:{room_id}`（越权 403），服务端转发到 `server /internal/game/{gameId}/{roomId}/action` 执行并落库。
   - `GET /board-assets/*`：版图素材（公开静态，文件名带内容哈希 → `immutable`）；`GET /assets/*`：页面 runtime bundle
+  - `GET /login?t=<短效token>`：**跨端登录页**（ADR-0031）：昵称 + 开局摘要 → 注册/登注册码 → 4 位验证码 + 一键复制 → 长轮询 → 写 HttpOnly Cookie → 2s 过渡跳转 `target`
+  - `GET /login/status`、`POST /login/register`、`POST /login/login`、`GET /login/confirm`：登录页内部代理（token 只在代理层，不落 localStorage）
+  - `GET /props-admin/*`：中台**同源托管**（构建产物），准入 = `tg_props` 会话 + 白名单（`propsSession`），非白名单 403
+  - `ALL /internal/gameprops/*`：中台 API **代理**（浏览器不直连 server；代理前校验会话，转发带 `x-props-actor` + 内部凭证）
   - `GET /health`：健康检查（cloudflared 探活）
 - markdown(GFM) 渲染：`src/render.ts`（marked，表格/复选框/代码块）。**后续** game/dev 引擎以 MCP 能力暴露统一的「web 渲染原语」，届时此层迁移为调用统一原语
 

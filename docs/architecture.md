@@ -36,7 +36,7 @@
 | LLM 路径 | 实现 | 思考（thinking） | 联网形式 |
 |---|---|---|---|
 | **chat**（闲聊/摘要压缩） | `chat.ts` `callLlm`（裸 HTTP DeepSeek） | **默认开启**：`LLM_THINKING_ENABLED=1`（不传 `thinking`）；`=0` 显式关闭 | **需用户主动提供链接**：消息含 `https://` 时，SystemOne `noul`（是/否）判断是否抓取该链接，命中则朴素 `fetch` 抽正文注入（Plan B 单跳）。**无链接不联网、不支持自主搜索** |
-| **game**（游戏情景叙述） | `chat.ts` `narrateGame`（复用 `callLlm`） | **默认开启**（同 `LLM_THINKING_ENABLED`） | **不支持**（纯文本润色，无链接/浏览器） |
+| **game**（游戏情景叙述） | `chat.ts` `narrateGame`（复用 `callLlm`） | **默认开启**（同 `LLM_THINKING_ENABLED`）；**三国杀关闭**（局面由 Web 承载，群里只做极简播报，ADR-0031） | **不支持**（纯文本润色，无链接/浏览器） |
 | **dev-task**（开发执行） | `agents/dev_executor`（LangGraph；`DEV_PLANNER=stub|llm|deepagents`） | 由模型/端点决定（llm 走 DeepSeek 兼容端点） | 执行器内可接 MCP/沙箱（B8 后仍 shadow，未接 playwright） |
 | **profile**（人物画像蒸馏，日批） | `profile/local-llm.ts`（**本地 Qwen2.5-3B**，`llama-server` 按需起停） | **关闭**（非思考型小模型；经实测 9B 思考型不适合） | **不支持**（本地）；生成归 3B，**把关归 SystemOne**（`noul`）；见 ADR-0007 |
 

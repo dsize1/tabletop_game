@@ -41,6 +41,13 @@ pub struct QqAuthor {
     #[serde(rename = "member_openid")]
     pub member_openid: String,
     pub username: String,
+    /// 跨应用统一用户 OpenID（平台文档：可能为空，需特殊关联应用后才有值）。
+    /// ADR-0031 数据预留：为将来扫码登录映射保留，不参与当前鉴权。
+    #[serde(default, rename = "union_openid")]
+    pub union_openid: String,
+    /// 群内角色：`member` / `admin` / `owner`（平台文档字段，可能为空）。
+    #[serde(default, rename = "member_role")]
+    pub member_role: String,
 }
 
 // ============ internal Stream（bot-adapter → agent-gateway） ============
