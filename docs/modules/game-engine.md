@@ -32,7 +32,7 @@
 | `create_game(game_id, group_id, host_id)` | 创建对局（进入 `lobby`，发起人自动入局；群内已有 Active 则拒绝） |
 | `start_game(game_id, group_id, players)` | 直接开桌（无 lobby 的简单引擎，如 rps；保留向后兼容） |
 | `execute_action(room_id, player_id, action)` | 执行动作（**无条件重校验**）；lobby 生命周期统一走 `action=lobby:*`（含 `lobby:add_bot`） |
-| `bot_action(room_id, player_id)` | 内置 AI（拉斯维加斯 `HeuristicPolicy`，其它引擎 `RandomPolicy`）替该玩家选并执行动作（机器人补位/测试） |
+| `bot_action(room_id, player_id)` | 内置 AI 替该玩家选并执行动作（机器人补位/测试）。按 `game_id` 分派：`las-vegas` → `HeuristicPolicy`；`sanguosha` → `SgsPolicy`（行为树 + 启发式，见 `docs/games/sanguosha/ai.md`）；其它 → `RandomPolicy` |
 | `handle_player_message(...)` | 预留：整条消息交给引擎（如需引擎侧编排） |
 
 ## 校验链（写入路径，确定性）
@@ -145,3 +145,6 @@
 - `game-engine-core::Policy`：状态 + 合法动作 → 动作 id；`RandomPolicy` 为基线；后续 AlphaZero 以同接口替换（阶段 7，待定）。
 - `las-vegas::ai::HeuristicPolicy`：启发式贪心，按攻略「期望分/骰」（基准 2 分/骰）对 `place:n`/`reroll`/`sg:*` 打分；`run_self_play(players, policies, seed, max_steps)` 为自对弈驱动（固定种子可复现）。示例：`cargo run -p las-vegas --example selfplay -- 5 4`。
 - 引擎侧不感知策略；策略输出的动作仍经 `execute_action` **无条件重校验**。
+- `sanguosha::ai`（P6）：`SgsView`（只投影可见信息，ADR-0032）+ `Evaluator`（资源/威胁/盟友）+ `handlers`（按动作 id 家族打分）+ `tree`（优先级取优）+ `prune`（候选 ≤26）+ `selfplay`（自对弈回归）。
+  - 门禁：`npm run check:sgs-ai`（10 局）/ `check:sgs-ai:100`（100 局）/ `cargo test -p sanguosha ai::`；
+  - 口径：AI **只用可见信息**（不得读他人手牌/身份/牌堆顺序），由隐藏信息不变性用例守护。

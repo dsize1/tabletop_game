@@ -7,6 +7,7 @@
 //! 回合流程（判定/摸牌/出牌/弃牌）、基本牌、濒死与胜负在 P2.2–P2.3 实现。
 
 mod data;
+pub mod ai;
 mod resolve;
 mod resolve_fire;
 mod resolve_forest;
@@ -628,6 +629,8 @@ impl EnginePlugin for SanguoshaEngine {
             outcome: None,
             history: Vec::new(),
             history_seq: 0,
+            observations: Vec::new(),
+            observations_seq: 0,
             rng_state: seed | 1,
         };
         let state = GameState {

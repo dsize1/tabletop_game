@@ -1727,6 +1727,11 @@ pub(crate) fn congjian_target(
     };
     let target = st.seat_index(pid).ok_or_else(|| illegal("目标不在座"))?;
     let _ = pending;
+    // 过期交互保护：该牌已交出（同一从谏被重复询问）→ 直接结束该帧。
+    if !st.seats[f.owner].hand.iter().any(|c| c == &f.card) {
+        pop(st);
+        return Ok("从谏：牌已交出".to_string());
+    }
     congjian_give(st, f.owner, &f.card, target)
 }
 

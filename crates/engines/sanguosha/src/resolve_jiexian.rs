@@ -1669,12 +1669,18 @@ pub(crate) fn step_chuli(st: &mut SgsState, f: ChuLiFrame) -> Result<bool, Engin
         id: "pass".into(),
         label: "取消".into(),
     });
+    // `selected` 用 player_id 暴露：端侧/AI 据此判断已选角色，避免「重复点选 → 取消」空转。
+    let selected_ids: Vec<String> = f
+        .selected
+        .iter()
+        .map(|i| st.seats[*i].player_id.clone())
+        .collect();
     st.pending = Some(Pending {
         kind: "choice".into(),
         actor: pid(st, f.actor),
         skill: Some("chuli".into()),
         options,
-        data: json!({}),
+        data: json!({ "purpose": "chuli", "selected": selected_ids, "min": 1 }),
     });
     replace_top(st, Frame::ChuLi(f));
     Ok(true)

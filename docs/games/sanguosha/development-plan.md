@@ -766,6 +766,30 @@
 
 依赖：P2、P3。
 
+**P6.1 Batch-1 实施记录（2026-11-01）**：
+
+- **已落地**：`crates/engines/sanguosha/src/ai/`（`SgsView` 可见信息投影 / `Evaluator` / `handlers` 按动作 id 家族打分 / `tree` 优先级取优 / `prune` 候选 ≤26 / `selfplay` 自对弈 + 空转守卫）；`game-engine-mcp::bot_action` 按 `game_id` 分派 `SgsPolicy`；`docs/games/sanguosha/ai.md`（分层/打分/威胁模型/门禁/已知缺陷）。
+- **AI 口径**：只用可见信息（ADR-0032 草案 + 隐藏信息不变性用例）；不做 SystemOne 走子；不做纯 MCTS。
+- **威胁模型**：身份先验（主公公开 + 本人身份）+ 公开观测后验（引擎新增 `SgsState.observations`，记录 `damage` 事实）；效果：最大步数 11707 → 859，胜率 反 19/20 → 主 26 / 反 69 / 内 5（100 局）。
+- **门禁实测**：`standard`（25 将）100 局 **100/100 终局、0 非法动作、0 回环、0 卡死**，pending 覆盖 11/11，56s（release）；`npm run check:sgs-ai`（10 局，约 5s）入 CI。
+- **全将（149 位）现状**：20 局 14 终局，暴露 7 类**引擎侧**合法集/结算不一致（清单见 `ai.md` §7，E1–E7）；`check:sgs-ai:full` 作缺陷盘点脚本（非门禁）。
+
+**P6.1 Batch-1.5 实施记录（2026-11-01，E1–E5 引擎修复）**：
+
+- **修复清单（13 类，全部为「合法集给出动作、结算却拒绝」或「交互不收敛」）**：E1 主公技/专对 outcome 缺失（含 `step_respond` 过期 outcome 保护）；E2 `pending.data.selected` 补齐（离间/胆守/陷嗣）；E3 `sha_used` 与「无距离」混用（`count_free` / `dist_free` 拆分，合法集与结算同源）；E4 陷嗣选满 2 人后不再给第三人；E5 界仁德过滤已发动角色；E9 界酒池；E10 排异无「权」；E11 多选无牌可选时挂空 pending（含界天香装备白名单）；E12 从谏重复询问；E13 濒死阶段栈空自愈；E7 多选确认剔除失效牌（通用）；E8 离间多选 `selected`；另清掉 `take_card` 里遗留的 backtrace 调试输出。
+- **门禁实测**：`standard` 100 局 **100/100**（仍 0 非法/0 卡死）；全将（149 位）100 局 **97/100 终局、0 非法动作、69 次回环被破环器解除、1 局卡死（F1 奇谋类技能帧）**；`cargo test -p sanguosha` **900 全绿**（新增 `tests/p104.rs` 4 条 E3/E4/E5/司敌 回归）。
+**P6.1 Batch-1.6 实施记录（2026-11-01，F 系列 + 门禁升级）**：
+
+- **F1 除疠**：`pending.data` 补 `selected/min`，AI 侧 `kind=choice` 按 `selected` 跳过已选项（不再「点选→取消」空转）。
+- **F2 伤逝**：按牌面「除弃牌阶段外」在弃牌阶段不补牌（修掉「弃 1 摸 1」无限弃牌，seed=54/75 曾跑满 20000 步）。
+- **F3 破环器误判**：只在有 pending 的交互中做回环检测并跳过 `wuxie`/`wugu`；digest 纳入待选状态与选项集、特殊区亮牌数、计数/标记。「当先」额外出牌阶段等合法重复不再误判。
+- **门禁升级**：`npm run check:sgs-ai` 默认口径＝**全将 149 位 + 全卡牌 160 张**，默认 strict；
+  `check:sgs-ai:standard` 保留 25 将快速自检；`check:sgs-ai:100` / `check:sgs-ai:full` 为 100 局验收。
+- **实测（release）**：全将 100 局 **100/100 终局、0 非法动作、0 回环、0 卡死**、pending 11/11、64s；
+  `standard` 100 局同样全绿；`cargo test -p sanguosha` **900 全绿**；`sgs:check:fast` 10/10（AI 步已切全将）。
+- **顺带修复**：`resolve_more.rs` 离间多选 `pending.data` 补 `selected`（原缺失导致 AI/端侧无法判断已选牌）。
+- **未做（后续批次）**：server 自动推进 + `#加机器人`/`#武将包` + Web 等待态（P6.3）、`game_decision_log`/导出/回放（P6.4）、信念建模与一层搜索（P6.5）、强化学习（P6.6）、E1–E7 引擎修复。
+
 ### P7 Q 群接入（M，后置）
 
 > **2026-11-01 口径调整（用户裁定，ADR-0031）**：Q 群**只做被动播报**，不做任何逐动作交互，优先级降到最低；

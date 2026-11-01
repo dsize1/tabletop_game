@@ -202,7 +202,7 @@ impl EngineServer {
 
     #[tool(
         name = "bot_action",
-        description = "让内置 AI（拉斯维加斯启发式）替指定玩家行动（测试/机器人补位）"
+        description = "让内置 AI 替指定玩家行动（拉斯维加斯启发式 / 三国杀行为树，其余随机；测试与机器人补位）"
     )]
     async fn bot_action(&self, Parameters(p): Parameters<LegalActionsRequest>) -> String {
         let Some(state) = self.manager.get_state(&p.room_id) else {
@@ -216,10 +216,11 @@ impl EngineServer {
             return "错误: 该玩家当前没有合法动作".to_string();
         }
         let mut rng = SeededRng::new(0);
-        let chosen = if state.game_id == "las-vegas" {
-            las_vegas::ai::HeuristicPolicy.choose(&state, &p.player_id, &actions, &mut rng)
-        } else {
-            RandomPolicy.choose(&state, &p.player_id, &actions, &mut rng)
+        let chosen = match state.game_id.as_str() {
+            "las-vegas" => las_vegas::ai::HeuristicPolicy.choose(&state, &p.player_id, &actions, &mut rng),
+            // 三国杀：行为树 + 启发式评估（只读可见信息，见 sanguosha::ai）。
+            "sanguosha" => sanguosha::ai::SgsPolicy.choose(&state, &p.player_id, &actions, &mut rng),
+            _ => RandomPolicy.choose(&state, &p.player_id, &actions, &mut rng),
         };
         let Some(action) = chosen else {
             return "错误: 无可用动作".to_string();

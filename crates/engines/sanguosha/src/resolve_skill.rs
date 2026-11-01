@@ -1028,16 +1028,32 @@ pub(crate) fn step_multiselect(
             .filter_map(|v| v.as_str().map(str::to_string))
             .collect()
     });
+    let hand = turn::hand_ids(st, f.actor);
     let mut options: Vec<PendingOption> = Vec::new();
-    for id in turn::hand_ids(st, f.actor) {
-        if allowed.as_ref().is_some_and(|a| !a.contains(&id)) {
+    for id in &hand {
+        if allowed.as_ref().is_some_and(|a| !a.contains(id)) {
             continue;
         }
-        let mark = if f.selected.contains(&id) { "✔ " } else { "" };
+        let mark = if f.selected.contains(id) { "✔ " } else { "" };
         options.push(PendingOption {
             id: format!("choose:{id}"),
-            label: format!("{mark}{}", turn::card_label(st, &id)),
+            label: format!("{mark}{}", turn::card_label(st, id)),
         });
+    }
+    // 白名单里的牌可能不在手牌（界天香：装备区的红桃牌也可弃）。
+    if let Some(list) = &allowed {
+        for id in list.iter().filter(|id| !hand.contains(id)) {
+            let mark = if f.selected.contains(id) { "✔ " } else { "" };
+            options.push(PendingOption {
+                id: format!("choose:{id}"),
+                label: format!("{mark}{}", turn::card_label(st, id)),
+            });
+        }
+    }
+    // 没有任何可选的牌且必须选 → 直接跳过该交互（否则 pending 无选项 = 全局卡死）。
+    if options.is_empty() && f.min > 0 {
+        pop(st);
+        return Ok(false);
     }
     if f.selected.len() >= f.min && !f.selected.is_empty() {
         options.push(PendingOption {
@@ -1080,6 +1096,27 @@ pub(crate) fn act_multiselect(st: &mut SgsState, action: &str) -> Result<String,
         return Ok("已取消".to_string());
     }
     if action == "confirm" {
+        // 过期选择保护：已选牌可能已离开手牌（嵌套结算/技能移动）。
+        // 先剔除失效牌；不足下限则回退到「重新选择」，避免整局失败。
+        let before = f.selected.len();
+        f.selected.retain(|c| {
+            st.seats[f.actor].hand.iter().any(|h| h == c)
+                || crate::resolve_jiexian::equip_card_ids(st, f.actor)
+                    .iter()
+                    .any(|h| h == c)
+                || f.data
+                    .get("allowed")
+                    .and_then(|v| v.as_array())
+                    .is_some_and(|a| a.iter().any(|v| v.as_str() == Some(c.as_str())))
+        });
+        if f.selected.len() != before {
+            if f.selected.len() < f.min {
+                replace_top(st, Frame::MultiSelect(f));
+                return Ok("已选牌失效，请重新选择".to_string());
+            }
+            replace_top(st, Frame::MultiSelect(f));
+            return Ok("已剔除失效的牌".to_string());
+        }
         if f.selected.len() < f.min {
             return Err(illegal("选择数量不足"));
         }

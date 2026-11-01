@@ -4897,6 +4897,11 @@ pub fn shangshi_draw(st: &mut SgsState, seat: usize) {
     if !has(st, seat, "shangshi") {
         return;
     }
+    // 伤逝（张春华）：「除弃牌阶段外」——弃牌阶段内不补牌，
+    // 否则「弃 1 张 → 摸回 1 张 → 仍超上限」会形成无限弃牌循环（自对弈已复现）。
+    if st.turn_phase == TurnPhase::Discard {
+        return;
+    }
     let lost = (st.seats[seat].max_hp - st.seats[seat].hp).max(0) as usize;
     let hand = st.seats[seat].hand.len();
     if lost > hand {

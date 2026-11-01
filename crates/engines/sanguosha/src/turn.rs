@@ -65,16 +65,10 @@ pub(crate) fn hand_cards_with_def(st: &SgsState, idx: usize, code: &str) -> Vec<
 
 pub(crate) fn take_card(st: &mut SgsState, idx: usize, card_id: &str) -> Result<(), EngineError> {
     let hand = &mut st.seats[idx].hand;
-    let pos = hand.iter().position(|c| c == card_id).ok_or_else(|| {
-        eprintln!(
-            "BT:
-{}",
-            std::backtrace::Backtrace::force_capture()
-        );
-        illegal(format!(
-            "手牌中没有该牌 DEBUG idx={idx} hand={hand:?} card={card_id}"
-        ))
-    })?;
+    let pos = hand
+        .iter()
+        .position(|c| c == card_id)
+        .ok_or_else(|| illegal("手牌中没有该牌"))?;
     hand.remove(pos);
     // 连营：失去最后的手牌后摸 1 张（自动）。
     crate::skills::lianying_on_lose_last(st, idx);
@@ -2070,14 +2064,24 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
         let Some(def) = card_def(st, &card_id) else {
             continue;
         };
+        // 司敌（曹真）/ 讥谀（界徐氏）：被封锁颜色的手牌不可使用（与 execute 同源）。
+        if crate::skills::sidiqu_banned(st, idx, &card_id)
+            || crate::resolve_yijiang8::jiyu_banned(st, idx, &card_id)
+        {
+            continue;
+        }
         let playable = match def.code {
             // P4.0：军争牌定义已入库，结算未实现 → 不出现在合法动作里（避免驱动脚本选中即内部错误）。
             code if PENDING_JUNZHENG_CARDS.contains(&code) => false,
             "sha" | "huo_sha" | "lei_sha" => {
-                let free = crate::skills::chenglue_free(st, idx, &card_id)
-                    || crate::skills::no_distance_turn(st, idx);
-                (free || st.counter("sha_used") < sha_limit)
-                    && !sha_targets_with_card(st, idx, Some(&card_id), free).is_empty()
+                // 注意口径（与 execute 同源）：
+                // - `count_free`：成略（本回合该花色【杀】不计次数）→ 只绕过**次数**；
+                // - `dist_free`：成略 / 无距离（将驰 · 奇谋 · 弓骑等）→ 只影响**距离**。
+                // 早先把「无距离」当作「不计次数」，导致合法集给出【杀】但 execute 拒绝。
+                let count_free = crate::skills::chenglue_free(st, idx, &card_id);
+                let dist_free = count_free || crate::skills::no_distance_turn(st, idx);
+                (count_free || st.counter("sha_used") < sha_limit)
+                    && !sha_targets_with_card(st, idx, Some(&card_id), dist_free).is_empty()
             }
             // 酒：每回合限一次（本回合下一张【杀】伤害 +1）。
             "jiu" => st.counter("jiu_used") == 0 || crate::skills::jiu_unlimited(st, idx),
@@ -5429,12 +5433,13 @@ fn play_card(
 
     match def.code {
         "sha" | "huo_sha" | "lei_sha" => {
-            let free = crate::skills::chenglue_free(st, idx, card_id);
+            let count_free = crate::skills::chenglue_free(st, idx, card_id);
+            let dist_free = count_free || crate::skills::no_distance_turn(st, idx);
             let limit = sha_limit(st, idx);
-            if !free && st.counter("sha_used") >= limit {
+            if !count_free && st.counter("sha_used") >= limit {
                 return Err(illegal("本出牌阶段已使用过【杀】"));
             }
-            if sha_targets_with_card(st, idx, Some(card_id), free).is_empty() {
+            if sha_targets_with_card(st, idx, Some(card_id), dist_free).is_empty() {
                 return Err(illegal("攻击范围内没有目标"));
             }
             if crate::skills::sha_blocked(st, idx) {
@@ -5482,7 +5487,7 @@ fn play_card(
                         actor: idx,
                         card: card_id.to_string(),
                         fangtian,
-                        no_distance: tianyi || free,
+                        no_distance: tianyi || dist_free,
                     }),
                 );
                 return Ok("疠火：请选择是否视为火【杀】".to_string());
@@ -5498,7 +5503,7 @@ fn play_card(
                 || (crate::skills::has(st, idx, "lihuo") && def.code == "huo_sha")
                 || qiaoshuo
                 || fumian_multi;
-            let no_distance = tianyi || free;
+            let no_distance = tianyi || dist_free;
             take_card(st, idx, card_id)?;
             if qiaoshuo {
                 st.set_counter("qiaoshuo_win", 0);
@@ -5533,7 +5538,8 @@ fn play_card(
             Ok(format!("回复 1 点体力（当前 {hp}）"))
         }
         "jiu" => {
-            if st.counter("jiu_used") > 0 {
+            // 界酒池（`jiu_unlimited`）不限次数：与 `legal_actions` 同源。
+            if st.counter("jiu_used") > 0 && !crate::skills::jiu_unlimited(st, idx) {
                 return Err(illegal("本回合已使用过【酒】"));
             }
             st.set_counter("jiu_used", 1);

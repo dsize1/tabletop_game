@@ -35,6 +35,8 @@ const steps = [
   { name: "pack-pool（选将池包过滤）", ...cargoTest("pack_pool") },
   { name: "view-contract（视图契约）", ...cargoTest("view_contract") },
   { name: "interaction（交互原语契约）", ...cargoTest("interaction_") },
+  // P6：AI 自对弈（10 局全将 release，约 6s）——「机器人能打完 5 人局」的硬门禁。
+  { name: "sgs-ai（自对弈 10 局）", cmd: `${node} apps/scripts/check-sgs-ai.mjs` },
 ];
 
 if (!fast) {

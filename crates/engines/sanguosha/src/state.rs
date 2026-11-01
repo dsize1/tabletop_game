@@ -32,6 +32,8 @@ pub const MAX_HP_LIMIT: i32 = 15;
 pub const DRAW_PER_TURN: u32 = 2;
 /// 出牌历史保留条数。
 pub const HISTORY_LIMIT: usize = 800;
+/// 公开观测（AI/复盘用）保留条数。
+pub const OBSERVATION_LIMIT: usize = 240;
 
 /// 全局阶段（`state-machine.md` §2）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -466,6 +468,25 @@ pub struct LogEntry {
     pub text: String,
 }
 
+/// 公开观测记录（P6，AI 观测层）：只记**公开可见**的事实。
+///
+/// 与 `history.text` 的区别：结构化、可直接消费（身份/威胁推断、复盘统计），
+/// 不参与任何规则判定。当前记录：`damage`（谁对谁造成多少伤害）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Observation {
+    pub seq: u32,
+    pub turn: u32,
+    /// 观测类型：`damage`。
+    pub kind: String,
+    /// 行为方（伤害来源；可为空 = 无来源伤害）。
+    #[serde(default)]
+    pub actor: Option<String>,
+    /// 承受方。
+    #[serde(default)]
+    pub target: Option<String>,
+    pub amount: i32,
+}
+
 /// 审时（阴）记录：交给目标的手牌，用于回合结束阶段校验。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ShenshiMark {
@@ -570,6 +591,11 @@ pub struct SgsState {
     pub history: Vec<LogEntry>,
     #[serde(default)]
     pub history_seq: u32,
+    /// 公开观测（AI 身份/威胁推断的数据源；有上限，见 `OBSERVATION_LIMIT`）。
+    #[serde(default)]
+    pub observations: Vec<Observation>,
+    #[serde(default)]
+    pub observations_seq: u32,
     /// 状态内随机数状态（xorshift64*）：保证「状态快照 → 重放」确定性。
     pub rng_state: u64,
 }
@@ -782,6 +808,29 @@ impl SgsState {
         let over = self.history.len().saturating_sub(HISTORY_LIMIT);
         if over > 0 {
             self.history.drain(0..over);
+        }
+    }
+
+    /// 追加一条公开观测（超上限丢弃最旧）。
+    pub fn push_observation(
+        &mut self,
+        kind: &str,
+        actor: Option<&str>,
+        target: Option<&str>,
+        amount: i32,
+    ) {
+        self.observations_seq += 1;
+        self.observations.push(Observation {
+            seq: self.observations_seq,
+            turn: self.turn_index,
+            kind: kind.to_string(),
+            actor: actor.map(str::to_string),
+            target: target.map(str::to_string),
+            amount,
+        });
+        let over = self.observations.len().saturating_sub(OBSERVATION_LIMIT);
+        if over > 0 {
+            self.observations.drain(0..over);
         }
     }
 

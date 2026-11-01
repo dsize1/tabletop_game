@@ -779,6 +779,12 @@ pub fn advance(st: &mut SgsState, events: &mut Vec<EngineEvent>) -> Result<(), E
         if st.pending.is_some() {
             return Ok(());
         }
+        // 自愈：濒死阶段只在「栈上还有 Dying/相关帧」时有意义。
+        // 若栈已空仍停在 Dying（历史遗留：某些技能路径 pop 后未复位），回到 Turn，
+        // 否则该玩家既无 pending 也无合法动作 → 全局卡死。
+        if st.phase == Phase::Dying && st.resolution.is_empty() {
+            st.phase = Phase::Turn;
+        }
         // 利驭（界吕布）：栈空后询问（避免覆盖父帧 outcome）。
         if top(st).is_none() && !st.pending_liyu.is_empty() {
             let (actor, target) = st.pending_liyu.remove(0);
@@ -2415,9 +2421,25 @@ fn step_respond(st: &mut SgsState, f: RespondFrame) -> Result<bool, EngineError>
         match played {
             Some(card) if !card.is_empty() => {
                 let by = played_by.unwrap_or(f.actor);
+                // 过期 outcome 保护：同一响应结果被重复消费时，牌已不在手里。
+                // 按「未响应」处理（该响应已结算过），避免整局因内部错误中断。
+                if !st.seats.get(by).is_some_and(|s| s.hand.iter().any(|c| c == &card)) {
+                    st.outcome = Some(Outcome::Respond {
+                        played: None,
+                        played_by: None,
+                    });
+                    pop(st);
+                    return Ok(false);
+                }
                 finish_respond_play(st, &f, &card, by, None)?;
             }
             _ => {
+                // 主公技（激将/护驾）无人代出：必须显式回传「未响应」，
+                // 否则父帧（如【杀】的 WaitRespond）取到 None 会报「缺少【闪】结算结果」。
+                st.outcome = Some(Outcome::Respond {
+                    played: None,
+                    played_by: None,
+                });
                 pop(st);
             }
         }
@@ -4085,6 +4107,7 @@ fn act_target(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Stri
         }
         // 专对（秦宓）：成为【杀】目标后可拼点，赢则此【杀】对其无效。
         if crate::skills::has(st, target, "zhuandui")
+            && st.counter(&format!("zhuandui_used:{}", st.seats[target].player_id)) == 0
             && !st.seats[target].hand.is_empty()
             && !st.seats[f.user].hand.is_empty()
         {
@@ -4124,6 +4147,7 @@ fn act_target(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Stri
         }
         // 专对（秦宓，使用者）：使用【杀】指定目标后可拼点，赢则目标不能响应。
         if crate::skills::has(st, f.user, "zhuandui")
+            && st.counter(&format!("zhuandui_used:{}", st.seats[f.user].player_id)) == 0
             && !st.seats[f.user].hand.is_empty()
             && !st.seats[target].hand.is_empty()
         {
@@ -5549,6 +5573,13 @@ fn apply_damage_inner(
         }
     }
     st.seats[victim].hp -= amount;
+    // AI 观测层（P6）：记录公开的伤害事实（谁打谁、几点），供身份/威胁推断与复盘统计。
+    // 只含公开信息，不参与规则判定。
+    if amount > 0 {
+        let src_pid = source.map(|s| st.seats[s].player_id.clone());
+        let victim_pid = st.seats[victim].player_id.clone();
+        st.push_observation("damage", src_pid.as_deref(), Some(&victim_pid), amount);
+    }
     // 矢北（沮授，锁定）：本回合首次受伤回复 1；再受伤失去 1 点体力。
     if amount > 0 {
         crate::resolve_yijiang6::shibei_on_damage(st, victim);

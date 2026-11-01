@@ -96,10 +96,13 @@ pub struct XianSiFrame {
 }
 
 pub(crate) fn step_xiansi(st: &mut SgsState, f: XianSiFrame) -> Result<bool, EngineError> {
+    // 已选满 2 人后不再给出其他角色（否则合法集给出「第三人」而结算拒绝）。
+    let full = f.selected.len() >= 2;
     let mut options: Vec<PendingOption> = st
         .alive_indices()
         .into_iter()
         .filter(|i| *i != f.actor && turn::has_cards_to_take(st, *i))
+        .filter(|i| !full || f.selected.contains(i))
         .map(|i| {
             let mark = if f.selected.contains(&i) { "✔ " } else { "" };
             PendingOption {
@@ -118,12 +121,18 @@ pub(crate) fn step_xiansi(st: &mut SgsState, f: XianSiFrame) -> Result<bool, Eng
         id: "pass".into(),
         label: "不发动陷嗣".into(),
     });
+    // `selected` 用 player_id 暴露（AI/端侧按动作 id 载荷比对，避免重复点选空转）。
+    let selected_ids: Vec<String> = f
+        .selected
+        .iter()
+        .map(|i| st.seats[*i].player_id.clone())
+        .collect();
     st.pending = Some(Pending {
         kind: "choice".into(),
         actor: pid(st, f.actor),
         skill: Some("xiansi".into()),
         options,
-        data: json!({}),
+        data: json!({ "purpose": "xiansi", "selected": selected_ids, "min": 1, "max": 2 }),
     });
     replace_top(st, Frame::XianSi(f));
     Ok(true)
@@ -566,7 +575,7 @@ pub(crate) fn step_danshou(st: &mut SgsState, f: DanShouFrame) -> Result<bool, E
         actor: pid(st, actor),
         skill: Some("danshou".into()),
         options,
-        data: json!({ "x": f.x }),
+        data: json!({ "purpose": "danshou", "x": f.x, "selected": f.selected, "min": f.x, "max": f.x }),
     });
     replace_top(st, Frame::DanShou(f));
     Ok(true)

@@ -393,6 +393,11 @@ pub struct PaiYiFrame {
 }
 
 pub(crate) fn step_paiyi(st: &mut SgsState, f: PaiYiFrame) -> Result<bool, EngineError> {
+    // 排异需要移去一张「权」；没有「权」时直接跳过（与结算校验同源）。
+    if crate::skills::mark_cards(st, f.actor, "quan").is_empty() {
+        pop(st);
+        return Ok(false);
+    }
     let mut options: Vec<PendingOption> = st
         .alive_indices()
         .into_iter()

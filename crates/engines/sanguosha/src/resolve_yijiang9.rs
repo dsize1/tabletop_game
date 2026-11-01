@@ -1319,46 +1319,47 @@ pub struct ZhuanDuiFrame {
 
 pub(crate) fn step_zhuandui(st: &mut SgsState, f: ZhuanDuiFrame) -> Result<bool, EngineError> {
     if f.stage == ZhuanDuiStage::WaitPindian {
-        if let Some(Outcome::Pindian { winner, .. }) = st.outcome.take() {
-            let won = winner == Some(f.owner);
+        // 拼点结果可能缺失（嵌套帧吞掉 outcome 等异常路径）→ 一律按「未赢」处理，
+        // **不能**直接 pop 后留 None：父【杀】帧会报「缺少【闪】结算结果」。
+        let won = matches!(
+            &st.outcome.take(),
+            Some(Outcome::Pindian { winner, .. }) if *winner == Some(f.owner)
+        );
+        pop(st);
+        if won {
             match f.kind {
                 ZhuanDuiKind::User => {
-                    if won {
-                        st.push_log(Some(&pid(st, f.owner)), "专对：拼点赢，此【杀】不可响应");
-                        for frame in st.resolution.iter_mut().rev() {
-                            if let Frame::Sha(s) = frame {
-                                s.no_respond = true;
-                                break;
-                            }
-                        }
-                    }
+                    // 拼点赢：目标不能响应此【杀】→ 按「未出闪」回传，伤害照常结算。
+                    st.push_log(Some(&pid(st, f.owner)), "专对：拼点赢，此【杀】不可响应");
+                    st.outcome = Some(Outcome::Respond {
+                        played: None,
+                        played_by: None,
+                    });
                 }
                 ZhuanDuiKind::Target => {
-                    if won {
-                        st.push_log(Some(&pid(st, f.owner)), "专对：拼点赢，此【杀】对其无效");
-                        pop(st);
-                        st.outcome = Some(Outcome::Respond {
-                            played: None,
-                            played_by: None,
-                        });
-                        return Ok(false);
-                    }
+                    // 拼点赢：此【杀】对其无效 → 按「已响应」回传（不造成伤害）。
+                    st.push_log(Some(&pid(st, f.owner)), "专对：拼点赢，此【杀】对其无效");
+                    st.outcome = Some(Outcome::Respond {
+                        played: Some("zhuandui".into()),
+                        played_by: Some(f.owner),
+                    });
                 }
             }
+            return Ok(false);
         }
-        pop(st);
-        if f.kind == ZhuanDuiKind::Target {
-            crate::resolve_skill::push_sha_target_response(
-                st,
-                f.user,
-                f.target,
-                &f.card,
-                f.need,
-                f.no_shan,
-                f.ignore_armor,
-                f.damage_type,
-            );
-        }
+        // 拼点未赢：继续正常询问【闪】。专对本回合对同一角色只发动一次，
+        // 避免重入响应窗口时再次被询问（否则形成「拼点→未赢→再拼点」空转）。
+        st.set_counter(&format!("zhuandui_used:{}", st.seats[f.owner].player_id), 1);
+        crate::resolve_skill::push_sha_target_response(
+            st,
+            f.user,
+            f.target,
+            &f.card,
+            f.need,
+            f.no_shan,
+            f.ignore_armor,
+            f.damage_type,
+        );
         return Ok(false);
     }
     st.pending = Some(Pending {

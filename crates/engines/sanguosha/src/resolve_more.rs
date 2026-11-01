@@ -158,10 +158,14 @@ pub(crate) fn step_rende(st: &mut SgsState, f: RendeFrame) -> Result<bool, Engin
             Ok(true)
         }
         RendeStage::Target => {
+            // 界仁德：每名角色每阶段限一次 → 已发动过的角色不再进入合法集
+            // （否则合法集给出 target，结算却拒绝「本阶段已对该角色发动过」）。
+            let jie = crate::skills::is_jiexian(st, f.actor);
             let options: Vec<PendingOption> = st
                 .alive_indices()
                 .into_iter()
                 .filter(|i| *i != f.actor)
+                .filter(|i| !jie || st.counter(&format!("rende_target:{i}")) == 0)
                 .map(|i| PendingOption {
                     id: format!("target:{}", st.seats[i].player_id),
                     label: format!("交给 {}", st.seats[i].general_name),
@@ -314,7 +318,7 @@ pub(crate) fn step_lijian(st: &mut SgsState, f: LijianFrame) -> Result<bool, Eng
                 actor: st.seats[f.actor].player_id.clone(),
                 skill: Some("lijian".into()),
                 options,
-                data: json!({ "purpose": "lijian", "min": 1, "max": 1 }),
+                data: json!({ "purpose": "lijian", "selected": f.selected, "min": 1, "max": 1 }),
             });
             replace_top(st, Frame::Lijian(f));
             Ok(true)
