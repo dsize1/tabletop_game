@@ -23,7 +23,9 @@
     "test:sgs-web": "node scripts/test-sgs-web.mjs",
     "sgs:history": "node scripts/sgs-history.mjs",
     "test:web-login": "node scripts/test-web-login.mjs",
-    "check:union-openid": "node scripts/check-union-openid.mjs"
+    "check:union-openid": "node scripts/check-union-openid.mjs",
+    "dev:web-login": "node scripts/dev-web-login.mjs",
+    "props:login": "node scripts/dev-web-login.mjs --scope props"
   },
   "workspaces": [
     "qq-gateway",

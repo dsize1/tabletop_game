@@ -40,6 +40,8 @@
     "test:sgs-web": "node apps/scripts/test-sgs-web.mjs",
     "sgs:history": "node apps/scripts/sgs-history.mjs",
     "test:web-login": "node apps/scripts/test-web-login.mjs",
-    "check:union-openid": "node apps/scripts/check-union-openid.mjs"
+    "check:union-openid": "node apps/scripts/check-union-openid.mjs",
+    "dev:web-login": "node apps/scripts/dev-web-login.mjs",
+    "props:login": "node apps/scripts/dev-web-login.mjs --scope props"
   }
 }
