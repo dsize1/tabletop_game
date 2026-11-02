@@ -11,6 +11,13 @@
 - **开工命令**：`npm run sgs:batch-status`（武将批次，P6 期间暂停）；流程见 `docs/games/sanguosha/batch-playbook.md`
 - **门禁**：`npm run sgs:check`（每批收尾）、`npm run sgs:check:full`（含 MCP 冒烟）、`npm run sgs:check:fast`（改码自检）、`npm run test:web-login`（跨端登录 e2e，需 `dev:up` 或临时起 server/web）
 
+## M59：P7 群命令收尾（代码完成，待真机）🟡
+
+- **日期**：2026-11-03
+- **完成**：`#恢复` 只重签链接；8 人局 `#开始` 链接按 700 字符拆条；`#踢` 支持 openid/昵称/座位号；开赛后退出/踢人友好提示；三国杀 narration=false 固化；新增真机清单 `docs/games/sanguosha/p7-manual-test.md`。
+- **门禁**：`test:agent-gateway` 22/22；`sgs:check:fast` 12/12。
+- **待真机**：真实群 5 人/8 人局、错链/过期/非白名单、8 人局消息长度；群管理权限在 P8 收敛。
+
 ## M58：P6.3 验收归档 + P6.4 决策日志/回放 ✅
 
 - **日期**：2026-11-03
