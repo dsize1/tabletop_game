@@ -89,6 +89,7 @@ import {
   isSgsChatCommandAllowed,
   sgsBoardText,
   sgsBotsAdded,
+  sgsSeatCount,
   sgsGeneralPackApplied,
   sgsGeneralPackMenu,
   sgsLinkList,
@@ -1651,22 +1652,20 @@ async function handleGameCommand(
       return;
     }
     let ok = 0;
+    let lastState: GameState | undefined;
     for (let i = 0; i < cmd.n; i++) {
       const raw = await engine.executeAction(roomId, event.sender_id, "lobby:add_bot");
       if (raw.startsWith("错误")) {
         await pushReply(redis, event, raw);
         break;
       }
+      // `execute_action` 回的是**原始 state**（座位在 data.seats），比 `get_state` 可靠。
+      lastState = parseJson<ActionResult>(raw, {}).state;
       ok++;
     }
     if (ok > 0) {
       if (active.game_id === SANGUOSHA_GAME_ID) {
-        const st = parseJson<GameState>(await engine.getState(roomId), {});
-        await pushReply(
-          redis,
-          event,
-          sgsBotsAdded(ok, st.data?.seats?.length ?? 0),
-        );
+        await pushReply(redis, event, sgsBotsAdded(ok, sgsSeatCount(lastState?.data)));
       } else {
         await pushReply(redis, event, `已加入 ${ok} 个机器人。发「#开始」开赛。`);
       }
@@ -1823,7 +1822,7 @@ async function handleGameCommand(
         target: sgsTarget(roomId, event.sender_id),
         roomId,
       });
-      const count = st.data?.seats?.length ?? 0;
+      const count = sgsSeatCount(st.data);
       const parts = [
         `🀄 已加入（${count}/8）。`,
         url
@@ -1836,7 +1835,7 @@ async function handleGameCommand(
     }
     if (cmd.cmd === "start") {
       const links = await issueSgsPlayerLinks(redis, event.group_id, st, roomId);
-      const head = sgsStartedPrompt(st.data?.seats?.length ?? 0);
+      const head = sgsStartedPrompt(sgsSeatCount(st.data));
       await pushReply(
         redis,
         event,

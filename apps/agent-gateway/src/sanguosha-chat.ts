@@ -99,3 +99,17 @@ export function sgsBotsAdded(count: number, seats: number): string {
     `人齐后发「#开始」。`,
   ].join(NL);
 }
+
+/**
+ * 座位数：兼容「引擎原始 state」与「视图投影（`data.public_board`）」两种形状。
+ *
+ * 坑：`get_state` 返回的是**公共视图**（引擎脱敏），三国杀的座位在
+ * `data.public_board.seats`；直接读 `data.seats` 会得到 0（P6.3 `#加机器人` 回执踩过）。
+ */
+export function sgsSeatCount(data: unknown): number {
+  const d = (data ?? {}) as {
+    seats?: unknown[];
+    public_board?: { seats?: unknown[] };
+  };
+  return d.public_board?.seats?.length ?? d.seats?.length ?? 0;
+}

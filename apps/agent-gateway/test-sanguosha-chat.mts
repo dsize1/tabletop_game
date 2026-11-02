@@ -11,6 +11,7 @@ import {
   sgsLinkList,
   sgsLobbyPrompt,
   sgsRefuseHint,
+  sgsSeatCount,
   sgsStartedPrompt,
 } from "./src/sanguosha-chat.js";
 
@@ -103,3 +104,17 @@ assert.equal(sgsGeneralPackMenu([]).includes("没有可切换"), true);
 const applied = sgsGeneralPackApplied("武将包：全部（可用 149 位）");
 assert.ok(applied.startsWith("✅"), applied);
 assert.ok(applied.includes("#开始"), applied);
+
+// —— P6.3：座位数要兼容「原始 state」与「视图投影」两种形状 ——
+assert.equal(
+  sgsSeatCount({ seats: [{ player_id: "a" }, { player_id: "b" }] }),
+  2,
+  "原始 state 的 data.seats",
+);
+assert.equal(
+  sgsSeatCount({ public_board: { seats: [{}, {}, {}, {}, {}] } }),
+  5,
+  "公共视图的 data.public_board.seats（#加机器人 0/8 的回归）",
+);
+assert.equal(sgsSeatCount(undefined), 0);
+assert.equal(sgsSeatCount({}), 0);
