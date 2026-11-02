@@ -113,3 +113,19 @@ export function sgsSeatCount(data: unknown): number {
   };
   return d.public_board?.seats?.length ?? d.seats?.length ?? 0;
 }
+
+/** 武将包组合 code → 中文标签（如 `standard+jiexian` → `标准 + 界限突破`）。 */
+export function sgsPackLabel(mode: string): string {
+  const names: Record<string, string> = {
+    standard: "标准",
+    wind_fire_forest_mountain: "风林火山",
+    yijiang: "一将成名",
+    jiexian: "界限突破",
+  };
+  const parts = mode
+    .split("+")
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .map((p) => names[p] ?? p);
+  return parts.join(" + ");
+}

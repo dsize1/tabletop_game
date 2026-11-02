@@ -10,6 +10,7 @@ import {
   sgsGeneralPackMenu,
   sgsLinkList,
   sgsLobbyPrompt,
+  sgsPackLabel,
   sgsRefuseHint,
   sgsSeatCount,
   sgsStartedPrompt,
@@ -118,3 +119,11 @@ assert.equal(
 );
 assert.equal(sgsSeatCount(undefined), 0);
 assert.equal(sgsSeatCount({}), 0);
+
+// —— 武将包标签（#开局 回执用） ——
+assert.equal(
+  sgsPackLabel("standard+wind_fire_forest_mountain+yijiang+jiexian"),
+  "标准 + 风林火山 + 一将成名 + 界限突破",
+);
+assert.equal(sgsPackLabel("standard"), "标准");
+assert.equal(sgsPackLabel("standard+jiexian"), "标准 + 界限突破");

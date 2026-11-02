@@ -89,6 +89,7 @@ import {
   isSgsChatCommandAllowed,
   sgsBoardText,
   sgsBotsAdded,
+  sgsPackLabel,
   sgsSeatCount,
   sgsGeneralPackApplied,
   sgsGeneralPackMenu,
@@ -112,6 +113,10 @@ const authClient = new AuthClient(SERVER_URL);
 /** Web 跨端登录（ADR-0031）：短效链接签发 / 群内验证码判定。 */
 const webAuth = new WebAuthClient(SERVER_URL);
 const SANGUOSHA_GAME_ID = "sanguosha";
+/** 三国杀新局默认武将包：全部已实现武将（去重后 149 位，界优先）+ 默认牌堆 160 张。 */
+const SGS_DEFAULT_GENERAL_PACKS = "standard+wind_fire_forest_mountain+yijiang+jiexian";
+/** 本群上次选择的武将包（新开一局沿用；`#中断` 不清空）。 */
+const sgsPacksKey = (groupId: string) => `sgs:general_packs:${groupId}`;
 
 // 全局人物画像（跨群，ADR-0007）：经 server /internal/* 读写；带 TTL 内存缓存避免每轮打 server
 const profileClient = new ProfileClient({ baseUrl: SERVER_URL });
@@ -1619,9 +1624,29 @@ async function handleGameCommand(
     }
     const seats = sgsSeatCount(st.data) || 1;
     if (game.id === SANGUOSHA_GAME_ID) {
+      // 武将包：沿用本群上次选择；没有记录则用「全部已实现武将」（去重 149 位，界优先）。
+      // 说明：引擎 `Config.general_packs` 默认仍是 standard（旧对局/单测口径），
+      // 群内开局由网关显式设置，避免新开一局悄悄退回标准 25 将。
+      let mode = SGS_DEFAULT_GENERAL_PACKS;
+      try {
+        const remembered = await redis.get(sgsPacksKey(event.group_id));
+        if (remembered && remembered.includes("standard")) mode = remembered;
+      } catch {
+        /* Redis 抖动 → 用默认 */
+      }
+      const setRaw = await engine.executeAction(
+        st.room_id,
+        event.sender_id,
+        `lobby:set_general_packs:${mode}`,
+      );
+      if (setRaw.startsWith("错误")) {
+        console.error("[agent-gateway] 设置武将包失败:", setRaw);
+      }
       // 未开始前**不发任何链接**（用户 2026-11-02 裁定）：开局后由 `#开始` 统一发给所有参与者，
       // 避免「先验证一次、开局再验证一次」的重复登录。
-      await pushReply(redis, event, sgsLobbyPrompt(host, seats));
+      const lines = [sgsLobbyPrompt(host, seats)];
+      lines.push(`🎴 本局武将包：${sgsPackLabel(mode)}（同名去重，界优先）`);
+      await pushReply(redis, event, lines.join("\n"));
       return;
     }
     const n = st.data?.small_game_count ?? 3;
@@ -1789,6 +1814,13 @@ async function handleGameCommand(
       if (raw.startsWith("错误")) {
         await pushReply(redis, event, raw);
         return;
+      }
+      // 记住本群选择：新开一局自动沿用（否则会悄悄退回默认包）。
+      const mode = chosen.id.slice("lobby:set_general_packs:".length);
+      try {
+        await redis.set(sgsPacksKey(event.group_id), mode);
+      } catch {
+        /* Redis 抖动不影响本局生效 */
       }
       await pushReply(redis, event, sgsGeneralPackApplied(chosen.label));
       return;
