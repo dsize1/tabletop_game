@@ -829,6 +829,18 @@
 - **全 AI 局卡在 bot 回合**：根因是单次推进 200 步上限后无人再触发 `/drive`（玩家阵亡后剩余全 AI）。修法：server 到达上限且仍在机器人回合 → `spawn_blocking` 后台链式续推（≤15 轮 / 3000 步）；web `/state` 轮询发现「存活者全是 bot」时 fire-and-forget 调 `/drive` 兜底（server 重启/闲置局）。
 - **门禁**：`cargo test -p sanguosha` **911 全绿**；`npm run sgs:check:fast` **11/11**（新增 `check:sgs-skill-text`）；`test:web` 全绿；`check:sgs-ai`（5 局/10 局）0 非法/0 卡死。
 
+**P6.3 拼点卡死修复（2026-11-02 真机第 3 批）**：
+
+- **现象**：界高顺【火杀♦5】vs 界貂蝉【桃♦Q】→ 目标赢；随后界面停在「等待 bot:3 响应（choice）」，`/drive` 报 `choose:c80 被拒绝：手牌中没有该牌`。
+- **根因**：拼点帧重复/残留——状态里同时存在 `outcome=Pindian`（已结算、两牌进弃牌堆）与一个 `target_card=None` 的旧 `PindianFrame`，旧帧又为 bot:3 生成了一次「选择拼点牌」pending；目标选牌后 `finish_pindian` 去取发起者已离场的拼点牌 → 报错卡死。
+- **修复**：
+  - `start_pindian` 对同一 `(initiator,target)` 已有拼点帧时**拒绝重复压栈**；
+  - `step_pindian` 检测发起者拼点牌已不在手牌/处理区 → 丢弃残留帧，让父帧消费已有 outcome（不再二次询问目标）；
+  - `finish_pindian` 弃牌改为**幂等**（手牌/处理区/已离场三态；已离场只记日志不报错）；
+  - 顺带修 **天辩（秦宓）**：牌堆顶拼点牌先入处理区，结算时同链路进弃牌堆（此前 `finish_pindian` 会报「手牌中没有该牌」）。
+- **用例**：`tests/p80.rs` 新增 3 条（残留帧不卡死 / 重复 start 只压一帧 / 天辩牌堆拼点完整结算）。
+- **门禁**：`cargo test -p sanguosha` **914 全绿**；`npm run check:sgs-ai` 10 局 0 非法/0 卡死。
+
 ### P7 Q 群接入（M，后置）
 
 > **2026-11-01 口径调整（用户裁定，ADR-0031）**：Q 群**只做被动播报**，不做任何逐动作交互，优先级降到最低；

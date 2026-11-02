@@ -6,7 +6,10 @@ use crate::skills;
 use crate::state::*;
 
 fn other_seats(st: &SgsState, cur: usize) -> Vec<usize> {
-    st.alive_indices().into_iter().filter(|i| *i != cur).collect()
+    st.alive_indices()
+        .into_iter()
+        .filter(|i| *i != cur)
+        .collect()
 }
 
 /// 取一张满足条件的牌放入手牌（从其它区域取出）。
@@ -313,7 +316,10 @@ fn mingce_gives_card_and_target_chooses_sha() {
         .unwrap();
     super::drive_mgr_inject(&mgr, &room, &mut Vec::new());
     let st = state_of(&mgr, &room);
-    assert!(st.history.iter().any(|e| e.text.contains("明策")), "明策：已交牌");
+    assert!(
+        st.history.iter().any(|e| e.text.contains("明策")),
+        "明策：已交牌"
+    );
     assert_eq!(st.seats[target].hand.len(), 1, "明策：目标获得交出的【杀】");
     let _ = (cur, target, victim);
 }
@@ -480,7 +486,10 @@ fn xuanfeng_triggers_on_losing_equip() {
         cur_pid = st.seats[cur].player_id.clone();
         target_pid = st.seats[target].player_id.clone();
         // 模拟「失去装备区的牌」（被拆/换装）。
-        let lost = st.seats[cur].equips.insert(EquipSlot::Weapon, None).flatten();
+        let lost = st.seats[cur]
+            .equips
+            .insert(EquipSlot::Weapon, None)
+            .flatten();
         if let Some(card) = lost {
             crate::turn::to_discard_card(st, &card);
         }
@@ -489,6 +498,159 @@ fn xuanfeng_triggers_on_losing_equip() {
         drive_phases(st, &mut inject);
     });
     let st = state_of(&mgr, &room);
-    assert_eq!(st.seats[target].hand.len(), 0, "旋风：失去装备后弃置目标一张牌");
+    assert_eq!(
+        st.seats[target].hand.len(),
+        0,
+        "旋风：失去装备后弃置目标一张牌"
+    );
     assert!(st.history.iter().any(|e| e.text.contains("旋风")));
+}
+
+// ---------------------------------------------------------------------------
+// 拼点健壮性（2026-11-02 真机：界高顺陷阵拼点后卡在「等待 bot:3 响应(choice)」）
+// ---------------------------------------------------------------------------
+
+/// 旧快照残留的拼点帧（发起者拼点牌已离场）：不再询问目标，父帧消费已有 outcome。
+#[test]
+fn stale_pindian_frame_does_not_softlock() {
+    let mgr = manager(1046);
+    let room = start_and_pick(&mgr, 5);
+    let (mut cur, mut target, mut stale_card, mut target_pid) =
+        (0, 0, String::new(), String::new());
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        cur = st.turn;
+        set_general(st, cur, "sgs_hero_604"); // 界高顺
+        target = other_seats(st, cur)[0];
+        set_general(st, target, "sgs_hero_445"); // 界貂蝉
+        stale_card = give_card(st, cur, |c| c.def == "sha");
+        // 模拟旧快照：拼点已经结算过（牌已在弃牌堆），但栈上残留 target_card=None 的旧帧。
+        let pos = st.seats[cur]
+            .hand
+            .iter()
+            .position(|c| c == &stale_card)
+            .unwrap();
+        st.seats[cur].hand.remove(pos);
+        crate::turn::to_discard_card(st, &stale_card);
+        st.outcome = Some(crate::resolve::Outcome::Pindian {
+            winner: Some(target),
+            initiator: cur,
+            target,
+            initiator_card: stale_card.clone(),
+            target_card: String::new(),
+        });
+        crate::resolve::push(
+            st,
+            crate::resolve::Frame::XianZhen(crate::resolve_yijiang::XianZhenFrame {
+                actor: cur,
+                target: Some(target),
+                stage: crate::resolve_yijiang::XianZhenStage::WaitPindian,
+            }),
+        );
+        crate::resolve::push(
+            st,
+            crate::resolve::Frame::Pindian(crate::resolve_fire::PindianFrame {
+                initiator: cur,
+                target,
+                stage: crate::resolve_fire::PindianStage::Target,
+                initiator_card: Some(stale_card.clone()),
+                target_card: None,
+                data: serde_json::json!({ "skill": "xianzhen" }),
+            }),
+        );
+        target_pid = st.seats[target].player_id.clone();
+        let mut inject = Vec::new();
+        drive_phases(st, &mut inject);
+    });
+    let st = state_of(&mgr, &room);
+    assert!(
+        st.pending.is_none() || st.pending.as_ref().map(|p| p.actor.clone()) != Some(target_pid),
+        "不应再要求目标拼点：{:?}",
+        st.pending
+    );
+    assert_eq!(st.counter("xz_lose"), 1, "父帧应消费既有 outcome");
+    assert!(
+        !st.resolution
+            .iter()
+            .any(|f| matches!(f, crate::resolve::Frame::Pindian(_))),
+        "残留拼点帧应被清理"
+    );
+    st.check_conservation().unwrap();
+}
+
+/// 重复 start_pindian 不产生两个拼点帧。
+#[test]
+fn pindian_duplicate_start_is_ignored() {
+    let mgr = manager(1047);
+    let room = start_and_pick(&mgr, 5);
+    let mut initiator = 0;
+    let mut target = 0;
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        initiator = st.turn;
+        set_general(st, initiator, "sgs_hero_604");
+        target = other_seats(st, initiator)[0];
+        set_general(st, target, "sgs_hero_1");
+        give_card(st, initiator, |c| c.def == "sha");
+        give_card(st, target, |c| c.def == "sha");
+        crate::resolve_fire::start_pindian(
+            st,
+            initiator,
+            target,
+            serde_json::json!({ "skill": "xianzhen" }),
+        );
+        crate::resolve_fire::start_pindian(
+            st,
+            initiator,
+            target,
+            serde_json::json!({ "skill": "xianzhen" }),
+        );
+    });
+    let st = state_of(&mgr, &room);
+    let n = st
+        .resolution
+        .iter()
+        .filter(|f| matches!(f, crate::resolve::Frame::Pindian(_)))
+        .count();
+    assert_eq!(n, 1, "同一组拼点只应有一个帧");
+}
+
+/// 天辩（秦宓）：用牌堆顶拼点应能完整结算（不再报「手牌中没有该牌」）。
+#[test]
+fn tianbian_deck_pindian_completes() {
+    let mgr = manager(1048);
+    let room = start_and_pick(&mgr, 5);
+    let (mut initiator, mut target) = (0, 0);
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        initiator = st.turn;
+        set_general(st, initiator, "sgs_hero_393"); // 秦宓（天辩）
+        target = other_seats(st, initiator)[0];
+        set_general(st, target, "sgs_hero_1");
+        give_card(st, initiator, |c| c.def == "sha");
+        give_card(st, target, |c| c.def == "sha");
+        st.turn_phase = TurnPhase::Play;
+        st.turn_counters.clear();
+        crate::resolve_fire::start_pindian(
+            st,
+            initiator,
+            target,
+            serde_json::json!({ "skill": "zhuandui" }),
+        );
+        let mut inject = Vec::new();
+        let a_pid = st.seats[initiator].player_id.clone();
+        let b_pid = st.seats[target].player_id.clone();
+        inject.push(format!("{a_pid}=choose:__deck"));
+        let b_card = st.seats[target].hand[0].clone();
+        inject.push(format!("{b_pid}=choose:{b_card}"));
+        drive_phases(st, &mut inject);
+    });
+    let st = state_of(&mgr, &room);
+    assert!(
+        st.history.iter().any(|e| e.text.contains("拼点：")),
+        "应完成拼点结算：{:?}",
+        st.history.last()
+    );
+    assert!(st.pending.is_none(), "不应残留 pending：{:?}", st.pending);
+    st.check_conservation().unwrap();
 }

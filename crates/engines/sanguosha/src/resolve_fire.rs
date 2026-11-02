@@ -38,6 +38,15 @@ pub(crate) fn start_pindian(
     target: usize,
     data: serde_json::Value,
 ) {
+    // 防御：同一 (发起者, 目标) 已有拼点帧时不再重复压栈。
+    // 真机曾出现「同一拼点被结算后残留一个 target_card=None 的旧帧」→ 目标被要求再次拼点。
+    if st
+        .resolution
+        .iter()
+        .any(|f| matches!(f, Frame::Pindian(p) if p.initiator == initiator && p.target == target))
+    {
+        return;
+    }
     push(
         st,
         Frame::Pindian(PindianFrame {
@@ -52,6 +61,16 @@ pub(crate) fn start_pindian(
 }
 
 pub(crate) fn step_pindian(st: &mut SgsState, f: PindianFrame) -> Result<bool, EngineError> {
+    // 自愈：已选出的发起者拼点牌既不在手牌也不在处理区（旧快照/重复结算残留）→
+    // 不能再次询问目标，直接丢弃该帧，让父帧消费已有的 outcome。
+    if let Some(card) = &f.initiator_card {
+        let in_hand = st.seats[f.initiator].hand.iter().any(|c| c == card);
+        let in_processing = st.deck.processing.iter().any(|c| c == card);
+        if !in_hand && !in_processing {
+            pop(st);
+            return Ok(false);
+        }
+    }
     let (seat, stage_name) = match f.stage {
         PindianStage::Initiator => (f.initiator, "initiator"),
         PindianStage::Target => (f.target, "target"),
@@ -69,7 +88,11 @@ pub(crate) fn step_pindian(st: &mut SgsState, f: PindianFrame) -> Result<bool, E
         let card = st.seats[seat].hand[idx].clone();
         st.push_log(
             Some(&st.seats[seat].player_id.clone()),
-            format!("酣战：{} 以随机手牌【{}】拼点", st.seats[seat].general_name, turn::card_label(st, &card)),
+            format!(
+                "酣战：{} 以随机手牌【{}】拼点",
+                st.seats[seat].general_name,
+                turn::card_label(st, &card)
+            ),
         );
         let mut f = f;
         match f.stage {
@@ -137,6 +160,8 @@ pub(crate) fn act_pindian(st: &mut SgsState, action: &str) -> Result<String, Eng
         let Some(top) = turn::draw_one(st, &mut ev) else {
             return Err(illegal("牌堆为空"));
         };
+        // 天辩的牌离开牌堆后先放入处理区：结算时与手牌拼点牌同链路移入弃牌堆。
+        st.deck.processing.push(top.clone());
         let label = turn::card_label(st, &top);
         st.push_log(
             Some(&st.seats[seat].player_id.clone()),
@@ -213,8 +238,19 @@ fn finish_pindian(
         ),
     );
     for (seat, card) in [(f.initiator, a.clone()), (f.target, b.clone())] {
-        turn::take_card(st, seat, &card)?;
-        turn::to_discard_card(st, &card);
+        if st.seats[seat].hand.iter().any(|c| c == &card) {
+            turn::take_card(st, seat, &card)?;
+            turn::to_discard_card(st, &card);
+        } else if st.deck.processing.iter().any(|c| c == &card) {
+            // 天辩：牌堆顶的拼点牌已在处理区。
+            crate::resolve::discard_from_processing(st, &card);
+        } else {
+            // 幂等：已不在手牌/处理区（旧快照或重复结算）→ 不再二次弃置/报错。
+            st.push_log(
+                None,
+                format!("拼点：【{}】已离场，跳过弃置", turn::card_label(st, &card)),
+            );
+        }
     }
     // 纵适（简雍）：拼点结算后获得拼点牌。
     skills::zongshi_on_pindian(st, f.initiator, f.target, winner, &a, &b);
@@ -337,14 +373,7 @@ pub(crate) fn act_qiangxi(st: &mut SgsState, action: &str) -> Result<String, Eng
         "choose:qiangxi:hp" => {
             // 界强袭（界典韦）：代价改为「受到 1 点伤害」。
             if skills::is_jiexian(st, f.actor) {
-                crate::resolve::apply_damage_now(
-                    st,
-                    f.actor,
-                    1,
-                    None,
-                    DamageType::Normal,
-                    None,
-                );
+                crate::resolve::apply_damage_now(st, f.actor, 1, None, DamageType::Normal, None);
             } else {
                 st.seats[f.actor].hp -= 1;
             }
