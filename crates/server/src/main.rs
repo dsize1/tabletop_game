@@ -15,6 +15,7 @@ mod dev_state;
 mod docs_routes;
 mod gameprops_routes;
 mod health;
+mod resilient;
 mod internal_routes;
 mod resources_routes;
 
@@ -93,31 +94,33 @@ async fn main() -> anyhow::Result<()> {
         _ => dev_whitelist.clone(),
     };
 
-    // 后台启动 bot-adapter 消费循环（qq.raw → internal）
+    // 后台消费循环：**必须自愈**（Redis 重启/加载中会瞬时失败）。
+    // 历史故障（P6.3 真机）：server 启动早于 Redis 就绪 → bot-adapter 直接退出 →
+    // 群消息只进 `qq.raw` 无人消费，表现为「机器人没反应」，只能重启 server。
     let adapter_url = redis_url.clone();
     let adapter_storage = storage.clone();
-    tokio::spawn(async move {
-        if let Err(e) = bot_adapter::run(&adapter_url, adapter_storage).await {
-            tracing::error!("bot-adapter 循环退出: {e:#}");
-        }
+    resilient::spawn_resilient("bot-adapter", move || {
+        let url = adapter_url.clone();
+        let st = adapter_storage.clone();
+        async move { bot_adapter::run(&url, st).await }
     });
 
     // 后台出站归档循环（qq.push → group_messages out）
     let push_url = redis_url.clone();
     let push_storage = storage.clone();
-    tokio::spawn(async move {
-        if let Err(e) = bot_adapter::run_push_archiver(&push_url, push_storage).await {
-            tracing::error!("push 归档循环退出: {e:#}");
-        }
+    resilient::spawn_resilient("push-archiver", move || {
+        let url = push_url.clone();
+        let st = push_storage.clone();
+        async move { bot_adapter::run_push_archiver(&url, st).await }
     });
 
     // 后台对话归档循环（chat.log → chat_history；画像蒸馏数据源，ADR-0007）
     let chatlog_url = redis_url.clone();
     let chatlog_storage = storage.clone();
-    tokio::spawn(async move {
-        if let Err(e) = bot_adapter::run_chat_log_archiver(&chatlog_url, chatlog_storage).await {
-            tracing::error!("chat.log 归档循环退出: {e:#}");
-        }
+    resilient::spawn_resilient("chatlog-archiver", move || {
+        let url = chatlog_url.clone();
+        let st = chatlog_storage.clone();
+        async move { bot_adapter::run_chat_log_archiver(&url, st).await }
     });
 
     // 后台健康自检循环
