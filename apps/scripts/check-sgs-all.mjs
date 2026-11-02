@@ -27,6 +27,7 @@ const steps = [
   { name: "skill-cases（每将 ≥3 用例）", cmd: `${node} apps/scripts/check-sgs-skill-cases.mjs` },
   { name: "skill-docs（skills.md ↔ 注册表）", cmd: `${node} apps/scripts/check-sgs-skill-docs.mjs` },
   { name: "engine-data（data.rs 最新）", cmd: `${node} apps/scripts/gen-sanguosha-engine-data.mjs --check` },
+  { name: "skill-text（长按技能简述最新）", cmd: `${node} apps/scripts/gen-sgs-skill-text.mjs --check` },
   { name: "batch-status（批次/p67 一致性）", cmd: `${node} apps/scripts/sgs-batch-status.mjs --check` },
   {
     name: "pack-presets（武将包预设 ↔ data.rs ↔ data-model.md）",

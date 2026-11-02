@@ -99,9 +99,7 @@ pub(crate) fn discard_by(st: &mut SgsState, seat: Option<usize>, card_id: &str) 
     if let Some(seat) = seat {
         st.bump_counter(&format!("discarded_by:{seat}"));
         if st.alive_indices().into_iter().any(|i| {
-            i != seat
-                && crate::skills::has(st, i, "guzheng")
-                && crate::skills::is_jiexian(st, i)
+            i != seat && crate::skills::has(st, i, "guzheng") && crate::skills::is_jiexian(st, i)
         }) {
             st.seats[seat]
                 .flags
@@ -113,9 +111,7 @@ pub(crate) fn discard_by(st: &mut SgsState, seat: Option<usize>, card_id: &str) 
     if let Some(seat) = seat {
         let n = st.counter(&format!("lost_by:{seat}")) + 1;
         st.set_counter(&format!("lost_by:{seat}"), n);
-        if n == 2
-            && crate::skills::has(st, seat, "xuanfeng")
-            && crate::skills::is_jiexian(st, seat)
+        if n == 2 && crate::skills::has(st, seat, "xuanfeng") && crate::skills::is_jiexian(st, seat)
         {
             crate::resolve_yijiang::push_xuanfeng(st);
         }
@@ -1259,11 +1255,9 @@ pub(crate) fn phase_step(
                 .collect();
             if !zj_keys.is_empty() {
                 for key in zj_keys {
-                    let n = st.seats[st.turn]
-                        .mark_counts
-                        .remove(&key)
-                        .unwrap_or(0);
-                    if let Ok(target) = key.trim_start_matches("zhenjun_end_draw:").parse::<usize>() {
+                    let n = st.seats[st.turn].mark_counts.remove(&key).unwrap_or(0);
+                    if let Ok(target) = key.trim_start_matches("zhenjun_end_draw:").parse::<usize>()
+                    {
                         if target < st.seats.len() && st.seats[target].alive {
                             let mut ev2 = Vec::new();
                             let drawn = draw_cards(st, target, n, &mut ev2);
@@ -1660,8 +1654,7 @@ pub(crate) fn phase_step(
                 }
             }
             // 秘计（王异）：结束阶段摸 X（已损失体力），然后可交给其他角色 X 张手牌。
-            let miji_extra =
-                crate::skills::is_jiexian(st, st.turn) && st.counter("miji_extra") > 0;
+            let miji_extra = crate::skills::is_jiexian(st, st.turn) && st.counter("miji_extra") > 0;
             if crate::skills::has(st, st.turn, "miji") && st.counter("miji_offered") == 0 {
                 if miji_extra {
                     // 界贞烈（界王异）：本回合结束阶段额外发动一次秘计（一次结算内连发）。
@@ -2086,7 +2079,9 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
                 // - `dist_free`：成略 / 无距离（将驰 · 奇谋 · 弓骑等）→ 只影响**距离**。
                 // 早先把「无距离」当作「不计次数」，导致合法集给出【杀】但 execute 拒绝。
                 let count_free = crate::skills::chenglue_free(st, idx, &card_id);
-                let dist_free = count_free || crate::skills::no_distance_turn(st, idx);
+                let dist_free = count_free
+                    || crate::skills::no_distance_turn(st, idx)
+                    || crate::skills::jie_wusheng_no_distance(st, idx, &card_id);
                 (count_free || st.counter("sha_used") < sha_limit)
                     && !sha_targets_with_card(st, idx, Some(&card_id), dist_free).is_empty()
             }
@@ -2905,8 +2900,7 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
                     && !judge_zone_has(st, t, "bingliang_cunduan")
                     && (st.seats[t].hand.len() >= st.seats[idx].hand.len()
                         || trick_distance_ok(st, idx, t)
-                        || (crate::skills::is_jiexian(st, idx)
-                            && st.counter("damage_dealt") == 0))
+                        || (crate::skills::is_jiexian(st, idx) && st.counter("damage_dealt") == 0))
             });
             if has_target {
                 out.push(Action {
@@ -2957,7 +2951,11 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
         });
     }
     // 挑衅：出牌阶段限一次，令攻击范围含你的角色对你出杀，否则弃其一张牌。
-    let tiaoxin_limit = if crate::skills::is_jiexian(st, idx) { 2 } else { 1 };
+    let tiaoxin_limit = if crate::skills::is_jiexian(st, idx) {
+        2
+    } else {
+        1
+    };
     if crate::skills::has(st, idx, "tiaoxin")
         && st.counter("tiaoxin_used") < tiaoxin_limit
         && st.alive_indices().into_iter().any(|t| {
@@ -3027,7 +3025,8 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
     {
         out.push(Action {
             id: "skill:changbiao".into(),
-            description: "长标：将任意张手牌当无距离限制的【杀】使用（造成伤害则阶段结束摸牌）".into(),
+            description: "长标：将任意张手牌当无距离限制的【杀】使用（造成伤害则阶段结束摸牌）"
+                .into(),
         });
     }
     // 翦灭（界张春华）：出牌阶段限一次。
@@ -3035,7 +3034,8 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
         && crate::skills::is_jiexian(st, idx)
         && st.counter("jianmie_used") == 0
         && !st.seats[idx].hand.is_empty()
-        && st.alive_indices()
+        && st
+            .alive_indices()
             .into_iter()
             .any(|i| i != idx && !st.seats[i].hand.is_empty())
     {
@@ -3049,7 +3049,8 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
         && crate::skills::is_jiexian(st, idx)
         && st.counter("qiaoshuo_used") == 0
         && !st.seats[idx].hand.is_empty()
-        && st.alive_indices()
+        && st
+            .alive_indices()
             .into_iter()
             .any(|i| i != idx && !st.seats[i].hand.is_empty())
     {
@@ -3372,9 +3373,14 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
         }
     }
     // 武圣 / 龙胆：转化【杀】（出牌阶段主动使用；实际牌不能是【杀】本身）
-    if !targets.is_empty() && st.counter("sha_used") < sha_limit {
+    if st.counter("sha_used") < sha_limit {
         for card_id in hand_ids(st, idx) {
             if let Some((skill, name)) = crate::skills::conversion_for(st, idx, &card_id, "sha") {
+                // 界武圣的方片牌无距离：即使攻击范围内没人也应有选项。
+                let no_dist = crate::skills::jie_wusheng_no_distance(st, idx, &card_id);
+                if sha_targets_with_card(st, idx, Some(&card_id), no_dist).is_empty() {
+                    continue;
+                }
                 out.push(Action {
                     id: format!("skill:{skill}:{card_id}"),
                     description: format!("{name}：将【{}】当【杀】使用", card_label(st, &card_id)),
@@ -3561,6 +3567,7 @@ pub fn execute(
             resolve::Frame::YiJue(crate::resolve_jiexian::YiJueFrame {
                 actor: idx,
                 stage: crate::resolve_jiexian::YiJueStage::Card,
+                target: None,
             }),
         );
         "义绝：请选择弃置的牌".to_string()
@@ -3621,7 +3628,8 @@ pub fn execute(
         if st.counter("sha_used") >= limit {
             return Err(illegal("本出牌阶段已使用过【杀】"));
         }
-        if sha_targets(st, idx).is_empty() {
+        let no_dist = crate::skills::jie_wusheng_no_distance(st, idx, card_id);
+        if sha_targets_with_card(st, idx, Some(card_id), no_dist).is_empty() {
             return Err(illegal("攻击范围内没有目标"));
         }
         let label = card_label(st, card_id);
@@ -3630,13 +3638,7 @@ pub fn execute(
         take_card(st, idx, card_id)?;
         resolve::start_sha(st, idx, card_id, fangtian)?;
         // 界武圣：方片牌当【杀】无距离限制。
-        if skill == "wusheng"
-            && crate::skills::is_jiexian(st, idx)
-            && st
-                .cards
-                .get(card_id)
-                .is_some_and(|c| c.suit == Suit::Diamond)
-        {
+        if skill == "wusheng" && no_dist {
             resolve::mark_sha_no_distance(st);
         }
         // 诈降（界黄盖）：红色牌当【杀】同样无距离/不可抵消。
@@ -4048,7 +4050,13 @@ pub fn execute(
         if !crate::skills::has(st, idx, "tiaoxin") {
             return Err(illegal("没有该技能"));
         }
-        if st.counter("tiaoxin_used") >= if crate::skills::is_jiexian(st, idx) { 2 } else { 1 } {
+        if st.counter("tiaoxin_used")
+            >= if crate::skills::is_jiexian(st, idx) {
+                2
+            } else {
+                1
+            }
+        {
             return Err(illegal("本阶段挑衅已达上限"));
         }
         st.set_counter("tiaoxin_used", 1);
@@ -4274,10 +4282,7 @@ pub fn execute(
         }
         if !card_def(st, card_id).is_some_and(|d| matches!(d.code, "shan" | "shandian"))
             && !(crate::skills::is_jiexian(st, owner)
-                && st
-                    .cards
-                    .get(card_id)
-                    .is_some_and(|c| c.suit == Suit::Spade))
+                && st.cards.get(card_id).is_some_and(|c| c.suit == Suit::Spade))
         {
             return Err(illegal("黄天只能交给【闪】或黑桃手牌"));
         }
@@ -5330,10 +5335,7 @@ pub fn execute(
             let n = st.counter("changbiao_draw");
             st.set_counter("changbiao_draw", 0);
             let drawn = draw_cards(st, idx, n, &mut events);
-            st.push_log(
-                Some(player_id),
-                format!("长标：本阶段结束时摸 {drawn} 张"),
-            );
+            st.push_log(Some(player_id), format!("长标：本阶段结束时摸 {drawn} 张"));
         }
         // 精策（郭淮）：出牌阶段结束时摸 X 张（X = 本回合使用过的牌的类型数）。
         if crate::skills::has(st, idx, "jingce") {
@@ -5441,7 +5443,9 @@ fn play_card(
     match def.code {
         "sha" | "huo_sha" | "lei_sha" => {
             let count_free = crate::skills::chenglue_free(st, idx, card_id);
-            let dist_free = count_free || crate::skills::no_distance_turn(st, idx);
+            let dist_free = count_free
+                || crate::skills::no_distance_turn(st, idx)
+                || crate::skills::jie_wusheng_no_distance(st, idx, card_id);
             let limit = sha_limit(st, idx);
             if !count_free && st.counter("sha_used") >= limit {
                 return Err(illegal("本出牌阶段已使用过【杀】"));
@@ -5594,8 +5598,11 @@ fn play_card(
             st.deck.processing.push(card_id.to_string());
             resolve::start_trick(st, idx, card_id)?;
             st.push_log(Some(&actor), format!("使用【{label}】"));
-            // 集智：使用非延时锦囊摸 1
-            crate::skills::on_non_delayed_trick_used(st, idx, events);
+            // 集智：使用非延时锦囊摸 1。
+            // 铁索连环延到「目标确认」时再触发（第一段可选重铸，重铸不算使用）。
+            if def.code != "tiesuo_lianhuan" {
+                crate::skills::on_non_delayed_trick_used(st, idx, events);
+            }
             if matches!(
                 def.code,
                 "nanman_ruqin" | "wanjian_qifa" | "taoyuan_jieyi" | "wuzhong_shengyou"

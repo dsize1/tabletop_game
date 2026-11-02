@@ -4535,9 +4535,7 @@ pub fn hand_limit(st: &SgsState, seat: usize) -> usize {
                 st.cards
                     .get(*id)
                     .and_then(|c| data::card_def(&c.def))
-                    .is_some_and(|d| {
-                        matches!(d.category, Category::Trick | Category::DelayedTrick)
-                    })
+                    .is_some_and(|d| matches!(d.category, Category::Trick | Category::DelayedTrick))
             })
             .count();
         limit += n;
@@ -5203,6 +5201,20 @@ pub fn no_card_use(st: &SgsState, seat: usize) -> bool {
 /// 雄乱：本回合手牌被封（不能使用/打出手牌）。
 pub fn hand_sealed(st: &SgsState, seat: usize) -> bool {
     st.counter(&format!("hand_sealed:{seat}")) > 0
+}
+
+/// 界武圣：方片牌当【杀】/方片【杀】无距离限制。
+///
+/// 注意：判定条件只看**实际牌的物理花色**（方片），不是转化后的虚拟牌。
+/// 旧实现只在 `execute`（`skill:wusheng:` 分支）里补 `mark_sha_no_distance`，
+/// 导致出牌阶段「无人在攻击范围内」时**根本不生成武圣选项**（真机：界关羽武圣不能主动使用）。
+pub fn jie_wusheng_no_distance(st: &SgsState, seat: usize, card_id: &str) -> bool {
+    has(st, seat, "wusheng")
+        && is_jiexian(st, seat)
+        && st
+            .cards
+            .get(card_id)
+            .is_some_and(|c| c.suit == Suit::Diamond)
 }
 
 /// 决堰（坐骑栏 / 雄乱）：使用牌无距离限制。

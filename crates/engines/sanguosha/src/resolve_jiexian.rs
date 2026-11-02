@@ -34,12 +34,17 @@ pub enum YiJueStage {
     Card,
     /// 选择一名其他角色。
     Target,
+    /// 红牌：由界关羽选择是否令目标回复 1 点体力。
+    Heal,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct YiJueFrame {
     pub actor: usize,
     pub stage: YiJueStage,
+    /// 义绝目标（Heal 阶段需要）。
+    #[serde(default)]
+    pub target: Option<usize>,
 }
 
 pub(crate) fn step_yijue(st: &mut SgsState, f: YiJueFrame) -> Result<bool, EngineError> {
@@ -90,6 +95,39 @@ pub(crate) fn step_yijue(st: &mut SgsState, f: YiJueFrame) -> Result<bool, Engin
             replace_top(st, Frame::YiJue(f));
             Ok(true)
         }
+        YiJueStage::Heal => {
+            let Some(target) = f.target else {
+                pop(st);
+                return Ok(false);
+            };
+            let full = st.seats[target].hp >= st.seats[target].max_hp;
+            let options = vec![
+                PendingOption {
+                    id: "heal".into(),
+                    label: if full {
+                        format!(
+                            "令 {} 回复 1 点体力（已满血，无效果）",
+                            st.seats[target].general_name
+                        )
+                    } else {
+                        format!("令 {} 回复 1 点体力", st.seats[target].general_name)
+                    },
+                },
+                PendingOption {
+                    id: "skip".into(),
+                    label: "不回复体力".into(),
+                },
+            ];
+            st.pending = Some(Pending {
+                kind: "choice".into(),
+                actor: pid(st, f.actor),
+                skill: Some("yijue".into()),
+                options,
+                data: json!({ "stage": "heal", "target": st.seats[target].player_id }),
+            });
+            replace_top(st, Frame::YiJue(f));
+            Ok(true)
+        }
     }
 }
 
@@ -112,6 +150,7 @@ pub(crate) fn act_yijue(st: &mut SgsState, action: &str) -> Result<String, Engin
                 Frame::YiJue(YiJueFrame {
                     actor: f.actor,
                     stage: YiJueStage::Target,
+                    target: None,
                 }),
             );
             Ok("义绝：请选择目标".to_string())
@@ -138,23 +177,24 @@ pub(crate) fn act_yijue(st: &mut SgsState, action: &str) -> Result<String, Engin
             if red {
                 st.seats[target].hand.remove(pos);
                 st.seats[owner].hand.push(card.clone());
-                let mut healed = false;
-                if st.seats[target].hp < st.seats[target].max_hp {
-                    st.seats[target].hp += 1;
-                    healed = true;
-                }
                 st.push_log(
                     Some(&pid(st, owner)),
                     format!(
-                        "义绝：{} 展示【{label}】（红色），获得之{}",
-                        st.seats[target].general_name,
-                        if healed {
-                            "，令其回复 1 点体力"
-                        } else {
-                            ""
-                        }
+                        "义绝：{} 展示【{label}】（红色），获得之",
+                        st.seats[target].general_name
                     ),
                 );
+                // 规则：获得红色牌后「可以」令其回复 1 点体力 → 由界关羽选择
+                // （满血时也给出选项，仅无实际回复，避免「看起来没触发」）。
+                replace_top(
+                    st,
+                    Frame::YiJue(YiJueFrame {
+                        actor: owner,
+                        stage: YiJueStage::Heal,
+                        target: Some(target),
+                    }),
+                );
+                return Ok("义绝：是否令其回复 1 点体力？".to_string());
             } else {
                 // 黑色：目标本回合非锁定技失效且不能使用/打出手牌。
                 st.set_counter(&format!("nonlocked_lost:{target}"), 1);
@@ -167,6 +207,41 @@ pub(crate) fn act_yijue(st: &mut SgsState, action: &str) -> Result<String, Engin
                         st.seats[target].general_name
                     ),
                 );
+            }
+            pop(st);
+            Ok("义绝结算完成".to_string())
+        }
+        YiJueStage::Heal => {
+            let Some(target) = f.target else {
+                pop(st);
+                return Err(crate::illegal("义绝目标丢失"));
+            };
+            match action {
+                "heal" => {
+                    if st.seats[target].hp < st.seats[target].max_hp {
+                        st.seats[target].hp += 1;
+                        let hp = st.seats[target].hp;
+                        st.push_log(
+                            Some(&pid(st, f.actor)),
+                            format!(
+                                "义绝：令 {} 回复 1 点体力（{hp}）",
+                                st.seats[target].general_name
+                            ),
+                        );
+                    } else {
+                        st.push_log(
+                            Some(&pid(st, f.actor)),
+                            format!("义绝：{} 体力已满，未回复", st.seats[target].general_name),
+                        );
+                    }
+                }
+                "skip" => {
+                    st.push_log(
+                        Some(&pid(st, f.actor)),
+                        format!("义绝：不令 {} 回复体力", st.seats[target].general_name),
+                    );
+                }
+                _ => return Err(crate::illegal("义绝：需要选择是否回复体力")),
             }
             pop(st);
             Ok("义绝结算完成".to_string())
@@ -2018,7 +2093,14 @@ pub(crate) fn take_equip_card(
     card_id: &str,
 ) -> Result<(), game_engine_core::EngineError> {
     for slot in EquipSlot::ALL {
-        if st.seats[seat].equips.get(&slot).cloned().flatten().as_deref() == Some(card_id) {
+        if st.seats[seat]
+            .equips
+            .get(&slot)
+            .cloned()
+            .flatten()
+            .as_deref()
+            == Some(card_id)
+        {
             st.seats[seat].equips.insert(slot, None);
             crate::skills::xiaoji_on_lose_equip(st, seat);
             return Ok(());

@@ -27,8 +27,10 @@ fn tiesuo_toggles_chained_state() {
     let card = st.seats[cur].hand[0].clone();
     mgr.execute_action(&room, &cur_pid, &format!("play:{card}"))
         .unwrap();
+    // 两段式：先选第一名，再点「就选一名」开始结算。
     mgr.execute_action(&room, &cur_pid, &format!("target:{target_pid}"))
         .unwrap();
+    mgr.execute_action(&room, &cur_pid, "confirm").unwrap();
     super::drive_mgr_inject(&mgr, &room, &mut Vec::new());
     let st = state_of(&mgr, &room);
     assert!(st.seats[target].chained, "铁索应横置目标");
@@ -59,6 +61,42 @@ fn tiesuo_recast_discards_and_draws() {
     assert!(st.deck.discard.iter().any(|c| c == &card), "重铸弃置该牌");
     assert_eq!(st.seats[cur].hand.len(), 1, "重铸摸 1 张");
     assert!(st.history.iter().any(|e| e.text.contains("重铸")));
+    st.check_conservation().unwrap();
+}
+
+/// 第一段选重铸：只结算重铸（弃牌 + 摸 1），不进入第二段选目标。
+#[test]
+fn tiesuo_target_stage_recast_ends_flow() {
+    let mgr = manager(3003);
+    let room = start_and_pick(&mgr, 5);
+    let mut cur = 0;
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        cur = st.turn;
+        give(st, cur, "tiesuo_lianhuan");
+    });
+    let st = state_of(&mgr, &room);
+    let cur_pid = pid(&st, cur);
+    let card = st.seats[cur].hand[0].clone();
+    mgr.execute_action(&room, &cur_pid, &format!("play:{card}"))
+        .unwrap();
+    let st = state_of(&mgr, &room);
+    let pending = st.pending.clone().expect("应进入第一段选目标");
+    assert_eq!(pending.data["stage"], "tiesuo_first");
+    assert!(
+        pending
+            .options
+            .iter()
+            .any(|o| o.id == format!("recast:{card}")),
+        "第一段应有重铸选项：{:?}",
+        pending.options
+    );
+    mgr.execute_action(&room, &cur_pid, &format!("recast:{card}"))
+        .unwrap();
+    let st = state_of(&mgr, &room);
+    assert!(st.pending.is_none(), "重铸后不应再有第二段");
+    assert!(st.deck.discard.iter().any(|c| c == &card), "重铸弃置该牌");
+    assert_eq!(st.seats[cur].hand.len(), 1, "重铸摸 1 张");
     st.check_conservation().unwrap();
 }
 

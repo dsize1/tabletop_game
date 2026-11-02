@@ -176,6 +176,26 @@ async function fetchGameView(gameId: string, token: string): Promise<GameView | 
   return (await r.json()) as GameView;
 }
 
+/**
+ * 全 AI 局面兜底续推（P6.3 真机）：玩家阵亡后若场上只剩机器人，server 的单次推进
+ * 可能停在上限（200 步）而没有任何真人动作再触发它。页面轮询 `/state` 时顺带
+ * fire-and-forget 调一次内部 `/drive`，让闲置房间继续跑完（server 侧有房间锁）。
+ */
+function maybeResumeBots(view: GameView): void {
+  if (view.game_id !== "sanguosha") return;
+  const data = view.public?.data as
+    | { phase?: string; public_board?: { seats?: Array<{ alive?: boolean; is_bot?: boolean }> } }
+    | undefined;
+  const board = data?.public_board;
+  if (!board || data?.phase === "finished") return;
+  const alive = (board.seats ?? []).filter((seat) => seat.alive);
+  if (alive.length === 0 || !alive.every((seat) => seat.is_bot)) return;
+  void fetch(
+    `${SERVER_URL}/internal/game/${encodeURIComponent(view.game_id)}/${encodeURIComponent(view.room_id)}/drive`,
+    { method: "POST" },
+  ).catch(() => undefined);
+}
+
 /** 提交动作到 server 内部执行接口（仅本机）。 */
 async function submitGameAction(
   gameId: string,
@@ -397,6 +417,7 @@ app.get("/tabletop_game/:gameId/state", async (req, res) => {
       res.status(404).json({ error: "not_found" });
       return;
     }
+    maybeResumeBots(view);
     res.json({ ...view, server_time: new Date().toISOString() });
   } catch (err) {
     console.error("[web] 拉取状态失败:", err);

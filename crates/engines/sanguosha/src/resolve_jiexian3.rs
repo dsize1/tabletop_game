@@ -711,7 +711,15 @@ pub(crate) fn step_lianhuan_pick(
         .iter()
         .map(|t| PendingOption {
             id: format!("target:{}", st.seats[*t].player_id),
-            label: format!("铁索连环：{}", st.seats[*t].general_name),
+            label: format!(
+                "铁索连环：{}{}",
+                st.seats[*t].general_name,
+                if st.seats[*t].chained {
+                    "（已横置）"
+                } else {
+                    "（未横置）"
+                }
+            ),
         })
         .collect();
     if options.is_empty() {
@@ -797,6 +805,10 @@ pub(crate) fn act_lianhuan_pick(st: &mut SgsState, action: &str) -> Result<Strin
                 "tiesuo_lianhuan",
                 targets,
             )?;
+            // 恃才/集智：铁索连环按「目标确认」触发（界连环直接指定目标，不经过 Trick 选目标阶段）。
+            crate::skills::shicai_trigger(st, f.actor, "trick", &f.card);
+            let mut ev = Vec::new();
+            crate::skills::on_non_delayed_trick_used(st, f.actor, &mut ev);
             Ok("铁索连环：已选择目标".to_string())
         }
     }

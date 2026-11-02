@@ -542,7 +542,7 @@ pub struct DiscardFrame {
 pub struct HuoGongFrame {
     pub user: usize,
     pub target: usize,
-    /// 目标亮出的手牌。
+    /// 目标亮出的手牌（空 = 等待目标自己选择亮哪张）。
     pub revealed: String,
 }
 
@@ -1515,12 +1515,7 @@ pub(crate) fn start_virtual_trick_targets(
 }
 
 /// 锦囊默认目标列表（转出帧外时供技能预计算）。
-pub(crate) fn trick_targets_for(
-    st: &SgsState,
-    code: &str,
-    user: usize,
-    card: &str,
-) -> Vec<usize> {
+pub(crate) fn trick_targets_for(st: &SgsState, code: &str, user: usize, card: &str) -> Vec<usize> {
     trick_targets(st, code, user, card)
 }
 
@@ -1570,7 +1565,9 @@ fn start_trick_code_ext(
         "lebu_sishu" | "bingliang_cunduan" | "shandian"
     );
     // 恃才（许攸）：本回合首次使用锦囊后置于牌堆顶并摸 1（延时锦囊不进牌堆顶）。
-    if !delayed {
+    // 恃才：铁索连环延到「目标确认」时再触发（第一段可重铸，重铸不算使用；
+    // 若此处提前把牌移到牌堆顶，重铸会破坏牌数守恒）。
+    if !delayed && code != "tiesuo_lianhuan" {
         crate::skills::shicai_trigger(st, user, "trick", card);
     }
     let fenwei_targets = targets.clone();
@@ -1712,40 +1709,60 @@ fn step_trick(
                     ]
                 }
             } else if f.code == "tiesuo_lianhuan" {
-                // 铁索连环：对至多两名角色使用。
-                // 单目标用 `target:<pid>`（一步结算，兼容既有流程）；
-                // 双目标用 `targets:<p1,p2>`（组合由引擎枚举，和方天画戟/天义同风格），
-                // 结算时**每个目标各开一次无懈链**。
+                // 铁索连环：两段式目标选择（8 人局不再枚举 C(n,2) 组合）。
+                // 第一段：选第一名目标（附「重铸」入口，选重铸即结束）；
+                // 第二段：选第二名目标（不含第一名）/ 就选一名 / 重选。
                 let candidates: Vec<usize> = st
                     .alive_indices()
                     .into_iter()
                     .filter(|i| *i != f.user && !crate::skills::weimu_blocks(st, *i, &f.card))
                     .collect();
-                let mut opts: Vec<PendingOption> = candidates
-                    .iter()
-                    .map(|i| PendingOption {
-                        id: format!("target:{}", st.seats[*i].player_id),
-                        label: format!("选择 {}", st.seats[*i].general_name),
-                    })
-                    .collect();
-                for x in 0..candidates.len() {
-                    for y in (x + 1)..candidates.len() {
-                        let (a, b) = (candidates[x], candidates[y]);
-                        let ids = format!(
-                            "{},{}",
-                            st.seats[a].player_id, st.seats[b].player_id
-                        );
-                        let names = format!(
-                            "{}、{}",
-                            st.seats[a].general_name, st.seats[b].general_name
-                        );
+                let label_for = |st: &SgsState, i: usize| {
+                    let chained = if st.seats[i].chained {
+                        "（已横置）"
+                    } else {
+                        "（未横置）"
+                    };
+                    format!("选择 {}{chained}", st.seats[i].general_name)
+                };
+                match f.first {
+                    None => {
+                        let mut opts: Vec<PendingOption> = candidates
+                            .iter()
+                            .map(|i| PendingOption {
+                                id: format!("target:{}", st.seats[*i].player_id),
+                                label: label_for(st, *i),
+                            })
+                            .collect();
                         opts.push(PendingOption {
-                            id: format!("targets:{ids}"),
-                            label: format!("同时选择 {names}"),
+                            id: format!("recast:{}", f.card),
+                            label: format!(
+                                "重铸：弃置【{}】并摸 1 张（不使用）",
+                                turn::card_label(st, &f.card)
+                            ),
                         });
+                        opts
+                    }
+                    Some(first) => {
+                        let mut opts: Vec<PendingOption> = candidates
+                            .iter()
+                            .filter(|i| **i != first)
+                            .map(|i| PendingOption {
+                                id: format!("target:{}", st.seats[*i].player_id),
+                                label: label_for(st, *i),
+                            })
+                            .collect();
+                        opts.push(PendingOption {
+                            id: "confirm".into(),
+                            label: format!("就选 {}（开始结算）", st.seats[first].general_name),
+                        });
+                        opts.push(PendingOption {
+                            id: "cancel".into(),
+                            label: "重选第一名目标".into(),
+                        });
+                        opts
                     }
                 }
-                opts
             } else {
                 let candidates: Vec<usize> = match f.code.as_str() {
                     "shunshou_qianyang" => st
@@ -1802,8 +1819,7 @@ fn step_trick(
                                             // 界断粮：本回合未造成过伤害 → 无距离限制。
                                             st.counter("damage_dealt") == 0
                                         } else {
-                                            st.seats[*i].hand.len()
-                                                >= st.seats[f.user].hand.len()
+                                            st.seats[*i].hand.len() >= st.seats[f.user].hand.len()
                                         }))
                                 && !turn::judge_zone_has(st, *i, "bingliang_cunduan")
                                 && !st.seats[*i].judge_abolished
@@ -1866,7 +1882,11 @@ fn step_trick(
                             "confirm"
                         }
                     } else if f.code == "tiesuo_lianhuan" {
-                        "tiesuo"
+                        if f.first.is_none() {
+                            "tiesuo_first"
+                        } else {
+                            "tiesuo_second"
+                        }
                     } else {
                         "single"
                     },
@@ -2203,6 +2223,10 @@ fn step_trick(
                     advance_trick_target(st, f)?;
                 }
                 "huo_gong" => {
+                    if st.seats[target].hand.is_empty() {
+                        advance_trick_target(st, f)?;
+                        return Ok(false);
+                    }
                     push(
                         st,
                         Frame::HuoGong(HuoGongFrame {
@@ -2211,27 +2235,7 @@ fn step_trick(
                             revealed: String::new(),
                         }),
                     );
-                    // 亮牌在子帧首次步进时选择
-                    if let Some(Frame::HuoGong(g)) = top(st).cloned() {
-                        if g.revealed.is_empty() {
-                            let n = st.seats[target].hand.len();
-                            if n == 0 {
-                                pop(st);
-                                advance_trick_target(st, f)?;
-                                return Ok(false);
-                            }
-                            let idx = st.next_index(n);
-                            let revealed = st.seats[target].hand[idx].clone();
-                            replace_top(
-                                st,
-                                Frame::HuoGong(HuoGongFrame {
-                                    user: f.user,
-                                    target,
-                                    revealed,
-                                }),
-                            );
-                        }
-                    }
+                    // 亮牌由**目标本人**选择（P6.3 真机：不再随机亮牌）。
                     f.stage = TrickStage::WaitChild;
                     update_parent(st, Frame::Trick(f));
                 }
@@ -2465,7 +2469,11 @@ fn step_respond(st: &mut SgsState, f: RespondFrame) -> Result<bool, EngineError>
                 let by = played_by.unwrap_or(f.actor);
                 // 过期 outcome 保护：同一响应结果被重复消费时，牌已不在手里。
                 // 按「未响应」处理（该响应已结算过），避免整局因内部错误中断。
-                if !st.seats.get(by).is_some_and(|s| s.hand.iter().any(|c| c == &card)) {
+                if !st
+                    .seats
+                    .get(by)
+                    .is_some_and(|s| s.hand.iter().any(|c| c == &card))
+                {
                     st.outcome = Some(Outcome::Respond {
                         played: None,
                         played_by: None,
@@ -2707,6 +2715,31 @@ fn step_discard(st: &mut SgsState, f: DiscardFrame) -> Result<bool, EngineError>
 // --- 判定 -----------------------------------------------------------------
 
 fn step_huogong(st: &mut SgsState, f: HuoGongFrame) -> Result<bool, EngineError> {
+    // 目标先选一张手牌亮出（官方规则：由目标选择，不是随机）。
+    if f.revealed.is_empty() {
+        let options: Vec<PendingOption> = st.seats[f.target]
+            .hand
+            .iter()
+            .map(|id| PendingOption {
+                id: format!("choose:{id}"),
+                label: format!("亮出【{}】", turn::card_label(st, id)),
+            })
+            .collect();
+        if options.is_empty() {
+            pop(st);
+            st.outcome = Some(Outcome::Picked { card: None });
+            return Ok(false);
+        }
+        st.pending = Some(Pending {
+            kind: "choice".into(),
+            actor: st.seats[f.target].player_id.clone(),
+            skill: Some("huogong_reveal".into()),
+            options,
+            data: json!({ "skill": "huogong_reveal", "target": f.target }),
+        });
+        replace_top(st, Frame::HuoGong(f));
+        return Ok(true);
+    }
     let suit = crate::skills::effective_suit(st, f.target, &f.revealed);
     // 界火计（界卧龙诸葛亮）：改为「弃置与展示牌颜色相同的牌」。
     let jie = crate::skills::is_jiexian(st, f.user) && crate::skills::has(st, f.user, "huoji");
@@ -2762,10 +2795,26 @@ pub(crate) fn act_huogong(
     pending: &Pending,
     action: &str,
 ) -> Result<String, EngineError> {
-    let f = match top(st).cloned() {
+    let mut f = match top(st).cloned() {
         Some(Frame::HuoGong(f)) => f,
         _ => return Err(internal("栈顶不是火攻帧")),
     };
+    // 目标选牌亮出阶段。
+    if pending.skill.as_deref() == Some("huogong_reveal") {
+        let card_id = action
+            .strip_prefix("choose:")
+            .ok_or_else(|| illegal("需要选择一张手牌亮出"))?;
+        if !pending
+            .options
+            .iter()
+            .any(|o| o.id == format!("choose:{card_id}"))
+        {
+            return Err(illegal("该牌不可亮出"));
+        }
+        f.revealed = card_id.to_string();
+        replace_top(st, Frame::HuoGong(f));
+        return Ok(format!("火攻：已亮出【{}】", turn::card_label(st, card_id)));
+    }
     if action == "pass" {
         pop(st);
         st.outcome = Some(Outcome::Picked { card: None });
@@ -3058,16 +3107,15 @@ fn step_quick_judge(
                                 );
                                 push(
                                     st,
-                                    Frame::LeijiJie(
-                                        crate::resolve_jiexian2::LeijiJieFrame {
-                                            owner: user,
-                                            damage: 2,
-                                        },
-                                    ),
+                                    Frame::LeijiJie(crate::resolve_jiexian2::LeijiJieFrame {
+                                        owner: user,
+                                        damage: 2,
+                                    }),
                                 );
                             }
                             Some(Suit::Club) => {
-                                st.seats[user].hp = (st.seats[user].hp + 1).min(st.seats[user].max_hp);
+                                st.seats[user].hp =
+                                    (st.seats[user].hp + 1).min(st.seats[user].max_hp);
                                 let hp = st.seats[user].hp;
                                 st.push_log(
                                     Some(&pid),
@@ -3077,12 +3125,10 @@ fn step_quick_judge(
                                 );
                                 push(
                                     st,
-                                    Frame::LeijiJie(
-                                        crate::resolve_jiexian2::LeijiJieFrame {
-                                            owner: user,
-                                            damage: 1,
-                                        },
-                                    ),
+                                    Frame::LeijiJie(crate::resolve_jiexian2::LeijiJieFrame {
+                                        owner: user,
+                                        damage: 1,
+                                    }),
                                 );
                             }
                             _ => st.push_log(
@@ -3224,10 +3270,7 @@ fn step_quick_judge(
                             }),
                         );
                     } else {
-                        st.push_log(
-                            Some(&pid),
-                            format!("飘零：判定【{label}】非红桃，未生效"),
-                        );
+                        st.push_log(Some(&pid), format!("飘零：判定【{label}】非红桃，未生效"));
                     }
                 }
                 "baonue" => {
@@ -3608,6 +3651,7 @@ pub fn execute_pending(
             Some("hanbing") => crate::resolve_skill::act_hanbing(st, action)?,
             Some("cixiong") => crate::resolve_skill::act_cixiong(st, action)?,
             Some("huogong") => act_huogong(st, &pending, action)?,
+            Some("huogong_reveal") => act_huogong(st, &pending, action)?,
             Some("kuanggu") => crate::resolve_wind::act_kuanggu(st, action)?,
             Some("qimou") => crate::resolve_wind::act_qimou(st, action)?,
             Some("jushou") => crate::resolve_wind::act_jushou(st, action)?,
@@ -3924,28 +3968,101 @@ fn act_wuxie(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Strin
 }
 
 fn act_target(st: &mut SgsState, pending: &Pending, action: &str) -> Result<String, EngineError> {
-    // 铁索连环：`targets:<p1,p2>` 双目标（组合由引擎在选项里枚举，避免伪造）。
-    if let Some(Frame::Trick(mut f)) = top(st).cloned() {
-        if f.code == "tiesuo_lianhuan" && action.starts_with("targets:") {
-            if !pending.options.iter().any(|o| o.id == action) {
-                return Err(illegal("目标组合不合法"));
+    fn finalize_tiesuo(st: &mut SgsState, mut f: TrickFrame, targets: Vec<usize>) -> String {
+        let user = f.user;
+        f.first = None;
+        f.second = None;
+        f.idx = 0;
+        f.targets = targets;
+        f.stage = TrickStage::Wuxie;
+        let names = f
+            .targets
+            .iter()
+            .map(|i| st.seats[*i].general_name.clone())
+            .collect::<Vec<_>>()
+            .join("、");
+        let card = f.card.clone();
+        replace_top(st, Frame::Trick(f));
+        // 恃才/集智/藏拙：铁索连环在目标确认时才算「使用」完成（重铸不触发）。
+        crate::skills::shicai_trigger(st, user, "trick", &card);
+        let mut ev = Vec::new();
+        crate::skills::on_non_delayed_trick_used(st, user, &mut ev);
+        format!("铁索连环：对 {} 结算", names)
+    }
+
+    if let Some(Frame::Trick(f)) = top(st).cloned() {
+        if f.code == "tiesuo_lianhuan" {
+            let stage = pending.data["stage"].as_str().unwrap_or("tiesuo_first");
+            if stage == "tiesuo_first" {
+                if let Some(card_id) = action.strip_prefix("recast:") {
+                    if card_id != f.card {
+                        return Err(illegal("重铸牌不合法"));
+                    }
+                    if !pending.options.iter().any(|o| o.id == action) {
+                        return Err(illegal("当前不可重铸"));
+                    }
+                    let label = turn::card_label(st, &f.card);
+                    // 牌已在使用区：移入弃牌堆并摸 1 张（与出牌阶段重铸同口径）。
+                    leave_processing(st, &f.card);
+                    turn::discard_by(st, Some(f.user), &f.card);
+                    let mut ev = Vec::new();
+                    let drawn = turn::draw_cards(st, f.user, 1, &mut ev);
+                    let over = st.seats[f.user]
+                        .hand
+                        .len()
+                        .saturating_sub(st.config.max_hand_cards as usize);
+                    if over > 0 {
+                        push_discard(st, f.user, over, "hand_cap");
+                    }
+                    st.push_log(
+                        Some(&st.seats[f.user].player_id.clone()),
+                        format!("重铸：弃置【{label}】，摸 {drawn} 张"),
+                    );
+                    pop(st);
+                    return Ok("已重铸".to_string());
+                }
             }
-            let csv = action.trim_start_matches("targets:");
-            let seats: Vec<usize> = csv
-                .split(',')
-                .map(|pid| {
-                    st.seat_index(pid.trim())
-                        .ok_or_else(|| illegal("目标不在座"))
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            if seats.len() != 2 {
-                return Err(illegal("铁索连环最多两名角色"));
+            // 兼容旧快照：升级前停在 `stage=tiesuo` 的双目标组合选项。
+            if stage == "tiesuo" && action.starts_with("targets:") {
+                if !pending.options.iter().any(|o| o.id == action) {
+                    return Err(illegal("目标组合不合法"));
+                }
+                let seats: Vec<usize> = action
+                    .trim_start_matches("targets:")
+                    .split(',')
+                    .map(|pid| {
+                        st.seat_index(pid.trim())
+                            .ok_or_else(|| illegal("目标不在座"))
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                if seats.len() != 2 {
+                    return Err(illegal("铁索连环最多两名角色"));
+                }
+                return Ok(finalize_tiesuo(st, f, seats));
             }
-            f.targets = seats;
-            f.idx = 0;
-            f.stage = TrickStage::Wuxie;
-            replace_top(st, Frame::Trick(f));
-            return Ok("铁索连环：已选两名角色".to_string());
+            if stage == "tiesuo_second" {
+                let Some(first) = f.first else {
+                    return Err(illegal("尚未选择第一名目标"));
+                };
+                if action == "confirm" {
+                    if !pending.options.iter().any(|o| o.id == "confirm") {
+                        return Err(illegal("尚未选择目标"));
+                    }
+                    let msg = finalize_tiesuo(st, f, vec![first]);
+                    return Ok(msg);
+                }
+                let target_pid = action
+                    .strip_prefix("target:")
+                    .ok_or_else(|| illegal("需要选择第二名目标"))?;
+                let target = st
+                    .seat_index(target_pid)
+                    .ok_or_else(|| illegal("目标不在座"))?;
+                if target == first || !pending.options.iter().any(|o| o.id == action) {
+                    return Err(illegal("第二名目标不合法"));
+                }
+                let msg = finalize_tiesuo(st, f, vec![first, target]);
+                return Ok(msg);
+            }
         }
     }
     // 杀：选目标后进入【闪】响应
@@ -4381,13 +4498,48 @@ fn act_target(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Stri
         return Err(illegal("目标不合法"));
     }
     match stage {
-        "tiesuo" => {
-            // 单目标 `target:<pid>`（由上面的 `target_pid` 解析得到）。
-            f.targets = vec![target];
-            f.idx = 0;
-            f.stage = TrickStage::Wuxie;
+        "tiesuo_first" => {
+            let target_pid = action
+                .strip_prefix("target:")
+                .ok_or_else(|| illegal("需要选择第一名目标"))?;
+            let target = st
+                .seat_index(target_pid)
+                .ok_or_else(|| illegal("目标不在座"))?;
+            if !pending
+                .options
+                .iter()
+                .any(|o| o.id == format!("target:{target_pid}"))
+            {
+                return Err(illegal("目标不合法"));
+            }
+            f.first = Some(target);
+            f.stage = TrickStage::Target;
             replace_top(st, Frame::Trick(f));
-            Ok(format!("铁索连环：对 {} 结算", st.seats[target].general_name))
+            Ok(format!(
+                "铁索连环：已选择 {}，请选择第二名目标（或就选一名）",
+                st.seats[target].general_name
+            ))
+        }
+        "tiesuo_second" => {
+            // confirm/cancel 已在前面处理；这里只可能是第二名目标。
+            let target_pid = action
+                .strip_prefix("target:")
+                .ok_or_else(|| illegal("需要选择第二名目标"))?;
+            let target = st
+                .seat_index(target_pid)
+                .ok_or_else(|| illegal("目标不在座"))?;
+            let Some(first) = f.first else {
+                return Err(illegal("尚未选择第一名目标"));
+            };
+            if target == first
+                || !pending
+                    .options
+                    .iter()
+                    .any(|o| o.id == format!("target:{target_pid}"))
+            {
+                return Err(illegal("第二名目标不合法"));
+            }
+            Ok(finalize_tiesuo(st, f, vec![first, target]))
         }
         "borrow_first" => {
             f.first = Some(target);

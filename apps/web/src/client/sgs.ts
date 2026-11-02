@@ -3,6 +3,7 @@
 // 安全：token 只从页面 bootstrap JSON 读取，随 `/state` 请求传递，不落 localStorage。
 // 交互：出牌链路（目标/确认提交）在 P3.3 接线；本文件已提供选中态与详情浮层。
 
+import { escapeHtml } from "../view/format.js";
 import { renderSgsApp } from "../view/sgs/page.js";
 import { renderSidePanelBody } from "../view/sgs/public.js";
 import { cardLabel } from "../view/sgs/format.js";
@@ -61,6 +62,9 @@ let gxSuppressClickUntil = 0;
 /** 整页刷新/重新进入时恢复的滚动位置（页面 + 历史列表）。 */
 let restoreScroll: { page: number; hist: number } | null = null;
 let scrollKey = "";
+/** 长按后抑制下一次 click（否则技能按钮会同时触发长按详情与点击出牌）。 */
+let suppressNextClick = false;
+let suppressClickTimer = 0;
 
 function readBootstrap(): Bootstrap | null {
   const node = document.getElementById("sgs-bootstrap");
@@ -400,17 +404,56 @@ function onTap(el: HTMLElement): void {
   if (kind === "card" && el.dataset.card && currentData) {
     const card = findCard(currentData, el.dataset.card);
     if (card) openOverlay(cardLabel(card), renderCardDetail(card));
+    return;
+  }
+  if (kind === "skill") {
+    // 有直接动作的技能按钮：交给 click（data-action）提交，不再弹选择层。
+    if (el.dataset.action) return;
+    const raw = el.dataset.conversions;
+    if (!raw) return;
+    try {
+      const list = JSON.parse(raw) as Array<{ id: string; label: string }>;
+      const buttons = list
+        .map(
+          (a) =>
+            `<button type="button" class="btn small" data-action="${escapeHtml(a.id)}">` +
+            `${escapeHtml(a.label)}</button>`,
+        )
+        .join("");
+      openOverlay(
+        `技能 · ${el.dataset.skillName ?? ""}`,
+        `<p class="muted">选择要使用的牌：</p><div class="sgs-zone-actions">${buttons}</div>`,
+      );
+    } catch {
+      message("技能动作解析失败", true);
+    }
   }
 }
 
 function onClick(ev: MouseEvent): void {
+  if (suppressNextClick) {
+    suppressNextClick = false;
+    return;
+  }
   const target = ev.target as HTMLElement | null;
   const opEl = target?.closest?.("[data-op]") as HTMLElement | null;
   if (opEl) {
     const op = opEl.dataset.op;
     if (op === "confirm") {
-      if (selectedCard && currentActions.some((a) => a.id === `play:${selectedCard}`)) {
-        void submitAction(`play:${selectedCard}`);
+      // 直接使用优先；否则回落到「转化技把这张牌当别的牌使用」（武圣/龙胆/国色/奇袭/连环等）。
+      const playId = selectedCard ? `play:${selectedCard}` : "";
+      const conversion = selectedCard
+        ? currentActions.find(
+            (a) =>
+              /^skill:[a-z_]+:/.test(a.id) &&
+              a.id.endsWith(`:${selectedCard}`) &&
+              !a.id.includes(","),
+          )
+        : undefined;
+      if (selectedCard && currentActions.some((a) => a.id === playId)) {
+        void submitAction(playId);
+      } else if (conversion) {
+        void submitAction(conversion.id);
       } else {
         message("该牌当前不可打出", true);
       }
@@ -446,7 +489,7 @@ function onClick(ev: MouseEvent): void {
 }
 
 function onLongPress(el: HTMLElement, ev: PointerEvent): void {
-  // 长按先给反馈（ui-spec §5.8）；手牌/装备/判定/其他小标记都开详情。
+  // 长按先给反馈（ui-spec §5.8）；手牌/装备/判定/技能都开详情。
   const kind = el.dataset.press;
   if ((kind === "hand" || kind === "card") && el.dataset.card && currentData) {
     const card = findCard(currentData, el.dataset.card);
@@ -454,6 +497,22 @@ function onLongPress(el: HTMLElement, ev: PointerEvent): void {
       ev.preventDefault();
       openOverlay(cardLabel(card), renderCardDetail(card));
     }
+    return;
+  }
+  if (kind === "skill") {
+    const name = el.dataset.skillName ?? "技能";
+    const desc = el.dataset.desc ?? "";
+    ev.preventDefault();
+    suppressNextClick = true;
+    window.clearTimeout(suppressClickTimer);
+    suppressClickTimer = window.setTimeout(() => {
+      suppressNextClick = false;
+    }, 1500);
+    const text = escapeHtml(desc).replace(/\n/g, "<br>");
+    const body = desc
+      ? `<p class="sgs-skill-desc">${text}</p>`
+      : `<p class="muted">暂无技能简述</p>`;
+    openOverlay(`技能 · ${name}`, body);
   }
 }
 

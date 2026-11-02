@@ -52,6 +52,19 @@ fn huogong_discards_same_suit_for_fire_damage() {
         .unwrap();
     pass_wuxie(&mgr, &room);
     let st = state_of(&mgr, &room);
+    let reveal = st.pending.clone().expect("火攻应由目标选择亮出的手牌");
+    assert_eq!(reveal.skill.as_deref(), Some("huogong_reveal"));
+    assert_eq!(reveal.actor, target_pid, "亮牌由目标本人选择");
+    let reveal_card = reveal
+        .options
+        .iter()
+        .find(|o| o.id.starts_with("choose:"))
+        .expect("应有亮牌选项")
+        .id
+        .clone();
+    mgr.execute_action(&room, &target_pid, &reveal_card)
+        .unwrap();
+    let st = state_of(&mgr, &room);
     let pending = st.pending.clone().expect("火攻应询问是否弃同花色");
     assert_eq!(pending.skill.as_deref(), Some("huogong"));
     let opt = pending
@@ -101,6 +114,17 @@ fn huogong_can_decline() {
     mgr.execute_action(&room, &cur_pid, &format!("target:{target_pid}"))
         .unwrap();
     pass_wuxie(&mgr, &room);
+    let st = state_of(&mgr, &room);
+    let reveal = st.pending.clone().expect("火攻应由目标选择亮出的手牌");
+    let reveal_card = reveal
+        .options
+        .iter()
+        .find(|o| o.id.starts_with("choose:"))
+        .expect("应有亮牌选项")
+        .id
+        .clone();
+    mgr.execute_action(&room, &target_pid, &reveal_card)
+        .unwrap();
     mgr.execute_action(&room, &cur_pid, "pass").unwrap();
     super::drive_mgr_inject(&mgr, &room, &mut Vec::new());
     let st = state_of(&mgr, &room);

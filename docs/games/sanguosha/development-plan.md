@@ -820,6 +820,15 @@
 - **选将页缺失（P3 UI 缺口，真机暴露）**：`phase=setup` 时个人区只渲染手牌/技能/结束出牌，**没有任何候选武将控件** → 玩家看到「未选将」以为主公没选，实际 AI 主公早已选完（`lord_picked=true`）。修法：引擎在 `player_area.setup.candidate_details` 投影候选详情（名字/势力/体力/技能名，仅本人可见），Web 新增选将面板（`data-action="setup:choose_general:<code>"` 按钮 + 已选/等待进度）。用例：`candidates_are_private_during_setup` 增候选详情断言、`apps/web/test-sgs.mts` 增选将面板三态（候选/已选/无候选）。
 - **`#加机器人` 座位数**：回执用原始 state（`data.seats`）而非公共视图（`data.public_board.seats`），修 0/8。
 
+**P6.3 真机反馈修复（第 2 批，2026-11-02）**：
+
+- **铁索连环两段式**：8 人局不再枚举 C(n,2) 组合 → 第一段选第一名（选项带 `（已横置）/（未横置）` 标签 + 「重铸」入口，选重铸即结束）；第二段选第二名（不含第一名）/「就选一名」/「重选第一名」。旧快照 `stage=tiesuo` 的 `targets:` 组合保留兼容分支。恃才/集智/藏拙延到「目标确认」触发，避免重铸误触发与牌数守恒问题。
+- **界关羽**：义绝目标确认无距离（8 人局全部有手牌角色可选，补回归用例）；红牌后新增 `Heal` 阶段由界关羽选择是否令目标回复 1 点体力（满血也给选项、仅无效果）；界武圣的方片牌无距离，出牌阶段选项生成改用 `sha_targets_with_card(..., no_dist)`（此前攻击范围内没人时**不生成武圣选项**）。**Web 侧**：转化技动作 `skill:<code>:<card>` 现在会把对应手牌标为 `playable`，「确认打出」自动回落到转化动作；技能按钮点开浮层列出「用哪张牌当什么用」（此前只认 `play:<card>`，武圣无法主动使用）。
+- **火攻亮牌**：改为由**目标本人**选择一张手牌亮出（`pending.skill=huogong_reveal`），不再随机；使用者随后弃同花色（界火计为同颜色）。
+- **长按技能简述**：技能按钮加 `data-press="skill"` + `data-desc`；长按 ≥400ms 打开「技能 · X」浮层，并抑制随后的 click（避免同时提交技能动作）。简述数据由 `apps/scripts/gen-sgs-skill-text.mjs` 从 `heroes.json` 生成（仅 data.rs 已实装武将，`npm run check:sgs-skill-text` 门禁）。
+- **全 AI 局卡在 bot 回合**：根因是单次推进 200 步上限后无人再触发 `/drive`（玩家阵亡后剩余全 AI）。修法：server 到达上限且仍在机器人回合 → `spawn_blocking` 后台链式续推（≤15 轮 / 3000 步）；web `/state` 轮询发现「存活者全是 bot」时 fire-and-forget 调 `/drive` 兜底（server 重启/闲置局）。
+- **门禁**：`cargo test -p sanguosha` **911 全绿**；`npm run sgs:check:fast` **11/11**（新增 `check:sgs-skill-text`）；`test:web` 全绿；`check:sgs-ai`（5 局/10 局）0 非法/0 卡死。
+
 ### P7 Q 群接入（M，后置）
 
 > **2026-11-01 口径调整（用户裁定，ADR-0031）**：Q 群**只做被动播报**，不做任何逐动作交互，优先级降到最低；

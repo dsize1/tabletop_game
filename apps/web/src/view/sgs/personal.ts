@@ -18,6 +18,7 @@ import {
   judgeIcon,
   playerName,
 } from "./format.js";
+import { skillDescription } from "./skill-text.js";
 import type { SgsCard, SgsPlayerArea, SgsPublicBoard, SgsSpecialZones } from "./types.js";
 
 function pendingSummary(area: SgsPlayerArea): string {
@@ -28,7 +29,11 @@ function pendingSummary(area: SgsPlayerArea): string {
       ? `（需弃 ${p.data.required} 张，可逐张点）`
       : p.kind === "arrange"
         ? "（观星：P3.5 提供槽位，这里可用默认顺序）"
-        : "";
+        : p.skill === "huogong_reveal"
+          ? "（火攻：请选择一张手牌亮出）"
+          : p.skill === "yijue" && p.data?.stage === "heal"
+            ? "（义绝：是否令其回复 1 点体力）"
+            : "";
   const buttons = p.options
     .map(
       (o) =>
@@ -164,8 +169,17 @@ export function renderPersonalArea(
   if (!area) return `<section class="sgs-personal muted">个人资源区不可见（未坐下或已阵亡）</section>`;
   const acts = actions ?? [];
   const canEndPlay = acts.some((a) => a.id === "end_play");
+  // 可点手牌 = 直接 `play:<card>` ∪ 转化技 `skill:<skill>:<card>`
+  // （武圣/龙胆/国色/奇袭/连环等：此前只认 play:，导致「武圣不能主动使用」——真机）。
+  const handIds = new Set((area.hand ?? []).map((c) => c.id));
   const playable = new Set(
-    acts.filter((a) => a.id.startsWith("play:")).map((a) => a.id.slice("play:".length)),
+    acts
+      .map((a) => {
+        if (a.id.startsWith("play:")) return a.id.slice("play:".length);
+        const m = /^skill:[a-z_]+:(.+)$/.exec(a.id);
+        return m && handIds.has(m[1]) ? m[1] : null;
+      })
+      .filter((id): id is string => Boolean(id)),
   );
   const skillsWithAction = new Map<string, string>();
   for (const a of acts) {
@@ -181,12 +195,28 @@ export function renderPersonalArea(
         const action = skillsWithAction.get(s.code);
         // 转换技（SP-1）：展示当前面（阳/阴）。
         const face = transforms[s.code] === "yin" ? "（阴）" : transforms[s.code] === "yang" ? "（阳）" : "";
+        const desc = skillDescription(general, s.name);
+        // 转化技（武圣/龙胆/国色/奇袭/连环…）：动作 id 形如 `skill:<code>:<card>`，
+        // 按钮本身没有单一动作 → 点开浮层列出「把哪张牌当什么用」。
+        const conversions = acts.filter(
+          (a) => a.id.startsWith(`skill:${s.code}:`) && !a.id.includes(","),
+        );
+        // 长按（≥400ms）出技能简述：`data-press` 参与手势委托，`data-desc` 直接带文本。
+        // 不可用技能不用 `disabled` 属性（会吞掉 pointer 事件），改用 class + 不给 data-action。
+        const usable = s.implemented !== false && (Boolean(action) || conversions.length > 0);
+        const convAttr = conversions.length
+          ? ` data-conversions="${escapeHtml(
+              JSON.stringify(conversions.map((a) => ({ id: a.id, label: a.description }))),
+            )}"`
+          : "";
         return (
-          `<button type="button" class="sgs-skill${s.implemented === false ? " disabled" : ""}" ` +
-          `data-skill="${escapeHtml(s.code)}" title="${escapeHtml(s.type)}"` +
+          `<button type="button" class="sgs-skill${usable ? "" : " disabled"}" ` +
+          `data-skill="${escapeHtml(s.code)}" data-press="skill" data-skill-name="${escapeHtml(s.name)}" ` +
+          `data-desc="${escapeHtml(desc)}" title="${escapeHtml(desc || s.type)}"` +
           (face ? ` data-face="${face === "（阴）" ? "yin" : "yang"}"` : "") +
           (action ? ` data-action="${escapeHtml(action)}"` : "") +
-          `${s.implemented === false || !action ? " disabled" : ""}>` +
+          convAttr +
+          `>` +
           `${escapeHtml(s.name)}${face}</button>`
         );
       },

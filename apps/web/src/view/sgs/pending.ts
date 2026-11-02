@@ -137,11 +137,13 @@ export function renderTargetOverlay(
         ? "选择该角色攻击范围内的杀目标"
         : stage === "confirm"
           ? "确认目标后开始结算"
-          : stage === "tiesuo"
-            ? "铁索连环：可选 1 名，或「同时选择」两名（每个目标各一次无懈）"
-            : cardName
-              ? `使用【${cardName}】：请选择目标`
-              : "请选择目标";
+          : stage === "tiesuo_first"
+            ? "铁索连环：选择第一名目标（可重铸代替使用）"
+            : stage === "tiesuo_second"
+              ? "铁索连环：选择第二名目标，或「就选一名」开始结算"
+              : cardName
+                ? `使用【${cardName}】：请选择目标`
+                : "请选择目标";
   return (
     `<p class="muted">${escapeHtml(hint)}</p>` +
     `<div class="sgs-zone-actions">` +
@@ -150,6 +152,7 @@ export function renderTargetOverlay(
       (id) =>
         id.startsWith("target:") ||
         id.startsWith("targets:") ||
+        id.startsWith("recast:") ||
         id === "confirm" ||
         id === "cancel",
     ) +

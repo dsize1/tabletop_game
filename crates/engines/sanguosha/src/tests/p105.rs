@@ -203,19 +203,35 @@ fn tiesuo_can_pick_two_targets_with_per_target_wuxie() {
 
     mgr.execute_action(&room, &cur_pid, &format!("play:{card}"))
         .expect("play tiesuo");
-    // 双目标走 `targets:<p1,p2>`（组合由引擎在选项里枚举）。
+    // 两段式：第一段选 A，第二段选 B（不含第一名）。
     let st = state_of(&mgr, &room);
-    let combo = format!("targets:{a_pid},{b_pid}");
+    let first_options: Vec<String> = st
+        .pending
+        .as_ref()
+        .map(|p| p.options.iter().map(|o| o.id.clone()).collect())
+        .unwrap_or_default();
     assert!(
-        st.pending
-            .as_ref()
-            .map(|p| p.options.iter().any(|o| o.id == combo))
-            .unwrap_or(false),
-        "目标选项应包含双目标组合：{:?}",
-        st.pending.map(|p| p.options.iter().map(|o| o.id.clone()).collect::<Vec<_>>())
+        first_options.contains(&format!("target:{a_pid}")),
+        "第一段应列出候选目标：{first_options:?}"
     );
-    mgr.execute_action(&room, &cur_pid, &combo)
-        .expect("pick two targets");
+    mgr.execute_action(&room, &cur_pid, &format!("target:{a_pid}"))
+        .expect("pick first target");
+    let st = state_of(&mgr, &room);
+    assert_eq!(
+        st.pending.as_ref().and_then(|p| p.data["stage"].as_str()),
+        Some("tiesuo_second")
+    );
+    let second_options = st.pending.as_ref().unwrap();
+    assert!(
+        !second_options
+            .options
+            .iter()
+            .any(|o| o.id == format!("target:{a_pid}")),
+        "第二段不应再列出第一名目标"
+    );
+    assert!(second_options.options.iter().any(|o| o.id == "confirm"));
+    mgr.execute_action(&room, &cur_pid, &format!("target:{b_pid}"))
+        .expect("pick second target");
 
     // 逐个目标各一次无懈链：全 pass 推进，期间统计 wuxie pending 次数。
     let mut wuxie_windows = 0;
@@ -260,6 +276,8 @@ fn tiesuo_allows_single_target() {
         .expect("play");
     mgr.execute_action(&room, &cur_pid, &format!("target:{a_pid}"))
         .expect("pick one");
+    mgr.execute_action(&room, &cur_pid, "confirm")
+        .expect("confirm single target");
     let mut inject: Vec<String> = Vec::new();
     drive_mgr_inject(&mgr, &room, &mut inject);
     let st = state_of(&mgr, &room);

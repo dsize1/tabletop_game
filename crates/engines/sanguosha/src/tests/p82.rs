@@ -233,8 +233,93 @@ fn yijue_red_gains_card_and_heals() {
     mgr.execute_action(&room, &cur_pid, &format!("target:{target_pid}"))
         .unwrap();
     let st = state_of(&mgr, &room);
+    let heal = st.pending.clone().expect("红牌后应询问是否回血");
+    assert_eq!(heal.actor, cur_pid);
+    assert_eq!(heal.data["stage"], "heal");
+    mgr.execute_action(&room, &cur_pid, "heal").unwrap();
+    let st = state_of(&mgr, &room);
     assert_eq!(st.seats[cur].hand.len(), 1, "红色：获得展示牌");
     assert_eq!(st.seats[target].hp, hp + 1, "红色：令其回复 1 点体力");
+}
+
+/// 满血目标给红牌：仍应给出「是否回血」选项（不是静默跳过），选回血无实际效果。
+#[test]
+fn yijue_red_full_hp_still_offers_heal_choice() {
+    let mgr = manager(1113);
+    let room = start_and_pick(&mgr, 5);
+    let (mut cur, mut target, mut cur_pid, mut target_pid) = (0, 0, String::new(), String::new());
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        cur = st.turn;
+        set_general(st, cur, "sgs_hero_300");
+        target = other_seats(st, cur)[0];
+        set_general(st, target, "sgs_hero_1");
+        give_def(st, cur, "shan");
+        give_card(st, target, |c| {
+            matches!(c.suit, Suit::Heart | Suit::Diamond)
+        });
+        st.seats[target].hp = st.seats[target].max_hp;
+        st.turn_phase = TurnPhase::Play;
+        st.turn_counters.clear();
+        cur_pid = st.seats[cur].player_id.clone();
+        target_pid = st.seats[target].player_id.clone();
+    });
+    let hp = state_of(&mgr, &room).seats[target].hp;
+    mgr.execute_action(&room, &cur_pid, "skill:yijue").unwrap();
+    let st = state_of(&mgr, &room);
+    let cost = st.seats[cur].hand[0].clone();
+    mgr.execute_action(&room, &cur_pid, &format!("choose:{cost}"))
+        .unwrap();
+    mgr.execute_action(&room, &cur_pid, &format!("target:{target_pid}"))
+        .unwrap();
+    let st = state_of(&mgr, &room);
+    let heal = st.pending.clone().expect("满血也应给出回血选择");
+    assert!(heal.options.iter().any(|o| o.id == "heal"));
+    assert!(heal.options.iter().any(|o| o.id == "skip"));
+    mgr.execute_action(&room, &cur_pid, "heal").unwrap();
+    let st = state_of(&mgr, &room);
+    assert_eq!(st.seats[target].hp, hp, "满血回复无实际效果");
+    assert!(st.pending.is_none());
+}
+
+/// 义绝没有距离限制：8 人局里所有有手牌的其他角色都应出现在目标列表。
+#[test]
+fn yijue_targets_all_with_hand_no_distance() {
+    let mgr = manager(1114);
+    let room = start_and_pick(&mgr, 8);
+    let (mut cur, mut cur_pid, mut expected) = (0, String::new(), 0usize);
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        cur = st.turn;
+        set_general(st, cur, "sgs_hero_300");
+        give_def(st, cur, "shan");
+        for i in st.alive_indices() {
+            if i != cur {
+                give_card(st, i, |_| true);
+                expected += 1;
+            }
+        }
+        st.turn_phase = TurnPhase::Play;
+        st.turn_counters.clear();
+        cur_pid = st.seats[cur].player_id.clone();
+    });
+    mgr.execute_action(&room, &cur_pid, "skill:yijue").unwrap();
+    let st = state_of(&mgr, &room);
+    let cost = st.seats[cur].hand[0].clone();
+    mgr.execute_action(&room, &cur_pid, &format!("choose:{cost}"))
+        .unwrap();
+    let st = state_of(&mgr, &room);
+    let targets = st
+        .pending
+        .as_ref()
+        .map(|p| {
+            p.options
+                .iter()
+                .filter(|o| o.id.starts_with("target:"))
+                .count()
+        })
+        .unwrap_or(0);
+    assert_eq!(targets, expected, "义绝无距离：所有有手牌的其他角色都可选");
 }
 
 #[test]
@@ -263,6 +348,58 @@ fn jie_wusheng_diamond_sha_has_no_distance() {
         }
     }
     assert!(jie_top, "界武圣：方片牌当【杀】无距离限制");
+}
+
+/// 界武圣：方片牌无距离 —— 攻击范围内没人时也必须给出「武圣」主动使用选项。
+#[test]
+fn jie_wusheng_option_available_without_target_in_range() {
+    let mgr = manager(1115);
+    let room = start_and_pick(&mgr, 5);
+    let (mut cur, mut cur_pid, mut card) = (0, String::new(), String::new());
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        cur = st.turn;
+        set_general(st, cur, "sgs_hero_300");
+        // 其他人统一换掉带距离修正的武将，避免干扰。
+        for i in other_seats(st, cur) {
+            set_general(st, i, "sgs_hero_1");
+        }
+        // 给每名其他角色装防御马：有效距离 = 座位距离 + 1 > 攻击范围 1。
+        for (n, i) in other_seats(st, cur).into_iter().enumerate() {
+            equip_card(
+                st,
+                i,
+                ["jueying", "dilu", "zhuahuang_feidian", "hualiu"][n.min(3)],
+            );
+        }
+        card = give_card(st, cur, |c| c.suit == Suit::Diamond && c.def != "sha");
+        st.turn_phase = TurnPhase::Play;
+        st.turn_counters.clear();
+        cur_pid = st.seats[cur].player_id.clone();
+    });
+    let st = state_of(&mgr, &room);
+    assert!(
+        crate::turn::sha_targets(&st, cur).is_empty(),
+        "前置：攻击范围内应无人"
+    );
+    let acts = mgr.legal_actions(&room, &cur_pid).unwrap();
+    assert!(
+        acts.iter().any(|a| a.id == format!("skill:wusheng:{card}")),
+        "界武圣：无距离限制，仍应提供主动使用选项：{acts:?}"
+    );
+    mgr.execute_action(&room, &cur_pid, &format!("skill:wusheng:{card}"))
+        .unwrap();
+    let st = state_of(&mgr, &room);
+    let sha = st
+        .resolution
+        .iter()
+        .find_map(|f| match f {
+            crate::resolve::Frame::Sha(s) => Some(s.clone()),
+            _ => None,
+        })
+        .expect("应进入【杀】目标选择");
+    assert!(sha.no_distance, "界武圣：方片【杀】无距离");
+    let _ = &st;
 }
 
 // ---------------------------------------------------------------------------

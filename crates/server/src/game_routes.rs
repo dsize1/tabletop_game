@@ -123,12 +123,35 @@ pub async fn drive(
     }))
 }
 
+/// 后台续推轮数：单请求到 `DRIVE_MAX_STEPS` 后仍在机器人回合时，继续在后台推进；
+/// 遇到人类回合/终局自然停止（P6.3 真机：玩家阵亡后剩余全 AI 会停在「bot:3 行动中…」）。
+/// 15 × 200 = 3000 步/局（与计划台账的 3000 步告警口径一致）。
+const DRIVE_CHAIN_ROUNDS: usize = 15;
+
 /// 把机器人回合推进到人类回合/终局（最多 `DRIVE_MAX_STEPS` 步）。
 ///
 /// - 只推进 `seat.is_bot` 的座位；人类回合立刻停（正常停点）；
 /// - 每步动作都按同一链路落 `game_events` + 快照（与人类动作一致）；
-/// - 拿到房间锁才推进；已有推进在跑则跳过（并发保护，页面轮询兜底）。
+/// - 拿到房间锁才推进；已有推进在跑则跳过（并发保护，页面轮询兜底）；
+/// - 到达单请求上限且仍在机器人回合 → 后台链式续推（否则全 AI 局会永久停在 bot 回合）。
 fn drive_bots(state: &AppState, room_id: &str) -> sanguosha::ai::DriveReport {
+    let report = drive_bots_once(state, room_id);
+    if report.stop == Some(sanguosha::ai::StopReason::MaxSteps) && !report.finished {
+        let state = state.clone();
+        let room_id = room_id.to_string();
+        tokio::task::spawn_blocking(move || {
+            for _ in 0..DRIVE_CHAIN_ROUNDS {
+                let next = drive_bots_once(&state, &room_id);
+                if next.finished || next.stop != Some(sanguosha::ai::StopReason::MaxSteps) {
+                    break;
+                }
+            }
+        });
+    }
+    report
+}
+
+fn drive_bots_once(state: &AppState, room_id: &str) -> sanguosha::ai::DriveReport {
     let Some(_guard) = state.bot_drive.try_acquire(room_id) else {
         tracing::debug!("房间 {room_id} 已有机器人推进在跑，跳过本次");
         return sanguosha::ai::DriveReport::default();

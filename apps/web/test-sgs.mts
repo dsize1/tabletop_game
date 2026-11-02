@@ -185,6 +185,8 @@ const meHtml = renderPersonalArea(me, board, {}, names);
 assert.ok(meHtml.includes("杀♠7") && meHtml.includes("桃♥3"), "个人区应显示手牌正面");
 assert.ok(meHtml.includes("手牌") && meHtml.includes("2/5"), "个人区应显示手牌数/上限");
 assert.ok(meHtml.includes('data-skill="rende"'), "技能按钮");
+assert.ok(meHtml.includes('data-press="skill"'), "技能按钮参与长按手势");
+assert.ok(/data-desc="[^"]+"/.test(meHtml), "技能按钮带简述（长按浮层）");
 assert.ok(meHtml.includes("确认打出") && meHtml.includes("disabled"), "未选中时确认按钮置灰");
 assert.ok(meHtml.includes('data-action="end_play"'), "结束出牌按钮");
 const withPending: SgsPlayerArea = {
@@ -373,6 +375,26 @@ const withActions = renderPersonalArea(me, board, {}, names, actions);
 assert.ok(withActions.includes('class="sgs-card red playable"') || withActions.includes("playable"), "可出的牌应标记 playable");
 assert.ok(withActions.includes('data-action="end_play"'), "结束出牌按钮携带动作 id");
 assert.ok(!/data-action="end_play"[^>]*disabled/.test(withActions), "有 end_play 动作时应启用");
+const conversionActions = renderPersonalArea(
+  {
+    ...me,
+    general_name: "界关羽",
+    skills: [{ code: "wusheng", name: "武圣", type: "normal", implemented: true }],
+  },
+  board,
+  {},
+  names,
+  [{ id: "skill:wusheng:c2", description: "武圣：将【桃♥3】当【杀】使用" }],
+);
+assert.ok(
+  /class="sgs-card red playable"[^>]*data-card="c2"/.test(conversionActions),
+  "转化技可用的手牌也要标记 playable（武圣主动使用）",
+);
+assert.ok(
+  /data-skill="wusheng"[^>]*data-conversions=/.test(conversionActions) &&
+    !/data-skill="wusheng"[^>]*class="sgs-skill disabled"/.test(conversionActions),
+  "转化技按钮可点开「用哪张牌」浮层（不置灰）",
+);
 const noActions = renderPersonalArea(me, board, {}, names, []);
 assert.ok(/data-action="end_play"[^>]*disabled/.test(noActions), "无动作时结束出牌置灰");
 
@@ -404,7 +426,11 @@ assert.ok(
   "有主动技动作时技能按钮可点",
 );
 const noSkillAction = renderPersonalArea(me, board, {}, names, []);
-assert.ok(/data-skill="rende"[^>]*disabled/.test(noSkillAction), "无对应动作时技能按钮置灰");
+assert.ok(/class="sgs-skill disabled"/.test(noSkillAction), "无对应动作时技能按钮置灰");
+assert.ok(
+  !/data-skill="rende"[^>]*data-action=/.test(noSkillAction),
+  "无动作时不带 data-action（但保留长按技能简述）",
+);
 
 console.log("[sgs-web] 出牌链路（可用性/动作按钮）单测通过 ✅");
 
@@ -561,6 +587,35 @@ const borrowHtml = renderTargetOverlay(
   names,
 );
 assert.ok(borrowHtml.includes("借谁的刀"), "借刀第一阶段提示");
+const tiesuoFirst = renderTargetOverlay(
+  {
+    kind: "target",
+    actor: "p0",
+    options: [
+      { id: "target:p1", label: "选择 李四（已横置）" },
+      { id: "recast:c1", label: "重铸：弃置【铁索连环♣10】并摸 1 张（不使用）" },
+    ],
+    data: { stage: "tiesuo_first", card: "c1" },
+  },
+  board,
+  names,
+  () => "铁索连环♣10",
+);
+assert.ok(tiesuoFirst.includes("第一名目标"), "铁索第一段提示");
+assert.ok(tiesuoFirst.includes('data-action="recast:c1"'), "铁索第一段提供重铸入口");
+assert.ok(tiesuoFirst.includes("已横置"), "目标选项带横置标签");
+const tiesuoSecond = renderTargetOverlay(
+  {
+    kind: "target",
+    actor: "p0",
+    options: [{ id: "target:p2", label: "选择 王五（未横置）" }, { id: "confirm", label: "就选 李四" }],
+    data: { stage: "tiesuo_second", card: "c1" },
+  },
+  board,
+  names,
+);
+assert.ok(tiesuoSecond.includes("第二名目标") && !tiesuoSecond.includes("重铸"), "铁索第二段不再给重铸");
+assert.ok(tiesuoSecond.includes('data-action="confirm"'), "铁索第二段可就选一名");
 
 const manyHtml = renderChooseManyOverlay(
   {
