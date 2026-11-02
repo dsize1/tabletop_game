@@ -102,6 +102,13 @@ fn zhiba_jie_active_pindian_winner_gains_cards() {
         high = give_filtered(st, seat, |c| c.rank == 13);
         low = give_filtered(st, target, |c| c.rank == 1);
     });
+    let st = state_of(&mgr, &room);
+    assert!(
+        crate::turn::legal_actions(&st, &pid)
+            .iter()
+            .any(|a| a.id == "skill:zhiba_jie"),
+        "界制霸：应出现在出牌阶段合法动作里"
+    );
     mgr.execute_action(&room, &pid, "skill:zhiba_jie").unwrap();
     mgr.execute_action(&room, &pid, &format!("target:{target_pid}"))
         .unwrap();

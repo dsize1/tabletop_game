@@ -182,9 +182,20 @@ export function renderPersonalArea(
       .filter((id): id is string => Boolean(id)),
   );
   const skillsWithAction = new Map<string, string>();
+  const aliases: Array<{ key: string; id: string }> = [];
   for (const a of acts) {
     const m = /^skill:([a-z_]+)(?::(.+))?$/.exec(a.id);
-    if (m) skillsWithAction.set(m[2] ?? m[1], a.id);
+    if (!m) continue;
+    const key = m[2] ?? m[1];
+    if (!skillsWithAction.has(key)) skillsWithAction.set(key, a.id);
+    // 界版动作 code 可能带 `_jie` 后缀（如 `skill:zhiba_jie`），而武将技能 code 仍是基名
+    // （`zhiba`）→ 记录别名，精确动作优先，别名兜底（真机：界孙策制霸按钮置灰）。
+    if (!m[2] && m[1].endsWith("_jie")) {
+      aliases.push({ key: m[1].slice(0, -"_jie".length), id: a.id });
+    }
+  }
+  for (const a of aliases) {
+    if (!skillsWithAction.has(a.key)) skillsWithAction.set(a.key, a.id);
   }
   const kingdom = area.kingdom ? KINGDOM_LABEL[area.kingdom] ?? area.kingdom : "";
   const general = area.general_name || "未选将";

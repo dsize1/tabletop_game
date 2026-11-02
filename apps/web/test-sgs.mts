@@ -395,6 +395,21 @@ assert.ok(
     !/data-skill="wusheng"[^>]*class="sgs-skill disabled"/.test(conversionActions),
   "转化技按钮可点开「用哪张牌」浮层（不置灰）",
 );
+const zhibaHtml = renderPersonalArea(
+  {
+    ...me,
+    general_name: "界孙策",
+    skills: [{ code: "zhiba", name: "制霸", type: "lord", implemented: true }],
+  },
+  board,
+  {},
+  names,
+  [{ id: "skill:zhiba_jie", description: "制霸：与一名其他吴势力角色拼点" }],
+);
+assert.ok(
+  /data-skill="zhiba"[^>]*data-action="skill:zhiba_jie"/.test(zhibaHtml),
+  "界版动作 code 带 _jie 后缀时也应驱动基名技能按钮（界孙策制霸）",
+);
 const noActions = renderPersonalArea(me, board, {}, names, []);
 assert.ok(/data-action="end_play"[^>]*disabled/.test(noActions), "无动作时结束出牌置灰");
 

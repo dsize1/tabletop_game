@@ -4068,6 +4068,11 @@ pub fn is_lord(st: &SgsState, seat: usize) -> bool {
     st.seats.get(seat).is_some_and(|s| s.identity.is_lord())
 }
 
+/// 【杀】类牌（普通杀 / 火杀 / 雷杀）：响应【决斗】【南蛮】【借刀】时都算【杀】。
+pub fn is_sha_like_code(code: &str) -> bool {
+    matches!(code, "sha" | "huo_sha" | "lei_sha")
+}
+
 /// 红色（红桃/方块）。
 pub fn is_red(suit: Suit) -> bool {
     matches!(suit, Suit::Heart | Suit::Diamond)
@@ -4094,6 +4099,10 @@ pub fn conversion_for(
 ) -> Option<(&'static str, &'static str)> {
     let inst = st.cards.get(card_id)?;
     if inst.def == virtual_code {
+        return None;
+    }
+    // 转化【杀】：火杀/雷杀本身已经是【杀】，不需要再走武圣/龙胆。
+    if virtual_code == "sha" && is_sha_like_code(&inst.def) {
         return None;
     }
     let red = is_red(inst.suit);

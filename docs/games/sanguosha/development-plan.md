@@ -841,6 +841,12 @@
 - **用例**：`tests/p80.rs` 新增 3 条（残留帧不卡死 / 重复 start 只压一帧 / 天辩牌堆拼点完整结算）。
 - **门禁**：`cargo test -p sanguosha` **914 全绿**；`npm run check:sgs-ai` 10 局 0 非法/0 卡死。
 
+**P6.3 界制霸 / 决斗响应修复（2026-11-02 第 4 批）**：
+
+- **界孙策制霸按钮置灰**：引擎动作 id 为 `skill:zhiba_jie`，而武将技能 code 是基名 `zhiba`；Web `skillsWithAction` 按 code 精确匹配 → 按钮找不到动作。修法：`_jie` 后缀动作给基名建**别名**（精确动作优先），并补用例（引擎 `legal_actions` 含 `skill:zhiba_jie` + Web 按钮带 `data-action`）。
+- **决斗只能「不出」**：响应【决斗】【南蛮】【借刀】需要【杀】时，选项只认 `def=="sha"`，**火杀/雷杀**（以及它们的转化）被漏掉；执行侧也会以「打出的牌不符合要求」拒绝。修法：新增 `skills::is_sha_like_code`（sha/huo_sha/lei_sha），响应候选与执行校验统一按「杀类」判断；`conversion_for(...,"sha")` 对火杀/雷杀不再重复产出转化项。用例：`p47::duel_responds_with_fire_or_thunder_sha`。
+- **门禁**：`cargo test -p sanguosha` **915 全绿**；`test:web` / `test:sgs-web` 全绿。
+
 ### P7 Q 群接入（M，后置）
 
 > **2026-11-01 口径调整（用户裁定，ADR-0031）**：Q 群**只做被动播报**，不做任何逐动作交互，优先级降到最低；

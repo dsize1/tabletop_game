@@ -76,6 +76,57 @@ fn longdan_responds_duel_with_shan_as_sha() {
     st.check_conservation().unwrap();
 }
 
+/// 决斗：火杀/雷杀同样算【杀】响应（真机：只有普通杀能出，其余只能不出）。
+#[test]
+fn duel_responds_with_fire_or_thunder_sha() {
+    let mgr = manager(1301);
+    let room = start_and_pick(&mgr, 5);
+    let mut cur = 0;
+    let mut target = 0;
+    let mut juedou = String::new();
+    let mut target_sha = String::new();
+    let mut cur_sha = String::new();
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        cur = st.turn;
+        target = st.seats_from_left_of(cur)[0];
+        set_general(st, target, "sgs_hero_1");
+        juedou = give(st, cur, "juedou");
+        target_sha = give(st, target, "sha");
+        cur_sha = give(st, cur, "lei_sha");
+    });
+    let st = state_of(&mgr, &room);
+    let cur_pid = pid(&st, cur);
+    let target_pid = pid(&st, target);
+    let hp_cur = st.seats[cur].hp;
+    let hp_target = st.seats[target].hp;
+    mgr.execute_action(&room, &cur_pid, &format!("play:{juedou}"))
+        .unwrap();
+    mgr.execute_action(&room, &cur_pid, &format!("target:{target_pid}"))
+        .unwrap();
+    pass_wuxie(&mgr, &room);
+    mgr.execute_action(&room, &target_pid, &format!("respond:{target_sha}"))
+        .unwrap();
+    let st = state_of(&mgr, &room);
+    let pending = st.pending.clone().expect("轮到发起方出杀");
+    assert_eq!(pending.actor, cur_pid);
+    assert!(
+        pending
+            .options
+            .iter()
+            .any(|o| o.id == format!("respond:{cur_sha}")),
+        "雷杀应可作为【杀】响应决斗：{:?}",
+        pending.options
+    );
+    mgr.execute_action(&room, &cur_pid, &format!("respond:{cur_sha}"))
+        .unwrap();
+    drive_mgr_inject(&mgr, &room, &mut Vec::new());
+    let st = state_of(&mgr, &room);
+    assert_eq!(st.seats[target].hp, hp_target - 1, "目标无杀应受伤");
+    assert_eq!(st.seats[cur].hp, hp_cur, "发起方不应受伤");
+    st.check_conservation().unwrap();
+}
+
 /// 马超：马术使距离 2 的顺手牵羊合法。
 #[test]
 fn mashu_lets_shunshou_reach_distance_two() {

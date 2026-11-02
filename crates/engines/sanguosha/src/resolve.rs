@@ -2401,14 +2401,29 @@ fn respond_options(st: &SgsState, f: &RespondFrame) -> Vec<PendingOption> {
     if code == "sha" && crate::skills::sha_play_banned(st, f.actor) {
         return vec![pending_pass()];
     }
-    let mut options: Vec<PendingOption> = turn::hand_cards_with_def(st, f.actor, code)
-        .iter()
+    // 需要的响应牌：需要【杀】时，普通杀/火杀/雷杀都算（决斗/南蛮/借刀）。
+    let mut candidates: Vec<String> = if code == "sha" {
+        st.seats[f.actor]
+            .hand
+            .iter()
+            .filter(|id| {
+                st.cards
+                    .get(*id)
+                    .is_some_and(|c| crate::skills::is_sha_like_code(&c.def))
+            })
+            .cloned()
+            .collect()
+    } else {
+        turn::hand_cards_with_def(st, f.actor, code)
+    };
+    let mut options: Vec<PendingOption> = candidates
+        .drain(..)
         // 潜袭（马岱）：不能打出被封锁颜色的手牌。
         .filter(|id| !crate::skills::qianxi_banned(st, f.actor, id))
         .filter(|id| !crate::skills::sidiqu_banned(st, f.actor, id))
         .map(|id| PendingOption {
             id: format!("respond:{id}"),
-            label: format!("打出【{}】", turn::card_label(st, id)),
+            label: format!("打出【{}】", turn::card_label(st, &id)),
         })
         .collect();
     // 丈八蛇矛（P4.2）：需要【杀】时，两张手牌当【杀】打出。
@@ -4735,7 +4750,12 @@ fn act_respond(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Str
         return finish_respond_play(st, &f, c1, actor, Some((skill, name)));
     }
     let actual = turn::card_def(st, card_id).map(|d| d.code);
-    let conversion = if actual == Some(needed) {
+    let actual_ok = if needed == "sha" {
+        actual.is_some_and(crate::skills::is_sha_like_code)
+    } else {
+        actual == Some(needed)
+    };
+    let conversion = if actual_ok {
         None
     } else {
         // 转化技必须由引擎在 options 中下发，避免伪造。
@@ -4961,7 +4981,12 @@ pub(crate) fn finish_respond_play(
         return Err(illegal("将驰：本回合不能打出【杀】"));
     }
     let actual = turn::card_def(st, card_id).map(|d| d.code);
-    if actual != Some(expected) && conversion.is_none() {
+    let actual_ok = if expected == "sha" {
+        actual.is_some_and(crate::skills::is_sha_like_code)
+    } else {
+        actual == Some(expected)
+    };
+    if !actual_ok && conversion.is_none() {
         return Err(illegal("打出的牌不符合要求"));
     }
     let need = if f.need == 0 { 1 } else { f.need };
