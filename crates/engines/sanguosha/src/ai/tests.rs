@@ -655,6 +655,24 @@ fn prune_keeps_bound_must_keep_and_order() {
     assert!(idx.windows(2).all(|w| w[0] < w[1]), "剪枝后应保持原顺序");
 }
 
+/// P6.4：决策轨迹与 `Policy::choose` 同源，合法集/候选/摘要齐全。
+#[test]
+fn decide_traced_exposes_legal_candidates_and_digest() {
+    let (mgr, room) = started(32);
+    let state = mgr.get_state(&room).expect("state");
+    let st = SgsState::parse(&state.data).expect("parse");
+    let me = st.seats[st.turn].player_id.clone();
+    let legal = mgr.legal_actions(&room, &me).expect("legal");
+    assert!(!legal.is_empty());
+    let trace = super::decide_traced(&state, &me, &legal).expect("trace");
+    assert!(!trace.state_digest.is_empty(), "应有动作前摘要");
+    assert_eq!(trace.legal.len(), legal.len());
+    assert!(trace.candidates.len() <= prune::DEFAULT_LIMIT);
+    assert!(trace.candidates.iter().any(|a| a.id == trace.action));
+    assert!(legal.iter().any(|a| a.id == trace.action));
+    assert!(!trace.reason.is_empty());
+}
+
 // ---------------------------------------------------------------------------
 // 4. 自对弈（快速版；100 局见 `npm run check:sgs-ai`）
 // ---------------------------------------------------------------------------

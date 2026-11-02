@@ -19,7 +19,7 @@
 //! - 不做 SystemOne 走子（延迟/确定性不适合 100 局自对弈），也不是纯 MCTS；
 //! - 输出只是「建议动作」，合法性仍由引擎保证。
 //!
-//! 回归：`cargo test -p sanguosha ai_`（单测）/ `npm run check:sgs-ai`（自对弈）/ 
+//! 回归：`cargo test -p sanguosha ai_`（单测）/ `npm run check:sgs-ai`（自对弈）/
 //! `cargo run -p sanguosha --example selfplay -- --games 100`。
 
 pub mod card;
@@ -38,9 +38,9 @@ pub mod view;
 mod tests;
 
 pub use driver::{drive_bots, DriveReport, StopReason, MAX_STEPS as DRIVE_MAX_STEPS};
-pub use policy::{explain, SgsPolicy};
+pub use policy::{decide_traced, explain, DecisionTrace, SgsPolicy};
 pub use selfplay::{
-    run_batch, run_self_play, run_self_play_traced, run_self_play_with, BatchResult, SelfPlayResult,
-    FULL_GENERALS,
+    run_batch, run_self_play, run_self_play_traced, run_self_play_with, state_digest, BatchResult,
+    SelfPlayResult, FULL_GENERALS,
 };
 pub use view::SgsView;

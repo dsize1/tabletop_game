@@ -49,6 +49,9 @@
     "test:web-login": "node apps/scripts/test-web-login.mjs",
     "check:union-openid": "node apps/scripts/check-union-openid.mjs",
     "dev:web-login": "node apps/scripts/dev-web-login.mjs",
-    "props:login": "node apps/scripts/dev-web-login.mjs --scope props"
+    "props:login": "node apps/scripts/dev-web-login.mjs --scope props",
+    "sgs:export-decisions": "node apps/scripts/sgs-export-decisions.mjs",
+    "sgs:replay": "cargo run --manifest-path crates/Cargo.toml -p server --bin sgs-replay --",
+    "check:sgs-decision-log": "node apps/scripts/check-sgs-decision-log.mjs"
   }
 }

@@ -4,11 +4,20 @@
 
 ## 🔖 续接指针（下次会话说「继续」时从这里开工）
 
-- **入口**：`docs/games/sanguosha/development-plan.md` → **M57 已验收（Web 跨端权鉴 + 中台白名单）** → 下一步 **P6（AI/机器人，方案在新会话规划）**
-- **顺序（用户 2026-11-01 定稿）**：① M57 Web 跨端权鉴 ✅ → ② **P6**：规则引擎 + 行为树 + 启发式评估的**快速落地方案**（AI 细分计划在新会话完成） → ③ P7 剩余验收（真机：5 人局/错链/中台/重置 + tunnel/8 人局长消息）→ ④ P8 上线验证+权鉴 → ⑤ P5 工作台+预览 → ⑥ 线上灰度验证与优化 → ⑦ 运营一段时间后再定：AI 增强 / 剩余武将包 / 其他
+- **入口**：`docs/games/sanguosha/development-plan.md` → **P6.3 验收通过** → **P6.4 决策日志/导出/回放（进行中）** → P7 收尾 → P8 → 工作台+预览 → 全武将验证
+- **顺序（用户 2026-11-03 定稿）**：① P6.4 决策日志/导出/回放 → ② P7 Q 群收尾验收 → ③ P8 权鉴/全局开关/观测/运维 → ④ 工作台+预览基座 → ⑤ 全武将验证（标准→风→林→火→山→一将→界）；P6.5/P6.6 本轮不做
+- **进度台账**：`memory_palace/plan/01a19ccc-dc1a-7549-aeb8-5e87e928ddde.md` §进度台账
 - **P6 批次入口**：`crates/game-engine-mcp`（`bot_action` 现为 `RandomPolicy`，非 las-vegas）→ `GameManager`/`EnginePlugin`（合法动作 + 状态机已就绪）；缺口见 `docs/games/sanguosha/development-plan.md` P6 节
 - **开工命令**：`npm run sgs:batch-status`（武将批次，P6 期间暂停）；流程见 `docs/games/sanguosha/batch-playbook.md`
 - **门禁**：`npm run sgs:check`（每批收尾）、`npm run sgs:check:full`（含 MCP 冒烟）、`npm run sgs:check:fast`（改码自检）、`npm run test:web-login`（跨端登录 e2e，需 `dev:up` 或临时起 server/web）
+
+## M58：P6.3 验收归档 + P6.4 决策日志/回放 ✅
+
+- **日期**：2026-11-03
+- **P6.3 验收**：用户真机验证通过；本会话已修 8 类问题（铁索两段式+重铸、义绝回血选择/8 人无距离、火攻目标亮牌、武圣主动使用+转化技 UI、全 AI 续推、拼点残留帧、界制霸按钮、决斗火/雷杀响应），均有回归用例。
+- **P6.4 已完成**：`game_decision_log` + `game_replay_base`（storage）；`DecisionTrace`/`decide_traced`；server/MCP human+bot 写点与 `SGS_DECISION_LOG_RATE`；`sgs-export-decisions` JSONL（openid 哈希）；`sgs-replay`（base→digest→chosen→最终快照）；真人 5 人局与 1 真人+4 机器人局重放 `mismatches=0`。
+- **P6.4 收尾**：新增 `check:sgs-decision-log`（导出字段/哈希/回放 digest）并入 `sgs:check`；旧局无 `game_replay_base` 时降级为时间线提示；Web e2e 改为动态定位当前行动者（消除随机开局 flake）。
+- **门禁**：`cargo test -p storage -p sanguosha -p server` 全绿；`npm run sgs:check` **17/17**（含 sgs-web/sgs-bot/web-login）。
 
 ## M57：Web 跨端确认权鉴 + 中台白名单（ADR-0031）✅
 

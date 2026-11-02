@@ -165,3 +165,10 @@ pending 覆盖（`standard` 100 局）：`arrange` `choice` `choose_many` `disca
 | P6.5 中期智能 | 结构化历史（技能/牌使用）、手牌信念、关键决策一层搜索、选将细化 | 待做 |
 | P6.6 终极 AI | 自对弈数据管线 → 完美信息蒸馏 → 策略网络（ONNX，可选 feature） | 待做 |
 | 全将修复 | E1–E13 + F1–F3 全部修复；门禁已切全将（strict） | ✅ |
+
+## 决策轨迹（P6.4）
+
+- `sanguosha::ai::decide_traced(state, player_id, legal)` 与 `SgsPolicy::choose` 同源，返回：
+  `legal`（完整集）/ `candidates`（`prune` ≤26）/ `action` / `priority` / `score` / `reason` / `state_digest`（动作前）。
+- `drive_bots` 的 `DriveReport.decisions` 携带每步 `seq`、latency 与轨迹；server/MCP 落 `game_decision_log`。
+- 门禁：`cargo test -p sanguosha ai_`；决策日志/回放见 `npm run sgs:export-decisions` / `npm run sgs:replay`。

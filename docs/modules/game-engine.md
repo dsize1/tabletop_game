@@ -53,6 +53,13 @@
 | 机器人自动推进（P6.3） | **server 内置 `GameManager`** | 每次 Web 动作落库后，server 在同一请求内把 `seat.is_bot` 的回合推进到人类回合/终局（`sanguosha::ai::drive_bots`，单请求 ≤200 步）；每步同样落 `game_events` + 快照。**单请求到 200 步仍在机器人回合时，server 自动后台链式续推（最多 15 轮 / 3000 步/局）**，避免「玩家阵亡后剩余全 AI 永久停在 bot 回合」。并发用**房间锁**串行（`server::bot_drive::BotDrive`，拿不到锁即跳过，由轮询/`drive` 端点兜底）。另有 `POST /internal/game/{game_id}/{room_id}/drive`（本机）手动触发一次推进；web 的 `/state` 轮询发现「存活者全是机器人」时也会 fire-and-forget 调它，兜底 server 重启后的续推。**网关侧 `driveBots` 对三国杀直接跳过**（避免与 server 双写） |
 | 快照真相源 | SQLite `game_state` | server/MCP 都按 **`game_state.version`** 对齐内存态：`resources_routes::ensure_room`（server）与 `EngineServer::sync_room`（MCP）在「DB 版本 > 本进程已知版本」时重新 `restore`。MCP 仍会写 lobby（`#加机器人`/`#武将包`/`#开始`），不做版本比对会导致页面/`#局面` 停在旧阶段（P6.3 真机问题） |
 
+## 决策日志 / 回放（P6.4）
+
+- `game_decision_log`：`source=human|systemone|bot|random`、完整合法集、剪枝候选（≤26）、chosen、score/confidence、latency、reason、动作前 `state_digest`；`seq` 对齐动作落库后的 `game_events.seq`（无事件时沿用上一 seq）。
+- `game_replay_base`：每房间首个决策前的 `GameState` 快照（同房间只写一份），供 `sgs-replay` 从基线重放决策；预览/工作台后续复用同思路但不写真相源。
+- 写点：server 人类动作 + `drive_bots` 每个机器人动作；MCP `bot_action` / `execute_action`；`SGS_DECISION_LOG_RATE` 采样（0 关 / 1 全量）。
+- 工具：`npm run sgs:export-decisions`（JSONL，openid 哈希）、`npm run sgs:replay`（digest 校验 + 最终快照对比）。
+
 ## 事件溯源
 
 - `events` 表 append-only：`seq` 自增 + `event_id` 唯一 + 状态变更事件

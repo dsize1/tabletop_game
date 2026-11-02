@@ -6,12 +6,12 @@
 //! 引擎产出的事件逐条落 `game_events`，快照 `version` 对齐最后事件 seq（ADR-0004/0008）。
 
 use game_engine_core::{
-    EngineEvent, EngineRegistry, GameManager, GameState, GameStatus, Policy, RandomPolicy, SeededRng,
+    EngineEvent, EngineRegistry, GameManager, GameState, GameStatus, Policy, RandomPolicy,
+    SeededRng,
 };
 use rmcp::{
-    ServerHandler, ServiceExt,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
-    tool, tool_handler, tool_router,
+    tool, tool_handler, tool_router, ServerHandler, ServiceExt,
 };
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -122,7 +122,8 @@ impl EngineServer {
     }
 
     /// 把引擎产出的事件逐条写入 `game_events`，快照 version 对齐最后 seq。
-    fn persist(&self, state: &GameState, events: &[EngineEvent]) {
+    /// 返回最后一条事件的 seq（写失败返回 -1，仅告警）。
+    fn persist(&self, state: &GameState, events: &[EngineEvent]) -> i64 {
         let state_json = serde_json::to_string(state).unwrap_or_default();
         let event_ids: Vec<String> = events.iter().map(|_| shared::new_event_id()).collect();
         let payloads: Vec<String> = events
@@ -148,8 +149,96 @@ impl EngineServer {
                     m.insert(state.room_id.clone(), seq);
                 }
                 tracing::debug!("已写入 {} 条引擎事件，version={seq}", records.len());
+                seq
             }
-            Err(e) => tracing::warn!("写 game_events 失败: {e:#}"),
+            Err(e) => {
+                tracing::warn!("写 game_events 失败: {e:#}");
+                -1
+            }
+        }
+    }
+
+    /// 决策日志采样（与 server 同口径）：0 关，1 全量，中间按概率。
+    fn should_log_decision(&self) -> bool {
+        let rate = std::env::var("SGS_DECISION_LOG_RATE")
+            .ok()
+            .and_then(|v| v.trim().parse::<f64>().ok())
+            .unwrap_or(1.0)
+            .clamp(0.0, 1.0);
+        if rate >= 1.0 {
+            return true;
+        }
+        if rate <= 0.0 {
+            return false;
+        }
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.subsec_nanos())
+            .unwrap_or(0);
+        (nanos % 10_000) as f64 / 10_000.0 < rate
+    }
+
+    /// 首个决策前写回放基线（同房间只写一份）。
+    fn capture_replay_base(&self, state: &GameState) {
+        if state.game_id != "sanguosha" {
+            return;
+        }
+        let Ok(state_json) = serde_json::to_string(state) else {
+            return;
+        };
+        let seq = self
+            .storage
+            .game_snapshot_version(&state.game_id, &state.room_id)
+            .ok()
+            .flatten()
+            .unwrap_or(0);
+        if let Err(e) =
+            self.storage
+                .ensure_replay_base(&state.game_id, &state.room_id, seq, &state_json)
+        {
+            tracing::warn!("写 replay base 失败（已忽略）: {e:#}");
+        }
+    }
+
+    /// 写决策日志；失败只告警。
+    #[allow(clippy::too_many_arguments)]
+    fn log_decision(
+        &self,
+        game_id: &str,
+        room_id: &str,
+        seq: i64,
+        player_id: &str,
+        source: &str,
+        legal: &[game_engine_core::Action],
+        candidates: Option<&[game_engine_core::Action]>,
+        chosen: Option<&str>,
+        score: Option<f64>,
+        reason: Option<&str>,
+        state_digest: Option<&str>,
+        latency_ms: Option<i64>,
+    ) {
+        if game_id != "sanguosha" || !self.should_log_decision() {
+            return;
+        }
+        let legal_json = serde_json::to_string(legal).unwrap_or_else(|_| "[]".into());
+        let candidates_json =
+            candidates.map(|c| serde_json::to_string(c).unwrap_or_else(|_| "[]".into()));
+        let record = storage::DecisionLogRecord {
+            game_id,
+            room_id,
+            seq,
+            player_id,
+            source,
+            legal_actions: &legal_json,
+            candidates: candidates_json.as_deref(),
+            chosen,
+            confidence: score,
+            latency_ms,
+            reason,
+            state_digest,
+        };
+        if let Err(e) = self.storage.append_decision_log(&record) {
+            tracing::warn!("写 decision log 失败（已忽略）: {e:#}");
         }
     }
 }
@@ -160,7 +249,10 @@ impl EngineServer {
         name = "get_small_game_rules",
         description = "查询拉斯维加斯小游戏规则（A1–H2，大小写不敏感）"
     )]
-    async fn get_small_game_rules(&self, Parameters(p): Parameters<SmallGameRuleRequest>) -> String {
+    async fn get_small_game_rules(
+        &self,
+        Parameters(p): Parameters<SmallGameRuleRequest>,
+    ) -> String {
         let id = p.small_game_id.trim().to_ascii_uppercase();
         match las_vegas::sg::rule_text(&id) {
             Some(t) => format!("{id}：{t}"),
@@ -181,7 +273,10 @@ impl EngineServer {
         description = "创建对局（进入 lobby，发起人自动入局；群内已有 Active 则拒绝）"
     )]
     async fn create_game(&self, Parameters(p): Parameters<CreateGameRequest>) -> String {
-        match self.manager.create_game(&p.game_id, &p.group_id, &p.host_id) {
+        match self
+            .manager
+            .create_game(&p.game_id, &p.group_id, &p.host_id)
+        {
             Ok((state, events)) => {
                 self.persist(&state, &events);
                 serde_json::to_string(&state).unwrap_or_default()
@@ -190,7 +285,10 @@ impl EngineServer {
         }
     }
 
-    #[tool(name = "start_game", description = "直接开桌（无 lobby 的简单引擎），返回对局状态")]
+    #[tool(
+        name = "start_game",
+        description = "直接开桌（无 lobby 的简单引擎），返回对局状态"
+    )]
     async fn start_game(&self, Parameters(p): Parameters<StartGameRequest>) -> String {
         match self.manager.start_game(&p.game_id, &p.group_id, p.players) {
             Ok((state, events)) => {
@@ -201,7 +299,10 @@ impl EngineServer {
         }
     }
 
-    #[tool(name = "get_active_game", description = "查询群内当前活跃对局（含 lobby；无则返回 null）")]
+    #[tool(
+        name = "get_active_game",
+        description = "查询群内当前活跃对局（含 lobby；无则返回 null）"
+    )]
     async fn get_active_game(&self, Parameters(p): Parameters<GroupRequest>) -> String {
         match self.manager.get_active_game(&p.group_id) {
             Some(s) => serde_json::to_string(&s).unwrap_or_default(),
@@ -209,7 +310,10 @@ impl EngineServer {
         }
     }
 
-    #[tool(name = "get_state", description = "查询对局状态（公共视图，已脱敏；无则返回 null）")]
+    #[tool(
+        name = "get_state",
+        description = "查询对局状态（公共视图，已脱敏；无则返回 null）"
+    )]
     async fn get_state(&self, Parameters(p): Parameters<StateRequest>) -> String {
         self.sync_room(&p.room_id);
         match self.manager.public_state(&p.room_id) {
@@ -218,7 +322,10 @@ impl EngineServer {
         }
     }
 
-    #[tool(name = "get_player_view", description = "查询玩家个人视图（默认与公共视图一致）")]
+    #[tool(
+        name = "get_player_view",
+        description = "查询玩家个人视图（默认与公共视图一致）"
+    )]
     async fn get_player_view(&self, Parameters(p): Parameters<PlayerViewRequest>) -> String {
         self.sync_room(&p.room_id);
         match self.manager.player_view(&p.room_id, &p.player_id) {
@@ -236,7 +343,10 @@ impl EngineServer {
         }
     }
 
-    #[tool(name = "state_summary", description = "查询对局局面摘要（紧凑文本，给主持人）")]
+    #[tool(
+        name = "state_summary",
+        description = "查询对局局面摘要（紧凑文本，给主持人）"
+    )]
     async fn state_summary(&self, Parameters(p): Parameters<StateRequest>) -> String {
         self.sync_room(&p.room_id);
         match self.manager.state_summary(&p.room_id) {
@@ -261,31 +371,97 @@ impl EngineServer {
         if actions.is_empty() {
             return "错误: 该玩家当前没有合法动作".to_string();
         }
+        self.capture_replay_base(&state);
+        let started = std::time::Instant::now();
         let mut rng = SeededRng::new(0);
+        // 三国杀：记录决策轨迹（P6.4）；其余引擎保持原策略。
+        let mut trace = None;
         let chosen = match state.game_id.as_str() {
-            "las-vegas" => las_vegas::ai::HeuristicPolicy.choose(&state, &p.player_id, &actions, &mut rng),
-            // 三国杀：行为树 + 启发式评估（只读可见信息，见 sanguosha::ai）。
-            "sanguosha" => sanguosha::ai::SgsPolicy.choose(&state, &p.player_id, &actions, &mut rng),
+            "las-vegas" => {
+                las_vegas::ai::HeuristicPolicy.choose(&state, &p.player_id, &actions, &mut rng)
+            }
+            "sanguosha" => {
+                let t = sanguosha::ai::decide_traced(&state, &p.player_id, &actions);
+                trace = t.clone();
+                t.map(|t| t.action)
+            }
             _ => RandomPolicy.choose(&state, &p.player_id, &actions, &mut rng),
         };
         let Some(action) = chosen else {
             return "错误: 无可用动作".to_string();
         };
-        match self.manager.execute_action(&p.room_id, &p.player_id, &action) {
+        match self
+            .manager
+            .execute_action(&p.room_id, &p.player_id, &action)
+        {
             Ok(result) => {
-                self.persist(&result.state, &result.events);
+                let seq = self.persist(&result.state, &result.events);
+                if let Some(t) = trace {
+                    self.log_decision(
+                        &result.state.game_id,
+                        &p.room_id,
+                        seq,
+                        &p.player_id,
+                        "bot",
+                        &t.legal,
+                        Some(&t.candidates),
+                        Some(&action),
+                        Some(t.score),
+                        Some(&t.reason),
+                        Some(&t.state_digest),
+                        Some(started.elapsed().as_millis() as i64),
+                    );
+                }
                 serde_json::to_string(&result).unwrap_or_default()
             }
             Err(e) => format!("错误: {e}"),
         }
     }
 
-    #[tool(name = "execute_action", description = "执行动作（引擎无条件重校验合法性+权限）")]
+    #[tool(
+        name = "execute_action",
+        description = "执行动作（引擎无条件重校验合法性+权限）"
+    )]
     async fn execute_action(&self, Parameters(p): Parameters<ExecuteActionRequest>) -> String {
         self.sync_room(&p.room_id);
-        match self.manager.execute_action(&p.room_id, &p.player_id, &p.action) {
+        let before = self.manager.get_state(&p.room_id);
+        if let Some(st) = &before {
+            self.capture_replay_base(st);
+        }
+        let started = std::time::Instant::now();
+        let (legal, digest) = match &before {
+            Some(st) if st.game_id == "sanguosha" => {
+                let legal = self
+                    .manager
+                    .legal_actions(&p.room_id, &p.player_id)
+                    .unwrap_or_default();
+                let digest = sanguosha::SgsState::parse(&st.data)
+                    .ok()
+                    .map(|s| sanguosha::ai::state_digest(&s));
+                (legal, digest)
+            }
+            _ => (Vec::new(), None),
+        };
+        match self
+            .manager
+            .execute_action(&p.room_id, &p.player_id, &p.action)
+        {
             Ok(result) => {
-                self.persist(&result.state, &result.events);
+                let seq = self.persist(&result.state, &result.events);
+                self.log_decision(
+                    &result.state.game_id,
+                    &p.room_id,
+                    seq,
+                    &p.player_id,
+                    "human",
+                    &legal,
+                    None,
+                    Some(&p.action),
+                    None,
+                    Some("human_action"),
+                    digest.as_deref(),
+                    Some(started.elapsed().as_millis() as i64),
+                );
                 serde_json::to_string(&result).unwrap_or_default()
             }
             Err(e) => format!("错误: {e}"),
@@ -348,10 +524,7 @@ mod tests {
         let storage = Arc::new(storage::Storage::open(":memory:").expect("storage"));
         let mut registry = EngineRegistry::new();
         registry.register(sanguosha::SanguoshaEngine);
-        let manager = Arc::new(GameManager::with_rng(
-            registry,
-            Box::new(SeededRng::new(7)),
-        ));
+        let manager = Arc::new(GameManager::with_rng(registry, Box::new(SeededRng::new(7))));
         let server = EngineServer::new(manager.clone(), storage.clone());
         (server, manager, storage)
     }
@@ -404,7 +577,9 @@ mod tests {
     #[test]
     fn sync_room_keeps_memory_when_version_matches() {
         let (server, manager, storage) = server_with_sgs();
-        let (lobby, _) = manager.create_game("sanguosha", "g2", "u1").expect("create");
+        let (lobby, _) = manager
+            .create_game("sanguosha", "g2", "u1")
+            .expect("create");
         let room = lobby.room_id.clone();
         let json = serde_json::to_string(&lobby).unwrap();
         let ev = [storage::GameEventRecord {
@@ -417,7 +592,7 @@ mod tests {
             .append_game_events("sanguosha", &room, &ev, &json)
             .expect("persist");
         server.sync_room(&room); // 第一次对齐，记下版本
-        // 内存里继续加机器人（比快照更新），版本未变 → 不能被快照覆盖回去。
+                                 // 内存里继续加机器人（比快照更新），版本未变 → 不能被快照覆盖回去。
         manager
             .execute_action(&room, "u1", "lobby:add_bot")
             .expect("add bot");
@@ -430,18 +605,22 @@ mod tests {
     #[test]
     fn persist_records_version() {
         let (server, manager, _storage) = server_with_sgs();
-        let (lobby, _) = manager.create_game("sanguosha", "g3", "u1").expect("create");
+        let (lobby, _) = manager
+            .create_game("sanguosha", "g3", "u1")
+            .expect("create");
         let room = lobby.room_id.clone();
         let events = vec![EngineEvent::new("ping", serde_json::json!({}))];
         let state = manager.get_state(&room).expect("state");
         server.persist(&state, &events);
-        assert!(server
-            .versions
-            .lock()
-            .unwrap()
-            .get(&room)
-            .copied()
-            .unwrap_or_default()
-            > 0);
+        assert!(
+            server
+                .versions
+                .lock()
+                .unwrap()
+                .get(&room)
+                .copied()
+                .unwrap_or_default()
+                > 0
+        );
     }
 }

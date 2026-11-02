@@ -11,8 +11,9 @@
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::Json;
-use game_engine_core::EngineError;
+use game_engine_core::{Action, EngineError};
 use serde::{Deserialize, Serialize};
+use std::time::Instant;
 
 use crate::resources_routes::ensure_room;
 use crate::AppState;
@@ -59,7 +60,11 @@ pub async fn execute_action(
         return Err(StatusCode::BAD_REQUEST);
     }
     ensure_room(&state, &game_id, &room_id)?;
+    capture_replay_base(&state, &game_id, &room_id);
 
+    // 人类决策轨迹：动作前的合法集/状态摘要（P6.4）。
+    let started = Instant::now();
+    let (legal, digest) = decision_context(&state, &game_id, &room_id, &req.player_id);
     let result = state
         .games
         .execute_action(&room_id, &req.player_id, &req.action)
@@ -73,6 +78,23 @@ pub async fn execute_action(
             (-1, false)
         }
     };
+    log_decision(
+        &state,
+        DecisionLogInput {
+            game_id: &game_id,
+            room_id: &room_id,
+            seq: version,
+            player_id: &req.player_id,
+            source: "human",
+            legal: &legal,
+            candidates: None,
+            chosen: Some(&req.action),
+            score: None,
+            reason: Some("human_action"),
+            state_digest: digest.as_deref(),
+            latency_ms: Some(started.elapsed().as_millis() as i64),
+        },
+    );
 
     // P6.3：机器人自动推进（本请求内把机器人回合跑完；人类回合即停）。
     // 只在 server 推进（单写者），并复用 AI 的兜底/破环器（`sanguosha::ai::drive_bots`）。
@@ -123,6 +145,123 @@ pub async fn drive(
     }))
 }
 
+/// 决策日志输入（server 内部；字段与 `storage::DecisionLogRecord` 对齐）。
+struct DecisionLogInput<'a> {
+    game_id: &'a str,
+    room_id: &'a str,
+    seq: i64,
+    player_id: &'a str,
+    source: &'a str,
+    legal: &'a [Action],
+    candidates: Option<&'a [Action]>,
+    chosen: Option<&'a str>,
+    score: Option<f64>,
+    reason: Option<&'a str>,
+    state_digest: Option<&'a str>,
+    latency_ms: Option<i64>,
+}
+
+/// `SGS_DECISION_LOG_RATE`：0 关闭，1 全量，中间按概率采样。默认 1。
+fn decision_log_rate() -> f64 {
+    std::env::var("SGS_DECISION_LOG_RATE")
+        .ok()
+        .and_then(|v| v.trim().parse::<f64>().ok())
+        .unwrap_or(1.0)
+        .clamp(0.0, 1.0)
+}
+
+fn should_log_decision() -> bool {
+    let rate = decision_log_rate();
+    if rate >= 1.0 {
+        return true;
+    }
+    if rate <= 0.0 {
+        return false;
+    }
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.subsec_nanos())
+        .unwrap_or(0);
+    (nanos % 10_000) as f64 / 10_000.0 < rate
+}
+
+fn json_actions(actions: &[Action]) -> String {
+    serde_json::to_string(actions).unwrap_or_else(|_| "[]".to_string())
+}
+
+/// 写一条决策日志；失败只告警，绝不阻塞对局。
+fn log_decision(state: &AppState, d: DecisionLogInput<'_>) {
+    if d.game_id != "sanguosha" || !should_log_decision() {
+        return;
+    }
+    let legal = json_actions(d.legal);
+    let candidates = d.candidates.map(json_actions);
+    let record = storage::DecisionLogRecord {
+        game_id: d.game_id,
+        room_id: d.room_id,
+        seq: d.seq,
+        player_id: d.player_id,
+        source: d.source,
+        legal_actions: &legal,
+        candidates: candidates.as_deref(),
+        chosen: d.chosen,
+        confidence: d.score,
+        latency_ms: d.latency_ms,
+        reason: d.reason,
+        state_digest: d.state_digest,
+    };
+    if let Err(e) = state.storage.append_decision_log(&record) {
+        tracing::warn!("写 decision log 失败（已忽略）: {e:#}");
+    }
+}
+
+/// 动作前的合法集 + 状态摘要（人类动作日志用）；非三国杀返回空。
+fn decision_context(
+    state: &AppState,
+    game_id: &str,
+    room_id: &str,
+    player_id: &str,
+) -> (Vec<Action>, Option<String>) {
+    if game_id != "sanguosha" {
+        return (Vec::new(), None);
+    }
+    let legal = state
+        .games
+        .legal_actions(room_id, player_id)
+        .unwrap_or_default();
+    let digest = state.games.get_state(room_id).and_then(|s| {
+        sanguosha::SgsState::parse(&s.data)
+            .ok()
+            .map(|st| sanguosha::ai::state_digest(&st))
+    });
+    (legal, digest)
+}
+
+/// 首个决策前写回放基线（同房间只写一份）。
+fn capture_replay_base(state: &AppState, game_id: &str, room_id: &str) {
+    if game_id != "sanguosha" {
+        return;
+    }
+    let Some(gs) = state.games.get_state(room_id) else {
+        return;
+    };
+    let Ok(state_json) = serde_json::to_string(&gs) else {
+        return;
+    };
+    let seq = state
+        .storage
+        .game_snapshot_version(game_id, room_id)
+        .ok()
+        .flatten()
+        .unwrap_or(0);
+    if let Err(e) = state
+        .storage
+        .ensure_replay_base(game_id, room_id, seq, &state_json)
+    {
+        tracing::warn!("写 replay base 失败（已忽略）: {e:#}");
+    }
+}
+
 /// 后台续推轮数：单请求到 `DRIVE_MAX_STEPS` 后仍在机器人回合时，继续在后台推进；
 /// 遇到人类回合/终局自然停止（P6.3 真机：玩家阵亡后剩余全 AI 会停在「bot:3 行动中…」）。
 /// 15 × 200 = 3000 步/局（与计划台账的 3000 步告警口径一致）。
@@ -156,16 +295,42 @@ fn drive_bots_once(state: &AppState, room_id: &str) -> sanguosha::ai::DriveRepor
         tracing::debug!("房间 {room_id} 已有机器人推进在跑，跳过本次");
         return sanguosha::ai::DriveReport::default();
     };
+    // 机器人回合开始前写回放基线（若尚无）。
+    if let Some(gs) = state.games.get_state(room_id) {
+        capture_replay_base(state, &gs.game_id, room_id);
+    }
     let report = sanguosha::ai::drive_bots(
         &state.games,
         room_id,
         sanguosha::ai::DRIVE_MAX_STEPS,
-        |game_state, events| {
-            if let Err(e) = persist(state, game_state, events) {
+        |game_state, events| match persist(state, game_state, events) {
+            Ok(seq) => seq,
+            Err(e) => {
                 tracing::warn!("机器人动作落库失败: {e:#}");
+                -1
             }
         },
     );
+    // 机器人决策日志（与成功动作一一对应；seq 已在 driver 内对齐）。
+    for d in &report.decisions {
+        log_decision(
+            state,
+            DecisionLogInput {
+                game_id: "sanguosha",
+                room_id,
+                seq: d.seq,
+                player_id: &d.actor,
+                source: "bot",
+                legal: &d.legal,
+                candidates: Some(&d.candidates),
+                chosen: Some(&d.chosen),
+                score: Some(d.score),
+                reason: Some(&d.reason),
+                state_digest: Some(&d.state_digest),
+                latency_ms: Some(d.latency_ms),
+            },
+        );
+    }
     if report.steps > 0 || report.last_error.is_some() {
         tracing::info!(
             "机器人推进 room={room_id} steps={} stop={:?} illegal={} loops={} finished={}",

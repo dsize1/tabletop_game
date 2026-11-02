@@ -847,6 +847,16 @@
 - **决斗只能「不出」**：响应【决斗】【南蛮】【借刀】需要【杀】时，选项只认 `def=="sha"`，**火杀/雷杀**（以及它们的转化）被漏掉；执行侧也会以「打出的牌不符合要求」拒绝。修法：新增 `skills::is_sha_like_code`（sha/huo_sha/lei_sha），响应候选与执行校验统一按「杀类」判断；`conversion_for(...,"sha")` 对火杀/雷杀不再重复产出转化项。用例：`p47::duel_responds_with_fire_or_thunder_sha`。
 - **门禁**：`cargo test -p sanguosha` **915 全绿**；`test:web` / `test:sgs-web` 全绿。
 
+**P6.4 实施记录（2026-11-03，决策日志 + 导出 + 回放）**：
+
+- **存储**：`crates/storage` 新增 `game_decision_log`（含 `reason` / `state_digest` / `(room_id,seq)` 索引）与 `game_replay_base`（每房间首个决策前快照）；API `append_decision_log(s)` / `list_decision_logs` / `ensure_replay_base` / `get_replay_base`；写失败只告警。
+- **轨迹**：`sanguosha::ai::decide_traced` 返回 `DecisionTrace`（完整 legal / prune 候选 ≤26 / chosen / priority / score / reason / 动作前 digest）；`SgsPolicy::choose` 与 `drive_bots` 共用同一实现。
+- **写点**：server 人类动作（`source=human`）与 `drive_bots` 每个机器人动作（`source=bot`，含 candidates/score/reason/latency，seq 对齐该步落库 version）都写日志；MCP `bot_action` / `execute_action` 同步写；`SGS_DECISION_LOG_RATE`（0 关 / 1 全量 / 中间采样，默认 1）。
+- **导出**：`npm run sgs:export-decisions -- --room <id> [--out file]`（JSONL；openid 仅输出 sha256 前 16 位；`--game/--since/--limit`）。
+- **回放**：`npm run sgs:replay -- --room <id> [--from-seq/--to-seq/--step/--json]`（Rust bin `server --bin sgs-replay`）：`game_replay_base` → 按 seq 校验 `state_digest` → 执行 `chosen` → 对比最终 `game_state`；不一致退出码 2。
+- **实测（2026-11-03）**：真人 5 人局（MCP 建局）10 条 human 日志重放 `mismatches=0`；1 真人 + 4 机器人局 18 条 human/bot 日志重放 `mismatches=0`（含 同 seq 多动作）；`cargo test -p storage -p sanguosha -p server` 全绿。
+- **待做（P6.4 收尾）**：旧局无 replay base 只打印时间线；导出/回放自检脚本并入 `sgs:check`（有日志时）。
+
 ### P7 Q 群接入（M，后置）
 
 > **2026-11-01 口径调整（用户裁定，ADR-0031）**：Q 群**只做被动播报**，不做任何逐动作交互，优先级降到最低；

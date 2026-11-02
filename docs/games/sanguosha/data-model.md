@@ -466,17 +466,28 @@ CREATE TABLE IF NOT EXISTS game_decision_log (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     game_id         TEXT    NOT NULL,
     room_id         TEXT    NOT NULL,
-    seq             INTEGER NOT NULL,         -- 对应动作落库后的 game_events.seq
+    seq             INTEGER NOT NULL,         -- 动作落库后的 game_events.seq（无事件时保持上一 seq）
     player_id       TEXT    NOT NULL,
     source          TEXT    NOT NULL CHECK (source IN ('human','systemone','bot','random')),
     legal_actions   TEXT    NOT NULL,         -- JSON [{id, description}]
     candidates      TEXT,                     -- 引擎预剪枝候选（≤26）JSON
     chosen          TEXT,
-    confidence      REAL,
+    confidence      REAL,                     -- AI: Score.score；human: null
     latency_ms      INTEGER,
+    reason          TEXT,                     -- tree 分支 / human_action / fallback / loop_breaker
+    state_digest    TEXT,                     -- 动作前状态摘要（回放对齐）
     created_at      TEXT    NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_game_decision_log_room ON game_decision_log (room_id, seq);
+
+-- 回放基线：每房间首个决策前的 GameState JSON（P6.4；旧局可能缺失）
+CREATE TABLE IF NOT EXISTS game_replay_base (
+    game_id    TEXT    NOT NULL,
+    room_id    TEXT    PRIMARY KEY,
+    seq        INTEGER NOT NULL,
+    state      TEXT    NOT NULL,
+    created_at TEXT    NOT NULL
+);
 
 -- 武将流程设计（n8n 绑定，P5）
 CREATE TABLE IF NOT EXISTS sgs_flow_designs (

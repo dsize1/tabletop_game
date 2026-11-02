@@ -275,21 +275,37 @@ try {
   }
 
   // 4.5) 侧栏（阶段/历史）必须随动作即时更新，而不是只有整页刷新后才更新
-  const startTurn = (await view(tokens[cur])).public.data.public_board.turn_index;
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(pageUrl, { waitUntil: "load" });
-  await page.waitForTimeout(800);
+  const boardNow = async () =>
+    (await view(tokens[players[0]])).public.data.public_board;
+  const pageUrlFor = (pid) =>
+    `${WEB_URL}/tabletop_game/sanguosha/player/${encodeURIComponent(pid)}?token=${encodeURIComponent(tokens[pid])}`;
+  const currentActor = async () => {
+    const b = await boardNow();
+    return b.pending?.actor ?? b.turn.player_id;
+  };
+  const openActionPage = async () => {
+    const actor = await currentActor();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(pageUrlFor(actor), { waitUntil: "load" });
+    await page.waitForTimeout(900);
+    return actor;
+  };
+  const startTurn = (await boardNow()).turn_index;
+  await openActionPage();
   const sideBefore = await page.evaluate(() => ({
     items: document.querySelectorAll("#sgs-side .sgs-history li").length,
     last: document.querySelector("#sgs-side .sgs-history li:last-child")?.textContent ?? "",
   }));
   const clickedEnd = await page.evaluate(() => {
-    const btn = document.querySelector('[data-action="end_play"]');
-    if (!btn || btn.disabled) return false;
-    btn.click();
-    return true;
+    const pendingBtn = document.querySelector(".sgs-pending-actions [data-action]");
+    const end = document.querySelector('[data-action="end_play"]');
+    const target = pendingBtn ?? end;
+    if (!target || target.disabled) return null;
+    const action = target.dataset.action;
+    target.click();
+    return action;
   });
-  assert(clickedEnd, "出牌阶段存在可点击的「结束出牌」");
+  assert(Boolean(clickedEnd), "当前玩家存在可点击动作（待办或「结束出牌」）");
   if (clickedEnd) {
     await page.waitForTimeout(1500);
     const sideAfter = await page.evaluate(() => ({
@@ -305,7 +321,8 @@ try {
   }
 
   // 5) 无 JS 表单（urlencoded → 303）：按当前局面取一个合法动作（pending 优先）
-  const snap0 = await view(tokens[cur]);
+  const formActorNow = await currentActor();
+  const snap0 = await view(tokens[formActorNow]);
   const b0 = snap0.public.data.public_board;
   let formActor = b0.turn.player_id;
   let formAction = null;
@@ -319,6 +336,7 @@ try {
   }
   assert(Boolean(formActor && formAction), "取到可提交的合法动作（无 JS 表单）");
   const beforeForm = b0;
+  const beforePendingOpts = snap0.player.data.player_area?.pending?.options ?? [];
   const form = await fetch(`${WEB_URL}/tabletop_game/sanguosha/action`, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -326,48 +344,45 @@ try {
     redirect: "manual",
   });
   assert(form.status === 303, "无 JS 表单提交 → 303 PRG");
-  const afterForm = (await view(tokens[formActor])).public.data.public_board;
+  const afterView = await view(tokens[formActor]);
+  const afterForm = afterView.public.data.public_board;
+  const afterPendingOpts = afterView.player.data.player_area?.pending?.options ?? [];
   assert(
     afterForm.turn_index > beforeForm.turn_index ||
       JSON.stringify(afterForm.pending) !== JSON.stringify(beforeForm.pending) ||
-      afterForm.turn.phase !== beforeForm.turn.phase,
-    "表单提交后局面推进（回合/阶段/pending 变化）",
+      afterForm.turn.phase !== beforeForm.turn.phase ||
+      JSON.stringify(afterPendingOpts) !== JSON.stringify(beforePendingOpts),
+    "表单提交后局面推进（回合/阶段/pending/选项变化）",
   );
 
-  // 6) 浏览器交互：清掉 pending（弃牌/响应按「不出」）后 end_play，直到回合推进
-  await page.setViewportSize({ width: 390, height: 844 });
-  for (let step = 0; step < 8; step += 1) {
-    await page.goto(pageUrl, { waitUntil: "load" });
-    await page.waitForTimeout(700);
-    const pending = await page.evaluate(() => document.querySelector(".sgs-pending")?.dataset.kind ?? null);
-    if (pending) {
-      const clicked = await page.evaluate(() => {
-        const btns = Array.from(document.querySelectorAll(".sgs-pending-actions [data-action]"));
-        const pass = btns.find((b) => b.dataset.action === "pass");
-        const discard = btns.find((b) => (b.dataset.action ?? "").startsWith("discard:"));
-        const target = (pass ?? discard ?? btns[0]);
-        if (!target) return null;
-        const action = target.dataset.action;
-        target.click();
-        return action;
-      });
-      if (!clicked) break;
-      await page.waitForTimeout(1200);
-      continue;
-    }
-    const hasEnd = await page.evaluate(() => {
-      const btn = document.querySelector('[data-action="end_play"]');
-      if (!btn || btn.disabled) return false;
-      btn.click();
-      return true;
+  // 6) 浏览器交互：动态定位当前行动者，清掉 pending（弃牌/响应按「不出」）后 end_play，直到回合推进
+  const startBoard2 = await boardNow();
+  const startTurn2 = startBoard2.turn_index;
+  const startPlayer2 = startBoard2.turn.player_id;
+  for (let step = 0; step < 12; step += 1) {
+    await openActionPage();
+    const clicked = await page.evaluate(() => {
+      const btns = Array.from(document.querySelectorAll(".sgs-pending-actions [data-action]"));
+      const pass = btns.find((b) => b.dataset.action === "pass");
+      const discard = btns.find((b) => (b.dataset.action ?? "").startsWith("discard:"));
+      const pendingTarget = pass ?? discard ?? btns[0];
+      const end = document.querySelector('[data-action="end_play"]');
+      const target = pendingTarget ?? end;
+      if (!target || target.disabled) return null;
+      const action = target.dataset.action;
+      target.click();
+      return action;
     });
-    if (!hasEnd) break;
-    await page.waitForTimeout(1400);
-    const now = (await view(tokens[cur])).public.data.public_board;
-    if (now.turn_index > startTurn) break;
+    if (!clicked) break;
+    await page.waitForTimeout(1300);
+    const now = await boardNow();
+    if (now.turn_index > startTurn2 || now.turn.player_id !== startPlayer2) break;
   }
-  const final = (await view(tokens[cur])).public.data.public_board;
-  assert(final.turn_index > startTurn, "浏览器点击可推进回合（end_play + 必要弃牌）");
+  const final = await boardNow();
+  assert(
+    final.turn_index > startTurn2 || final.turn.player_id !== startPlayer2,
+    "浏览器点击可推进回合（end_play + 必要弃牌）",
+  );
   assert(final.deck.draw + final.deck.discard > 0, "牌堆计数正常");
 } catch (err) {
   failed += 1;

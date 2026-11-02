@@ -16,6 +16,43 @@ pub struct GameEventRecord<'a> {
     pub payload: &'a str,
 }
 
+/// 单条待写入的决策日志（P6.4；可采样丢弃，非真相源）。
+pub struct DecisionLogRecord<'a> {
+    pub game_id: &'a str,
+    pub room_id: &'a str,
+    /// 对应动作落库后的 `game_events.seq`（落库失败时可为 -1）。
+    pub seq: i64,
+    pub player_id: &'a str,
+    /// `human` / `systemone` / `bot` / `random`。
+    pub source: &'a str,
+    /// 完整合法集 JSON `[{id,description}]`。
+    pub legal_actions: &'a str,
+    /// 引擎预剪枝候选（≤26）JSON；人类动作可为 None。
+    pub candidates: Option<&'a str>,
+    pub chosen: Option<&'a str>,
+    pub confidence: Option<f64>,
+    pub latency_ms: Option<i64>,
+    pub reason: Option<&'a str>,
+    pub state_digest: Option<&'a str>,
+}
+
+/// 决策日志读取行。
+#[derive(Debug, Clone)]
+pub struct DecisionLogRow {
+    pub id: i64,
+    pub seq: i64,
+    pub player_id: String,
+    pub source: String,
+    pub legal_actions: String,
+    pub candidates: Option<String>,
+    pub chosen: Option<String>,
+    pub confidence: Option<f64>,
+    pub latency_ms: Option<i64>,
+    pub reason: Option<String>,
+    pub state_digest: Option<String>,
+    pub created_at: String,
+}
+
 pub struct Storage {
     conn: Mutex<Connection>,
 }
@@ -179,6 +216,136 @@ impl Storage {
         )?;
         tx.commit()?;
         Ok(last_seq)
+    }
+
+    /// 写入一条决策日志；返回自增 id。失败由调用方降级（不阻塞对局）。
+    pub fn append_decision_log(&self, r: &DecisionLogRecord<'_>) -> anyhow::Result<i64> {
+        let conn = self.lock();
+        conn.execute(
+            "INSERT INTO game_decision_log
+             (game_id, room_id, seq, player_id, source, legal_actions, candidates,
+              chosen, confidence, latency_ms, reason, state_digest, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+            params![
+                r.game_id,
+                r.room_id,
+                r.seq,
+                r.player_id,
+                r.source,
+                r.legal_actions,
+                r.candidates,
+                r.chosen,
+                r.confidence,
+                r.latency_ms,
+                r.reason,
+                r.state_digest,
+                now_secs()
+            ],
+        )?;
+        Ok(conn.last_insert_rowid())
+    }
+
+    /// 批量写入决策日志（同一事务）；返回写入条数。
+    pub fn append_decision_logs(&self, rows: &[DecisionLogRecord<'_>]) -> anyhow::Result<usize> {
+        let mut conn = self.lock();
+        let tx = conn.transaction()?;
+        let mut n = 0usize;
+        for r in rows {
+            tx.execute(
+                "INSERT INTO game_decision_log
+                 (game_id, room_id, seq, player_id, source, legal_actions, candidates,
+                  chosen, confidence, latency_ms, reason, state_digest, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+                params![
+                    r.game_id,
+                    r.room_id,
+                    r.seq,
+                    r.player_id,
+                    r.source,
+                    r.legal_actions,
+                    r.candidates,
+                    r.chosen,
+                    r.confidence,
+                    r.latency_ms,
+                    r.reason,
+                    r.state_digest,
+                    now_secs()
+                ],
+            )?;
+            n += 1;
+        }
+        tx.commit()?;
+        Ok(n)
+    }
+
+    /// 记录回放基线（首个决策前的状态）；同房间只保留第一份。
+    pub fn ensure_replay_base(
+        &self,
+        game_id: &str,
+        room_id: &str,
+        seq: i64,
+        state_json: &str,
+    ) -> anyhow::Result<()> {
+        let conn = self.lock();
+        conn.execute(
+            "INSERT OR IGNORE INTO game_replay_base (game_id, room_id, seq, state, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![game_id, room_id, seq, state_json, now_secs()],
+        )?;
+        Ok(())
+    }
+
+    /// 读取回放基线：`(game_id, seq, state_json)`。
+    pub fn get_replay_base(&self, room_id: &str) -> anyhow::Result<Option<(String, i64, String)>> {
+        let conn = self.lock();
+        let mut stmt =
+            conn.prepare("SELECT game_id, seq, state FROM game_replay_base WHERE room_id = ?1")?;
+        let mut rows = stmt.query(params![room_id])?;
+        if let Some(r) = rows.next()? {
+            Ok(Some((r.get(0)?, r.get(1)?, r.get(2)?)))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// 读取决策日志（按 seq,id 升序）；`since_seq` 为闭区间下界。
+    pub fn list_decision_logs(
+        &self,
+        game_id: &str,
+        room_id: &str,
+        since_seq: i64,
+        limit: usize,
+    ) -> anyhow::Result<Vec<DecisionLogRow>> {
+        let conn = self.lock();
+        let mut stmt = conn.prepare(
+            "SELECT id, seq, player_id, source, legal_actions, candidates, chosen,
+                    confidence, latency_ms, reason, state_digest, created_at
+             FROM game_decision_log
+             WHERE game_id = ?1 AND room_id = ?2 AND seq >= ?3
+             ORDER BY seq ASC, id ASC
+             LIMIT ?4",
+        )?;
+        let rows = stmt.query_map(params![game_id, room_id, since_seq, limit as i64], |row| {
+            Ok(DecisionLogRow {
+                id: row.get(0)?,
+                seq: row.get(1)?,
+                player_id: row.get(2)?,
+                source: row.get(3)?,
+                legal_actions: row.get(4)?,
+                candidates: row.get(5)?,
+                chosen: row.get(6)?,
+                confidence: row.get(7)?,
+                latency_ms: row.get(8)?,
+                reason: row.get(9)?,
+                state_digest: row.get(10)?,
+                created_at: row.get(11)?,
+            })
+        })?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r?);
+        }
+        Ok(out)
     }
 
     /// 读取所有对局快照（state JSON），用于引擎重启后恢复活跃对局。
@@ -963,6 +1130,30 @@ CREATE TABLE IF NOT EXISTS game_state (
     updated_at TEXT NOT NULL,
     PRIMARY KEY (game_id, room_id)
 );
+CREATE TABLE IF NOT EXISTS game_decision_log (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    game_id         TEXT    NOT NULL,
+    room_id         TEXT    NOT NULL,
+    seq             INTEGER NOT NULL,
+    player_id       TEXT    NOT NULL,
+    source          TEXT    NOT NULL CHECK (source IN ('human','systemone','bot','random')),
+    legal_actions   TEXT    NOT NULL,
+    candidates      TEXT,
+    chosen          TEXT,
+    confidence      REAL,
+    latency_ms      INTEGER,
+    reason          TEXT,
+    state_digest    TEXT,
+    created_at      TEXT    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_game_decision_log_room ON game_decision_log (room_id, seq);
+CREATE TABLE IF NOT EXISTS game_replay_base (
+    game_id    TEXT    NOT NULL,
+    room_id    TEXT    PRIMARY KEY,
+    seq        INTEGER NOT NULL,
+    state      TEXT    NOT NULL,
+    created_at TEXT    NOT NULL
+);
 CREATE TABLE IF NOT EXISTS dev_tasks (
     session_id TEXT PRIMARY KEY,
     group_id   TEXT NOT NULL,
@@ -1584,5 +1775,48 @@ mod tests {
         assert_eq!(arts[0].kind, "commit");
         assert_eq!(arts[1].r#ref, "logs/ci.json");
         assert_eq!(arts[1].digest.as_deref(), Some("md5:1"));
+    }
+
+    #[test]
+    fn decision_log_append_list_and_since() {
+        let s = Storage::open(":memory:").unwrap();
+        let row = DecisionLogRecord {
+            game_id: "sanguosha",
+            room_id: "room-dl",
+            seq: 7,
+            player_id: "u1",
+            source: "bot",
+            legal_actions: r#"[{"id":"pass","description":"不出"}]"#,
+            candidates: Some(r#"[{"id":"pass","description":"不出"}]"#),
+            chosen: Some("pass"),
+            confidence: Some(1.0),
+            latency_ms: Some(3),
+            reason: Some("test"),
+            state_digest: Some("abc"),
+        };
+        let id = s.append_decision_log(&row).unwrap();
+        assert!(id > 0);
+        let rows = s.list_decision_logs("sanguosha", "room-dl", 0, 10).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].seq, 7);
+        assert_eq!(rows[0].chosen.as_deref(), Some("pass"));
+        assert_eq!(rows[0].reason.as_deref(), Some("test"));
+        assert!(s
+            .list_decision_logs("sanguosha", "room-dl", 8, 10)
+            .unwrap()
+            .is_empty());
+    }
+
+    #[test]
+    fn replay_base_is_first_write_only() {
+        let s = Storage::open(":memory:").unwrap();
+        s.ensure_replay_base("sanguosha", "room-rb", 3, r#"{"v":1}"#)
+            .unwrap();
+        s.ensure_replay_base("sanguosha", "room-rb", 9, r#"{"v":2}"#)
+            .unwrap();
+        let (game, seq, state) = s.get_replay_base("room-rb").unwrap().expect("base");
+        assert_eq!(game, "sanguosha");
+        assert_eq!(seq, 3);
+        assert!(state.contains("\"v\":1"));
     }
 }

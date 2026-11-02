@@ -28,6 +28,8 @@ const steps = [
   { name: "skill-docs（skills.md ↔ 注册表）", cmd: `${node} apps/scripts/check-sgs-skill-docs.mjs` },
   { name: "engine-data（data.rs 最新）", cmd: `${node} apps/scripts/gen-sanguosha-engine-data.mjs --check` },
   { name: "skill-text（长按技能简述最新）", cmd: `${node} apps/scripts/gen-sgs-skill-text.mjs --check` },
+  // P6.4：决策日志/回放的自检（脚本内部用临时 SQLite，不依赖运行中的 server）
+  { name: "decision-log（存储/回放基线）", cmd: `cargo test --manifest-path crates/Cargo.toml -p storage decision_log` },
   { name: "batch-status（批次/p67 一致性）", cmd: `${node} apps/scripts/sgs-batch-status.mjs --check` },
   {
     name: "pack-presets（武将包预设 ↔ data.rs ↔ data-model.md）",
@@ -42,6 +44,7 @@ const steps = [
 
 if (!fast) {
   steps.push(
+    { name: "decision-log（导出/回放自检）", cmd: `${node} apps/scripts/check-sgs-decision-log.mjs` },
     { name: "test:web（Web 视图单测）", cmd: "npm --prefix apps run test:web" },
     { name: "test:sgs-web（端到端）", cmd: `${node} apps/scripts/test-sgs-web.mjs` },
     // P6.3：1 真人 + 4 机器人 —— Web 动作后机器人自动推进（需 server/MCP 已构建 + Redis）
