@@ -121,9 +121,12 @@ export function renderPublicArea(
     .join("");
 
   const phase = PHASE_LABEL[board.turn.phase] ?? board.turn.phase;
+  const lordSeat = board.seats.find((s) => s.identity === "lord");
+  const lordGeneral = lordSeat?.general_name ?? "";
   const setupProgress =
     data.phase === "setup"
-      ? ` · 选将中 ${board.setup?.picked_count ?? 0}/${board.seat_count || board.seats.length}`
+      ? ` · 选将中 ${board.setup?.picked_count ?? 0}/${board.seat_count || board.seats.length}` +
+        (lordGeneral ? ` · 主公 ${lordGeneral}` : "")
       : "";
   const currentName = board.turn.player_id
     ? escapeHtml(playerName(names, board.turn.player_id))

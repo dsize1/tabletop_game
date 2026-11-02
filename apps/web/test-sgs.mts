@@ -693,4 +693,24 @@ assert.ok(!pickedHtml.includes('data-action="setup:choose_general:'), "选将后
 
 console.log("[sgs-web] 选将面板单测通过 ✅");
 
+// —— P6.3：选将阶段主公武将应立即公示（其他人的仍隐藏） ——
+const setupBoard2 = {
+  ...board,
+  setup: { lord: "p0", lord_picked: true, picked_count: 2 },
+  seats: board.seats.map((s) =>
+    s.player_id === "p0"
+      ? { ...s, identity: "lord", general_name: "界刘备", general: "sgs_hero_299" }
+      : { ...s, identity: null, general_name: "", general: null },
+  ),
+};
+const setupPublic = renderPublicArea(
+  { phase: "setup", public_board: setupBoard2, player_area: null, special_zones: {} } as never,
+  me.seat,
+  names,
+);
+assert.ok(setupPublic.includes("界刘备"), "选将阶段应公示主公武将");
+assert.ok(setupPublic.includes("主公 界刘备"), "公共区回合行显示主公武将");
+assert.ok(setupPublic.includes("选将中 2/5"), "选将进度");
+console.log("[sgs-web] 主公武将公示单测通过 ✅");
+
 console.log("[sgs-web] 观星纯函数/渲染单测通过 ✅");

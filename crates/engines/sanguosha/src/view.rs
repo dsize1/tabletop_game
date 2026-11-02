@@ -124,26 +124,46 @@ fn hand_limit_view(st: &SgsState, seat: usize) -> Value {
 
 /// 公共局面区。
 pub fn public_board(st: &SgsState) -> Value {
-    // 选将期间不公开其他玩家已选武将（选将完成后统一亮明）。
+    // 武将公开口径：
+    // - 选将阶段：**主公选完即公开**（规则：主公身份公开，武将随之亮明；2026-11-02 用户裁定），
+    //   其他人选完仍隐藏，待选将完成（进入 turn）统一亮明；
+    // - 对局中/濒死/终局：全员武将公开。
     let reveal_generals = matches!(st.phase, Phase::Turn | Phase::Dying | Phase::Finished);
     let seats: Vec<Value> = st
         .seats
         .iter()
         .enumerate()
         .map(|(i, s)| {
+            // 主公：一旦选将就对外公开（未选时仍为空）。
+            // 注意：选将结果先落在 `setup.picks`，`seats[].general` 要到 `finish_setup`
+            // 才写回，所以选将阶段要直接从 `picks` 取主公的选择。
+            let lord_pick = if s.identity.is_lord() {
+                st.setup.picks.get(&s.player_id).map(String::as_str)
+            } else {
+                None
+            };
+            let general_code = if reveal_generals {
+                s.general.as_deref()
+            } else {
+                lord_pick
+            };
+            let general_name = if reveal_generals {
+                s.general_name.clone()
+            } else {
+                general_code
+                    .and_then(data::general)
+                    .map(|g| g.name.to_string())
+                    .unwrap_or_default()
+            };
             json!({
                 "seat": i,
                 "player_id": s.player_id,
                 // 仅主公身份公开；其余死亡/终局前不公开（P2.3 处理亮身份）。
                 // 主公公开；死亡后公开身份（规则 §8.3）。
                 "identity": if s.identity.is_lord() || !s.alive { Some(s.identity.code()) } else { None },
-                "general": if reveal_generals { s.general.clone() } else { None },
-                "general_name": if reveal_generals { s.general_name.clone() } else { String::new() },
-                "kingdom": if reveal_generals {
-                    s.general.as_deref().and_then(data::general).map(|g| g.kingdom)
-                } else {
-                    None
-                },
+                "general": general_code.map(str::to_string),
+                "general_name": general_name,
+                "kingdom": general_code.and_then(data::general).map(|g| g.kingdom),
                 "hp": s.hp,
                 "max_hp": s.max_hp,
                 "hand_count": s.hand.len(),

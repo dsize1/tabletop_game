@@ -800,6 +800,12 @@
 - **e2e**：`npm run test:sgs-bot`（`apps/scripts/test-sgs-bot-web.mjs`）——起临时 server+web，MCP 建「房主 + 4 机器人 + 全将」局；真人选将走 Web 通路，其后每个真人动作都断言「返回时不是机器人回合」（必要时用 `drive` 端点续推），至少 20 个真人动作、终局与否仅记录。已并入 `npm run sgs:check:full`。
 - **门禁**：`cargo test -p sanguosha` 903 全绿（新增 driver 3 条）；`cargo test -p server` 13 全绿（新增房间锁用例）；`test:web` / `test:agent-gateway`（22 文件）全绿；`check:sgs-ai`（全将 100 局）保持全绿。
 
+**P6.3 选将公示（2026-11-02，用户裁定）**：
+
+- **主公选将完成即对外公示**：`public_board.seats[lord]` 在 `phase=setup` 就带 `general/general_name/kingdom`（取 `setup.picks`，因为 `seats[].general` 要 `finish_setup` 才写回）；其他人的武将仍在选将完成后统一亮明。
+- Web：公共区回合行显示「选将中 x/y · 主公 <武将>」，主公座位卡直接显示武将名。
+- 用例：`candidates_are_private_during_setup` 拆成「主公公开 / 其他人隐藏」；`apps/web/test-sgs.mts` 增加主公公示断言。
+
 **P6.3 默认值调整（2026-11-02，用户裁定）**：
 
 - `Config.general_packs` 默认改为**全部已实现武将**（`standard+wind_fire_forest_mountain+yijiang+jiexian`，去重 149 位，界优先）；缺字段的旧快照按新默认补齐，**带** `general_packs` 的旧快照仍按自身值（`pack_switch_old_game_snapshot_stays_on_its_packs`）。

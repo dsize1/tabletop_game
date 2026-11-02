@@ -610,10 +610,32 @@ fn candidates_are_private_during_setup() {
         .as_bool()
         .unwrap());
     assert!(public.to_string().find("candidates").is_none());
-    // 选将期间武将不公开
+    // 选将期间：**主公的武将立即公开**（2026-11-02 用户裁定），其他人的仍隐藏。
+    let st_now = state_of(&mgr, &room);
+    let lord_name = crate::data::general(&lord_pick)
+        .map(|g| g.name.to_string())
+        .unwrap_or_default();
+    let mut lord_seen = false;
     for s in public["public_board"]["seats"].as_array().unwrap() {
-        assert!(s["general"].is_null());
+        if s["player_id"].as_str() == Some(lord.as_str()) {
+            lord_seen = true;
+            assert_eq!(
+                s["general_name"].as_str(),
+                Some(lord_name.as_str()),
+                "主公选将后应公示其武将"
+            );
+            assert_eq!(
+                s["general"].as_str(),
+                Some(lord_pick.as_str()),
+                "主公 general 应为所选武将 code"
+            );
+        } else {
+            assert!(s["general"].is_null(), "非主公选将期间仍隐藏");
+            assert_eq!(s["general_name"].as_str(), Some(""));
+        }
     }
+    assert!(lord_seen, "公共视图应包含主公座位");
+    let _ = st_now;
 
     // 取两名非主公玩家比较候选（主公候选取法不同）。
     let non_lord: Vec<String> = state_of(&mgr, &room)
