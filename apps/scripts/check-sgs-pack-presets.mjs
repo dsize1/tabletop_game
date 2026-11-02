@@ -8,7 +8,7 @@
 //   2. 预设 = `standard` + 其余包的全部子集（2^(N-1)），按包数升序（与 `lib.rs::general_pack_presets` 同序）；
 //   3. 可用人数 = 包过滤 → 同名去重（`prefer_jiexian`：与「界化」武将同名的原版剔除）；
 //   4. 文档侧：`data-model.md` §3.7「武将包口径」预设表（mode / 标签 / 人数）；
-//   5. 附带断言：`lib.rs` 大厅循环真的用 `general_pack_presets()`、`Config` 默认仍为 `["standard"]`、
+//   5. 附带断言：`lib.rs` 大厅循环真的用 `general_pack_presets()`、`Config` 默认为全将（2026-11-02）、
 //      `legal-actions.md` 登记了 `lobby:set_general_packs:<mode>`。
 //
 // 用法：node apps/scripts/check-sgs-pack-presets.mjs [--verbose]
@@ -113,8 +113,13 @@ if (generals.length === 0) throw new Error("data.rs 未解析到 GeneralDef");
 if (!libRs.includes("general_pack_presets()")) {
   fail("lib.rs 大厅未使用 general_pack_presets()（预设枚举缺失）");
 }
-if (!/pub fn default_general_packs\(\) -> Vec<String> \{\s*vec!\["standard"\.to_string\(\)\]/.test(stateRs)) {
-  fail("state.rs：default_general_packs 应保持仅标准包（P4.4.3 口径）");
+// 2026-11-02 用户裁定：默认全部已实现武将（去重 149 位）。这里只断言「默认 = 全量包组合」，
+// 具体生成方式（`GENERAL_PACK_KEYS` 映射）不锁死实现细节。
+if (
+  !/pub fn default_general_packs\(\) -> Vec<String> \{/.test(stateRs) ||
+  !/default_general_packs[\s\S]{0,400}GENERAL_PACK_KEYS/.test(stateRs)
+) {
+  fail("state.rs：default_general_packs 应默认启用全部包（全将，2026-11-02 口径）");
 }
 if (!legalActions.includes("`lobby:set_general_packs:<mode>`")) {
   fail("legal-actions.md §3 未登记 `lobby:set_general_packs:<mode>`");

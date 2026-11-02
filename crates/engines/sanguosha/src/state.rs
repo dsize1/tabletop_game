@@ -162,7 +162,12 @@ pub enum TargetMode {
 /// 其余包（风林火山 / 一将成名 / 界限突破）在 lobby 用 `lobby:set_general_packs`
 /// 切换（预设覆盖全量组合，见 `lib.rs::general_pack_presets`）。
 pub fn default_general_packs() -> Vec<String> {
-    vec!["standard".to_string()]
+    // 2026-11-02 用户裁定：默认启用**全部已实现武将**（去重后 149 位，界优先）。
+    // 旧对局/旧快照仍按各自 `config.general_packs` 解析（serde default 只影响缺字段的快照）。
+    crate::data::GENERAL_PACK_KEYS
+        .iter()
+        .map(|k| (*k).to_string())
+        .collect()
 }
 
 /// 解析 `lobby:set_general_packs` / `Config.general_packs` 的包组合字符串。

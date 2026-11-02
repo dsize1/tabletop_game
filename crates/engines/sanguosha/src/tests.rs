@@ -30,6 +30,11 @@ fn lobby_with(mgr: &GameManager, players: usize) -> String {
         mgr.execute_action(&room, &format!("u{i}"), "lobby:join")
             .expect("join");
     }
+    // 历史用例都假定「标准 25 将」选将池（`Config` 默认已在 2026-11-02 改为全将）。
+    // 这里显式钉住标准包，保持用例的确定性与既有断言；要测包组合的用例会自行覆盖。
+    edit(mgr, &room, |st| {
+        st.config.general_packs = vec!["standard".to_string()];
+    });
     room
 }
 

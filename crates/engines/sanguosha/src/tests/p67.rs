@@ -7,10 +7,15 @@ use crate::state::*;
 
 #[test]
 fn general_packs_default_and_parse() {
-    // 默认仍为仅标准包（旧局/旧快照口径不变）；全量组合在 lobby 预设中切换。
+    // 2026-11-02 用户裁定：默认启用**全部已实现武将**（去重 149 位，界优先）。
+    // 旧对局仍按各自快照的 `config.general_packs` 解析（见下一条用例）。
     let cfg = Config::default();
-    assert_eq!(cfg.general_packs, vec!["standard".to_string()]);
-    assert_eq!(cfg.general_packs_mode(), "standard");
+    let all: Vec<String> = crate::data::GENERAL_PACK_KEYS
+        .iter()
+        .map(|k| (*k).to_string())
+        .collect();
+    assert_eq!(cfg.general_packs, all);
+    assert_eq!(cfg.general_packs_mode(), all.join("+"));
     // 顺序归一化（按 data::GENERAL_PACK_KEYS）+ 去重。
     assert_eq!(
         parse_general_packs("wind_fire_forest_mountain+standard+standard").unwrap(),
@@ -97,17 +102,23 @@ fn general_pack_switch_filters_offer_pool() {
 }
 
 #[test]
-fn old_snapshot_without_general_packs_defaults_to_standard() {
+fn old_snapshot_without_general_packs_uses_new_default() {
     let mgr = manager(403);
     let room = start_and_pick(&mgr, 5);
     let mut data = mgr.get_state(&room).expect("state").data;
-    // 模拟旧快照：删掉 config.general_packs。
+    // 模拟旧快照：删掉 config.general_packs → serde default（2026-11-02 起 = 全将）。
     data["config"]
         .as_object_mut()
         .expect("config object")
         .remove("general_packs");
     let st = SgsState::parse(&data).expect("parse old snapshot");
-    assert_eq!(st.config.general_packs, vec!["standard".to_string()]);
+    let all: Vec<String> = crate::data::GENERAL_PACK_KEYS
+        .iter()
+        .map(|k| (*k).to_string())
+        .collect();
+    assert_eq!(st.config.general_packs, all, "缺字段的快照走新默认（全将）");
+    // 注意：旧快照**带** general_packs（绝大多数）时不走默认，仍按其自身值解析（见
+    // `pack_switch_old_game_snapshot_stays_on_its_packs`）。
 }
 
 #[test]

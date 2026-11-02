@@ -800,6 +800,12 @@
 - **e2e**：`npm run test:sgs-bot`（`apps/scripts/test-sgs-bot-web.mjs`）——起临时 server+web，MCP 建「房主 + 4 机器人 + 全将」局；真人选将走 Web 通路，其后每个真人动作都断言「返回时不是机器人回合」（必要时用 `drive` 端点续推），至少 20 个真人动作、终局与否仅记录。已并入 `npm run sgs:check:full`。
 - **门禁**：`cargo test -p sanguosha` 903 全绿（新增 driver 3 条）；`cargo test -p server` 13 全绿（新增房间锁用例）；`test:web` / `test:agent-gateway`（22 文件）全绿；`check:sgs-ai`（全将 100 局）保持全绿。
 
+**P6.3 默认值调整（2026-11-02，用户裁定）**：
+
+- `Config.general_packs` 默认改为**全部已实现武将**（`standard+wind_fire_forest_mountain+yijiang+jiexian`，去重 149 位，界优先）；缺字段的旧快照按新默认补齐，**带** `general_packs` 的旧快照仍按自身值（`pack_switch_old_game_snapshot_stays_on_its_packs`）。
+- 影响面：历史用例统一在 `tests::lobby_with` 显式钉住 `["standard"]`（保持既有断言确定性），`p67::general_packs_default_and_parse` / `old_snapshot_without_general_packs_uses_new_default` 改为断言全将；`check:sgs-pack-presets` 的门禁由「默认必须 standard」改为「默认必须全量包组合」。
+- 网关：新开一局沿用本群上次 `#武将包` 选择（Redis `sgs:general_packs:<group_id>`），无记录即全将；建局回执显示当前武将包。
+
 **P6.3 真机反馈修复（2026-11-02）**：
 
 - **登录链接时点**：`#开局` / `#加入` 不再签发链接；`#开始` 统一给所有非机器人玩家各发一条（用户裁定，避免重复验证）。
