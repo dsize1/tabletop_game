@@ -438,7 +438,74 @@ try {
   const active = await callJson("get_active_game", { group_id: GROUP });
   assert(active === null, "终局/中断后群内不应有活跃对局");
 
-  console.log("[sgs] P2.5 冒烟通过 ✅（五谷丰登 + 观星特殊区契约）");
+  // —— P8：8 人局 lobby / 选将 / 发牌 / 视图隔离（完整 8 人真机由人工验收）——
+  const GROUP8 = `sgs-smoke8-${Date.now()}`;
+  const PLAYERS8 = ["sgs8-host", ...Array.from({ length: 7 }, (_, i) => `sgs8-p${i + 2}`)];
+  const c8 = await callJson("create_game", {
+    game_id: "sanguosha",
+    group_id: GROUP8,
+    host_id: PLAYERS8[0],
+  });
+  const room8 = c8.room_id;
+  for (const p of PLAYERS8.slice(1)) {
+    await callJson("execute_action", { room_id: room8, player_id: p, action: "lobby:join" });
+  }
+  await callJson("execute_action", {
+    room_id: room8,
+    player_id: PLAYERS8[0],
+    action: "lobby:set_general_packs:standard",
+  });
+  await callJson("execute_action", {
+    room_id: room8,
+    player_id: PLAYERS8[0],
+    action: "lobby:start",
+  });
+  let guard8 = 0;
+  for (;;) {
+    guard8 += 1;
+    assert(guard8 < 60, "8 人选将循环异常");
+    let acted = false;
+    for (const p of PLAYERS8) {
+      const legal = await callJson("get_legal_actions", { room_id: room8, player_id: p });
+      const choose = legal.find((a) => a.id.startsWith("setup:choose_general:"));
+      if (!choose) continue;
+      await callJson("execute_action", { room_id: room8, player_id: p, action: choose.id });
+      acted = true;
+      break;
+    }
+    if (!acted) break;
+  }
+  const v8 = await callJson("get_state", { room_id: room8 });
+  const b8 = v8.data.public_board;
+  assert(b8.seat_count === 8, `8 人局 seat_count=${b8.seat_count}`);
+  assert(b8.seats.every((s) => s.hand === undefined), "8 人局公共视图不得含手牌明细");
+  const hands8 = b8.seats.reduce((n, s) => n + s.hand_count, 0);
+  assert(
+    b8.deck.draw + b8.deck.discard + b8.deck.processing + hands8 === deckTotal(b8),
+    `8 人局牌数守恒失败：${JSON.stringify(b8.deck)} hands=${hands8}`,
+  );
+  const pv8 = await callJson("get_player_view", { room_id: room8, player_id: PLAYERS8[1] });
+  assert(
+    pv8.data.player_area.hand.length === b8.seats[1].hand_count,
+    "8 人局个人视图手牌数应与公共视图一致",
+  );
+  assert(
+    !JSON.stringify(v8).includes("candidates"),
+    "8 人局公共视图不得含候选武将",
+  );
+  const aborted8 = await callJson("execute_action", {
+    room_id: room8,
+    player_id: PLAYERS8[0],
+    action: "lobby:abort",
+  });
+  assert(aborted8.finished, "8 人局中断后应 finished");
+  assert(
+    (await callJson("get_active_game", { group_id: GROUP8 })) === null,
+    "8 人局中断后群内不应有活跃对局",
+  );
+  console.log("[sgs] P8 8 人局 lobby/选将/发牌/视图隔离 OK");
+
+  console.log("[sgs] P2.5 + P8 冒烟通过 ✅（五谷丰登 + 观星特殊区 + 8 人局）");
 } catch (err) {
   console.error("[sgs] 冒烟失败:", err?.message ?? err);
   if (typeof lastAction !== "undefined") console.error("[sgs] 最后动作:", lastAction);

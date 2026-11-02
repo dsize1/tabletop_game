@@ -889,6 +889,16 @@
 - **测试**：`test-sanguosha-chat`（链接拆条/踢人解析/恢复文案）、`test-games`（narration=false）；`npm run test:agent-gateway` 22/22。
 - **真机清单**：新增 `docs/games/sanguosha/p7-manual-test.md`（16 条命令矩阵 + 5/8 人局 + 链接/隐藏信息/消息长度），待用户真实群验收。
 
+**P8 实施记录（2026-11-03，权鉴/群管理/观测/回滚）**：
+
+- **权限模型**：不设群/openid 灰度白名单；加入本局座位的群成员可操作自己回合；房主可管理；群管理（`member_role=owner/admin`）由网关以 host 身份代执行 `#开始/#中断/#踢/#加机器人/#武将包`（引擎规则不变）。`MessageGroupAt` 追加 `member_role`（serde default），bot-adapter 透传。
+- **紧急开关**：`SGS_ROLLOUT=off`（或 `SGS_ENABLED=0`）拒绝新开三国杀；进行中对局可打完/`#中断`。
+- **动作级权鉴**：web token openid 即动作 player_id；新增 e2e「非当前行动者 → 403/400」；跨房间 403；内部端点仅 127.0.0.1。
+- **观测**：server 新增 `Metrics`（actions/denied/games/bot_steps/drives/decision_logs/failures）+ `GET /internal/metrics`（本机）。
+- **运维**：新增 `docs/ops/sanguosha-runbook.md`（健康/指标/卡局排查/replay/回滚/权鉴边界）；验收清单 `docs/games/sanguosha/p8-acceptance.md`（10×5 + 1×8 人工）。
+- **验收脚本**：`apps/verify-sanguosha.mjs` 增加 8 人局 lobby/选将/发牌/视图隔离；`test-sgs-web` 增加非行动者负向；`test:agent-gateway` 增群管理/开关单测。
+- **门禁**：`cargo test -p shared -p bot-adapter -p storage -p sanguosha -p server` 全绿；`test:agent-gateway` 22/22；`verify-sanguosha` 5 人全流程 + 8 人隔离通过。
+
 ### P8 上线验证 + 权鉴（M）
 
 **目标**：灰度上线，补齐权鉴、可观测、可回滚。

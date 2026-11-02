@@ -60,15 +60,28 @@ pub async fn execute_action(
         return Err(StatusCode::BAD_REQUEST);
     }
     ensure_room(&state, &game_id, &room_id)?;
+    crate::metrics::Metrics::inc(&state.metrics.actions_total);
     capture_replay_base(&state, &game_id, &room_id);
 
     // 人类决策轨迹：动作前的合法集/状态摘要（P6.4）。
     let started = Instant::now();
     let (legal, digest) = decision_context(&state, &game_id, &room_id, &req.player_id);
-    let result = state
+    let result = match state
         .games
         .execute_action(&room_id, &req.player_id, &req.action)
-        .map_err(|e| map_engine_error(&e))?;
+    {
+        Ok(r) => r,
+        Err(e) => {
+            crate::metrics::Metrics::inc(&state.metrics.actions_denied);
+            return Err(map_engine_error(&e));
+        }
+    };
+    if req.action == "lobby:start" {
+        crate::metrics::Metrics::inc(&state.metrics.games_started);
+    }
+    if result.finished {
+        crate::metrics::Metrics::inc(&state.metrics.games_finished);
+    }
 
     let persisted = persist(&state, &result.state, &result.events);
     let (version, persisted_ok) = match &persisted {
@@ -210,8 +223,12 @@ fn log_decision(state: &AppState, d: DecisionLogInput<'_>) {
         reason: d.reason,
         state_digest: d.state_digest,
     };
-    if let Err(e) = state.storage.append_decision_log(&record) {
-        tracing::warn!("写 decision log 失败（已忽略）: {e:#}");
+    match state.storage.append_decision_log(&record) {
+        Ok(_) => crate::metrics::Metrics::inc(&state.metrics.decision_logs),
+        Err(e) => {
+            crate::metrics::Metrics::inc(&state.metrics.decision_log_failures);
+            tracing::warn!("写 decision log 失败（已忽略）: {e:#}");
+        }
     }
 }
 
@@ -299,6 +316,7 @@ fn drive_bots_once(state: &AppState, room_id: &str) -> sanguosha::ai::DriveRepor
     if let Some(gs) = state.games.get_state(room_id) {
         capture_replay_base(state, &gs.game_id, room_id);
     }
+    crate::metrics::Metrics::inc(&state.metrics.drives);
     let report = sanguosha::ai::drive_bots(
         &state.games,
         room_id,
@@ -311,6 +329,7 @@ fn drive_bots_once(state: &AppState, room_id: &str) -> sanguosha::ai::DriveRepor
             }
         },
     );
+    crate::metrics::Metrics::add(&state.metrics.bot_steps, report.steps as u64);
     // 机器人决策日志（与成功动作一一对应；seq 已在 driver 内对齐）。
     for d in &report.decisions {
         log_decision(

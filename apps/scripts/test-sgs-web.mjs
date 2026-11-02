@@ -236,6 +236,22 @@ try {
   });
   assert(cross.status === 403, "跨房间 token 提交动作 → 403");
 
+  // 非当前行动者（本房间合法 token）→ 引擎 PermissionDenied（P8 动作级权鉴）。
+  const nonActor = players.find((p) => p !== board.turn.player_id);
+  const nonActorResp = await fetch(`${WEB_URL}/tabletop_game/sanguosha/action`, {
+    method: "POST",
+    headers: { "content-type": "application/json", accept: "application/json" },
+    body: JSON.stringify({
+      token: tokens[nonActor],
+      room_id: room,
+      action: "end_play",
+    }),
+  });
+  assert(
+    nonActorResp.status === 403 || nonActorResp.status === 400,
+    `非行动者动作应被拒绝（实际 ${nonActorResp.status}）`,
+  );
+
   // 4) 浏览器：四档布局 + 隐藏信息 + 交互
   browser = await playwright.chromium.launch({ executablePath: browserPath, headless: true });
   const page = await browser.newPage();

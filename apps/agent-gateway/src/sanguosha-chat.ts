@@ -198,3 +198,29 @@ export function sgsResumeLink(url?: string): string {
 export function sgsStartedManageHint(action: string): string {
   return `⚠️ 已开局，不能${action}；请打完本局，或让房主/群管理发「#中断」。`;
 }
+
+/** 群管理（owner/admin）判定（与房主权限叠加，P8）。 */
+export function isGroupManager(role?: string): boolean {
+  const r = (role ?? "").trim().toLowerCase();
+  return r === "owner" || r === "admin" || r === "administrator";
+}
+
+/**
+ * 管理类命令的执行者：房主本人；群管理（owner/admin）可代房主执行。
+ * 引擎的 lobby 权限仍按 host 校验，因此管理动作以 host 身份提交（不改引擎规则）。
+ */
+export function sgsManageActor(
+  senderId: string,
+  role: string | undefined,
+  data: unknown,
+): string {
+  if (!isGroupManager(role)) return senderId;
+  const host = (data as { host?: unknown } | undefined)?.host;
+  return typeof host === "string" && host.trim() ? host : senderId;
+}
+
+/** 三国杀全局开关（紧急回滚；默认开）。`SGS_ROLLOUT=off|0|false` 关闭新开对局。 */
+export function sgsRolloutEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  const v = (env.SGS_ROLLOUT ?? env.SGS_ENABLED ?? "on").trim().toLowerCase();
+  return !["off", "0", "false", "no", "disabled"].includes(v);
+}

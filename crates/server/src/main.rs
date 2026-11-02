@@ -9,15 +9,16 @@
 mod auth_routes;
 mod bot_drive;
 mod dev_routes;
-mod web_auth_routes;
-mod game_routes;
 mod dev_state;
 mod docs_routes;
+mod game_routes;
 mod gameprops_routes;
 mod health;
-mod resilient;
 mod internal_routes;
+mod metrics;
+mod resilient;
 mod resources_routes;
+mod web_auth_routes;
 
 use axum::extract::State;
 use axum::{
@@ -51,6 +52,8 @@ struct AppState {
     games: Arc<game_engine_core::GameManager>,
     /// 机器人推进的房间锁（P6.3：按房间串行，避免并发双推进）
     bot_drive: Arc<bot_drive::BotDrive>,
+    /// 观测指标（P8；内存计数，`/internal/metrics`）
+    metrics: Arc<metrics::Metrics>,
     /// 房间快照版本（`game_state.version`）：内存态与真相源对齐用。
     ///
     /// 背景：MCP（agent-gateway）仍会写 lobby 动作（`#加机器人` / `#武将包` / `#开始`），
@@ -156,10 +159,12 @@ async fn main() -> anyhow::Result<()> {
         ),
         games,
         bot_drive: Arc::new(bot_drive::BotDrive::new()),
+        metrics: Arc::new(metrics::Metrics::new()),
         room_versions: Arc::new(std::sync::Mutex::new(HashMap::new())),
     };
     let app = Router::new()
         .route("/health", get(health))
+        .route("/internal/metrics", get(metrics_snapshot))
         .route("/auth/web/status", get(web_auth_routes::status))
         .route("/auth/web/register", post(web_auth_routes::register))
         .route("/auth/web/login", post(web_auth_routes::login))
@@ -277,4 +282,9 @@ async fn main() -> anyhow::Result<()> {
 /// 健康检查（读缓存，miss 时现场探测）。
 async fn health(State(state): State<AppState>) -> Json<Value> {
     Json(health::get_status(&state.redis_url, &state.sqlite_path).await)
+}
+
+/// 观测指标快照（本机；非公网）。
+async fn metrics_snapshot(State(state): State<AppState>) -> Json<Value> {
+    Json(state.metrics.snapshot())
 }

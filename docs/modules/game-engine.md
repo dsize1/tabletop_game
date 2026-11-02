@@ -59,6 +59,7 @@
 - `game_replay_base`：每房间首个决策前的 `GameState` 快照（同房间只写一份），供 `sgs-replay` 从基线重放决策；预览/工作台后续复用同思路但不写真相源。
 - 写点：server 人类动作 + `drive_bots` 每个机器人动作；MCP `bot_action` / `execute_action`；`SGS_DECISION_LOG_RATE` 采样（0 关 / 1 全量）。
 - 工具：`npm run sgs:export-decisions`（JSONL，openid 哈希）、`npm run sgs:replay`（digest 校验 + 最终快照对比）。
+- 观测（P8）：`GET /internal/metrics`（仅 127.0.0.1）返回 `actions_total/actions_denied/games_started/games_finished/bot_steps/drives/decision_logs/decision_log_failures`；运维手册见 `docs/ops/sanguosha-runbook.md`。
 
 ## 事件溯源
 

@@ -152,6 +152,7 @@ async fn process_one(
             group_id: raw.raw.group_openid.clone(),
             sender_id: raw.raw.author.member_openid.clone(),
             sender_name: raw.raw.author.username.clone(),
+            member_role: raw.raw.author.member_role.clone(),
             message_id: raw.raw.id.clone(),
             content: content.to_string(),
         });

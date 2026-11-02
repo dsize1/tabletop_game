@@ -11,6 +11,13 @@
 - **开工命令**：`npm run sgs:batch-status`（武将批次，P6 期间暂停）；流程见 `docs/games/sanguosha/batch-playbook.md`
 - **门禁**：`npm run sgs:check`（每批收尾）、`npm run sgs:check:full`（含 MCP 冒烟）、`npm run sgs:check:fast`（改码自检）、`npm run test:web-login`（跨端登录 e2e，需 `dev:up` 或临时起 server/web）
 
+## M60：P8 权鉴/群管理/观测/运维（代码完成，待真机）🟡
+
+- **日期**：2026-11-03
+- **完成**：`MessageGroupAt.member_role` 透传；群管理（owner/admin）以 host 身份代执行开始/中止/踢人/加机器人/武将包；无白名单全局开关 `SGS_ROLLOUT=off`；动作级负向（非行动者 403/400）；`/internal/metrics` 计数器；runbook + P8 验收清单；`verify-sanguosha` 增 8 人 lobby/选将/发牌/视图隔离。
+- **实测**：`/internal/metrics` 在真人动作后 actions_total=1、bot_steps=7、decision_logs=8；`sgs:check` 17/17；`test:agent-gateway` 22/22；`verify-sanguosha` 5 人全流程 + 8 人隔离通过。
+- **待真机**：真实群 10×5 + 1×8、错链/过期/非白名单、群管理真机权限、回滚演练；按 `docs/games/sanguosha/p8-acceptance.md` 记录。
+
 ## M59：P7 群命令收尾（代码完成，待真机）🟡
 
 - **日期**：2026-11-03

@@ -86,6 +86,9 @@ pub struct MessageGroupAt {
     /// 发送者群内 openid（玩家身份标识，非 QQ 号）
     pub sender_id: String,
     pub sender_name: String,
+    /// 群内角色：`member` / `admin` / `owner`（平台字段，可能为空）。
+    #[serde(default)]
+    pub member_role: String,
     /// 平台消息 id（被动回复时作为 msg_id）
     pub message_id: String,
     /// 文本内容（已 trim）

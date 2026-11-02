@@ -19,6 +19,9 @@ import {
   sgsLinkMessages,
   sgsResumeLink,
   sgsStartedManageHint,
+  isGroupManager,
+  sgsManageActor,
+  sgsRolloutEnabled,
 } from "./src/sanguosha-chat.js";
 
 // —— 白名单：只允许大厅/查询类命令（P6.3 起放开机器人补位与武将包） ——
@@ -148,6 +151,19 @@ assert.equal(sgsLinkMessages("只有标题", []).length, 1);
 assert.ok(sgsResumeLink("https://x/r").includes("重新签发"));
 assert.ok(sgsResumeLink().includes("无法签发"));
 assert.ok(sgsStartedManageHint("退出").includes("已开局"));
+
+// —— P8：群管理（owner/admin）可代房主执行管理动作；全局开关 ——
+assert.equal(isGroupManager("owner"), true);
+assert.equal(isGroupManager("admin"), true);
+assert.equal(isGroupManager("member"), false);
+assert.equal(isGroupManager(undefined), false);
+assert.equal(sgsManageActor("admin-1", "admin", { host: "host-1" }), "host-1");
+assert.equal(sgsManageActor("member-1", "member", { host: "host-1" }), "member-1");
+assert.equal(sgsManageActor("admin-1", "admin", {}), "admin-1");
+assert.equal(sgsRolloutEnabled({ SGS_ROLLOUT: "on" }), true);
+assert.equal(sgsRolloutEnabled({ SGS_ROLLOUT: "off" }), false);
+assert.equal(sgsRolloutEnabled({ SGS_ENABLED: "0" }), false);
+assert.equal(sgsRolloutEnabled({}), true);
 assert.equal(sgsSeatCount({}), 0);
 
 // —— 武将包标签（#开局 回执用） ——

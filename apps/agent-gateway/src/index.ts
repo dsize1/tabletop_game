@@ -99,6 +99,8 @@ import {
   sgsResumeLink,
   sgsStartedManageHint,
   resolveSgsKickTarget,
+  sgsManageActor,
+  sgsRolloutEnabled,
   sgsLobbyPrompt,
   sgsRefuseHint,
   sgsStartedPrompt,
@@ -179,6 +181,8 @@ interface MessageGroupAt {
   group_id: string;
   sender_id: string;
   sender_name: string;
+  /** 群内角色：member / admin / owner（P8；平台可能为空）。 */
+  member_role?: string;
   message_id: string;
   content: string;
 }
@@ -1610,6 +1614,10 @@ async function handleGameCommand(
       await pushReply(redis, event, [hint, formatGameMenu()].filter(Boolean).join("\n"));
       return;
     }
+    if (game.id === SANGUOSHA_GAME_ID && !sgsRolloutEnabled()) {
+      await pushReply(redis, event, "三国杀暂未开放（运维开关关闭）。请先玩其他桌游。");
+      return;
+    }
     if (game.mode === "direct") {
       // 无等待厅：建局即开打（如猜拳）
       const stateJson = await engine.startGame(game.id, event.group_id, [event.sender_id]);
@@ -1675,8 +1683,12 @@ async function handleGameCommand(
     }
     let ok = 0;
     let lastState: GameState | undefined;
+    const addBotActor =
+      active.game_id === SANGUOSHA_GAME_ID
+        ? sgsManageActor(event.sender_id, event.member_role, active.data)
+        : event.sender_id;
     for (let i = 0; i < cmd.n; i++) {
-      const raw = await engine.executeAction(roomId, event.sender_id, "lobby:add_bot");
+      const raw = await engine.executeAction(roomId, addBotActor, "lobby:add_bot");
       if (raw.startsWith("错误")) {
         await pushReply(redis, event, raw);
         break;
@@ -1784,6 +1796,11 @@ async function handleGameCommand(
   // 三国杀（lobby 命令）：确定性回执 + 登录链接；不做局面叙述、不列合法动作
   if (active.game_id === SANGUOSHA_GAME_ID) {
     const sgsPhase = active.data?.phase;
+    const manageActor = sgsManageActor(
+      event.sender_id,
+      event.member_role,
+      active.data,
+    );
     // `#恢复`：只重签登录链接（ADR-0031；不推进对局）。
     if (cmd.cmd === "resume") {
       const url = await makeLoginUrl({
@@ -1826,7 +1843,7 @@ async function handleGameCommand(
     // `#武将包 [编号|all]`：预设列表来自引擎 lobby 合法动作（单一数据源）。
     if (cmd.cmd === "generalpacks") {
       const legal = parseJson<LegalAction[]>(
-        await engine.getLegalActions(roomId, event.sender_id),
+        await engine.getLegalActions(roomId, manageActor),
         [],
       );
       const presets = (Array.isArray(legal) ? legal : [])
@@ -1855,7 +1872,7 @@ async function handleGameCommand(
         );
         return;
       }
-      const raw = await engine.executeAction(roomId, event.sender_id, chosen.id);
+      const raw = await engine.executeAction(roomId, manageActor, chosen.id);
       if (raw.startsWith("错误")) {
         await pushReply(redis, event, raw);
         return;
@@ -1875,7 +1892,9 @@ async function handleGameCommand(
       await pushReply(redis, event, sgsRefuseHint());
       return;
     }
-    const raw = await engine.executeAction(roomId, event.sender_id, actionId);
+    const manageCommands = new Set(["start", "abort", "kick"]);
+    const actor = manageCommands.has(cmd.cmd) ? manageActor : event.sender_id;
+    const raw = await engine.executeAction(roomId, actor, actionId);
     if (raw.startsWith("错误")) {
       await pushReply(redis, event, raw);
       return;

@@ -34,6 +34,7 @@
 |---|---|
 | `sender_id` | `raw.author.member_openid`（注意：不是 QQ 号） |
 | `sender_name` | `raw.author.username` |
+| `member_role` | `raw.author.member_role`（`owner/admin/member`，P8 群管理权限；可能为空） |
 | `group_id` | `raw.group_openid` |
 | `message_id` | `raw.id`（被动回复的 msg_id） |
 | `content` | `raw.content`（需 trim 前导/尾随空格） |
