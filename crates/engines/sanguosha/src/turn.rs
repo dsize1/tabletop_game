@@ -3584,7 +3584,7 @@ pub fn execute(
         }
         let label = card_label(st, card_id);
         st.set_counter("jiu_used", 1);
-        st.set_counter("jiu", 1);
+        crate::skills::mark_jiu(st, idx);
         take_card(st, idx, card_id)?;
         to_discard_card(st, card_id);
         st.bump_counter("play_cards_used");
@@ -3995,7 +3995,7 @@ pub fn execute(
         }
         let label = card_label(st, card_id);
         st.set_counter("jiu_used", 1);
-        st.set_counter("jiu", 1);
+        crate::skills::mark_jiu(st, idx);
         take_card(st, idx, card_id)?;
         to_discard_card(st, card_id);
         st.push_log(
@@ -5550,7 +5550,7 @@ fn play_card(
                 return Err(illegal("本回合已使用过【酒】"));
             }
             st.set_counter("jiu_used", 1);
-            st.set_counter("jiu", 1);
+            crate::skills::mark_jiu(st, idx);
             take_card(st, idx, card_id)?;
             to_discard_card(st, card_id);
             st.bump_counter("play_cards_used");

@@ -1567,7 +1567,7 @@ fn resolve_guhuo_play(
         }
         "jiu" => {
             st.set_counter("jiu_used", 1);
-            st.set_counter("jiu", 1);
+            crate::skills::mark_jiu(st, user);
             turn::take_card(st, user, card)?;
             turn::to_discard_card(st, card);
             st.push_log(

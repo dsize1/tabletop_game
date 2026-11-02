@@ -99,6 +99,8 @@ button { font: inherit; color: inherit; }
 .sgs-candidate { display:flex; flex-direction:column; align-items:flex-start; gap:2px; min-width:96px; padding:8px 10px; border-radius:8px; border:1px solid var(--sgs-line, #3a3f4a); background:rgba(255,255,255,.04); color:inherit; cursor:pointer; }
 .sgs-candidate:hover { border-color:var(--sgs-gold, #d8b25a); }
 .sgs-candidate .muted { font-size:11px; }
+.sgs-recasts { display:inline-flex; gap:6px; flex-wrap:wrap; }
+.sgs-recast { border-style:dashed; }
 .sgs-winner { margin-top:8px; font-size:14px; font-weight:700; color:var(--sgs-gold); }
 .sgs-zone-list { margin-top:8px; font-size:11px; color:#c9d1d9; display:flex; flex-direction:column; gap:2px; }
 .sgs-personal { flex:0 0 auto; background:var(--sgs-panel); border:1px solid var(--sgs-line); border-radius:14px;

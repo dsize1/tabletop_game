@@ -1458,7 +1458,7 @@ pub(crate) fn use_taoluan(
             );
         }
         "jiu" => {
-            st.set_counter("jiu", 1);
+            crate::skills::mark_jiu(st, seat);
             st.set_counter("jiu_used", 1);
             turn::take_card(st, seat, card)?;
             turn::to_discard_card(st, card);

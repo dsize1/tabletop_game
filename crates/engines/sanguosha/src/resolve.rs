@@ -1711,6 +1711,41 @@ fn step_trick(
                         },
                     ]
                 }
+            } else if f.code == "tiesuo_lianhuan" {
+                // 铁索连环：对至多两名角色使用。
+                // 单目标用 `target:<pid>`（一步结算，兼容既有流程）；
+                // 双目标用 `targets:<p1,p2>`（组合由引擎枚举，和方天画戟/天义同风格），
+                // 结算时**每个目标各开一次无懈链**。
+                let candidates: Vec<usize> = st
+                    .alive_indices()
+                    .into_iter()
+                    .filter(|i| *i != f.user && !crate::skills::weimu_blocks(st, *i, &f.card))
+                    .collect();
+                let mut opts: Vec<PendingOption> = candidates
+                    .iter()
+                    .map(|i| PendingOption {
+                        id: format!("target:{}", st.seats[*i].player_id),
+                        label: format!("选择 {}", st.seats[*i].general_name),
+                    })
+                    .collect();
+                for x in 0..candidates.len() {
+                    for y in (x + 1)..candidates.len() {
+                        let (a, b) = (candidates[x], candidates[y]);
+                        let ids = format!(
+                            "{},{}",
+                            st.seats[a].player_id, st.seats[b].player_id
+                        );
+                        let names = format!(
+                            "{}、{}",
+                            st.seats[a].general_name, st.seats[b].general_name
+                        );
+                        opts.push(PendingOption {
+                            id: format!("targets:{ids}"),
+                            label: format!("同时选择 {names}"),
+                        });
+                    }
+                }
+                opts
             } else {
                 let candidates: Vec<usize> = match f.code.as_str() {
                     "shunshou_qianyang" => st
@@ -1817,6 +1852,11 @@ fn step_trick(
                 data: json!({
                     "card": f.card,
                     "code": f.code,
+                    "selected": f
+                        .targets
+                        .iter()
+                        .map(|i| st.seats[*i].player_id.clone())
+                        .collect::<Vec<_>>(),
                     "stage": if f.code == "jiedao_sharen" {
                         if f.first.is_none() {
                             "borrow_first"
@@ -1825,6 +1865,8 @@ fn step_trick(
                         } else {
                             "confirm"
                         }
+                    } else if f.code == "tiesuo_lianhuan" {
+                        "tiesuo"
                     } else {
                         "single"
                     },
@@ -3882,6 +3924,30 @@ fn act_wuxie(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Strin
 }
 
 fn act_target(st: &mut SgsState, pending: &Pending, action: &str) -> Result<String, EngineError> {
+    // 铁索连环：`targets:<p1,p2>` 双目标（组合由引擎在选项里枚举，避免伪造）。
+    if let Some(Frame::Trick(mut f)) = top(st).cloned() {
+        if f.code == "tiesuo_lianhuan" && action.starts_with("targets:") {
+            if !pending.options.iter().any(|o| o.id == action) {
+                return Err(illegal("目标组合不合法"));
+            }
+            let csv = action.trim_start_matches("targets:");
+            let seats: Vec<usize> = csv
+                .split(',')
+                .map(|pid| {
+                    st.seat_index(pid.trim())
+                        .ok_or_else(|| illegal("目标不在座"))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            if seats.len() != 2 {
+                return Err(illegal("铁索连环最多两名角色"));
+            }
+            f.targets = seats;
+            f.idx = 0;
+            f.stage = TrickStage::Wuxie;
+            replace_top(st, Frame::Trick(f));
+            return Ok("铁索连环：已选两名角色".to_string());
+        }
+    }
     // 杀：选目标后进入【闪】响应
     if let Some(Frame::Sha(mut f)) = top(st).cloned() {
         // 支持方天画戟的 `targets:<p1,p2[,p3]>` 组合。
@@ -4315,6 +4381,14 @@ fn act_target(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Stri
         return Err(illegal("目标不合法"));
     }
     match stage {
+        "tiesuo" => {
+            // 单目标 `target:<pid>`（由上面的 `target_pid` 解析得到）。
+            f.targets = vec![target];
+            f.idx = 0;
+            f.stage = TrickStage::Wuxie;
+            replace_top(st, Frame::Trick(f));
+            Ok(format!("铁索连环：对 {} 结算", st.seats[target].general_name))
+        }
         "borrow_first" => {
             f.first = Some(target);
             f.stage = TrickStage::Target;
@@ -4594,9 +4668,10 @@ fn respond_give_up(st: &mut SgsState, f: &RespondFrame) {
                 amount += crate::skills::anjian_bonus(st, f.source, actor);
             }
             // 酒：本回合下一张【杀】伤害 +1（用后清零）。
-            if f.is_sha && st.counter("jiu") > 0 {
+            // **只对饮酒者本人**生效：借刀杀人被迫出【杀】的是另一名角色，
+            // 不能吃饮酒者的加成（2026-11-02 真机 bug）。
+            if f.is_sha && crate::skills::take_jiu_for(st, f.source) {
                 amount += 1;
-                st.set_counter("jiu", 0);
                 // 恃勇（将华雄）：标记此伤害为「酒【杀】」。
                 st.set_counter(&format!("jiu_boost:{actor}"), 1);
             }

@@ -1406,7 +1406,7 @@ pub(crate) fn use_huomo(
         }
         _ => {
             st.set_counter("jiu_used", 1);
-            st.set_counter("jiu", 1);
+            crate::skills::mark_jiu(st, seat);
             st.push_log(
                 Some(&pid(st, seat)),
                 format!("活墨：将【{label}】置于牌堆顶，视为使用【酒】"),

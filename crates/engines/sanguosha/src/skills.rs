@@ -4814,6 +4814,26 @@ pub fn remove_xueyi_mark(st: &mut SgsState, seat: usize) -> bool {
 }
 
 /// 界酒池（界董卓）：使用【酒】无次数限制。
+/// 标记「本回合下一张【杀】伤害 +1」并记下**饮酒者**（`jiu_src = seat+1`）。
+///
+/// 历史 bug（2026-11-02 真机）：`jiu` 只记「本回合有酒」，借刀杀人被迫出【杀】的
+/// 是**另一个人**，却吃到了饮酒者的 +1（bot2 喝酒 → 借 bot1 的刀 → 目标掉 2 血）。
+pub fn mark_jiu(st: &mut SgsState, seat: usize) {
+    let n = st.counter("jiu") + 1;
+    st.set_counter("jiu", n);
+    st.set_counter("jiu_src", seat as u32 + 1);
+}
+
+/// 只有**饮酒者本人**使用的【杀】才享受 +1，用后清零。
+pub fn take_jiu_for(st: &mut SgsState, seat: usize) -> bool {
+    if st.counter("jiu") == 0 || st.counter("jiu_src") != seat as u32 + 1 {
+        return false;
+    }
+    st.set_counter("jiu", 0);
+    st.set_counter("jiu_src", 0);
+    true
+}
+
 pub fn jiu_unlimited(st: &SgsState, seat: usize) -> bool {
     has(st, seat, "jiuchi") && is_jiexian(st, seat)
 }

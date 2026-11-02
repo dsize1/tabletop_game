@@ -256,7 +256,7 @@ pub(crate) fn act_jiushi(st: &mut SgsState, action: &str) -> Result<String, Engi
     st.seats[f.actor].flipped = true;
     crate::resolve_jiexian3::shebian_on_flip(st, f.actor);
     st.set_counter("jiu_used", 1);
-    st.set_counter("jiu", 1);
+    crate::skills::mark_jiu(st, f.actor);
     st.push_log(
         Some(&st.seats[f.actor].player_id.clone()),
         "酒诗：翻至背面，视为使用【酒】",

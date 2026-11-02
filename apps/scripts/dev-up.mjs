@@ -199,7 +199,13 @@ if (FLAGS.decision) {
 const webCwd = resolve(repoRoot, "apps", "web");
 if (FLAGS.build) {
   console.log("[build] web client bundle ...");
-  oneShot("web-build", "npm", ["run", "build:client"], { cwd: webCwd });
+  // Windows 上 `spawnSync("npm")` 会 ENOENT（npm 是 npm.cmd）→ 用 npm.cmd + shell。
+  oneShot(
+    "web-build",
+    process.platform === "win32" ? "npm.cmd" : "npm",
+    ["run", "build:client"],
+    { cwd: webCwd, shell: process.platform === "win32" },
+  );
 }
 launch("web", node, [tsxCli, "src/index.ts"], { cwd: webCwd });
 

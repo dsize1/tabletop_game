@@ -265,7 +265,7 @@ pub(crate) fn act_rende_basic(st: &mut SgsState, action: &str) -> Result<String,
         "jiu" => {
             pop(st);
             st.set_counter("jiu_used", 1);
-            st.set_counter("jiu", 1);
+            crate::skills::mark_jiu(st, actor);
             st.push_log(
                 Some(&pid(st, actor)),
                 "仁德：视为使用【酒】（下一张【杀】伤害 +1）",

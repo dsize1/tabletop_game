@@ -230,6 +230,20 @@ export function renderPersonalArea(
     .reverse()
     .map((c) => cardChipHtml(c, { icon: judgeIcon(c) }))
     .join("");
+  // 重铸（铁索连环 / 连环梅花牌）：引擎下发 `recast:<card>`，但卡片点击只会提交
+  // `play:<card>` → 必须单独给按钮，否则「没有重铸交互」（2026-11-02 真机）。
+  const recasts = acts
+    .filter((a) => a.id.startsWith("recast:"))
+    .map((a) => {
+      const id = a.id.slice("recast:".length);
+      const card = (area.hand ?? []).find((c) => c.id === id);
+      const label = card ? cardLabel(card) : id;
+      return (
+        `<button type="button" class="btn ghost sgs-recast" data-action="${escapeHtml(a.id)}">` +
+        `重铸【${escapeHtml(label)}】</button>`
+      );
+    })
+    .join("");
   const isMyTurn = board.turn.seat === area.seat && board.turn.phase === "play";
   return (
     `<section class="sgs-personal" aria-label="个人资源区">` +
@@ -260,6 +274,7 @@ export function renderPersonalArea(
     `<button type="button" class="btn" data-op="confirm" disabled>确认打出</button>` +
     `<button type="button" class="btn ghost" data-op="cancel" disabled>取消选择</button>` +
     `<button type="button" class="btn ghost" data-action="end_play"${canEndPlay ? "" : " disabled"}>结束出牌</button>` +
+    (recasts ? `<span class="sgs-recasts">${recasts}</span>` : "") +
     `</div>` +
     `</section>`
   );
