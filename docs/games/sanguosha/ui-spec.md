@@ -258,3 +258,11 @@
 - [x] 无 JS 文本态可用（含观星文字顺序提交，P3.6 实测 urlencoded 表单）。
 - [x] 锦囊交互：无懈链（有手牌者显式 pass、无手牌者自动跳过）、判定前无懈、拿牌选择三区、借刀二阶段（确认/取消）、五谷释放者先选（P3.4/P3.6；借刀边框样式未做，功能可用）。
 - [x] 真机烟测：见 `p3-manual-test.md` 清单（16 项，用户 2026-10-30 确认通过）；吸附阈值与拖拽手感记录到本文件 §7.3（当前阈值 10%/400ms）。
+
+### 选将面板（P6.3 真机补齐）
+
+- **位置**：个人资源区顶部（`sgs-me` 之后），仅 `phase=setup` 渲染。
+- **候选**：来自 `player_area.setup.candidate_details`（引擎投影：`code/name/kingdom/max_hp/is_lord/skills`），每个候选一个按钮，`data-action="setup:choose_general:<code>"`（复用现有动作提交链路）。
+- **已选**：显示「已选武将：X + 等待其他玩家选将（picked/total）」，不再显示候选。
+- **无候选**（前任未选）：显示「选将中… 等待主公/其他玩家先选（picked/total）」。
+- 公共区仍只显示进度（`public_board.setup`），**不泄漏**他人候选。

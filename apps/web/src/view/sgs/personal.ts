@@ -69,6 +69,55 @@ function wuguPanel(zones: SgsSpecialZones | undefined, names?: Record<string, st
   );
 }
 
+/**
+ * 选将面板（`phase=setup`）。
+ *
+ * 历史问题（2026-11-02 真机）：个人区只渲染手牌/技能/结束出牌，**没有候选武将**，
+ * 玩家在选将阶段看不到任何可点控件 → 表现为「卡在选将」。
+ * 引擎已在 `player_area.setup.candidate_details` 投影名字/势力/体力/技能名。
+ */
+function setupPanel(area: SgsPlayerArea, board: SgsPublicBoard): string {
+  const setup = area.setup;
+  if (!setup) return "";
+  const details = setup.candidate_details ?? [];
+  const picked = setup.picked ?? null;
+  const total = board.seat_count || board.seats.length || 0;
+  const pickedCount = board.setup?.picked_count ?? 0;
+  if (picked) {
+    const name = details.find((d) => d.code === picked)?.name ?? area.general_name ?? picked;
+    return (
+      `<div class="sgs-setup" data-setup="picked">` +
+      `<div class="sgs-setup-head">已选武将：<b>${escapeHtml(name)}</b></div>` +
+      `<div class="muted">等待其他玩家选将（${pickedCount}/${total}）</div>` +
+      `</div>`
+    );
+  }
+  if (details.length === 0) {
+    return `<div class="sgs-setup" data-setup="wait"><div class="sgs-setup-head">选将中…</div>` +
+      `<div class="muted">等待主公/其他玩家先选（${pickedCount}/${total}）</div></div>`;
+  }
+  const buttons = details
+    .map((d) => {
+      const kingdom = d.kingdom ? KINGDOM_LABEL[d.kingdom] ?? d.kingdom : "";
+      const hp = typeof d.max_hp === "number" ? `体力 ${d.max_hp}` : "";
+      const skills = (d.skills ?? []).join("·");
+      const meta = [kingdom, hp, skills].filter(Boolean).join(" · ");
+      return (
+        `<button type="button" class="sgs-candidate" data-action="setup:choose_general:${escapeHtml(d.code)}">` +
+        `<b>${escapeHtml(d.name)}</b>` +
+        (meta ? `<span class="muted">${escapeHtml(meta)}</span>` : "") +
+        `</button>`
+      );
+    })
+    .join("");
+  return (
+    `<div class="sgs-setup" data-setup="choose">` +
+    `<div class="sgs-setup-head">选择武将（${details.length} 选 1${setup.is_lord ? " · 主公" : ""}）</div>` +
+    `<div class="sgs-setup-list">${buttons}</div>` +
+    `</div>`
+  );
+}
+
 /// 罪论（诸葛瞻）亮出的牌：仅本人可见（`visibility: owner`）。
 function zuilunPanel(zones: SgsSpecialZones | undefined): string {
   const z = zones?.zuilun as
@@ -196,6 +245,7 @@ export function renderPersonalArea(
     `<div class="sgs-skills">${skills}</div>` +
     marksHtml(area) +
     `</div>` +
+    setupPanel(area, board) +
     `<div class="sgs-me-row">` +
     `<div class="sgs-equips">${equips}</div>` +
     `<div class="sgs-judge"><span class="sgs-equip-label">判定</span>${area.judge_abolished ? `<span class="muted">废除</span>` : judge || `<span class="muted">无</span>`}</div>` +

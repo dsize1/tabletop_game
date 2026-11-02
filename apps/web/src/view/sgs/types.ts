@@ -97,10 +97,38 @@ export interface SgsPublicBoard {
   /** 弃牌堆全量（顶 → 底，引擎按入堆顺序返回）。 */
   discard?: SgsCard[];
   pending?: { kind: string; actor: string } | null;
-  setup?: unknown;
+  setup?: SgsPublicSetup | null;
   winner?: { team: string; players: string[] } | null;
   aborted?: string | null;
   history?: SgsHistoryEntry[];
+}
+
+/** 公共区选将进度（`public_board.setup`）。 */
+export interface SgsPublicSetup {
+  lord?: string | null;
+  lord_picked?: boolean;
+  picked_count?: number;
+}
+
+/** 选将候选（个人资源区 `setup.candidate_details`，引擎已投影为可直接渲染的详情）。 */
+export interface SgsSetupCandidate {
+  code: string;
+  name: string;
+  kingdom?: string;
+  max_hp?: number;
+  is_lord?: boolean;
+  skills?: string[];
+}
+
+/** 个人资源区选将态（`player_area.setup`）。 */
+export interface SgsPlayerSetup {
+  /** 候选武将 code（既有契约，保留）。 */
+  candidates?: string[];
+  /** 候选详情（名字/势力/体力/技能名），与 `candidates` 一一对应。 */
+  candidate_details?: SgsSetupCandidate[];
+  /** 本人已选武将 code（未选为 undefined/null）。 */
+  picked?: string | null;
+  is_lord?: boolean;
 }
 
 export interface SgsSkill {
@@ -139,7 +167,7 @@ export interface SgsPlayerArea {
   is_current?: boolean;
   equipment_skills?: { slot: string; code: string; name: string; card: string; trigger: string }[];
   pending?: SgsPending | null;
-  setup?: unknown;
+  setup?: SgsPlayerSetup | null;
 }
 
 /** 特殊交互区（按 visibility 已由服务端过滤）。 */

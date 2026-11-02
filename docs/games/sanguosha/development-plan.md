@@ -805,6 +805,7 @@
 - **登录链接时点**：`#开局` / `#加入` 不再签发链接；`#开始` 统一给所有非机器人玩家各发一条（用户裁定，避免重复验证）。
 - **状态新鲜度（关键 bug）**：MCP（agent-gateway）会写 lobby（`#加机器人`/`#武将包`/`#开始`），而 server 仅在「房间不在内存」时 restore → 内存态落后于 SQLite，表现为 **`#开始` 后网页仍卡在选将**（页面的 `get_legal_actions` 来自旧 lobby）。修法：server `ensure_room` 与 MCP `sync_room` 都按 `game_state.version` 比对，DB 更新则重新 `restore`；自身写入后记录版本避免重复读。用例：`server::needs_reload` 5 种组合 + MCP `sync_room` 3 条（前向同步 / 版本未变不回滚 / 版本记录）。
 - **消费循环自愈**：Redis 未就绪时 `bot-adapter`/归档循环不再永久退出（`server::resilient`，500ms→30s 退避）；真机表现为「机器人没反应」。
+- **选将页缺失（P3 UI 缺口，真机暴露）**：`phase=setup` 时个人区只渲染手牌/技能/结束出牌，**没有任何候选武将控件** → 玩家看到「未选将」以为主公没选，实际 AI 主公早已选完（`lord_picked=true`）。修法：引擎在 `player_area.setup.candidate_details` 投影候选详情（名字/势力/体力/技能名，仅本人可见），Web 新增选将面板（`data-action="setup:choose_general:<code>"` 按钮 + 已选/等待进度）。用例：`candidates_are_private_during_setup` 增候选详情断言、`apps/web/test-sgs.mts` 增选将面板三态（候选/已选/无候选）。
 - **`#加机器人` 座位数**：回执用原始 state（`data.seats`）而非公共视图（`data.public_board.seats`），修 0/8。
 
 ### P7 Q 群接入（M，后置）

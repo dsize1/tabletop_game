@@ -631,6 +631,24 @@ fn candidates_are_private_during_setup() {
     for c in cand_b {
         assert!(!cand_a.contains(c), "候选不应重叠: {c}");
     }
+
+    // P6.3：候选详情（名字/势力/体力/技能名）随个人视图下发，供 Web 选将页直接渲染；
+    // 公共视图仍然只有 `candidates` 字样都不出现（上面已断言）。
+    let details = pv_a["player_area"]["setup"]["candidate_details"]
+        .as_array()
+        .expect("candidate_details 应为数组");
+    assert_eq!(details.len(), cand_a.len(), "详情应与候选一一对应");
+    for d in details {
+        assert!(d["code"].is_string());
+        assert!(!d["name"].as_str().unwrap_or_default().is_empty(), "应有武将名");
+        assert!(d["kingdom"].is_string(), "应有势力");
+        assert!(d["max_hp"].is_u64(), "应有体力上限");
+        assert!(d["skills"].is_array(), "应有技能名数组");
+    }
+    assert!(
+        public.to_string().find("candidate_details").is_none(),
+        "公共视图不得含候选详情"
+    );
 }
 
 #[test]

@@ -93,6 +93,12 @@ button { font: inherit; color: inherit; }
 .sgs-deck-discard { font-size:11px; color:#c9d1d9; margin-top:2px; }
 .sgs-waiting { margin-top:8px; font-size:12px; color:var(--sgs-gold); }
 .sgs-waiting-bot { color:var(--sgs-accent, #6fb3ff); opacity:.9; }
+.sgs-setup { margin:8px 0 10px; padding:10px 12px; border:1px solid var(--sgs-line, #3a3f4a); border-radius:10px; background:rgba(255,255,255,.03); }
+.sgs-setup-head { font-size:13px; margin-bottom:8px; }
+.sgs-setup-list { display:flex; flex-wrap:wrap; gap:8px; }
+.sgs-candidate { display:flex; flex-direction:column; align-items:flex-start; gap:2px; min-width:96px; padding:8px 10px; border-radius:8px; border:1px solid var(--sgs-line, #3a3f4a); background:rgba(255,255,255,.04); color:inherit; cursor:pointer; }
+.sgs-candidate:hover { border-color:var(--sgs-gold, #d8b25a); }
+.sgs-candidate .muted { font-size:11px; }
 .sgs-winner { margin-top:8px; font-size:14px; font-weight:700; color:var(--sgs-gold); }
 .sgs-zone-list { margin-top:8px; font-size:11px; color:#c9d1d9; display:flex; flex-direction:column; gap:2px; }
 .sgs-personal { flex:0 0 auto; background:var(--sgs-panel); border:1px solid var(--sgs-line); border-radius:14px;

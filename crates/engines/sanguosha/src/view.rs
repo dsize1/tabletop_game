@@ -297,8 +297,33 @@ pub fn player_area(st: &SgsState, viewer: &str) -> Option<Value> {
         }
     }
     let setup = if st.phase == Phase::Setup {
+        // 候选武将：既给 code 列表（既有契约），也给可直接渲染的详情
+        // （Web 选将页需要名字/势力/体力/技能名，否则只能显示内部 code）。
+        let details: Vec<Value> = st
+            .setup
+            .offers
+            .get(viewer)
+            .map(|codes| {
+                codes
+                    .iter()
+                    .filter_map(|code| {
+                        data::general(code).map(|g| {
+                            json!({
+                                "code": g.code,
+                                "name": g.name,
+                                "kingdom": g.kingdom,
+                                "max_hp": g.max_hp,
+                                "is_lord": g.is_lord,
+                                "skills": g.skills,
+                            })
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
         json!({
             "candidates": st.setup.offers.get(viewer),
+            "candidate_details": details,
             "picked": picked,
             "is_lord": s.identity.is_lord(),
         })

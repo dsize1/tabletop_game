@@ -650,4 +650,47 @@ assert.ok(gxHtml.includes("data-gx-reset"), "重置按钮");
 assert.ok(gxHtml.includes('data-action="arrange:c3,c1,c2"'), "提交动作 id");
 assert.ok(gxHtml.includes("最终顺序（顶 → 底）：杀♠3 → 闪♥A → 桃♦2"), "顺序预览");
 
+// —— P6.3 真机回归：选将阶段必须渲染「候选武将」按钮（此前只有空白面板，表现为卡死） ——
+const setupBoard = {
+  ...board,
+  setup: { lord: "p1", lord_picked: true, picked_count: 4 },
+};
+const setupArea = {
+  ...me,
+  general: null,
+  general_name: "",
+  skills: [],
+  hand: [],
+  setup: {
+    candidates: ["sgs_hero_1", "sgs_hero_2"],
+    candidate_details: [
+      { code: "sgs_hero_1", name: "刘备", kingdom: "shu", max_hp: 4, is_lord: true, skills: ["仁德", "激将"] },
+      { code: "sgs_hero_2", name: "关羽", kingdom: "shu", max_hp: 4, is_lord: false, skills: ["武圣"] },
+    ],
+    picked: null,
+    is_lord: false,
+  },
+};
+const setupHtml = renderPersonalArea(setupArea as never, setupBoard as never, {}, names, [
+  { id: "setup:choose_general:sgs_hero_1", description: "选择武将：刘备" },
+  { id: "setup:choose_general:sgs_hero_2", description: "选择武将：关羽" },
+]);
+assert.ok(setupHtml.includes('data-action="setup:choose_general:sgs_hero_1"'), "选将：候选按钮可点击");
+assert.ok(setupHtml.includes("刘备") && setupHtml.includes("关羽"), "选将：显示武将名");
+assert.ok(setupHtml.includes("仁德") && setupHtml.includes("武圣"), "选将：显示技能名");
+assert.ok(setupHtml.includes("选择武将（2 选 1"), "选将：标题带候选数");
+
+const pickedHtml = renderPersonalArea(
+  { ...setupArea, setup: { ...setupArea.setup, picked: "sgs_hero_2" } } as never,
+  setupBoard as never,
+  {},
+  names,
+  [],
+);
+assert.ok(pickedHtml.includes("已选武将") && pickedHtml.includes("关羽"), "选将后显示已选武将");
+assert.ok(pickedHtml.includes("等待其他玩家选将（4/5）"), "选将后显示进度");
+assert.ok(!pickedHtml.includes('data-action="setup:choose_general:'), "选将后不再显示候选");
+
+console.log("[sgs-web] 选将面板单测通过 ✅");
+
 console.log("[sgs-web] 观星纯函数/渲染单测通过 ✅");
