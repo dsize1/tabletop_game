@@ -4,19 +4,19 @@
 
 ## 🔖 续接指针（下次会话说「继续」时从这里开工）
 
-- **入口**：`docs/games/sanguosha/development-plan.md` → **P6.3 验收通过** → **P6.4 决策日志/导出/回放（进行中）** → P7 收尾 → P8 → 工作台+预览 → 全武将验证
-- **顺序（用户 2026-11-03 定稿）**：① P6.4 决策日志/导出/回放 → ② P7 Q 群收尾验收 → ③ P8 权鉴/全局开关/观测/运维 → ④ 工作台+预览基座 → ⑤ 全武将验证（标准→风→林→火→山→一将→界）；P6.5/P6.6 本轮不做
+- **入口（2026-11-03 新会话）**：P6.4 ✅ → P7 代码完成（真机滞后）→ **P8 代码完成（真机验收滞后）** → **下一步：工作台 + 预览基座**（模板/预览/AI 调试/决策日志），用于批量验证武将
+- **顺序（用户 2026-11-03 定稿）**：① P6.4 决策日志/导出/回放 ✅ → ② P7 Q 群收尾（代码完成） → ③ P8 权鉴/全局开关/观测/运维（代码完成，真机验收滞后） → ④ **工作台+预览基座（新会话开始）** → ⑤ 全武将验证（标准→风→林→火→山→一将→界）；P6.5/P6.6 本轮不做
 - **进度台账**：`memory_palace/plan/01a19ccc-dc1a-7549-aeb8-5e87e928ddde.md` §进度台账
 - **P6 批次入口**：`crates/game-engine-mcp`（`bot_action` 现为 `RandomPolicy`，非 las-vegas）→ `GameManager`/`EnginePlugin`（合法动作 + 状态机已就绪）；缺口见 `docs/games/sanguosha/development-plan.md` P6 节
 - **开工命令**：`npm run sgs:batch-status`（武将批次，P6 期间暂停）；流程见 `docs/games/sanguosha/batch-playbook.md`
 - **门禁**：`npm run sgs:check`（每批收尾）、`npm run sgs:check:full`（含 MCP 冒烟）、`npm run sgs:check:fast`（改码自检）、`npm run test:web-login`（跨端登录 e2e，需 `dev:up` 或临时起 server/web）
 
-## M60：P8 权鉴/群管理/观测/运维（代码完成，待真机）🟡
+## M60：P8 权鉴/群管理/观测/运维（代码完成，真机验收滞后）🟡
 
 - **日期**：2026-11-03
 - **完成**：`MessageGroupAt.member_role` 透传；群管理（owner/admin）以 host 身份代执行开始/中止/踢人/加机器人/武将包；无白名单全局开关 `SGS_ROLLOUT=off`；动作级负向（非行动者 403/400）；`/internal/metrics` 计数器；runbook + P8 验收清单；`verify-sanguosha` 增 8 人 lobby/选将/发牌/视图隔离。
 - **实测**：`/internal/metrics` 在真人动作后 actions_total=1、bot_steps=7、decision_logs=8；`sgs:check` 17/17；`test:agent-gateway` 22/22；`verify-sanguosha` 5 人全流程 + 8 人隔离通过。
-- **待真机**：真实群 10×5 + 1×8、错链/过期/非白名单、群管理真机权限、回滚演练；按 `docs/games/sanguosha/p8-acceptance.md` 记录。
+- **真机验收滞后（用户 2026-11-03 裁定）**：真实群 10×5 + 1×8、错链/过期/群管理权限、回滚演练按 `docs/games/sanguosha/p8-acceptance.md` 后续补做；不阻塞工作台。
 
 ## M59：P7 群命令收尾（代码完成，待真机）🟡
 
