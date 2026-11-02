@@ -25,7 +25,7 @@ use axum::{
     Json, Router,
 };
 use serde_json::Value;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -51,6 +51,13 @@ struct AppState {
     games: Arc<game_engine_core::GameManager>,
     /// 机器人推进的房间锁（P6.3：按房间串行，避免并发双推进）
     bot_drive: Arc<bot_drive::BotDrive>,
+    /// 房间快照版本（`game_state.version`）：内存态与真相源对齐用。
+    ///
+    /// 背景：MCP（agent-gateway）仍会写 lobby 动作（`#加机器人` / `#武将包` / `#开始`），
+    /// 而 server 只在「房间不在内存」时 restore → 内存态会落后于 SQLite，
+    /// 表现为页面停在旧阶段（P6.3 真机：`#开始` 后网页仍卡在选将）。
+    /// 这里记「本进程最近一次已知版本」，请求进来发现 DB 更新就重新 restore。
+    room_versions: Arc<std::sync::Mutex<HashMap<String, i64>>>,
 }
 
 #[tokio::main]
@@ -149,6 +156,7 @@ async fn main() -> anyhow::Result<()> {
         ),
         games,
         bot_drive: Arc::new(bot_drive::BotDrive::new()),
+        room_versions: Arc::new(std::sync::Mutex::new(HashMap::new())),
     };
     let app = Router::new()
         .route("/health", get(health))

@@ -190,6 +190,10 @@ fn persist(
         &records,
         &state_json,
     )?;
+    // 记录本进程已知版本：避免下一次 `ensure_room` 把自己的写入当成「落后」而多读一次快照。
+    if let Ok(mut m) = state.room_versions.lock() {
+        m.insert(game_state.room_id.clone(), seq);
+    }
     tracing::debug!("已写入 {} 条引擎事件，version={seq}", records.len());
     Ok(seq)
 }

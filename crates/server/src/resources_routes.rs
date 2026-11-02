@@ -68,14 +68,43 @@ async fn read_plan_markdown(state: &AppState, session_id: &str) -> Result<String
 /// - 内存里已有该房间 → 直接返回；
 /// - 否则从 `game_state` 读快照并 `restore`（支持 MCP 先建局、server 后接管）；
 /// - 快照不存在或 `game_id` 不匹配 → 404。
+
+/// 是否需要从 SQLite 重新载入内存态（纯函数，便于单测）。
+///
+/// 规则：内存里没有 → 要载入；DB 没有版本 → 保持现状（不存在/异常）；否则
+/// 「DB 版本 > 本进程已知版本（或从未记录）」→ 重新载入。
+pub(crate) fn needs_reload(in_memory: bool, db_version: Option<i64>, tracked: Option<i64>) -> bool {
+    if !in_memory {
+        return true;
+    }
+    match db_version {
+        None => false,
+        Some(db) => tracked.map_or(true, |t| db > t),
+    }
+}
+
 pub(crate) fn ensure_room(
     state: &AppState,
     game_id: &str,
     room_id: &str,
 ) -> Result<(), StatusCode> {
-    if state.games.get_state(room_id).is_some() {
+    // 快照版本：DB 是真相源。MCP 仍会写 lobby（`#加机器人`/`#武将包`/`#开始`），
+    // 因此「内存里有」不等于「内存是新的」——版本落后就必须重新 restore，
+    // 否则页面会停在旧阶段（P6.3 真机：`#开始` 后仍卡在 lobby/选将）。
+    let db_version = state
+        .storage
+        .game_snapshot_version(game_id, room_id)
+        .ok()
+        .flatten();
+    let tracked = state
+        .room_versions
+        .lock()
+        .ok()
+        .and_then(|m| m.get(room_id).copied());
+    if !needs_reload(state.games.get_state(room_id).is_some(), db_version, tracked) {
         return Ok(());
     }
+
     let snapshot = state
         .storage
         .get_game_snapshot(game_id, room_id)
@@ -87,6 +116,11 @@ pub(crate) fn ensure_room(
         return Err(StatusCode::NOT_FOUND);
     }
     state.games.restore(snapshot);
+    if let Some(v) = db_version {
+        if let Ok(mut m) = state.room_versions.lock() {
+            m.insert(room_id.to_string(), v);
+        }
+    }
     Ok(())
 }
 
@@ -186,4 +220,25 @@ async fn load_names(
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::needs_reload;
+
+    #[test]
+    fn needs_reload_rules() {
+        // 内存里没有 → 必须载入
+        assert!(needs_reload(false, Some(7), None));
+        assert!(needs_reload(false, None, None));
+        // 内存里有、DB 版本更新（MCP 写了 lobby）→ 重新载入
+        assert!(needs_reload(true, Some(8), Some(7)));
+        // 本进程从未记录过版本 → 保守重载一次
+        assert!(needs_reload(true, Some(7), None));
+        // 版本没变 / 自己刚写过 → 不动
+        assert!(!needs_reload(true, Some(7), Some(7)));
+        assert!(!needs_reload(true, Some(6), Some(7)));
+        // DB 无版本记录 → 不动
+        assert!(!needs_reload(true, None, Some(7)));
+    }
 }

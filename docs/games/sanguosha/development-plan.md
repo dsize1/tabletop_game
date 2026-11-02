@@ -800,6 +800,13 @@
 - **e2e**：`npm run test:sgs-bot`（`apps/scripts/test-sgs-bot-web.mjs`）——起临时 server+web，MCP 建「房主 + 4 机器人 + 全将」局；真人选将走 Web 通路，其后每个真人动作都断言「返回时不是机器人回合」（必要时用 `drive` 端点续推），至少 20 个真人动作、终局与否仅记录。已并入 `npm run sgs:check:full`。
 - **门禁**：`cargo test -p sanguosha` 903 全绿（新增 driver 3 条）；`cargo test -p server` 13 全绿（新增房间锁用例）；`test:web` / `test:agent-gateway`（22 文件）全绿；`check:sgs-ai`（全将 100 局）保持全绿。
 
+**P6.3 真机反馈修复（2026-11-02）**：
+
+- **登录链接时点**：`#开局` / `#加入` 不再签发链接；`#开始` 统一给所有非机器人玩家各发一条（用户裁定，避免重复验证）。
+- **状态新鲜度（关键 bug）**：MCP（agent-gateway）会写 lobby（`#加机器人`/`#武将包`/`#开始`），而 server 仅在「房间不在内存」时 restore → 内存态落后于 SQLite，表现为 **`#开始` 后网页仍卡在选将**（页面的 `get_legal_actions` 来自旧 lobby）。修法：server `ensure_room` 与 MCP `sync_room` 都按 `game_state.version` 比对，DB 更新则重新 `restore`；自身写入后记录版本避免重复读。用例：`server::needs_reload` 5 种组合 + MCP `sync_room` 3 条（前向同步 / 版本未变不回滚 / 版本记录）。
+- **消费循环自愈**：Redis 未就绪时 `bot-adapter`/归档循环不再永久退出（`server::resilient`，500ms→30s 退避）；真机表现为「机器人没反应」。
+- **`#加机器人` 座位数**：回执用原始 state（`data.seats`）而非公共视图（`data.public_board.seats`），修 0/8。
+
 ### P7 Q 群接入（M，后置）
 
 > **2026-11-01 口径调整（用户裁定，ADR-0031）**：Q 群**只做被动播报**，不做任何逐动作交互，优先级降到最低；

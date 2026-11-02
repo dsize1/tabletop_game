@@ -1617,19 +1617,11 @@ async function handleGameCommand(
       await pushReply(redis, event, stateJson);
       return;
     }
-    const seats = st.data?.seats?.length ?? 1;
+    const seats = sgsSeatCount(st.data) || 1;
     if (game.id === SANGUOSHA_GAME_ID) {
-      const url = await makeLoginUrl({
-        groupId: event.group_id,
-        openid: event.sender_id,
-        displayName: host,
-        scope: "game",
-        target: sgsTarget(st.room_id, event.sender_id),
-        roomId: st.room_id,
-      });
-      const text = [sgsLobbyPrompt(host, seats)];
-      if (url) text.push("你的登录链接（10 分钟内有效，勿转发）：\n" + url);
-      await pushReply(redis, event, text.join("\n"));
+      // 未开始前**不发任何链接**（用户 2026-11-02 裁定）：开局后由 `#开始` 统一发给所有参与者，
+      // 避免「先验证一次、开局再验证一次」的重复登录。
+      await pushReply(redis, event, sgsLobbyPrompt(host, seats));
       return;
     }
     const n = st.data?.small_game_count ?? 3;
@@ -1814,23 +1806,13 @@ async function handleGameCommand(
     const result = parseJson<ActionResult>(raw, {});
     const st = result.state ?? parseJson<GameState>(await engine.getState(roomId), {});
     if (cmd.cmd === "join") {
-      const url = await makeLoginUrl({
-        groupId: event.group_id,
-        openid: event.sender_id,
-        displayName: await resolveActorName(redis, event),
-        scope: "game",
-        target: sgsTarget(roomId, event.sender_id),
-        roomId,
-      });
+      // 未开始前不发链接（同上）：开局后 `#开始` 会给所有参与者各发一条。
       const count = sgsSeatCount(st.data);
-      const parts = [
-        `🀄 已加入（${count}/8）。`,
-        url
-          ? "你的登录链接（10 分钟内有效，勿转发）：\n" + url
-          : "（未配置公网地址，无法签发登录链接）",
-        "请在网页完成选将与出牌。",
-      ];
-      await pushReply(redis, event, parts.join("\n"));
+      await pushReply(
+        redis,
+        event,
+        `🀄 已加入（${count}/8）。开局后房主发「#开始」，届时会统一发登录链接。`,
+      );
       return;
     }
     if (cmd.cmd === "start") {
