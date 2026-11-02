@@ -14,6 +14,11 @@ import {
   sgsRefuseHint,
   sgsSeatCount,
   sgsStartedPrompt,
+  sgsSeatList,
+  resolveSgsKickTarget,
+  sgsLinkMessages,
+  sgsResumeLink,
+  sgsStartedManageHint,
 } from "./src/sanguosha-chat.js";
 
 // —— 白名单：只允许大厅/查询类命令（P6.3 起放开机器人补位与武将包） ——
@@ -118,6 +123,31 @@ assert.equal(
   "公共视图的 data.public_board.seats（#加机器人 0/8 的回归）",
 );
 assert.equal(sgsSeatCount(undefined), 0);
+
+// —— P7：踢人目标解析（openid / 昵称 / 座位号） ——
+const seats = [
+  { player_id: "openid-a", is_bot: false },
+  { player_id: "openid-b", is_bot: false },
+  { player_id: "bot:1", is_bot: true },
+];
+const names = { "openid-a": "甲", "openid-b": "乙" };
+assert.equal(resolveSgsKickTarget("openid-a", seats, names), "openid-a");
+assert.equal(resolveSgsKickTarget("@乙", seats, names), "openid-b");
+assert.equal(resolveSgsKickTarget("2", seats, names), "openid-b");
+assert.equal(resolveSgsKickTarget("3", seats, names), "bot:1");
+assert.equal(resolveSgsKickTarget("不存在", seats, names), null);
+assert.equal(sgsSeatList({ seats }).length, 3);
+assert.equal(sgsSeatList({ public_board: { seats } }).length, 3);
+
+// —— P7：8 人局链接拆条 ——
+const many = Array.from({ length: 8 }, (_, i) => ({ name: `玩家${i + 1}`, url: `https://x/${i}` }));
+const msgs = sgsLinkMessages("标题", many, 80);
+assert.ok(msgs.length >= 2, `8 人局链接应拆条：${msgs.length}`);
+assert.ok(msgs.every((m) => m.length <= 80), "拆条后单条不超长");
+assert.equal(sgsLinkMessages("只有标题", []).length, 1);
+assert.ok(sgsResumeLink("https://x/r").includes("重新签发"));
+assert.ok(sgsResumeLink().includes("无法签发"));
+assert.ok(sgsStartedManageHint("退出").includes("已开局"));
 assert.equal(sgsSeatCount({}), 0);
 
 // —— 武将包标签（#开局 回执用） ——

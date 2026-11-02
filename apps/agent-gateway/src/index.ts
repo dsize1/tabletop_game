@@ -94,6 +94,11 @@ import {
   sgsGeneralPackApplied,
   sgsGeneralPackMenu,
   sgsLinkList,
+  sgsLinkMessages,
+  sgsSeatList,
+  sgsResumeLink,
+  sgsStartedManageHint,
+  resolveSgsKickTarget,
   sgsLobbyPrompt,
   sgsRefuseHint,
   sgsStartedPrompt,
@@ -1778,6 +1783,46 @@ async function handleGameCommand(
 
   // 三国杀（lobby 命令）：确定性回执 + 登录链接；不做局面叙述、不列合法动作
   if (active.game_id === SANGUOSHA_GAME_ID) {
+    const sgsPhase = active.data?.phase;
+    // `#恢复`：只重签登录链接（ADR-0031；不推进对局）。
+    if (cmd.cmd === "resume") {
+      const url = await makeLoginUrl({
+        groupId: event.group_id,
+        openid: event.sender_id,
+        displayName: await resolveActorName(redis, event),
+        scope: "game",
+        target: sgsTarget(roomId, event.sender_id),
+        roomId,
+        mode: "login",
+      });
+      await pushReply(redis, event, sgsResumeLink(url ?? undefined));
+      return;
+    }
+    // 开赛后不再允许退出/踢人/加机器人（避免中途换人）。
+    if ((cmd.cmd === "leave" || cmd.cmd === "kick") && sgsPhase !== "lobby") {
+      await pushReply(
+        redis,
+        event,
+        sgsStartedManageHint(cmd.cmd === "leave" ? "退出" : "踢人"),
+      );
+      return;
+    }
+    // `#踢 <openid|昵称|座位号>`：解析成 openid 后再交给引擎（群里看不到 openid）。
+    let kickAction: string | null = null;
+    if (cmd.cmd === "kick") {
+      const seats = sgsSeatList(active.data);
+      const names = await loadNames(redis, event.group_id, active);
+      const target = resolveSgsKickTarget(cmd.target, seats, names);
+      if (!target) {
+        await pushReply(
+          redis,
+          event,
+          "未找到该玩家。可用「#踢 <昵称|座位号|openid>」；座位号从 1 开始。",
+        );
+        return;
+      }
+      kickAction = `lobby:kick:${target}`;
+    }
     // `#武将包 [编号|all]`：预设列表来自引擎 lobby 合法动作（单一数据源）。
     if (cmd.cmd === "generalpacks") {
       const legal = parseJson<LegalAction[]>(
@@ -1825,7 +1870,7 @@ async function handleGameCommand(
       await pushReply(redis, event, sgsGeneralPackApplied(chosen.label));
       return;
     }
-    const actionId = gameActionId(cmd);
+    const actionId = kickAction ?? gameActionId(cmd);
     if (!actionId) {
       await pushReply(redis, event, sgsRefuseHint());
       return;
@@ -1850,11 +1895,9 @@ async function handleGameCommand(
     if (cmd.cmd === "start") {
       const links = await issueSgsPlayerLinks(redis, event.group_id, st, roomId);
       const head = sgsStartedPrompt(sgsSeatCount(st.data));
-      await pushReply(
-        redis,
-        event,
-        sgsLinkList(head, links),
-      );
+      for (const msg of sgsLinkMessages(head, links)) {
+        await pushReply(redis, event, msg);
+      }
       return;
     }
     await pushReply(redis, event, result.message ?? raw);

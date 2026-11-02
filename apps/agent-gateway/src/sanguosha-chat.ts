@@ -129,3 +129,72 @@ export function sgsPackLabel(mode: string): string {
     .map((p) => names[p] ?? p);
   return parts.join(" + ");
 }
+
+/** 兼容原始 state / 公共视图的座位列表。 */
+export function sgsSeatList(
+  data: unknown,
+): Array<{ player_id: string; is_bot?: boolean }> {
+  const d = (data ?? {}) as {
+    seats?: Array<{ player_id: string; is_bot?: boolean }>;
+    public_board?: { seats?: Array<{ player_id: string; is_bot?: boolean }> };
+  };
+  return d.seats ?? d.public_board?.seats ?? [];
+}
+
+/**
+ * `#踢 <openid|昵称|座位号>` → 目标 openid（P7：群里看不到 openid，支持昵称/1 起座位号）。
+ * 找不到返回 null。
+ */
+export function resolveSgsKickTarget(
+  target: string,
+  seats: Array<{ player_id: string; is_bot?: boolean }>,
+  names?: Record<string, string>,
+): string | null {
+  const raw = target.trim().replace(/^@/, "");
+  if (!raw) return null;
+  if (seats.some((s) => s.player_id === raw)) return raw;
+  const lower = raw.toLowerCase();
+  for (const s of seats) {
+    const name = names?.[s.player_id];
+    if (name && name.trim().toLowerCase() === lower) return s.player_id;
+  }
+  if (/^\d+$/.test(raw)) {
+    const n = Number(raw);
+    if (n >= 1 && n <= seats.length) return seats[n - 1]?.player_id ?? null;
+  }
+  return null;
+}
+
+/** 8 人局链接按长度拆条（被动回复可多次；避免单条超长）。 */
+export function sgsLinkMessages(
+  title: string,
+  entries: { name: string; url: string }[],
+  maxChars = 700,
+): string[] {
+  if (entries.length === 0) return [title];
+  const lines = entries.map((e) => `· ${e.name}：${e.url}`);
+  const out: string[] = [];
+  let current = title;
+  for (const line of lines) {
+    if (current !== title && current.length + 1 + line.length > maxChars) {
+      out.push(current);
+      current = line;
+    } else {
+      current = `${current}\n${line}`;
+    }
+  }
+  out.push(current);
+  return out;
+}
+
+/** `#恢复`（三国杀）：只重签登录链接，不推进对局。 */
+export function sgsResumeLink(url?: string): string {
+  return url
+    ? `🔗 已重新签发你的牌局链接（10 分钟内有效，勿转发）：\n${url}`
+    : "暂时无法签发登录链接（未配置公网地址）。请联系管理员。";
+}
+
+/** 已开局后的退出/踢人提示。 */
+export function sgsStartedManageHint(action: string): string {
+  return `⚠️ 已开局，不能${action}；请打完本局，或让房主/群管理发「#中断」。`;
+}

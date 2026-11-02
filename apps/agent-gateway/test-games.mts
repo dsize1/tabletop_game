@@ -13,6 +13,11 @@ assert.ok(GAME_OPTIONS.length >= 2, "至少有拉斯维加斯与猜拳两个选�
 assert.equal(new Set(GAME_OPTIONS.map((g) => g.id)).size, GAME_OPTIONS.length, "id 必须唯一");
 assert.ok(GAME_OPTIONS.some((g) => g.id === "las-vegas"), "应含拉斯维加斯");
 assert.ok(GAME_OPTIONS.some((g) => g.id === "rps"), "应含猜拳");
+assert.equal(
+  GAME_OPTIONS.find((g) => g.id === "sanguosha")?.narration,
+  false,
+  "三国杀必须关闭 LLM 情景叙述（P7/ADR-0031）",
+);
 
 // —— 菜单：逐项编号，可作 `#开局 <编号>` ——
 const menu = formatGameMenu();
