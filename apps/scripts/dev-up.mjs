@@ -193,7 +193,15 @@ if (FLAGS.decision) {
 }
 
 // 5. web
-launch("web", node, [tsxCli, "src/index.ts"], { cwd: resolve(repoRoot, "apps", "web") });
+// 浏览器加载的是**预构建**的客户端 bundle（`apps/web/public/assets/{app,sgs}.js`），
+// SSR 走源码（tsx）。不重建 bundle 会出现「服务端新、客户端旧」的错觉级 bug：
+// 页面首屏有某个区块，首次轮询后被旧 bundle 重渲染掉（P6.3 真机：选将面板闪一下就没了）。
+const webCwd = resolve(repoRoot, "apps", "web");
+if (FLAGS.build) {
+  console.log("[build] web client bundle ...");
+  oneShot("web-build", "npm", ["run", "build:client"], { cwd: webCwd });
+}
+launch("web", node, [tsxCli, "src/index.ts"], { cwd: webCwd });
 
 // 5.5 props-admin（仅本机；不挂公网）
 let propsStarted = false;

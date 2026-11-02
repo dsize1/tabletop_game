@@ -121,6 +121,10 @@ export function renderPublicArea(
     .join("");
 
   const phase = PHASE_LABEL[board.turn.phase] ?? board.turn.phase;
+  const setupProgress =
+    data.phase === "setup"
+      ? ` · 选将中 ${board.setup?.picked_count ?? 0}/${board.seat_count || board.seats.length}`
+      : "";
   const currentName = board.turn.player_id
     ? escapeHtml(playerName(names, board.turn.player_id))
     : "-";
@@ -134,7 +138,8 @@ export function renderPublicArea(
   const actorSeat = board.seats.find((s) => s.player_id === actorPid);
   const botActing =
     !board.winner && !board.aborted && Boolean(actorPid) && actorSeat?.is_bot === true;
-  const botWaiting = botActing
+  const inPlay = data.phase === "turn" || data.phase === "dying";
+  const botWaiting = botActing && inPlay
     ? `<div class="sgs-waiting sgs-waiting-bot">🤖 ${escapeHtml(
         playerName(names, actorPid as string),
       )} 行动中…（服务器自动推进，无需操作）</div>`
@@ -152,7 +157,7 @@ export function renderPublicArea(
     `<section class="sgs-public" aria-label="公共局面区">` +
     `<div class="sgs-seats">${seatsHtml}</div>` +
     `<div class="sgs-center">` +
-    `<div class="sgs-round">第 ${board.round} 轮 · ${escapeHtml(phase)} · ${currentName}</div>` +
+    `<div class="sgs-round">第 ${board.round} 轮 · ${escapeHtml(phase)} · ${currentName}${setupProgress}</div>` +
     `<div class="sgs-deck-row">` +
     `<div class="sgs-deck"><span class="sgs-deck-label">牌堆</span>${board.deck.draw}</div>` +
     `<button type="button" class="sgs-deck sgs-deck-btn" data-press="discard" aria-label="查看弃牌堆">` +
