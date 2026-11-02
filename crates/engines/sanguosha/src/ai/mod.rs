@@ -23,6 +23,7 @@
 //! `cargo run -p sanguosha --example selfplay -- --games 100`。
 
 pub mod card;
+pub mod driver;
 pub mod eval;
 pub mod handlers;
 pub mod policy;
@@ -36,6 +37,7 @@ pub mod view;
 #[cfg(test)]
 mod tests;
 
+pub use driver::{drive_bots, DriveReport, StopReason, MAX_STEPS as DRIVE_MAX_STEPS};
 pub use policy::{explain, SgsPolicy};
 pub use selfplay::{
     run_batch, run_self_play, run_self_play_traced, run_self_play_with, BatchResult, SelfPlayResult,

@@ -88,6 +88,9 @@ import {
   SGS_NO_GAME,
   isSgsChatCommandAllowed,
   sgsBoardText,
+  sgsBotsAdded,
+  sgsGeneralPackApplied,
+  sgsGeneralPackMenu,
   sgsLinkList,
   sgsLobbyPrompt,
   sgsRefuseHint,
@@ -1370,6 +1373,9 @@ async function driveBots(
   for (let i = 0; i < 200; i++) {
     const st = parseJson<GameState>(await engine.getState(roomId), {});
     if (!st.room_id || st.status !== "active" || !st.data) break;
+    // 三国杀：机器人由 server 在自己的动作请求内推进（单写者，P6.3）。
+    // 网关侧绝不能也推一遍，否则会与 server 双写（两个 GameManager 各自有 RNG/快照）。
+    if (st.game_id === SANGUOSHA_GAME_ID) break;
     const d = st.data;
     const actor =
       d.phase === "small_game" ? d.sg?.pending?.actor : d.seats?.[d.turn ?? -1]?.player_id;
@@ -1630,15 +1636,13 @@ async function handleGameCommand(
     return;
   }
 
-  if (cmd.cmd === "addbot" || cmd.cmd === "solo") {
-    if (roomId && active.game_id === SANGUOSHA_GAME_ID) {
-      await pushReply(
-        redis,
-        event,
-        "三国杀暂不支持机器人补位（机器人自动推进归 P6）。请 5–8 位真人玩家入局。",
-      );
-      return;
-    }
+  if (cmd.cmd === "solo" && roomId && active.game_id === SANGUOSHA_GAME_ID) {
+    await pushReply(
+      redis,
+      event,
+      "三国杀没有「单人」直开；用「#加机器人 4」补位后再「#开始」。",
+    );
+    return;
   }
 
   if (cmd.cmd === "addbot") {
@@ -1655,7 +1659,18 @@ async function handleGameCommand(
       }
       ok++;
     }
-    if (ok > 0) await pushReply(redis, event, `已加入 ${ok} 个机器人。发「#开始」开赛。`);
+    if (ok > 0) {
+      if (active.game_id === SANGUOSHA_GAME_ID) {
+        const st = parseJson<GameState>(await engine.getState(roomId), {});
+        await pushReply(
+          redis,
+          event,
+          sgsBotsAdded(ok, st.data?.seats?.length ?? 0),
+        );
+      } else {
+        await pushReply(redis, event, `已加入 ${ok} 个机器人。发「#开始」开赛。`);
+      }
+    }
     return;
   }
 
@@ -1747,6 +1762,46 @@ async function handleGameCommand(
 
   // 三国杀（lobby 命令）：确定性回执 + 登录链接；不做局面叙述、不列合法动作
   if (active.game_id === SANGUOSHA_GAME_ID) {
+    // `#武将包 [编号|all]`：预设列表来自引擎 lobby 合法动作（单一数据源）。
+    if (cmd.cmd === "generalpacks") {
+      const legal = parseJson<LegalAction[]>(
+        await engine.getLegalActions(roomId, event.sender_id),
+        [],
+      );
+      const presets = (Array.isArray(legal) ? legal : [])
+        .filter((a) => a.id.startsWith("lobby:set_general_packs:"))
+        .map((a) => ({ id: a.id, label: a.description }));
+      if (!cmd.pick) {
+        await pushReply(redis, event, sgsGeneralPackMenu(presets));
+        return;
+      }
+      const pick = cmd.pick.trim().toLowerCase();
+      const chosen = /^\d+$/.test(pick)
+        ? presets[Number(pick) - 1]
+        : pick === "all"
+          ? presets
+              .slice()
+              .sort(
+                (a, b) =>
+                  b.id.split("+").length - a.id.split("+").length,
+              )[0]
+          : undefined;
+      if (!chosen) {
+        await pushReply(
+          redis,
+          event,
+          "没有这个编号。发「#武将包」查看可选预设（或「#武将包 all」）。",
+        );
+        return;
+      }
+      const raw = await engine.executeAction(roomId, event.sender_id, chosen.id);
+      if (raw.startsWith("错误")) {
+        await pushReply(redis, event, raw);
+        return;
+      }
+      await pushReply(redis, event, sgsGeneralPackApplied(chosen.label));
+      return;
+    }
     const actionId = gameActionId(cmd);
     if (!actionId) {
       await pushReply(redis, event, sgsRefuseHint());

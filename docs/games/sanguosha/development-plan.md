@@ -790,6 +790,16 @@
 - **顺带修复**：`resolve_more.rs` 离间多选 `pending.data` 补 `selected`（原缺失导致 AI/端侧无法判断已选牌）。
 - **未做（后续批次）**：server 自动推进 + `#加机器人`/`#武将包` + Web 等待态（P6.3）、`game_decision_log`/导出/回放（P6.4）、信念建模与一层搜索（P6.5）、强化学习（P6.6）、E1–E7 引擎修复。
 
+**P6.3 实施记录（2026-11-02，灰度通路）**：
+
+- **驱动宿主**：新增 `sanguosha::ai::driver::drive_bots`（只推进 `seat.is_bot`；带回落 / 破环器 / 单次 200 步上限；停因 `human_turn` / `finished` / `max_steps` / `loop` / `no_legal_actions` / `engine_error`）。
+- **server**：`POST /internal/game/{game_id}/{room_id}/action` 成功后**同请求内**推进机器人回合并逐步落 `game_events` + 快照；响应新增 `bot_steps` / `bot_stop` / `bot_errors`；并发用房间锁 `BotDrive` 串行（拿不到锁即跳过）；新增 `POST /internal/game/{game_id}/{room_id}/drive`（本机）用于「跳过/重启后续推」与 e2e。
+- **网关**：`#加机器人 [n]` 对三国杀放开（仅 lobby，机器人由 server 自动行动）；新增 `#武将包 [编号|all]`（预设列表取自引擎 lobby 合法动作，不硬编码）；`driveBots` 对三国杀显式跳过（避免 MCP/server 双写）；lobby 引导补两条命令说明。
+- **Web**：机器人回合显示「🤖 X 行动中…（服务器自动推进，无需操作）」等待态（SSR + 轮询均生效）。
+- **引擎一致性问题（e2e 暴露）**：才识（本回合不能对自己使用牌）与复难（被夺走的牌）未从 `legal_actions` 过滤 → 已与 `play_card` 同源修复。
+- **e2e**：`npm run test:sgs-bot`（`apps/scripts/test-sgs-bot-web.mjs`）——起临时 server+web，MCP 建「房主 + 4 机器人 + 全将」局；真人选将走 Web 通路，其后每个真人动作都断言「返回时不是机器人回合」（必要时用 `drive` 端点续推），至少 20 个真人动作、终局与否仅记录。已并入 `npm run sgs:check:full`。
+- **门禁**：`cargo test -p sanguosha` 903 全绿（新增 driver 3 条）；`cargo test -p server` 13 全绿（新增房间锁用例）；`test:web` / `test:agent-gateway`（22 文件）全绿；`check:sgs-ai`（全将 100 局）保持全绿。
+
 ### P7 Q 群接入（M，后置）
 
 > **2026-11-01 口径调整（用户裁定，ADR-0031）**：Q 群**只做被动播报**，不做任何逐动作交互，优先级降到最低；

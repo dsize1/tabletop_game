@@ -7,6 +7,7 @@
 //! 生产者是 agent-gateway（Node），此处只做 `qq.push → group_messages(out)` 归档。
 
 mod auth_routes;
+mod bot_drive;
 mod dev_routes;
 mod web_auth_routes;
 mod game_routes;
@@ -47,6 +48,8 @@ struct AppState {
     props_data_dir: std::path::PathBuf,
     /// 对局执行宿主（P3：Web 动作由 server 执行；单写者约定见计划台账）
     games: Arc<game_engine_core::GameManager>,
+    /// 机器人推进的房间锁（P6.3：按房间串行，避免并发双推进）
+    bot_drive: Arc<bot_drive::BotDrive>,
 }
 
 #[tokio::main]
@@ -142,6 +145,7 @@ async fn main() -> anyhow::Result<()> {
                 .unwrap_or_else(|_| "docs/games/sanguosha/data".to_string()),
         ),
         games,
+        bot_drive: Arc::new(bot_drive::BotDrive::new()),
     };
     let app = Router::new()
         .route("/health", get(health))
@@ -168,6 +172,11 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/internal/game/{game_id}/{room_id}/action",
             post(game_routes::execute_action),
+        )
+        // P6.3：手动触发机器人推进（本机；并发跳过/重启续推的兜底）
+        .route(
+            "/internal/game/{game_id}/{room_id}/drive",
+            post(game_routes::drive),
         )
         .route("/resources/docs/tree", get(docs_routes::docs_tree))
         .route("/resources/docs/file", get(docs_routes::docs_file))

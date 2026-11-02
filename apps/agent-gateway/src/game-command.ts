@@ -32,6 +32,7 @@ export type GameCommand =
   | { cmd: "sg"; id: string }
   | { cmd: "sgrule"; id: string }
   | { cmd: "setsg"; ids: string }
+  | { cmd: "generalpacks"; pick?: string }
   | { cmd: "board" };
 
 const COMMAND_WORDS: Record<string, GameCommand["cmd"]> = {
@@ -60,6 +61,7 @@ const COMMAND_WORDS: Record<string, GameCommand["cmd"]> = {
   提示: "resume",
   规则: "sgrule",
   指定小游戏: "setsg",
+  武将包: "generalpacks",
   小游戏池: "setsg",
   局面: "board",
   牌面: "board",
@@ -145,6 +147,9 @@ export function parseGameCommand(content: string): GameCommand | null {
       return arg ? { cmd, id: arg } : null;
     case "setsg":
       return arg ? { cmd, ids: arg } : null;
+    case "generalpacks":
+      // `#武将包` = 列 8 个预设；`#武将包 3` / `#武将包 all` = 按序号/全部设置。
+      return arg ? { cmd, pick: arg } : { cmd };
     case "pickcode":
       return null; // 只经 `#选 <代码>` 进入（上面已处理）
     case "create":

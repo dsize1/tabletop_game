@@ -109,9 +109,14 @@ pending 覆盖（`standard` 100 局）：`arrange` `choice` `choose_many` `disca
 | 宿主 | 用途 | 状态 |
 |---|---|---|
 | `game-engine-mcp::bot_action` | 测试/机器人补位（单动作） | ✅ 已按 `game_id` 分派 `SgsPolicy` |
-| `sanguosha::ai::selfplay` | 自对弈回归 / 数据采集 | ✅ |
-| `server::game_routes`（Web 动作后自动推进） | 灰度验证主通路（单写者） | ⏳ P6.3 |
-| `agent-gateway::driveBots` | 三国杀**不**使用（避免 MCP/server 双写） | ⏳ P6.3 关闭 |
+| `sanguosha::ai::selfplay` | 自对弈回归 / 数据采集（操控**全部座位**） | ✅ |
+| `sanguosha::ai::driver::drive_bots` | **只推进机器人座位**（server 用；回落/破环器/步数上限与自对弈同口径） | ✅ P6.3 |
+| `server::game_routes`（Web 动作后自动推进） | 灰度主通路（单写者；房间锁 + `POST /internal/game/.../drive` 兜底） | ✅ P6.3 |
+| `agent-gateway::driveBots` | 三国杀**不**使用（避免 MCP/server 双写，已在网关侧显式跳过） | ✅ P6.3 |
+
+- 机器人动作与人类动作走**同一条落库链路**（`game_events` + 快照，同一事务语义）；
+- 单次请求最多推进 200 步（`DRIVE_MAX_STEPS`）；停因写入日志与响应（`human_turn` / `finished` / `max_steps` / `loop` / `no_legal_actions` / `engine_error`）；
+- e2e：`npm run test:sgs-bot`（1 真人 + 4 机器人：Web 动作 → 自动推进 → 每次返回都不是机器人回合）。
 
 ## 7. 已知问题（引擎侧；Batch-1.5 已修 E1–E5 + 同类，剩 1 类）
 

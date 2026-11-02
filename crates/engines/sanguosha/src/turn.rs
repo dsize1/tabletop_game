@@ -2064,9 +2064,16 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
         let Some(def) = card_def(st, &card_id) else {
             continue;
         };
-        // 司敌（曹真）/ 讥谀（界徐氏）：被封锁颜色的手牌不可使用（与 execute 同源）。
+        // 与 `play_card` 同源的「本回合/本阶段不可使用」过滤：
+        // 司敌（颜色）/ 讥谀（花色）/ 复难（被夺走的牌）/ 才识（不能对自己使用）。
         if crate::skills::sidiqu_banned(st, idx, &card_id)
             || crate::resolve_yijiang8::jiyu_banned(st, idx, &card_id)
+            || crate::resolve_yijiang9::funan_banned(st, idx, &card_id)
+        {
+            continue;
+        }
+        if st.seats[idx].flags.contains_key("caishi_no_self")
+            && (def.code == "tao" || def.code == "wuzhong_shengyou" || def.equip_slot.is_some())
         {
             continue;
         }

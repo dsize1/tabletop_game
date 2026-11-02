@@ -5,14 +5,28 @@ import {
   SGS_NO_GAME,
   isSgsChatCommandAllowed,
   sgsBoardText,
+  sgsBotsAdded,
+  sgsGeneralPackApplied,
+  sgsGeneralPackMenu,
   sgsLinkList,
   sgsLobbyPrompt,
   sgsRefuseHint,
   sgsStartedPrompt,
 } from "./src/sanguosha-chat.js";
 
-// —— 白名单：只允许大厅/查询类命令 ——
-for (const cmd of ["create", "join", "leave", "start", "abort", "board", "resume", "kick"] as const) {
+// —— 白名单：只允许大厅/查询类命令（P6.3 起放开机器人补位与武将包） ——
+for (const cmd of [
+  "create",
+  "join",
+  "leave",
+  "start",
+  "abort",
+  "board",
+  "resume",
+  "kick",
+  "addbot",
+  "generalpacks",
+] as const) {
   assert.ok(isSgsChatCommandAllowed(cmd), `${cmd} 应在白名单`);
 }
 for (const cmd of [
@@ -24,7 +38,6 @@ for (const cmd of [
   "place",
   "reroll",
   "smallgames",
-  "addbot",
   "solo",
 ] as const) {
   assert.ok(!isSgsChatCommandAllowed(cmd), `${cmd} 必须被拒绝（群内不做逐动作交互）`);
@@ -32,6 +45,8 @@ for (const cmd of [
 
 // —— 文案：不得出现拉斯维加斯专属内容 ——
 const lobby = sgsLobbyPrompt("甲", 3);
+assert.ok(lobby.includes("#加机器人"), "大厅引导应提示机器人补位（P6.3）");
+assert.ok(lobby.includes("#武将包"), "大厅引导应提示武将包设置（P6.3）");
 assert.ok(lobby.includes("三国杀"), lobby);
 assert.ok(lobby.includes("甲"), lobby);
 assert.ok(lobby.includes("3 人"), lobby);
@@ -69,3 +84,22 @@ assert.equal(sgsLinkList("只有标题", []), "只有标题");
 assert.ok(SGS_NO_GAME.includes("三国杀"), SGS_NO_GAME);
 
 console.log("✅ test-sanguosha-chat 通过");
+
+// —— P6.3：机器人补位 / 武将包文案 ——
+const bots = sgsBotsAdded(3, 4);
+assert.ok(bots.includes("3 个机器人"), bots);
+assert.ok(bots.includes("4/8"), bots);
+assert.ok(bots.includes("#开始"), bots);
+
+const menu = sgsGeneralPackMenu([
+  { label: "武将包：全部（可用 149 位）" },
+  { label: "武将包：标准（可用 25 位）" },
+]);
+assert.ok(menu.includes("1) 武将包：全部"), menu);
+assert.ok(menu.includes("2) 武将包：标准"), menu);
+assert.ok(menu.includes("all"), menu);
+assert.equal(sgsGeneralPackMenu([]).includes("没有可切换"), true);
+
+const applied = sgsGeneralPackApplied("武将包：全部（可用 149 位）");
+assert.ok(applied.startsWith("✅"), applied);
+assert.ok(applied.includes("#开始"), applied);

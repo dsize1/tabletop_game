@@ -43,6 +43,8 @@ if (!fast) {
   steps.push(
     { name: "test:web（Web 视图单测）", cmd: "npm --prefix apps run test:web" },
     { name: "test:sgs-web（端到端）", cmd: `${node} apps/scripts/test-sgs-web.mjs` },
+    // P6.3：1 真人 + 4 机器人 —— Web 动作后机器人自动推进（需 server/MCP 已构建 + Redis）
+    { name: "test:sgs-bot（机器人推进 e2e）", cmd: `${node} apps/scripts/test-sgs-bot-web.mjs` },
     { name: "test:web-login（跨端登录 e2e）", cmd: `${node} apps/scripts/test-web-login.mjs` },
   );
 }

@@ -50,6 +50,7 @@
 |---|---|---|
 | Web（三国杀页） | **server 内置 `GameManager`** | `web POST /tabletop_game/:gameId/action` → `server POST /internal/game/{gameId}/{roomId}/action`（仅本机）→ 引擎执行 → `game_events` + 快照。**单写者**：P3–P6 三国杀动作只走此入口；MCP 仅建局/种子局（不并发） |
 | Q / dev | `game-engine-mcp`（stdio，agent-gateway 拉起） | 现有链路不变；P7 接入三国杀 Q 交互时统一改走 server 执行入口，避免双写 |
+| 机器人自动推进（P6.3） | **server 内置 `GameManager`** | 每次 Web 动作落库后，server 在同一请求内把 `seat.is_bot` 的回合推进到人类回合/终局（`sanguosha::ai::drive_bots`，单请求 ≤200 步）；每步同样落 `game_events` + 快照。并发用**房间锁**串行（`server::bot_drive::BotDrive`，拿不到锁即跳过，由轮询/`drive` 端点兜底）。另有 `POST /internal/game/{game_id}/{room_id}/drive`（本机）手动触发一次推进。**网关侧 `driveBots` 对三国杀直接跳过**（避免与 server 双写） |
 | 快照真相源 | SQLite `game_state` | server 首次访问某房间时按需 `restore`（`resources_routes::ensure_room`），支持「MCP 建局 → Web 接管」 |
 
 ## 事件溯源

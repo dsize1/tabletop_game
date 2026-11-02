@@ -7,6 +7,9 @@
 
 import type { GameCommand } from "./game-command.js";
 
+/** 换行常量（避免模板里出现裸换行转义）。 */
+const NL = String.fromCharCode(10);
+
 /** 群里允许的三国杀命令（其余一律引导到 Web）。 */
 const SGS_ALLOWED = new Set<GameCommand["cmd"]>([
   "create",
@@ -17,6 +20,9 @@ const SGS_ALLOWED = new Set<GameCommand["cmd"]>([
   "board",
   "resume",
   "kick",
+  // P6.3：机器人补位 + 武将包（都是「开局设定」范畴，ADR-0031）
+  "addbot",
+  "generalpacks",
 ]);
 
 /** 该命令在三国杀对局中是否允许在群里执行。 */
@@ -29,6 +35,8 @@ export function sgsLobbyPrompt(host: string, count: number): string {
   return [
     `🀄 ${host} 发起了一局「三国杀」（5–8 人身份局）。`,
     `其他玩家发「#加入」入局（当前 ${count} 人）。`,
+    `人数不够：房主「#加机器人 4」补位（机器人由服务器自动行动）。`,
+    `武将包：房主「#武将包」看预设、「#武将包 all」用全部已实现武将。`,
     `房主发「#开始」发身份并进入选将；本局在网页里选将与出牌。`,
     `中途退出：房主「#中断」；随时「#局面」看轮次。`,
   ].join("\n");
@@ -64,4 +72,30 @@ export function sgsLinkList(
 ): string {
   if (entries.length === 0) return title;
   return [title, ...entries.map((e) => `· ${e.name}：${e.url}`)].join("\n");
+}
+
+/** `#武将包` 菜单（预设来自引擎 lobby 合法动作，单一数据源，不硬编码）。 */
+export function sgsGeneralPackMenu(entries: { label: string }[]): string {
+  if (entries.length === 0) {
+    return "当前没有可切换的武将包（可能已开局，或只有默认一个）。";
+  }
+  const lines = entries.map((e, i) => `${i + 1}) ${e.label}`);
+  return [
+    "🎴 可选武将包（发「#武将包 <编号>」设置，或「#武将包 all」用全部已实现武将）：",
+    ...lines,
+  ].join(NL);
+}
+
+/** `#武将包` 设置成功回执。 */
+export function sgsGeneralPackApplied(label: string): string {
+  return `✅ 已设置${label}。人齐后发「#开始」。`;
+}
+
+/** 机器人补位回执（三国杀）。 */
+export function sgsBotsAdded(count: number, seats: number): string {
+  return [
+    `🤖 已加入 ${count} 个机器人（当前 ${seats}/8）。`,
+    "机器人由服务器自动行动；你只需在网页操作自己的回合。",
+    `人齐后发「#开始」。`,
+  ].join(NL);
 }

@@ -128,6 +128,17 @@ export function renderPublicArea(
     board.pending && board.pending.kind !== "wugu"
       ? `<div class="sgs-waiting">等待 ${escapeHtml(playerName(names, board.pending.actor))} 响应（${escapeHtml(board.pending.kind)}）</div>`
       : "";
+  // P6.3：机器人回合由 server 自动推进（人类动作后同一次请求内跑完）。
+  // 页面/轮询都要给出「机器人行动中」的等待态，避免玩家以为是卡住。
+  const actorPid = board.pending?.actor ?? board.turn.player_id;
+  const actorSeat = board.seats.find((s) => s.player_id === actorPid);
+  const botActing =
+    !board.winner && !board.aborted && Boolean(actorPid) && actorSeat?.is_bot === true;
+  const botWaiting = botActing
+    ? `<div class="sgs-waiting sgs-waiting-bot">🤖 ${escapeHtml(
+        playerName(names, actorPid as string),
+      )} 行动中…（服务器自动推进，无需操作）</div>`
+    : "";
   const winner = board.winner
     ? `<div class="sgs-winner">${escapeHtml(board.winner.team)} 阵营胜利</div>`
     : board.aborted
@@ -150,6 +161,7 @@ export function renderPublicArea(
       ? `<div class="sgs-deck" data-zone="void"><span class="sgs-deck-label">移出游戏</span>${board.deck.void}</div>`
       : "") +
     `</div>` +
+    botWaiting +
     pending +
     winner +
     publicSpecialZonesHtml(data.special_zones) +

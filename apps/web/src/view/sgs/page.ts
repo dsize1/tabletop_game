@@ -92,6 +92,7 @@ button { font: inherit; color: inherit; }
 .sgs-deck-label { display:block; color:var(--sgs-muted); font-size:10px; }
 .sgs-deck-discard { font-size:11px; color:#c9d1d9; margin-top:2px; }
 .sgs-waiting { margin-top:8px; font-size:12px; color:var(--sgs-gold); }
+.sgs-waiting-bot { color:var(--sgs-accent, #6fb3ff); opacity:.9; }
 .sgs-winner { margin-top:8px; font-size:14px; font-weight:700; color:var(--sgs-gold); }
 .sgs-zone-list { margin-top:8px; font-size:11px; color:#c9d1d9; display:flex; flex-direction:column; gap:2px; }
 .sgs-personal { flex:0 0 auto; background:var(--sgs-panel); border:1px solid var(--sgs-line); border-radius:14px;
