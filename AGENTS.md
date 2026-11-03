@@ -47,6 +47,7 @@
 | 版图页 / 素材流水线 | `docs/modules/board-view.md`、`docs/games/las-vegas/props/asset-mapping.md`、`board-layout.md` |
 | 长期记忆 / 计划 / 决策 | `memory_palace/README.md` |
 | 当前计划与验收清单 | `memory_palace/plan/` |
+| **下一任务：全武将批量验证** | `memory_palace/plan/next-general-audit.md` |
 | 开发进度 / 里程碑 | `memory_palace/milestones.md` |
 | 工作区规则（rules） | `.pi/prompts/`（用 `/` 命令加载） |
 | 专项技能（skills） | `.pi/skills/`（用 `/skill:name` 加载） |

@@ -271,7 +271,7 @@ function syncPendingOverlay(): void {
   let body = "";
   switch (kind) {
     case "wuxie":
-      body = renderWuxieOverlay(p, board, lastNames);
+      body = renderWuxieOverlay(p, board, lastNames, currentData?.special_zones);
       break;
     case "dying":
       body = renderDyingOverlay(p, board, lastNames);

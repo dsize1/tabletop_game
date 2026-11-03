@@ -12,5 +12,6 @@
 ## 使用约定
 
 - 每次重大计划写入 `plan/<sessionId>.md`
+- 跨会话任务文档用语义化文件名（如 `plan/next-general-audit.md`），并在 `milestones.md` 续接指针登记
 - 重大技术决策写 ADR 到 `decisions/`
 - 新术语补充到 `glossary.md`

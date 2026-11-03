@@ -150,6 +150,22 @@ fn wugu_wuxie_skips_chooser_and_leftover_goes_to_discard() {
 
     mgr.execute_action(&room, &cur_pid, &format!("play:{wugu}"))
         .unwrap();
+    // 顺序契约：先亮牌（公开特殊区），再进入有懈可打者的无懈窗口。
+    let st_now = state_of(&mgr, &room);
+    assert_eq!(
+        st_now.pending.as_ref().map(|p| p.kind.as_str()),
+        Some("wuxie"),
+        "五谷亮牌后才进入无懈窗口"
+    );
+    assert_eq!(
+        st_now
+            .special_zones
+            .get(WUGU_ZONE)
+            .and_then(|z| z.payload["cards"].as_array())
+            .map(Vec::len),
+        Some(5),
+        "无懈窗口打开时候选牌已公示"
+    );
     let picked = run_wugu(&mgr, &room, |_st, p| {
         // 只在「针对该被无懈者」的那一层打出无懈（其余窗口一律不出）。
         let root = p.data["root"].as_str().unwrap_or_default().to_string();

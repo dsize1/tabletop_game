@@ -4,12 +4,21 @@
 
 ## 🔖 续接指针（下次会话说「继续」时从这里开工）
 
-- **入口（2026-11-03 新会话）**：P6.4 ✅ → P7 代码完成（真机滞后）→ P8 代码完成（真机验收滞后）→ M61 工作台基座 ✅ → M62 验收后修复 ✅ → M63 创建对局 ✅ → **M64 测试玩家白名单 ✅** → **下一步：武将批量验证 + `general-audit`**
+- **入口（2026-11-03 新会话）**：P6.4 ✅ → P7 代码完成（真机滞后）→ P8 代码完成（真机验收滞后）→ M61 工作台基座 ✅ → M62 验收后修复 ✅ → M63 创建对局 ✅ → M64 测试玩家白名单 ✅ → **M65 五谷无懈候选牌展示 ✅** → **下一步：全武将批量验证**
+- **下一任务文档（新会话直接读）**：`memory_palace/plan/next-general-audit.md`（232 将 / 294 技能；批次顺序、审计脚本、人工走查、失败记录）
 - **顺序（用户 2026-11-03 定稿）**：① P6.4 决策日志/导出/回放 ✅ → ② P7 Q 群收尾（代码完成） → ③ P8 权鉴/全局开关/观测/运维（代码完成，真机验收滞后） → ④ **工作台+预览基座（新会话开始）** → ⑤ 全武将验证（标准→风→林→火→山→一将→界）；P6.5/P6.6 本轮不做
 - **进度台账**：`memory_palace/plan/01a19ccc-dc1a-7549-aeb8-5e87e928ddde.md` §进度台账
 - **P6 批次入口**：`crates/game-engine-mcp`（`bot_action` 现为 `RandomPolicy`，非 las-vegas）→ `GameManager`/`EnginePlugin`（合法动作 + 状态机已就绪）；缺口见 `docs/games/sanguosha/development-plan.md` P6 节
 - **开工命令**：`npm run sgs:batch-status`（武将批次，P6 期间暂停）；流程见 `docs/games/sanguosha/batch-playbook.md`
 - **门禁**：`npm run sgs:check`（每批收尾）、`npm run sgs:check:full`（含 MCP 冒烟）、`npm run sgs:check:fast`（改码自检）、`npm run test:web-login`（跨端登录 e2e，需 `dev:up` 或临时起 server/web）
+
+## M65：五谷丰登无懈窗口展示候选牌（无懈收益可见）✅
+
+- **日期**：2026-11-03
+- **背景**：五谷丰登引擎已是「先亮 N 张 → 再开无懈窗口」，但无懈浮层只显示 root/层数，候选牌在特殊区里看不到，导致无懈方无法判断收益。
+- **完成**：`renderWuxieOverlay` 增加可选的 `special_zones.wugu` 展示（候选牌面，只读、不产生动作）；客户端传入当前特殊区；CSS/单测同步。
+- **回归**：`wugu_wuxie_skips_chooser...` 增加「无懈窗口打开时 `wugu.cards` 已公示 5 张」断言；Web 单测增加「候选牌展示、不作为无懈动作」断言。
+- **验证**：`npm run test:web`、`npm run sgs:check` 19/19 通过。
 
 ## M64：测试玩家白名单（中台仅工作台最小权限）✅
 

@@ -555,6 +555,20 @@ assert.ok(wuxieHtml.includes("已打出无懈：2 层"), "无懈链层数");
 assert.ok(wuxieHtml.includes('data-action="respond:c9"') && wuxieHtml.includes('data-action="pass"'), "无懈链动作按钮");
 assert.ok(wuxieHtml.includes("必须显式选择"), "无懈链提示不可误关");
 
+// 五谷无懈窗口：候选牌公示（N 张亮出后再决定是否无懈）
+const wuguWuxieHtml = renderWuxieOverlay(wuxiePending, board, names, {
+  wugu: {
+    visibility: "public",
+    cards: [card("w1", "杀", "spade", 7), card("w2", "闪", "heart", 2)],
+    choosers: ["p0", "p1"],
+    cursor: 0,
+    picked: [],
+  },
+});
+assert.ok(wuguWuxieHtml.includes("五谷丰登候选牌"), "五谷无懈窗口展示候选牌标题");
+assert.ok(wuguWuxieHtml.includes("杀♠7") && wuguWuxieHtml.includes("闪♥2"), "五谷无懈窗口展示候选牌面");
+assert.ok(!wuguWuxieHtml.includes('data-action="pick:w1"'), "候选牌只展示，不作为无懈动作");
+
 const dyingHtml = renderDyingOverlay(
   { kind: "dying", actor: "p0", options: [{ id: "respond:c2", label: "使用桃救援" }, { id: "pass", label: "不出" }], data: { victim: "p3", hp: -1 } },
   board,

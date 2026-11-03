@@ -29,15 +29,30 @@ export function renderWuxieOverlay(
   p: SgsPending,
   board: SgsPublicBoard,
   names?: Record<string, string>,
+  zones?: SgsSpecialZones,
 ): string {
   const root = typeof p.data?.root === "string" ? p.data.root : "";
   const layers = Number(p.data?.layers ?? p.data?.count ?? 0);
+  // 五谷丰登：无懈窗口发生在 N 张候选牌公示之后；把候选牌一并展示，
+  // 让无懈方能看到收益再决定是否打出（五谷特殊区仍是公开真相源）。
+  const wuguCards = zones?.wugu?.cards ?? [];
+  const wuguHtml =
+    wuguCards.length > 0
+      ? `<div class="sgs-wuxie-wugu">` +
+        `<p><b>五谷丰登候选牌</b>（公开，共 ${wuguCards.length} 张）</p>` +
+        `<div class="sgs-wuxie-wugu-cards">` +
+        wuguCards
+          .map((c) => `<span class="sgs-wuxie-wugu-card">${escapeHtml(cardLabel(c))}</span>`)
+          .join("") +
+        `</div></div>`
+      : "";
   return (
     `<div class="sgs-zone-note">` +
     `<p><b>被抵消的效果</b>：${escapeHtml(root)}</p>` +
     `<p class="muted">已打出无懈：${layers} 层（奇数=原效果被抵消）。当前询问：` +
     `${escapeHtml(seatLabel(board, p.actor, names))}</p>` +
     `<p class="muted">必须显式选择「打出」或「不出」。</p>` +
+    wuguHtml +
     `</div>` +
     `<div class="sgs-zone-actions">${optionButtons(p)}</div>`
   );

@@ -206,6 +206,9 @@ body.busy { cursor:progress; }
 .sgs-detail-skills ul { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
 .sgs-detail-skills li { border-top:1px dashed #262d38; padding-top:6px; }
 .sgs-detail-skills p { margin:4px 0 0; font-size:12px; color:#c9d1d9; white-space:pre-wrap; }
+.sgs-wuxie-wugu { margin-top:10px; padding-top:8px; border-top:1px dashed #262d38; }
+.sgs-wuxie-wugu-cards { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+.sgs-wuxie-wugu-card { font-size:12px; padding:3px 8px; border-radius:8px; background:#21262d; border:1px solid var(--sgs-line); }
 .sgs-big { font-size:20px; font-weight:700; }
 .sgs-big.red { color:#ff9b95; }
 .sgs-discard-list { margin:6px 0 0; padding-left:22px; max-height:min(56vh,460px); overflow:auto; }
