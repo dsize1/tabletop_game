@@ -4,6 +4,7 @@
 //! 多进程（server / game-engine-mcp）各持连接，WAL 下并发写安全。
 
 pub mod gameprops;
+pub mod templates;
 
 use rusqlite::{params, Connection};
 use std::sync::Mutex;
@@ -1130,6 +1131,21 @@ CREATE TABLE IF NOT EXISTS game_state (
     updated_at TEXT NOT NULL,
     PRIMARY KEY (game_id, room_id)
 );
+-- 局面/资源模板（工作台预览基座，ADR-0033）：不是真相源，预览只读。
+CREATE TABLE IF NOT EXISTS game_state_templates (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    game_id     TEXT    NOT NULL,
+    name        TEXT    NOT NULL,
+    source      TEXT    NOT NULL,
+    snapshot    TEXT    NOT NULL,
+    meta        TEXT,
+    created_by  TEXT,
+    created_at  TEXT    NOT NULL,
+    updated_at  TEXT    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_game_state_templates_game
+    ON game_state_templates (game_id, id);
+
 CREATE TABLE IF NOT EXISTS game_decision_log (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     game_id         TEXT    NOT NULL,

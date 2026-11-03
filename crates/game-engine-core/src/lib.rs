@@ -250,6 +250,29 @@ pub trait EnginePlugin: Send + Sync {
         };
         format!("{}（{}）：玩家 {} 人", self.game_id(), status, state.players.len())
     }
+
+    /// 校验一份完整状态快照（工作台模板/预览用）。默认不做额外校验。
+    ///
+    /// 引擎实现应校验：schema、座位/玩家一致性、资源守恒、武将/技能 code 存在性等。
+    /// 返回 `Err` 表示该快照不可用于预览（模板被拒）。
+    fn validate_state(&self, _state: &GameState) -> Result<(), String> {
+        Ok(())
+    }
+
+    /// 应用场景注入（工作台模板/预览用），返回新状态；默认不支持。
+    ///
+    /// `scene` 是引擎自定义的结构化 JSON（由工作台生成），引擎负责白名单校验、
+    /// 资源移动与守恒校验；不得凭空新增资源（卡牌/标记等）。
+    fn apply_scene(
+        &self,
+        _state: &GameState,
+        _scene: &serde_json::Value,
+    ) -> Result<GameState, EngineError> {
+        Err(EngineError::IllegalAction(format!(
+            "游戏 {} 不支持场景注入",
+            self.game_id()
+        )))
+    }
 }
 
 /// 引擎注册表。
@@ -292,12 +315,26 @@ impl GameManager {
 
     /// 注入随机源（测试用固定序列）。
     pub fn with_rng(registry: EngineRegistry, rng: Box<dyn RandomSource>) -> Self {
+        Self::with_shared_registry(Arc::new(registry), rng)
+    }
+
+    /// 复用外部共享注册表创建管理器（工作台预览每个会话一个 GameManager，
+    /// 与真实对局完全隔离）。
+    pub fn with_shared_registry(
+        registry: Arc<EngineRegistry>,
+        rng: Box<dyn RandomSource>,
+    ) -> Self {
         Self {
-            registry: Arc::new(registry),
+            registry,
             rooms: RwLock::new(HashMap::new()),
             active_by_group: RwLock::new(HashMap::new()),
             rng: Mutex::new(rng),
         }
+    }
+
+    /// 克隆一份注册表句柄（预览宿主用）。
+    pub fn registry_arc(&self) -> Arc<EngineRegistry> {
+        self.registry.clone()
     }
 
     pub fn registry(&self) -> &Arc<EngineRegistry> {

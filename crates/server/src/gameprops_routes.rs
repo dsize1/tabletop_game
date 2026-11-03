@@ -12,7 +12,7 @@ use serde_json::{json, Value};
 
 use crate::AppState;
 
-type ApiError = (StatusCode, Json<Value>);
+pub(crate) type ApiError = (StatusCode, Json<Value>);
 
 fn err(code: StatusCode, msg: impl Into<String>) -> ApiError {
     (code, Json(json!({ "error": msg.into() })))
@@ -21,7 +21,7 @@ fn err(code: StatusCode, msg: impl Into<String>) -> ApiError {
 /// 准入（ADR-0031）：
 /// 1) `x-props-admin-token` 与服务端共享密钥一致（web 代理通道；未配置 = 本机放行）；
 /// 2) 或 `x-props-actor` 是白名单 openid（纵深：即使代理漏校验也不放行非白名单）。
-fn require_admin(state: &AppState, headers: &HeaderMap) -> Result<(), ApiError> {
+pub(crate) fn require_admin(state: &AppState, headers: &HeaderMap) -> Result<(), ApiError> {
     let expected = state.props_admin_token.as_deref().filter(|s| !s.is_empty());
     let token_ok = match expected {
         Some(expected) => {
@@ -47,7 +47,7 @@ fn require_admin(state: &AppState, headers: &HeaderMap) -> Result<(), ApiError> 
     Err(err(StatusCode::UNAUTHORIZED, "缺少或错误的道具中台凭证"))
 }
 
-fn actor(headers: &HeaderMap) -> String {
+pub(crate) fn actor(headers: &HeaderMap) -> String {
     headers
         .get("x-props-actor")
         .and_then(|v| v.to_str().ok())

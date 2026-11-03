@@ -978,3 +978,7 @@ mod p104;
 mod p105;
 mod replay;
 mod view_contract;
+
+mod scene;
+
+mod sandbox;

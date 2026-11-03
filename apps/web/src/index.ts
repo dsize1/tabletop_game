@@ -35,8 +35,9 @@ const PROPS_ADMIN_DIR = fileURLToPath(new URL("../../props-admin/dist/", import.
 // cloudflared 反代后源站只见回环，真实 IP 取 CF-Connecting-IP / X-Forwarded-For
 const app = express();
 app.set("trust proxy", true);
-// 动作提交：fetch 用 JSON、无 JS 表单用 urlencoded，两者都要解析
-app.use(express.json({ limit: "16kb" }));
+// 动作提交：fetch 用 JSON、无 JS 表单用 urlencoded，两者都要解析。
+// 工作台模板导入可能带完整 GameState（约 30–100KB），故放宽到 1MB（仅白名单/本机可达）。
+app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: false, limit: "16kb" }));
 
 // 静态资源（同域，走 Cloudflare 边缘缓存）
@@ -468,6 +469,186 @@ app.post("/tabletop_game/:gameId/action", async (req, res) => {
   }
 });
 
+
+// ==================== 工作台预览（P5 基座，ADR-0032） ====================
+
+/** 预览页/代理统一的服务端请求头（web → server，浏览器不直连）。 */
+function propsHeaders(who: Whoami): Record<string, string> {
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+    "x-props-actor": who.openid,
+  };
+  if (PROPS_ADMIN_TOKEN) headers["x-props-admin-token"] = PROPS_ADMIN_TOKEN;
+  return headers;
+}
+
+/** 预览页 SSR：props 会话白名单准入，不要求 game token。 */
+app.get("/tabletop_game/:gameId/preview", async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  const room = typeof req.query.room === "string" ? req.query.room.trim() : "";
+  const viewer = typeof req.query.viewer === "string" ? req.query.viewer.trim() : "";
+  if (!room) {
+    res.status(400).send(renderErrorPage(400, "缺少预览会话 room"));
+    return;
+  }
+  try {
+    const who = await propsSession(req).catch(() => undefined);
+    if (!who) {
+      res
+        .status(403)
+        .send(renderErrorPage(403, "预览需要中台登录与白名单权限：请在 QQ 群发送「#中台」"));
+      return;
+    }
+    const qs = new URLSearchParams({ viewer });
+    const r = await fetch(
+      `${SERVER_URL}/internal/game/preview/${encodeURIComponent(room)}?${qs.toString()}`,
+      { headers: propsHeaders(who) },
+    );
+    if (!r.ok) {
+      const text = await r.text().catch(() => "");
+      const msg = r.status === 404 ? "预览会话不存在或已过期" : `预览读取失败（${r.status}）`;
+      res.status(r.status).send(renderErrorPage(r.status, text ? `${msg}：${text}` : msg));
+      return;
+    }
+    const view = (await r.json()) as GameView & {
+      seats?:
+        | Array<{ seat: number; player_id: string; general_name?: string }>
+        | { seats?: Array<{ seat: number; player_id: string; general_name?: string }> };
+    };
+    type SeatInfo = { seat: number; player_id: string; general_name?: string };
+    const boardSeats = (
+      (view.player?.data ?? view.public?.data) as
+        | { public_board?: { seats?: SeatInfo[] } }
+        | undefined
+    )?.public_board?.seats;
+    const seats: SeatInfo[] = Array.isArray(view.seats)
+      ? view.seats
+      : Array.isArray(view.seats?.seats)
+        ? view.seats.seats
+        : (boardSeats ?? []);
+    res.send(
+      renderSgsPage(view, {
+        gameId: req.params.gameId,
+        token: "",
+        openid: viewer || who.openid,
+        roomId: room,
+        preview: {
+          returnUrl: "/props-admin/workbench",
+          seats: seats.map((s) => ({
+            seat: Number(s.seat ?? 0),
+            player_id: String(s.player_id ?? ""),
+            general_name: s.general_name,
+          })),
+        },
+      }),
+    );
+  } catch (err) {
+    console.error("[web] 预览页加载失败:", err);
+    res.status(503).send(renderErrorPage(503, "服务暂时不可用，请稍后重试"));
+  }
+});
+
+/** 预览 API 代理：state / action / drive / reset / delete。 */
+for (const [suffix, method] of [
+  ["state", "GET"],
+  ["action", "POST"],
+  ["drive", "POST"],
+  ["reset", "POST"],
+] as const) {
+  app.all(`/tabletop_game/:gameId/preview/${suffix}`, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    if (req.method.toUpperCase() !== method) {
+      res.status(405).json({ error: "method_not_allowed" });
+      return;
+    }
+    const who = await propsSession(req).catch(() => undefined);
+    if (!who) {
+      res.status(401).json({ error: "需要中台登录（群内发 #中台）" });
+      return;
+    }
+    const room =
+      (typeof req.query.room === "string" && req.query.room.trim()) ||
+      (typeof req.body?.room === "string" && req.body.room.trim()) ||
+      "";
+    if (!room) {
+      res.status(400).json({ error: "missing_room" });
+      return;
+    }
+    try {
+      const upstreamPath =
+        suffix === "state"
+          ? `${SERVER_URL}/internal/game/preview/${encodeURIComponent(room)}?${new URLSearchParams({
+              viewer: typeof req.query.viewer === "string" ? req.query.viewer : "",
+            }).toString()}`
+          : `${SERVER_URL}/internal/game/preview/${encodeURIComponent(room)}/${suffix}`;
+      const body =
+        suffix === "state"
+          ? undefined
+          : JSON.stringify({
+              ...(req.body ?? {}),
+              room: undefined,
+            });
+      const r = await fetch(upstreamPath, {
+        method,
+        headers: propsHeaders(who),
+        body,
+      });
+      const text = await r.text();
+      res.status(r.status).type("application/json").send(text);
+    } catch (err) {
+      console.error(`[web] 预览 ${suffix} 代理失败:`, err);
+      res.status(503).json({ error: "服务暂时不可用，请稍后重试" });
+    }
+  });
+}
+
+app.delete("/tabletop_game/:gameId/preview", async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  const who = await propsSession(req).catch(() => undefined);
+  if (!who) {
+    res.status(401).json({ error: "需要中台登录（群内发 #中台）" });
+    return;
+  }
+  const room = typeof req.query.room === "string" ? req.query.room.trim() : "";
+  if (!room) {
+    res.status(400).json({ error: "missing_room" });
+    return;
+  }
+  try {
+    const r = await fetch(`${SERVER_URL}/internal/game/preview/${encodeURIComponent(room)}`, {
+      method: "DELETE",
+      headers: propsHeaders(who),
+    });
+    const text = await r.text();
+    res.status(r.status).type("application/json").send(text);
+  } catch (err) {
+    console.error("[web] 预览销毁失败:", err);
+    res.status(503).json({ error: "服务暂时不可用，请稍后重试" });
+  }
+});
+
+// 预览相关内部 API 也经 web 代理（生产同源；dev 由 Vite 直连本机 server）。
+app.all(["/internal/game/preview", "/internal/game/preview/*"], async (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  const who = await propsSession(req).catch(() => undefined);
+  if (!who) {
+    res.status(401).json({ error: "需要中台登录（群内发 #中台）" });
+    return;
+  }
+  try {
+    const method = req.method.toUpperCase();
+    const r = await fetch(`${SERVER_URL}${req.originalUrl}`, {
+      method,
+      headers: propsHeaders(who),
+      body: method === "GET" || method === "HEAD" ? undefined : JSON.stringify(req.body ?? {}),
+    });
+    const text = await r.text();
+    res.status(r.status).type("application/json").send(text);
+  } catch (err) {
+    console.error("[web] 预览内部 API 代理失败:", err);
+    res.status(503).json({ error: "服务暂时不可用，请稍后重试" });
+  }
+});
 
 // ==================== Web 跨端登录（ADR-0031） ====================
 

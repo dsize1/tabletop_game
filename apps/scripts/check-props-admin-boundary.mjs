@@ -55,6 +55,34 @@ if (proxyAt < 0) {
   fail("中台 API 代理前未调用 propsSession 门禁");
 }
 
+// 2.5) 工作台预览：代理 + 页面都必须走 propsSession；预览页不得退回 player token
+const previewProxyAt = web.indexOf('app.all(["/internal/game/preview"');
+if (previewProxyAt < 0) {
+  fail("web 缺少 /internal/game/preview 代理（工作台预览 API 不得由浏览器直连 server）");
+} else if (!web.slice(previewProxyAt, previewProxyAt + 1500).includes("propsSession")) {
+  fail("预览 API 代理前未调用 propsSession 门禁");
+}
+const previewPageAt = web.indexOf('app.get("/tabletop_game/:gameId/preview"');
+if (previewPageAt < 0) {
+  fail("web 缺少 /tabletop_game/:gameId/preview 预览页");
+} else {
+  const block = web.slice(previewPageAt, previewPageAt + 1800);
+  if (!block.includes("propsSession")) {
+    fail("预览页未走 propsSession 白名单门禁");
+  }
+  if (block.includes("resolveGameToken")) {
+    fail("预览页不得使用玩家 game token（应由中台会话准入）");
+  }
+}
+
+// 2.6) server 预览端点同样要求 require_admin（纵深）
+const preview = read("crates/server/src/preview.rs");
+for (const needle of ["require_admin", "preview:", "game_decision_log"]) {
+  if (!preview.includes(needle)) {
+    fail(`server 预览宿主缺少「${needle}」（隔离/准入/不写决策日志约束）`);
+  }
+}
+
 // 3) server 仍只监听回环
 const server = read(SERVER_MAIN);
 if (!server.includes("127.0.0.1")) {
@@ -76,9 +104,33 @@ for (const needle of ["x-props-admin-token", "x-props-actor", "props_allowed"]) 
   }
 }
 
+// 4.5) 工作台文档/ADR 与门禁入口（静态，避免文档漂移）
+const adr = read("memory_palace/decisions/ADR-0033-workbench-preview-base.md");
+if (!adr.includes("预览隔离")) {
+  fail("缺少 ADR-0033（工作台基座与预览隔离）或口径不一致");
+}
+const adrIndex = read("memory_palace/decisions/README.md");
+if (!adrIndex.includes("ADR-0033")) {
+  fail("decisions/README.md 未登记 ADR-0033");
+}
+const sandboxAdr = read("memory_palace/decisions/ADR-0034-workbench-sandbox-game.md");
+if (!sandboxAdr.includes("沙盒开局") || !sandboxAdr.includes("finish_setup")) {
+  fail("缺少 ADR-0034（工作台创建对局·沙盒开局）或口径不一致");
+}
+if (!adrIndex.includes("ADR-0034")) {
+  fail("decisions/README.md 未登记 ADR-0034");
+}
+const pkg = JSON.parse(read("package.json") || "{}");
+if (!pkg.scripts?.["check:sgs-preview"]) {
+  fail("package.json 缺少 check:sgs-preview 门禁入口");
+}
+if (!pkg.scripts?.["check:sgs-preview:ui"]) {
+  fail("package.json 缺少 check:sgs-preview:ui（UI 冒烟）入口");
+}
+
 // 5) 文档口径
 const doc = read(DOC);
-for (const needle of ["白名单", "不直连", "ADR-0031"]) {
+for (const needle of ["白名单", "不直连", "ADR-0031", "ADR-0033"]) {
   if (!doc.includes(needle)) {
     fail(`props-admin 文档缺少「${needle}」边界说明`);
   }

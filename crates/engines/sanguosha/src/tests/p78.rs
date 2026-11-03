@@ -459,3 +459,33 @@ fn fuyin_blocks_first_sha_each_turn() {
     assert_eq!(st.seats[zhuge].hp, hp, "父荫：此【杀】无效");
     assert!(st.history.iter().any(|e| e.text.contains("父荫")));
 }
+
+#[test]
+fn wanglie_does_not_offer_wuxie_as_trick() {
+    let mgr = manager(1009);
+    let room = start_and_pick(&mgr, 5);
+    let (mut cur, mut wuxie, mut cur_pid) = (0, String::new(), String::new());
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        cur = st.turn;
+        set_general(st, cur, "sgs_hero_409");
+        for seat in other_seats(st, cur) {
+            set_general(st, seat, "sgs_hero_1");
+        }
+        wuxie = give(st, cur, "wuxie_keji");
+        st.turn_phase = TurnPhase::Play;
+        st.turn_counters.clear();
+        cur_pid = st.seats[cur].player_id.clone();
+    });
+    let st = state_of(&mgr, &room);
+    let actions = crate::turn::legal_actions(&st, &cur_pid);
+    assert!(
+        !actions.iter().any(|a| a.id == format!("skill:wanglie:{wuxie}")),
+        "往烈不能把【无懈可击】当普通锦囊使用"
+    );
+    assert!(
+        mgr.execute_action(&room, &cur_pid, &format!("skill:wanglie:{wuxie}"))
+            .is_err(),
+        "直接执行往烈+无懈可击应被拒绝"
+    );
+}

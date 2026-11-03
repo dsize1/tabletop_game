@@ -41,6 +41,8 @@ interface Bootstrap {
   roomId: string;
   openid: string;
   pollMs?: number;
+  /** 工作台预览模式（无 token；走预览代理）。 */
+  preview?: { room: string; viewer: string; returnUrl?: string };
 }
 
 const DEFAULT_POLL_MS = 10_000;
@@ -197,17 +199,32 @@ async function submitAction(action: string): Promise<void> {
   submitting = true;
   document.body.classList.add("busy");
   try {
-    const r = await fetch(`/tabletop_game/${encodeURIComponent(boot.gameId)}/action`, {
-      method: "POST",
-      headers: { "content-type": "application/json", accept: "application/json" },
-      body: JSON.stringify({ token: boot.token, room_id: boot.roomId, action }),
-      cache: "no-store",
-    });
-    const body = (await r.json().catch(() => ({}))) as { ok?: boolean; message?: string; error?: string };
+    const preview = boot.preview;
+    const r = await fetch(
+      preview
+        ? `/tabletop_game/${encodeURIComponent(boot.gameId)}/preview/action`
+        : `/tabletop_game/${encodeURIComponent(boot.gameId)}/action`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", accept: "application/json" },
+        body: JSON.stringify(
+          preview
+            ? { room: preview.room, player_id: boot.openid, action }
+            : { token: boot.token, room_id: boot.roomId, action },
+        ),
+        cache: "no-store",
+      },
+    );
+    const body = (await r.json().catch(() => ({}))) as {
+      ok?: boolean;
+      message?: string;
+      error?: string;
+      step?: { message?: string };
+    };
     if (!r.ok) {
       message(body.error ?? `提交失败（${r.status}）`, true);
     } else {
-      message(body.message ?? "已提交");
+      message(body.step?.message ?? body.message ?? "已提交");
     }
     await refreshNow();
   } catch (err) {
@@ -541,10 +558,16 @@ async function fetchState(boot: Bootstrap): Promise<StateResponse> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
   try {
-    const r = await fetch(
-      `/tabletop_game/${encodeURIComponent(boot.gameId)}/state?token=${encodeURIComponent(boot.token)}`,
-      { signal: ctrl.signal, headers: { accept: "application/json" }, cache: "no-store" },
-    );
+    const preview = boot.preview;
+    const url = preview
+      ? `/tabletop_game/${encodeURIComponent(boot.gameId)}/preview/state` +
+        `?room=${encodeURIComponent(preview.room)}&viewer=${encodeURIComponent(boot.openid)}`
+      : `/tabletop_game/${encodeURIComponent(boot.gameId)}/state?token=${encodeURIComponent(boot.token)}`;
+    const r = await fetch(url, {
+      signal: ctrl.signal,
+      headers: { accept: "application/json" },
+      cache: "no-store",
+    });
     if (!r.ok) throw new Error(`state ${r.status}`);
     return (await r.json()) as StateResponse;
   } finally {
@@ -594,6 +617,77 @@ async function refreshNow(): Promise<void> {
   setText("sgs-updated", `更新于 ${hhmmss(new Date())}`);
 }
 
+/** 工作台预览工具栏：视角切换 + AI 单步/连推 + 重置（仅预览页存在）。 */
+async function previewCommand(cmd: string): Promise<void> {
+  if (!boot?.preview || submitting) return;
+  const room = boot.preview.room;
+  const base = `/tabletop_game/${encodeURIComponent(boot.gameId)}/preview`;
+  submitting = true;
+  document.body.classList.add("busy");
+  try {
+    if (cmd === "reset") {
+      const r = await fetch(`${base}/reset`, {
+        method: "POST",
+        headers: { "content-type": "application/json", accept: "application/json" },
+        body: JSON.stringify({ room }),
+        cache: "no-store",
+      });
+      const body = (await r.json().catch(() => ({}))) as { error?: string };
+      if (!r.ok) {
+        message(body.error ?? `重置失败（${r.status}）`, true);
+        return;
+      }
+      message("已回到模板基线");
+      await refreshNow();
+      return;
+    }
+    const max_steps = cmd === "ai-drive" ? 50 : 1;
+    const r = await fetch(`${base}/drive`, {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json" },
+      body: JSON.stringify({ room, max_steps, viewer: boot.openid }),
+      cache: "no-store",
+    });
+    const body = (await r.json().catch(() => ({}))) as {
+      error?: string;
+      steps?: number;
+      stop?: string;
+      trace?: { action?: string; reason?: string; score?: number };
+    };
+    if (!r.ok) {
+      message(body.error ?? `AI 推进失败（${r.status}）`, true);
+      return;
+    }
+    const trace = body.trace;
+    const detail = trace?.action
+      ? `AI：${trace.action}${trace.reason ? `（${trace.reason}）` : ""}`
+      : `AI 推进 ${body.steps ?? 0} 步`;
+    message(`${detail}${body.stop ? ` · 停止：${body.stop}` : ""}`);
+    await refreshNow();
+  } catch (err) {
+    console.error("[sgs] 预览操作失败", err);
+    message("连接中断，请稍后重试", true);
+  } finally {
+    submitting = false;
+    document.body.classList.remove("busy");
+  }
+}
+
+function bindPreviewControls(): void {
+  if (!boot?.preview) return;
+  const select = q<HTMLSelectElement>("#sgs-preview-viewer");
+  select?.addEventListener("change", () => {
+    const viewer = select.value;
+    const url =
+      `/tabletop_game/${encodeURIComponent(boot!.gameId)}/preview` +
+      `?room=${encodeURIComponent(boot!.preview!.room)}&viewer=${encodeURIComponent(viewer)}`;
+    window.location.href = url;
+  });
+  document.querySelectorAll<HTMLElement>("[data-preview-cmd]").forEach((el) => {
+    el.addEventListener("click", () => void previewCommand(el.dataset.previewCmd ?? ""));
+  });
+}
+
 function start(): void {
   const bootstrap = readBootstrap();
   if (!bootstrap) return;
@@ -604,6 +698,7 @@ function start(): void {
   window.addEventListener("beforeunload", saveScroll);
   initOverlay();
   bindInteractions();
+  bindPreviewControls();
   // 点击/拖拽委托只绑一次（容器元素不变，innerHTML 重渲染不影响）
   q<HTMLElement>("#sgs-app")?.addEventListener("click", onClick);
   initGuanxingDrag();

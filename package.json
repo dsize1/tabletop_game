@@ -52,6 +52,8 @@
     "props:login": "node apps/scripts/dev-web-login.mjs --scope props",
     "sgs:export-decisions": "node apps/scripts/sgs-export-decisions.mjs",
     "sgs:replay": "cargo run --manifest-path crates/Cargo.toml -p server --bin sgs-replay --",
-    "check:sgs-decision-log": "node apps/scripts/check-sgs-decision-log.mjs"
+    "check:sgs-decision-log": "node apps/scripts/check-sgs-decision-log.mjs",
+    "check:sgs-preview": "node apps/scripts/check-sgs-preview.mjs",
+    "check:sgs-preview:ui": "node apps/scripts/check-sgs-preview.mjs --ui"
   }
 }

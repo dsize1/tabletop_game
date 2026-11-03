@@ -20,6 +20,7 @@ const menuOptions = [
   { label: "武将", key: "/generals" },
   { label: "技能", key: "/skills" },
   { label: "武将技能关联", key: "/general-skills" },
+  { label: "工作台", key: "/workbench" },
   { label: "数据导入", key: "/import" },
 ];
 
@@ -43,7 +44,7 @@ function saveToken() {
         <n-layout style="height: 100vh">
           <n-layout-header bordered style="padding: 12px 20px; display: flex; align-items: center; gap: 16px">
             <strong style="font-size: 16px">桌游道具中台</strong>
-            <span style="color: #888; font-size: 12px">三国杀 P1</span>
+            <span style="color: #888; font-size: 12px">三国杀 · 工作台</span>
             <div style="flex: 1" />
             <n-space align="center">
               <span style="font-size: 12px; color: #888">Admin Token</span>

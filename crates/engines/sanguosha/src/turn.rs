@@ -1573,15 +1573,7 @@ pub(crate) fn phase_step(
                 );
                 return Ok(true);
             }
-            // 窃听（蔡夫人）：其他角色回合结束后，若其本回合未对其他角色使用过牌。
-            if crate::skills::has(st, st.turn, "qieting") && st.counter("qieting_offered") == 0 {
-                st.set_counter("qieting_offered", 1);
-                let drawn = draw_cards(st, st.turn, 1, events);
-                st.push_log(
-                    Some(&st.seats[st.turn].player_id.clone()),
-                    format!("窃听：自己回合结束，摸 {drawn} 张（占位）"),
-                );
-            }
+            // 窃听（蔡夫人）：仅**其他角色**回合结束后触发（自己回合结束不摸牌）。
             if st.counter("qieting_checked") == 0 {
                 if let Some(owner) = crate::resolve_yijiang6::qieting_owner(st, st.turn) {
                     st.set_counter("qieting_checked", 1);
@@ -3184,6 +3176,7 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
                 && !matches!(
                     def.code,
                     "juedou" | "nanman_ruqin" | "wanjian_qifa" | "wuzhong_shengyou"
+                        | "wuxie_keji"
                 );
             if is_sha || single_trick {
                 out.push(Action {
@@ -4715,6 +4708,7 @@ pub fn execute(
             && !matches!(
                 def.code,
                 "juedou" | "nanman_ruqin" | "wanjian_qifa" | "wuzhong_shengyou"
+                    | "wuxie_keji"
             );
         if !is_sha && !single_trick {
             return Err(illegal("往烈只能用于【杀】或单目标普通锦囊"));

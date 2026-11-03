@@ -155,6 +155,8 @@ pub fn public_board(st: &SgsState) -> Value {
                     .map(|g| g.name.to_string())
                     .unwrap_or_default()
             };
+            // 技能是公开信息：武将一旦公示（回合中/终局/主公已选）即下发。
+            let skills = skills_view(st, i, general_code);
             json!({
                 "seat": i,
                 "player_id": s.player_id,
@@ -164,6 +166,7 @@ pub fn public_board(st: &SgsState) -> Value {
                 "general": general_code.map(str::to_string),
                 "general_name": general_name,
                 "kingdom": general_code.and_then(data::general).map(|g| g.kingdom),
+                "skills": skills,
                 "hp": s.hp,
                 "max_hp": s.max_hp,
                 "hand_count": s.hand.len(),
@@ -270,44 +273,52 @@ fn equipment_skills_view(st: &SgsState, seat: usize) -> Vec<Value> {
     out
 }
 
-pub fn player_area(st: &SgsState, viewer: &str) -> Option<Value> {
-    let idx = st.seat_index(viewer)?;
+/// 技能列表（公共/本人视图共用；技能是公开信息）。
+///
+/// `general` 为**已公开**的武将 code（本人视图=自己的武将；公共视图=已公示武将）。
+/// 未公开武将时调用方传 `None`，不返回任何技能。
+fn skills_view(st: &SgsState, idx: usize, general: Option<&str>) -> Vec<Value> {
+    let Some(code) = general else {
+        return Vec::new();
+    };
     let s = &st.seats[idx];
-    let picked = st.setup.picks.get(viewer).cloned();
-    let general = s.general.clone().or_else(|| picked.clone());
-    let mut skills: Vec<Value> = general
-        .as_deref()
-        .map(|code| {
-            let defs = crate::skills::skills_of(code);
-            if defs.is_empty() {
-                data::general(code)
-                    .map(|g| {
-                        g.skills
-                            .iter()
-                            .map(|name| json!({ "code": name, "name": name, "type": "normal", "implemented": false }))
-                            .collect()
-                    })
-                    .unwrap_or_default()
-            } else {
-                defs.iter()
-                    .map(|s| {
-                        json!({
-                            "code": s.code,
-                            "name": s.name,
-                            "type": s.kind.code(),
-                            "implemented": s.implemented,
+    let mut skills: Vec<Value> = {
+        let defs = crate::skills::skills_of(code);
+        if defs.is_empty() {
+            data::general(code)
+                .map(|g| {
+                    g.skills
+                        .iter()
+                        .map(|name| {
+                            json!({
+                                "code": name,
+                                "name": name,
+                                "type": "normal",
+                                "implemented": false,
+                            })
                         })
+                        .collect()
+                })
+                .unwrap_or_default()
+        } else {
+            defs.iter()
+                .map(|s| {
+                    json!({
+                        "code": s.code,
+                        "name": s.name,
+                        "type": s.kind.code(),
+                        "implemented": s.implemented,
                     })
-                    .collect()
-            }
-        })
-        .unwrap_or_default();
-    // 觉醒/化身授予的额外技能。
-    for code in &s.extra_skills {
-        if skills.iter().any(|v| v["code"] == json!(code)) {
+                })
+                .collect()
+        }
+    };
+    // 觉醒/化身/授予的额外技能（同样是公开信息）。
+    for extra in &s.extra_skills {
+        if skills.iter().any(|v| v["code"] == json!(extra)) {
             continue;
         }
-        if let Some(def) = crate::skills::def_of(code) {
+        if let Some(def) = crate::skills::def_of(extra) {
             skills.push(json!({
                 "code": def.code,
                 "name": def.name,
@@ -316,6 +327,15 @@ pub fn player_area(st: &SgsState, viewer: &str) -> Option<Value> {
             }));
         }
     }
+    skills
+}
+
+pub fn player_area(st: &SgsState, viewer: &str) -> Option<Value> {
+    let idx = st.seat_index(viewer)?;
+    let s = &st.seats[idx];
+    let picked = st.setup.picks.get(viewer).cloned();
+    let general = s.general.clone().or_else(|| picked.clone());
+    let skills = skills_view(st, idx, general.as_deref());
     let setup = if st.phase == Phase::Setup {
         // 候选武将：既给 code 列表（既有契约），也给可直接渲染的详情
         // （Web 选将页需要名字/势力/体力/技能名，否则只能显示内部 code）。

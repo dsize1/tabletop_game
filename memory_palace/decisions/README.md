@@ -36,3 +36,5 @@
 - [ADR-0020：多端交互形态 —— Web 优先 + WebView 复用 + 游戏区域三分（提案·待评审）](./ADR-0020-sanguosha-multiclient-web-first.md)
 - [ADR-0022：装备效果技能化（Equipment-as-Skills）—— 窗口由引擎开、效果由技能注册表实现（已采纳）](./ADR-0022-equipment-as-skills.md)
 - [ADR-0032：三国杀 AI 分层与「只用可见信息」不变量](./ADR-0032-sanguosha-ai-layering.md)
+- [ADR-0033：工作台基座（模板 / 预览 / AI 调试 / 决策日志）与预览隔离](./ADR-0033-workbench-preview-base.md)
+- [ADR-0034：工作台「创建对局」（沙盒开局）——复用生产开局后半段，只产预览会话](./ADR-0034-workbench-sandbox-game.md)

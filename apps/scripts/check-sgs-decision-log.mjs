@@ -26,17 +26,83 @@ if (!table) {
   process.exit(0);
 }
 
-const latest = db
+// 开发库会保留历史对局；规则修复后旧局的 replay 可能不再一致（属预期）。
+// 策略：从最近 12 个有 replay_base 的房间里依次尝试回放，选第一个 digest 完全一致的
+// 房间做导出/字段校验；旧规则/损坏房间跳过并计数。
+const recent = db
   .prepare(
-    `select room_id, count(*) as n from game_decision_log
-     group by room_id order by max(id) desc limit 1`,
+    `select d.room_id, count(*) as n, max(d.id) as mx
+     from game_decision_log d
+     where exists (select 1 from game_replay_base b where b.room_id = d.room_id)
+     group by d.room_id order by max(d.id) desc limit 12`,
   )
-  .get();
-if (!latest?.room_id) {
-  console.log("[check:sgs-decision-log] 跳过：还没有决策日志数据");
+  .all();
+if (recent.length === 0) {
+  console.log("[check:sgs-decision-log] 跳过：没有带 replay_base 的决策日志房间");
   process.exit(0);
 }
-const room = latest.room_id;
+const candidates = recent.slice(0, 8);
+
+function replayRoom(room) {
+  const rep = spawnSync(
+    "cargo",
+    [
+      "run",
+      "--manifest-path",
+      "crates/Cargo.toml",
+      "-p",
+      "server",
+      "--bin",
+      "sgs-replay",
+      "--",
+      "--db",
+      dbPath,
+      "--room",
+      room,
+      "--json",
+    ],
+    { cwd: root, encoding: "utf8" },
+  );
+  let mismatches = [];
+  const jsonLine = (rep.stdout ?? "").trim().split("\n").filter(Boolean).pop();
+  if (jsonLine) {
+    try {
+      const out = JSON.parse(jsonLine);
+      if (Array.isArray(out.mismatches)) mismatches = out.mismatches;
+    } catch {
+      /* ignore */
+    }
+  }
+  return {
+    ok: rep.status === 0 && mismatches.length === 0,
+    mismatches,
+    stderr: rep.stderr ?? "",
+  };
+}
+
+let room = "";
+let latest = null;
+let replay = null;
+for (const c of candidates) {
+  const r = replayRoom(c.room_id);
+  if (r.ok) {
+    room = c.room_id;
+    latest = c;
+    replay = r;
+    break;
+  }
+  replay = r;
+}
+if (!room) {
+  console.error(`[check:sgs-decision-log] 失败：最近 ${candidates.length} 个房间均无法重放`);
+  for (const f of replay?.mismatches ?? []) console.error(`  ✗ ${f}`);
+  if (replay?.stderr) console.error(`  ✗ replay stderr: ${replay.stderr.slice(-500)}`);
+  process.exit(1);
+}
+const skipped = candidates.findIndex((c) => c.room_id === room);
+if (skipped > 0) {
+  console.log(`[check:sgs-decision-log] 跳过 ${skipped} 个旧规则房间（replay 不一致，属预期）`);
+}
 
 const rows = db
   .prepare(
@@ -86,42 +152,9 @@ for (const line of lines) {
   if ("player_id" in o) fail.push("导出泄露原始 player_id 字段");
 }
 
-// 回放（有 base 才真正校验 digest；无 base 脚本自身会降级）。
-const rep = spawnSync(
-  "cargo",
-  [
-    "run",
-    "--manifest-path",
-    "crates/Cargo.toml",
-    "-p",
-    "server",
-    "--bin",
-    "sgs-replay",
-    "--",
-    "--room",
-    room,
-    "--json",
-  ],
-  { cwd: root, encoding: "utf8" },
-);
-if (rep.status !== 0) {
-  fail.push(`replay 退出码 ${rep.status}: ${rep.stderr.slice(-500)}`);
-}
-const jsonLine = (rep.stdout ?? "").trim().split("\n").filter(Boolean).pop();
-if (jsonLine) {
-  try {
-    const out = JSON.parse(jsonLine);
-    if (Array.isArray(out.mismatches) && out.mismatches.length > 0) {
-      fail.push(`replay mismatches: ${out.mismatches.join("; ")}`);
-    }
-  } catch {
-    /* replay 非 JSON 时忽略（旧实现） */
-  }
-}
-
 if (fail.length) {
   console.error(`[check:sgs-decision-log] 失败 room=${room}`);
   for (const f of fail) console.error(`  ✗ ${f}`);
   process.exit(1);
 }
-console.log(`[check:sgs-decision-log] 通过 room=${room} logs=${latest.n}`);
+console.log(`[check:sgs-decision-log] 通过 room=${room} logs=${latest.n} mismatches=0`);

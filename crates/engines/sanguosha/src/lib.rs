@@ -34,6 +34,8 @@ mod resolve_yijiang7;
 mod resolve_yijiang8;
 mod resolve_yijiang9;
 mod resolve_zone;
+pub mod sandbox;
+mod scene;
 mod skills;
 mod state;
 mod turn;
@@ -43,6 +45,8 @@ pub use data::{
     FULL_DECK_SIZE, GENERAL_COUNT, JUNZHENG_DECK_SIZE, STANDARD_DECK_SIZE, STANDARD_GENERAL_COUNT,
 };
 pub use state::*;
+pub use scene::{apply_scene as apply_scene_spec, scene_schema, validate_state as validate_sgs_state};
+use scene as scene_impl;
 
 use game_engine_core::{
     Action, ActionResult, EngineError, EngineEvent, EnginePlugin, GameState, GameStatus,
@@ -100,7 +104,7 @@ fn identity_counts(seats: &[Seat]) -> Value {
 }
 
 /// 构建新 `GameState`（内部状态完整；对外视图由 `public_state` / `player_view` 投影）。
-fn build_state(old: &GameState, st: &SgsState) -> GameState {
+pub(crate) fn build_state(old: &GameState, st: &SgsState) -> GameState {
     GameState {
         game_id: old.game_id.clone(),
         room_id: old.room_id.clone(),
@@ -341,7 +345,7 @@ fn auto_pick_bots(st: &mut SgsState) -> Result<Vec<EngineEvent>, EngineError> {
 }
 
 /// 选将完成后：定体力、建牌堆、发初始手牌、进入回合。
-fn finish_setup(st: &mut SgsState) -> Result<Vec<EngineEvent>, EngineError> {
+pub(crate) fn finish_setup(st: &mut SgsState) -> Result<Vec<EngineEvent>, EngineError> {
     if st.setup.picks.len() != st.seats.len() {
         return Err(internal("选将未完成"));
     }
@@ -1032,6 +1036,18 @@ impl EnginePlugin for SanguoshaEngine {
             },
         }
     }
+
+    fn validate_state(&self, state: &GameState) -> Result<(), String> {
+        scene_impl::validate_state(state)
+    }
+
+    fn apply_scene(
+        &self,
+        state: &GameState,
+        scene: &Value,
+    ) -> Result<GameState, EngineError> {
+        scene_impl::apply_scene(state, scene).map_err(illegal)
+    }
 }
 
 /// 引擎静态数据目录（供中台/工具同步「已制作」内容；不参与对局逻辑）。
@@ -1042,8 +1058,17 @@ pub mod catalog {
     pub use crate::data::{
         CardDef, GeneralDef, PhysicalCard, ALL_DECKS, CARD_DEFS, GENERAL_PACK_KEYS, GENERAL_PACKS,
     };
-    pub use crate::skills::{skills_of, SkillDef, SkillType};
+    pub use crate::skills::{general_ready, skills_of, SkillDef, SkillType};
     pub use crate::state::{Category, EquipSlot, RangeType, Suit, TargetMode};
+
+    /// 默认选将池（全部已启用武将包 + 技能已实装 + 同名去重「界优先」）。
+    /// 工作台沙盒表单与随机器都使用这一份池子（与正常开局一致）。
+    pub fn default_general_pool() -> Vec<&'static GeneralDef> {
+        crate::available_codes_for_packs(&crate::state::default_general_packs())
+            .into_iter()
+            .filter_map(crate::data::general)
+            .collect()
+    }
 }
 
 #[cfg(test)]

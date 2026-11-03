@@ -62,6 +62,7 @@ const SEAT_KEYS: &[&str] = &[
     "alive",
     "is_bot",
     "has_picked",
+    "skills",
 ];
 
 const AREA_KEYS: &[&str] = &[
@@ -539,4 +540,34 @@ fn view_contract_equip_swap_after_ganlu() {
     for seat in seats {
         assert_keys(&seat["equips"], EQUIP_SLOTS, "seat.equips");
     }
+}
+
+#[test]
+fn public_seat_skills_are_public_after_setup() {
+    // 证据链：其他玩家武将详情要能看到技能（公开信息）。
+    let lobby_mgr = manager(302);
+    let lobby = super::lobby_with(&lobby_mgr, 5);
+    let lobby_public = public_view(&lobby_mgr, &lobby);
+    for seat in lobby_public["public_board"]["seats"].as_array().unwrap() {
+        assert_eq!(
+            seat["skills"].as_array().map(Vec::len),
+            Some(0),
+            "lobby 未选将时公共技能应为空"
+        );
+    }
+
+    let mgr = manager(303);
+    let room = start(&mgr);
+    let public = public_view(&mgr, &room);
+    let seats = public["public_board"]["seats"].as_array().expect("seats");
+    for seat in seats {
+        let skills = seat["skills"].as_array().expect("public skills");
+        assert!(!skills.is_empty(), "选将后公共座位应下发技能：{seat}");
+        for skill in skills {
+            assert!(skill["code"].as_str().is_some_and(|s| !s.is_empty()));
+            assert!(skill["name"].as_str().is_some_and(|s| !s.is_empty()));
+            assert!(skill["type"].as_str().is_some());
+        }
+    }
+    // 未公开武将时不得借技能泄漏武将（lobby 已断言为空）。
 }

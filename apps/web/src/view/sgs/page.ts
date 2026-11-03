@@ -18,6 +18,13 @@ export interface SgsPageOpts {
   openid: string;
   roomId: string;
   pollMs?: number;
+  /** 工作台预览模式：页内工具栏直接驱动预览会话（不要求 game token）。 */
+  preview?: {
+    /** 返回工作台地址（同源/绝对 URL 均可）。 */
+    returnUrl?: string;
+    /** 座位（视角下拉；由调用方从视图数据提取）。 */
+    seats?: Array<{ seat: number; player_id: string; general_name?: string }>;
+  };
 }
 
 /** JSON 内联到 <script> 时必须转义 `<`。 */
@@ -194,6 +201,11 @@ body.busy { cursor:progress; }
 .sgs-detail { border-collapse:collapse; width:100%; }
 .sgs-detail th, .sgs-detail td { border-bottom:1px solid #262d38; padding:6px 8px; text-align:left; vertical-align:top; }
 .sgs-detail th { width:6.5em; color:var(--sgs-muted); font-weight:600; }
+.sgs-detail-skills { margin-top:10px; }
+.sgs-detail-skills h4 { margin:0 0 6px; font-size:12px; color:var(--sgs-muted); letter-spacing:.5px; }
+.sgs-detail-skills ul { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
+.sgs-detail-skills li { border-top:1px dashed #262d38; padding-top:6px; }
+.sgs-detail-skills p { margin:4px 0 0; font-size:12px; color:#c9d1d9; white-space:pre-wrap; }
 .sgs-big { font-size:20px; font-weight:700; }
 .sgs-big.red { color:#ff9b95; }
 .sgs-discard-list { margin:6px 0 0; padding-left:22px; max-height:min(56vh,460px); overflow:auto; }
@@ -235,6 +247,14 @@ body.busy { cursor:progress; }
     border-top:1px solid var(--sgs-line); padding:8px 12px calc(8px + env(safe-area-inset-bottom)); }
   .sgs-side { max-height:calc(100vh - 56px); }
 }
+.sgs-previewbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:6px 12px;
+  background:#1f2630; border-bottom:1px solid var(--sgs-line); font-size:12px; }
+.sgs-previewbar .tag { background:var(--sgs-gold); color:#1a1206; font-weight:700;
+  padding:2px 8px; border-radius:999px; }
+.sgs-previewbar select, .sgs-previewbar button { font:inherit; background:#21262d;
+  color:var(--sgs-text); border:1px solid var(--sgs-line); border-radius:8px; padding:4px 9px; }
+.sgs-previewbar button:active { background:#30363d; }
+.sgs-previewbar .back { margin-left:auto; color:var(--sgs-gold); text-decoration:none; }
 @media (prefers-reduced-motion: reduce) { .sgs-card { transition:none; } }
 `;
 
@@ -253,6 +273,33 @@ export function renderSgsApp(
   );
 }
 
+/** 预览工具栏（仅工作台预览页）：视角切换 + AI 单步/连推 + 重置 + 返回。 */
+function renderPreviewBar(opts: SgsPageOpts): string {
+  const back = opts.preview?.returnUrl || "/props-admin/workbench";
+  return (
+    `<div class="sgs-previewbar">` +
+    `<span class="tag">工作台预览</span>` +
+    `<label>视角 <select id="sgs-preview-viewer">${renderViewerOptions(opts)}</select></label>` +
+    `<button type="button" data-preview-cmd="ai-step">AI 单步</button>` +
+    `<button type="button" data-preview-cmd="ai-drive">AI 连推</button>` +
+    `<button type="button" data-preview-cmd="reset">重置</button>` +
+    `<a class="back" href="${escapeHtml(back)}">返回工作台</a>` +
+    `</div>`
+  );
+}
+
+function renderViewerOptions(opts: SgsPageOpts): string {
+  // 座位数据在 renderSgsPage 内才解析；这里从 opts 传入的 seat 列表渲染。
+  const seats = opts.preview?.seats ?? [];
+  return seats
+    .map((s) => {
+      const selected = s.player_id === opts.openid ? " selected" : "";
+      const label = `#${s.seat + 1} ${s.general_name || s.player_id}`;
+      return `<option value="${escapeHtml(s.player_id)}"${selected}>${escapeHtml(label)}</option>`;
+    })
+    .join("");
+}
+
 /** 完整页面（SSR）。 */
 export function renderSgsPage(view: GameView, opts: SgsPageOpts): string {
   const data = (view.player?.data ?? view.public.data) as unknown as SgsViewData;
@@ -265,7 +312,11 @@ export function renderSgsPage(view: GameView, opts: SgsPageOpts): string {
     roomId: opts.roomId,
     openid: opts.openid,
     pollMs: opts.pollMs ?? 10000,
+    preview: opts.preview
+      ? { room: opts.roomId, viewer: opts.openid, returnUrl: opts.preview.returnUrl ?? "" }
+      : undefined,
   };
+  const previewBar = opts.preview ? renderPreviewBar(opts) : "";
   const actions = view.actions ?? [];
   const textBody = renderSgsTextBody(data, names, {
     gameId: opts.gameId,
@@ -280,6 +331,7 @@ export function renderSgsPage(view: GameView, opts: SgsPageOpts): string {
     `<title>${escapeHtml(title)}</title>` +
     `<style>${SGS_STYLES}</style>` +
     `</head><body>` +
+    previewBar +
     `<div class="sgs-topbar"><h1>三国杀</h1>` +
     `<span class="meta">第 ${board.round} 轮 · ${escapeHtml(board.turn.player_id ?? "-")}</span>` +
     `<label class="sgs-drawer-toggle" for="sgs-drawer">辅助区</label>` +

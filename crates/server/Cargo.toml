@@ -22,3 +22,4 @@ serde_json.workspace = true
 anyhow.workspace = true
 redis.workspace = true
 rand.workspace = true
+sha2.workspace = true

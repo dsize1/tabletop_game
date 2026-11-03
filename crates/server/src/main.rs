@@ -16,8 +16,10 @@ mod gameprops_routes;
 mod health;
 mod internal_routes;
 mod metrics;
+mod preview;
 mod resilient;
 mod resources_routes;
+mod template_routes;
 mod web_auth_routes;
 
 use axum::extract::State;
@@ -54,6 +56,8 @@ struct AppState {
     bot_drive: Arc<bot_drive::BotDrive>,
     /// 观测指标（P8；内存计数，`/internal/metrics`）
     metrics: Arc<metrics::Metrics>,
+    /// 工作台预览会话（P5 基座）：独立内存态，不写真相源（ADR-0033）。
+    previews: Arc<preview::PreviewManager>,
     /// 房间快照版本（`game_state.version`）：内存态与真相源对齐用。
     ///
     /// 背景：MCP（agent-gateway）仍会写 lobby 动作（`#加机器人` / `#武将包` / `#开始`），
@@ -85,6 +89,7 @@ async fn main() -> anyhow::Result<()> {
     registry.register(las_vegas::LasVegasEngine);
     registry.register(sanguosha::SanguoshaEngine);
     let games = Arc::new(game_engine_core::GameManager::new(registry));
+    let preview_registry = games.registry_arc();
 
     // 开发白名单（从 MCP env 迁到 server env；空白名单 = 全拒）
     let dev_whitelist: HashSet<String> = std::env::var("DEV_WHITELIST")
@@ -158,6 +163,17 @@ async fn main() -> anyhow::Result<()> {
                 .unwrap_or_else(|_| "docs/games/sanguosha/data".to_string()),
         ),
         games,
+        previews: Arc::new(preview::PreviewManager::new(
+            preview_registry,
+            std::env::var("SGS_PREVIEW_TTL_SECS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(2 * 3600),
+            std::env::var("SGS_PREVIEW_MAX_SESSIONS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(8),
+        )),
         bot_drive: Arc::new(bot_drive::BotDrive::new()),
         metrics: Arc::new(metrics::Metrics::new()),
         room_versions: Arc::new(std::sync::Mutex::new(HashMap::new())),
@@ -193,6 +209,35 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/internal/game/{game_id}/{room_id}/drive",
             post(game_routes::drive),
+        )
+        // 工作台预览（P5 基座，ADR-0033）：独立内存态，不写真相源
+        .route("/internal/game/preview", get(preview::list).post(preview::create))
+        .route(
+            "/internal/game/preview/scene",
+            post(preview::validate_scene),
+        )
+        .route("/internal/game/preview/meta", get(preview::sandbox_meta))
+        .route("/internal/game/preview/sandbox", post(preview::sandbox))
+        .route(
+            "/internal/game/preview/{id}",
+            get(preview::get).delete(preview::delete),
+        )
+        .route(
+            "/internal/game/preview/{id}/action",
+            post(preview::action),
+        )
+        .route(
+            "/internal/game/preview/{id}/drive",
+            post(preview::drive),
+        )
+        .route(
+            "/internal/game/preview/{id}/reset",
+            post(preview::reset),
+        )
+        // 工作台决策日志只读查询（player_id 哈希；与导出脚本口径一致）
+        .route(
+            "/internal/gameprops/decision-logs",
+            get(preview::decision_logs),
         )
         .route("/resources/docs/tree", get(docs_routes::docs_tree))
         .route("/resources/docs/file", get(docs_routes::docs_file))
@@ -256,6 +301,29 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/internal/gameprops/status",
             post(gameprops_routes::set_status),
+        )
+        // 工作台模板（P5 基座）：显式路由优先于 `{table}` 动态路由
+        .route(
+            "/internal/gameprops/templates",
+            get(template_routes::list).post(template_routes::create),
+        )
+        .route(
+            "/internal/gameprops/templates/from-room",
+            post(template_routes::from_room),
+        )
+        .route(
+            "/internal/gameprops/templates/from-replay",
+            post(template_routes::from_replay),
+        )
+        .route(
+            "/internal/gameprops/templates/{id}",
+            get(template_routes::get)
+                .put(template_routes::update)
+                .delete(template_routes::delete),
+        )
+        .route(
+            "/internal/gameprops/templates/{id}/duplicate",
+            post(template_routes::duplicate),
         )
         .route(
             "/internal/gameprops/{table}",

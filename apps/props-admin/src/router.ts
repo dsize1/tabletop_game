@@ -3,6 +3,7 @@ import Dashboard from "./pages/Dashboard.vue";
 import ResourcePage from "./pages/ResourcePage.vue";
 import CardRelation from "./pages/CardRelation.vue";
 import ImportPage from "./pages/ImportPage.vue";
+import WorkbenchPage from "./pages/WorkbenchPage.vue";
 
 export const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -17,6 +18,7 @@ export const router = createRouter({
     { path: "/skills", component: ResourcePage, meta: { table: "sgs_skills" } },
     { path: "/general-skills", component: ResourcePage, meta: { table: "sgs_general_skills" } },
     { path: "/card-relation", component: CardRelation },
+    { path: "/workbench", component: WorkbenchPage },
     { path: "/import", component: ImportPage },
   ],
 });

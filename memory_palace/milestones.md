@@ -4,12 +4,39 @@
 
 ## 🔖 续接指针（下次会话说「继续」时从这里开工）
 
-- **入口（2026-11-03 新会话）**：P6.4 ✅ → P7 代码完成（真机滞后）→ **P8 代码完成（真机验收滞后）** → **下一步：工作台 + 预览基座**（模板/预览/AI 调试/决策日志），用于批量验证武将
+- **入口（2026-11-03 新会话）**：P6.4 ✅ → P7 代码完成（真机滞后）→ P8 代码完成（真机验收滞后）→ M61 工作台基座 ✅ → M62 验收后修复 ✅ → **M63 创建对局（沙盒开局）✅** → **下一步：武将批量验证 + `general-audit`**
 - **顺序（用户 2026-11-03 定稿）**：① P6.4 决策日志/导出/回放 ✅ → ② P7 Q 群收尾（代码完成） → ③ P8 权鉴/全局开关/观测/运维（代码完成，真机验收滞后） → ④ **工作台+预览基座（新会话开始）** → ⑤ 全武将验证（标准→风→林→火→山→一将→界）；P6.5/P6.6 本轮不做
 - **进度台账**：`memory_palace/plan/01a19ccc-dc1a-7549-aeb8-5e87e928ddde.md` §进度台账
 - **P6 批次入口**：`crates/game-engine-mcp`（`bot_action` 现为 `RandomPolicy`，非 las-vegas）→ `GameManager`/`EnginePlugin`（合法动作 + 状态机已就绪）；缺口见 `docs/games/sanguosha/development-plan.md` P6 节
 - **开工命令**：`npm run sgs:batch-status`（武将批次，P6 期间暂停）；流程见 `docs/games/sanguosha/batch-playbook.md`
 - **门禁**：`npm run sgs:check`（每批收尾）、`npm run sgs:check:full`（含 MCP 冒烟）、`npm run sgs:check:fast`（改码自检）、`npm run test:web-login`（跨端登录 e2e，需 `dev:up` 或临时起 server/web）
+
+## M63：工作台「创建对局」沙盒开局（全 bot / 指定武将身份 / 跳过选将）✅
+
+- **日期**：2026-11-03
+- **范围**：工作台模板 TAB 新增抽屉表单；只创建预览会话，Q 群开局流程与真相源零改动（ADR-0034）。
+- **完成**：`sandbox.rs` 复用 `finish_setup`（仅可见性调整）；5–8 人、逐座位武将/身份（标准配比、149 去重池）、全 bot、随机牌堆/手牌、主公先手、开局技能正常；`GET /internal/game/preview/meta` + `POST /internal/game/preview/sandbox`；props-admin 抽屉（玩家数/搜索/去重置灰/身份剩余/seed/可选模板）；可选保存模板。
+- **验证**：`cargo test -p sanguosha` **923+5**；`check:sgs-preview --ui`（meta/sandbox/负向/隔离/抽屉/iframe）通过；`sgs:check` 19/19。
+- **附带修复**：往烈（陈到）合法动作/执行均排除【无懈可击】（此前会被当作单目标普通锦囊，`target` pending 卡死 bot e2e）；`test:sgs-bot` 续推改为等待后台链、真人动作下限 8（终局方差）。
+- **已知限制**：149 去重池（原版/界版同名取界版）；不支持包选择；创建后不自动 AI 连推；预览重启即丢（保存模板可复用）。
+
+## M62：工作台验收后修复（窃听 / 武将技能查看 / 列表对比度）✅
+
+- **日期**：2026-11-03
+- **界蔡夫人·窃听**：删除「自己回合结束摸一张（占位）」错误分支；仅其他角色回合结束时触发。新增回归 `qieting_jie_not_on_own_turn_end`。
+- **其他玩家武将技能**：公共视图 `public_board.seats[]` 增 `skills`（code/name/type/implemented，武将公示后下发）；Web 武将详情浮层渲染技能名/类型/描述（长按技能文案同源），并补 `view_contract` 与 Web 单测。
+- **工作台模板列表**：选中行由深底深字改为浅底深字（对比度实测 15.88:1），并加 `check:sgs-preview --ui` 对比度断言。
+- **harness**：`check:sgs-decision-log` 改为在最近房间中选可完整重放的房间（规则修复会使旧局 replay 不一致，属预期，跳过并计数）。
+- **门禁**：`cargo test -p sanguosha` 922；`npm run sgs:check` 19/19；`check:sgs-preview --ui` 通过。
+
+## M61：工作台基座（模板/预览/AI 调试/决策日志）✅
+
+- **日期**：2026-11-03
+- **范围**：用户裁定本轮只做基座四件套，不做 n8n/Vue Flow 图编排（ADR-0033）。
+- **完成**：`game_state_templates` + 模板 CRUD（从对局/回放抓取、复制、导入导出）；`EnginePlugin::validate_state/apply_scene` + 三国杀结构化 `SceneSpec`；独立内存预览宿主 `preview:<uuid>`（不写 `game_state`/`game_events`/`game_decision_log`，TTL 2h / 8 会话）；预览 create/action/drive/reset/delete；Web 预览页（props 会话 + 视角/AI/重置工具栏）；props-admin `/workbench` 四 TAB（模板/预览 iframe/AI 调试/决策日志）；决策日志只读查询（player_id 哈希）。
+- **验证**：`npm run check:sgs-preview` 全绿（模板/场景/AI/重置/销毁/鉴权负向/真相源行数不变/无 `preview:*` 行）；`npm run check:sgs-preview:ui` 全绿（临时 web + Playwright：未登录 403、预览页工具栏/视角/AI/重置、工作台四 TAB、iframe）；`cargo test -p storage -p sanguosha -p server`；`npm run build:props`。
+- **已知限制**：预览重启即丢（内存态）；Vite 5174 与 web 18080 跨站，本地 iframe 预览需用同源构建页 `18080/props-admin/workbench`。
+- **下一步**：武将批量验证（标准→风→林→火→山→一将→界）+ `general-audit` 脚本/矩阵。
 
 ## M60：P8 权鉴/群管理/观测/运维（代码完成，真机验收滞后）🟡
 

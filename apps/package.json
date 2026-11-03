@@ -21,6 +21,8 @@
     "sgs:web-room": "node scripts/sgs-web-room.mjs",
     "check:sgs-engine-data": "node scripts/gen-sanguosha-engine-data.mjs --check",
     "test:sgs-web": "node scripts/test-sgs-web.mjs",
+    "check:sgs-preview": "node scripts/check-sgs-preview.mjs",
+    "check:sgs-preview:ui": "node scripts/check-sgs-preview.mjs --ui",
     "sgs:history": "node scripts/sgs-history.mjs",
     "test:web-login": "node scripts/test-web-login.mjs",
     "check:union-openid": "node scripts/check-union-openid.mjs",

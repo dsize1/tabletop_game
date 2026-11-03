@@ -744,6 +744,17 @@
 
 依赖：P1（元数据）、P2（引擎/合法动作）、**P3（Web 预览基座）**。
 
+**实施记录（2026-11-03，P5 基座落地）**：
+
+- 范围按用户裁定收缩：**模板 / 预览 / AI 调试 / 决策日志**；n8n/Vue Flow 有向图编排延后（ADR-0033）。
+- 存储：`game_state_templates` + `crates/storage/src/templates.rs`（CRUD/复制/删除/校验）。
+- 引擎：`EnginePlugin::validate_state` / `apply_scene`；三国杀 `scene.rs`（结构化 SceneSpec，卡牌只移动）+ 4 条单测。
+- 预览：`crates/server/src/preview.rs` 独立内存 `GameManager`（`preview:<uuid>`、TTL/上限、不落库）；API `create/get/action/drive/reset/delete`。
+- 工作台：`apps/props-admin` `/workbench` 四 TAB；Web 预览页 `/tabletop_game/:gameId/preview`（props 会话 + iframe）。
+- 门禁：`npm run check:sgs-preview`（临时 server + MCP，隔离/鉴权/场景/AI/重置全链路）；页面 Playwright 冒烟通过。
+- 已知限制：Vite 5174 跨站 iframe 不带 `tg_props`，本地请用同源构建页 `18080/props-admin/workbench`。
+- **创建对局（2026-11-03 追加，ADR-0034）**：工作台抽屉表单 → `POST /internal/game/preview/sandbox`；5–8 人、逐座位武将/身份（标准配比）、全 bot、149 去重池、随机牌堆/手牌、跳过选将、主公先手；复用 `finish_setup`，Q 流程零改动；可选 seed/模板保存。
+
 > **P6 阻碍项（2026-11-01 用户裁定）**：Web 身份/权鉴（**跨端确认登录 + 中台白名单**）必须先完成，见 ADR-0031。
 > 理由：机器人自动推进与 Web 动作的主体可信依赖同一身份链；否则无法区分「真人」与「脚本/代操作」。
 > 前置顺序：**Web 跨端权鉴（ADR-0031）→ 机器人自动推进 + 身份校验 → 候选剪枝/决策日志 → 回放导出**。

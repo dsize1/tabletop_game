@@ -15,6 +15,7 @@ import {
   playerName,
   rankLabel,
 } from "./format.js";
+import { skillDescription } from "./skill-text.js";
 import type { SgsCard, SgsPublicBoard, SgsSeat } from "./types.js";
 
 function row(label: string, value: string): string {
@@ -66,7 +67,31 @@ export function renderGeneralDetail(seat: SgsSeat, names?: Record<string, string
     row("手牌", `×${seat.hand_count} / ${handLimitLabel(seat.hand_limit)}`),
     row("状态", seat.alive ? "存活" : "阵亡"),
   ];
-  return `<table class="sgs-detail">${rows.join("")}</table>`;
+  const skillTypeLabel: Record<string, string> = {
+    normal: "普通",
+    lord: "主公技",
+    locked: "锁定技",
+    limited: "限定技",
+    awaken: "觉醒技",
+  };
+  const skills = seat.skills ?? [];
+  const skillsHtml =
+    skills.length === 0
+      ? `<p class="muted">技能：未公开</p>`
+      : `<div class="sgs-detail-skills"><h4>技能</h4><ul>${skills
+          .map((skill) => {
+            const desc = skillDescription(seat.general_name, skill.name);
+            const type = skillTypeLabel[skill.type] ?? skill.type;
+            const unimplemented = skill.implemented === false ? `<span class="muted">（未实装）</span>` : "";
+            return (
+              `<li><div><strong>${escapeHtml(skill.name)}</strong>` +
+              `<span class="muted"> · ${escapeHtml(type)}</span>${unimplemented}</div>` +
+              (desc ? `<p>${escapeHtml(desc)}</p>` : "") +
+              `</li>`
+            );
+          })
+          .join("")}</ul></div>`;
+  return `<table class="sgs-detail">${rows.join("")}</table>${skillsHtml}`;
 }
 
 /** 弃牌堆列表（顶部一张在最前）。 */

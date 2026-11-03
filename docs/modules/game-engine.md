@@ -61,6 +61,17 @@
 - 工具：`npm run sgs:export-decisions`（JSONL，openid 哈希）、`npm run sgs:replay`（digest 校验 + 最终快照对比）。
 - 观测（P8）：`GET /internal/metrics`（仅 127.0.0.1）返回 `actions_total/actions_denied/games_started/games_finished/bot_steps/drives/decision_logs/decision_log_failures`；运维手册见 `docs/ops/sanguosha-runbook.md`。
 
+## 工作台预览宿主（P5 基座，ADR-0033）
+
+- `EnginePlugin` 新增两个默认方法（其它引擎可不实现）：
+  - `validate_state(&GameState)`：校验快照可用于预览（schema/座位/资源守恒/武将技能 code）；
+  - `apply_scene(&GameState, &Value)`：结构化场景注入（`SceneSpec`），返回新状态。
+- 三国杀实现见 `crates/engines/sanguosha/src/scene.rs`：座位/回合/阶段/牌堆顶/种子/计数器；卡牌只做移动，不新增。
+- `crates/server/src/preview.rs`：每个预览会话独立 `GameManager`（共享 `EngineRegistry`），房间号 `preview:<uuid>`，**不注册 `active_by_group`、不写 `game_state`/`game_events`/`game_decision_log`**；TTL/上限见 ADR-0033。
+- 模板表 `game_state_templates`（`crates/storage/src/templates.rs`）只存快照与 `meta.scene`，是预览输入而非真相源。
+- 预览动作/AI 与线上共用 `EnginePlugin::execute_action` / `decide_traced`，但 persist 只写会话内存时间线。
+- **创建对局（沙盒开局，ADR-0034）**：`sanguosha::sandbox::new_sandbox_game` 复用 `finish_setup`（仅改 `pub(crate)` 可见性）生成已开局状态：5–8 人、逐座位武将/身份、全 bot、标准身份配比、149 去重武将池、`standard+junzheng` 牌堆、随机手牌/牌堆/主公先手；`sandbox_meta` 供表单。Q 群开局路径不变。
+
 ## 事件溯源
 
 - `events` 表 append-only：`seq` 自增 + `event_id` 唯一 + 状态变更事件

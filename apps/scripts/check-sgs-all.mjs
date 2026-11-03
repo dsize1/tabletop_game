@@ -45,6 +45,9 @@ const steps = [
 if (!fast) {
   steps.push(
     { name: "decision-log（导出/回放自检）", cmd: `${node} apps/scripts/check-sgs-decision-log.mjs` },
+    // P5 基座：模板/场景/预览/AI/隔离（起临时 server + MCP；需 Redis）
+    { name: "workbench-preview（预览隔离/场景/AI）", cmd: `${node} apps/scripts/check-sgs-preview.mjs` },
+    { name: "build:props（工作台类型检查/构建）", cmd: "npm --prefix apps run build:props" },
     { name: "test:web（Web 视图单测）", cmd: "npm --prefix apps run test:web" },
     { name: "test:sgs-web（端到端）", cmd: `${node} apps/scripts/test-sgs-web.mjs` },
     // P6.3：1 真人 + 4 机器人 —— Web 动作后机器人自动推进（需 server/MCP 已构建 + Redis）

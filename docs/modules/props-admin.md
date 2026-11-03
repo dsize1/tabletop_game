@@ -58,6 +58,7 @@ SERVER_URL=http://127.0.0.1:3100 npm --workspace @tabletop-game/props-admin run 
 | `/skills` | 技能（类型/描述） |
 | `/general-skills` | 武将技能关联 |
 | `/import` | 初始化基础数据、导入官网武将 |
+| `/workbench` | **工作台**（P5 基座）：模板 / 预览 / AI 调试 / 决策日志 四 TAB |
 
 ## API
 
@@ -71,6 +72,21 @@ SERVER_URL=http://127.0.0.1:3100 npm --workspace @tabletop-game/props-admin run 
 | POST | `/internal/gameprops/seed` | 身份/配比/包初始化（幂等） |
 | POST | `/internal/gameprops/import/heroes` | 导入 `heroes.json`（幂等，`draft`：官网候选 696 位） |
 | POST | `/internal/gameprops/import/engine` | **从引擎同步已制作数据**（幂等，`live`）：牌定义 43 / 物理牌 160 / 武将 232 / 技能 294 / 关联 443 |
+| GET/POST | `/internal/gameprops/templates` | 工作台模板列表 / 新建（`game_id,name,source,snapshot,meta?`） |
+| GET/PUT/DELETE | `/internal/gameprops/templates/{id}` | 模板详情 / 更新 / 删除 |
+| POST | `/internal/gameprops/templates/{id}/duplicate` | 复制模板 |
+| POST | `/internal/gameprops/templates/from-room` | 从当前对局快照抓取模板 |
+| POST | `/internal/gameprops/templates/from-replay` | 从回放基线抓取模板 |
+| GET | `/internal/gameprops/decision-logs?room_id=&since_seq=&limit=` | 决策日志只读（`player_id` 已哈希） |
+| GET | `/internal/game/preview/meta` | 沙盒表单：149 去重武将 / 标准身份配比 / 默认包 |
+| POST | `/internal/game/preview/sandbox` | **创建对局（沙盒开局）**：`{players,seed?,seats,save_template?,name?}` → 预览会话（全 bot、跳过选将） |
+| POST | `/internal/game/preview` | 创建预览（`template_id` 或内联 `snapshot` + `scene`） |
+| POST | `/internal/game/preview/scene` | 只校验/应用场景（不创建会话） |
+| GET | `/internal/game/preview` | 列出内存中的预览会话 |
+| GET/DELETE | `/internal/game/preview/{id}` | 预览视图（`raw=1`）/ 销毁 |
+| POST | `/internal/game/preview/{id}/action` | 工作台代任意座位执行 |
+| POST | `/internal/game/preview/{id}/drive` | AI 单步/连推（`max_steps`、`policy`） |
+| POST | `/internal/game/preview/{id}/reset` | 回到模板/场景基线 |
 
 - 表白名单：`prop_packs` / `prop_assets` / `sgs_identities` / `sgs_identity_setup` / `sgs_card_defs` / `sgs_cards` / `sgs_generals` / `sgs_skills` / `sgs_general_skills` / `prop_status_log`。
 - 生命周期：`draft / testing / review / live / offline`；每次流转写 `prop_status_log`。
@@ -85,6 +101,15 @@ SERVER_URL=http://127.0.0.1:3100 npm --workspace @tabletop-game/props-admin run 
 - 「官网武将」导入（`heroes.json`，`draft`）保留：用于未实现武将的候选元数据（696 位），与引擎同步互补。
 - 包 code 与引擎 `GENERAL_PACK_KEYS` 对齐（`standard` / `wind_fire_forest_mountain` / `yijiang` / `jiexian`）；`seed` 已改用 `jiexian`（旧 `boundary_break` 会残留空行，需手工删除）。
 
+## 工作台（P5 基座，ADR-0033）
+
+- 页面 `/workbench`：模板（从对局/回放抓取、**创建对局抽屉**、JSON 导入、复制、删除、导出、`meta.scene` 编辑）、预览（iframe + 创建/重置/销毁/视角）、AI 调试（raw 状态、合法动作、单步/连推轨迹）、决策日志（只读查询 + JSONL 导出）。
+- **创建对局（沙盒开局，ADR-0034）**：5–8 人、逐座位指定武将/身份（不选随机）；身份按标准配比、已选身份/武将其他座位置灰；全 bot；跳过选将、主公先手、随机牌堆/手牌；可选 seed 复现、可选保存模板；创建后停在主公出牌阶段/开局 pending，不自动连推。
+- 预览是**独立内存态**：不写 `game_state` / `game_events` / `game_decision_log`，重启即丢；默认空闲 2h、最多 8 个会话（`SGS_PREVIEW_TTL_SECS` / `SGS_PREVIEW_MAX_SESSIONS`）。
+- 预览页 `/tabletop_game/:gameId/preview` 走中台会话（`tg_props` + 白名单），**不要求**玩家 token；预览 API 由 web 代理，浏览器不直连 server。
+- **本地开发注意**：Vite（5174）与 web（18080）跨站，`SameSite=Lax` 的 `tg_props` 不会随 iframe 发送。要在本地看 iframe 预览，请用同源构建页：`npm run build:props` 后打开 `http://127.0.0.1:18080/props-admin/workbench`。
+- 场景注入 `SceneSpec` 字段见 `crates/engines/sanguosha/src/scene.rs` 的 `scene_schema()`；卡牌 token 只支持「牌实例 id / 定义码」，且只能从摸牌堆/弃牌堆/移出区取。
+
 ## 已知限制（P1）
 
 - 图片 `image_asset_id` 只留字段，上传/裁剪未实现。
@@ -97,6 +122,8 @@ SERVER_URL=http://127.0.0.1:3100 npm --workspace @tabletop-game/props-admin run 
 
 - `cargo test -p storage`：表创建、导入幂等、生命周期日志。
 - `npm run build:props`：`vue-tsc` + Vite 构建。
-- `npm run check:props-boundary`：校验公网 web 未挂载中台、server 仅监听 127.0.0.1。
+- `npm run check:props-boundary`：校验公网 web 未挂载中台、server 仅监听 127.0.0.1、预览代理同属白名单门禁。
+- `npm run check:sgs-preview`：临时 server + MCP 验证模板/场景/预览/AI/重置/销毁/沙盒创建与隔离（需 Redis + 已构建 server/MCP）。
+- `npm run check:sgs-preview:ui`：追加临时 web + Playwright（系统 Edge）冒烟：未登录 403、预览页工具栏/视角/AI/重置、工作台四 TAB、iframe 内预览；缺浏览器/`playwright-core` 时自动跳过。
 - `cargo check -p server`：路由编译。
 - 手工：`seed` → `import heroes` → 列表/状态流转 → web `/props-admin/`。

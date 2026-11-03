@@ -69,6 +69,8 @@ export interface SgsSeat {
   flipped?: boolean;
   alive: boolean;
   is_bot?: boolean;
+  /** 已公开武将的技能（公开信息；未公示时为空/缺省）。 */
+  skills?: SgsSkill[];
 }
 
 export interface SgsTurn {

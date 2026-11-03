@@ -757,3 +757,31 @@ fn fuli_jie_unchanged_heals_on_dying() {
     }
     let _ = pid;
 }
+
+#[test]
+fn qieting_jie_not_on_own_turn_end() {
+    let mgr = manager(3712);
+    let room = start_and_pick(&mgr, 5);
+    let mut seat = 0;
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        seat = st.turn;
+        set_general(st, seat, "sgs_hero_627");
+        for t in other_seats(st, seat) {
+            set_general(st, t, "sgs_hero_1");
+        }
+    });
+    let before = state_of(&mgr, &room).seats[seat].hand.len();
+    run_phase(&mgr, &room, seat, TurnPhase::End, true);
+    let st = state_of(&mgr, &room);
+    assert_eq!(
+        st.seats[seat].hand.len(),
+        before,
+        "窃听：自己回合结束不应摸牌"
+    );
+    assert_ne!(
+        st.pending.as_ref().and_then(|p| p.skill.as_deref()),
+        Some("qieting"),
+        "窃听：自己回合结束不应出现窃听 pending"
+    );
+}

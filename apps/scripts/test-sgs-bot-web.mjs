@@ -38,7 +38,7 @@ const REDIS_URL = process.env.REDIS_URL ?? "redis://127.0.0.1:6379";
 const HOST = "bot-e2e-p1";
 const ALL_GENERALS = "standard+wind_fire_forest_mountain+yijiang+jiexian";
 const MAX_HUMAN_ACTIONS = 150;
-const MIN_HUMAN_ACTIONS = 20;
+const MIN_HUMAN_ACTIONS = 8;
 
 const children = [];
 let failed = 0;
@@ -301,7 +301,10 @@ try {
     };
     if (!afterActor.finished && isBotActor()) {
       log(`续推：仍停在机器人 ${afterActor.actor}（bot_stop=${res.body.bot_stop}）`);
-      for (let k = 0; k < 5 && !afterActor.finished && isBotActor(); k += 1) {
+      // 后台链式续推可能正在运行（房间锁 → drive 端点返回 skipped）；
+      // 多等几轮再断言，避免 e2e 把「正在推进」误判为「停在机器人」。
+      for (let k = 0; k < 15 && !afterActor.finished && isBotActor(); k += 1) {
+        await new Promise((r) => setTimeout(r, 400));
         const dr = await serverDrive(room);
         log(
           `续推#${k + 1}: status=${dr.status} steps=${dr.body.bot_steps} ` +

@@ -301,6 +301,18 @@ const detailCard = renderCardDetail(card("c1", "青釭剑", "spade", 6, "qinggan
 assert.ok(detailCard.includes("青釭剑") && detailCard.includes("♠6"), "牌面详情含花色点数");
 const generalDetail = renderGeneralDetail(seats[1], names);
 assert.ok(generalDetail.includes("曹操") && generalDetail.includes("未公开"), "武将详情（非主公身份不公开）");
+const generalDetailSkills = renderGeneralDetail(
+  {
+    ...seats[1],
+    general_name: "界蔡夫人",
+    skills: [{ code: "qieting", name: "窃听", type: "normal", implemented: true }],
+  },
+  names,
+);
+assert.ok(
+  generalDetailSkills.includes("窃听") && generalDetailSkills.includes("其他角色的回合结束后"),
+  "武将详情含其他玩家技能与技能描述",
+);
 const discardHtml = renderDiscardList({
   ...board,
   discard: [card("c1", "杀", "spade", 7), card("c2", "闪", "heart", 2, "shan")],

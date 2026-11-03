@@ -447,8 +447,13 @@ CREATE INDEX IF NOT EXISTS idx_prop_status_log_entity
 
 ## 5. 工作台 / AI 相关表
 
+> 工作台 API/隔离口径见 ADR-0033。模板字段：`source` = `manual` / `room:<room>` / `replay:<room>@<seq>` / `duplicate:<id>`；`meta.scene` 存场景注入。预览会话只在内存（`preview:<uuid>`），**不写**本文件任何对局表。
+
 ```sql
--- 局面与资源模板：预览页保存/复制（P5）
+-- 局面与资源模板：工作台预览保存/复制（P5，ADR-0033）
+-- snapshot = 引擎完整 GameState JSON（含 data 私有状态）；
+-- meta.scene = 结构化场景注入 SceneSpec（见 scene.rs::scene_schema）；
+-- 模板只由 server 写，预览只读，不写 game_state/game_events。
 CREATE TABLE IF NOT EXISTS game_state_templates (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     game_id     TEXT    NOT NULL,
@@ -506,7 +511,7 @@ CREATE TABLE IF NOT EXISTS sgs_flow_designs (
 ## 6. 迁移与索引
 
 - 新增表全部 `CREATE TABLE IF NOT EXISTS`，纳入 `crates/storage/src/lib.rs` 的 `CREATE_TABLES`（或按域拆 `CREATE_SGS_TABLES`），启动幂等执行。
-- 需补索引：`sgs_general_skills(skill_code)`、`sgs_cards(def_code)`、`sgs_generals(pack_id)`、`sgs_identity_setup(player_count)`、`game_state_templates(game_id)`。
+- 需补索引：`sgs_general_skills(skill_code)`、`sgs_cards(def_code)`、`sgs_generals(pack_id)`、`sgs_identity_setup(player_count)`、`game_state_templates(game_id)`（已建 `idx_game_state_templates_game`）。
 - 不做破坏性迁移；`sgs_*` 新表与现有表无外键耦合（避免与事件溯源表强绑定）。
 - 状态 JSON 的版本演进走 `data.schema_version` + 引擎内迁移函数（与拉斯维加斯 v1→v6 同法）。P4.3/P4.4/P4.4.1 新增字段全部 `#[serde(default)]`（`chained`/`marks`/`mark_counts`/`flipped`/`config.general_packs`/`shenshi_marks`），旧快照可直接解析，不 bump schema。
 - 牌数守恒（`check_conservation`）统计区域：`draw/discard/processing/void/hands/equips/judge/marks`；武将牌上的标记牌同样计入，死亡时清空进弃牌堆。`huashen` 存武将 code，不是牌实例，不参与牌数守恒；`mark_counts`（计数标记）同上；`phase_discarded`/`extra_turn`/`shenshi_marks` 为过程字段。

@@ -101,7 +101,9 @@ impl DriveReport {
 }
 
 /// 从引擎状态里找「当前待行动者」：pending.actor → 选将阶段未选者 → 当前回合玩家。
-fn current_actor(mgr: &GameManager, room: &str, st: &SgsState) -> Option<String> {
+///
+/// 公开给工作台预览宿主（AI 单步/连推）复用，避免两套「谁该行动」口径。
+pub fn current_actor(mgr: &GameManager, room: &str, st: &SgsState) -> Option<String> {
     if let Some(p) = &st.pending {
         return Some(p.actor.clone());
     }
