@@ -34,6 +34,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
+  session: () => request<PropsSession>("/session"),
   summary: () => request<Record<string, unknown>>("/summary"),
   list: (
     table: string,
@@ -142,6 +143,12 @@ export interface PreviewState {
   steps?: PreviewStep[];
   raw?: unknown;
   template_id?: number | null;
+}
+
+export interface PropsSession {
+  openid: string;
+  scope: "admin" | "workbench";
+  menus: string[];
 }
 
 export interface SandboxGeneral {

@@ -34,12 +34,14 @@ SERVER_URL=http://127.0.0.1:3100 npm --workspace @tabletop-game/props-admin run 
 > **安全边界（ADR-0031，2026-11-01 起）**：中台改为**与登录页同源、公网可达**，但准入 = **登录会话 + 白名单**：
 > 1. 群内发 `#中台` → 机器人校验 `DEV_WHITELIST` 后回登录页链接（`scope=props`）；
 > 2. 登录页完成「注册码 + 群内 `#验证码#NNNN`」确认 → web 写 `tg_props`（HttpOnly，8h）；
-> 3. `/props-admin` 静态托管前先过 `propsSession`（会话 + `PROPS_ADMIN_WHITELIST`，默认回落 `DEV_WHITELIST`），非白名单 403；
+> 3. `/props-admin` 静态托管前先过 `propsSession`（会话 + 白名单）；非白名单 403；测试玩家（`TEST_PLAYER_WHITELIST`）只能进 `/props-admin/workbench`，其他路径 401（ADR-0035）；
 > 4. 浏览器**不直连** server：`/internal/gameprops/*` 由 web 代理，代理前同样校验会话，server 侧再按「共享 token 或白名单 actor」二次判定。
 > `PROPS_ADMIN_TOKEN` 降级为**本机/代理内部凭证**（web→server），不再由浏览器持有。
 
 - `PROPS_ADMIN_TOKEN`：**web → server 的内部凭证**（与 server 同值）；浏览器不再需要输入（历史 localStorage token 输入保留兼容，但已不是准入主路径）。
-- `PROPS_ADMIN_WHITELIST`：中台白名单（逗号分隔 openid）；未设置时回落 `DEV_WHITELIST`。
+- `PROPS_ADMIN_WHITELIST`：中台管理员白名单（逗号分隔 openid）；未设置时回落 `DEV_WHITELIST`。与 `DEV_WHITELIST` 取并集，均为 **Admin**。
+- `TEST_PLAYER_WHITELIST`：测试玩家白名单（逗号分隔 openid），仅 **Workbench** 权限（只访问「工作台」菜单/API；手动改地址栏或越权 API 被拒绝）。Admin 优先于 Workbench（ADR-0035）。
+- `GET /internal/gameprops/session`：返回 `{openid, scope, menus}`，SPA 用于裁剪菜单；`scope=admin|workbench`。
 - 准入链路见 ADR-0031；开发模式（Vite 5174）仍需 `DEV_WHITELIST` 对应的登录会话。
 - `GAMEPROPS_DATA_DIR`：`heroes.json` 所在目录，默认 `docs/games/sanguosha/data`。
 
@@ -124,6 +126,6 @@ SERVER_URL=http://127.0.0.1:3100 npm --workspace @tabletop-game/props-admin run 
 - `npm run build:props`：`vue-tsc` + Vite 构建。
 - `npm run check:props-boundary`：校验公网 web 未挂载中台、server 仅监听 127.0.0.1、预览代理同属白名单门禁。
 - `npm run check:sgs-preview`：临时 server + MCP 验证模板/场景/预览/AI/重置/销毁/沙盒创建与隔离（需 Redis + 已构建 server/MCP）。
-- `npm run check:sgs-preview:ui`：追加临时 web + Playwright（系统 Edge）冒烟：未登录 403、预览页工具栏/视角/AI/重置、工作台四 TAB、iframe 内预览；缺浏览器/`playwright-core` 时自动跳过。
+- `npm run check:sgs-preview:ui`：追加临时 web + Playwright（系统 Edge）冒烟：未登录 403、预览页工具栏/视角/AI/重置、工作台四 TAB、iframe 内预览；并验证测试玩家仅工作台菜单（首页/其他菜单 401、越权 API 403）。缺浏览器/`playwright-core` 时自动跳过。
 - `cargo check -p server`：路由编译。
 - 手工：`seed` → `import heroes` → 列表/状态流转 → web `/props-admin/`。

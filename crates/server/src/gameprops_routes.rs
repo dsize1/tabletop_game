@@ -18,12 +18,10 @@ fn err(code: StatusCode, msg: impl Into<String>) -> ApiError {
     (code, Json(json!({ "error": msg.into() })))
 }
 
-/// 准入（ADR-0031）：
-/// 1) `x-props-admin-token` 与服务端共享密钥一致（web 代理通道；未配置 = 本机放行）；
-/// 2) 或 `x-props-actor` 是白名单 openid（纵深：即使代理漏校验也不放行非白名单）。
-pub(crate) fn require_admin(state: &AppState, headers: &HeaderMap) -> Result<(), ApiError> {
+/// 共享 token（web → server 内部凭证；未配置 = 本机开发放行）。
+fn shared_token_ok(state: &AppState, headers: &HeaderMap) -> bool {
     let expected = state.props_admin_token.as_deref().filter(|s| !s.is_empty());
-    let token_ok = match expected {
+    match expected {
         Some(expected) => {
             headers
                 .get("x-props-admin-token")
@@ -31,20 +29,66 @@ pub(crate) fn require_admin(state: &AppState, headers: &HeaderMap) -> Result<(),
                 == Some(expected)
         }
         None => true,
-    };
-    if token_ok {
-        return Ok(());
     }
-    if let Some(actor) = headers
+}
+
+fn header_actor(headers: &HeaderMap) -> Option<&str> {
+    headers
         .get("x-props-actor")
         .and_then(|v| v.to_str().ok())
+        .map(str::trim)
         .filter(|s| !s.is_empty())
-    {
-        if crate::web_auth_routes::props_allowed(state, actor) {
-            return Ok(());
-        }
+}
+
+/// 严格管理员准入（ADR-0031 / ADR-0035）：
+/// - 有 `x-props-actor` 时**只按 actor 的权限范围**判定（即使同时带了共享 token）；
+///   Admin 放行，Workbench / 无权限拒绝（防止测试玩家借内部 token 越权）。
+/// - 无 actor 时走共享 token / 本机开发放行（脚本、agent-gateway 内部调用）。
+pub(crate) fn require_admin(state: &AppState, headers: &HeaderMap) -> Result<(), ApiError> {
+    if let Some(actor) = header_actor(headers) {
+        return match crate::web_auth_routes::props_scope(state, actor) {
+            Some(crate::web_auth_routes::PropsScope::Admin) => Ok(()),
+            Some(crate::web_auth_routes::PropsScope::Workbench) => Err(err(
+                StatusCode::FORBIDDEN,
+                "当前账号仅有工作台权限",
+            )),
+            None => Err(err(StatusCode::UNAUTHORIZED, "无道具中台权限")),
+        };
     }
-    Err(err(StatusCode::UNAUTHORIZED, "缺少或错误的道具中台凭证"))
+    if shared_token_ok(state, headers) {
+        Ok(())
+    } else {
+        Err(err(StatusCode::UNAUTHORIZED, "缺少或错误的道具中台凭证"))
+    }
+}
+
+/// 工作台准入：Admin 或 Workbench 均可；返回实际范围。
+pub(crate) fn require_workbench(
+    state: &AppState,
+    headers: &HeaderMap,
+) -> Result<crate::web_auth_routes::PropsScope, ApiError> {
+    if let Some(actor) = header_actor(headers) {
+        return crate::web_auth_routes::props_scope(state, actor)
+            .ok_or_else(|| err(StatusCode::UNAUTHORIZED, "无道具中台权限"));
+    }
+    if shared_token_ok(state, headers) {
+        Ok(crate::web_auth_routes::PropsScope::Admin)
+    } else {
+        Err(err(StatusCode::UNAUTHORIZED, "缺少或错误的道具中台凭证"))
+    }
+}
+
+/// 当前会话信息（SPA 用来裁剪菜单 / 路由守卫）。
+pub async fn session(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<Value>, ApiError> {
+    let scope = require_workbench(&state, &headers)?;
+    Ok(Json(json!({
+        "openid": actor(&headers),
+        "scope": scope.code(),
+        "menus": scope.menus(),
+    })))
 }
 
 pub(crate) fn actor(headers: &HeaderMap) -> String {

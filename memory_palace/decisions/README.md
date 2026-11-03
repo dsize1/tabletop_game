@@ -38,3 +38,4 @@
 - [ADR-0032：三国杀 AI 分层与「只用可见信息」不变量](./ADR-0032-sanguosha-ai-layering.md)
 - [ADR-0033：工作台基座（模板 / 预览 / AI 调试 / 决策日志）与预览隔离](./ADR-0033-workbench-preview-base.md)
 - [ADR-0034：工作台「创建对局」（沙盒开局）——复用生产开局后半段，只产预览会话](./ADR-0034-workbench-sandbox-game.md)
+- [ADR-0035：测试玩家白名单 —— 中台仅「工作台」最小权限](./ADR-0035-test-player-whitelist.md)

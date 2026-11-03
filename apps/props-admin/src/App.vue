@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { NConfigProvider, NLayout, NLayoutSider, NLayoutHeader, NLayoutContent, NMenu, NInput, NButton, NSpace, NMessageProvider, NDialogProvider } from "naive-ui";
-import { getAdminToken, setAdminToken } from "./api";
+import { api, getAdminToken, setAdminToken } from "./api";
 
 const route = useRoute();
 const router = useRouter();
 const token = ref(getAdminToken());
 const tokenSaved = ref(false);
+/** 中台权限范围：admin=全部菜单；workbench=仅工作台（ADR-0035）。 */
+const propsScope = ref<"admin" | "workbench" | null>(null);
 
 const menuOptions = [
   { label: "概览", key: "/" },
@@ -25,6 +27,29 @@ const menuOptions = [
 ];
 
 const activeKey = computed(() => route.path);
+const visibleMenuOptions = computed(() =>
+  propsScope.value === "workbench"
+    ? menuOptions.filter((m) => m.key === "/workbench")
+    : menuOptions,
+);
+
+function enforceWorkbenchRoute() {
+  if (propsScope.value === "workbench" && route.path !== "/workbench") {
+    void router.replace("/workbench");
+  }
+}
+
+onMounted(async () => {
+  try {
+    const session = await api.session();
+    propsScope.value = session.scope;
+    enforceWorkbenchRoute();
+  } catch {
+    // 开发模式/旧代理可能没有 session；保持默认（服务端仍会兜底鉴权）。
+  }
+});
+
+watch(() => route.path, enforceWorkbenchRoute);
 
 function go(key: string) {
   router.push(key);
@@ -46,7 +71,7 @@ function saveToken() {
             <strong style="font-size: 16px">桌游道具中台</strong>
             <span style="color: #888; font-size: 12px">三国杀 · 工作台</span>
             <div style="flex: 1" />
-            <n-space align="center">
+            <n-space v-if="propsScope !== 'workbench'" align="center">
               <span style="font-size: 12px; color: #888">Admin Token</span>
               <n-input v-model:value="token" type="password" placeholder="PROPS_ADMIN_TOKEN（可空）" style="width: 260px" />
               <n-button size="small" @click="saveToken">{{ tokenSaved ? "已保存" : "保存" }}</n-button>
@@ -54,7 +79,7 @@ function saveToken() {
           </n-layout-header>
           <n-layout has-sider style="height: calc(100vh - 57px)">
             <n-layout-sider width="200" bordered content-style="padding: 8px">
-              <n-menu :options="menuOptions" :value="activeKey" @update:value="go" />
+              <n-menu :options="visibleMenuOptions" :value="activeKey" @update:value="go" />
             </n-layout-sider>
             <n-layout-content content-style="padding: 20px">
               <router-view />

@@ -4,7 +4,7 @@
 //! - 每个预览会话一个独立 `GameManager`（独立房间表），不进入 `AppState.games`；
 //! - 房间号强制 `preview:<uuid>`，不注册 `active_by_group`；
 //! - 不写 `game_state` / `game_events` / `game_decision_log`（只在内存里留步骤时间线）；
-//! - 只由道具中台/本机访问（`require_admin`）。
+//! - 只由道具中台/本机访问（`require_workbench`）。
 //!
 //! 预览输入是模板快照（可选 `SceneSpec` 场景注入），输出与 `/resources/game`
 //! 相同的三分区视图契约，供 Web 预览页复用 P3 渲染。
@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use storage::templates::TemplateInput;
 
-use crate::gameprops_routes::{actor, require_admin};
+use crate::gameprops_routes::{actor, require_workbench};
 use crate::AppState;
 
 type ApiError = (StatusCode, Json<Value>);
@@ -569,7 +569,7 @@ pub async fn create(
     headers: HeaderMap,
     Json(req): Json<CreateRequest>,
 ) -> Result<Json<Value>, ApiError> {
-    require_admin(&state, &headers)?;
+    require_workbench(&state, &headers)?;
 
     let (game_id, snapshot, meta_scene) = if let Some(template_id) = req.template_id {
         let row = state
@@ -658,7 +658,7 @@ pub async fn validate_scene(
     headers: HeaderMap,
     Json(req): Json<ValidateSceneRequest>,
 ) -> Result<Json<Value>, ApiError> {
-    require_admin(&state, &headers)?;
+    require_workbench(&state, &headers)?;
     let mut game_state: GameState = serde_json::from_value(req.snapshot)
         .map_err(|e| err(StatusCode::BAD_REQUEST, format!("snapshot 不是 GameState: {e}")))?;
     let engine = state
@@ -697,7 +697,7 @@ pub async fn list(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<Json<Value>, ApiError> {
-    require_admin(&state, &headers)?;
+    require_workbench(&state, &headers)?;
     Ok(Json(json!({ "sessions": state.previews.list() })))
 }
 
@@ -708,7 +708,7 @@ pub async fn get(
     Path(id): Path<String>,
     Query(q): Query<GetQuery>,
 ) -> Result<Json<Value>, ApiError> {
-    require_admin(&state, &headers)?;
+    require_workbench(&state, &headers)?;
     let session = state.previews.get(&id)?;
     let guard = session
         .lock()
@@ -733,7 +733,7 @@ pub async fn action(
     Path(id): Path<String>,
     Json(req): Json<ActionRequest>,
 ) -> Result<Json<Value>, ApiError> {
-    require_admin(&state, &headers)?;
+    require_workbench(&state, &headers)?;
     if req.player_id.trim().is_empty() || req.action.trim().is_empty() {
         return Err(err(StatusCode::BAD_REQUEST, "缺少 player_id 或 action"));
     }
@@ -771,7 +771,7 @@ pub async fn drive(
     Path(id): Path<String>,
     Json(req): Json<DriveRequest>,
 ) -> Result<Json<Value>, ApiError> {
-    require_admin(&state, &headers)?;
+    require_workbench(&state, &headers)?;
     let session = state.previews.get(&id)?;
     let mut guard = session
         .lock()
@@ -785,7 +785,7 @@ pub async fn reset(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
-    require_admin(&state, &headers)?;
+    require_workbench(&state, &headers)?;
     let session = state.previews.get(&id)?;
     let mut guard = session
         .lock()
@@ -804,7 +804,7 @@ pub async fn delete(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
-    require_admin(&state, &headers)?;
+    require_workbench(&state, &headers)?;
     let existed = state.previews.remove(&id);
     Ok(Json(json!({ "ok": true, "existed": existed })))
 }
@@ -814,7 +814,7 @@ pub async fn sandbox_meta(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<Json<Value>, ApiError> {
-    require_admin(&state, &headers)?;
+    require_workbench(&state, &headers)?;
     Ok(Json(sanguosha::sandbox::sandbox_meta()))
 }
 
@@ -841,7 +841,7 @@ pub async fn sandbox(
     headers: HeaderMap,
     Json(req): Json<SandboxRequest>,
 ) -> Result<Json<Value>, ApiError> {
-    require_admin(&state, &headers)?;
+    require_workbench(&state, &headers)?;
     let seed = req.seed.unwrap_or_else(rand::random);
     let spec = sanguosha::sandbox::SandboxSpec {
         players: req.players,
@@ -935,7 +935,7 @@ pub async fn decision_logs(
     headers: HeaderMap,
     Query(q): Query<DecisionLogQuery>,
 ) -> Result<Json<Value>, ApiError> {
-    require_admin(&state, &headers)?;
+    require_workbench(&state, &headers)?;
     let limit = q.limit.unwrap_or(100).clamp(1, 500);
     let rows = state
         .storage

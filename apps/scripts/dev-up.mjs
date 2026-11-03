@@ -74,6 +74,7 @@ function readEnvKeys(envPath, keys) {
 
 const sharedDevEnv = readEnvKeys(resolve(repoRoot, "apps", "agent-gateway", ".env"), [
   "DEV_WHITELIST",
+  "TEST_PLAYER_WHITELIST",
 ]);
 
 function launch(name, cmd, cmdArgs, opts = {}) {

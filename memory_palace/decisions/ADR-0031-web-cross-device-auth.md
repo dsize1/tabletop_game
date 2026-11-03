@@ -45,6 +45,7 @@
 ### 2.4 中台准入（P1 边界变更）
 
 - `/props-admin` 由 web **同源托管**、公网可达；准入 = 登录会话 + **`PROPS_ADMIN_WHITELIST`（默认回落 `DEV_WHITELIST`）**，非白名单 403。
+- **补丁（ADR-0035，2026-11-03）**：新增 `TEST_PLAYER_WHITELIST`（仅工作台）；中台权限分 `admin`/`workbench` 两级，页面直链与 API 均在服务端收口。
 - `/internal/gameprops/*` **不可被浏览器直连**：由 web 代理，代理前校验会话；server 侧再按「共享 token 或白名单 actor」二次判定（纵深）。
 - `PROPS_ADMIN_TOKEN` 降级为 web→server 内部凭证，浏览器不再持有。
 - 守护脚本 `check:props-admin-boundary` 口径改为：同源公网 + 白名单准入 + 内部 API 不直连。

@@ -132,6 +132,9 @@ interface Whoami {
   openid: string;
   resource: string;
   props_whitelisted: boolean;
+  /** `admin`（全部菜单） / `workbench`（仅工作台，ADR-0035）。 */
+  props_scope?: "admin" | "workbench" | null;
+  props_menus?: string[];
 }
 
 /** 会话自检（server `/auth/web/whoami`）；失效 → undefined。 */
@@ -754,7 +757,18 @@ async function propsSession(
   if (!token) return undefined;
   const who = await whoami(token);
   if (!who || !who.props_whitelisted) return undefined;
+  // 兼容旧 server 响应（无 props_scope）：按 Admin 处理，避免升级顺序导致误 401。
+  if (!who.props_scope) who.props_scope = "admin";
   return who;
+}
+
+/** 测试玩家（workbench scope）只允许的静态/SPA 路径（ADR-0035）。 */
+function isWorkbenchOnlyAllowed(url: string): boolean {
+  const path = (url.split("?")[0] ?? "").replace(/\/+$/, "") || "/";
+  if (path === "/props-admin/workbench") return true;
+  if (path.startsWith("/props-admin/assets/")) return true;
+  if (path === "/props-admin/index.html" || path === "/props-admin/favicon.ico") return true;
+  return false;
 }
 
 app.use(
@@ -773,6 +787,17 @@ app.use(
         );
       return;
     }
+    if (who.props_scope !== "admin" && !isWorkbenchOnlyAllowed(req.originalUrl)) {
+      res
+        .status(401)
+        .send(
+          renderErrorPage(
+            401,
+            "当前账号仅可访问「工作台」菜单：请从工作台入口进入",
+          ),
+        );
+      return;
+    }
     next();
   },
   express.static(PROPS_ADMIN_DIR, {
@@ -786,6 +811,12 @@ app.get("/props-admin/*", async (req, res) => {
   const who = await propsSession(req).catch(() => undefined);
   if (!who) {
     res.status(403).send(renderErrorPage(403, "中台需要登录与白名单权限"));
+    return;
+  }
+  if (who.props_scope !== "admin" && !isWorkbenchOnlyAllowed(req.originalUrl)) {
+    res
+      .status(401)
+      .send(renderErrorPage(401, "当前账号仅可访问「工作台」菜单：请从工作台入口进入"));
     return;
   }
   res.setHeader("Cache-Control", "no-store");

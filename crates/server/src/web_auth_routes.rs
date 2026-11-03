@@ -36,8 +36,59 @@ fn err(code: StatusCode, msg: impl Into<String>) -> ApiError {
 /// 统一的注册码错误文案：不区分「未注册 / 注册码错误」。
 const PASSCODE_REJECTED: &str = "注册码不正确";
 
+/// 中台权限范围（ADR-0035）：
+/// - Admin：开发/中台白名单，全部菜单；
+/// - Workbench：测试玩家白名单，仅工作台菜单。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PropsScope {
+    Admin,
+    Workbench,
+}
+
+impl PropsScope {
+    pub(crate) fn code(self) -> &'static str {
+        match self {
+            PropsScope::Admin => "admin",
+            PropsScope::Workbench => "workbench",
+        }
+    }
+
+    pub(crate) fn menus(self) -> Vec<&'static str> {
+        match self {
+            PropsScope::Admin => vec![
+                "dashboard",
+                "packs",
+                "identities",
+                "identity-setup",
+                "card-defs",
+                "cards",
+                "card-relation",
+                "generals",
+                "skills",
+                "general-skills",
+                "workbench",
+                "import",
+            ],
+            PropsScope::Workbench => vec!["workbench"],
+        }
+    }
+}
+
+/// 解析 openid 的中台权限范围；`None` = 无中台权限。
+///
+/// 优先级：DEV_WHITELIST / PROPS_ADMIN_WHITELIST（Admin）> TEST_PLAYER_WHITELIST（Workbench）。
+pub(crate) fn props_scope(state: &AppState, openid: &str) -> Option<PropsScope> {
+    if state.props_whitelist.contains(openid) || state.dev_whitelist.contains(openid) {
+        return Some(PropsScope::Admin);
+    }
+    if state.test_player_whitelist.contains(openid) {
+        return Some(PropsScope::Workbench);
+    }
+    None
+}
+
 fn is_props_whitelisted(state: &AppState, openid: &str) -> bool {
-    state.props_whitelist.contains(openid) || state.dev_whitelist.contains(openid)
+    props_scope(state, openid).is_some()
 }
 
 // ==================== 网关侧（internal） ====================
@@ -92,7 +143,13 @@ pub async fn link(
     if target.is_none() {
         return Err(err(StatusCode::BAD_REQUEST, "target 必须是站内相对路径"));
     }
-    let target = target.unwrap();
+    let mut target = target.unwrap();
+    // 测试玩家只有工作台权限：即使网关/旧链接给了别的 target，也强制落到工作台。
+    if scope == "props"
+        && matches!(props_scope(&state, &req.openid), Some(PropsScope::Workbench))
+    {
+        target = "/props-admin/workbench".to_string();
+    }
 
     let account = state
         .storage
@@ -513,10 +570,13 @@ pub async fn whoami(
         .verify(&q.token)
         .await
         .map_err(|_| err(StatusCode::UNAUTHORIZED, "token 无效或已过期"))?;
+    let scope = props_scope(&state, &rec.openid);
     Ok(Json(json!({
         "openid": rec.openid,
         "resource": rec.resource,
-        "props_whitelisted": is_props_whitelisted(&state, &rec.openid),
+        "props_whitelisted": scope.is_some(),
+        "props_scope": scope.map(PropsScope::code),
+        "props_menus": scope.map(PropsScope::menus).unwrap_or_default(),
     })))
 }
 
@@ -559,11 +619,6 @@ fn sanitize_target(raw: &str) -> Option<String> {
         return None;
     }
     Some(t.to_string())
-}
-
-/// 白名单判定（供 web 代理/中台路由复用）。
-pub(crate) fn props_allowed(state: &AppState, openid: &str) -> bool {
-    is_props_whitelisted(state, openid)
 }
 
 #[cfg(test)]

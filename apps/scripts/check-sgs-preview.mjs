@@ -34,6 +34,7 @@ const UI = process.argv.includes("--ui");
 const UI_OPENID = "ui-e2e";
 const REDIS_URL = process.env.REDIS_URL ?? "redis://127.0.0.1:6379";
 const ADMIN_TOKEN = "preview-e2e-token";
+const ADMIN_ACTOR = "preview-admin";
 const players = ["preview-p1", "preview-p2", "preview-p3", "preview-p4", "preview-p5"];
 const children = [];
 let failed = 0;
@@ -114,17 +115,20 @@ async function waitHealth(url, ms = 20000) {
   return false;
 }
 
-function headers(token = ADMIN_TOKEN) {
+function headers(token = ADMIN_TOKEN, actor = ADMIN_ACTOR) {
   const h = { "content-type": "application/json" };
   if (token) h["x-props-admin-token"] = token;
-  h["x-props-actor"] = "preview-e2e";
+  if (actor) h["x-props-actor"] = actor;
   return h;
 }
 
-async function api(pathname, { method = "GET", body, token = ADMIN_TOKEN } = {}) {
+async function api(
+  pathname,
+  { method = "GET", body, token = ADMIN_TOKEN, actor = ADMIN_ACTOR } = {},
+) {
   const r = await fetch(`${SERVER_URL}${pathname}`, {
     method,
-    headers: headers(token),
+    headers: headers(token, actor),
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const text = await r.text();
@@ -265,6 +269,32 @@ async function runUi(room, templateId, previewId, players) {
   );
   assert(anon.status === 403, `ui: 未登录访问预览页 → 403（实际 ${anon.status}）`);
 
+  // 测试玩家：只有 /props-admin/workbench 可访问；其它菜单 401，越权 API 403。
+  const cookieHeader = { cookie: `tg_props=${conf.token}` };
+  const deniedRoot = await fetch(`${WEB_URL}/props-admin/`, { headers: cookieHeader });
+  assert(deniedRoot.status === 401, `ui: 测试玩家访问中台首页 → 401（实际 ${deniedRoot.status}）`);
+  const deniedPacks = await fetch(`${WEB_URL}/props-admin/packs`, { headers: cookieHeader });
+  assert(deniedPacks.status === 401, `ui: 测试玩家访问道具包菜单 → 401（实际 ${deniedPacks.status}）`);
+  const allowedWorkbench = await fetch(`${WEB_URL}/props-admin/workbench`, {
+    headers: cookieHeader,
+  });
+  assert(
+    allowedWorkbench.status === 200,
+    `ui: 测试玩家访问工作台 → 200（实际 ${allowedWorkbench.status}）`,
+  );
+  const webSession = await fetch(`${WEB_URL}/internal/gameprops/session`, {
+    headers: cookieHeader,
+  });
+  const webSessionBody = await webSession.json().catch(() => ({}));
+  assert(
+    webSession.status === 200 && webSessionBody.scope === "workbench",
+    `ui: 测试玩家 web session scope=workbench（实际 ${webSession.status}/${webSessionBody.scope}）`,
+  );
+  const webSummary = await fetch(`${WEB_URL}/internal/gameprops/summary`, {
+    headers: cookieHeader,
+  });
+  assert(webSummary.status === 403, `ui: 测试玩家越权 API → 403（实际 ${webSummary.status}）`);
+
   let browser = null;
   try {
     browser = await playwright.chromium.launch({ executablePath: browserPath, headless: true });
@@ -354,6 +384,15 @@ async function runUi(room, templateId, previewId, players) {
     assert(
       ((await page.locator("h2").first().textContent()) ?? "").includes("工作台"),
       "ui: 工作台页面加载",
+    );
+    await page.waitForTimeout(800);
+    assert(
+      (await page.getByText("概览", { exact: true }).count()) === 0,
+      "ui: 测试玩家菜单不含「概览」",
+    );
+    assert(
+      (await page.getByText("工作台", { exact: true }).count()) > 0,
+      "ui: 测试玩家菜单保留「工作台」",
     );
     for (const tab of ["模板", "预览", "AI 调试", "决策日志"]) {
       assert((await page.getByText(tab, { exact: true }).count()) > 0, `ui: TAB ${tab} 存在`);
@@ -457,7 +496,8 @@ try {
       SERVER_PORT: String(SERVER_PORT),
       REDIS_URL,
       PROPS_ADMIN_TOKEN: ADMIN_TOKEN,
-      DEV_WHITELIST: UI ? UI_OPENID : "not-preview-e2e",
+      DEV_WHITELIST: ADMIN_ACTOR,
+      TEST_PLAYER_WHITELIST: UI_OPENID,
       RUST_LOG: "warn",
       SGS_PREVIEW_TTL_SECS: "600",
       SGS_PREVIEW_MAX_SESSIONS: "4",
@@ -512,10 +552,32 @@ try {
   const dbBefore = dbCounts();
 
   // 3) 鉴权负向：无 token → 401
-  const noAuth = await api("/internal/gameprops/templates", { token: "" });
-  assert(noAuth.status === 401, `无中台令牌访问模板 → 401（实际 ${noAuth.status}）`);
-  const badAuth = await api("/internal/gameprops/templates", { token: "wrong" });
+  const noAuth = await api("/internal/gameprops/templates", { token: "", actor: null });
+  assert(noAuth.status === 401, `无中台令牌/无 actor 访问模板 → 401（实际 ${noAuth.status}）`);
+  const badAuth = await api("/internal/gameprops/templates", { token: "wrong", actor: null });
   assert(badAuth.status === 401, `错误中台令牌 → 401（实际 ${badAuth.status}）`);
+
+  // 3.5) 测试玩家白名单：仅 workbench 菜单/API，越权菜单 API 403
+  const adminSession = await api("/internal/gameprops/session");
+  assert(adminSession.status === 200 && adminSession.body.scope === "admin", "管理员 session scope=admin");
+  const testSession = await api("/internal/gameprops/session", { actor: UI_OPENID });
+  assert(
+    testSession.status === 200 && testSession.body.scope === "workbench",
+    `测试玩家 session scope=workbench（实际 ${testSession.body.scope}）`,
+  );
+  assert(
+    Array.isArray(testSession.body.menus) && testSession.body.menus.length === 1 &&
+      testSession.body.menus[0] === "workbench",
+    "测试玩家菜单仅 workbench",
+  );
+  const testTemplates = await api("/internal/gameprops/templates", { actor: UI_OPENID });
+  assert(testTemplates.status === 200, "测试玩家可访问工作台模板 API");
+  const testPreviewMeta = await api("/internal/game/preview/meta", { actor: UI_OPENID });
+  assert(testPreviewMeta.status === 200, "测试玩家可访问预览/沙盒 API");
+  const testSummary = await api("/internal/gameprops/summary", { actor: UI_OPENID });
+  assert(testSummary.status === 403, `测试玩家访问概览 API → 403（实际 ${testSummary.status}）`);
+  const testGenerals = await api("/internal/gameprops/generals", { actor: UI_OPENID });
+  assert(testGenerals.status === 403, `测试玩家访问武将表 API → 403（实际 ${testGenerals.status}）`);
 
   // 4) 从真实对局抓模板
   const grabbed = await api("/internal/gameprops/templates/from-room", {

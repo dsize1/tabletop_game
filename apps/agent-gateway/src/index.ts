@@ -149,6 +149,14 @@ const DEV_WHITELIST = new Set(
     .filter(Boolean),
 );
 
+// 测试玩家白名单（member_openid 逗号分隔）：仅可登录中台「工作台」（ADR-0035）。
+const TEST_PLAYER_WHITELIST = new Set(
+  (process.env.TEST_PLAYER_WHITELIST ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean),
+);
+
 // dev 执行模式（ADR-0015 B4）：
 // - inline（默认）：现状，网关内跑 pi 子会话（B8 前保留回退）
 // - entry：只做入口（落库+入队+回执），执行交外部（n8n/LangGraph）
@@ -1547,8 +1555,10 @@ ${url}`
   }
 
   if (cmd.cmd === "props") {
-    if (!DEV_WHITELIST.has(event.sender_id)) {
-      await pushReply(redis, event, "[中台] 无权限：你不是开发白名单账号。");
+    const isDev = DEV_WHITELIST.has(event.sender_id);
+    const isTester = TEST_PLAYER_WHITELIST.has(event.sender_id);
+    if (!isDev && !isTester) {
+      await pushReply(redis, event, "[中台] 无权限：你不是开发/测试玩家白名单账号。");
       return;
     }
     const url = await makeLoginUrl({
@@ -1556,7 +1566,8 @@ ${url}`
       openid: event.sender_id,
       displayName: name,
       scope: "props",
-      target: "/props-admin/",
+      // 测试玩家只有工作台权限；开发/中台管理员仍进全部菜单。
+      target: isDev ? "/props-admin/" : "/props-admin/workbench",
     });
     await pushReply(
       redis,

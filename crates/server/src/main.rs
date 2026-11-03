@@ -44,6 +44,8 @@ struct AppState {
     dev_whitelist: Arc<HashSet<String>>,
     /// 中台白名单（ADR-0031：默认回落 DEV_WHITELIST；空白名单 = 全拒）
     props_whitelist: Arc<HashSet<String>>,
+    /// 测试玩家白名单：仅可访问中台「工作台」菜单（ADR-0035）
+    test_player_whitelist: Arc<HashSet<String>>,
     /// Web 跨端登录会话（短效 token + 状态 + 验证码，ADR-0031）
     weblogin: auth::weblogin::WebLoginService,
     /// 道具中台管理员 token（未设置 = 本机开发模式放行）
@@ -93,6 +95,14 @@ async fn main() -> anyhow::Result<()> {
 
     // 开发白名单（从 MCP env 迁到 server env；空白名单 = 全拒）
     let dev_whitelist: HashSet<String> = std::env::var("DEV_WHITELIST")
+        .unwrap_or_default()
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    // 测试玩家白名单：仅 workbench 权限（为空 = 无测试玩家，ADR-0035）
+    let test_player_whitelist: HashSet<String> = std::env::var("TEST_PLAYER_WHITELIST")
         .unwrap_or_default()
         .split(',')
         .map(|s| s.trim().to_string())
@@ -154,6 +164,7 @@ async fn main() -> anyhow::Result<()> {
         docs: shared::docs_config::load(),
         dev_whitelist: Arc::new(dev_whitelist),
         props_whitelist: Arc::new(props_whitelist),
+        test_player_whitelist: Arc::new(test_player_whitelist),
         weblogin: auth::weblogin::WebLoginService::new(&redis_url).await?,
         props_admin_token: std::env::var("PROPS_ADMIN_TOKEN")
             .ok()
@@ -302,6 +313,7 @@ async fn main() -> anyhow::Result<()> {
             "/internal/gameprops/status",
             post(gameprops_routes::set_status),
         )
+        .route("/internal/gameprops/session", get(gameprops_routes::session))
         // 工作台模板（P5 基座）：显式路由优先于 `{table}` 动态路由
         .route(
             "/internal/gameprops/templates",

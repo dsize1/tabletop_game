@@ -4,12 +4,23 @@
 
 ## 🔖 续接指针（下次会话说「继续」时从这里开工）
 
-- **入口（2026-11-03 新会话）**：P6.4 ✅ → P7 代码完成（真机滞后）→ P8 代码完成（真机验收滞后）→ M61 工作台基座 ✅ → M62 验收后修复 ✅ → **M63 创建对局（沙盒开局）✅** → **下一步：武将批量验证 + `general-audit`**
+- **入口（2026-11-03 新会话）**：P6.4 ✅ → P7 代码完成（真机滞后）→ P8 代码完成（真机验收滞后）→ M61 工作台基座 ✅ → M62 验收后修复 ✅ → M63 创建对局 ✅ → **M64 测试玩家白名单 ✅** → **下一步：武将批量验证 + `general-audit`**
 - **顺序（用户 2026-11-03 定稿）**：① P6.4 决策日志/导出/回放 ✅ → ② P7 Q 群收尾（代码完成） → ③ P8 权鉴/全局开关/观测/运维（代码完成，真机验收滞后） → ④ **工作台+预览基座（新会话开始）** → ⑤ 全武将验证（标准→风→林→火→山→一将→界）；P6.5/P6.6 本轮不做
 - **进度台账**：`memory_palace/plan/01a19ccc-dc1a-7549-aeb8-5e87e928ddde.md` §进度台账
 - **P6 批次入口**：`crates/game-engine-mcp`（`bot_action` 现为 `RandomPolicy`，非 las-vegas）→ `GameManager`/`EnginePlugin`（合法动作 + 状态机已就绪）；缺口见 `docs/games/sanguosha/development-plan.md` P6 节
 - **开工命令**：`npm run sgs:batch-status`（武将批次，P6 期间暂停）；流程见 `docs/games/sanguosha/batch-playbook.md`
 - **门禁**：`npm run sgs:check`（每批收尾）、`npm run sgs:check:full`（含 MCP 冒烟）、`npm run sgs:check:fast`（改码自检）、`npm run test:web-login`（跨端登录 e2e，需 `dev:up` 或临时起 server/web）
+
+## M64：测试玩家白名单（中台仅工作台最小权限）✅
+
+- **日期**：2026-11-03
+- **新增**：`TEST_PLAYER_WHITELIST`；中台权限分 `admin`（DEV/PROPS 白名单）与 `workbench`（测试玩家，仅工作台），Admin 优先。
+- **Web**：测试玩家只有 `/props-admin/workbench` 可访问（首页/其他菜单 401，静态资源放行）；`#中台` 登录 target 自动落到工作台。
+- **Server**：`require_admin`/`require_workbench` 分层；**actor-first**（带 actor 时共享 token 不能越过角色）；`GET /internal/gameprops/session` 返回 scope/menus；越权 API 403。
+- **SPA**：启动读 session，workbench 只渲染「工作台」菜单并做路由替换；隐藏 Admin Token 输入。
+- **Gateway**：`#中台` 同时允许 DEV/TEST 白名单；测试玩家 target=`/props-admin/workbench`；dev-up 透传 `TEST_PLAYER_WHITELIST`；`.env.example` 已登记。
+- **验证**：`check:sgs-preview --ui`（scope/菜单/首页 401/越权 403/工作台 200）通过；`check:props-boundary` 通过；`test:agent-gateway` 22/22；`sgs:check` 19/19。
+- **配置**：在 `apps/agent-gateway/.env` 与生产 server 环境同时设置 `TEST_PLAYER_WHITELIST=<openid,...>`。
 
 ## M63：工作台「创建对局」沙盒开局（全 bot / 指定武将身份 / 跳过选将）✅
 

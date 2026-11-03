@@ -1,6 +1,6 @@
 //! 工作台模板 API（`/internal/gameprops/templates`，P5 基座）。
 //!
-//! 只经 server 读写 SQLite（单写者）；准入与道具中台一致（`require_admin`）。
+//! 只经 server 读写 SQLite（单写者）；准入与道具中台一致（`require_workbench`）。
 //! 模板 = 引擎完整 `GameState` 快照 + 可选 `meta.scene`（场景注入）。
 
 use axum::extract::{Path, Query, State};
@@ -10,7 +10,7 @@ use game_engine_core::GameState;
 use serde::Deserialize;
 use serde_json::{json, Value};
 
-use crate::gameprops_routes::{actor, require_admin, ApiError};
+use crate::gameprops_routes::{actor, require_workbench, ApiError};
 use crate::AppState;
 
 fn err(code: StatusCode, msg: impl Into<String>) -> ApiError {
@@ -83,7 +83,7 @@ pub async fn list(
     headers: HeaderMap,
     Query(q): Query<ListQuery>,
 ) -> Result<Json<Value>, ApiError> {
-    require_admin(&state, &headers)?;
+    require_workbench(&state, &headers)?;
     let game_id = q.game_id.as_deref().filter(|s| !s.is_empty());
     let rows = state
         .storage
@@ -118,7 +118,7 @@ pub async fn get(
     headers: HeaderMap,
     Path(id): Path<i64>,
 ) -> Result<Json<Value>, ApiError> {
-    require_admin(&state, &headers)?;
+    require_workbench(&state, &headers)?;
     let row = state
         .storage
         .get_template(id)
@@ -160,7 +160,7 @@ pub async fn create(
     headers: HeaderMap,
     Json(body): Json<CreateBody>,
 ) -> Result<Json<Value>, ApiError> {
-    require_admin(&state, &headers)?;
+    require_workbench(&state, &headers)?;
     let snapshot = snapshot_text(&body.snapshot)?;
     validate_snapshot(&state, &body.game_id, &snapshot)?;
     let meta = match &body.meta {
@@ -201,7 +201,7 @@ pub async fn update(
     Path(id): Path<i64>,
     Json(body): Json<UpdateBody>,
 ) -> Result<Json<Value>, ApiError> {
-    require_admin(&state, &headers)?;
+    require_workbench(&state, &headers)?;
     let snapshot = match &body.snapshot {
         Some(v) => {
             let text = snapshot_text(v)?;
@@ -246,7 +246,7 @@ pub async fn duplicate(
     Path(id): Path<i64>,
     Json(body): Json<DuplicateBody>,
 ) -> Result<Json<Value>, ApiError> {
-    require_admin(&state, &headers)?;
+    require_workbench(&state, &headers)?;
     let row = state
         .storage
         .duplicate_template(id, body.name.as_deref())
@@ -261,7 +261,7 @@ pub async fn delete(
     headers: HeaderMap,
     Path(id): Path<i64>,
 ) -> Result<Json<Value>, ApiError> {
-    require_admin(&state, &headers)?;
+    require_workbench(&state, &headers)?;
     let existed = state
         .storage
         .delete_template(id)
@@ -286,7 +286,7 @@ pub async fn from_room(
     headers: HeaderMap,
     Json(body): Json<FromRoomBody>,
 ) -> Result<Json<Value>, ApiError> {
-    require_admin(&state, &headers)?;
+    require_workbench(&state, &headers)?;
     let room = body.room_id.trim();
     if room.is_empty() {
         return Err(err(StatusCode::BAD_REQUEST, "缺少 room_id"));
@@ -342,7 +342,7 @@ pub async fn from_replay(
     headers: HeaderMap,
     Json(body): Json<FromReplayBody>,
 ) -> Result<Json<Value>, ApiError> {
-    require_admin(&state, &headers)?;
+    require_workbench(&state, &headers)?;
     let (game_id, seq, snapshot) = state
         .storage
         .get_replay_base(body.room_id.trim())

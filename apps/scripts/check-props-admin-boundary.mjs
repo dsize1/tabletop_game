@@ -75,9 +75,9 @@ if (previewPageAt < 0) {
   }
 }
 
-// 2.6) server 预览端点同样要求 require_admin（纵深）
+// 2.6) server 预览端点同样要求 require_workbench（纵深）
 const preview = read("crates/server/src/preview.rs");
-for (const needle of ["require_admin", "preview:", "game_decision_log"]) {
+for (const needle of ["require_workbench", "preview:", "game_decision_log"]) {
   if (!preview.includes(needle)) {
     fail(`server 预览宿主缺少「${needle}」（隔离/准入/不写决策日志约束）`);
   }
@@ -98,7 +98,7 @@ if (web.includes('"/internal/auth/web/link"')) {
 
 // 4) server 侧纵深：共享 token 或白名单 actor 才放行
 const props = read(SERVER_PROPS);
-for (const needle of ["x-props-admin-token", "x-props-actor", "props_allowed"]) {
+for (const needle of ["x-props-admin-token", "x-props-actor", "props_scope"]) {
   if (!props.includes(needle)) {
     fail(`server 中台准入缺少 ${needle}（需同时支持共享 token 与白名单 actor）`);
   }
@@ -119,6 +119,25 @@ if (!sandboxAdr.includes("沙盒开局") || !sandboxAdr.includes("finish_setup")
 }
 if (!adrIndex.includes("ADR-0034")) {
   fail("decisions/README.md 未登记 ADR-0034");
+}
+const scopeAdr = read("memory_palace/decisions/ADR-0035-test-player-whitelist.md");
+if (!scopeAdr.includes("TEST_PLAYER_WHITELIST") || !scopeAdr.includes("workbench")) {
+  fail("缺少 ADR-0035（测试玩家白名单/工作台最小权限）或口径不一致");
+}
+if (!adrIndex.includes("ADR-0035")) {
+  fail("decisions/README.md 未登记 ADR-0035");
+}
+const previewRoutes = read("crates/server/src/preview.rs");
+const templateRoutes = read("crates/server/src/template_routes.rs");
+const serverMain = read("crates/server/src/main.rs");
+if (!serverMain.includes("TEST_PLAYER_WHITELIST")) {
+  fail("server 未读取 TEST_PLAYER_WHITELIST");
+}
+if (!previewRoutes.includes("require_workbench") || !templateRoutes.includes("require_workbench")) {
+  fail("预览/模板 API 未使用 require_workbench（测试玩家需要工作台权限）");
+}
+if (!web.includes("isWorkbenchOnlyAllowed") || !web.includes("props_scope")) {
+  fail("web 缺少工作台路径门禁/props_scope 判定");
 }
 const pkg = JSON.parse(read("package.json") || "{}");
 if (!pkg.scripts?.["check:sgs-preview"]) {
