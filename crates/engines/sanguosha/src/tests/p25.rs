@@ -272,7 +272,11 @@ fn guanxing_builds_2x5_slots_owner_only() {
     // 默认提交选项 = 当前结算顺序（左列→右列，跳空压缩）。
     let pending = st.pending.clone().expect("arrange pending");
     let expect_order = filled.join(",");
-    assert_eq!(pending.options[0].id, format!("arrange:{expect_order}"));
+    assert_eq!(
+        pending.options[0].id,
+        format!("arrange:{expect_order}|"),
+        "初始全在左列：提交 id 带列分组（右列为空）"
+    );
 }
 
 #[test]

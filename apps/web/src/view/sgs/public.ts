@@ -44,8 +44,10 @@ function seatCard(
   const kingdom = seat.kingdom ? KINGDOM_LABEL[seat.kingdom] ?? seat.kingdom : "";
   const name = escapeHtml(playerName(names, seat.player_id));
   const flipped = seat.flipped ? `<span class="sgs-flip">翻面</span>` : "";
+  // 连环状态（P4.6）：横置是公共信息，必须在公共区可见（属性伤害会传导）。
+  const chained = seat.chained ? `<span class="sgs-chain">横置</span>` : "";
   const general = seat.general_name
-    ? `<div class="sgs-general">${escapeHtml(seat.general_name)}${flipped}${kingdom ? `<span class="sgs-kingdom">${escapeHtml(kingdom)}</span>` : ""}</div>`
+    ? `<div class="sgs-general">${escapeHtml(seat.general_name)}${flipped}${chained}${kingdom ? `<span class="sgs-kingdom">${escapeHtml(kingdom)}</span>` : ""}</div>`
     : `<div class="sgs-general muted">未选将</div>`;
   const marks = [
     ...Object.entries(seat.marks ?? {})

@@ -85,6 +85,35 @@ export function applyDrop(slots: GxSlots, from: string, to: string | null): GxSl
   return next;
 }
 
+/** 特殊区（`special_zones.guanxing`）草稿来源；只依赖渲染需要的字段。 */
+export interface GxZoneLike {
+  rev?: number;
+  slots?: Record<string, string | null>;
+  cards?: Array<{ id: string }>;
+}
+
+/**
+ * 由特殊区生成观星草稿（P4.6）：一次新的观星必须重建草稿，绝不复用上一次的槽位。
+ *
+ * 判据：`rev + 牌集 + slots` 指纹；若 `slots` 里出现本次 `cards` 之外的 id（旧观星残留 /
+ * 状态错位），一律丢弃并按 `cards` 重建 `L1..Lk`，避免浮层显示裸牌 id。
+ */
+export function draftFromZone(zone: GxZoneLike | undefined): { slots: GxSlots; sig: string } {
+  const cards = zone?.cards ?? [];
+  const sig = [zone?.rev ?? 0, cards.map((c) => c.id).join(","), JSON.stringify(zone?.slots ?? {})].join("|");
+  const byId = new Set(cards.map((c) => c.id));
+  const raw = zone?.slots;
+  const usable =
+    Boolean(raw) &&
+    Object.keys(raw ?? {}).length > 0 &&
+    Object.values(raw ?? {}).every((id) => !id || byId.has(id)) &&
+    Object.values(raw ?? {}).some((id) => Boolean(id));
+  return {
+    slots: usable ? { ...raw } : initialSlots(cards.map((c) => c.id)),
+    sig,
+  };
+}
+
 /** 结算顺序：每列跳空压紧，左列接右列。 */
 export function settle(slots: GxSlots): string[] {
   const out: string[] = [];
@@ -95,9 +124,20 @@ export function settle(slots: GxSlots): string[] {
   return out;
 }
 
-/** 提交动作 id。 */
+/** 某列（跳空压紧）的牌 id 顺序。 */
+export function columnIds(slots: GxSlots, col: "L" | "R"): string[] {
+  return GX_SLOT_IDS.filter((id) => id.startsWith(col))
+    .map((id) => slots[id])
+    .filter((id): id is string => Boolean(id));
+}
+
+/**
+ * 提交动作 id（P4.6）：`arrange:<左列 csv>|<右列 csv>`。
+ * 左列 → 牌堆顶（L1 为新牌堆顶），右列 → 牌堆底（R1 靠近原牌堆、末张在最底）。
+ * 只交顺序无法区分两列，引擎就拿不到「哪些放底」，所以必须显式带上列分组。
+ */
 export function arrangeAction(slots: GxSlots): string {
-  return `arrange:${settle(slots).join(",")}`;
+  return `arrange:${columnIds(slots, "L").join(",")}|${columnIds(slots, "R").join(",")}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -189,12 +229,12 @@ export function renderGuanxingOverlay(
   };
   const col = (prefix: "L" | "R"): string =>
     Array.from({ length: rows }, (_, i) => cell(`${prefix}${i + 1}`)).join("");
-  const order = settle(slots)
-    .map((id) => {
-      const c = byId.get(id);
-      return c ? escapeHtml(cardLabel(c)) : escapeHtml(id);
-    })
-    .join(" → ");
+  const label = (id: string): string => {
+    const c = byId.get(id);
+    return c ? escapeHtml(cardLabel(c)) : escapeHtml(id);
+  };
+  const top = columnIds(slots, "L").map(label).join(" → ");
+  const bottom = columnIds(slots, "R").map(label).join(" → ");
   const action = arrangeAction(slots);
   return (
     `<p class="muted">点击牌=移到另一列首个空槽；▲▼ 调整同列位置；长按拖动可放入/交换（松手超距回原位）。</p>` +
@@ -202,7 +242,7 @@ export function renderGuanxingOverlay(
     `<div class="sgs-gx-col"><div class="sgs-gx-col-head">牌堆顶侧（L）</div>${col("L")}</div>` +
     `<div class="sgs-gx-col"><div class="sgs-gx-col-head">牌堆底侧（R）</div>${col("R")}</div>` +
     `</div>` +
-    `<p class="muted">最终顺序（顶 → 底）：${order || "无"}</p>` +
+    `<p class="muted">置于牌堆顶（顶→下）：${top || "无"}；置于牌堆底（靠原牌堆→最底）：${bottom || "无"}</p>` +
     `<div class="sgs-zone-actions">` +
     `<button type="button" class="btn ghost small" data-gx-reset="1">重置</button>` +
     `<button type="button" class="btn small" data-action="${escapeHtml(action)}">确认观星顺序</button>` +

@@ -19,9 +19,9 @@ import {
   applyDrop,
   applyMoveWithinColumn,
   applyTap,
+  draftFromZone,
   initialSlots,
   renderGuanxingOverlay,
-  settle,
   snapSlot,
   snapThreshold,
   type GxSlots,
@@ -69,6 +69,8 @@ let pendingOverlaySig = "";
 /** 观星本地槽位（端侧草稿；提交时一次性发 arrange:<csv>）。 */
 let gxSlots: GxSlots | null = null;
 let gxInitial: GxSlots | null = null;
+/** 当前观星草稿对应的特殊区指纹（新一次观星/重置时必须重建草稿）。 */
+let gxSig = "";
 let gxSuppressClickUntil = 0;
 /** 整页刷新/重新进入时恢复的滚动位置（页面 + 历史列表）。 */
 let restoreScroll: { page: number; hist: number } | null = null;
@@ -259,6 +261,15 @@ function pendingSignature(p: NonNullable<SgsViewData["player_area"]>["pending"])
   ].join("|");
 }
 
+/** 观星草稿：按特殊区指纹（rev + 牌集 + slots）重建，避免新一次观星复用上次槽位。 */
+function syncGuanxingDraft(zone: Parameters<typeof draftFromZone>[0]): void {
+  const { slots, sig } = draftFromZone(zone);
+  if (gxSlots && gxSig === sig) return;
+  gxSig = sig;
+  gxSlots = slots;
+  gxInitial = { ...slots };
+}
+
 function syncPendingOverlay(): void {
   const area = currentData?.player_area;
   const board = currentData?.public_board;
@@ -271,6 +282,7 @@ function syncPendingOverlay(): void {
     }
     gxSlots = null;
     gxInitial = null;
+    gxSig = "";
     return;
   }
   const sig = pendingSignature(p);
@@ -302,14 +314,10 @@ function syncPendingOverlay(): void {
       break;
     case "arrange": {
       const zone = currentData?.special_zones?.guanxing;
-      if (!gxSlots) {
-        gxSlots = { ...(zone?.slots as GxSlots) };
-        if (!gxSlots || Object.keys(gxSlots).length === 0) {
-          gxSlots = initialSlots((zone?.cards ?? []).map((c) => c.id));
-        }
-        gxInitial = { ...gxSlots };
-      }
-      body = renderGuanxingOverlay(gxSlots, zone?.cards ?? [], { rows: zone?.rows ?? GX_ROWS });
+      syncGuanxingDraft(zone);
+      body = renderGuanxingOverlay(gxSlots ?? initialSlots([]), zone?.cards ?? [], {
+        rows: zone?.rows ?? GX_ROWS,
+      });
       break;
     }
   }

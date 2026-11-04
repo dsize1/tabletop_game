@@ -32,6 +32,7 @@ import {
   applyMoveWithinColumn,
   applyTap,
   arrangeAction,
+  draftFromZone,
   firstEmpty,
   initialSlots,
   renderGuanxingOverlay,
@@ -339,6 +340,11 @@ assert.ok(
 );
 
 // —— XSS：昵称必须转义 ——
+const chainedSeats = seats.map((s, i) => (i === 1 ? { ...s, chained: true } : s));
+const chainedView: SgsViewData = { ...view, public_board: { ...board, seats: chainedSeats } };
+assert.ok(renderPublicArea(chainedView, 0, names).includes("横置"), "公共区显示横置标签");
+const chainedMe = renderPersonalArea({ ...me, chained: true }, board, {}, names);
+assert.ok(chainedMe.includes("横置"), "个人区显示横置标签");
 const xss = renderPublicArea(view, 0, { ...names, p1: '<img src=x onerror=alert(1)>' });
 assert.ok(!xss.includes("<img src=x"), "昵称必须转义");
 assert.ok(xss.includes("&lt;img"), "转义后保留文本");
@@ -365,6 +371,14 @@ assert.equal(press(0, 500, 0, 0, { longFired: true }), "longpress", "长按到�
 // —— 详情浮层内容 ——
 const detailCard = renderCardDetail(card("c1", "青釭剑", "spade", 6, "qinggang_jian"));
 assert.ok(detailCard.includes("青釭剑") && detailCard.includes("♠6"), "牌面详情含花色点数");
+const detailWeapon = renderCardDetail({
+  ...card("c1", "寒冰剑", "spade", 2, "hanbing_jian"),
+  effect: "当你使用【杀】对目标角色造成伤害时，你可以防止此伤害，改为依次弃置其两张牌（不足则全弃）。",
+});
+assert.ok(
+  detailWeapon.includes("效果") && detailWeapon.includes("改为依次弃置其两张牌"),
+  "装备牌详情含效果说明（长按武器可看特效）",
+);
 const generalDetail = renderGeneralDetail(seats[1], names);
 assert.ok(generalDetail.includes("曹操") && generalDetail.includes("未公开"), "武将详情（非主公身份不公开）");
 const generalDetailSkills = renderGeneralDetail(
@@ -794,9 +808,28 @@ assert.equal(snapSlot({ x: 40, y: 20 }, rects, 4), "L1", "中心吸附");
 assert.equal(snapSlot({ x: 40, y: 71 }, rects, 4), "L2", "就近吸附（L2 中心 ±4px 内）");
 assert.equal(snapSlot({ x: 40, y: 35 }, rects, 4), null, "超出阈值返回 null");
 
+// 草稿来源（P4.6）：新一次观星不得复用上次槽位；槽位含未知 id 时按 cards 重建
+const draftA = draftFromZone({
+  rev: 1,
+  cards: [{ id: "c3" }, { id: "c1" }, { id: "c2" }],
+  slots: gx0,
+});
+assert.deepEqual([draftA.slots.L1, draftA.slots.L2, draftA.slots.L3], ["c3", "c1", "c2"], "草稿沿用合法槽位");
+const draftB = draftFromZone({
+  rev: 1,
+  cards: [{ id: "c7" }, { id: "c8" }, { id: "c9" }],
+  slots: gx0, // 上一次观星的槽位（ids 不在本次 cards 中）
+});
+assert.deepEqual(
+  [draftB.slots.L1, draftB.slots.L2, draftB.slots.L3, draftB.slots.R1],
+  ["c7", "c8", "c9", null],
+  "旧观星槽位必须丢弃并按本次 cards 重建（否则显示裸 id）",
+);
+assert.notEqual(draftA.sig, draftB.sig, "草稿指纹随牌集变化");
+
 // 提交 id
-assert.equal(arrangeAction(tap1), "arrange:c1,c2,c3");
-assert.equal(arrangeAction(initialSlots([])), "arrange:");
+assert.equal(arrangeAction(tap1), "arrange:c1,c2|c3", "列分组显式提交（左→顶 / 右→底）");
+assert.equal(arrangeAction(initialSlots([])), "arrange:|");
 
 // 渲染
 const gxCards = [
@@ -809,8 +842,12 @@ assert.ok(gxHtml.includes('data-gx-slot="L1"') && gxHtml.includes('data-gx-card=
 assert.ok(gxHtml.includes("♠3") && gxHtml.includes("杀"), "牌面渲染");
 assert.ok(gxHtml.includes('data-gx-move="down"'), "下移按钮");
 assert.ok(gxHtml.includes("data-gx-reset"), "重置按钮");
-assert.ok(gxHtml.includes('data-action="arrange:c3,c1,c2"'), "提交动作 id");
-assert.ok(gxHtml.includes("最终顺序（顶 → 底）：杀♠3 → 闪♥A → 桃♦2"), "顺序预览");
+assert.ok(gxHtml.includes('data-action="arrange:c3,c1,c2|"'), "提交动作 id（右列为空）");
+assert.ok(
+  gxHtml.includes("置于牌堆顶（顶→下）：杀♠3 → 闪♥A → 桃♦2") &&
+    gxHtml.includes("置于牌堆底（靠原牌堆→最底）：无"),
+  "顶/底分组预览",
+);
 
 // —— P6.3 真机回归：选将阶段必须渲染「候选武将」按钮（此前只有空白面板，表现为卡死） ——
 const setupBoard = {

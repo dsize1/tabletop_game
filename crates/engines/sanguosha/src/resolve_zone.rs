@@ -6,7 +6,7 @@
 //!   每个选择者各自开一次无懈窗口（AOE 口径）；结束后剩余牌进弃牌堆。
 //! - `guanxing`：准备阶段自动进入（P2.5 口径，不询问是否发动、不可取消）；取
 //!   `k = min(存活角色数, 5)` 张进处理区，2 列 × 5 槽（`L1..L5` / `R1..R5`），
-//!   提交 `arrange:<csv>`（按最终顺序，跳空压缩由端侧完成后提交有序 id 列表）；
+//!   提交 `arrange:<左列csv>|<右列csv>`（各列跳空压缩；旧格式 `arrange:<csv>` 无 `|` 兼容）；
 //!   左列首张成为新牌堆顶，右列末张成为牌堆底。
 //! - 两个区都**不允许部分状态**：非法/重放提交一律拒绝且不改状态。
 
@@ -427,13 +427,6 @@ pub fn settle_slots(slots: &[(String, Option<String>)]) -> Vec<String> {
         .collect::<Vec<String>>()
 }
 
-/// 当前特殊区的结算顺序（没有该区时为空）。
-pub fn settle_zone(st: &SgsState, zone: &str) -> Vec<String> {
-    read_slots(st, zone)
-        .map(|slots| settle_slots(&slots))
-        .unwrap_or_default()
-}
-
 fn write_guanxing_zone(st: &mut SgsState, f: &ArrangeFrame, slots: &[(String, Option<String>)]) {
     let mut payload = Map::new();
     payload.insert("rows".into(), json!(GUANXING_ROWS));
@@ -516,15 +509,27 @@ pub(crate) fn step_arrange(
         }
         ArrangeStage::Await => {
             let slots = read_slots(st, &f.zone).unwrap_or_else(empty_slots);
-            // 特殊区是唯一真源：结算顺序一律从 `slots` 重算（不允许端侧另传槽位）。
-            let order = settle_zone(st, &f.zone);
+            // 提交格式：`arrange:<左列 csv>|<右列 csv>`（左 → 牌堆顶，右 → 牌堆底）。
+            // 旧格式（无 `|`，纯顺序）仍兼容，见 `act_arrange`。
+            let col = |prefix: char| -> Vec<String> {
+                slots
+                    .iter()
+                    .filter(|(k, v)| k.starts_with(prefix) && v.is_some())
+                    .filter_map(|(_, v)| v.clone())
+                    .collect()
+            };
+            let (left, right) = (col('L'), col('R'));
             st.pending = Some(Pending {
                 kind: "arrange".into(),
                 actor: st.seats[f.owner].player_id.clone(),
                 skill: Some(f.skill.clone()),
                 options: vec![PendingOption {
-                    id: format!("arrange:{}", order.join(",")),
-                    label: format!("确认观星顺序（左列→右列，共 {} 张）", order.len()),
+                    id: format!("arrange:{}|{}", left.join(","), right.join(",")),
+                    label: format!(
+                        "确认观星顺序（左列 {} 张→牌堆顶；右列 {} 张→牌堆底）",
+                        left.len(),
+                        right.len()
+                    ),
                 }],
                 data: json!({
                     "zone": f.zone,
@@ -550,8 +555,9 @@ pub(crate) fn step_arrange(
     }
 }
 
-/// 观星提交：`arrange:<id,id,...>`（最终顺序 = 新牌堆顶 → 底）。
+/// 观星提交：`arrange:<左列 csv>|<右列 csv>`（左列 → 新牌堆顶，右列 → 牌堆底）。
 ///
+/// 兼容旧格式 `arrange:<id,id,...>`（无 `|`）：此时列归属回落到特殊区 `slots`。
 /// 校验：张数一致、无重复、全部来自本次取出的牌；非法/重放（区已消失或牌已回牌堆）一律拒绝。
 pub(crate) fn act_arrange(st: &mut SgsState, action: &str) -> Result<String, EngineError> {
     let f = match top(st).cloned() {
@@ -561,15 +567,27 @@ pub(crate) fn act_arrange(st: &mut SgsState, action: &str) -> Result<String, Eng
     if f.stage != ArrangeStage::Await {
         return Err(internal("观星当前不在提交阶段"));
     }
-    let csv = action
+    let body = action
         .strip_prefix("arrange:")
-        .ok_or_else(|| illegal("需要提交观星顺序（arrange:<csv>）"))?;
-    let ids: Vec<String> = csv
-        .split(',')
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .map(str::to_string)
-        .collect();
+        .ok_or_else(|| illegal("需要提交观星顺序（arrange:<左列>|<右列>）"))?;
+    let (left_csv, right_csv, explicit) = match body.split_once('|') {
+        Some((l, r)) => (l, r, true),
+        None => (body, "", false),
+    };
+    let parse = |csv: &str| -> Vec<String> {
+        csv.split(',')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+            .collect()
+    };
+    let left_ids = parse(left_csv);
+    let right_ids = parse(right_csv);
+    let ids: Vec<String> = if explicit {
+        left_ids.iter().chain(right_ids.iter()).cloned().collect()
+    } else {
+        left_ids.clone()
+    };
     if ids.len() != f.cards.len() {
         return Err(illegal(format!(
             "观星需提交 {} 张牌的顺序（收到 {} 张）",
@@ -599,33 +617,63 @@ pub(crate) fn act_arrange(st: &mut SgsState, action: &str) -> Result<String, Eng
         return Err(internal("观星特殊区与取出牌不一致"));
     }
 
-    // 界观星：全部置于右列（牌堆底）时，塞到牌堆底部并标记结束阶段可再次发动。
+    // 列归属：新格式直接取客户端提交的左/右分组；旧格式回落到特殊区 `slots`。
+    let (top_ids, bottom_ids): (Vec<&String>, Vec<&String>) = if explicit {
+        (left_ids.iter().collect(), right_ids.iter().collect())
+    } else {
+        let right_set: BTreeSet<String> = slots
+            .iter()
+            .filter(|(k, v)| k.starts_with('R') && v.is_some())
+            .filter_map(|(_, v)| v.clone())
+            .collect();
+        (
+            ids.iter()
+                .filter(|id| !right_set.contains(id.as_str()))
+                .collect(),
+            ids.iter()
+                .filter(|id| right_set.contains(id.as_str()))
+                .collect(),
+        )
+    };
+    // 牌堆顶侧：`draw` 末尾 = 牌堆顶，按提交顺序倒序压入（L1 成为新牌堆顶）。
+    for id in top_ids.iter().rev() {
+        leave_processing(st, id);
+        st.deck.draw.push((*id).clone());
+    }
+    // 牌堆底侧：`draw` 索引 0 = 牌堆底，按提交顺序依次插到 0（R1 靠近原牌堆，Rn 在最底）。
+    for id in bottom_ids.iter() {
+        leave_processing(st, id);
+        st.deck.draw.insert(0, (*id).clone());
+    }
+    // 界观星：全部置于右列（牌堆底）时标记，结束阶段可再次发动。
     let all_bottom = crate::skills::has(st, f.owner, "guanxing")
         && crate::skills::is_jiexian(st, f.owner)
-        && slots
-            .iter()
-            .filter(|(_, v)| v.is_some())
-            .all(|(k, _)| k.starts_with('R'));
+        && !bottom_ids.is_empty()
+        && top_ids.is_empty();
     if all_bottom {
-        for id in ids.iter().rev() {
-            leave_processing(st, id);
-            st.deck.draw.insert(0, id.clone());
-        }
         st.set_counter("guanxing_bottom", 1);
-    } else {
-        // 回写牌堆：`draw` 末尾 = 牌堆顶，故按最终顺序倒序压入。
-        for id in ids.iter().rev() {
-            leave_processing(st, id);
-            st.deck.draw.push(id.clone());
-        }
     }
     st.special_zones.remove(&f.zone);
     pop(st);
     let pid = st.seats[f.owner].player_id.clone();
-    let names: Vec<String> = ids.iter().map(|id| turn::card_label(st, id)).collect();
+    let top_names: Vec<String> = top_ids
+        .iter()
+        .map(|id| turn::card_label(st, id))
+        .collect();
+    let bottom_names: Vec<String> = bottom_ids
+        .iter()
+        .map(|id| turn::card_label(st, id))
+        .collect();
+    let mut parts = Vec::new();
+    if !top_names.is_empty() {
+        parts.push(format!("牌堆顶 {}", top_names.join(" → ")));
+    }
+    if !bottom_names.is_empty() {
+        parts.push(format!("牌堆底 {}", bottom_names.join(" → ")));
+    }
     st.push_log(
         Some(&pid),
-        format!("观星完成：牌堆顶顺序 {}", names.join(" → ")),
+        format!("观星完成：{}", parts.join("；")),
     );
     Ok(format!("观星完成（{} 张）", ids.len()))
 }

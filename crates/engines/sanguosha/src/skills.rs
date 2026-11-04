@@ -3502,6 +3502,88 @@ pub static EQUIPMENT_SKILLS: &[EquipmentSkillDef] = &[
     },
 ];
 
+/// 装备牌效果文案（长按牌面详情展示；键与 `EQUIPMENT_SKILLS.code` / `CardDef.code` 对齐）。
+///
+/// 口径：只写**引擎已实现**的效果（`docs/games/sanguosha/skills.md` §5），
+/// 未实装的部分不写入，避免端侧展示与结算不一致。
+pub fn equipment_effect(code: &str) -> Option<&'static str> {
+    EQUIPMENT_EFFECTS
+        .iter()
+        .find(|(c, _)| *c == code)
+        .map(|(_, desc)| *desc)
+}
+
+/// 装备效果简述表（22 件：11 武器 + 4 防具 + 7 坐骑）。
+static EQUIPMENT_EFFECTS: &[(&str, &str)] = &[
+    // 武器
+    (
+        "zhuge_liannu",
+        "锁定技，你使用【杀】无次数限制。",
+    ),
+    (
+        "cixiong_shuanggujian",
+        "当你使用【杀】指定异性目标后，你可以令其选择一项：弃置一张手牌，或令你摸一张牌。",
+    ),
+    (
+        "qinggang_jian",
+        "锁定技，你使用【杀】指定目标后，无视其防具。",
+    ),
+    (
+        "qinglong_yanyue",
+        "当你使用的【杀】被【闪】抵消后，你可以对其再使用一张【杀】。",
+    ),
+    (
+        "zhangba_shemao",
+        "你可以将两张手牌当【杀】使用或打出。",
+    ),
+    (
+        "guanshi_fu",
+        "当你使用的【杀】被【闪】抵消后，你可以弃置两张牌，令此【杀】依然造成伤害。",
+    ),
+    (
+        "fangtian_huaji",
+        "你使用【杀】时，若此【杀】是你最后的手牌，你可以额外指定至多两个目标。",
+    ),
+    (
+        "qilin_gong",
+        "当你使用【杀】对目标角色造成伤害时，你可以弃置其装备区里的一张坐骑牌。",
+    ),
+    (
+        "hanbing_jian",
+        "当你使用【杀】对目标角色造成伤害时，你可以防止此伤害，改为依次弃置其两张牌（不足则全弃）。",
+    ),
+    (
+        "guding_dao",
+        "锁定技，当你使用【杀】对目标角色造成伤害时，若其没有手牌，此伤害+1。",
+    ),
+    (
+        "zhuque_yushan",
+        "你可以将一张普通【杀】当火【杀】使用。",
+    ),
+    // 防具
+    (
+        "bagua_zhen",
+        "当你需要使用或打出【闪】时，你可以进行判定，若结果为红色，视为你使用或打出一张【闪】。",
+    ),
+    ("renwang_dun", "锁定技，黑色【杀】对你无效。"),
+    (
+        "tengjia",
+        "锁定技，【南蛮入侵】【万箭齐发】和普通【杀】对你无效；当你受到火焰伤害时，此伤害+1。",
+    ),
+    (
+        "baiyin_shizi",
+        "锁定技，你受到的伤害至多为1。",
+    ),
+    // 坐骑（进攻马 / 防御马）
+    ("chitu", "进攻马：你计算与其他角色的距离-1。"),
+    ("dawan", "进攻马：你计算与其他角色的距离-1。"),
+    ("zixing", "进攻马：你计算与其他角色的距离-1。"),
+    ("dilu", "防御马：其他角色计算与你的距离+1。"),
+    ("jueying", "防御马：其他角色计算与你的距离+1。"),
+    ("zhuahuang_feidian", "防御马：其他角色计算与你的距离+1。"),
+    ("hualiu", "防御马：其他角色计算与你的距离+1。"),
+];
+
 /// 是否拥有某装备技能（装备效果统一判断入口）。
 pub fn has_equipment_skill(st: &SgsState, seat: usize, code: &str) -> bool {
     EQUIPMENT_SKILLS.iter().any(|d| {

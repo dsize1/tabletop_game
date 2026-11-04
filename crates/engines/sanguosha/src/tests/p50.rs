@@ -68,6 +68,17 @@ fn hanbing_prevents_damage_and_discards_two() {
     assert_eq!(pending.actor, cur_pid);
     mgr.execute_action(&room, &cur_pid, "choose:hanbing")
         .unwrap();
+
+    // 改为逐张选择：手牌随机 / 装备指定（不再引擎内随机弃置）。
+    for round in 0..2 {
+        let st = state_of(&mgr, &room);
+        let p = st.pending.clone().expect("寒冰剑弃牌选择");
+        assert_eq!(p.kind, "pick_card");
+        assert_eq!(p.skill.as_deref(), Some("hanbing"));
+        assert_eq!(p.data["remaining"].as_u64(), Some(2 - round));
+        assert!(p.options.iter().any(|o| o.id == "pick:hand"));
+        mgr.execute_action(&room, &cur_pid, "pick:hand").unwrap();
+    }
     super::drive_mgr_inject(&mgr, &room, &mut Vec::new());
 
     let st = state_of(&mgr, &room);
@@ -116,7 +127,7 @@ fn hanbing_pass_applies_damage() {
 }
 
 #[test]
-fn hanbing_not_offered_with_single_card() {
+fn hanbing_single_card_can_be_discarded_to_prevent_damage() {
     let mgr = manager(1602);
     let room = start_and_pick(&mgr, 5);
     let mut cur = 0;
@@ -128,15 +139,29 @@ fn hanbing_not_offered_with_single_card() {
         set_general(st, target, "sgs_hero_2");
         equip(st, cur, "hanbing_jian");
         give(st, cur, "sha");
-        give(st, target, "tao"); // 只有 1 张 → 无法弃 2
+        give(st, target, "tao"); // 只有 1 张：仍可弃之并防止伤害（用户口径）
     });
     let st = state_of(&mgr, &room);
+    let cur_pid = pid(&st, cur);
     let hp = st.seats[target].hp;
     sha_and_give_up(&mgr, &room, cur, target);
+    let st = state_of(&mgr, &room);
+    assert!(
+        st.pending
+            .as_ref()
+            .is_some_and(|p| p.skill.as_deref() == Some("hanbing")),
+        "目标 1 张牌也应询问寒冰剑"
+    );
+    mgr.execute_action(&room, &cur_pid, "choose:hanbing")
+        .unwrap();
+    let st = state_of(&mgr, &room);
+    assert_eq!(st.pending.as_ref().map(|p| p.kind.as_str()), Some("pick_card"));
+    assert_eq!(st.pending.as_ref().and_then(|p| p.data["remaining"].as_u64()), Some(1));
+    mgr.execute_action(&room, &cur_pid, "pick:hand").unwrap();
     super::drive_mgr_inject(&mgr, &room, &mut Vec::new());
     let st = state_of(&mgr, &room);
-    assert!(st.pending.is_none(), "目标不足两张牌时不询问");
-    assert_eq!(st.seats[target].hp, hp - 1, "正常受伤");
+    assert_eq!(st.seats[target].hp, hp, "弃 1 张也防止伤害");
+    assert_eq!(st.seats[target].hand.len(), 0, "目标唯一的牌被弃置");
     st.check_conservation().unwrap();
 }
 

@@ -555,6 +555,9 @@ pub struct TieQiFrame {
     pub need: u32,
     pub ignore_armor: bool,
     pub suit: Suit,
+    /// 伤害类型（铁骑窗口后重新压入【闪】响应时必须保留）。
+    #[serde(default)]
+    pub damage_type: crate::resolve::DamageType,
 }
 
 /// 界铁骑判定后：令目标弃一张与判定花色相同的牌，否则封锁【闪】。
@@ -566,6 +569,7 @@ pub(crate) fn push_tieqi(
     need: u32,
     ignore_armor: bool,
     suit: Suit,
+    damage_type: crate::resolve::DamageType,
 ) {
     // 非锁定技失效（本回合）。
     if st.seats.get(target).is_some_and(|s| s.alive) {
@@ -583,7 +587,16 @@ pub(crate) fn push_tieqi(
                 st.seats[target].general_name
             ),
         );
-        crate::resolve_skill::push_sha_respond(st, user, target, card, need, true, ignore_armor);
+        crate::resolve_skill::push_sha_respond_with(
+            st,
+            user,
+            target,
+            card,
+            need,
+            true,
+            ignore_armor,
+            damage_type,
+        );
         return;
     }
     push(
@@ -595,6 +608,7 @@ pub(crate) fn push_tieqi(
             need,
             ignore_armor,
             suit,
+            damage_type,
         }),
     );
 }
@@ -650,7 +664,7 @@ pub(crate) fn act_tieqi(st: &mut SgsState, action: &str) -> Result<String, Engin
         st.push_log(Some(&pid(st, f.target)), "铁骑：不弃牌，不能使用【闪】");
     }
     pop(st);
-    crate::resolve_skill::push_sha_respond(
+    crate::resolve_skill::push_sha_respond_with(
         st,
         f.user,
         f.target,
@@ -658,6 +672,7 @@ pub(crate) fn act_tieqi(st: &mut SgsState, action: &str) -> Result<String, Engin
         f.need,
         no_shan,
         f.ignore_armor,
+        f.damage_type,
     );
     Ok(if no_shan {
         "铁骑：不能使用【闪】".to_string()

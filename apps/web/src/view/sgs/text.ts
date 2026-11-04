@@ -33,7 +33,7 @@ function actionForm(data: SgsViewData, opts: SgsActionFormOpts): string {
     .map((o) => `<option value="${escapeHtml(o.id)}">${escapeHtml(o.label)}</option>`)
     .join("");
   const pendingLine = area.pending
-    ? `<p class="muted">待办：${escapeHtml(area.pending.kind)}（观星可填 <code>arrange:牌id,牌id,...</code>）</p>`
+    ? `<p class="muted">待办：${escapeHtml(area.pending.kind)}（观星可填 <code>arrange:左列牌id,...|右列牌id,...</code>）</p>`
     : "";
   return (
     `<form class="sgs-form" method="post" action="/tabletop_game/${encodeURIComponent(opts.gameId)}/action">` +
@@ -99,7 +99,7 @@ export function renderSgsTextBody(
     ? `<h3>观星（文字顺序）</h3><p>` +
       `左列：${Array.from({ length: gx.rows }, (_, i) => gx.slots?.[`L${i + 1}`] ?? "空").join(" → ")}<br>` +
       `右列：${Array.from({ length: gx.rows }, (_, i) => gx.slots?.[`R${i + 1}`] ?? "空").join(" → ")}` +
-      `</p><p class="muted">提交格式：<code>arrange:L1,L2,...,R5</code>（跳过空槽）</p>`
+      `</p><p class="muted">提交格式：<code>arrange:左列id,...|右列id,...</code>（左列→牌堆顶，右列→牌堆底；跳过空槽）</p>`
     : "";
   const wuguZone = data.special_zones?.wugu;
   const wugu = wuguZone

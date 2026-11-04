@@ -59,6 +59,7 @@ const SEAT_KEYS: &[&str] = &[
     "abolished_slots",
     "judge_abolished",
     "flipped",
+    "chained",
     "alive",
     "is_bot",
     "has_picked",
@@ -85,6 +86,7 @@ const AREA_KEYS: &[&str] = &[
     "abolished_slots",
     "judge_abolished",
     "flipped",
+    "chained",
     "skills",
     "equipment_skills",
     "is_bot",
@@ -105,6 +107,7 @@ const CARD_KEYS: &[&str] = &[
     "range_type",
     "target_mode",
     "delayed",
+    "effect",
 ];
 
 const EQUIP_SLOTS: &[&str] = &[

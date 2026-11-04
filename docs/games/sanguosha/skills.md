@@ -30,7 +30,7 @@
 | 黄月英 `sgs_hero_7` | 集智 | `jizhi` | 普通 | 使用非延时锦囊（含无懈）后摸 1 |
 | 黄月英 `sgs_hero_7` | 奇才 | `qicai` | 锁定 | 使用锦囊无距离限制（顺手等） |
 | 吕蒙 `sgs_hero_10` | 克己 | `keji` | 普通 | 出牌阶段未使用【杀】→ 跳过弃牌阶段（当前自动跳过） |
-| 诸葛亮 `sgs_hero_4` | 观星 | `guanxing` | 普通 | `phase_start(prepare)`：取 `min(存活角色数,5)` 张进特殊区 `guanxing`（2×5 槽），`arrange:<csv>` 一次性回写（P2.5） |
+| 诸葛亮 `sgs_hero_4` | 观星 | `guanxing` | 普通 | `phase_start(prepare)`：取 `min(存活角色数,5)` 张进特殊区 `guanxing`（2×5 槽），`arrange:<左列>\|<右列>` 一次性回写（P2.5，P4.6 带列分组） |
 | 诸葛亮 `sgs_hero_4` | 空城 | `kongcheng` | 锁定 | 无手牌时不能成为【杀】/【决斗】目标（含借刀杀人的虚拟【杀】、离间视为决斗）；有手牌立即恢复可指定（P4.1） |
 | 司马懿 `sgs_hero_16` | 鬼才 | `guicai` | 普通 | `judge_before`：判定牌亮出后自动询问（`judge_rewrite`），可打出任意手牌替换判定牌或 `pass`；顺序从判定者左手侧起、判定者最后（P4.1） |
 | 关羽 `sgs_hero_2` | 武圣 | `wusheng` | 普通 | 红色手牌当【杀】使用/打出（`skill:wusheng:<card>` / 响应 `respond:<card>`；含南蛮/决斗/借刀响应）（P4.1） |
@@ -837,7 +837,7 @@
 
 ## 5. 装备可选效果（标准包）
 
-> **P4.5 阶段一（2026-10-30）**：装备效果已登记为 `EQUIPMENT_SKILLS`（17 件：9 武器 + 2 防具 + 6 坐骑），带 `code/name/card/trigger`；引擎统一入口 `skills::has_equipment_skill`（判定是否生效）与 `skills::triggered(Trigger)`（按窗口收集持有者，座位升序）。`Trigger` 取值：`Passive / PlayPhase / TargetChosen / DamageBefore / AfterDodge / JudgeBefore`。**阶段二（已完成 2026-10-30）**：`player_area.equipment_skills[]` 已下发（`{slot, code, name, card, trigger}`，仅本人视图）；AfterDodge / DamageBefore 窗口改为 `triggered(Trigger)` 派发。**阶段三（已完成 2026-10-30）**：AfterDodge 窗口落地**效果函数注册表** `AFTER_DODGE_HANDLERS`（青龙偃月刀 / 贯石斧：`options` + `act` 函数指针），窗口只按 `triggered(Trigger)` 收集处理器，不再写装备 if 分支；同批迁移：**DamageBefore**（寒冰剑 `DAMAGE_BEFORE_HANDLERS`，可用性+效果函数）与 **TargetChosen**（雌雄双股剑 `TARGET_CHOSEN_HANDLERS`，异性目标可用性）；**阶段四（收尾，已完成 2026-10-30）**：**PlayPhase** 落地 `PLAY_PHASE_HANDLERS`（丈八蛇矛：出牌阶段选项生成+执行，出牌阶段只按 `triggered(PlayPhase)` 收集）；方天画戟（多目标修正）继续由 `triggered(TargetChosen)` + `ShaFrame.fangtian` 驱动。**Web 武器高亮（已完成 2026-10-30）**：窗口类 pending 的 `data.option_sources`（选项 → 装备 code）+ `player_area.equipment_skills` 驱动个人区武器卡高亮（`data-equipment-skill` / `.sgs-equip.active`）；出牌阶段丈八选项按 `skill:zhangba:` action 高亮。P4.5 全部完成。
+> **P4.5 阶段一（2026-10-30）**：装备效果已登记为 `EQUIPMENT_SKILLS`（17 件：9 武器 + 2 防具 + 6 坐骑），带 `code/name/card/trigger`；引擎统一入口 `skills::has_equipment_skill`（判定是否生效）与 `skills::triggered(Trigger)`（按窗口收集持有者，座位升序）。`Trigger` 取值：`Passive / PlayPhase / TargetChosen / DamageBefore / AfterDodge / JudgeBefore`。**阶段二（已完成 2026-10-30）**：`player_area.equipment_skills[]` 已下发（`{slot, code, name, card, trigger}`，仅本人视图）；AfterDodge / DamageBefore 窗口改为 `triggered(Trigger)` 派发。**阶段三（已完成 2026-10-30）**：AfterDodge 窗口落地**效果函数注册表** `AFTER_DODGE_HANDLERS`（青龙偃月刀 / 贯石斧：`options` + `act` 函数指针），窗口只按 `triggered(Trigger)` 收集处理器，不再写装备 if 分支；同批迁移：**DamageBefore**（寒冰剑 `DAMAGE_BEFORE_HANDLERS`，可用性+效果函数）与 **TargetChosen**（雌雄双股剑 `TARGET_CHOSEN_HANDLERS`，异性目标可用性）；**阶段四（收尾，已完成 2026-10-30）**：**PlayPhase** 落地 `PLAY_PHASE_HANDLERS`（丈八蛇矛：出牌阶段选项生成+执行，出牌阶段只按 `triggered(PlayPhase)` 收集）；方天画戟（多目标修正）继续由 `triggered(TargetChosen)` + `ShaFrame.fangtian` 驱动。**Web 武器高亮（已完成 2026-10-30）**：窗口类 pending 的 `data.option_sources`（选项 → 装备 code）+ `player_area.equipment_skills` 驱动个人区武器卡高亮（`data-equipment-skill` / `.sgs-equip.active`）；出牌阶段丈八选项按 `skill:zhangba:` action 高亮。P4.5 全部完成。**P4.6（2026-11-04）**：`skills::equipment_effect(code)` 提供装备效果文案，`card_view.effect` 随牌面下发（非装备为 `null`）；Web 长按手牌/装备/公共区装备小标记 → 牌面详情显示「效果」行（此前武器没有特效说明）。
 
 | 装备 | 状态 | 实现要点 |
 |---|---|---|
@@ -849,13 +849,13 @@
 | 进攻马 / 防御马 | ✅ | 距离修正（P2.2） |
 | 青龙偃月刀 | ✅（P4.2） | 【杀】被【闪】抵消后，可对该目标再使用一张【杀】（`AfterDodge` 追加窗口，`is_sha` 判定；新【杀】重新计算无双/铁骑） |
 | 贯石斧 | ✅（P4.2） | 【杀】被【闪】抵消后，可弃 2 张手牌使此【杀】依然造成伤害（`AfterDodge` → `MultiSelect(guanshi)` → `apply_damage`） |
-| 寒冰剑 | ✅（P4.2） | damage_before：造成伤害时防止伤害，改为弃置目标两张牌（`Hanbing` 帧；目标不足 2 牌不询问；简化：弃置牌随机） |
+| 寒冰剑 | ✅（P4.2，P4.6 修正） | damage_before：造成伤害时防止伤害，改为**逐张选择**弃置目标至多两张牌（`Hanbing` 帧 `Ask → Pick`；`pending.kind=pick_card`，选项 `pick:hand`（随机 1 张）/`pick:equip:<slot>`，受界奇才限制）；目标只有 1 张牌也可发动并防止伤害（弃任意张即不受伤）；放弃时按**原伤害类型**（火/雷）结算，铁索传导不受影响 |
 | 雌雄双股剑 | ✅（P4.2） | 指定异性目标后由目标二选一：弃 1 张手牌（`MultiSelect`）或令攻击方摸 1（`Cixiong` 帧，先于【闪】响应） |
-| 铁索连环 | ✅（P4.3） | 横置/重置目标（`Seat.chained`）；可重铸（`recast:<card>` 弃置并摸 1）；**火/雷属性伤害在同横置角色间传导**（传导前全部重置，避免级联） |
+| 铁索连环 | ✅（P4.3，P4.6 修正） | 横置/重置目标（`Seat.chained`，公共视图 `chained` 字段 + Web「横置」标签）；可重铸（`recast:<card>` 弃置并摸 1）；**火/雷属性伤害在同横置角色间传导**（传导前全部重置，避免级联）。P4.6：伤害类型沿 `雌雄/铁骑/流离/青龙/贯石斧/寒冰剑` 窗口全程保留（此前这些窗口会丢成普通伤害，表现为「横置没效果」） |
 | 火攻 | ✅（P4.3） | 目标亮一张手牌（`data.revealed`），你可弃同花色手牌造成 1 点火焰伤害（`HuoGong` 帧，可放弃）；无懈/藤甲/铁索（后续）按火焰伤害处理 |
 | 朱雀羽扇 | ✅（P4.3） | 出牌阶段将普通【杀】当火杀使用（`skill:zhuque:<card>`，PlayPhase 注册表；响应转化后续） |
 | 兵粮寸断 | ✅（P4.3） | 延时锦囊（距离 ≤1）：判定非黑桃则跳过摸牌阶段；判定前无懈窗口与改判窗口复用延时锦囊流程 |
-| 藤甲 / 白银狮子 / 古锭刀 | ✅（P4.3） | 藤甲：火焰伤害 +1、普通【杀】/南蛮/万箭无效；白银狮子：受到的伤害改为 1；古锭刀：目标无手牌时【杀】伤害 +1（均已入 EQUIPMENT_SKILLS） |
+| 藤甲 / 白银狮子 / 古锭刀 | ✅（P4.3） | 藤甲：火焰伤害 +1、普通【杀】/南蛮/万箭无效；白银狮子：受到的伤害改为 1（**已知边界：失去时回复 1 点体力未实装**，`equipment_effect` 文案只写已实装部分）；古锭刀：目标无手牌时【杀】伤害 +1（均已入 EQUIPMENT_SKILLS） |
 | 丈八蛇矛 | ✅（P4.2） | 两张手牌当【杀】：出牌阶段主动使用 `skill:zhangba:<c1>,<c2>`；需要【杀】时响应 `respond:<c1>,<c2>`（南蛮/决斗/借刀）；受出杀次数限制（主动使用） |
 | 方天画戟 | ✅（P4.2） | 最后一张手牌的【杀】可额外指定至多两个目标（`ShaFrame.pending_targets` 顺序结算；组合选项 `targets:<p1,p2[,p3]>`；追加目标不重复触发流离） |
 
@@ -867,7 +867,9 @@
 
 - 触发：拥有「观星」的玩家**准备阶段自动进入**（P2.5 口径：不询问是否发动、不可取消；每回合一次）。
 - 牌：取 `k = min(存活角色数, 5)` 张进 `deck.processing`，写入 `special_zones.guanxing`（`visibility: owner`、`slots` 2×5、`rev`）。
-- 提交：`arrange:<csv>`（最终顺序 = 新牌堆顶 → 底）；校验张数/去重/来源/处理区，重放与非法提交一律拒绝且不改状态。
+- 提交：`arrange:<左列csv>|<右列csv>`（P4.6；左列 → 牌堆顶、右列 → 牌堆底；旧格式 `arrange:<csv>` 无 `|` 时列归属回落到 `slots`）；校验张数/去重/来源/处理区，重放与非法提交一律拒绝且不改状态。
+- 回写（P4.6 修正）：**左列 → 牌堆顶**（按提交顺序倒序压入 `deck.draw`），**右列 → 牌堆底**（按提交顺序依次插到 `deck.draw[0]`，R1 靠近原牌堆、Rn 在最底）。例：原牌堆 10 张，观星取 5，2 张放顶、3 张放底 → 新牌堆（顶→底）= 2 张顶侧牌 → 原牌堆剩余 5 张 → 3 张底侧牌。
+- 界观星：**全部置于右列**时置 `guanxing_bottom`；同一回合结束阶段自动再发动一次（`guanxing_end` 保证只一次），第二次看的是新牌堆顶（不复用上一次的牌）。
 - 详见 `special-zones.md` §5、`ui-spec.md` §7（P3 拖拽 UI）。
 
 ## 8. 实现口径（自动/锁定化的技能）

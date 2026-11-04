@@ -126,7 +126,7 @@ hint                               # 同 resume（别名）
 - **P2.3 已实现**：`wuxie`（全员询问）、`pick_card`（`pick:hand|equip:<slot>|judge:<id>`）、借刀二阶段（`target:<A>` → `target:<B>` → `confirm`/`cancel`）、决斗 `respond:<杀>`、判定前无懈（`wuxie`）。
 - **P2.4 技能动作**：`skill:rende`（仁德：多选 → `target`）、`skill:lijian`（离间：多选 1 张 → 两次 `target`）、`skill:qixi:<card>`（奇袭：黑色牌当过河拆桥）、`choose:tuxi`/`pass`（突袭，`choice`）、`skill:jijiang`/`skill:hujia`（主公技，出现在 `respond` 待选的选项中）。
 - **装备**：`skill:bagua`（八卦阵：需要【闪】时判定；红色视为出闪）。
-- **P2.5 特殊区**：`play:<五谷丰登>`（亮牌 → 每人选 1）、`pick:<card_id>`（pending `wugu`）、`arrange:<csv>`（pending `arrange`，观星）。
+- **P2.5 特殊区**：`play:<五谷丰登>`（亮牌 → 每人选 1）、`pick:<card_id>`（pending `wugu`）、`arrange:<左列csv>|<右列csv>`（pending `arrange`，观星）。
 - **未实现**：其余标准将技能（P4.1 分批）。
 - 已实现（P4.1）：改判窗口（鬼才）、空城目标过滤。未实现但已在规则中登记的：技能转化、多目标【杀】、双牌转化、被闪后追加结算。
 
@@ -142,7 +142,7 @@ hint                               # 同 resume（别名）
 | 决斗出杀 | `respond:<sha_id>` / `pass` | `respond` | 双方交替；每次出杀前先跑无懈链 |
 | 判定前无懈 | `respond:<wuxie_id>` / `pass` | `wuxie` | root = 该延时锦囊的判定 |
 | 五谷选牌（P2.5） | `pick:<card_id>` | `wugu` | 释放者先选，随后座位顺序；每人一次无懈窗口 |
-| 观星提交（P2.5） | `arrange:<id,id,...>` | `arrange` | 有序 id 列表 = 新牌堆顶 → 底；必填全部取出的牌 |
+| 观星提交（P2.5，P4.6 扩展） | `arrange:<左列id,...>\|<右列id,...>` | `arrange` | 左列 = 新牌堆顶（首张为顶），右列 = 牌堆底（末张在最底）；两侧合计必填全部取出的牌；旧格式 `arrange:<id,...>`（无 `\|`）仍兼容 |
 | 麒麟弓（P3 追加） | `skill:qilin:horse_offense` / `skill:qilin:horse_defense` / `pass` | `choice` | 【杀】造成伤害后由攻击方弃置目标一张坐骑 |
 | 改判（P4.1 鬼才） | `respond:<card_id>` / `pass` | `judge_rewrite` | 判定牌亮出后自动询问；从判定者左手侧起、判定者最后，仅询问有改判技能且手牌非空者 |
 
@@ -191,7 +191,7 @@ hint                               # 同 resume（别名）
 
 | 区域 | 动作 | 说明 |
 |---|---|---|
-| 观星 `guanxing` | `arrange:<id,id,...>`（pending `arrange`） | 有序 id 列表（跳空压缩后的最终顺序）；Web 端拖拽草稿后一次提交，Q 后置 |
+| 观星 `guanxing` | `arrange:<左列id,...>\|<右列id,...>`（pending `arrange`） | 列分组有序 id（各列跳空压缩）；Web 端拖拽草稿后一次提交，Q 后置 |
 | 五谷丰登 `wugu` | `pick:<card_id>`（pending `wugu`） | 释放者先选，之后座位顺序每人选 1 |
 | 判定 `judge` | 自动 / `judge_rewrite`（`respond:<手牌>` / `pass`） | 判定牌亮出即公开（特殊区 `judge`） |
 | 濒死 `dying` | `respond:<桃/酒>` / `pass` | 响应顺序 |
@@ -199,7 +199,7 @@ hint                               # 同 resume（别名）
 
 - 特殊区动作同样走 `execute_action` 重校验；
 - 新增特殊区先登记 `special-zones.md`，再定义动作 id。
-- **`ordered` 提交的枚举例外**：`arrange:<csv>` 的 csv 由端侧排序决定，**不在 `legal_actions` 中逐排列枚举**；`legal_actions` 只给出「当前 `slots` 顺序」的默认提交项（无 JS 文本态 / Q 侧兜底）。引擎按 `slots` 与本次取出的牌校验（张数/去重/来源/仍在处理区），任意合法顺序都可提交。
+- **`ordered` 提交的枚举例外**：`arrange:<左>\|<右>` 的 csv 由端侧排序决定，**不在 `legal_actions` 中逐排列枚举**；`legal_actions` 只给出「当前 `slots` 顺序」的默认提交项（无 JS 文本态 / Q 侧兜底）。引擎按 `slots` 与本次取出的牌校验（张数/去重/来源/仍在处理区），任意合法顺序都可提交。
 
 ## 7. 无状态动作
 
@@ -232,6 +232,6 @@ choose:c1,c3,c2
 
 1. `cancel` 是否作为独立动作 id（当前用 `pass` 表达放弃）。
 2. 多目标选择的顺序是否影响结算顺序（默认按玩家选择顺序）。
-3. ~~观星 `ordered` 原语的具体编码~~ → 已定：`slots` + `arrange:<csv>`（`interaction-primitives.md` §4，P3 实现 UI）。
+3. ~~观星 `ordered` 原语的具体编码~~ → 已定：`slots` + `arrange:<左列>\|<右列>`（P4.6 起带列分组；`interaction-primitives.md` §4，P3 实现 UI）。
 4. ~~持有上限超出时的弃置交互~~ → 已定：玩家选择，`discard:<csv>`（可逐张），见 §4.5。
-5. ~~观星/五谷动作编码~~ → 已定（P2.5，`arrange:<csv>` / `pick:<card_id>`，校验见 `special-zones.md` §5/§6）。
+5. ~~观星/五谷动作编码~~ → 已定（P2.5 / P4.6：`arrange:<左列>\|<右列>` / `pick:<card_id>`，校验见 `special-zones.md` §5/§6）。

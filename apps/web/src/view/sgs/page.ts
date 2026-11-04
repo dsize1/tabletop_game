@@ -77,6 +77,7 @@ button { font: inherit; color: inherit; }
 .sgs-opponent-head { display:flex; gap:4px; align-items:center; font-weight:600; }
 .sgs-opponent .sgs-general { display:flex; gap:4px; align-items:center; color:#c9d1d9; }
 .sgs-flip { font-size:10px; padding:0 4px; border-radius:6px; background:#4a2a5a; color:#e7c7ff; }
+.sgs-chain { font-size:10px; padding:0 4px; border-radius:6px; background:#5a3a1a; color:#ffd8a8; }
 .sgs-marks { font-size:11px; color:#c9b27a; display:flex; flex-wrap:wrap; gap:4px; margin:2px 0; }
 .sgs-mini-row.marks { color:#c9b27a; }
 .sgs-opponent .sgs-kingdom { font-size:10px; padding:0 4px; border:1px solid var(--sgs-line); border-radius:6px; }

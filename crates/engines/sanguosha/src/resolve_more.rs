@@ -497,6 +497,9 @@ pub struct LiuliFrame {
     pub need: u32,
     /// 原【杀】的铁骑结果（转移后对新目标不生效）。
     pub no_shan: bool,
+    /// 原【杀】的伤害类型（转移后仍按原属性结算）。
+    #[serde(default)]
+    pub damage_type: crate::resolve::DamageType,
     pub stage: LiuliStage,
 }
 
@@ -550,8 +553,9 @@ pub(crate) fn step_liuli(st: &mut SgsState, f: LiuliFrame) -> Result<bool, Engin
                 let original = f.original;
                 let no_shan = f.no_shan;
                 let need = f.need;
+                let dtype = f.damage_type;
                 pop(st);
-                push_liuli_respond(st, f.user, original, &f.card, need, no_shan);
+                push_liuli_respond(st, f.user, original, &f.card, need, no_shan, dtype);
                 return Ok(false);
             }
             st.pending = Some(Pending {
@@ -575,6 +579,7 @@ fn push_liuli_respond(
     card: &str,
     need: u32,
     no_shan: bool,
+    damage_type: crate::resolve::DamageType,
 ) {
     crate::resolve_skill::push_sha_target_response(
         st,
@@ -584,7 +589,7 @@ fn push_liuli_respond(
         need,
         no_shan,
         crate::skills::has_equipment_skill(st, user, "qinggang_jian"),
-        crate::resolve::DamageType::Normal,
+        damage_type,
     );
     // 更新【杀】帧的目标（日志/结算展示）。
     for frame in st.resolution.iter_mut().rev() {
@@ -602,7 +607,7 @@ pub(crate) fn act_liuli(st: &mut SgsState, action: &str) -> Result<String, Engin
     };
     if action == "pass" {
         pop(st);
-        push_liuli_respond(st, f.user, f.original, &f.card, f.need, f.no_shan);
+        push_liuli_respond(st, f.user, f.original, &f.card, f.need, f.no_shan, f.damage_type);
         return Ok("不发动流离".to_string());
     }
     let card_id = action
@@ -647,7 +652,7 @@ pub(crate) fn liuli_target(
     }
     let victim = st.seat_index(pid).ok_or_else(|| illegal("目标不在座"))?;
     pop(st);
-    push_liuli_respond(st, f.user, victim, &f.card, f.need, false);
+    push_liuli_respond(st, f.user, victim, &f.card, f.need, false, f.damage_type);
     let pid = st.seats[f.original].player_id.clone();
     let victim_name = st.seats[victim].general_name.clone();
     st.push_log(Some(&pid), format!("流离：将【杀】转移给 {victim_name}"));
@@ -1663,8 +1668,9 @@ pub(crate) fn multiselect_confirm(
             let need = f.data["need"].as_u64().unwrap_or(1) as u32;
             let no_shan = f.data["no_shan"].as_bool().unwrap_or(false);
             let ignore_armor = f.data["ignore_armor"].as_bool().unwrap_or(false);
+            let dtype = serde_json::from_value(f.data["damage_type"].clone()).unwrap_or_default();
             pop(st);
-            crate::resolve_skill::push_sha_respond(
+            crate::resolve_skill::push_sha_respond_with(
                 st,
                 user,
                 target,
@@ -1672,6 +1678,7 @@ pub(crate) fn multiselect_confirm(
                 need,
                 no_shan,
                 ignore_armor,
+                dtype,
             );
             Some(Ok("雌雄双股剑：目标已弃置一张手牌".to_string()))
         }
@@ -1687,20 +1694,14 @@ pub(crate) fn multiselect_confirm(
             }
             let target = f.data["target"].as_u64().unwrap_or(0) as usize;
             let card = f.data["card"].as_str().unwrap_or_default().to_string();
+            let dtype = serde_json::from_value(f.data["damage_type"].clone()).unwrap_or_default();
             let source = f.actor;
             let pid = st.seats[source].player_id.clone();
             st.push_log(
                 Some(&pid),
                 "贯石斧：弃置 2 张手牌，【杀】依然造成伤害".to_string(),
             );
-            crate::resolve::apply_damage(
-                st,
-                target,
-                1,
-                Some(source),
-                crate::resolve::DamageType::Normal,
-                Some(&card),
-            );
+            crate::resolve::apply_damage(st, target, 1, Some(source), dtype, Some(&card));
             pop(st);
             Some(Ok("贯石斧：目标受到 1 点伤害".to_string()))
         }

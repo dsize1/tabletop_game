@@ -29,6 +29,8 @@ export interface SgsCard {
   range_type?: string | null;
   target_mode?: string | null;
   delayed?: boolean;
+  /** 装备牌效果文案（引擎只对已实装效果下发；非装备为 null/缺省）。 */
+  effect?: string | null;
 }
 
 export interface SgsPendingOption {
@@ -78,6 +80,8 @@ export interface SgsSeat {
   judge_abolished?: boolean;
   /** 翻面状态（背面朝上）。 */
   flipped?: boolean;
+  /** 连环状态（横置）：火/雷属性伤害会传导。 */
+  chained?: boolean;
   alive: boolean;
   is_bot?: boolean;
   /** 已公开武将的技能（公开信息；未公示时为空/缺省）。 */
@@ -175,6 +179,8 @@ export interface SgsPlayerArea {
   /** 判定区是否已废除（SP-2）。 */
   judge_abolished?: boolean;
   flipped?: boolean;
+  /** 连环状态（横置）。 */
+  chained?: boolean;
   skills?: SgsSkill[];
   is_bot?: boolean;
   is_current?: boolean;

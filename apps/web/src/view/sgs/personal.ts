@@ -273,11 +273,16 @@ export function renderPersonalArea(
       : card
         ? cardChipHtml(card as SgsCard, { long: true })
         : `<span class="muted">空</span>`;
+    const press =
+      card && !gone
+        ? ` data-press="card" data-card="${escapeHtml((card as SgsCard).id)}"`
+        : "";
     return (
       `<div class="sgs-equip${active ? " active" : ""}${gone ? " abolished" : ""}" data-slot="${slot}"` +
       (gone ? ' data-abolished="1"' : "") +
       (skill ? ` data-equipment-skill="${escapeHtml(skill.code)}"` : "") +
       (skill ? ` title="${escapeHtml(skill.name)}"` : "") +
+      press +
       `><span class="sgs-equip-label">${EQUIP_SLOT_LABEL[slot]}</span>${body}</div>`
     );
   }).join("");
@@ -314,6 +319,7 @@ export function renderPersonalArea(
     `<div class="sgs-me-head">` +
     `<b>${escapeHtml(general)}</b>` +
     (area.flipped ? `<span class="sgs-flip">翻面</span>` : "") +
+    (area.chained ? `<span class="sgs-chain">横置</span>` : "") +
     (kingdom ? `<span class="sgs-kingdom">${escapeHtml(kingdom)}</span>` : "") +
     `<span class="sgs-identity ${escapeHtml(area.identity)}">${escapeHtml(
       IDENTITY_LABEL[area.identity] ?? area.identity,

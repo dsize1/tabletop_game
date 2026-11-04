@@ -2355,7 +2355,7 @@ fn step_pick(st: &mut SgsState, f: PickCardFrame) -> Result<bool, EngineError> {
     Ok(true)
 }
 
-fn slot_code(slot: EquipSlot) -> &'static str {
+pub(crate) fn slot_code(slot: EquipSlot) -> &'static str {
     match slot {
         EquipSlot::Weapon => "weapon",
         EquipSlot::Armor => "armor",
@@ -2365,7 +2365,7 @@ fn slot_code(slot: EquipSlot) -> &'static str {
     }
 }
 
-fn slot_from_code(code: &str) -> Option<EquipSlot> {
+pub(crate) fn slot_from_code(code: &str) -> Option<EquipSlot> {
     Some(match code {
         "weapon" => EquipSlot::Weapon,
         "armor" => EquipSlot::Armor,
@@ -2980,6 +2980,8 @@ fn step_quick_judge(
                     let card = f.data["card"].as_str().unwrap_or_default().to_string();
                     let need = f.data["need"].as_u64().unwrap_or(1) as u32;
                     let ignore_armor = f.data["ignore_armor"].as_bool().unwrap_or(false);
+                    let dtype = serde_json::from_value(f.data["damage_type"].clone())
+                        .unwrap_or_default();
                     if crate::skills::is_jiexian(st, user) {
                         // 界铁骑：目标须弃同花色牌，否则不能使用【闪】。
                         let suit = suit.unwrap_or(Suit::Spade);
@@ -2991,9 +2993,10 @@ fn step_quick_judge(
                             need,
                             ignore_armor,
                             suit,
+                            dtype,
                         );
                     } else {
-                        crate::resolve_skill::push_sha_respond(
+                        crate::resolve_skill::push_sha_respond_with(
                             st,
                             user,
                             target,
@@ -3001,6 +3004,7 @@ fn step_quick_judge(
                             need,
                             red,
                             ignore_armor,
+                            dtype,
                         );
                     }
                 }
@@ -3646,7 +3650,10 @@ pub fn execute_pending(
         "wuxie" => act_wuxie(st, &pending, action)?,
         "target" => act_target(st, &pending, action)?,
         "respond" => act_respond(st, &pending, action)?,
-        "pick_card" => act_pick(st, &pending, action)?,
+        "pick_card" => match pending.skill.as_deref() {
+            Some("hanbing") => crate::resolve_skill::act_hanbing(st, action)?,
+            _ => act_pick(st, &pending, action)?,
+        },
         "dying" => act_dying(st, &pending, action)?,
         "discard" => act_discard(st, &pending, action)?,
         "judge_rewrite" => act_judge_rewrite(st, &pending, action)?,
@@ -4213,6 +4220,7 @@ fn act_target(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Stri
                     card: f.card.clone(),
                     need,
                     no_shan,
+                    damage_type: f.damage_type,
                     stage: crate::resolve_more::LiuliStage::Choice,
                 }),
             );
@@ -4877,6 +4885,10 @@ fn respond_give_up(st: &mut SgsState, f: &RespondFrame) {
                         target: actor,
                         card,
                         damage: amount,
+                        damage_type: f.damage_type,
+                        stage: crate::resolve_skill::HanbingStage::Ask,
+                        remaining: 2,
+                        discarded: Vec::new(),
                     }),
                 );
             } else {

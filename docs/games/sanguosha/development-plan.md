@@ -200,7 +200,7 @@
 **P2.5 实施记录（2026-10-28）**
 
 - **五谷丰登 `wugu`（已实现）**：`resolve_zone.rs` 新增 `Frame::Wugu`。亮出 = 存活角色数 张（全部进 `deck.processing`）→ 写 `special_zones.wugu`（`public`：`cards/choosers/cursor/current/picked/interaction`）→ **释放者先选**、之后按座位左手侧依次 `pick:<card_id>`；**每个选择者各自一次无懈窗口**（被无懈者跳过）；结束把剩余亮牌与【五谷丰登】本身置入弃牌堆；获得后超过持有上限立即 `discard`（`hand_cap`）。动作：`play:<牌>` → pending `wugu` → `pick:<card_id>`。
-- **观星 `guanxing`（P2 契约已实现）**：`Frame::Arrange`。拥有「观星」的玩家**准备阶段自动进入**（不询问是否发动、不可取消，每回合一次，`guanxing_done` 计数）；取 `k = min(存活角色数,5)` 张进处理区，写 `special_zones.guanxing`（`owner` 可见、`rows:5`、`cols:2`、`slots: L1..L5/R1..R5`、`rev`、`interaction = {kind:ordered, commit:arrange}`）。提交 `arrange:<csv>`（最终顺序 = 新牌堆顶 → 底），**校验张数/去重/来源/仍处理区/slots 一致**，非法与重放一律拒绝且不改状态；回写按倒序压入 `deck.draw`。`settle_slots()` 纯函数落地（跳空压缩、左列接右列）。
+- **观星 `guanxing`（P2 契约已实现）**：`Frame::Arrange`。拥有「观星」的玩家**准备阶段自动进入**（不询问是否发动、不可取消，每回合一次，`guanxing_done` 计数）；取 `k = min(存活角色数,5)` 张进处理区，写 `special_zones.guanxing`（`owner` 可见、`rows:5`、`cols:2`、`slots: L1..L5/R1..R5`、`rev`、`interaction = {kind:ordered, commit:arrange}`）。提交 `arrange:<csv>`（最终顺序 = 新牌堆顶 → 底；**P4.6 起扩展为 `arrange:<左列>|<右列>`**），**校验张数/去重/来源/仍处理区/slots 一致**，非法与重放一律拒绝且不改状态；回写按倒序压入 `deck.draw`。`settle_slots()` 纯函数落地（跳空压缩、左列接右列）。
 - 视图：`special_zones` 继续按 `visibility` 下发（`wugu` 公共、`guanxing` 仅 owner）；公共视图不含观星。回合结束时清理 `judge/wugu/guanxing` 残留。
 - **响应询问口径修订（2026-10-28 用户裁定，`special-zones.md` §4.1）**：响应类询问（无懈链/闪/杀/求桃/主公技接力）——**无手牌且无替代选项的玩家自动跳过**（不生成 pending，直接按「不出」结算）；**有手牌者一律显式询问**（即使没有对应牌，唯一动作 `pass`），不代选。实现：`step_wuxie`/`step_respond`/`step_dying`/`step_requisition` 过滤 + `respond_give_up` 统一「显式 pass / 自动跳过」结算路径。
 - 测试：`tests/p25.rs` 新增 12 个用例（五谷顺序/无懈/剩余弃置/可见性/守恒；观星槽位/可见性/非法与重放拒绝/回写顺序/纯函数；空手自动跳过、有手牌仍询问、无懈链空手跳过、求桃空手跳过、空手盟友不提供主公技）；全套 **89 用例**通过。
@@ -347,6 +347,19 @@
 - 回归：`cargo test -p sanguosha`、`check:sgs-view-contract`、`check:interaction-primitives`。
 
 **边界**：窗口类装备（伤害前/被闪后/判定前）不提供「提前点击」，端侧在窗口内把选项画在武器卡上；中台只读元数据（ADR-0016）。
+
+### P4.6 真机缺陷修正（2026-11-04，已实现）
+
+真机反馈 6 项，修复记录：
+
+1. **武器没有特效说明** → `skills::equipment_effect(code)` + `card_view.effect`；Web 牌面详情新增「效果」行（长按手牌/装备/公共区小标记均可看），覆盖 22 件装备。
+2. **寒冰剑**：改为 `Hanbing` 帧 `Ask → Pick`，`pending.kind=pick_card`（`pick:hand` 随机 / `pick:equip:<slot>` 指定，界奇才保护的防具/宝物除外）；目标只有 1 张牌也可发动并防止伤害（弃任意张即不受伤）；放弃时按**原伤害类型**（火/雷）结算，修复「横置没效果」中的传导丢失。
+3. **界观星结束阶段复发动**：全流程回归（准备阶段全置底 → `guanxing_bottom` → 结束阶段再观星），第二次看新牌堆顶、同回合最多再发动一次。
+4. **横置无标签** → `public_board.seats[]` / `player_area` 增加 `chained` 公共字段；Web 公共区/个人区/详情显示「横置」标签（铁索传导逻辑已有 `p106` 用例锁定）。
+5. **观星右列未真实置底**（根因：端侧只提交有序 id，引擎拿不到「哪些放底」，`special_zones.slots` 始终是初始左列）→ 提交格式扩展为 **`arrange:<左列csv>|<右列csv>`**（旧格式无 `|` 兼容回落 `slots`）；`act_arrange` 左列倒序压入牌堆顶、右列依次插到 `deck.draw[0]`（牌堆底）；回归断言「2 顶 + 原牌堆 + 3 底」。
+6. **观星二次弹窗显示裸牌 id** → Web 观星草稿 `draftFromZone()`：按 `rev + 牌集 + slots` 指纹重建，旧槽位/未知 id 一律丢弃并按本次 `cards` 初始化（单测覆盖）。
+
+门禁：`cargo test -p sanguosha`（936）、`npm --prefix apps run test:web`、`npm run check:sgs-view-contract`。
 
 ### P4 武将 / 军争扩展（XL，持续）
 

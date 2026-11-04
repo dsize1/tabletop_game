@@ -77,7 +77,7 @@ GameState（game-engine-core 信封）
 | `choice`（巡袭/接力） | 技能拥有者 | `skill` / `needed` | `choose:tuxi` / `respond:<card>` / `pass` | 突袭（放弃摸牌）、激将/护驾（同势力代出杀/闪） |
 | `wugu` | 按选择顺序的当前玩家（**释放者先选**） | `card` / `remaining` / `chooser` / `zone` | `pick:<card_id>` | 五谷丰登（P2.5）；每人一次无懈窗口 |
 | `judge_rewrite`（改判，P4.1 已实现） | 从判定者左手侧起、**仅有改判技能且手牌非空者** | `judge_card` / `delayed` / `owner` / `interaction` | `respond:<任意手牌>` / `pass` | 判定牌亮出后自动询问（鬼才）；无人改判则按原判定结算 |
-| `arrange` | 技能拥有者 | `zone` / `rows` / `cols` / `slots` / `rev` / `interaction` | `arrange:<csv>` | 观星（P2.5）：准备阶段自动进入，不可取消 |
+| `arrange` | 技能拥有者 | `zone` / `rows` / `cols` / `slots` / `rev` / `interaction` | `arrange:<左列csv>\|<右列csv>` | 观星（P2.5；P4.6 带列分组）：准备阶段自动进入，不可取消 |
 
 - P2.3 起由**结算栈**驱动：`resolution: Vec<Frame>`（Trick/Wuxie/PickCard/Aoe/Respond/Dying/Discard），`pending` 是栈顶投影；濒死与无懈嵌套通过压栈/弹栈恢复。
 - 响应类询问（`wuxie`/`respond`/`dying`/接力）：**无手牌且无替代选项的玩家自动跳过**；**有手牌者一律显式询问**（无对应牌时唯一动作是 `pass`），不代选（2026-10-28 裁定，见 `special-zones.md` §4.1）。

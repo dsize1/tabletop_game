@@ -976,6 +976,7 @@ mod p102;
 mod p103;
 mod p104;
 mod p105;
+mod p106;
 mod replay;
 mod view_contract;
 

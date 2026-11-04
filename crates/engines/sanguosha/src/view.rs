@@ -28,6 +28,8 @@ pub fn card_view(st: &SgsState, id: &str) -> Value {
         "range_type": def.and_then(|d| d.range_type),
         "target_mode": def.and_then(|d| d.target_mode),
         "delayed": def.is_some_and(|d| d.delayed),
+        // 装备牌效果文案（长按牌面详情展示；非装备为 null）。
+        "effect": crate::skills::equipment_effect(&c.def),
     })
 }
 
@@ -178,6 +180,8 @@ pub fn public_board(st: &SgsState) -> Value {
                 "abolished_slots": abolished_slots_view(s),
                 "judge_abolished": s.judge_abolished,
                 "flipped": s.flipped,
+                // 连环状态（横置）：公共信息，端侧需给标签并提示属性伤害传导。
+                "chained": s.chained,
                 "alive": s.alive,
                 "is_bot": s.is_bot,
                 "has_picked": st.setup.picks.contains_key(&s.player_id),
@@ -392,6 +396,7 @@ pub fn player_area(st: &SgsState, viewer: &str) -> Option<Value> {
         "abolished_slots": abolished_slots_view(s),
         "judge_abolished": s.judge_abolished,
         "flipped": s.flipped,
+        "chained": s.chained,
         "skills": skills,
         "equipment_skills": equipment_skills_view(st, idx),
         "is_bot": s.is_bot,

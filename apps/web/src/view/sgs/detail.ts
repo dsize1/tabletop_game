@@ -51,6 +51,10 @@ export function renderCardDetail(card: SgsCard): string {
     rows.push(row("范围", `攻击距离 ${card.range_value}`));
   }
   if (card.delayed) rows.push(row("判定", "延时锦囊（判定区 LIFO）"));
+  // 装备效果（P4.6）：引擎只下发已实装的文案；长按装备/武器牌即可看到。
+  if (card.effect) {
+    rows.push(row("效果", escapeHtml(card.effect).replace(/\n/g, "<br>")));
+  }
   return `<table class="sgs-detail">${rows.join("")}</table>`;
 }
 
@@ -70,7 +74,10 @@ export function renderGeneralDetail(
     ),
     row("体力", `${hpPips(seat.hp, seat.max_hp)}<span class="muted"> ${seat.hp}/${seat.max_hp}</span>`),
     row("手牌", `×${seat.hand_count} / ${handLimitLabel(seat.hand_limit)}`),
-    row("状态", seat.alive ? "存活" : "阵亡"),
+    row(
+      "状态",
+      `${seat.alive ? "存活" : "阵亡"}${seat.flipped ? " · 翻面" : ""}${seat.chained ? " · 横置（连环）" : ""}`,
+    ),
   ];
   const skillTypeLabel: Record<string, string> = {
     normal: "普通",

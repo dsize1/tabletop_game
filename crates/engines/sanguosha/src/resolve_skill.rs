@@ -17,6 +17,15 @@ use serde_json::json;
 // 寒冰剑 / 雌雄双股剑（P4.2）
 // ---------------------------------------------------------------------------
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HanbingStage {
+    /// 询问是否发动。
+    Ask,
+    /// 逐张选择要弃置的牌（手牌随机 / 装备指定），最多 2 张。
+    Pick,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct HanbingFrame {
     pub user: usize,
@@ -24,6 +33,13 @@ pub struct HanbingFrame {
     pub card: String,
     /// 被防止的伤害值（含裸衣等加成）。
     pub damage: i32,
+    /// 伤害类型（放弃寒冰剑时必须按原类型结算：火/雷伤害仍可触发铁索传导）。
+    pub damage_type: crate::resolve::DamageType,
+    pub stage: HanbingStage,
+    /// 还需弃置的张数（初始 2；目标牌不足时按实际可弃张数）。
+    pub remaining: u32,
+    /// 已弃置的牌（日志用）。
+    pub discarded: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -34,6 +50,9 @@ pub struct CixiongFrame {
     pub need: u32,
     pub no_shan: bool,
     pub ignore_armor: bool,
+    /// 伤害类型（雌雄窗口后重新压入【闪】响应时必须保留：火/雷伤害仍可触发铁索）。
+    #[serde(default)]
+    pub damage_type: crate::resolve::DamageType,
 }
 
 /// TargetChosen 装备效果（P4.5：雌雄双股剑；异性目标可用）。
@@ -89,6 +108,7 @@ pub(crate) fn push_sha_target_response(
                     "card": card,
                     "need": need,
                     "ignore_armor": ignore_armor,
+                    "damage_type": damage_type,
                 }),
                 saved_outcome: None,
             }),
@@ -117,31 +137,11 @@ pub(crate) fn push_sha_target_response(
             need,
             no_shan,
             ignore_armor,
+            damage_type,
         }),
     );
 }
 
-/// 直接压入【杀】的【闪】响应帧。
-pub(crate) fn push_sha_respond(
-    st: &mut SgsState,
-    user: usize,
-    victim: usize,
-    card: &str,
-    need: u32,
-    no_shan: bool,
-    ignore_armor: bool,
-) {
-    push_sha_respond_with(
-        st,
-        user,
-        victim,
-        card,
-        need,
-        no_shan,
-        ignore_armor,
-        crate::resolve::DamageType::Normal,
-    );
-}
 
 pub(crate) fn push_sha_respond_with(
     st: &mut SgsState,
@@ -229,6 +229,7 @@ pub(crate) fn act_cixiong(st: &mut SgsState, action: &str) -> Result<String, Eng
                     "need": f.need,
                     "no_shan": f.no_shan,
                     "ignore_armor": f.ignore_armor,
+                    "damage_type": f.damage_type,
                 }),
             }),
         );
@@ -249,7 +250,7 @@ pub(crate) fn act_cixiong(st: &mut SgsState, action: &str) -> Result<String, Eng
     if over > 0 {
         crate::resolve::push_discard(st, f.user, over, "hand_cap");
     }
-    push_sha_respond(
+    push_sha_respond_with(
         st,
         f.user,
         f.target,
@@ -257,49 +258,115 @@ pub(crate) fn act_cixiong(st: &mut SgsState, action: &str) -> Result<String, Eng
         f.need,
         f.no_shan,
         f.ignore_armor,
+        f.damage_type,
     );
     Ok("雌雄双股剑：攻击方摸 1 张".to_string())
 }
 
 pub(crate) fn step_hanbing(st: &mut SgsState, f: HanbingFrame) -> Result<bool, EngineError> {
-    let Some(handler) = damage_before_handler(st, f.user, f.target) else {
-        // handler 不可用：直接按正常伤害结算。
-        pop(st);
-        crate::resolve::apply_damage(
-            st,
-            f.target,
-            f.damage,
-            Some(f.user),
-            crate::resolve::DamageType::Normal,
-            Some(&f.card),
-        );
-        return Ok(false);
-    };
-    st.pending = Some(Pending {
-        kind: "choice".into(),
-        actor: st.seats[f.user].player_id.clone(),
-        skill: Some("hanbing".into()),
-        options: vec![
-            PendingOption {
-                id: "choose:hanbing".into(),
-                label: handler.label.into(),
-            },
-            PendingOption {
-                id: "pass".into(),
-                label: "正常造成伤害".into(),
-            },
-        ],
-        data: json!({
-            "skill": "hanbing",
-            "target": f.target,
-            "option_sources": { "choose:hanbing": handler.code },
-        }),
-    });
-    replace_top(st, Frame::Hanbing(f));
-    Ok(true)
+    match f.stage {
+        HanbingStage::Ask => {
+            let Some(handler) = damage_before_handler(st, f.user, f.target) else {
+                // handler 不可用：直接按正常伤害结算（保留原伤害类型）。
+                pop(st);
+                crate::resolve::apply_damage(
+                    st,
+                    f.target,
+                    f.damage,
+                    Some(f.user),
+                    f.damage_type,
+                    Some(&f.card),
+                );
+                return Ok(false);
+            };
+            st.pending = Some(Pending {
+                kind: "choice".into(),
+                actor: st.seats[f.user].player_id.clone(),
+                skill: Some("hanbing".into()),
+                options: vec![
+                    PendingOption {
+                        id: "choose:hanbing".into(),
+                        label: handler.label.into(),
+                    },
+                    PendingOption {
+                        id: "pass".into(),
+                        label: "正常造成伤害".into(),
+                    },
+                ],
+                data: json!({
+                    "skill": "hanbing",
+                    "target": f.target,
+                    "option_sources": { "choose:hanbing": handler.code },
+                }),
+            });
+            replace_top(st, Frame::Hanbing(f));
+            Ok(true)
+        }
+        HanbingStage::Pick => {
+            let options = hanbing_pick_options(st, f.user, f.target);
+            if f.remaining == 0 || options.is_empty() {
+                // 已弃置至少 1 张 → 伤害被防止（用户口径：弃任意手牌/装备即不造成伤害）。
+                pop(st);
+                if f.discarded.is_empty() {
+                    // 防御：无牌可弃时不得白嫖防止伤害。
+                    crate::resolve::apply_damage(
+                        st,
+                        f.target,
+                        f.damage,
+                        Some(f.user),
+                        f.damage_type,
+                        Some(&f.card),
+                    );
+                    return Ok(false);
+                }
+                let pid = st.seats[f.user].player_id.clone();
+                let target_name = st.seats[f.target].general_name.clone();
+                let labels: Vec<String> = f
+                    .discarded
+                    .iter()
+                    .map(|id| turn::card_label(st, id))
+                    .collect();
+                st.push_log(
+                    Some(&pid),
+                    format!(
+                        "寒冰剑：防止伤害，弃置 {target_name} 的【{}】",
+                        labels.join("】【")
+                    ),
+                );
+                return Ok(false);
+            }
+            let target_pid = st.seats[f.target].player_id.clone();
+            // 选项 → 装备 code：Web 个人区据此高亮武器卡（与其它窗口类 pending 一致）。
+            let option_sources: serde_json::Map<String, serde_json::Value> = options
+                .iter()
+                .map(|o| (o.id.clone(), json!("hanbing_jian")))
+                .collect();
+            st.pending = Some(Pending {
+                kind: "pick_card".into(),
+                actor: st.seats[f.user].player_id.clone(),
+                skill: Some("hanbing".into()),
+                options,
+                data: json!({
+                    "skill": "hanbing",
+                    "card": turn::card_label(st, &f.card),
+                    "target": target_pid,
+                    "option_sources": option_sources,
+                    "remaining": f.remaining,
+                    "discarded": f
+                        .discarded
+                        .iter()
+                        .map(|id| turn::card_label(st, id))
+                        .collect::<Vec<_>>(),
+                }),
+            });
+            replace_top(st, Frame::Hanbing(f));
+            Ok(true)
+        }
+    }
 }
 
-/// 目标可被寒冰剑弃置的牌数（手牌 + 装备；判定区不计）。
+/// 目标可被寒冰剑弃置的牌数（手牌 + 装备；判定区不计）——选项生成见
+/// `hanbing_pick_options`（含界奇才限制）。
 // ---------------------------------------------------------------------------
 // PlayPhase 装备效果注册表（P4.5 收尾：丈八蛇矛）
 // ---------------------------------------------------------------------------
@@ -483,34 +550,14 @@ pub(crate) fn play_phase_act(
 pub struct DamageBeforeHandler {
     pub code: &'static str,
     pub label: &'static str,
-    /// 目标可弃牌数 ≥2 时可用。
-    pub available: fn(&SgsState, usize) -> bool,
-    /// 执行效果（防止伤害 + 弃置目标两张牌）。
-    pub effect: fn(&mut SgsState, &HanbingFrame),
+    /// 目标有至少 1 张可弃牌时可用（手牌 + 装备，受界奇才限制）。
+    pub available: fn(&SgsState, usize, usize) -> bool,
 }
 
 pub static DAMAGE_BEFORE_HANDLERS: &[DamageBeforeHandler] = &[DamageBeforeHandler {
     code: "hanbing_jian",
     label: "寒冰剑：防止此伤害，改为弃置目标两张牌",
-    available: |st, target| hanbing_available(st, target) >= 2,
-    effect: |st, f| {
-        let mut discarded = Vec::new();
-        for _ in 0..2 {
-            if let Some(id) = discard_one_from(st, f.target) {
-                turn::to_discard_card(st, &id);
-                discarded.push(turn::card_label(st, &id));
-            }
-        }
-        let pid = st.seats[f.user].player_id.clone();
-        let target_name = st.seats[f.target].general_name.clone();
-        st.push_log(
-            Some(&pid),
-            format!(
-                "寒冰剑：防止伤害，弃置 {target_name} 的【{}】",
-                discarded.join("】【")
-            ),
-        );
-    },
+    available: |st, user, target| hanbing_available(st, user, target) >= 1,
 }];
 
 fn damage_before_handler(
@@ -526,26 +573,83 @@ fn damage_before_handler(
             .collect();
     DAMAGE_BEFORE_HANDLERS
         .iter()
-        .find(|h| equipped.contains(&h.code) && (h.available)(st, target))
+        .find(|h| equipped.contains(&h.code) && (h.available)(st, user, target))
 }
 
-fn hanbing_available(st: &SgsState, seat: usize) -> usize {
-    st.seats[seat].hand.len() + st.seats[seat].equips.values().flatten().count()
+/// 目标可被寒冰剑弃置的牌数（手牌 + 装备；判定区不计；界奇才保护的防具/宝物不计）。
+fn hanbing_available(st: &SgsState, user: usize, target: usize) -> usize {
+    let equips = EquipSlot::ALL
+        .into_iter()
+        .filter(|slot| !crate::skills::qicai_blocks_discard(st, target, user, *slot))
+        .filter(|slot| {
+            st.seats[target]
+                .equips
+                .get(slot)
+                .and_then(|v| v.as_ref())
+                .is_some()
+        })
+        .count();
+    st.seats[target].hand.len() + equips
 }
 
-fn discard_one_from(st: &mut SgsState, seat: usize) -> Option<String> {
-    if !st.seats[seat].hand.is_empty() {
-        let n = st.seats[seat].hand.len();
-        let idx = st.next_index(n);
-        return Some(st.seats[seat].hand.remove(idx));
-    }
+/// 寒冰剑弃牌选项：手牌（随机 1 张）+ 各装备槽。
+fn hanbing_pick_options(st: &SgsState, user: usize, target: usize) -> Vec<PendingOption> {
+    let mut out = Vec::new();
     for slot in EquipSlot::ALL {
-        if let Some(Some(id)) = st.seats[seat].equips.get(&slot).cloned() {
-            st.seats[seat].equips.insert(slot, None);
-            return Some(id);
+        if crate::skills::qicai_blocks_discard(st, target, user, slot) {
+            continue;
+        }
+        if let Some(Some(id)) = st.seats[target].equips.get(&slot) {
+            out.push(PendingOption {
+                id: format!("pick:equip:{}", crate::resolve::slot_code(slot)),
+                label: format!("寒冰剑：弃置装备区【{}】", turn::card_label(st, id)),
+            });
         }
     }
-    None
+    if !st.seats[target].hand.is_empty() {
+        out.push(PendingOption {
+            id: "pick:hand".into(),
+            label: format!(
+                "寒冰剑：弃置手牌（随机 1 张，共 {} 张）",
+                st.seats[target].hand.len()
+            ),
+        });
+    }
+    out
+}
+
+/// 从目标区域取出被选中的牌（触发装失/手牌相关钩子）。
+fn hanbing_take_card(
+    st: &mut SgsState,
+    target: usize,
+    action: &str,
+) -> Result<String, EngineError> {
+    if let Some(rest) = action.strip_prefix("pick:equip:") {
+        let slot =
+            crate::resolve::slot_from_code(rest).ok_or_else(|| illegal("非法装备槽"))?;
+        let card = st.seats[target]
+            .equips
+            .get(&slot)
+            .cloned()
+            .flatten()
+            .ok_or_else(|| illegal("该槽位没有装备"))?;
+        st.seats[target].equips.insert(slot, None);
+        // 枭姬：失去装备区的牌后摸 2 张。
+        crate::skills::xiaoji_on_lose_equip(st, target);
+        Ok(card)
+    } else if action == "pick:hand" {
+        if st.seats[target].hand.is_empty() {
+            return Err(illegal("目标没有手牌"));
+        }
+        let n = st.seats[target].hand.len();
+        let idx = st.next_index(n);
+        let card = st.seats[target].hand.remove(idx);
+        // 连营：失去最后的手牌后摸 1 张。
+        crate::skills::lianying_on_lose_last(st, target);
+        Ok(card)
+    } else {
+        Err(illegal("未知的寒冰剑弃牌选项"))
+    }
 }
 
 pub(crate) fn act_hanbing(st: &mut SgsState, action: &str) -> Result<String, EngineError> {
@@ -553,37 +657,50 @@ pub(crate) fn act_hanbing(st: &mut SgsState, action: &str) -> Result<String, Eng
         Some(Frame::Hanbing(f)) => f,
         _ => return Err(internal("栈顶不是寒冰剑帧")),
     };
-    pop(st);
-    if action != "choose:hanbing" {
-        crate::resolve::apply_damage(
-            st,
-            f.target,
-            f.damage,
-            Some(f.user),
-            crate::resolve::DamageType::Normal,
-            Some(&f.card),
-        );
-        return Ok("寒冰剑：正常造成伤害".to_string());
+    match f.stage {
+        HanbingStage::Ask => {
+            if action == "choose:hanbing"
+                && damage_before_handler(st, f.user, f.target).is_some()
+            {
+                let mut next = f;
+                next.stage = HanbingStage::Pick;
+                next.remaining =
+                    2.min(hanbing_available(st, next.user, next.target) as u32);
+                replace_top(st, Frame::Hanbing(next));
+                return Ok("寒冰剑：请选择要弃置的牌".to_string());
+            }
+            // pass / 无法发动：正常结算（保留火/雷伤害类型）。
+            pop(st);
+            crate::resolve::apply_damage(
+                st,
+                f.target,
+                f.damage,
+                Some(f.user),
+                f.damage_type,
+                Some(&f.card),
+            );
+            Ok("寒冰剑：正常造成伤害".to_string())
+        }
+        HanbingStage::Pick => {
+            let options = hanbing_pick_options(st, f.user, f.target);
+            if !options.iter().any(|o| o.id == action) {
+                return Err(illegal("寒冰剑：无效的弃牌选择"));
+            }
+            let card = hanbing_take_card(st, f.target, action)?;
+            turn::to_discard_card(st, &card);
+            let mut next = f;
+            next.discarded.push(card);
+            next.remaining = next.remaining.saturating_sub(1);
+            replace_top(st, Frame::Hanbing(next));
+            Ok("寒冰剑：弃置一张牌".to_string())
+        }
     }
-    let Some(handler) = damage_before_handler(st, f.user, f.target) else {
-        crate::resolve::apply_damage(
-            st,
-            f.target,
-            f.damage,
-            Some(f.user),
-            crate::resolve::DamageType::Normal,
-            Some(&f.card),
-        );
-        return Ok("正常造成伤害".to_string());
-    };
-    (handler.effect)(st, &f);
-    Ok("寒冰剑：已防止伤害并弃置两张牌".to_string())
 }
 
-/// 寒冰剑是否可发动（武器 + 目标至少两张可弃牌）。
+/// 寒冰剑是否可发动（武器 + 目标至少 1 张可弃牌）。
 pub(crate) fn hanbing_available_for(st: &SgsState, user: usize, target: usize) -> bool {
     crate::skills::has_equipment_skill(st, user, "hanbing_jian")
-        && hanbing_available(st, target) >= 2
+        && (DAMAGE_BEFORE_HANDLERS[0].available)(st, user, target)
 }
 
 // ---------------------------------------------------------------------------
@@ -598,6 +715,9 @@ pub struct AfterDodgeFrame {
     pub target: usize,
     /// 【杀】的牌实例。
     pub card: String,
+    /// 伤害类型（贯石斧「依然造成伤害」/ 青龙再出【杀】时保留属性，铁索才能传导）。
+    #[serde(default)]
+    pub damage_type: crate::resolve::DamageType,
 }
 
 /// AfterDodge 装备效果处理器（P4.5 阶段三：效果函数注册表）。
@@ -670,6 +790,12 @@ fn qinglong_act(
             turn::card_label(st, card_id)
         ),
     );
+    // 再使用的【杀】按新牌的属性结算（火杀/雷杀 → 火焰/雷电，可触发铁索）。
+    let new_dtype = match turn::card_def(st, card_id).map(|d| d.code) {
+        Some("huo_sha") => crate::resolve::DamageType::Fire,
+        Some("lei_sha") => crate::resolve::DamageType::Thunder,
+        _ => crate::resolve::DamageType::Normal,
+    };
     crate::resolve::push(
         st,
         crate::resolve::Frame::Sha(crate::resolve::ShaFrame {
@@ -679,7 +805,7 @@ fn qinglong_act(
             stage: crate::resolve::ShaStage::WaitRespond,
             pending_targets: Vec::new(),
             fangtian: false,
-            damage_type: crate::resolve::DamageType::Normal,
+            damage_type: new_dtype,
             no_distance: false,
             no_respond: false,
             virtual_card: false,
@@ -699,7 +825,7 @@ fn qinglong_act(
         need,
         false,
         crate::skills::has_equipment_skill(st, f.user, "qinggang_jian"),
-        crate::resolve::DamageType::Normal,
+        new_dtype,
     );
     Ok(Some("青龙偃月刀：等待目标再次响应".to_string()))
 }
@@ -734,7 +860,11 @@ fn guanshi_act(
             selected: Vec::new(),
             min: 2,
             max: 2,
-            data: json!({ "target": f.target, "card": f.card }),
+            data: json!({
+                "target": f.target,
+                "card": f.card,
+                "damage_type": f.damage_type,
+            }),
         }),
     );
     Ok(Some("请选择弃置的 2 张手牌".to_string()))
@@ -766,6 +896,7 @@ pub(crate) fn push_after_dodge_if_available(
         user: f.source,
         target: f.actor,
         card: f.card.clone(),
+        damage_type: f.damage_type,
     };
     let available = after_dodge_handlers(st, frame.user)
         .iter()
