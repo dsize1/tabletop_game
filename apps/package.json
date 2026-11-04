@@ -24,6 +24,8 @@
     "check:sgs-preview": "node scripts/check-sgs-preview.mjs",
     "check:sgs-preview:ui": "node scripts/check-sgs-preview.mjs --ui",
     "check:sgs-assets": "node scripts/check-sgs-assets.mjs",
+    "gen:fx": "node scripts/gen-fx-assets.mjs",
+    "check:fx-assets": "node scripts/check-fx-assets.mjs",
     "sgs:history": "node scripts/sgs-history.mjs",
     "test:web-login": "node scripts/test-web-login.mjs",
     "check:union-openid": "node scripts/check-union-openid.mjs",

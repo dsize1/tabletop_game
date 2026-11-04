@@ -55,6 +55,8 @@
     "check:sgs-decision-log": "node apps/scripts/check-sgs-decision-log.mjs",
     "check:sgs-preview": "node apps/scripts/check-sgs-preview.mjs",
     "check:sgs-preview:ui": "node apps/scripts/check-sgs-preview.mjs --ui",
-    "check:sgs-assets": "node apps/scripts/check-sgs-assets.mjs"
+    "check:sgs-assets": "node apps/scripts/check-sgs-assets.mjs",
+    "gen:fx": "node apps/scripts/gen-fx-assets.mjs",
+    "check:fx-assets": "node apps/scripts/check-fx-assets.mjs"
   }
 }

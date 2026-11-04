@@ -4,6 +4,14 @@
 > 关联：ADR-0020（Web 优先与三分区）、`special-zones.md`（观星）、`interaction-primitives.md`（`ordered` 原语）、`data-model.md` §4、`development-plan.md` P2/P3、`docs/modules/web.md`（端形态与基线）。
 > 本文只定义**端侧契约**（布局/手势/浮层/观星交互）；引擎语义见 `legal-actions.md` / `state-machine.md`。
 
+## 0. 装饰性特效层（ADR-0037）
+
+- 对局页允许在现有 DOM 之外追加 `#sgs-fx-layer`（fixed、`pointer-events:none`），用于消费出牌历史（挥刀/闪避/桃/酒/雷/火/铁索）。
+- 特效**只呈现已发生事实**，不推导规则、不改变合法动作/状态；不参与视图契约。
+- 消费期间禁止响应操作（手牌/技能/确认/选将），允许滚动右侧历史；状态栏显示「行动结算中…」。
+- 队列 >12 条只播最近 12 条，总时长 ≤3s；无跳过按钮。
+- `prefers-reduced-motion: reduce` 退化为描边/文字提示（不闪屏）；雷电全屏闪烁 ≤2 次、透明度 ≤0.35。
+
 ## 1. 范围
 
 | 项 | 本期口径 |

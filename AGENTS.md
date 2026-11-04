@@ -40,6 +40,7 @@
 | 三国杀武将抓取数据（696 位） | `docs/games/sanguosha/data/README.md`、`docs/games/sanguosha/data/heroes.json` |
 | 三国杀武将表（自动生成） | `docs/games/sanguosha/generals.md` |
 | 三国杀武将素材流水线（剧照采集 + 卡面生成） | `docs/games/sanguosha/props/media-pipeline.md` |
+| 对局特效素材（ComfyUI 生成 / 改图重打包） | `docs/games/sanguosha/props/fx-pipeline.md`、ADR-0037 |
 | MCP 统一原语 / 能力描述符规范 | `docs/conventions/mcp-primitives.md` |
 | 本地开发环境（Docker/Redis） | `docs/dev-environment.md` |
 | 编码规范 | `docs/conventions/coding-standards.md` |

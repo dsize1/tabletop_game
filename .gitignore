@@ -49,3 +49,6 @@ assets-src/las/*.jpg
 assets-src/las/*.jpeg
 assets-src/las/*.png
 models/
+
+# 特效源图（ComfyUI 输出，本地改图后 --assemble 重打包）
+assets-src/fx/src/

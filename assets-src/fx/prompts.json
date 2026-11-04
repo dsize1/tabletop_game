@@ -1,0 +1,16 @@
+{
+  "checkpoint": "animagine-xl-3.1.safetensors",
+  "negative": "photo, photorealistic, 3d render, realistic, (character:1.5), (person:1.5), (face:1.4), (human:1.5), (silhouette:1.4), (hooded figure:1.4), (robe:1.3), portrait, text, watermark, signature, logo, frame, border, white background, gray background, blurry, low quality, multiple effects, collage",
+  "suffix": "masterpiece, best quality, very aesthetic, flat cel-shaded anime visual effect, isolated visual effect only, no character, no person, no face",
+  "effects": [
+    { "id": "slash", "blend": "screen", "prompt": "one single crescent-shaped crimson sword slash arc, glowing hot edge, flying sparks, dynamic diagonal, anime skill effect, Chinese ink accent, pure black background, centered, high contrast, crisp" },
+    { "id": "dodge", "blend": "screen", "prompt": "white and cyan wind speed lines, afterimage motion trail, dust particles, anime dodge evasive effect, pure black background, horizontal motion, crisp" },
+    { "id": "peach", "blend": "screen", "prompt": "one glowing peach fruit with green leaves, golden sparkles, soft green healing light, anime item icon, Chinese fantasy, pure black background, centered, crisp" },
+    { "id": "wine", "blend": "screen", "prompt": "one porcelain wine gourd with red ribbon, golden red aura, small flame accents, anime item icon, Chinese fantasy, pure black background, centered, crisp" },
+    { "id": "thunder_bolt", "blend": "screen", "prompt": "one vertical blue-white lightning bolt with branching electric arcs and sparks, anime thunder skill effect, pure black background, centered, high contrast, crisp" },
+    { "id": "thunder_flash", "blend": "screen", "prompt": "radial blue-white lightning flash with electric arcs and sparks, screen flash texture, anime thunder effect, pure black background, centered, high contrast" },
+    { "id": "fire", "blend": "screen", "prompt": "rising orange and red flames with embers, flame tongues, anime fire skill effect, pure black background, horizontal, high contrast, crisp" },
+    { "id": "chain", "blend": "screen", "prompt": "only glowing golden energy chains and shackles wrapping around empty space, metal links, no person, no figure, no silhouette, anime binding effect, Chinese fantasy, pure black background, centered, crisp" },
+    { "id": "heal", "blend": "screen", "prompt": "soft green healing light ring with floating sparkles and gentle glow, anime heal effect, pure black background, centered, crisp" }
+  ]
+}

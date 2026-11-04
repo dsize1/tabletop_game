@@ -9,6 +9,9 @@ import { renderSidePanelBody } from "../view/sgs/public.js";
 import { cardLabel } from "../view/sgs/format.js";
 import { renderCardDetail, renderDiscardList, renderGeneralDetail } from "../view/sgs/detail.js";
 import type { SgsAssetMap, SgsCard, SgsViewData } from "../view/sgs/types.js";
+import { buildFxCues } from "../view/sgs/fx.js";
+import { awaitingLocal, nextPollDelay, sideSignature, stateSignature } from "../view/sgs/poll.js";
+import { enqueueFx, fxLocked, initFx } from "./sgs-fx.js";
 import { bindPress } from "./sgs-gestures.js";
 import { closeOverlay, initOverlay, isOverlayOpen, openOverlay } from "./sgs-overlay.js";
 import {
@@ -53,6 +56,10 @@ const FETCH_TIMEOUT_MS = 8_000;
 
 let currentData: SgsViewData | null = null;
 let currentActions: Array<{ id: string; description: string }> = [];
+let appSig = "";
+let sideSig = "";
+/** `refreshNow`（提交动作后）完成时更新轮询节奏；由 start() 注入。 */
+let afterRefreshNow: ((res: StateResponse) => void) | null = null;
 let selectedCard: string | null = null;
 let unbindPress: (() => void) | null = null;
 let submitting = false;
@@ -197,7 +204,7 @@ function message(text: string, warn = false): void {
 }
 
 async function submitAction(action: string): Promise<void> {
-  if (!boot || submitting || !action) return;
+  if (!boot || submitting || !action || fxLocked()) return;
   submitting = true;
   document.body.classList.add("busy");
   try {
@@ -405,6 +412,7 @@ function initGuanxingDrag(): void {
 // ---------------------------------------------------------------------------
 
 function onTap(el: HTMLElement): void {
+  if (fxLocked()) return;
   const kind = el.dataset.press;
   if (kind === "hand" && el.dataset.card) {
     toggleSelect(el.dataset.card);
@@ -450,6 +458,7 @@ function onTap(el: HTMLElement): void {
 }
 
 function onClick(ev: MouseEvent): void {
+  if (fxLocked()) return;
   if (suppressNextClick) {
     suppressNextClick = false;
     return;
@@ -580,15 +589,21 @@ async function fetchState(boot: Bootstrap): Promise<StateResponse> {
 function applyState(res: StateResponse): void {
   const data = res.player?.data ?? res.public?.data;
   if (!data) return;
+  const prev = currentData;
+  const nextActions = res.actions ?? [];
+  const nextAppSig = stateSignature(data, nextActions, res.names);
+  const nextSideSig = sideSignature(data, res.names);
   currentData = data;
-  currentActions = res.actions ?? [];
+  currentActions = nextActions;
   lastNames = res.names;
   // 选中的牌可能已被打出/弃置：不再存在于手牌则清空。
   if (selectedCard && !(data.player_area?.hand ?? []).some((c) => c.id === selectedCard)) {
     selectedCard = null;
   }
+  // 只在应用态变化时重建 #sgs-app（避免无意义闪屏；history 变化只刷侧栏）。
   const app = q<HTMLElement>("#sgs-app");
-  if (app) {
+  if (app && nextAppSig !== appSig) {
+    appSig = nextAppSig;
     app.innerHTML = renderSgsApp(data, res.names, currentActions, boot?.assets);
     bindInteractions();
     syncSelection();
@@ -596,10 +611,10 @@ function applyState(res: StateResponse): void {
   const board = data.public_board;
   const meta = document.querySelector(".sgs-topbar .meta");
   if (meta && board) meta.textContent = `第 ${board.round} 轮 · ${board.turn.player_id ?? "-"}`;
-  // 侧栏（阶段/本局/出牌历史）不在 #sgs-app 内，需单独刷新，否则要整页刷新才更新。
-  // 轮询/提交会重建 DOM，需保留历史列表滚动位置（否则每次刷新跳回顶部）。
+  // 侧栏（阶段/本局/出牌历史）不在 #sgs-app 内，需单独刷新。
   const side = document.getElementById("sgs-side");
-  if (side) {
+  if (side && nextSideSig !== sideSig) {
+    sideSig = nextSideSig;
     const oldList = side.querySelector<HTMLElement>(".sgs-history");
     const keepScroll = oldList?.scrollTop ?? 0;
     side.innerHTML = renderSidePanelBody(data, res.names);
@@ -607,6 +622,9 @@ function applyState(res: StateResponse): void {
     if (newList && keepScroll > 0) newList.scrollTop = keepScroll;
   }
   syncPendingOverlay();
+  // 特效：首帧 prev=null 只建基线，不回放旧历史；浮层/隐藏时由 fx 模块跳过。
+  const cues = buildFxCues(prev, data);
+  if (cues.length > 0) enqueueFx(cues);
 }
 
 async function refreshNow(): Promise<void> {
@@ -617,11 +635,12 @@ async function refreshNow(): Promise<void> {
   applyRestoredScroll();
   setText("sgs-warn", "");
   setText("sgs-updated", `更新于 ${hhmmss(new Date())}`);
+  afterRefreshNow?.(res);
 }
 
 /** 工作台预览工具栏：视角切换 + AI 单步/连推 + 重置（仅预览页存在）。 */
 async function previewCommand(cmd: string): Promise<void> {
-  if (!boot?.preview || submitting) return;
+  if (!boot?.preview || submitting || fxLocked()) return;
   const room = boot.preview.room;
   const base = `/tabletop_game/${encodeURIComponent(boot.gameId)}/preview`;
   submitting = true;
@@ -706,10 +725,13 @@ function start(): void {
   initGuanxingDrag();
   q<HTMLElement>("#sgs-overlay")?.addEventListener("click", onClick);
 
-  let pollMs = bootstrap.pollMs ?? DEFAULT_POLL_MS;
+  const basePollMs = bootstrap.pollMs ?? DEFAULT_POLL_MS;
+  let pollMs = basePollMs;
   let timer: number | undefined;
+  let pausedForFx = false;
 
   const schedule = (): void => {
+    if (pausedForFx) return;
     if (timer !== undefined) window.clearTimeout(timer);
     timer = window.setTimeout(refresh, pollMs);
   };
@@ -723,14 +745,49 @@ function start(): void {
       const res = await fetchState(bootstrap);
       // 详情浮层打开时不打断用户；pending 浮层需要随局面更新（等待他人/链推进）。
       if (!isOverlayOpen() || pendingOverlaySig) applyState(res);
-      pollMs = bootstrap.pollMs ?? DEFAULT_POLL_MS;
+      const data = res.player?.data ?? res.public?.data;
+      pollMs = nextPollDelay(data, res.actions, basePollMs);
       setText("sgs-warn", "");
       setText("sgs-updated", `更新于 ${hhmmss(new Date())}`);
-      setText("sgs-sync", "已同步");
+      if (!fxLocked()) {
+        setText("sgs-sync", awaitingLocal(data, res.actions) ? "等待你的操作" : "已同步");
+      }
     } catch {
       pollMs = Math.min(MAX_POLL_MS, pollMs * 2);
       setText("sgs-warn", "连接中断");
     } finally {
+      schedule();
+    }
+  };
+
+  initFx({
+    getSelfSeat: () => currentData?.player_area?.seat ?? null,
+    onLockChange: (locked) => {
+      pausedForFx = locked;
+      document.body.classList.toggle("sgs-fx-locked", locked);
+      if (locked) {
+        if (timer !== undefined) window.clearTimeout(timer);
+        timer = undefined;
+        setText("sgs-sync", "行动结算中…");
+      } else {
+        setText("sgs-sync", "已同步");
+        schedule();
+      }
+    },
+    onDrain: () => {
+      // 队列结束：拉一次最新状态（可能已有下一次 pending），再恢复轮询节奏。
+      pausedForFx = false;
+      void refresh();
+    },
+  });
+
+  // 提交动作 / 预览命令后的 refreshNow 不经过 refresh 的 finally：这里同步轮询节奏并重新排程，
+  // 避免「原 60s 等待定时器」在动作完成后继续拖延下一次轮询。
+  afterRefreshNow = (res) => {
+    const data = res.player?.data ?? res.public?.data;
+    pollMs = nextPollDelay(data, res.actions, basePollMs);
+    if (!fxLocked()) {
+      setText("sgs-sync", awaitingLocal(data, res.actions) ? "等待你的操作" : "已同步");
       schedule();
     }
   };

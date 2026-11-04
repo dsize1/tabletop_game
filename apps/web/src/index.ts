@@ -65,6 +65,15 @@ app.use(
   "/board-assets",
   express.static(path.join(PUBLIC_DIR, "board"), { immutable: true, maxAge: "365d", fallthrough: true }),
 );
+// 对局特效素材（ComfyUI 生成；文件名带内容哈希 → immutable）
+app.use(
+  "/fx-assets",
+  express.static(path.join(PUBLIC_DIR, "fx"), {
+    immutable: true,
+    maxAge: "365d",
+    fallthrough: true,
+  }),
+);
 app.use(
   "/assets",
   express.static(path.join(PUBLIC_DIR, "assets"), {
