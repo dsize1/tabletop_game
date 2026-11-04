@@ -166,15 +166,21 @@ async function assemble(effects) {
   await fs.mkdir(OUT_DIR, { recursive: true });
   const meta = [];
   for (const effect of effects) {
-    const src = path.join(SRC_DIR, `${effect.id}.png`);
-    if (!existsSync(src)) {
+    const single = path.join(SRC_DIR, `${effect.id}.png`);
+    // 可选逐帧原画：<id>-0.png / <id>-1.png ...（按数字排序）；>=2 张时按帧序列打包。
+    const multi = (await fs.readdir(SRC_DIR).catch(() => []))
+      .filter((f) => new RegExp(`^${effect.id}-\\d+\\.png$`).test(f))
+      .sort((a, b) => Number(a.match(/-(\d+)\.png$/)[1]) - Number(b.match(/-(\d+)\.png$/)[1]))
+      .map((f) => path.join(SRC_DIR, f));
+    const sources = multi.length >= 2 ? multi : existsSync(single) ? [single] : [];
+    if (sources.length === 0) {
       log(`缺源图，跳过：${effect.id}（先 npm run gen:fx）`);
       continue;
     }
     const tmpOut = path.join(ROOT, ".tmp", `fx-pack-${effect.id}.webp`);
     const packed = spawnSync(
       PYTHON,
-      [PACK_SCRIPT, src, tmpOut, "--kind", effect.id, "--size", String(ANIM_SIZE), "--quality", String(QUALITY), "--frames", "5", "--duration", "80"],
+      [PACK_SCRIPT, ...sources, "--out", tmpOut, "--kind", effect.id, "--size", String(ANIM_SIZE), "--quality", String(QUALITY)],
       { encoding: "utf8" },
     );
     if (packed.status !== 0) {

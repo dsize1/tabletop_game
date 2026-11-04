@@ -47,6 +47,7 @@ npm --prefix apps/web run build:client
 - `--assemble`：`apps/scripts/fx_pack.py`（Pillow）做亮度键控（alpha = max RGB）→ 裁空白 → 168px 五帧动画 WebP（q36, alpha）→ 内容哈希文件 + 重写 `fx-manifest.ts`，清理旧 webp。
 - Python 依赖：`PYTHON` 默认优先 `C:/llm/comfy-venv/Scripts/python.exe`（含 Pillow 12），可用 `PYTHON_BIN` 覆盖。
 - `--dry-run`：只打印计划，不联网。
+- **逐帧原画（可选）**：把多张帧图命名为 `assets-src/fx/src/<id>-0.png、<id>-1.png…`（≥2 张），`--assemble` 会按数字顺序直接用这些帧，不再做「单图派生 5 帧」；适合你用 ComfyUI 生成真正不同的关键帧。
 - 生成工作流/提示词：`assets-src/comfyUI_workflow/fx-effects.json`（ComfyUI API 模板）、`assets-src/fx/prompts.json`（脚本实际读取的单一来源）。
 
 ## 预算与门禁

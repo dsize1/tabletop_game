@@ -32,6 +32,7 @@ const WEB_URL = `http://127.0.0.1:${WEB_PORT}`;
 const REDIS_URL = process.env.REDIS_URL ?? "redis://127.0.0.1:6379";
 
 const players = ["e2e-p1", "e2e-p2", "e2e-p3", "e2e-p4", "e2e-p5"];
+const FX = process.argv.includes("--fx");
 const children = [];
 let failed = 0;
 
@@ -273,7 +274,7 @@ try {
         oppFaces: document.querySelectorAll(".sgs-opponent .sgs-card-rank").length,
         textHidden: getComputedStyle(document.querySelector("#sgs-text")).display === "none",
         ops: !!document.querySelector(".sgs-ops"),
-        bundle: !!document.querySelector('script[src="/assets/sgs.js"]'),
+        bundle: !!document.querySelector('script[src^="/assets/sgs.js"]'),
         stacked: (() => {
           const backs = Array.from(document.querySelectorAll(".sgs-opponent .sgs-card.back"));
           if (backs.length < 2) return null;
@@ -400,6 +401,104 @@ try {
     "浏览器点击可推进回合（end_play + 必要弃牌）",
   );
   assert(final.deck.draw + final.deck.discard > 0, "牌堆计数正常");
+
+  // 7) `--fx`：固定历史注入 → 特效队列/输入锁定/暂停轮询（不依赖真实 AI 随机）
+  if (FX) {
+    const actor = await currentActor();
+    let calls = 0;
+    let injected = false;
+    await page.route("**/tabletop_game/sanguosha/state*", async (route) => {
+      const resp = await route.fetch();
+      const json = await resp.json();
+      const data = json.player?.data ?? json.public?.data;
+      if (data?.public_board) {
+        const b = data.public_board;
+        if (data.player_area) data.player_area.pending = null;
+        json.actions = [];
+        calls += 1;
+        if (!injected && calls >= 2 && b.history) {
+          injected = true;
+          const maxSeq = b.history.at(-1)?.seq ?? 0;
+          const other = (b.seats ?? []).find((s) => s.player_id !== actor) ?? b.seats?.[0];
+          b.history = [
+            ...b.history,
+            {
+              seq: maxSeq + 1,
+              turn: b.turn_index,
+              actor: null,
+              text: `${other.player_id} 受到 2 点雷电伤害（体力 1）`,
+            },
+          ];
+        }
+      }
+      await route.fulfill({ response: resp, json });
+    });
+    await page.goto(pageUrlFor(actor), { waitUntil: "load" });
+    await page.waitForTimeout(1200);
+    // SSR/首屏可能带 pending 浮层；测试只看特效层，先移开浮层（不改状态）。
+    await page.evaluate(() => document.querySelector(".sgs-overlay")?.classList.remove("on"));
+    const layoutBefore = await page.evaluate(() => {
+      const r = document.querySelector(".sgs-main")?.getBoundingClientRect();
+      return r ? { w: Math.round(r.width), h: Math.round(r.height), x: Math.round(r.x), y: Math.round(r.y) } : null;
+    });
+    let sample = null;
+    const fxStart = Date.now();
+    while (Date.now() - fxStart < 15000) {
+      const s = await page.evaluate(() => {
+        const img = document.querySelector("#sgs-fx-layer .fx-cue img");
+        return {
+          locked: document.body.classList.contains("sgs-fx-locked"),
+          cues: document.querySelectorAll("#sgs-fx-layer .fx-cue").length,
+          kind: img?.closest(".fx-cue")?.className ?? "",
+          src: img?.getAttribute("src") ?? "",
+          blend: img ? getComputedStyle(img).mixBlendMode : "",
+          appPe: getComputedStyle(document.getElementById("sgs-app")).pointerEvents,
+          sidePe: getComputedStyle(document.getElementById("sgs-side") || document.body).pointerEvents,
+          sync: document.getElementById("sgs-sync")?.textContent ?? "",
+        };
+      });
+      if (s.locked && s.cues > 0 && s.src) {
+        sample = s;
+        break;
+      }
+      await page.waitForTimeout(100);
+    }
+    assert(Boolean(sample), "--fx：注入历史触发特效队列");
+    if (sample) {
+      assert(sample.kind.includes("fx-thunder"), "--fx：雷电 cue 映射正确");
+      assert(sample.src.startsWith("/fx-assets/"), "--fx：加载动画素材");
+      assert(sample.blend === "normal", "--fx：透明素材使用 normal 混合");
+      assert(sample.appPe === "none", "--fx：消费期间禁止操作");
+      assert(sample.sidePe === "auto", "--fx：消费期间历史仍可滚动");
+      const callsAtLock = calls;
+      let pausedOk = true;
+      for (let i = 0; i < 5; i += 1) {
+        await page.waitForTimeout(60);
+        if (!(await page.evaluate(() => document.body.classList.contains("sgs-fx-locked")))) break;
+        if (calls !== callsAtLock) pausedOk = false;
+      }
+      assert(pausedOk, "--fx：消费期间暂停轮询");
+      await page.evaluate(() => document.querySelector(".sgs-hand .sgs-card")?.click());
+      const selected = await page.evaluate(
+        () => document.querySelectorAll(".sgs-hand .sgs-card.selected").length,
+      );
+      assert(selected === 0, "--fx：锁定期间点击手牌不选中");
+      await page.waitForTimeout(1200);
+      const unlocked = await page.evaluate(
+        () => !document.body.classList.contains("sgs-fx-locked"),
+      );
+      assert(unlocked, "--fx：队列结束后解锁");
+      const layoutAfter = await page.evaluate(() => {
+        const r = document.querySelector(".sgs-main")?.getBoundingClientRect();
+        return r ? { w: Math.round(r.width), h: Math.round(r.height), x: Math.round(r.x), y: Math.round(r.y) } : null;
+      });
+      assert(
+        JSON.stringify(layoutBefore) === JSON.stringify(layoutAfter),
+        "--fx：特效层不改变现有版面布局",
+      );
+    }
+    await page.unroute("**/tabletop_game/sanguosha/state*");
+  }
 } catch (err) {
   failed += 1;
   console.error("[sgs-web-e2e] ❌ 运行失败:", err?.message ?? err);

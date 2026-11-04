@@ -20,8 +20,8 @@ from PIL import Image, ImageChops
 
 def parse_args():
     p = argparse.ArgumentParser()
-    p.add_argument("src")
-    p.add_argument("out")
+    p.add_argument("src", nargs="+", help="单张源图，或多帧源图（按顺序）")
+    p.add_argument("--out", required=True)
     p.add_argument("--kind", default="slash")
     p.add_argument("--size", type=int, default=256)
     p.add_argument("--quality", type=int, default=52)
@@ -69,33 +69,50 @@ def motion(kind: str, i: int, n: int):
 
 def main():
     a = parse_args()
-    im = trim(key_alpha(Image.open(a.src)))
     size = a.size
     canvas_size = size
-    base = im.copy()
-    scale0 = min((size * 0.92) / max(1, base.width), (size * 0.92) / max(1, base.height))
-    base = base.resize(
-        (max(1, round(base.width * scale0)), max(1, round(base.height * scale0))),
-        Image.Resampling.LANCZOS,
-    )
     frames = []
-    for i in range(a.frames):
-        scale, rot, dx, dy = motion(a.kind, i, a.frames)
-        f = base.resize(
-            (max(1, round(base.width * scale)), max(1, round(base.height * scale))),
+
+    def fit_canvas(im: Image.Image, scale: float = 0.92) -> Image.Image:
+        im = trim(key_alpha(im))
+        k = min((size * scale) / max(1, im.width), (size * scale) / max(1, im.height))
+        return im.resize(
+            (max(1, round(im.width * k)), max(1, round(im.height * k))),
             Image.Resampling.LANCZOS,
         )
-        if rot:
-            f = f.rotate(rot, resample=Image.Resampling.BICUBIC, expand=True)
-        canvas = Image.new("RGBA", (canvas_size, canvas_size), (0, 0, 0, 0))
-        canvas.alpha_composite(
-            f,
-            (
-                round((canvas_size - f.width) / 2 + dx),
-                round((canvas_size - f.height) / 2 + dy),
-            ),
-        )
-        frames.append(canvas)
+
+    if len(a.src) > 1:
+        # 逐帧原画模式：每张源图就是一帧（保持顺序）。
+        for src in a.src:
+            f = fit_canvas(Image.open(src))
+            canvas = Image.new("RGBA", (canvas_size, canvas_size), (0, 0, 0, 0))
+            canvas.alpha_composite(
+                f,
+                (
+                    round((canvas_size - f.width) / 2),
+                    round((canvas_size - f.height) / 2),
+                ),
+            )
+            frames.append(canvas)
+    else:
+        base = fit_canvas(Image.open(a.src[0]))
+        for i in range(a.frames):
+            scale, rot, dx, dy = motion(a.kind, i, a.frames)
+            f = base.resize(
+                (max(1, round(base.width * scale)), max(1, round(base.height * scale))),
+                Image.Resampling.LANCZOS,
+            )
+            if rot:
+                f = f.rotate(rot, resample=Image.Resampling.BICUBIC, expand=True)
+            canvas = Image.new("RGBA", (canvas_size, canvas_size), (0, 0, 0, 0))
+            canvas.alpha_composite(
+                f,
+                (
+                    round((canvas_size - f.width) / 2 + dx),
+                    round((canvas_size - f.height) / 2 + dy),
+                ),
+            )
+            frames.append(canvas)
     frames[0].save(
         a.out,
         save_all=True,

@@ -61,6 +61,27 @@ const setup = view([], seats);
 };
 assert.equal(awaitingLocal(setup, []), true, "选将未选 → 等待");
 
+// —— mock 时钟：待办态连续两个 60s tick，动作后立即回到 10s ——
+let mockNow = 0;
+const timeline: Array<{ at: number; delay: number }> = [];
+let mocked: SgsViewData | null = pending;
+for (let i = 0; i < 2; i += 1) {
+  const delay = nextPollDelay(mocked, []);
+  timeline.push({ at: mockNow, delay });
+  mockNow += delay;
+}
+assert.deepEqual(
+  timeline.map((x) => x.delay),
+  [AWAIT_POLL_MS, AWAIT_POLL_MS],
+  "待办态：连续两次 60s 保活",
+);
+mocked = myTurn;
+const afterAction = nextPollDelay(mocked, []);
+assert.equal(afterAction, BASE_POLL_MS, "离开待办态：下一次恢复 10s");
+const beforeAction = mockNow;
+mockNow += afterAction;
+assert.equal(mockNow - beforeAction, BASE_POLL_MS, "动作后下一次 tick 只等 10s");
+
 // —— 历史 → 特效 ——
 assert.deepEqual(buildFxCues(null, view([hist(1, "x")])), [], "首帧不回放");
 
