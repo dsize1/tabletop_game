@@ -1,0 +1,7 @@
+# sgs_media 依赖（Python 3.13，纯 CPU；venv 在 D 盘 data/media/sgs/venv）
+# 安装：data/media/sgs/venv/Scripts/python.exe -m pip install -i https://mirrors.aliyun.com/pypi/simple/ -r requirements.txt
+av>=19.0.0          # 解码（免 ffmpeg）
+numpy>=2.0
+opencv-python>=4.10 # ROI/文字行检测/dHash
+pillow>=10.0        # 拼版与中文标注
+rapidocr-onnxruntime>=1.2.3  # PP-OCRv3 det/rec（onnxruntime, CPU）

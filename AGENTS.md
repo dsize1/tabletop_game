@@ -39,6 +39,7 @@
 | 三国杀规则裁定 / 特殊交互区 | `docs/games/sanguosha/rules-rulings.md`、`docs/games/sanguosha/special-zones.md` |
 | 三国杀武将抓取数据（696 位） | `docs/games/sanguosha/data/README.md`、`docs/games/sanguosha/data/heroes.json` |
 | 三国杀武将表（自动生成） | `docs/games/sanguosha/generals.md` |
+| 三国杀武将素材流水线（剧照采集 + 卡面生成） | `docs/games/sanguosha/props/media-pipeline.md` |
 | MCP 统一原语 / 能力描述符规范 | `docs/conventions/mcp-primitives.md` |
 | 本地开发环境（Docker/Redis） | `docs/dev-environment.md` |
 | 编码规范 | `docs/conventions/coding-standards.md` |
