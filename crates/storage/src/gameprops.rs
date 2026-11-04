@@ -50,6 +50,11 @@ fn columns(table: &str) -> &'static [&'static str] {
             "height",
             "bytes",
             "sha256",
+            "thumb_path",
+            "thumb_width",
+            "thumb_height",
+            "crop_json",
+            "original_name",
             "created_at",
         ],
         "sgs_identities" => &[
@@ -359,6 +364,181 @@ impl Storage {
         };
         tx.commit()?;
         Ok(result)
+    }
+
+    /// 素材列表（prop_assets）：kind 筛选 + path/原始文件名搜索。
+    pub fn list_prop_assets(
+        &self,
+        game_id: &str,
+        kind: Option<&str>,
+        q: Option<&str>,
+        limit: i64,
+        offset: i64,
+    ) -> anyhow::Result<Vec<Value>> {
+        let mut sql = String::from("SELECT * FROM prop_assets WHERE game_id = ?");
+        let mut args: Vec<SqlValue> = vec![SqlValue::Text(game_id.to_string())];
+        if let Some(kind) = kind.map(str::trim).filter(|s| !s.is_empty()) {
+            sql.push_str(" AND kind = ?");
+            args.push(SqlValue::Text(kind.to_string()));
+        }
+        if let Some(q) = q.map(str::trim).filter(|s| !s.is_empty()) {
+            sql.push_str(" AND (path LIKE ? OR COALESCE(original_name,'') LIKE ?)");
+            args.push(SqlValue::Text(format!("%{q}%")));
+            args.push(SqlValue::Text(format!("%{q}%")));
+        }
+        sql.push_str(" ORDER BY id DESC LIMIT ? OFFSET ?");
+        args.push(SqlValue::Integer(limit.clamp(1, 1000)));
+        args.push(SqlValue::Integer(offset.max(0)));
+        let conn = self.lock();
+        query_all(&conn, &sql, args)
+    }
+
+    /// 单条素材。
+    pub fn get_prop_asset(&self, id: i64) -> anyhow::Result<Option<Value>> {
+        let conn = self.lock();
+        let mut stmt = conn.prepare("SELECT * FROM prop_assets WHERE id = ?1")?;
+        let mut rows = stmt.query(params![id])?;
+        match rows.next()? {
+            Some(row) => Ok(Some(row_to_json(row)?)),
+            None => Ok(None),
+        }
+    }
+
+    /// 写入缩略图路径/尺寸（上传缩略图后调用）。
+    pub fn set_prop_asset_thumb(
+        &self,
+        id: i64,
+        path: &str,
+        width: i64,
+        height: i64,
+    ) -> anyhow::Result<Option<Value>> {
+        let conn = self.lock();
+        let n = conn.execute(
+            "UPDATE prop_assets SET thumb_path=?1, thumb_width=?2, thumb_height=?3 WHERE id=?4",
+            params![path, width, height, id],
+        )?;
+        if n == 0 {
+            return Ok(None);
+        }
+        let mut stmt = conn.prepare("SELECT * FROM prop_assets WHERE id = ?1")?;
+        let mut rows = stmt.query(params![id])?;
+        match rows.next()? {
+            Some(row) => Ok(Some(row_to_json(row)?)),
+            None => Ok(None),
+        }
+    }
+
+    /// 素材被业务表引用次数（删除保护）。
+    pub fn count_prop_asset_refs(&self, id: i64) -> anyhow::Result<i64> {
+        const TABLES: &[&str] = &[
+            "sgs_identities",
+            "sgs_card_defs",
+            "sgs_cards",
+            "sgs_generals",
+        ];
+        let conn = self.lock();
+        let mut total = 0i64;
+        for table in TABLES {
+            total += conn.query_row(
+                &format!("SELECT COUNT(*) FROM {table} WHERE image_asset_id = ?1"),
+                params![id],
+                |r| r.get::<_, i64>(0),
+            )?;
+        }
+        Ok(total)
+    }
+
+    /// 删除素材行（返回被删行，调用方负责清理磁盘文件）；不检查引用，调用方先查。
+    pub fn delete_prop_asset(&self, id: i64) -> anyhow::Result<Option<Value>> {
+        let conn = self.lock();
+        let row = {
+            let mut stmt = conn.prepare("SELECT * FROM prop_assets WHERE id = ?1")?;
+            let mut rows = stmt.query(params![id])?;
+            match rows.next()? {
+                Some(r) => Some(row_to_json(r)?),
+                None => None,
+            }
+        };
+        if row.is_some() {
+            conn.execute("DELETE FROM prop_assets WHERE id = ?1", params![id])?;
+        }
+        Ok(row)
+    }
+
+    /// 绑定 `image_asset_id`（局部更新，不动其他列）；`asset_id=None` 解除绑定。
+    pub fn bind_prop_asset(
+        &self,
+        table: &str,
+        key: &str,
+        asset_id: Option<i64>,
+    ) -> anyhow::Result<Value> {
+        const TABLES: &[&str] = &[
+            "sgs_identities",
+            "sgs_card_defs",
+            "sgs_cards",
+            "sgs_generals",
+        ];
+        if !TABLES.contains(&table) {
+            anyhow::bail!("表 {table} 不支持图片绑定");
+        }
+        let conn = self.lock();
+        if let Some(asset_id) = asset_id {
+            let exists: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM prop_assets WHERE id = ?1",
+                params![asset_id],
+                |r| r.get(0),
+            )?;
+            if exists == 0 {
+                anyhow::bail!("素材 {asset_id} 不存在");
+            }
+        }
+        let n = if table == "sgs_cards" {
+            let id: i64 = key.parse().map_err(|_| anyhow::anyhow!("非法 id {key}"))?;
+            conn.execute(
+                "UPDATE sgs_cards SET image_asset_id = ?1 WHERE id = ?2",
+                params![asset_id, id],
+            )?
+        } else {
+            conn.execute(
+                &format!("UPDATE {table} SET image_asset_id = ?1 WHERE code = ?2"),
+                params![asset_id, key],
+            )?
+        };
+        if n == 0 {
+            anyhow::bail!("记录 {key} 不存在");
+        }
+        if table == "sgs_cards" {
+            let id: i64 = key.parse().unwrap_or_default();
+            let mut stmt = conn.prepare("SELECT * FROM sgs_cards WHERE id = ?1")?;
+            let mut rows = stmt.query(params![id])?;
+            return match rows.next()? {
+                Some(r) => Ok(row_to_json(r)?),
+                None => anyhow::bail!("读取绑定结果失败"),
+            };
+        }
+        let mut stmt = conn.prepare(&format!("SELECT * FROM {table} WHERE code = ?1"))?;
+        let mut rows = stmt.query(params![key])?;
+        match rows.next()? {
+            Some(r) => Ok(row_to_json(r)?),
+            None => anyhow::bail!("读取绑定结果失败"),
+        }
+    }
+
+    /// 武将卡面映射（code → 素材路径）；供 web 内部资产映射使用。
+    pub fn general_asset_map(&self, game_id: &str) -> anyhow::Result<Vec<Value>> {
+        let conn = self.lock();
+        let mut stmt = conn.prepare(
+            "SELECT g.code AS code, a.path AS path, a.thumb_path AS thumb_path, \
+             a.width AS width, a.height AS height \
+             FROM sgs_generals g JOIN prop_assets a ON a.id = g.image_asset_id \
+             WHERE a.game_id = ?1 AND a.kind = 'general' AND g.image_asset_id IS NOT NULL",
+        )?;
+        let mut rows = stmt.query(params![game_id])?;
+        let mut out = Vec::new();
+        while let Some(row) = rows.next()? {
+            out.push(row_to_json(row)?);
+        }
+        Ok(out)
     }
 
     /// 生命周期：更新 status + 写 prop_status_log。
@@ -785,6 +965,101 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM prop_packs", [], |r| r.get(0))
             .unwrap();
         assert_eq!(n, 12);
+    }
+
+    #[test]
+    fn prop_assets_columns_and_binding() {
+        let s = Storage::open(":memory:").unwrap();
+        // 迁移列存在（旧库补列路径由 CREATE/ensure 覆盖）
+        {
+            let conn = s.lock();
+            for col in [
+                "thumb_path",
+                "thumb_width",
+                "thumb_height",
+                "crop_json",
+                "original_name",
+            ] {
+                let n: i64 = conn
+                    .query_row(
+                        "SELECT COUNT(*) FROM pragma_table_info('prop_assets') WHERE name=?1",
+                        params![col],
+                        |r| r.get(0),
+                    )
+                    .unwrap();
+                assert_eq!(n, 1, "缺少列 {col}");
+            }
+        }
+        // 包 + 武将 + 素材 → 绑定 → 映射 → 引用计数 → 解绑
+        s.upsert_gameprops(
+            "prop_packs",
+            &json!({
+                "game_id": "sanguosha", "kind": "general", "code": "standard",
+                "name": "标准", "sort_order": 10, "enabled": 1
+            })
+            .as_object()
+            .unwrap()
+            .clone(),
+        )
+        .unwrap();
+        let pack_id = s
+            .upsert_gameprops(
+                "prop_packs",
+                &json!({
+                    "game_id": "sanguosha", "kind": "general", "code": "standard",
+                    "name": "标准", "sort_order": 10, "enabled": 1
+                })
+                .as_object()
+                .unwrap()
+                .clone(),
+            )
+            .unwrap()["id"]
+            .as_i64()
+            .unwrap();
+        s.upsert_gameprops(
+            "sgs_generals",
+            &json!({
+                "code": "sgs_hero_1", "name": "刘备", "kingdom": "shu",
+                "pack_id": pack_id, "max_hp": 4, "status": "live"
+            })
+            .as_object()
+            .unwrap()
+            .clone(),
+        )
+        .unwrap();
+        let asset = s
+            .upsert_gameprops(
+                "prop_assets",
+                &json!({
+                    "game_id": "sanguosha", "kind": "general",
+                    "path": "sanguosha/general/aa.webp", "mime": "image/webp",
+                    "width": 512, "height": 720, "bytes": 1234,
+                    "sha256": "aa", "thumb_path": "sanguosha/general/aa.t.webp",
+                    "thumb_width": 256, "thumb_height": 360
+                })
+                .as_object()
+                .unwrap()
+                .clone(),
+            )
+            .unwrap();
+        let asset_id = asset["id"].as_i64().unwrap();
+        assert_eq!(asset["thumb_url"], Value::Null);
+        let bound = s
+            .bind_prop_asset("sgs_generals", "sgs_hero_1", Some(asset_id))
+            .unwrap();
+        assert_eq!(bound["image_asset_id"].as_i64(), Some(asset_id));
+        assert_eq!(s.count_prop_asset_refs(asset_id).unwrap(), 1);
+        let map = s.general_asset_map("sanguosha").unwrap();
+        assert_eq!(map.len(), 1);
+        assert_eq!(map[0]["code"], "sgs_hero_1");
+        assert_eq!(map[0]["thumb_path"], "sanguosha/general/aa.t.webp");
+        let unbound = s
+            .bind_prop_asset("sgs_generals", "sgs_hero_1", None)
+            .unwrap();
+        assert_eq!(unbound["image_asset_id"], Value::Null);
+        assert_eq!(s.count_prop_asset_refs(asset_id).unwrap(), 0);
+        assert!(s.delete_prop_asset(asset_id).unwrap().is_some());
+        assert!(s.get_prop_asset(asset_id).unwrap().is_none());
     }
 
     #[test]

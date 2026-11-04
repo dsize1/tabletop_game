@@ -10,7 +10,7 @@
 2. **运行时状态不拆实体表**：沿用既有 `game_state`（JSON 快照）+ `game_events`（append-only 事件）事件溯源（ADR-0004/0008）；三国杀的状态结构写在 `data` JSON 里，带 `schema_version`。
 3. **单写者**：所有写路径收敛到 `crates/server`（REST `/internal/*`，管理员白名单）；中台 SPA 不直连 SQLite。
 4. **通用表 + 游戏专用表**：包/素材是跨游戏通用表（`prop_*`）；身份/牌/武将/技能是三国杀专用表（`sgs_*`），约束写在 SQL 里，便于后台表单直接校验。
-5. **图片字段先留空**：P1 只建 `image_asset_id`（可空）与 `prop_assets` 表，不做上传；后续接 `apps/scripts/board-assets.mjs` 流水线（webp + 指纹命名）。**素材自行制作，不使用官方图**。
+5. **图片字段**：`image_asset_id`（可空）→ `prop_assets`（内容寻址 webp + 缩略图）；上传/裁剪/绑定见 `docs/modules/props-admin.md` 与 ADR-0036。**素材自行制作，不使用官方图**（官方 `avatar/cover` 仅作参考）。
 6. **统一生命周期**：所有身份/牌/武将/技能行都有 `status`（新建/测试/审核/上线/下线），下线为软删；引擎与只读接口只消费 `live`。
 7. **视图三分区**：公共局面区 / 玩家个人资源区 / 特殊交互区（观星、五谷丰登等），见 §4.2（ADR-0020）。
 8. **时间戳**：一律 ISO 8601 UTC 文本（`created_at` / `updated_at`），与现有表一致。

@@ -16,10 +16,17 @@ import {
   handLimitLabel,
   hpPips,
   judgeIcon,
+  avatarHtml,
   playerName,
 } from "./format.js";
 import { skillDescription } from "./skill-text.js";
-import type { SgsCard, SgsPlayerArea, SgsPublicBoard, SgsSpecialZones } from "./types.js";
+import type {
+  SgsAssetMap,
+  SgsCard,
+  SgsPlayerArea,
+  SgsPublicBoard,
+  SgsSpecialZones,
+} from "./types.js";
 
 function pendingSummary(area: SgsPlayerArea): string {
   const p = area.pending;
@@ -81,7 +88,11 @@ function wuguPanel(zones: SgsSpecialZones | undefined, names?: Record<string, st
  * 玩家在选将阶段看不到任何可点控件 → 表现为「卡在选将」。
  * 引擎已在 `player_area.setup.candidate_details` 投影名字/势力/体力/技能名。
  */
-function setupPanel(area: SgsPlayerArea, board: SgsPublicBoard): string {
+function setupPanel(
+  area: SgsPlayerArea,
+  board: SgsPublicBoard,
+  assets?: SgsAssetMap,
+): string {
   const setup = area.setup;
   if (!setup) return "";
   const details = setup.candidate_details ?? [];
@@ -92,7 +103,9 @@ function setupPanel(area: SgsPlayerArea, board: SgsPublicBoard): string {
     const name = details.find((d) => d.code === picked)?.name ?? area.general_name ?? picked;
     return (
       `<div class="sgs-setup" data-setup="picked">` +
-      `<div class="sgs-setup-head">已选武将：<b>${escapeHtml(name)}</b></div>` +
+      `<div class="sgs-setup-head">` +
+      avatarHtml(picked, name, undefined, assets, { cls: "sgs-setup-avatar", size: [48, 68] }) +
+      `<span>已选武将：<b>${escapeHtml(name)}</b></span></div>` +
       `<div class="muted">等待其他玩家选将（${pickedCount}/${total}）</div>` +
       `</div>`
     );
@@ -109,9 +122,10 @@ function setupPanel(area: SgsPlayerArea, board: SgsPublicBoard): string {
       const meta = [kingdom, hp, skills].filter(Boolean).join(" · ");
       return (
         `<button type="button" class="sgs-candidate" data-action="setup:choose_general:${escapeHtml(d.code)}">` +
-        `<b>${escapeHtml(d.name)}</b>` +
+        avatarHtml(d.code, d.name, d.kingdom, assets, { cls: "sgs-candidate-avatar", size: [48, 68] }) +
+        `<span class="sgs-candidate-body"><b>${escapeHtml(d.name)}</b>` +
         (meta ? `<span class="muted">${escapeHtml(meta)}</span>` : "") +
-        `</button>`
+        `</span></button>`
       );
     })
     .join("");
@@ -165,6 +179,7 @@ export function renderPersonalArea(
   zones: SgsSpecialZones | undefined,
   names?: Record<string, string>,
   actions?: SgsActionItem[],
+  assets?: SgsAssetMap,
 ): string {
   if (!area) return `<section class="sgs-personal muted">个人资源区不可见（未坐下或已阵亡）</section>`;
   const acts = actions ?? [];
@@ -289,7 +304,12 @@ export function renderPersonalArea(
   return (
     `<section class="sgs-personal" aria-label="个人资源区">` +
     `<div class="sgs-me">` +
-    `<div class="sgs-me-head"><b>${escapeHtml(general)}</b>` +
+    `<div class="sgs-me-head">` +
+    avatarHtml(area.general, general, area.kingdom, assets, {
+      cls: "sgs-me-avatar",
+      size: [52, 72],
+    }) +
+    `<b>${escapeHtml(general)}</b>` +
     (area.flipped ? `<span class="sgs-flip">翻面</span>` : "") +
     (kingdom ? `<span class="sgs-kingdom">${escapeHtml(kingdom)}</span>` : "") +
     `<span class="sgs-identity ${escapeHtml(area.identity)}">${escapeHtml(
@@ -300,7 +320,7 @@ export function renderPersonalArea(
     `<div class="sgs-skills">${skills}</div>` +
     marksHtml(area) +
     `</div>` +
-    setupPanel(area, board) +
+    setupPanel(area, board, assets) +
     `<div class="sgs-me-row">` +
     `<div class="sgs-equips">${equips}</div>` +
     `<div class="sgs-judge"><span class="sgs-equip-label">判定</span>${area.judge_abolished ? `<span class="muted">废除</span>` : judge || `<span class="muted">无</span>`}</div>` +

@@ -1,7 +1,7 @@
 // 三国杀视图：文案 / 牌面 / 座位布局（纯函数，服务端与浏览器共用）。
 
 import { escapeHtml } from "../format.js";
-import type { SgsCard, Suit } from "./types.js";
+import type { SgsAssetMap, SgsCard, Suit } from "./types.js";
 
 export const SUIT_LABEL: Record<Suit, string> = {
   spade: "♠",
@@ -122,6 +122,47 @@ export function cardChipHtml(card: SgsCard, opts: { icon?: string; long?: boolea
   return (
     `<span class="sgs-chip${red}" data-press="card" data-card="${escapeHtml(card.id)}" ` +
     `title="${escapeHtml(cardLabel(card))}">${escapeHtml(text)}</span>`
+  );
+}
+
+/** 势力色（占位头像底色；与 KINGDOM_LABEL 的 key 一致）。 */
+const AVATAR_KINGDOM: Record<string, string> = {
+  shu: "#7a2f2a",
+  wei: "#24406b",
+  wu: "#1f5a44",
+  qun: "#4a4a52",
+  jin: "#4b2f6b",
+  god: "#6b5a1f",
+};
+
+/**
+ * 武将头像（有素材 → `<img>`，无素材/未绑定 → 势力色首字占位，绝不裂图）。
+ *
+ * `variant=thumb` 用于座位卡/选将候选；`full` 用于详情浮层。
+ */
+export function avatarHtml(
+  code: string | null | undefined,
+  name: string | undefined,
+  kingdom: string | null | undefined,
+  assets: SgsAssetMap | undefined,
+  opts: { variant?: "thumb" | "full"; cls?: string; size?: [number, number] } = {},
+): string {
+  const ref = code ? assets?.[code] : undefined;
+  const variant = opts.variant ?? "thumb";
+  const [dw, dh] = opts.size ?? (variant === "full" ? [512, 720] : [256, 360]);
+  const cls = `sgs-avatar${opts.cls ? ` ${opts.cls}` : ""}`;
+  if (!ref) {
+    const ch = (name ?? "").trim().charAt(0);
+    const color = AVATAR_KINGDOM[kingdom ?? ""] ?? "#2a3340";
+    return (
+      `<span class="${cls} ph" style="--sgs-avatar-bg:${color}" aria-hidden="true">` +
+      `${escapeHtml(ch || "?")}</span>`
+    );
+  }
+  const src = variant === "full" ? ref.url : ref.thumb;
+  return (
+    `<img class="${cls}" src="${escapeHtml(src)}" width="${dw}" height="${dh}" ` +
+    `loading="lazy" decoding="async" alt="${escapeHtml(name ?? "")}">`
   );
 }
 

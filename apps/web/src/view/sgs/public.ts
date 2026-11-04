@@ -8,6 +8,7 @@ import {
   IDENTITY_LABEL,
   KINGDOM_LABEL,
   PHASE_LABEL,
+  avatarHtml,
   cardBackHtml,
   cardChipHtml,
   cardLabel,
@@ -18,13 +19,14 @@ import {
   seatPlacements,
   othersInSeatOrder,
 } from "./format.js";
-import type { SgsCard, SgsPublicBoard, SgsSpecialZones, SgsViewData } from "./types.js";
+import type { SgsAssetMap, SgsCard, SgsPublicBoard, SgsSpecialZones, SgsViewData } from "./types.js";
 
 function seatCard(
   board: SgsPublicBoard,
   seatIdx: number,
   placement: { left: number; top: number; side: "left" | "top" | "right" },
   names?: Record<string, string>,
+  assets?: SgsAssetMap,
 ): string {
   const seat = board.seats[seatIdx];
   if (!seat) return "";
@@ -67,7 +69,14 @@ function seatCard(
   const handDots = Array.from({ length: shownBacks }, () => cardBackHtml()).join("");
   return (
     `<div class="${cls}" data-press="general" data-seat="${seatIdx}" style="left:${placement.left}%;top:${placement.top}%">` +
-    `<div class="sgs-opponent-head">${name}${identity}</div>` +
+    `<div class="sgs-opponent-head">` +
+    avatarHtml(seat.general, seat.general_name, seat.kingdom, assets, {
+      cls: "sgs-opp-avatar",
+      size: [26, 26],
+    }) +
+    name +
+    identity +
+    `</div>` +
     general +
     `<div class="sgs-hp">${hpPips(seat.hp, seat.max_hp)}<span class="sgs-hp-num">${seat.hp}/${seat.max_hp}</span></div>` +
     `<div class="sgs-hand-mini" title="手牌数 / 手牌上限">${handDots}<span class="sgs-hand-count">×${seat.hand_count}/${handLimitLabel(seat.hand_limit)}</span></div>` +
@@ -111,13 +120,14 @@ export function renderPublicArea(
   data: SgsViewData,
   mySeat: number,
   names?: Record<string, string>,
+  assets?: SgsAssetMap,
 ): string {
   const board = data.public_board;
   const n = board.seat_count || board.seats.length;
   const others = othersInSeatOrder(n, mySeat);
   const placements = seatPlacements(others.length);
   const seatsHtml = placements
-    .map((p) => seatCard(board, others[p.index], p, names))
+    .map((p) => seatCard(board, others[p.index], p, names, assets))
     .join("");
 
   const phase = PHASE_LABEL[board.turn.phase] ?? board.turn.phase;

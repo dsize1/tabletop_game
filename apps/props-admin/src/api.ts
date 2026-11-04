@@ -11,7 +11,7 @@ export function setAdminToken(token: string): void {
 
 async function fetchJson<T>(url: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
-  headers.set("content-type", "application/json");
+  if (!headers.has("content-type")) headers.set("content-type", "application/json");
   const token = getAdminToken();
   if (token) headers.set("x-props-admin-token", token);
   const res = await fetch(url, { ...init, headers });
@@ -31,6 +31,26 @@ async function fetchJson<T>(url: string, init: RequestInit = {}): Promise<T> {
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return fetchJson<T>(`/internal/gameprops${path}`, init);
+}
+
+export interface PropAsset {
+  id: number;
+  game_id: string;
+  kind: string;
+  path: string;
+  mime: string;
+  width?: number | null;
+  height?: number | null;
+  bytes?: number | null;
+  sha256?: string | null;
+  thumb_path?: string | null;
+  thumb_width?: number | null;
+  thumb_height?: number | null;
+  original_name?: string | null;
+  crop_json?: string | null;
+  created_at: string;
+  url: string;
+  thumb_url: string;
 }
 
 export const api = {
@@ -72,6 +92,66 @@ export const api = {
       };
       source: string;
     }>("/import/engine", { method: "POST" }),
+  listAssets: (
+    params: { gameId?: string; kind?: string; q?: string; limit?: number; offset?: number } = {},
+  ) => {
+    const sp = new URLSearchParams();
+    sp.set("game_id", params.gameId ?? "sanguosha");
+    if (params.kind) sp.set("kind", params.kind);
+    if (params.q) sp.set("q", params.q);
+    sp.set("limit", String(params.limit ?? 500));
+    sp.set("offset", String(params.offset ?? 0));
+    return request<{ game_id: string; rows: PropAsset[] }>(`/assets?${sp.toString()}`);
+  },
+  uploadAsset: (opts: {
+    gameId?: string;
+    kind: string;
+    width: number;
+    height: number;
+    filename?: string;
+    crop?: string;
+    blob: Blob;
+  }) => {
+    const sp = new URLSearchParams();
+    sp.set("game_id", opts.gameId ?? "sanguosha");
+    sp.set("kind", opts.kind);
+    sp.set("width", String(opts.width));
+    sp.set("height", String(opts.height));
+    if (opts.filename) sp.set("filename", opts.filename);
+    if (opts.crop) sp.set("crop", opts.crop);
+    return fetchJson<{ asset: PropAsset }>(`/internal/gameprops/assets/upload?${sp.toString()}`, {
+      method: "POST",
+      headers: { "content-type": opts.blob.type || "image/webp" },
+      body: opts.blob,
+    });
+  },
+  uploadThumb: (id: number, blob: Blob, width: number, height: number) => {
+    const sp = new URLSearchParams();
+    sp.set("width", String(width));
+    sp.set("height", String(height));
+    return fetchJson<{ asset: PropAsset }>(
+      `/internal/gameprops/assets/${id}/thumb?${sp.toString()}`,
+      {
+        method: "POST",
+        headers: { "content-type": blob.type || "image/webp" },
+        body: blob,
+      },
+    );
+  },
+  bindAsset: (payload: {
+    table: string;
+    code?: string;
+    id?: number;
+    asset_id: number | null;
+  }) =>
+    request<{ row: Record<string, unknown> }>("/bind-asset", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  deleteAsset: (id: number) =>
+    fetchJson<{ deleted: boolean; id: number }>(`/internal/gameprops/assets/${id}`, {
+      method: "DELETE",
+    }),
   importHeroes: () =>
     request<{ imported: { generals: number; skills: number }; source: string }>(
       "/import/heroes",

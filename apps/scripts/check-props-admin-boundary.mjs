@@ -83,6 +83,14 @@ for (const needle of ["require_workbench", "preview:", "game_decision_log"]) {
   }
 }
 
+// 2.7) 素材静态服务：web 同源托管（内容寻址），server 独占写盘
+if (!web.includes('"/game-assets"') || !web.includes("GAMEPROPS_ASSETS_DIR")) {
+  fail("web 缺少 /game-assets 静态托管 / GAMEPROPS_ASSETS_DIR（素材由 server 写入、web 同源服务）");
+}
+if (!read(SERVER_PROPS).includes("props_assets_dir") && !read("crates/server/src/gameprops_assets.rs").includes("props_assets_dir")) {
+  fail("server 缺少素材目录（props_assets_dir）");
+}
+
 // 3) server 仍只监听回环
 const server = read(SERVER_MAIN);
 if (!server.includes("127.0.0.1")) {

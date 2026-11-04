@@ -4,11 +4,13 @@ import ResourcePage from "./pages/ResourcePage.vue";
 import CardRelation from "./pages/CardRelation.vue";
 import ImportPage from "./pages/ImportPage.vue";
 import WorkbenchPage from "./pages/WorkbenchPage.vue";
+import AssetsPage from "./pages/AssetsPage.vue";
 
 export const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     { path: "/", component: Dashboard },
+    { path: "/assets", component: AssetsPage },
     { path: "/packs", component: ResourcePage, meta: { table: "prop_packs" } },
     { path: "/identities", component: ResourcePage, meta: { table: "sgs_identities" } },
     { path: "/identity-setup", component: ResourcePage, meta: { table: "sgs_identity_setup" } },

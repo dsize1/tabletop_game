@@ -77,6 +77,8 @@ impl Storage {
         conn.execute_batch(CREATE_TABLES)?;
         // dev_tasks 加列（幂等）：ADR-0015 §3.3（stage/executor/... 投影列）
         ensure_dev_task_columns(&conn)?;
+        // prop_assets 加列（幂等）：缩略图 / 裁剪审计（P1 素材入库）
+        ensure_prop_assets_columns(&conn)?;
         Ok(Self {
             conn: Mutex::new(conn),
         })
@@ -1080,6 +1082,31 @@ fn ensure_dev_task_columns(conn: &Connection) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// 迁移：prop_assets 旧结构（只有原图字段）→ 补缩略图/裁剪审计列。
+fn ensure_prop_assets_columns(conn: &Connection) -> anyhow::Result<()> {
+    const COLS: &[(&str, &str)] = &[
+        ("thumb_path", "TEXT"),
+        ("thumb_width", "INTEGER"),
+        ("thumb_height", "INTEGER"),
+        ("crop_json", "TEXT"),
+        ("original_name", "TEXT"),
+    ];
+    for (name, ty) in COLS {
+        let exists: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('prop_assets') WHERE name=?1",
+            params![name],
+            |r| r.get(0),
+        )?;
+        if exists == 0 {
+            conn.execute(
+                &format!("ALTER TABLE prop_assets ADD COLUMN {name} {ty}"),
+                [],
+            )?;
+        }
+    }
+    Ok(())
+}
+
 /// 迁移：chat_history 旧结构（群级，缺 `openid`/`event_id`）→ 新 per-user 结构。
 /// 旧表无任何写入方（历史遗留），发现旧结构则直接重建，数据不作保留。
 fn migrate_chat_history(conn: &Connection) -> anyhow::Result<()> {
@@ -1271,16 +1298,24 @@ CREATE TABLE IF NOT EXISTS prop_packs (
     UNIQUE (game_id, kind, code)
 );
 CREATE TABLE IF NOT EXISTS prop_assets (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    game_id     TEXT    NOT NULL,
-    kind        TEXT    NOT NULL,
-    path        TEXT    NOT NULL,
-    mime        TEXT    NOT NULL,
-    width       INTEGER,
-    height      INTEGER,
-    bytes       INTEGER,
-    sha256      TEXT,
-    created_at  TEXT    NOT NULL,
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    game_id       TEXT    NOT NULL,
+    kind          TEXT    NOT NULL,
+    path          TEXT    NOT NULL,
+    mime          TEXT    NOT NULL,
+    width         INTEGER,
+    height        INTEGER,
+    bytes         INTEGER,
+    sha256        TEXT,
+    -- 缩略图：内容寻址的相对路径（与 path 同目录）；可为空（列表回退原图）
+    thumb_path    TEXT,
+    thumb_width   INTEGER,
+    thumb_height  INTEGER,
+    -- 裁剪审计（JSON：{x,y,w,h,src_w,src_h}）；不保存原始大图
+    crop_json     TEXT,
+    -- 客户端原始文件名（仅审计，绝不参与磁盘路径）
+    original_name TEXT,
+    created_at    TEXT    NOT NULL,
     UNIQUE (game_id, path)
 );
 CREATE TABLE IF NOT EXISTS sgs_identities (

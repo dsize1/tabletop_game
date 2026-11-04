@@ -15,8 +15,10 @@ import {
   useMessage,
   type DataTableColumns,
 } from "naive-ui";
-import { api } from "../api";
+import { api, type PropAsset } from "../api";
 import { emptyRow, schemas, tableColumns, type Field, type ResourceSchema } from "../schemas";
+import AssetPicker from "../components/AssetPicker.vue";
+import AssetCropDialog from "../components/AssetCropDialog.vue";
 
 const route = useRoute();
 const message = useMessage();
@@ -32,6 +34,59 @@ const showModal = ref(false);
 const saving = ref(false);
 const form = ref<Record<string, unknown>>({});
 const editing = ref(false);
+
+// —— 卡面/图片绑定（P1 入中台） ——
+const assetRows = ref<PropAsset[]>([]);
+const assetById = computed(() => new Map(assetRows.value.map((a) => [a.id, a])));
+const assetKind = computed(() =>
+  table.value === "sgs_generals"
+    ? "general"
+    : table.value === "sgs_identities"
+      ? "identity"
+      : "card",
+);
+const pickerShow = ref(false);
+const cropShow = ref(false);
+const pickerField = ref<Field | null>(null);
+
+async function loadAssets() {
+  try {
+    const res = await api.listAssets({ limit: 1000 });
+    assetRows.value = res.rows;
+  } catch {
+    // 素材列表失败不阻塞主表编辑（列显示「未绑定」）
+  }
+}
+
+function assetOf(field: Field): PropAsset | undefined {
+  const id = form.value[field.key];
+  return typeof id === "number" ? assetById.value.get(id) : undefined;
+}
+
+function openPicker(field: Field) {
+  pickerField.value = field;
+  pickerShow.value = true;
+}
+
+function openCrop(field: Field) {
+  pickerField.value = field;
+  cropShow.value = true;
+}
+
+function onPicked(asset: PropAsset) {
+  if (pickerField.value) form.value[pickerField.value.key] = asset.id;
+  pickerShow.value = false;
+}
+
+function onUploaded(asset: PropAsset) {
+  assetRows.value = [asset, ...assetRows.value.filter((a) => a.id !== asset.id)];
+  if (pickerField.value) form.value[pickerField.value.key] = asset.id;
+  cropShow.value = false;
+}
+
+function clearAsset(field: Field) {
+  form.value[field.key] = null;
+}
 
 const statusOptions = [
   { label: "全部状态", value: "" },
@@ -116,6 +171,23 @@ const columns = computed<DataTableColumns<Record<string, unknown>>>(() => {
     ellipsis: true,
     render: (row) => {
       const v = row[f.key];
+      if (f.type === "asset") {
+        const asset = typeof v === "number" ? assetById.value.get(v) : undefined;
+        return asset
+          ? h("img", {
+              src: asset.thumb_url,
+              alt: String(asset.path),
+              loading: "lazy",
+              style: {
+                width: "36px",
+                height: "50px",
+                objectFit: "cover",
+                borderRadius: "4px",
+                display: "block",
+              },
+            })
+          : h("span", { style: { color: "#888" } }, { default: () => "未绑定" });
+      }
       if (f.key === "status") {
         return h(NTag, { size: "small", type: v === "live" ? "success" : v === "offline" ? "error" : "default" }, { default: () => String(v ?? "") });
       }
@@ -151,7 +223,9 @@ function setField(f: Field, v: unknown) {
   form.value[f.key] = v;
 }
 
-onMounted(load);
+onMounted(async () => {
+  await Promise.all([load(), loadAssets()]);
+});
 watch(() => route.path, load);
 </script>
 
@@ -181,6 +255,18 @@ watch(() => route.path, load);
     <n-modal v-model:show="showModal" preset="card" :title="editing ? `编辑 ${schema.title}` : `新建 ${schema.title}`" style="width: 720px">
       <n-form label-placement="top" :model="form">
         <n-form-item v-for="f in schema.fields" :key="f.key" :label="f.label" :path="f.key">
+          <div v-if="f.type === 'asset'" style="display: flex; gap: 10px; align-items: center">
+            <img
+              v-if="assetOf(f)"
+              :src="assetOf(f)?.thumb_url"
+              :alt="assetOf(f)?.path"
+              style="width: 54px; height: 76px; object-fit: cover; border-radius: 6px; border: 1px solid #333"
+            />
+            <span v-else style="font-size: 12px; color: #888">未绑定</span>
+            <n-button size="small" @click="openPicker(f)">选择素材</n-button>
+            <n-button size="small" type="primary" @click="openCrop(f)">上传并绑定</n-button>
+            <n-button size="small" v-if="assetOf(f)" @click="clearAsset(f)">清除</n-button>
+          </div>
           <n-select
             v-if="f.type === 'select'"
             :value="(fieldValue(f) as string | number | null)"
@@ -210,5 +296,17 @@ watch(() => route.path, load);
         </n-space>
       </template>
     </n-modal>
+
+    <asset-picker
+      v-model:show="pickerShow"
+      :kind="assetKind"
+      :title="pickerField ? `选择${pickerField.label}` : '选择素材'"
+      @picked="onPicked"
+    />
+    <asset-crop-dialog
+      v-model:show="cropShow"
+      :kind="assetKind"
+      @uploaded="onUploaded"
+    />
   </div>
 </template>

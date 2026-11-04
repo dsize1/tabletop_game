@@ -10,7 +10,7 @@ import { escapeHtml } from "../format.js";
 import { renderPersonalArea } from "./personal.js";
 import { renderPublicArea, renderSidePanel } from "./public.js";
 import { renderSgsTextBody } from "./text.js";
-import type { SgsViewData } from "./types.js";
+import type { SgsAssetMap, SgsViewData } from "./types.js";
 
 export interface SgsPageOpts {
   gameId: string;
@@ -25,6 +25,8 @@ export interface SgsPageOpts {
     /** 座位（视角下拉；由调用方从视图数据提取）。 */
     seats?: Array<{ seat: number; player_id: string; general_name?: string }>;
   };
+  /** 武将 code → 卡面（web 同源 `/game-assets` 静态服务；缺失时占位不裂图）。 */
+  assets?: SgsAssetMap;
 }
 
 /** JSON 内联到 <script> 时必须转义 `<`。 */
@@ -101,9 +103,9 @@ button { font: inherit; color: inherit; }
 .sgs-waiting { margin-top:8px; font-size:12px; color:var(--sgs-gold); }
 .sgs-waiting-bot { color:var(--sgs-accent, #6fb3ff); opacity:.9; }
 .sgs-setup { margin:8px 0 10px; padding:10px 12px; border:1px solid var(--sgs-line, #3a3f4a); border-radius:10px; background:rgba(255,255,255,.03); }
-.sgs-setup-head { font-size:13px; margin-bottom:8px; }
+.sgs-setup-head { display:flex; gap:8px; align-items:center; font-size:13px; margin-bottom:8px; }
 .sgs-setup-list { display:flex; flex-wrap:wrap; gap:8px; }
-.sgs-candidate { display:flex; flex-direction:column; align-items:flex-start; gap:2px; min-width:96px; padding:8px 10px; border-radius:8px; border:1px solid var(--sgs-line, #3a3f4a); background:rgba(255,255,255,.04); color:inherit; cursor:pointer; }
+.sgs-candidate { display:flex; flex-direction:row; align-items:center; gap:8px; min-width:96px; padding:8px 10px; border-radius:8px; border:1px solid var(--sgs-line, #3a3f4a); background:rgba(255,255,255,.04); color:inherit; cursor:pointer; }
 .sgs-candidate:hover { border-color:var(--sgs-gold, #d8b25a); }
 .sgs-candidate .muted { font-size:11px; }
 .sgs-recasts { display:inline-flex; gap:6px; flex-wrap:wrap; }
@@ -215,6 +217,19 @@ body.busy { cursor:progress; }
 .sgs-discard-list li { padding:1px 0; }
 .sgs-deck-btn { cursor:pointer; text-align:left; color:inherit; }
 .sgs-card.pressed, .sgs-opponent.pressed, .sgs-chip.pressed, .sgs-deck-btn.pressed { outline:2px solid var(--sgs-gold); }
+/* 武将卡面（thumb/full；无素材 → 势力色首字占位） */
+.sgs-avatar { display:inline-block; flex:0 0 auto; object-fit:cover; object-position:50% 18%;
+  border-radius:6px; border:1px solid rgba(255,255,255,.14); background:#20262e; }
+.sgs-avatar.ph { display:inline-flex; align-items:center; justify-content:center;
+  color:#e6edf3; font-weight:700; font-size:15px;
+  background:linear-gradient(160deg, var(--sgs-avatar-bg, #2a3340), #151a21); }
+.sgs-opp-avatar { width:26px; height:26px; border-radius:50%; object-position:50% 22%; }
+.sgs-me-avatar { width:52px; height:72px; }
+.sgs-setup-avatar { width:48px; height:68px; }
+.sgs-candidate-avatar { width:48px; height:68px; }
+.sgs-candidate-body { display:flex; flex-direction:column; align-items:flex-start; gap:2px; min-width:0; }
+.sgs-detail-portrait { display:flex; justify-content:center; margin-bottom:10px; }
+.sgs-detail-avatar { width:min(70vw, 240px); height:auto; aspect-ratio:512 / 720; }
 .sgs-text { display:none; padding:12px 16px 90px; }
 .sgs-text h2 { font-size:16px; } .sgs-text h3 { font-size:13px; color:var(--sgs-muted); margin:14px 0 4px; }
 .sgs-text ul { padding-left:18px; margin:0; } .sgs-text li { font-size:13px; line-height:1.6; }
@@ -266,12 +281,20 @@ export function renderSgsApp(
   data: SgsViewData,
   names?: Record<string, string>,
   actions?: Array<{ id: string; description: string }>,
+  assets?: SgsAssetMap,
 ): string {
   const mySeat = data.player_area?.seat ?? data.public_board.turn.seat;
   return (
     `<div class="sgs-main">` +
-    renderPublicArea(data, mySeat, names) +
-    renderPersonalArea(data.player_area, data.public_board, data.special_zones, names, actions) +
+    renderPublicArea(data, mySeat, names, assets) +
+    renderPersonalArea(
+      data.player_area,
+      data.public_board,
+      data.special_zones,
+      names,
+      actions,
+      assets,
+    ) +
     `</div>`
   );
 }
@@ -315,6 +338,7 @@ export function renderSgsPage(view: GameView, opts: SgsPageOpts): string {
     roomId: opts.roomId,
     openid: opts.openid,
     pollMs: opts.pollMs ?? 10000,
+    assets: opts.assets ?? {},
     preview: opts.preview
       ? { room: opts.roomId, viewer: opts.openid, returnUrl: opts.preview.returnUrl ?? "" }
       : undefined,
@@ -343,8 +367,15 @@ export function renderSgsPage(view: GameView, opts: SgsPageOpts): string {
     `<div class="sgs-layout">` +
     renderSidePanel(data, names) +
     `<div class="sgs-main" id="sgs-app">` +
-    renderPublicArea(data, data.player_area?.seat ?? board.turn.seat, names) +
-    renderPersonalArea(data.player_area, board, data.special_zones, names, actions) +
+    renderPublicArea(data, data.player_area?.seat ?? board.turn.seat, names, opts.assets) +
+    renderPersonalArea(
+      data.player_area,
+      board,
+      data.special_zones,
+      names,
+      actions,
+      opts.assets,
+    ) +
     `</div>` +
     `</div>` +
     `<div class="sgs-statusbar"><span>登录态由 Cookie 维持（链接不含 token）</span>` +

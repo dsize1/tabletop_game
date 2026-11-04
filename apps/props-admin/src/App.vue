@@ -13,6 +13,7 @@ const propsScope = ref<"admin" | "workbench" | null>(null);
 
 const menuOptions = [
   { label: "概览", key: "/" },
+  { label: "素材", key: "/assets" },
   { label: "道具包", key: "/packs" },
   { label: "身份", key: "/identities" },
   { label: "身份配比", key: "/identity-setup" },

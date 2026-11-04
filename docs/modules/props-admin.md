@@ -3,7 +3,7 @@
 - **前端**：`apps/props-admin`（Vue 3 + Vite + TypeScript + Naive UI）
 - **后端**：`crates/server` 的 `/internal/gameprops/*`（SQLite 单写者）
 - **数据**：`crates/storage/src/gameprops.rs` + `CREATE_TABLES` 中的 `prop_*` / `sgs_*` 表
-- **状态**：P1 可用（2026-10-26）；**仅本机**，不暴露公网；图片上传、卡牌官方导入尚未实现
+- **状态**：P1 可用（2026-10-26）；素材上传/缩略图/裁剪/绑定/Web 展示（2026-11-04，ADR-0036）；卡牌官方图片导入仍不做
 
 ## 启动
 
@@ -50,6 +50,7 @@ SERVER_URL=http://127.0.0.1:3100 npm --workspace @tabletop-game/props-admin run 
 | 路径 | 内容 |
 |---|---|
 | `/` | 概览：各表计数/状态分布 |
+| `/assets` | **素材**：卡面/卡牌图（缩略图网格、筛选、上传+裁剪、预览、删除、复制路径） |
 | `/packs` | 道具包（武将包/牌堆包） |
 | `/identities` | 身份（4 种） |
 | `/identity-setup` | 人数 → 身份配比（5–8 + 双内） |
@@ -68,6 +69,12 @@ SERVER_URL=http://127.0.0.1:3100 npm --workspace @tabletop-game/props-admin run 
 |---|---|---|
 | GET | `/internal/gameprops/summary` | 计数/状态分布 |
 | GET | `/internal/gameprops/{table}?status=&q=&limit=&offset=` | 列表（白名单表） |
+| POST | `/internal/gameprops/assets/upload?game_id=&kind=&width=&height=&filename=&crop=` | **上传原图**（raw body；WebP/PNG/JPEG；内容寻址） |
+| POST | `/internal/gameprops/assets/{id}/thumb?width=&height=` | **上传缩略图**（raw body；写 `thumb_path`） |
+| GET | `/internal/gameprops/assets?game_id=&kind=&q=&limit=&offset=` | 素材列表（带 `url`/`thumb_url`） |
+| GET | `/internal/gameprops/asset-map?game_id=&kind=general` | `code → {url,thumb,width,height}`（web SSR 用） |
+| POST | `/internal/gameprops/bind-asset` | 绑定/解绑 `image_asset_id`（`table + code/id + asset_id`） |
+| DELETE | `/internal/gameprops/assets/{id}` | 删除素材（被引用 → 409） |
 | GET | `/internal/gameprops/{table}/{code}` | 单行（模糊匹配） |
 | POST | `/internal/gameprops/{table}` | upsert 一行（JSON） |
 | POST | `/internal/gameprops/status` | `{table,entity_code,to_status,note?}` + 审计日志 |
@@ -112,9 +119,27 @@ SERVER_URL=http://127.0.0.1:3100 npm --workspace @tabletop-game/props-admin run 
 - **本地开发注意**：Vite（5174）与 web（18080）跨站，`SameSite=Lax` 的 `tg_props` 不会随 iframe 发送。要在本地看 iframe 预览，请用同源构建页：`npm run build:props` 后打开 `http://127.0.0.1:18080/props-admin/workbench`。
 - 场景注入 `SceneSpec` 字段见 `crates/engines/sanguosha/src/scene.rs` 的 `scene_schema()`；卡牌 token 只支持「牌实例 id / 定义码」，且只能从摸牌堆/弃牌堆/移出区取。
 
+## 素材（P1 入中台，ADR-0036）
+
+- **页面**：`/assets` 缩略图网格；支持 kind 筛选、路径/原始文件名搜索、预览、复制路径、删除。上传对话框用 Canvas 裁剪（拖动 + 缩放，武将固定 512×720），导出 WebP(q0.82) + 256×360 缩略图（浏览器不支持 WebP 编码时回退 PNG）。
+- **绑定**：`/generals`、`/card-defs`、`/identities`、`/cards` 的「图片/卡面」列可直接「选择素材」或「上传并绑定」；保存写 `image_asset_id`（局部更新）。
+- **存储**：`GAMEPROPS_ASSETS_DIR`（默认 `data/gameprops/assets`，`/data/` 已 gitignore）→ `{game_id}/{kind}/{sha256}.{ext}` + `<sha256>.t.{ext}`。路径只由服务端按 sha256 + MIME 派生，**不使用客户端文件名**；`original_name`/`crop_json` 仅审计。
+- **访问**：web 同源静态挂载 `/game-assets`（文件名哈希 → `immutable` 一年）；server 只监听回环，浏览器不直连。上传/绑定 API 全部 `require_admin`。
+- **限制**：原图 ≤8MB、缩略图 ≤1MB、边长 1–4096；MIME 仅 `image/webp|png|jpeg`；被业务行引用的素材不能删除。
+- **批量导入**（534 张 / 696 gid）：
+
+  ```bash
+  node apps/scripts/import-sgs-general-assets.mjs --dry-run
+  node apps/scripts/import-sgs-general-assets.mjs
+  # 报告：data/media/sgs/out/import-report.json
+  ```
+
+- **Web 展示**：对局页/工作台预览页在①其他玩家座位卡 ②本人武将区 ③选将候选 ④武将详情浮层显示卡面；无素材时用势力色首字占位（不裂图）。web 侧 asset-map 缓存 60s。
+- **门禁**：`npm run check:sgs-assets`（临时 server + web + 临时目录：上传/缩略图/绑定/映射/缓存/越权/删除保护）。
+
 ## 已知限制（P1）
 
-- 图片 `image_asset_id` 只留字段，上传/裁剪未实现。
+- 卡面来源为 1994 剧照 + 生成图，**当前仅内部开发使用**；上线前须确认授权或替换（见 `docs/games/sanguosha/props/media-pipeline.md` §16）。
 - 牌表未自动导入；需先在「牌定义」建定义，再到「定义↔物理牌」逐张加花色/点数。
 - `sgs_cards` 的 `pack_id` 目前为数字输入；可在「道具包」先建标准/军争牌堆包。
 - 准入 = Web 跨端登录会话 + 白名单（ADR-0031）；`/internal/gameprops/*` 不直连、由 web 代理；公网暴露由 `check:props-admin-boundary` 守护（白名单准入 + 不直连）。

@@ -9,6 +9,7 @@ import {
   KINGDOM_LABEL,
   SUIT_LABEL,
   SUIT_RED,
+  avatarHtml,
   cardLabel,
   handLimitLabel,
   hpPips,
@@ -16,7 +17,7 @@ import {
   rankLabel,
 } from "./format.js";
 import { skillDescription } from "./skill-text.js";
-import type { SgsCard, SgsPublicBoard, SgsSeat } from "./types.js";
+import type { SgsAssetMap, SgsCard, SgsPublicBoard, SgsSeat } from "./types.js";
 
 function row(label: string, value: string): string {
   return `<tr><th>${escapeHtml(label)}</th><td>${value}</td></tr>`;
@@ -54,7 +55,11 @@ export function renderCardDetail(card: SgsCard): string {
 }
 
 /** 武将/座位详情（公共区可用字段）。 */
-export function renderGeneralDetail(seat: SgsSeat, names?: Record<string, string>): string {
+export function renderGeneralDetail(
+  seat: SgsSeat,
+  names?: Record<string, string>,
+  assets?: SgsAssetMap,
+): string {
   const rows = [
     row("玩家", escapeHtml(playerName(names, seat.player_id))),
     row("武将", escapeHtml(seat.general_name || "未选将")),
@@ -91,7 +96,16 @@ export function renderGeneralDetail(seat: SgsSeat, names?: Record<string, string
             );
           })
           .join("")}</ul></div>`;
-  return `<table class="sgs-detail">${rows.join("")}</table>${skillsHtml}`;
+  const portrait = seat.general
+    ? `<div class="sgs-detail-portrait">` +
+      avatarHtml(seat.general, seat.general_name, seat.kingdom, assets, {
+        variant: "full",
+        cls: "sgs-detail-avatar",
+        size: [512, 720],
+      }) +
+      `</div>`
+    : "";
+  return portrait + `<table class="sgs-detail">${rows.join("")}</table>` + skillsHtml;
 }
 
 /** 弃牌堆列表（顶部一张在最前）。 */

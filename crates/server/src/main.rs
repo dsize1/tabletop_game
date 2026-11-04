@@ -12,6 +12,7 @@ mod dev_routes;
 mod dev_state;
 mod docs_routes;
 mod game_routes;
+mod gameprops_assets;
 mod gameprops_routes;
 mod health;
 mod internal_routes;
@@ -52,6 +53,8 @@ struct AppState {
     props_admin_token: Option<String>,
     /// 道具数据目录（heroes.json / cards.json）
     props_data_dir: std::path::PathBuf,
+    /// 道具素材目录（内容寻址文件；web 以 /game-assets 静态挂载同一目录）
+    props_assets_dir: std::path::PathBuf,
     /// 对局执行宿主（P3：Web 动作由 server 执行；单写者约定见计划台账）
     games: Arc<game_engine_core::GameManager>,
     /// 机器人推进的房间锁（P6.3：按房间串行，避免并发双推进）
@@ -173,6 +176,14 @@ async fn main() -> anyhow::Result<()> {
             std::env::var("GAMEPROPS_DATA_DIR")
                 .unwrap_or_else(|_| "docs/games/sanguosha/data".to_string()),
         ),
+        props_assets_dir: {
+            let dir = std::path::PathBuf::from(
+                std::env::var("GAMEPROPS_ASSETS_DIR")
+                    .unwrap_or_else(|_| "data/gameprops/assets".to_string()),
+            );
+            std::fs::create_dir_all(&dir).ok();
+            dir
+        },
         games,
         previews: Arc::new(preview::PreviewManager::new(
             preview_registry,
@@ -314,6 +325,8 @@ async fn main() -> anyhow::Result<()> {
             post(gameprops_routes::set_status),
         )
         .route("/internal/gameprops/session", get(gameprops_routes::session))
+        // 素材（P1 入中台）：内容寻址上传/缩略图/绑定/映射（ADR-0036）
+        .merge(gameprops_assets::router())
         // 工作台模板（P5 基座）：显式路由优先于 `{table}` 动态路由
         .route(
             "/internal/gameprops/templates",

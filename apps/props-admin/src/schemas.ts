@@ -1,4 +1,4 @@
-export type FieldType = "text" | "number" | "textarea" | "select";
+export type FieldType = "text" | "number" | "textarea" | "select" | "asset";
 
 export interface Field {
   key: string;
@@ -72,6 +72,7 @@ export const schemas: Record<string, ResourceSchema> = {
       },
       { key: "win_condition", label: "胜利条件", type: "textarea", required: true },
       { key: "description", label: "描述", type: "textarea" },
+      { key: "image_asset_id", label: "图片", type: "asset" },
       { key: "sort_order", label: "排序", type: "number" },
       statusField,
       ...timestamps,
@@ -118,6 +119,7 @@ export const schemas: Record<string, ResourceSchema> = {
         required: true,
       },
       { key: "description", label: "描述", type: "textarea" },
+      { key: "image_asset_id", label: "图片", type: "asset" },
       { key: "range_value", label: "距离值", type: "number" },
       {
         key: "target_mode",
@@ -172,6 +174,7 @@ export const schemas: Record<string, ResourceSchema> = {
         ],
       },
       { key: "rank", label: "点数", type: "number" },
+      { key: "image_asset_id", label: "图片", type: "asset" },
       statusField,
       ...timestamps,
     ],
@@ -183,6 +186,7 @@ export const schemas: Record<string, ResourceSchema> = {
       { key: "code", label: "code", required: true },
       { key: "external_id", label: "外部 ID", hideInTable: true },
       { key: "name", label: "名称", required: true },
+      { key: "image_asset_id", label: "卡面", type: "asset" },
       {
         key: "kingdom",
         label: "势力",
@@ -258,6 +262,7 @@ export function emptyRow(schema: ResourceSchema): Record<string, unknown> {
   for (const f of schema.fields) {
     if (f.key === "status") row[f.key] = "draft";
     else if (f.type === "number") row[f.key] = f.required ? 0 : null;
+    else if (f.type === "asset") row[f.key] = null;
     else row[f.key] = "";
   }
   return row;

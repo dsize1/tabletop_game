@@ -24,6 +24,7 @@ import {
 import { renderAppPage } from "./view/page.js";
 import { renderSgsPage } from "./view/sgs/page.js";
 import { renderLoginPage } from "./view/login.js";
+import type { SgsAssetMap } from "./view/sgs/types.js";
 
 const SERVER_URL = process.env.SERVER_URL ?? "http://127.0.0.1:3000";
 const PORT = Number(process.env.WEB_PORT ?? process.env.PORT ?? 18080);
@@ -44,6 +45,10 @@ app.use(express.urlencoded({ extended: false, limit: "16kb" }));
 // - /board-assets：版图素材，文件名带内容哈希 → immutable 长缓存
 // - /assets：页面 runtime bundle，未做哈希 → 短缓存
 const PUBLIC_DIR = fileURLToPath(new URL("../public/", import.meta.url));
+/** 中台素材目录（server 写入，web 同源静态服务；ADR-0036）。 */
+const GAMEPROPS_ASSETS_DIR = process.env.GAMEPROPS_ASSETS_DIR
+  ? path.resolve(process.env.GAMEPROPS_ASSETS_DIR)
+  : fileURLToPath(new URL("../../../data/gameprops/assets/", import.meta.url));
 app.use(
   "/board-assets",
   express.static(path.join(PUBLIC_DIR, "board"), { immutable: true, maxAge: "365d", fallthrough: true }),
@@ -55,6 +60,11 @@ app.use(
     maxAge: 0,
     setHeaders: (res) => res.setHeader("Cache-Control", "no-cache"),
   }),
+);
+// 中台素材（内容寻址文件名 → immutable；公开可取，无法枚举）
+app.use(
+  "/game-assets",
+  express.static(GAMEPROPS_ASSETS_DIR, { immutable: true, maxAge: "365d", fallthrough: true }),
 );
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -198,6 +208,31 @@ function maybeResumeBots(view: GameView): void {
     `${SERVER_URL}/internal/game/${encodeURIComponent(view.game_id)}/${encodeURIComponent(view.room_id)}/drive`,
     { method: "POST" },
   ).catch(() => undefined);
+}
+
+/** 武将卡面映射缓存（60s）：server `/internal/gameprops/asset-map`。 */
+let assetMapCache: { at: number; map: SgsAssetMap } | null = null;
+const ASSET_MAP_TTL_MS = 60_000;
+
+async function fetchAssetMap(): Promise<SgsAssetMap> {
+  const now = Date.now();
+  if (assetMapCache && now - assetMapCache.at < ASSET_MAP_TTL_MS) return assetMapCache.map;
+  try {
+    const headers: Record<string, string> = {};
+    if (PROPS_ADMIN_TOKEN) headers["x-props-admin-token"] = PROPS_ADMIN_TOKEN;
+    const r = await fetch(
+      `${SERVER_URL}/internal/gameprops/asset-map?game_id=sanguosha&kind=general`,
+      { headers },
+    );
+    if (!r.ok) throw new Error(`asset-map ${r.status}`);
+    const body = (await r.json()) as { assets?: SgsAssetMap };
+    const map = body.assets ?? {};
+    assetMapCache = { at: now, map };
+    return map;
+  } catch {
+    // 降级：沿用上一次成功结果（无则空 map → 前端显示占位）
+    return assetMapCache?.map ?? {};
+  }
 }
 
 /** 提交动作到 server 内部执行接口（仅本机）。 */
@@ -385,6 +420,7 @@ app.get("/tabletop_game/:gameId/player/:openid", async (req, res) => {
           token,
           openid: v.openid ?? req.params.openid,
           roomId: view.room_id,
+          assets: await fetchAssetMap(),
         }),
       );
       return;
@@ -543,6 +579,7 @@ app.get("/tabletop_game/:gameId/preview", async (req, res) => {
             general_name: s.general_name,
           })),
         },
+        assets: await fetchAssetMap(),
       }),
     );
   } catch (err) {

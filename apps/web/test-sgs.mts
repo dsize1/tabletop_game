@@ -272,6 +272,49 @@ assert.ok(!SGS_STYLES.includes(":has("), "禁用 :has()");
 assert.ok(!SGS_STYLES.includes("@container"), "禁用容器查询");
 assert.ok(!/\b[0-9]+dvh\b/.test(SGS_STYLES), "禁用 dvh");
 
+// —— 武将卡面：有 map → `<img>`；无 map → 势力色占位（不裂图） ——
+const assets = {
+  sgs_hero_1: {
+    url: "/game-assets/sanguosha/general/aa.webp",
+    thumb: "/game-assets/sanguosha/general/aa.t.webp",
+  },
+  sgs_hero_2: {
+    url: "/game-assets/sanguosha/general/bb.webp",
+    thumb: "/game-assets/sanguosha/general/bb.t.webp",
+  },
+};
+const avatarHtmlWithMap = renderPublicArea(view, 0, names, assets);
+assert.ok(
+  avatarHtmlWithMap.includes('class="sgs-avatar sgs-opp-avatar"') &&
+    avatarHtmlWithMap.includes("/game-assets/sanguosha/general/"),
+  "有素材时应渲染 <img>（thumb）",
+);
+assert.ok(
+  avatarHtmlWithMap.includes("/game-assets/sanguosha/general/aa.t.webp"),
+  "座位卡使用缩略图",
+);
+assert.ok(publicHtml.includes("sgs-avatar sgs-opp-avatar ph"), "无素材时渲染首字占位");
+assert.ok(!/<img class="sgs-avatar/.test(publicHtml), "无素材时不得输出图片（避免裂图）");
+
+const pageWithAssets = renderSgsPage(gv, {
+  gameId: "sanguosha",
+  token: "tok-1",
+  openid: "p0",
+  roomId: "room-9",
+  assets,
+});
+assert.ok(
+  pageWithAssets.includes("/game-assets/sanguosha/general/aa.t.webp"),
+  "整页 SSR 带卡面图片",
+);
+assert.ok(pageWithAssets.includes('"assets"'), "bootstrap 注入 assets（轮询重渲染保留）");
+const detailWithAssets = renderGeneralDetail(seats[1], names, assets);
+assert.ok(
+  detailWithAssets.includes('class="sgs-avatar sgs-detail-avatar"') &&
+    detailWithAssets.includes("/game-assets/sanguosha/general/aa.webp"),
+  "武将详情使用原图（full）",
+);
+
 // —— XSS：昵称必须转义 ——
 const xss = renderPublicArea(view, 0, { ...names, p1: '<img src=x onerror=alert(1)>' });
 assert.ok(!xss.includes("<img src=x"), "昵称必须转义");

@@ -4,6 +4,17 @@
 // 本文件只描述「渲染需要什么」，不做 IO；服务端 SSR 与浏览器 bundle 共用。
 // 字段集由 `apps/web/test-sgs.mts` + 引擎侧 `check:sgs-view-contract` 双重守护。
 
+/** 素材引用（server `/internal/gameprops/asset-map` 投影；URL 由 web 同源静态服务）。 */
+export interface SgsAssetRef {
+  url: string;
+  thumb: string;
+  width?: number | null;
+  height?: number | null;
+}
+
+/** 武将 code → 素材（无图/未绑定时缺省）。 */
+export type SgsAssetMap = Record<string, SgsAssetRef>;
+
 export type Suit = "spade" | "heart" | "club" | "diamond";
 
 export interface SgsCard {

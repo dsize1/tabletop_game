@@ -8,7 +8,7 @@ import { renderSgsApp } from "../view/sgs/page.js";
 import { renderSidePanelBody } from "../view/sgs/public.js";
 import { cardLabel } from "../view/sgs/format.js";
 import { renderCardDetail, renderDiscardList, renderGeneralDetail } from "../view/sgs/detail.js";
-import type { SgsCard, SgsViewData } from "../view/sgs/types.js";
+import type { SgsAssetMap, SgsCard, SgsViewData } from "../view/sgs/types.js";
 import { bindPress } from "./sgs-gestures.js";
 import { closeOverlay, initOverlay, isOverlayOpen, openOverlay } from "./sgs-overlay.js";
 import {
@@ -41,6 +41,8 @@ interface Bootstrap {
   roomId: string;
   openid: string;
   pollMs?: number;
+  /** 武将 code → 卡面（SSR 注入；轮询重渲染沿用，避免头像闪没）。 */
+  assets?: SgsAssetMap;
   /** 工作台预览模式（无 token；走预览代理）。 */
   preview?: { room: string; viewer: string; returnUrl?: string };
 }
@@ -411,7 +413,7 @@ function onTap(el: HTMLElement): void {
   if (kind === "general") {
     const seatIdx = Number(el.dataset.seat);
     const seat = currentData?.public_board.seats[seatIdx];
-    if (seat) openOverlay("武将详情", renderGeneralDetail(seat, lastNames));
+    if (seat) openOverlay("武将详情", renderGeneralDetail(seat, lastNames, boot?.assets));
     return;
   }
   if (kind === "discard" && currentData) {
@@ -587,7 +589,7 @@ function applyState(res: StateResponse): void {
   }
   const app = q<HTMLElement>("#sgs-app");
   if (app) {
-    app.innerHTML = renderSgsApp(data, res.names, currentActions);
+    app.innerHTML = renderSgsApp(data, res.names, currentActions, boot?.assets);
     bindInteractions();
     syncSelection();
   }

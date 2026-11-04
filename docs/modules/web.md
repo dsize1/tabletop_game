@@ -14,6 +14,7 @@
   - `GET /tabletop_game/{gameId}/state?token=xxx`：**状态 JSON**（页面轮询用；同一套 token 校验，401/404/503 语义同页面）
   - `POST /tabletop_game/{gameId}/action`：**动作提交**（P3）。`fetch` 用 JSON（`Accept: application/json`）直接返回 `{ok,message}`；无 JS 时普通表单 `application/x-www-form-urlencoded` 提交后 `303` 回页面（PRG）。token 资源范围必须等于 `game:{room_id}`（越权 403），服务端转发到 `server /internal/game/{gameId}/{roomId}/action` 执行并落库。
   - `GET /board-assets/*`：版图素材（公开静态，文件名带内容哈希 → `immutable`）；`GET /assets/*`：页面 runtime bundle
+  - `GET /game-assets/*`：**中台素材**（公开静态，内容寻址 `{game}/{kind}/{sha256}.{ext}` → `immutable`；目录由 `GAMEPROPS_ASSETS_DIR` 指定，server 写入）
   - `GET /login?t=<短效token>`：**跨端登录页**（ADR-0031）：昵称 + 开局摘要 → 注册/登注册码 → 4 位验证码 + 一键复制 → 长轮询 → 写 HttpOnly Cookie → 2s 过渡跳转 `target`
   - `GET /login/status`、`POST /login/register`、`POST /login/login`、`GET /login/confirm`：登录页内部代理（token 只在代理层，不落 localStorage）
   - `GET /props-admin/*`：中台**同源托管**（构建产物），准入 = `tg_props` 会话 + 白名单（`propsSession`），非白名单 403
@@ -26,6 +27,7 @@
 - 路由：复用 `GET /tabletop_game/{gameId}/player/{openid}`，按引擎视图 `data.game === "sanguosha"` 分派到 `src/view/sgs/`；`GET /tabletop_game/{gameId}/state` 与 `POST /tabletop_game/{gameId}/action` 通用（动作仅本机转发到 server）。
 - 视图层（纯函数，SSR + bundle 共用）：`view/sgs/{format,public,personal,detail,overlay,pending,guanxing,text,page}.ts`；三分区布局、居中浮层、观星 2×5 槽与拖拽吸附。
 - 运行时：`src/client/main.ts`（拉斯维加斯，版图/文本双模式）与 `src/client/sgs.ts`（三国杀：10s 轮询 + 激活即刷 + 退避、`data-press` 手势、`data-action` 动作提交、pending 浮层、观星拖拽）。
+- **武将卡面**（ADR-0036）：SSR 前从 server `/internal/gameprops/asset-map` 拉 `code → {url,thumb,...}`（内存缓存 60s），注入视图与 bootstrap；座位卡/个人区/选将候选用缩略图、详情浮层用原图，缺失时势力色首字占位。
 - 构建：`build:client` 产出 `public/assets/app.js`（es2020）与 `sgs.js`（es2017）。
 - 本地验收脚手架：`npm run sgs:web-room`（MCP 建局→选将→停在出牌→`/auth/issue` 签 token→打印每人链接；`--dump-state` 导出视图 fixture）。**先起 `npm run dev:up:noqq`**（server 3000 / web 18080）。
 - **历史查看**：`npm run sgs:history -- --room <room_id>`（读 SQLite 快照，打印完整出牌历史；`--tail/--grep/--json/--list`）。
@@ -37,7 +39,7 @@
 - **双模式**：`?view=text` 仅用于首屏直出文本态（向后兼容）；正常链接不带参数，默认版图。切换用 hash（`#board` / `#text`）+ `history.replaceState`，**不跳转、不丢 token**。
 - **轮询**：可见时 10s 拉 `/state`；`document.hidden` 暂停；`visibilitychange` / `focus` / `pageshow(bfcache)` / `online` 立即刷新；失败指数退避 10→20→40→60s，页脚显示「连接中断」与「更新于 HH:MM:SS」。
 - **降级**：禁用 JS 时 `<noscript>` 强制显示文本态（SSR 已含完整文本）。
-- **缓存**：页面与 `/state` 一律 `Cache-Control: no-store`；`/board-assets` `immutable` 一年，可被 Cloudflare 边缘缓存（Cache Rule：`path startswith /board-assets/`）。
+- **缓存**：页面与 `/state` 一律 `Cache-Control: no-store`；`/board-assets` 与 `/game-assets` `immutable` 一年，可被 Cloudflare 边缘缓存（Cache Rule：`path startswith /board-assets/` 或 `/game-assets/`）。
 - 渲染函数在 `src/view/`（纯函数，服务端与 bundle 共用），页面骨架在 `src/view/page.ts`，`src/render.ts` 只保留文档预览/错误页/文本态独立页。
 
 ### 移动端形态（2026-10-19，ADR-0011）
