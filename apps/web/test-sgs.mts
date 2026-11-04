@@ -188,6 +188,13 @@ assert.ok(meHtml.includes('data-skill="rende"'), "技能按钮");
 assert.ok(meHtml.includes('data-press="skill"'), "技能按钮参与长按手势");
 assert.ok(/data-desc="[^"]+"/.test(meHtml), "技能按钮带简述（长按浮层）");
 assert.ok(meHtml.includes("确认打出") && meHtml.includes("disabled"), "未选中时确认按钮置灰");
+assert.ok(
+  meHtml.indexOf("sgs-me-portrait") < meHtml.indexOf("sgs-me-info") &&
+    meHtml.indexOf("sgs-me-info") < meHtml.indexOf("sgs-me-head") &&
+    meHtml.indexOf("sgs-me-head") < meHtml.indexOf("sgs-skills") &&
+    meHtml.indexOf("sgs-skills") < meHtml.indexOf("sgs-me-row"),
+  "个人区：头像左侧，右侧依次为 信息行/技能/装备",
+);
 assert.ok(meHtml.includes('data-action="end_play"'), "结束出牌按钮");
 const withPending: SgsPlayerArea = {
   ...me,
@@ -265,6 +272,17 @@ const pageHtml = renderSgsPage(gv, {
 });
 assert.ok(pageHtml.includes('id="sgs-bootstrap"'), "bootstrap JSON");
 assert.ok(pageHtml.includes('src="/assets/sgs.js"'), "客户端 bundle");
+const versionedPage = renderSgsPage(gv, {
+  gameId: "sanguosha",
+  token: "tok-1",
+  openid: "p0",
+  roomId: "room-9",
+  clientVersion: "abc123",
+});
+assert.ok(
+  versionedPage.includes('src="/assets/sgs.js?v=abc123"'),
+  "bundle 带内容哈希（避免旧包覆盖 SSR）",
+);
 assert.ok(pageHtml.includes("<noscript>"), "无 JS 降级");
 assert.ok(pageHtml.includes("viewport-fit=cover"), "安全区适配");
 assert.ok(!pageHtml.includes("localStorage"), "token 不落 localStorage");
@@ -313,6 +331,11 @@ assert.ok(
   detailWithAssets.includes('class="sgs-avatar sgs-detail-avatar"') &&
     detailWithAssets.includes("/game-assets/sanguosha/general/aa.webp"),
   "武将详情使用原图（full）",
+);
+assert.ok(
+  detailWithAssets.includes("sgs-detail-body") &&
+    detailWithAssets.indexOf("sgs-detail-portrait") < detailWithAssets.indexOf("sgs-detail\">"),
+  "详情浮层图片在右侧（文字环绕）",
 );
 
 // —— XSS：昵称必须转义 ——

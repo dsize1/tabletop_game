@@ -11,6 +11,8 @@
 
 import "dotenv/config";
 import path from "node:path";
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import express from "express";
 import {
@@ -45,6 +47,16 @@ app.use(express.urlencoded({ extended: false, limit: "16kb" }));
 // - /board-assets：版图素材，文件名带内容哈希 → immutable 长缓存
 // - /assets：页面 runtime bundle，未做哈希 → 短缓存
 const PUBLIC_DIR = fileURLToPath(new URL("../public/", import.meta.url));
+
+/** 客户端 bundle 内容哈希（拼到 script src 的 ?v=，避免旧包热覆盖）。 */
+function bundleVersion(file: string): string {
+  try {
+    return createHash("sha1").update(readFileSync(file)).digest("hex").slice(0, 12);
+  } catch {
+    return "";
+  }
+}
+const SGS_BUNDLE_VERSION = bundleVersion(path.join(PUBLIC_DIR, "assets", "sgs.js"));
 /** 中台素材目录（server 写入，web 同源静态服务；ADR-0036）。 */
 const GAMEPROPS_ASSETS_DIR = process.env.GAMEPROPS_ASSETS_DIR
   ? path.resolve(process.env.GAMEPROPS_ASSETS_DIR)
@@ -58,7 +70,12 @@ app.use(
   express.static(path.join(PUBLIC_DIR, "assets"), {
     etag: true,
     maxAge: 0,
-    setHeaders: (res) => res.setHeader("Cache-Control", "no-cache"),
+    setHeaders: (res) => {
+      res.setHeader("Cache-Control", "no-cache");
+      // Cloudflare 默认按扩展名缓存 .js；显式告诉边缘不要缓存未带哈希的 bundle。
+      res.setHeader("CDN-Cache-Control", "no-store");
+      res.setHeader("Surrogate-Control", "no-store");
+    },
   }),
 );
 // 中台素材（内容寻址文件名 → immutable；公开可取，无法枚举）
@@ -421,6 +438,7 @@ app.get("/tabletop_game/:gameId/player/:openid", async (req, res) => {
           openid: v.openid ?? req.params.openid,
           roomId: view.room_id,
           assets: await fetchAssetMap(),
+          clientVersion: SGS_BUNDLE_VERSION,
         }),
       );
       return;
@@ -580,6 +598,7 @@ app.get("/tabletop_game/:gameId/preview", async (req, res) => {
           })),
         },
         assets: await fetchAssetMap(),
+        clientVersion: SGS_BUNDLE_VERSION,
       }),
     );
   } catch (err) {

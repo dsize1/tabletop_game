@@ -304,27 +304,32 @@ export function renderPersonalArea(
   return (
     `<section class="sgs-personal" aria-label="个人资源区">` +
     `<div class="sgs-me">` +
-    `<div class="sgs-me-head">` +
+    `<div class="sgs-me-portrait">` +
     avatarHtml(area.general, general, area.kingdom, assets, {
       cls: "sgs-me-avatar",
-      size: [52, 72],
+      size: [88, 124],
     }) +
+    `</div>` +
+    `<div class="sgs-me-info">` +
+    `<div class="sgs-me-head">` +
     `<b>${escapeHtml(general)}</b>` +
     (area.flipped ? `<span class="sgs-flip">翻面</span>` : "") +
     (kingdom ? `<span class="sgs-kingdom">${escapeHtml(kingdom)}</span>` : "") +
     `<span class="sgs-identity ${escapeHtml(area.identity)}">${escapeHtml(
       IDENTITY_LABEL[area.identity] ?? area.identity,
     )}</span>` +
-    `<span class="muted">${escapeHtml(playerName(names, area.player_id))}</span></div>` +
-    `<div class="sgs-hp">${hpPips(area.hp, area.max_hp)}<span class="sgs-hp-num">${area.hp}/${area.max_hp}</span></div>` +
-    `<div class="sgs-skills">${skills}</div>` +
-    marksHtml(area) +
+    `<span class="muted">${escapeHtml(playerName(names, area.player_id))}</span>` +
+    `<span class="sgs-hp">${hpPips(area.hp, area.max_hp)}<span class="sgs-hp-num">${area.hp}/${area.max_hp}</span></span>` +
     `</div>` +
-    setupPanel(area, board, assets) +
+    `<div class="sgs-skills">${skills}</div>` +
     `<div class="sgs-me-row">` +
     `<div class="sgs-equips">${equips}</div>` +
     `<div class="sgs-judge"><span class="sgs-equip-label">判定</span>${area.judge_abolished ? `<span class="muted">废除</span>` : judge || `<span class="muted">无</span>`}</div>` +
     `</div>` +
+    marksHtml(area) +
+    `</div>` +
+    `</div>` +
+    setupPanel(area, board, assets) +
     `<div class="sgs-hand-head"><span class="sgs-equip-label">手牌</span> ${(area.hand ?? []).length}/${handLimitLabel(area.hand_limit)}</div>` +
     `<div class="sgs-hand" role="list">${hand || `<span class="muted">无手牌</span>`}</div>` +
     pendingSummary(area) +

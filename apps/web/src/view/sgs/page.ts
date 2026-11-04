@@ -27,6 +27,8 @@ export interface SgsPageOpts {
   };
   /** 武将 code → 卡面（web 同源 `/game-assets` 静态服务；缺失时占位不裂图）。 */
   assets?: SgsAssetMap;
+  /** 客户端 bundle 版本（内容哈希）：拼到 `<script src>` 的 `?v=`，避免 CDN/浏览器旧包覆盖 SSR。 */
+  clientVersion?: string;
 }
 
 /** JSON 内联到 <script> 时必须转义 `<`。 */
@@ -114,9 +116,12 @@ button { font: inherit; color: inherit; }
 .sgs-zone-list { margin-top:8px; font-size:11px; color:#c9d1d9; display:flex; flex-direction:column; gap:2px; }
 .sgs-personal { flex:0 0 auto; background:var(--sgs-panel); border:1px solid var(--sgs-line); border-radius:14px;
   padding:10px 12px; display:flex; flex-direction:column; gap:8px; }
-.sgs-me { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-.sgs-me-head { display:flex; gap:6px; align-items:center; }
-.sgs-skills { display:flex; gap:6px; flex-wrap:wrap; margin-left:auto; }
+.sgs-me { display:flex; align-items:flex-start; gap:10px; flex-wrap:wrap; }
+.sgs-me-portrait { flex:0 0 auto; }
+.sgs-me-info { flex:1 1 220px; min-width:0; display:flex; flex-direction:column; gap:6px; }
+.sgs-me-head { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+.sgs-me-head .sgs-hp { margin:0; }
+.sgs-skills { display:flex; gap:6px; flex-wrap:wrap; }
 .sgs-skill { font-size:12px; padding:4px 10px; border-radius:999px; border:1px solid #3d4757; background:#1c232c; cursor:pointer; }
 .sgs-skill.disabled { opacity:.45; cursor:default; }
 .sgs-me-row { display:flex; gap:10px; flex-wrap:wrap; font-size:12px; }
@@ -201,6 +206,10 @@ body.busy { cursor:progress; }
 .sgs-multi-card.on { border-color:var(--sgs-gold); background:#2a2413; color:#ffe9b0; font-weight:700; }
 .sgs-overlay.blocking .sgs-overlay-mask { cursor:default; }
 .sgs-detail { border-collapse:collapse; width:100%; }
+.sgs-detail-body { display:flow-root; }
+.sgs-detail-info { overflow:hidden; }
+.sgs-detail-skillwrap { clear:both; }
+.sgs-detail-clear { clear:both; }
 .sgs-detail th, .sgs-detail td { border-bottom:1px solid #262d38; padding:6px 8px; text-align:left; vertical-align:top; }
 .sgs-detail th { width:6.5em; color:var(--sgs-muted); font-weight:600; }
 .sgs-detail-skills { margin-top:10px; }
@@ -224,12 +233,13 @@ body.busy { cursor:progress; }
   color:#e6edf3; font-weight:700; font-size:15px;
   background:linear-gradient(160deg, var(--sgs-avatar-bg, #2a3340), #151a21); }
 .sgs-opp-avatar { width:26px; height:26px; border-radius:50%; object-position:50% 22%; }
-.sgs-me-avatar { width:52px; height:72px; }
+.sgs-me-avatar { width:88px; height:124px; }
 .sgs-setup-avatar { width:48px; height:68px; }
 .sgs-candidate-avatar { width:48px; height:68px; }
 .sgs-candidate-body { display:flex; flex-direction:column; align-items:flex-start; gap:2px; min-width:0; }
-.sgs-detail-portrait { display:flex; justify-content:center; margin-bottom:10px; }
-.sgs-detail-avatar { width:min(70vw, 240px); height:auto; aspect-ratio:512 / 720; }
+.sgs-detail-portrait { float:right; width:clamp(96px, 38%, 180px); margin:0 0 8px 12px; }
+.sgs-detail-portrait img { display:block; width:100%; height:auto; }
+.sgs-detail-avatar { width:100%; height:auto; aspect-ratio:512 / 720; }
 .sgs-text { display:none; padding:12px 16px 90px; }
 .sgs-text h2 { font-size:16px; } .sgs-text h3 { font-size:13px; color:var(--sgs-muted); margin:14px 0 4px; }
 .sgs-text ul { padding-left:18px; margin:0; } .sgs-text li { font-size:13px; line-height:1.6; }
@@ -385,7 +395,9 @@ export function renderSgsPage(view: GameView, opts: SgsPageOpts): string {
     `<div class="sgs-text" id="sgs-text">${textBody}</div>` +
     `<noscript><style>#sgs-app,.sgs-side,.sgs-statusbar{display:none!important}.sgs-text{display:block!important}</style></noscript>` +
     `<script id="sgs-bootstrap" type="application/json">${inlineJson(bootstrap)}</script>` +
-    `<script type="module" src="/assets/sgs.js"></script>` +
+    `<script type="module" src="/assets/sgs.js${
+      opts.clientVersion ? `?v=${encodeURIComponent(opts.clientVersion)}` : ""
+    }"></script>` +
     `</body></html>`
   );
 }

@@ -105,7 +105,16 @@ export function renderGeneralDetail(
       }) +
       `</div>`
     : "";
-  return portrait + `<table class="sgs-detail">${rows.join("")}</table>` + skillsHtml;
+  return (
+    `<div class="sgs-detail-body">` +
+    portrait +
+    `<div class="sgs-detail-info">` +
+    `<table class="sgs-detail">${rows.join("")}</table>` +
+    `</div>` +
+    `<div class="sgs-detail-skillwrap">${skillsHtml}</div>` +
+    `<div class="sgs-detail-clear"></div>` +
+    `</div>`
+  );
 }
 
 /** 弃牌堆列表（顶部一张在最前）。 */
