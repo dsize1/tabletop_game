@@ -25,9 +25,9 @@
 
 | 批次 | 包 | 武将 | code | 技能（类型） | 定向用例 | 原文/歧义 | 机器证据 | 人工结果 | 确认人 | 复现 | 备注 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| B0 | wind_fire_forest_mountain | 曹仁 | `sgs_hero_29` | 据守(`jushou`/normal)、解围(`jiewei`/normal) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B0 --seed 20261105` | |
-| B0 | wind_fire_forest_mountain | 周泰 | `sgs_hero_210` | 不屈(`buqu`/locked)、奋激(`fenji`/normal) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B0 --seed 20261105` | |
-| B0 | wind_fire_forest_mountain | 曹丕 | `sgs_hero_43` | 行殇(`xingshang`/normal)、放逐(`fangzhu`/normal)、颂威(`songwei`/lord) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B0 --seed 20261105` | |
+| B0 | wind_fire_forest_mountain | 曹仁 | `sgs_hero_29` | 据守(`jushou`/normal)、解围(`jiewei`/normal) | ≥3（已过门禁） | 已裁定：解围可移动他人手牌·三阶段（复验 5） | 见 evidence | 人工通过 | 用户 | `--batch B0 --seed 20261105` | **缺陷已修**：解围三阶段/翻回触发/空场结束（复验 3–6）；据守结束阶段翻面摸 4 弃 1（装备牌改为使用） |
+| B0 | wind_fire_forest_mountain | 周泰 | `sgs_hero_210` | 不屈(`buqu`/locked)、奋激(`fenji`/normal) | ≥3（已过门禁） | 已裁定：奋激=回合外手牌被弃置/增加（复验 11） | 见 evidence | 人工通过 | 用户 | `--batch B0 --seed 20261105` | **缺陷已修**：弃牌数解释 + 弃牌多选（复验 2/7）、奋激改客观判定（复验 10/11）；不屈=创数上限 |
+| B0 | wind_fire_forest_mountain | 曹丕 | `sgs_hero_43` | 行殇(`xingshang`/normal)、放逐(`fangzhu`/normal)、颂威(`songwei`/lord) | ≥3（已过门禁） | 已确认（skills.md 原文） | 见 evidence | 人工通过 | 用户 | `--batch B0 --seed 20261105` | 行殇（死亡清理前获得其所有牌）/放逐（翻面+摸已损失体力）/颂威（魏势力黑判定摸 1）本次走查通过；放逐翻回与解围②联动（复验 4） |
 | B1 | wind_fire_forest_mountain | 袁术 | `sgs_hero_100` | 庸肆(`yongsi`/locked)、伪帝(`weidi`/locked) | ≥3（已过门禁） | 已裁定：庸肆按势力数（复验 8–12） | 见 evidence | 人工通过 | 用户 | `--batch B1 --seed 20261105` | 触达 `yongsi`；复验 8–12 弃牌/奋激口径已收敛 |
 | B1 | wind_fire_forest_mountain | 王基 | `sgs_hero_362` | 奇制(`qizhi`/normal)、进趋(`jinzou`/normal) | ≥3（已过门禁） | 已确认（skills.md 原文） | 见 evidence | 人工通过 | 用户 | `--batch B1 --seed 20261105` | 触达 `jinzou`；奇制需回合内用非装备牌后触发（走查结构已给出） |
 | B1 | wind_fire_forest_mountain | 严颜 | `sgs_hero_400` | 拒战(`juzhan`/normal) | ≥3（已过门禁） | 已裁定：拒战（阴）获牌不弃（复验 18） | 见 evidence | 人工通过 | 用户 | `--batch B1 --seed 20261105` | **缺陷已修**：拒战（阴）获牌后误弃牌（复验 18）；阳/阴两面已走查 |
