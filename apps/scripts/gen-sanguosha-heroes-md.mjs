@@ -7,6 +7,7 @@
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import { fixedGeneralName } from "./lib/sgs-name-fixes.mjs";
 
 const DEFAULT_IN = resolve("docs", "games", "sanguosha", "data", "heroes.json");
 const DEFAULT_OUT = resolve("docs", "games", "sanguosha", "generals.md");
@@ -66,7 +67,7 @@ function skillsCell(skills) {
 }
 
 function row(h) {
-  return `| ${h.gid} | ${cell(h.name)} | ${cell(h.kingdom)} | ${h.hp} | ${cell(h.quality) || "—"} | ${skillsCell(h.skills)} | ${cell(h.characteristic) || "—"} | ${cell(h.biography) || "—"} |`;
+  return `| ${h.gid} | ${cell(fixedGeneralName(h))} | ${cell(h.kingdom)} | ${h.hp} | ${cell(h.quality) || "—"} | ${skillsCell(h.skills)} | ${cell(h.characteristic) || "—"} | ${cell(h.biography) || "—"} |`;
 }
 
 async function main() {

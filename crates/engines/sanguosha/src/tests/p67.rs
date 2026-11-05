@@ -7,7 +7,7 @@ use crate::state::*;
 
 #[test]
 fn general_packs_default_and_parse() {
-    // 2026-11-02 用户裁定：默认启用**全部已实现武将**（去重 149 位，界优先）。
+    // 2026-11-02 用户裁定：默认启用**全部已实现武将**（去重 148 位，界优先；2026-11-05 名称勘误后由 149 降为 148）。
     // 旧对局仍按各自快照的 `config.general_packs` 解析（见下一条用例）。
     let cfg = Config::default();
     let all: Vec<String> = crate::data::GENERAL_PACK_KEYS
@@ -493,7 +493,7 @@ fn pack_switch_presets_match_pool_counts() {
         (
             "standard+wind_fire_forest_mountain+jiexian",
             "标准 + 风林火山 + 界限突破",
-            107,
+            106,
         ),
         (
             "standard+yijiang+jiexian",
@@ -503,7 +503,7 @@ fn pack_switch_presets_match_pool_counts() {
         (
             "standard+wind_fire_forest_mountain+yijiang+jiexian",
             "标准 + 风林火山 + 一将成名 + 界限突破",
-            149,
+            148,
         ),
     ];
     for (mode, label, count) in expected {

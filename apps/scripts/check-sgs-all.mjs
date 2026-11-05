@@ -25,6 +25,11 @@ const cargoTest = (filter) => ({
 const steps = [
   { name: "cargo test -p sanguosha", ...cargoTest() },
   { name: "skill-cases（每将 ≥3 用例）", cmd: `${node} apps/scripts/check-sgs-skill-cases.mjs` },
+  { name: "general-names（武将名/错别字/近似名）", cmd: `${node} apps/scripts/check-sgs-general-names.mjs` },
+  {
+    name: "batch-consistency（验证批次 ↔ 去重池 ↔ 开发批次）",
+    cmd: `${node} apps/scripts/check-sgs-batch-consistency.mjs`,
+  },
   { name: "skill-docs（skills.md ↔ 注册表）", cmd: `${node} apps/scripts/check-sgs-skill-docs.mjs` },
   { name: "engine-data（data.rs 最新）", cmd: `${node} apps/scripts/gen-sanguosha-engine-data.mjs --check` },
   { name: "skill-text（长按技能简述最新）", cmd: `${node} apps/scripts/gen-sgs-skill-text.mjs --check` },
@@ -41,11 +46,12 @@ const steps = [
   { name: "interaction（交互原语契约）", ...cargoTest("interaction_") },
   // P6：AI 自对弈（10 局全将 release，约 6s）——「机器人能打完 5 人局」的硬门禁。
   { name: "sgs-ai（自对弈 10 局）", cmd: `${node} apps/scripts/check-sgs-ai.mjs` },
+  // 全武将验证：矩阵 ↔ 名录/批次表一致性（纯静态，无需 server）
+  { name: "generals-matrix（全武将验证矩阵一致性）", cmd: `${node} apps/scripts/sgs-general-audit.mjs --check-matrix` },
 ];
 
 if (!fast) {
   steps.push(
-    { name: "decision-log（导出/回放自检）", cmd: `${node} apps/scripts/check-sgs-decision-log.mjs` },
     // P5 基座：模板/场景/预览/AI/隔离（起临时 server + MCP；需 Redis）
     { name: "workbench-preview（预览隔离/场景/AI）", cmd: `${node} apps/scripts/check-sgs-preview.mjs` },
     { name: "build:props（工作台类型检查/构建）", cmd: "npm --prefix apps run build:props" },
@@ -54,10 +60,20 @@ if (!fast) {
     // P6.3：1 真人 + 4 机器人 —— Web 动作后机器人自动推进（需 server/MCP 已构建 + Redis）
     { name: "test:sgs-bot（机器人推进 e2e）", cmd: `${node} apps/scripts/test-sgs-bot-web.mjs` },
     { name: "test:web-login（跨端登录 e2e）", cmd: `${node} apps/scripts/test-web-login.mjs` },
+    // 回放自检放在「机器人推进 e2e」之后：该 e2e 会新建一局并打完整局，
+    // 保证库里存在**用当前引擎**产生的可回放房间（规则修复后旧局回放不一致属预期）。
+    { name: "decision-log（导出/回放自检）", cmd: `${node} apps/scripts/check-sgs-decision-log.mjs` },
+    // 全武将验证：机器证据抽样（起临时 server；需 Redis）
+    { name: "sgs-generals（全武将审计抽样 8 将）", cmd: `${node} apps/scripts/sgs-general-audit.mjs --check --sample 8` },
   );
 }
 if (full) {
   steps.push({ name: "verify:sanguosha（MCP 冒烟）", cmd: `${node} apps/verify-sanguosha.mjs` });
+  // 全量机器证据：148 将 L1 走查（约 70s；失败项非 0 退出）
+  steps.push({
+    name: "audit:generals-full（148 将 L1）",
+    cmd: `${node} apps/scripts/sgs-general-audit.mjs --all --repeat 1 --out data/audit/all.json`,
+  });
 }
 
 const results = [];

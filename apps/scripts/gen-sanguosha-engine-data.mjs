@@ -17,6 +17,7 @@
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import { fixedGeneralName } from "./lib/sgs-name-fixes.mjs";
 
 const DEFAULT_CARDS = resolve("docs", "games", "sanguosha", "data", "cards.json");
 const DEFAULT_HEROES = resolve("docs", "games", "sanguosha", "data", "heroes.json");
@@ -329,7 +330,7 @@ function buildGenerals(payload, packKeys) {
       return {
         code: `sgs_hero_${h.gid}`,
         gid: h.gid,
-        name: h.name,
+        name: fixedGeneralName(h),
         pack: pack.key,
         kingdom: h.kingdom_code,
         max_hp: h.hp,

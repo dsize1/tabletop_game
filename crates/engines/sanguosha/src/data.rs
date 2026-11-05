@@ -349,7 +349,7 @@ pub static WIND_FIRE_FOREST_MOUNTAIN_GENERALS: &[GeneralDef] = &[
     GeneralDef { code: "sgs_hero_52", gid: 52, name: "姜维", pack: "wind_fire_forest_mountain", kingdom: "shu", max_hp: 4, gender: "male", is_lord: false, skills: &["挑衅", "志继"],},
     GeneralDef { code: "sgs_hero_53", gid: 53, name: "刘禅", pack: "wind_fire_forest_mountain", kingdom: "shu", max_hp: 3, gender: "male", is_lord: true, skills: &["享乐", "放权", "若愚"],},
     GeneralDef { code: "sgs_hero_54", gid: 54, name: "孙策", pack: "wind_fire_forest_mountain", kingdom: "wu", max_hp: 4, gender: "male", is_lord: true, skills: &["激昂", "魂姿", "制霸"],},
-    GeneralDef { code: "sgs_hero_55", gid: 55, name: "张昭张弘", pack: "wind_fire_forest_mountain", kingdom: "wu", max_hp: 3, gender: "male", is_lord: false, skills: &["直谏", "固政"],},
+    GeneralDef { code: "sgs_hero_55", gid: 55, name: "张昭张纮", pack: "wind_fire_forest_mountain", kingdom: "wu", max_hp: 3, gender: "male", is_lord: false, skills: &["直谏", "固政"],},
     GeneralDef { code: "sgs_hero_56", gid: 56, name: "左慈", pack: "wind_fire_forest_mountain", kingdom: "qun", max_hp: 3, gender: "male", is_lord: false, skills: &["化身", "新生"],},
     GeneralDef { code: "sgs_hero_57", gid: 57, name: "蔡文姬", pack: "wind_fire_forest_mountain", kingdom: "qun", max_hp: 3, gender: "female", is_lord: false, skills: &["悲歌", "断肠"],},
     GeneralDef { code: "sgs_hero_61", gid: 61, name: "黄忠", pack: "wind_fire_forest_mountain", kingdom: "shu", max_hp: 4, gender: "male", is_lord: false, skills: &["烈弓"],},

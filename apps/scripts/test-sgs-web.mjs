@@ -378,18 +378,37 @@ try {
   const startPlayer2 = startBoard2.turn.player_id;
   for (let step = 0; step < 12; step += 1) {
     await openActionPage();
-    const clicked = await page.evaluate(() => {
-      const btns = Array.from(document.querySelectorAll(".sgs-pending-actions [data-action]"));
-      const pass = btns.find((b) => b.dataset.action === "pass");
-      const discard = btns.find((b) => (b.dataset.action ?? "").startsWith("discard:"));
-      const pendingTarget = pass ?? discard ?? btns[0];
-      const end = document.querySelector('[data-action="end_play"]');
-      const target = pendingTarget ?? end;
-      if (!target || target.disabled) return null;
-      const action = target.dataset.action;
-      target.click();
-      return action;
-    });
+    let clicked = null;
+    // 弃牌 pending：多选手牌 → 一次确认（P4.4.4 真机：逐张点改为多选确认）。
+    // 手牌选择走 pointer 手势（bindPress），必须用真实鼠标点击，不能用 element.click()。
+    const isDiscardPending = await page.evaluate(
+      () => Boolean(document.querySelector(".sgs-pending-discard")),
+    );
+    if (isDiscardPending) {
+      const required = await page.evaluate(() =>
+        Number(document.querySelector(".sgs-pending-discard")?.dataset.required ?? 1),
+      );
+      const cards = page.locator(".sgs-hand .sgs-card");
+      const n = Math.min(required, await cards.count());
+      for (let i = 0; i < n; i += 1) await cards.nth(i).click();
+      const confirm = page.locator('[data-op="discard-confirm"]');
+      if (!(await confirm.isDisabled())) {
+        await confirm.click();
+        clicked = `discard-multi(${n})`;
+      }
+    } else {
+      clicked = await page.evaluate(() => {
+        const btns = Array.from(document.querySelectorAll(".sgs-pending-actions [data-action]"));
+        const pass = btns.find((b) => b.dataset.action === "pass");
+        const pendingTarget = pass ?? btns[0];
+        const end = document.querySelector('[data-action="end_play"]');
+        const target = pendingTarget ?? end;
+        if (!target || target.disabled) return null;
+        const action = target.dataset.action;
+        target.click();
+        return action;
+      });
+    }
     if (!clicked) break;
     await page.waitForTimeout(1300);
     const now = await boardNow();

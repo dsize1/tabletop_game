@@ -84,3 +84,13 @@ node apps/scripts/gen-sanguosha-engine-data.mjs --check
 - 为降低人工录入成本，已从社区开源包 `npm sanguosha-agent-plugin@1.17.0` 的 `STANDARD_DECK` / `JUNZHENG_DECK` 整理出 `cards.json`（标准 108 + 军争 52），并生成 `cards.md` 供人工逐张复核；**入库前必须人工核对花色/点数/数量**，不得直接视为官方数据。
 - 坐骑距离按项目口径：**进攻马 +1 攻击距离 / 防御马 +1 防御距离**（见 `rules.md` §7）。
 - 若后续找到官方结构化牌表，再以官方数据替换并复核。
+
+## 名称勘误（人工确认）
+
+抓取结果保留原样，生成/校验时统一应用 `apps/scripts/lib/sgs-name-fixes.mjs`：
+
+| gid | 抓取值 | 正确值 | 说明 |
+|---|---|---|---|
+| 55 | 张昭张弘 | 张昭张纮 | 官网错别字（弘→纮）；与「界张昭张纮」同名将，影响「界优先去重」与验证批次 |
+门禁 `npm run check:sgs-general-names` 会做**逐 gid 对照**（data.rs ↔ heroes.json：名称/技能名/体力），
+以及「界X 的 base 是否存在」「同长度编辑距离 1 近似名」扫描。当前 232 将全部一致，**仅有 1 条勘误**（gid=55）。

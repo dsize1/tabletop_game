@@ -113,7 +113,7 @@ if (generals.length === 0) throw new Error("data.rs 未解析到 GeneralDef");
 if (!libRs.includes("general_pack_presets()")) {
   fail("lib.rs 大厅未使用 general_pack_presets()（预设枚举缺失）");
 }
-// 2026-11-02 用户裁定：默认全部已实现武将（去重 149 位）。这里只断言「默认 = 全量包组合」，
+// 2026-11-02 用户裁定：默认全部已实现武将（名称勘误后去重 148 位）。这里只断言「默认 = 全量包组合」，
 // 具体生成方式（`GENERAL_PACK_KEYS` 映射）不锁死实现细节。
 if (
   !/pub fn default_general_packs\(\) -> Vec<String> \{/.test(stateRs) ||

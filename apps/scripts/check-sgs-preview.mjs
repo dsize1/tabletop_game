@@ -718,7 +718,8 @@ try {
   const meta = await api("/internal/game/preview/meta");
   assert(meta.status === 200, `沙盒 meta 可用（${meta.status}）`);
   const metaGenerals = meta.body?.generals ?? [];
-  assert(metaGenerals.length === 149, `沙盒武将池为 149 去重（实际 ${metaGenerals.length}）`);
+  // 名称勘误（2026-11-05）后默认去重池由 149 降为 148（张昭张纮 与界版同名被去重）。
+  assert(metaGenerals.length === 148, `沙盒武将池为 148 去重（实际 ${metaGenerals.length}）`);
   assert(meta.body?.identities?.["5"]?.lord === 1, "沙盒身份配比：5 人 1 主");
   const g = metaGenerals.slice(0, 5).map((x) => x.code);
   const ids = ["lord", "loyalist", "rebel", "rebel", "spy"];

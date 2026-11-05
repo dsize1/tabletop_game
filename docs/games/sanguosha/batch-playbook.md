@@ -19,6 +19,9 @@
 > 界限突破批次额外注意：同名技能**复用 code**（ADR-0024），公共逻辑用 `skills::is_jiexian(st, seat)` 分支；不要改动标准版行为（回归 `tests/p46`–`p55`）。
 > 取下一批：`npm run sgs:batch-scaffold -- --pack jiexian`。
 
+> **验证批次 ≠ 开发批次（P4.4.4）**：开发批次 = 本文件 + `sgs:batch-status`（232 将，含已被界版覆盖的同名原版）；验证批次 = `apps/scripts/lib/sgs-batches.mjs`（**149 将 / B0–B20**，有界版同名的原版 83 位不入批次）。
+> 验证口径与入口：`docs/games/sanguosha/general-audit.md`（人工矩阵）、`npm run check:sgs-generals`（门禁）、`npm run audit:sgs-generals -- <批次>`（机器证据）。
+
 ## 2. 一批 8 将的标准流程
 
 1. **开工脚手架**：`npm run sgs:batch-scaffold`（自动取下一批；也可 `--batch Y4` / `--gids 187,188 --module resolve_yijiang5 --tests p91`）→ 打印武将元数据、`skills.rs` 常量/match 模板、`skills.md` 表行、用例/文档/门禁清单；技能描述再查 `data/heroes.json`。

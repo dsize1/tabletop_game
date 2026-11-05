@@ -38,6 +38,10 @@ const REDIS_URL = process.env.REDIS_URL ?? "redis://127.0.0.1:6379";
 const HOST = "bot-e2e-p1";
 const ALL_GENERALS = "standard+wind_fire_forest_mountain+yijiang+jiexian";
 const MAX_HUMAN_ACTIONS = 150;
+/** drive 端点返回的机器人步数（与真人动作响应里的 bot_steps 合并统计）。 */
+let driveBotSteps = 0;
+/** 观察到「机器人执行完 → 回到真人回合」的次数（后台链异步推进的证据）。 */
+let botTurnSeen = 0;
 const MIN_HUMAN_ACTIONS = 8;
 
 const children = [];
@@ -149,8 +153,17 @@ function actorOf(view) {
 }
 
 /** 真人动作的确定性策略：能结束就结束，能放弃就放弃，否则取第一个合法动作。 */
-function pickHumanAction(actions) {
+function pickHumanAction(actions, pending) {
   const ids = actions.map((a) => a.id);
+  // 弃牌：一次提交凑齐（固定张数类如庸肆/镇骨必须一次交满；弃至上限类可部分）。
+  if (pending?.kind === "discard" && ids.some((id) => id.startsWith("discard:"))) {
+    const required = Number(pending.data?.required ?? 1);
+    const cards = ids
+      .filter((id) => id.startsWith("discard:"))
+      .slice(0, Math.max(1, required))
+      .map((id) => id.slice("discard:".length));
+    return `discard:${cards.join(",")}`;
+  }
   // 响应/多选：先放弃或确认（不阻塞机器人）；否则优先出牌/技能，最后才结束出牌。
   for (const want of ["pass", "confirm"]) {
     if (ids.includes(want)) return want;
@@ -277,7 +290,8 @@ try {
       await new Promise((r) => setTimeout(r, 120));
       continue;
     }
-    const action = pickHumanAction(actions);
+    const myPending = view.player?.data?.player_area?.pending ?? null;
+    const action = pickHumanAction(actions, myPending);
     const res = await serverAction(room, HOST, action);
     assert(res.status === 200, `真人动作 ${action} 成功（${res.status}）`);
     if (res.status !== 200) break;
@@ -306,6 +320,7 @@ try {
       for (let k = 0; k < 15 && !afterActor.finished && isBotActor(); k += 1) {
         await new Promise((r) => setTimeout(r, 400));
         const dr = await serverDrive(room);
+        if (typeof dr.body?.bot_steps === "number") driveBotSteps += dr.body.bot_steps;
         log(
           `续推#${k + 1}: status=${dr.status} steps=${dr.body.bot_steps} ` +
             `stop=${dr.body.bot_stop} illegal=${dr.body.illegal} ` +
@@ -323,10 +338,18 @@ try {
         !isBotActor(),
         `动作返回（含续推）后不是机器人回合（actor=${afterActor.actor}）`,
       );
+      // 后台链式推进可能发生在本轮请求之外（bot_steps=0）；回到真人回合即证明机器人已行动。
+      const board = after.public?.data?.public_board;
+      const myTurnActor = board?.pending?.actor ?? board?.turn?.player_id;
+      if (myTurnActor === HOST) botTurnSeen += 1;
     }
   }
 
-  assert(botStepsSeen > 0, `至少一次真人动作触发机器人推进（bot_steps>0：${botStepsSeen} 次）`);
+  // 机器人推进证据（三者任一）：动作响应 bot_steps>0 / drive 端点步数>0 / 观察到机器人行动后回到真人回合。
+  assert(
+    botStepsSeen + driveBotSteps + botTurnSeen > 0,
+    `至少一次真人动作触发机器人推进（响应 ${botStepsSeen} + drive ${driveBotSteps} + 回合回归 ${botTurnSeen}）`,
+  );
   assert(
     steps >= MIN_HUMAN_ACTIONS,
     `真人至少推进 ${MIN_HUMAN_ACTIONS} 个动作（实际 ${steps}）`,

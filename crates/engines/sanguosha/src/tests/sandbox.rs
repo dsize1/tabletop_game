@@ -189,7 +189,7 @@ fn sandbox_runs_opening_skills() {
 fn sandbox_meta_has_dedup_pool_and_identity_setup() {
     let meta = sandbox_meta();
     let generals = meta["generals"].as_array().expect("generals");
-    assert_eq!(generals.len(), 149, "默认去重池应为 149 位");
+    assert_eq!(generals.len(), 148, "默认去重池应为 148 位（名称勘误后）");
     assert!(generals.iter().all(|g| g["code"].is_string() && g["name"].is_string()));
     let ids = &meta["identities"];
     assert_eq!(ids["5"]["lord"], 1);

@@ -737,6 +737,43 @@
 - 怀柔：出牌阶段可重铸一张装备牌（弃置并摸一张），不限次数。
 - 用例：`tests/p87.rs` 4 条（清侧装备/延时锦囊/不能弃自己 + 怀柔重铸）；`cargo test -p sanguosha` **515** 全绿。
 
+### P4.4.4 全武将验证（M66，执行中）
+
+**目标**：为 149 位在池武将建立可追踪验证矩阵：机器提供机械证据（可达/不报错/守恒/pending 可续/可复现），人工在工作台逐项走查后签字。
+
+**口径（用户 2026-11-05 裁定，方案 A）**：有界版同名的原版不进验证批次（标准 25 + 风林火山 28 + 一将成名 30 = 83 位排除），保留 **149 位 = 默认选将池**，因此不改引擎/沙盒。批次按子包边界切分：**B0–B20 共 21 批**（B0/B12/B20 各 4 将、B3/B5 各 6 将、B6/B7 各 7 将、其余 8 将）。
+
+**批次表单一事实源**：`apps/scripts/lib/sgs-batches.mjs`（矩阵/审计/门禁均读它，`--list` 自检 21 批 / 149 将、无重无漏）。
+
+**产物分层（机器/人工分离）**：
+
+| 产物 | 路径 | 维护方 |
+|---|---|---|
+| 人工验证矩阵（149 行，人工列） | `docs/games/sanguosha/general-audit.md` | 人工（脚本只生成骨架，不覆写） |
+| 机器证据汇总（自动生成） | `docs/games/sanguosha/general-audit-evidence.md` | `sgs-general-audit.mjs` |
+| 原始证据 JSON（不入库） | `data/audit/<batch>.json` | `sgs-general-audit.mjs` |
+| L2 定向场景台账（`expected` 待人工确认） | `docs/games/sanguosha/general-audit-scenarios.json` | 人工填 `expected` |
+
+**审计工具**：`apps/scripts/sgs-general-audit.mjs`（+ `lib/sgs-catalog.mjs` 名录解析）：
+
+- L1 通用基线：5 人局、目标座位固定手牌/装备、出牌阶段 → 执行首个本将技能动作 → `end_play` → 顺序步进（`drive`）最多 12 步，覆盖结束阶段与下一回合；
+- 机械断言：无 4xx/5xx、牌数守恒、pending 可继续（无 `engine_error`）、同 seed 两次 digest 一致；
+- 状态只出 `{触达, 未触达, 失败, 阻塞}`，**不输出「通过」**；
+- 只走内存预览会话，并自检 `game_state`/`game_events`/`game_decision_log` 行数不变。
+
+**命令**：
+
+```bash
+npm run audit:sgs-generals:list        # 名录 + 批次表自检（232 将 / 149 审计 / 83 排除 / 295 技能）
+npm run audit:sgs-generals -- B0 --repeat 2   # 跑一批 → data/audit/B0.json + evidence md
+npm run check:sgs-generals             # 门禁：矩阵一致性 + 抽样 8 将
+npm run gen:sgs-audit-matrix           # 生成矩阵骨架（已存在则拒绝覆写，除非 --force）
+```
+
+**B0 首跑（2026-11-05，流程验证批 4 将）**：曹仁（据守触达）、曹丕（放逐触达）、周泰（不屈锁定/奋激未触达）、张昭张纮（直谏/固政未触达）；4 条不变量全 ✓、同 seed 可复现、真相源未写、失败 0。未触达项已按类型给出原因（锁定技/触发时机/需构造响应方），写矩阵 `待裁定` 交人工。
+
+**门禁**：`check:sgs-generals`（矩阵一致性 + 抽样 8 将）已并入 `sgs:check`（非 fast）与 fast 的 `generals-matrix` 步骤。
+
 ### P5 武将流程设计工作台 + 预览（L）
 
 **目标**：用有向图设计武将回合内/外流程，并在 Web 预览页跑通一轮 5 人局。

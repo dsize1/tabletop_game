@@ -27,7 +27,7 @@ pub struct SandboxSeat {
     /// 玩家 id（缺省 `bot:1..N`）；服务端会校验唯一。
     #[serde(default)]
     pub player_id: Option<String>,
-    /// 武将 code（必须在默认 149 去重池内）。
+    /// 武将 code（必须在默认 148 去重池内）。
     #[serde(default)]
     pub general: Option<String>,
     /// 身份（必须符合标准配比；缺省随机补足）。
@@ -99,7 +99,7 @@ pub fn new_sandbox_game(
     let (base_state, _) = engine.new_game(room_id, group_id, players.clone(), rng);
     let mut st = SgsState::parse(&base_state.data).map_err(internal)?;
 
-    // 4) 武将：默认 149 去重池（与正常开局一致）；指定必须命中池子且不重复。
+    // 4) 武将：默认 148 去重池（与正常开局一致）；指定必须命中池子且不重复。
     let pool = crate::available_codes_for_packs(&st.config.general_packs);
     let mut requested_generals: Vec<Option<&'static str>> = vec![None; n];
     let mut used_generals = BTreeSet::new();
@@ -189,7 +189,7 @@ pub fn new_sandbox_game(
     Ok((state, events))
 }
 
-/// 沙盒表单元数据（武将按默认 149 去重池；身份按标准配比）。
+/// 沙盒表单元数据（武将按默认 148 去重池；身份按标准配比）。
 pub fn sandbox_meta() -> Value {
     let generals: Vec<Value> = crate::catalog::default_general_pool()
         .into_iter()

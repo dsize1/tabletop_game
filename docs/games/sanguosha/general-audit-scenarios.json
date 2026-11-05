@@ -1,0 +1,1649 @@
+{
+  "schema": 1,
+  "note": "L2 技能定向场景台账。expected 字段必须由人工确认后填写（agent 不得自填语义判定）；scene 未填时使用审计脚本的 L1 通用基线（5 人 / 固定手牌装备 / play 阶段 / seed 20261105）。",
+  "schemaDocs": "docs/games/sanguosha/general-audit.md §2（人工走查记录字段）",
+  "batch": "B0",
+  "seed": 20261105,
+  "l1": {
+    "players": 5,
+    "hand": [
+      "sha",
+      "sha",
+      "shan",
+      "tao",
+      "jiu",
+      "juedou",
+      "guohe_chaiqiao",
+      "shunshou_qianyang",
+      "wuxie_keji"
+    ],
+    "equips": {
+      "weapon": "zhuge_liannu",
+      "armor": "bagua_zhen"
+    },
+    "turn_phase": "play",
+    "maxSteps": 12
+  },
+  "skillTests": [
+    {
+      "batch": "B0",
+      "general": "sgs_hero_29",
+      "generalName": "曹仁",
+      "skill": "jushou",
+      "skillName": "据守",
+      "kind": "normal",
+      "phaseHint": "end",
+      "action": "choose:jushou",
+      "expected": null,
+      "expectedConfirmedBy": null,
+      "confirmedAt": null,
+      "notes": "机器证据：L1 走查可达（触达）。语义期望：结束阶段可翻面摸 4 弃 1（装备牌改为使用）—待人工确认"
+    },
+    {
+      "batch": "B0",
+      "general": "sgs_hero_29",
+      "generalName": "曹仁",
+      "skill": "jiewei",
+      "skillName": "解围",
+      "kind": "normal",
+      "phaseHint": "wuxie-window",
+      "action": "skill:jiewei:<card>",
+      "expected": null,
+      "expectedConfirmedBy": null,
+      "confirmedAt": null,
+      "notes": "L1 未触达：需无懈窗口 + 装备区牌；L2 场景待人工确认后补 scene"
+    },
+    {
+      "batch": "B0",
+      "general": "sgs_hero_210",
+      "generalName": "周泰",
+      "skill": "buqu",
+      "skillName": "不屈",
+      "kind": "locked",
+      "phaseHint": "dying",
+      "action": null,
+      "expected": null,
+      "expectedConfirmedBy": null,
+      "confirmedAt": null,
+      "notes": "锁定技：濒死翻「创」；L1 未触发，需人工在走查中构造濒死并断言点数/手牌上限"
+    },
+    {
+      "batch": "B0",
+      "general": "sgs_hero_210",
+      "generalName": "周泰",
+      "skill": "fenji",
+      "skillName": "奋激",
+      "kind": "normal",
+      "phaseHint": "hand-lost",
+      "action": "choose:fenji",
+      "expected": null,
+      "expectedConfirmedBy": null,
+      "confirmedAt": null,
+      "notes": "L1 未触达：需手牌被弃置/获得触发点；L2 场景待补"
+    },
+    {
+      "batch": "B0",
+      "general": "sgs_hero_43",
+      "generalName": "曹丕",
+      "skill": "xingshang",
+      "skillName": "行殇",
+      "kind": "normal",
+      "phaseHint": "death",
+      "action": null,
+      "expected": null,
+      "expectedConfirmedBy": null,
+      "confirmedAt": null,
+      "notes": "需角色死亡触发；L1 走查 12 步内未出现，需 L2 场景"
+    },
+    {
+      "batch": "B0",
+      "general": "sgs_hero_43",
+      "generalName": "曹丕",
+      "skill": "fangzhu",
+      "skillName": "放逐",
+      "kind": "normal",
+      "phaseHint": "damaged",
+      "action": "choose:fangzhu",
+      "expected": null,
+      "expectedConfirmedBy": null,
+      "confirmedAt": null,
+      "notes": "机器证据：L1 走查可达（触达）。语义期望：受伤后令一名角色摸 X 并翻面—待人工确认"
+    },
+    {
+      "batch": "B0",
+      "general": "sgs_hero_43",
+      "generalName": "曹丕",
+      "skill": "songwei",
+      "skillName": "颂威",
+      "kind": "lord",
+      "phaseHint": "judge",
+      "action": null,
+      "expected": null,
+      "expectedConfirmedBy": null,
+      "confirmedAt": null,
+      "notes": "主公技：需魏势力角色判定黑色后响应；L1 未构造响应方"
+    },
+    {
+      "batch": "B0",
+      "general": "sgs_hero_55",
+      "generalName": "张昭张纮",
+      "skill": "zhijian",
+      "skillName": "直谏",
+      "kind": "normal",
+      "phaseHint": "play",
+      "action": "skill:zhijian",
+      "expected": null,
+      "expectedConfirmedBy": null,
+      "confirmedAt": null,
+      "notes": "L1 未触达：需装备牌作为代价；L2 场景待补（目标手牌/装备组合）"
+    },
+    {
+      "batch": "B0",
+      "general": "sgs_hero_55",
+      "generalName": "张昭张纮",
+      "skill": "guzheng",
+      "skillName": "固政",
+      "kind": "normal",
+      "phaseHint": "discard",
+      "action": "choose:guzheng",
+      "expected": null,
+      "expectedConfirmedBy": null,
+      "confirmedAt": null,
+      "notes": "L1 未触达：需其他角色弃牌阶段弃牌；L2 场景待补"
+    },
+    {
+      "batch": "B1",
+      "general": "sgs_hero_100",
+      "generalName": "袁术",
+      "skill": "yongsi",
+      "skillName": "庸肆",
+      "kind": "locked",
+      "phaseHint": "play",
+      "action": null,
+      "scene": {
+        "round": 1,
+        "turn": 0,
+        "turn_phase": "play",
+        "phase": "turn",
+        "seed": 20261105,
+        "deck_top": [
+          "sha",
+          "shan",
+          "tao",
+          "wuxie_keji",
+          "jiu",
+          "juedou"
+        ],
+        "seats": [
+          {
+            "index": 0,
+            "identity": "lord",
+            "hand": [
+              "sha",
+              "sha",
+              "shan",
+              "tao",
+              "jiu",
+              "juedou",
+              "guohe_chaiqiao",
+              "shunshou_qianyang",
+              "wuxie_keji",
+              "zhuge_liannu"
+            ],
+            "equips": {
+              "weapon": "zhuge_liannu",
+              "armor": "bagua_zhen"
+            },
+            "judge": [],
+            "chained": false,
+            "flipped": false
+          },
+          {
+            "index": 1,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 2,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 3,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 4,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          }
+        ]
+      },
+      "expected": null,
+      "expectedConfirmedBy": null,
+      "confirmedAt": null,
+      "generatedBy": "sgs-scenes/v1",
+      "notes": "锁定技：自动生效，无独立动作；机械证据只能证明不报错/守恒，效果需人工断言；`expected` 必须人工填写（语义期望不由生成器推断）；场景仅提供最小复现局面"
+    },
+    {
+      "batch": "B1",
+      "general": "sgs_hero_100",
+      "generalName": "袁术",
+      "skill": "weidi",
+      "skillName": "伪帝",
+      "kind": "locked",
+      "phaseHint": "play",
+      "action": null,
+      "scene": {
+        "round": 1,
+        "turn": 0,
+        "turn_phase": "play",
+        "phase": "turn",
+        "seed": 20261105,
+        "deck_top": [
+          "sha",
+          "shan",
+          "tao",
+          "wuxie_keji",
+          "jiu",
+          "juedou"
+        ],
+        "seats": [
+          {
+            "index": 0,
+            "identity": "lord",
+            "hand": [
+              "sha",
+              "sha",
+              "shan",
+              "tao",
+              "jiu",
+              "juedou",
+              "guohe_chaiqiao",
+              "shunshou_qianyang",
+              "wuxie_keji",
+              "zhuge_liannu"
+            ],
+            "equips": {
+              "weapon": "zhuge_liannu",
+              "armor": "bagua_zhen"
+            },
+            "judge": [],
+            "chained": false,
+            "flipped": false
+          },
+          {
+            "index": 1,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 2,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 3,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 4,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          }
+        ]
+      },
+      "expected": null,
+      "expectedConfirmedBy": null,
+      "confirmedAt": null,
+      "generatedBy": "sgs-scenes/v1",
+      "notes": "锁定技：自动生效，无独立动作；机械证据只能证明不报错/守恒，效果需人工断言；`expected` 必须人工填写（语义期望不由生成器推断）；场景仅提供最小复现局面"
+    },
+    {
+      "batch": "B1",
+      "general": "sgs_hero_362",
+      "generalName": "王基",
+      "skill": "qizhi",
+      "skillName": "奇制",
+      "kind": "normal",
+      "phaseHint": "play",
+      "action": "skill:qizhi",
+      "scene": {
+        "round": 1,
+        "turn": 0,
+        "turn_phase": "play",
+        "phase": "turn",
+        "seed": 20261105,
+        "deck_top": [
+          "sha",
+          "shan",
+          "tao",
+          "wuxie_keji",
+          "jiu",
+          "juedou"
+        ],
+        "seats": [
+          {
+            "index": 0,
+            "identity": "lord",
+            "hand": [
+              "sha",
+              "sha",
+              "shan",
+              "tao",
+              "jiu",
+              "juedou",
+              "guohe_chaiqiao",
+              "shunshou_qianyang",
+              "wuxie_keji",
+              "zhuge_liannu"
+            ],
+            "equips": {
+              "weapon": "zhuge_liannu",
+              "armor": "bagua_zhen"
+            },
+            "judge": [],
+            "chained": false,
+            "flipped": false
+          },
+          {
+            "index": 1,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 2,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 3,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 4,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          }
+        ]
+      },
+      "expected": null,
+      "expectedConfirmedBy": null,
+      "confirmedAt": null,
+      "generatedBy": "sgs-scenes/v1",
+      "notes": "`expected` 必须人工填写（语义期望不由生成器推断）；场景仅提供最小复现局面"
+    },
+    {
+      "batch": "B1",
+      "general": "sgs_hero_362",
+      "generalName": "王基",
+      "skill": "jinzou",
+      "skillName": "进趋",
+      "kind": "normal",
+      "phaseHint": "play",
+      "action": "skill:jinzou",
+      "scene": {
+        "round": 1,
+        "turn": 0,
+        "turn_phase": "play",
+        "phase": "turn",
+        "seed": 20261105,
+        "deck_top": [
+          "sha",
+          "shan",
+          "tao",
+          "wuxie_keji",
+          "jiu",
+          "juedou"
+        ],
+        "seats": [
+          {
+            "index": 0,
+            "identity": "lord",
+            "hand": [
+              "sha",
+              "sha",
+              "shan",
+              "tao",
+              "jiu",
+              "juedou",
+              "guohe_chaiqiao",
+              "shunshou_qianyang",
+              "wuxie_keji",
+              "zhuge_liannu"
+            ],
+            "equips": {
+              "weapon": "zhuge_liannu",
+              "armor": "bagua_zhen"
+            },
+            "judge": [],
+            "chained": false,
+            "flipped": false
+          },
+          {
+            "index": 1,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 2,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 3,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 4,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          }
+        ]
+      },
+      "expected": null,
+      "expectedConfirmedBy": null,
+      "confirmedAt": null,
+      "generatedBy": "sgs-scenes/v1",
+      "notes": "`expected` 必须人工填写（语义期望不由生成器推断）；场景仅提供最小复现局面"
+    },
+    {
+      "batch": "B1",
+      "general": "sgs_hero_400",
+      "generalName": "严颜",
+      "skill": "juzhan",
+      "skillName": "拒战",
+      "kind": "normal",
+      "phaseHint": "play",
+      "action": "skill:juzhan",
+      "scene": {
+        "round": 1,
+        "turn": 0,
+        "turn_phase": "play",
+        "phase": "turn",
+        "seed": 20261105,
+        "deck_top": [
+          "sha",
+          "shan",
+          "tao",
+          "wuxie_keji",
+          "jiu",
+          "juedou"
+        ],
+        "seats": [
+          {
+            "index": 0,
+            "identity": "lord",
+            "hand": [
+              "sha",
+              "sha",
+              "shan",
+              "tao",
+              "jiu",
+              "juedou",
+              "guohe_chaiqiao",
+              "shunshou_qianyang",
+              "wuxie_keji",
+              "zhuge_liannu"
+            ],
+            "equips": {
+              "weapon": "zhuge_liannu",
+              "armor": "bagua_zhen"
+            },
+            "judge": [],
+            "chained": false,
+            "flipped": false
+          },
+          {
+            "index": 1,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 2,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 3,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 4,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          }
+        ]
+      },
+      "expected": null,
+      "expectedConfirmedBy": null,
+      "confirmedAt": null,
+      "generatedBy": "sgs-scenes/v1",
+      "notes": "`expected` 必须人工填写（语义期望不由生成器推断）；场景仅提供最小复现局面"
+    },
+    {
+      "batch": "B1",
+      "general": "sgs_hero_401",
+      "generalName": "王平",
+      "skill": "feijun",
+      "skillName": "飞军",
+      "kind": "normal",
+      "phaseHint": "play",
+      "action": "skill:feijun",
+      "scene": {
+        "round": 1,
+        "turn": 0,
+        "turn_phase": "play",
+        "phase": "turn",
+        "seed": 20261105,
+        "deck_top": [
+          "sha",
+          "shan",
+          "tao",
+          "wuxie_keji",
+          "jiu",
+          "juedou"
+        ],
+        "seats": [
+          {
+            "index": 0,
+            "identity": "lord",
+            "hand": [
+              "sha",
+              "sha",
+              "shan",
+              "tao",
+              "jiu",
+              "juedou",
+              "guohe_chaiqiao",
+              "shunshou_qianyang",
+              "wuxie_keji",
+              "zhuge_liannu"
+            ],
+            "equips": {
+              "weapon": "zhuge_liannu",
+              "armor": "bagua_zhen"
+            },
+            "judge": [],
+            "chained": false,
+            "flipped": false
+          },
+          {
+            "index": 1,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 2,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 3,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 4,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          }
+        ]
+      },
+      "expected": null,
+      "expectedConfirmedBy": null,
+      "confirmedAt": null,
+      "generatedBy": "sgs-scenes/v1",
+      "notes": "`expected` 必须人工填写（语义期望不由生成器推断）；场景仅提供最小复现局面"
+    },
+    {
+      "batch": "B1",
+      "general": "sgs_hero_401",
+      "generalName": "王平",
+      "skill": "binglue",
+      "skillName": "兵略",
+      "kind": "locked",
+      "phaseHint": "play",
+      "action": null,
+      "scene": {
+        "round": 1,
+        "turn": 0,
+        "turn_phase": "play",
+        "phase": "turn",
+        "seed": 20261105,
+        "deck_top": [
+          "sha",
+          "shan",
+          "tao",
+          "wuxie_keji",
+          "jiu",
+          "juedou"
+        ],
+        "seats": [
+          {
+            "index": 0,
+            "identity": "lord",
+            "hand": [
+              "sha",
+              "sha",
+              "shan",
+              "tao",
+              "jiu",
+              "juedou",
+              "guohe_chaiqiao",
+              "shunshou_qianyang",
+              "wuxie_keji",
+              "zhuge_liannu"
+            ],
+            "equips": {
+              "weapon": "zhuge_liannu",
+              "armor": "bagua_zhen"
+            },
+            "judge": [],
+            "chained": false,
+            "flipped": false
+          },
+          {
+            "index": 1,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 2,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 3,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 4,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          }
+        ]
+      },
+      "expected": null,
+      "expectedConfirmedBy": null,
+      "confirmedAt": null,
+      "generatedBy": "sgs-scenes/v1",
+      "notes": "锁定技：自动生效，无独立动作；机械证据只能证明不报错/守恒，效果需人工断言；`expected` 必须人工填写（语义期望不由生成器推断）；场景仅提供最小复现局面"
+    },
+    {
+      "batch": "B1",
+      "general": "sgs_hero_402",
+      "generalName": "陆绩",
+      "skill": "huaiju",
+      "skillName": "怀橘",
+      "kind": "locked",
+      "phaseHint": "play",
+      "action": null,
+      "scene": {
+        "round": 1,
+        "turn": 0,
+        "turn_phase": "play",
+        "phase": "turn",
+        "seed": 20261105,
+        "deck_top": [
+          "sha",
+          "shan",
+          "tao",
+          "wuxie_keji",
+          "jiu",
+          "juedou"
+        ],
+        "seats": [
+          {
+            "index": 0,
+            "identity": "lord",
+            "hand": [
+              "sha",
+              "sha",
+              "shan",
+              "tao",
+              "jiu",
+              "juedou",
+              "guohe_chaiqiao",
+              "shunshou_qianyang",
+              "wuxie_keji",
+              "zhuge_liannu"
+            ],
+            "equips": {
+              "weapon": "zhuge_liannu",
+              "armor": "bagua_zhen"
+            },
+            "judge": [],
+            "chained": false,
+            "flipped": false
+          },
+          {
+            "index": 1,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 2,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 3,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 4,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          }
+        ]
+      },
+      "expected": null,
+      "expectedConfirmedBy": null,
+      "confirmedAt": null,
+      "generatedBy": "sgs-scenes/v1",
+      "notes": "锁定技：自动生效，无独立动作；机械证据只能证明不报错/守恒，效果需人工断言；`expected` 必须人工填写（语义期望不由生成器推断）；场景仅提供最小复现局面"
+    },
+    {
+      "batch": "B1",
+      "general": "sgs_hero_402",
+      "generalName": "陆绩",
+      "skill": "yili",
+      "skillName": "遗礼",
+      "kind": "normal",
+      "phaseHint": "play",
+      "action": "skill:yili",
+      "scene": {
+        "round": 1,
+        "turn": 0,
+        "turn_phase": "play",
+        "phase": "turn",
+        "seed": 20261105,
+        "deck_top": [
+          "sha",
+          "shan",
+          "tao",
+          "wuxie_keji",
+          "jiu",
+          "juedou"
+        ],
+        "seats": [
+          {
+            "index": 0,
+            "identity": "lord",
+            "hand": [
+              "sha",
+              "sha",
+              "shan",
+              "tao",
+              "jiu",
+              "juedou",
+              "guohe_chaiqiao",
+              "shunshou_qianyang",
+              "wuxie_keji",
+              "zhuge_liannu"
+            ],
+            "equips": {
+              "weapon": "zhuge_liannu",
+              "armor": "bagua_zhen"
+            },
+            "judge": [],
+            "chained": false,
+            "flipped": false
+          },
+          {
+            "index": 1,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 2,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 3,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 4,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          }
+        ]
+      },
+      "expected": null,
+      "expectedConfirmedBy": null,
+      "confirmedAt": null,
+      "generatedBy": "sgs-scenes/v1",
+      "notes": "`expected` 必须人工填写（语义期望不由生成器推断）；场景仅提供最小复现局面"
+    },
+    {
+      "batch": "B1",
+      "general": "sgs_hero_402",
+      "generalName": "陆绩",
+      "skill": "zhenglun",
+      "skillName": "整论",
+      "kind": "normal",
+      "phaseHint": "play",
+      "action": "skill:zhenglun",
+      "scene": {
+        "round": 1,
+        "turn": 0,
+        "turn_phase": "play",
+        "phase": "turn",
+        "seed": 20261105,
+        "deck_top": [
+          "sha",
+          "shan",
+          "tao",
+          "wuxie_keji",
+          "jiu",
+          "juedou"
+        ],
+        "seats": [
+          {
+            "index": 0,
+            "identity": "lord",
+            "hand": [
+              "sha",
+              "sha",
+              "shan",
+              "tao",
+              "jiu",
+              "juedou",
+              "guohe_chaiqiao",
+              "shunshou_qianyang",
+              "wuxie_keji",
+              "zhuge_liannu"
+            ],
+            "equips": {
+              "weapon": "zhuge_liannu",
+              "armor": "bagua_zhen"
+            },
+            "judge": [],
+            "chained": false,
+            "flipped": false
+          },
+          {
+            "index": 1,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 2,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 3,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 4,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          }
+        ]
+      },
+      "expected": null,
+      "expectedConfirmedBy": null,
+      "confirmedAt": null,
+      "generatedBy": "sgs-scenes/v1",
+      "notes": "`expected` 必须人工填写（语义期望不由生成器推断）；场景仅提供最小复现局面"
+    },
+    {
+      "batch": "B1",
+      "general": "sgs_hero_403",
+      "generalName": "孙亮",
+      "skill": "kuizhu",
+      "skillName": "溃诛",
+      "kind": "normal",
+      "phaseHint": "play",
+      "action": "skill:kuizhu",
+      "scene": {
+        "round": 1,
+        "turn": 0,
+        "turn_phase": "play",
+        "phase": "turn",
+        "seed": 20261105,
+        "deck_top": [
+          "sha",
+          "shan",
+          "tao",
+          "wuxie_keji",
+          "jiu",
+          "juedou"
+        ],
+        "seats": [
+          {
+            "index": 0,
+            "identity": "lord",
+            "hand": [
+              "sha",
+              "sha",
+              "shan",
+              "tao",
+              "jiu",
+              "juedou",
+              "guohe_chaiqiao",
+              "shunshou_qianyang",
+              "wuxie_keji",
+              "zhuge_liannu"
+            ],
+            "equips": {
+              "weapon": "zhuge_liannu",
+              "armor": "bagua_zhen"
+            },
+            "judge": [],
+            "chained": false,
+            "flipped": false
+          },
+          {
+            "index": 1,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 2,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 3,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 4,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          }
+        ]
+      },
+      "expected": null,
+      "expectedConfirmedBy": null,
+      "confirmedAt": null,
+      "generatedBy": "sgs-scenes/v1",
+      "notes": "`expected` 必须人工填写（语义期望不由生成器推断）；场景仅提供最小复现局面"
+    },
+    {
+      "batch": "B1",
+      "general": "sgs_hero_403",
+      "generalName": "孙亮",
+      "skill": "chezheng",
+      "skillName": "掣政",
+      "kind": "locked",
+      "phaseHint": "play",
+      "action": null,
+      "scene": {
+        "round": 1,
+        "turn": 0,
+        "turn_phase": "play",
+        "phase": "turn",
+        "seed": 20261105,
+        "deck_top": [
+          "sha",
+          "shan",
+          "tao",
+          "wuxie_keji",
+          "jiu",
+          "juedou"
+        ],
+        "seats": [
+          {
+            "index": 0,
+            "identity": "lord",
+            "hand": [
+              "sha",
+              "sha",
+              "shan",
+              "tao",
+              "jiu",
+              "juedou",
+              "guohe_chaiqiao",
+              "shunshou_qianyang",
+              "wuxie_keji",
+              "zhuge_liannu"
+            ],
+            "equips": {
+              "weapon": "zhuge_liannu",
+              "armor": "bagua_zhen"
+            },
+            "judge": [],
+            "chained": false,
+            "flipped": false
+          },
+          {
+            "index": 1,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 2,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 3,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 4,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          }
+        ]
+      },
+      "expected": null,
+      "expectedConfirmedBy": null,
+      "confirmedAt": null,
+      "generatedBy": "sgs-scenes/v1",
+      "notes": "锁定技：自动生效，无独立动作；机械证据只能证明不报错/守恒，效果需人工断言；`expected` 必须人工填写（语义期望不由生成器推断）；场景仅提供最小复现局面"
+    },
+    {
+      "batch": "B1",
+      "general": "sgs_hero_403",
+      "generalName": "孙亮",
+      "skill": "lijun",
+      "skillName": "立军",
+      "kind": "lord",
+      "phaseHint": "play",
+      "action": "skill:lijun",
+      "scene": {
+        "round": 1,
+        "turn": 0,
+        "turn_phase": "play",
+        "phase": "turn",
+        "seed": 20261105,
+        "deck_top": [
+          "sha",
+          "shan",
+          "tao",
+          "wuxie_keji",
+          "jiu",
+          "juedou"
+        ],
+        "seats": [
+          {
+            "index": 0,
+            "identity": "lord",
+            "hand": [
+              "sha",
+              "sha",
+              "shan",
+              "tao",
+              "jiu",
+              "juedou",
+              "guohe_chaiqiao",
+              "shunshou_qianyang",
+              "wuxie_keji",
+              "zhuge_liannu"
+            ],
+            "equips": {
+              "weapon": "zhuge_liannu",
+              "armor": "bagua_zhen"
+            },
+            "judge": [],
+            "chained": false,
+            "flipped": false
+          },
+          {
+            "index": 1,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 2,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 3,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 4,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          }
+        ]
+      },
+      "expected": null,
+      "expectedConfirmedBy": null,
+      "confirmedAt": null,
+      "generatedBy": "sgs-scenes/v1",
+      "notes": "主公技：需同势力角色响应；L1 未构造响应方 → 人工走查时补一名同势力友军；`expected` 必须人工填写（语义期望不由生成器推断）；场景仅提供最小复现局面"
+    },
+    {
+      "batch": "B1",
+      "general": "sgs_hero_404",
+      "generalName": "蒯越蒯良",
+      "skill": "jianxiang",
+      "skillName": "荐降",
+      "kind": "normal",
+      "phaseHint": "play",
+      "action": "skill:jianxiang",
+      "scene": {
+        "round": 1,
+        "turn": 0,
+        "turn_phase": "play",
+        "phase": "turn",
+        "seed": 20261105,
+        "deck_top": [
+          "sha",
+          "shan",
+          "tao",
+          "wuxie_keji",
+          "jiu",
+          "juedou"
+        ],
+        "seats": [
+          {
+            "index": 0,
+            "identity": "lord",
+            "hand": [
+              "sha",
+              "sha",
+              "shan",
+              "tao",
+              "jiu",
+              "juedou",
+              "guohe_chaiqiao",
+              "shunshou_qianyang",
+              "wuxie_keji",
+              "zhuge_liannu"
+            ],
+            "equips": {
+              "weapon": "zhuge_liannu",
+              "armor": "bagua_zhen"
+            },
+            "judge": [],
+            "chained": false,
+            "flipped": false
+          },
+          {
+            "index": 1,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 2,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 3,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 4,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          }
+        ]
+      },
+      "expected": null,
+      "expectedConfirmedBy": null,
+      "confirmedAt": null,
+      "generatedBy": "sgs-scenes/v1",
+      "notes": "`expected` 必须人工填写（语义期望不由生成器推断）；场景仅提供最小复现局面"
+    },
+    {
+      "batch": "B1",
+      "general": "sgs_hero_404",
+      "generalName": "蒯越蒯良",
+      "skill": "shenshi",
+      "skillName": "审时",
+      "kind": "normal",
+      "phaseHint": "play",
+      "action": "skill:shenshi",
+      "scene": {
+        "round": 1,
+        "turn": 0,
+        "turn_phase": "play",
+        "phase": "turn",
+        "seed": 20261105,
+        "deck_top": [
+          "sha",
+          "shan",
+          "tao",
+          "wuxie_keji",
+          "jiu",
+          "juedou"
+        ],
+        "seats": [
+          {
+            "index": 0,
+            "identity": "lord",
+            "hand": [
+              "sha",
+              "sha",
+              "shan",
+              "tao",
+              "jiu",
+              "juedou",
+              "guohe_chaiqiao",
+              "shunshou_qianyang",
+              "wuxie_keji",
+              "zhuge_liannu"
+            ],
+            "equips": {
+              "weapon": "zhuge_liannu",
+              "armor": "bagua_zhen"
+            },
+            "judge": [],
+            "chained": false,
+            "flipped": false
+          },
+          {
+            "index": 1,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 2,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 3,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 4,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          }
+        ]
+      },
+      "expected": null,
+      "expectedConfirmedBy": null,
+      "confirmedAt": null,
+      "generatedBy": "sgs-scenes/v1",
+      "notes": "`expected` 必须人工填写（语义期望不由生成器推断）；场景仅提供最小复现局面"
+    },
+    {
+      "batch": "B1",
+      "general": "sgs_hero_406",
+      "generalName": "许攸",
+      "skill": "chenglue",
+      "skillName": "成略",
+      "kind": "normal",
+      "phaseHint": "play",
+      "action": "skill:chenglue",
+      "scene": {
+        "round": 1,
+        "turn": 0,
+        "turn_phase": "play",
+        "phase": "turn",
+        "seed": 20261105,
+        "deck_top": [
+          "sha",
+          "shan",
+          "tao",
+          "wuxie_keji",
+          "jiu",
+          "juedou"
+        ],
+        "seats": [
+          {
+            "index": 0,
+            "identity": "lord",
+            "hand": [
+              "sha",
+              "sha",
+              "shan",
+              "tao",
+              "jiu",
+              "juedou",
+              "guohe_chaiqiao",
+              "shunshou_qianyang",
+              "wuxie_keji",
+              "zhuge_liannu"
+            ],
+            "equips": {
+              "weapon": "zhuge_liannu",
+              "armor": "bagua_zhen"
+            },
+            "judge": [],
+            "chained": false,
+            "flipped": false
+          },
+          {
+            "index": 1,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 2,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 3,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 4,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          }
+        ]
+      },
+      "expected": null,
+      "expectedConfirmedBy": null,
+      "confirmedAt": null,
+      "generatedBy": "sgs-scenes/v1",
+      "notes": "`expected` 必须人工填写（语义期望不由生成器推断）；场景仅提供最小复现局面"
+    },
+    {
+      "batch": "B1",
+      "general": "sgs_hero_406",
+      "generalName": "许攸",
+      "skill": "shicai",
+      "skillName": "恃才",
+      "kind": "normal",
+      "phaseHint": "play",
+      "action": "skill:shicai",
+      "scene": {
+        "round": 1,
+        "turn": 0,
+        "turn_phase": "play",
+        "phase": "turn",
+        "seed": 20261105,
+        "deck_top": [
+          "sha",
+          "shan",
+          "tao",
+          "wuxie_keji",
+          "jiu",
+          "juedou"
+        ],
+        "seats": [
+          {
+            "index": 0,
+            "identity": "lord",
+            "hand": [
+              "sha",
+              "sha",
+              "shan",
+              "tao",
+              "jiu",
+              "juedou",
+              "guohe_chaiqiao",
+              "shunshou_qianyang",
+              "wuxie_keji",
+              "zhuge_liannu"
+            ],
+            "equips": {
+              "weapon": "zhuge_liannu",
+              "armor": "bagua_zhen"
+            },
+            "judge": [],
+            "chained": false,
+            "flipped": false
+          },
+          {
+            "index": 1,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 2,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 3,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 4,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          }
+        ]
+      },
+      "expected": null,
+      "expectedConfirmedBy": null,
+      "confirmedAt": null,
+      "generatedBy": "sgs-scenes/v1",
+      "notes": "`expected` 必须人工填写（语义期望不由生成器推断）；场景仅提供最小复现局面"
+    },
+    {
+      "batch": "B1",
+      "general": "sgs_hero_406",
+      "generalName": "许攸",
+      "skill": "cunmu",
+      "skillName": "寸目",
+      "kind": "locked",
+      "phaseHint": "play",
+      "action": null,
+      "scene": {
+        "round": 1,
+        "turn": 0,
+        "turn_phase": "play",
+        "phase": "turn",
+        "seed": 20261105,
+        "deck_top": [
+          "sha",
+          "shan",
+          "tao",
+          "wuxie_keji",
+          "jiu",
+          "juedou"
+        ],
+        "seats": [
+          {
+            "index": 0,
+            "identity": "lord",
+            "hand": [
+              "sha",
+              "sha",
+              "shan",
+              "tao",
+              "jiu",
+              "juedou",
+              "guohe_chaiqiao",
+              "shunshou_qianyang",
+              "wuxie_keji",
+              "zhuge_liannu"
+            ],
+            "equips": {
+              "weapon": "zhuge_liannu",
+              "armor": "bagua_zhen"
+            },
+            "judge": [],
+            "chained": false,
+            "flipped": false
+          },
+          {
+            "index": 1,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 2,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 3,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          },
+          {
+            "index": 4,
+            "hand": [
+              "sha",
+              "shan"
+            ]
+          }
+        ]
+      },
+      "expected": null,
+      "expectedConfirmedBy": null,
+      "confirmedAt": null,
+      "generatedBy": "sgs-scenes/v1",
+      "notes": "锁定技：自动生效，无独立动作；机械证据只能证明不报错/守恒，效果需人工断言；`expected` 必须人工填写（语义期望不由生成器推断）；场景仅提供最小复现局面"
+    }
+  ]
+}
