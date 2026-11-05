@@ -11,8 +11,8 @@
 - **箜声**：准备阶段可置**手牌 + 装备区**牌；结束阶段非装备回手与装备被使用各自算「移入」（同回合只触发一次良姻）；无剩余装备不触发交互。
 - **移出/移入钩子接入**：箜声（置牌/回手/装备被使用）、屯田（「田」）、`to_void_card`/`from_void_card`。
 - **回归**：`p79::kongsheng_can_keep_equipment_cards`、`p79::liangyin_discard_is_chosen_by_each_player`。
-- **门禁**：`cargo test -p sanguosha` **968 全绿**；`sgs:check:fast` 16/16；`check:sgs-ai:100` **100/100**。
-- **待办**：明任「任」/权计「权」/征荣「荣」等其余「置于武将牌上」尚未接入良姻钩子。
+- **门禁**：`cargo test -p sanguosha` **969 全绿**；`sgs:check:fast` 16/16；`check:sgs-ai:100` **100/100**。
+- **接入范围（用户裁定）**：只接能在周妃回合内发生的 → 箜声/屯田/**权计（「权」）**/void；明任（开局）、征荣/鸿举（自己回合）、观星/罪论特殊区不接。回归 `p79::quanji_triggers_liangyin_out`。
 
 ## M70：B2 走查修复（罪论两段式排序 + 明任开局摸 1）✅
 

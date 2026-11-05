@@ -6394,6 +6394,8 @@ pub(crate) fn damage_after(
                     Some(&st.seats[victim].player_id.clone()),
                     format!("权计：摸 1 张并将【{label}】置于武将牌上为「权」"),
                 );
+                // 「权」置于武将牌上 = 牌移出游戏（触发良姻「移出」，每回合首次）。
+                crate::resolve_sp2::liangyin_trigger(st, crate::resolve_sp2::MoveDir::Out);
             }
         }
     }

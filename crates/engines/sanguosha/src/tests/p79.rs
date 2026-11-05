@@ -134,6 +134,45 @@ fn liangyin_discard_is_chosen_by_each_player() {
     assert!(!st.seats[other].hand.contains(&pick2));
 }
 
+/// 权计（钟会）把牌置于武将牌上为「权」= 移出游戏 → 触发良姻「移出」。
+#[test]
+fn quanji_triggers_liangyin_out() {
+    let mgr = manager(1027);
+    let room = start_and_pick(&mgr, 5);
+    let (mut zhou, mut zhong, mut zhou_pid) = (0, 0, String::new());
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        zhou = st.turn;
+        set_general(st, zhou, "sgs_hero_411"); // 周妃：良姻
+        zhong = other_seats(st, zhou)[0];
+        set_general(st, zhong, "sgs_hero_173"); // 钟会：权计
+        for _ in 0..3 {
+            give(st, zhong, "shan");
+        }
+        zhou_pid = st.seats[zhou].player_id.clone();
+        // 周妃回合内钟会受伤 → 权计置「权」→ 良姻「移出」。
+        crate::resolve::apply_damage(
+            st,
+            zhong,
+            1,
+            Some(zhou),
+            crate::resolve::DamageType::Normal,
+            None,
+        );
+        let mut ev = Vec::new();
+        crate::resolve::advance(st, &mut ev).unwrap();
+    });
+    let st = state_of(&mgr, &room);
+    assert_eq!(
+        skills::mark_cards(&st, zhong, "quan").len(),
+        1,
+        "权计：一张手牌置于武将牌上为「权」"
+    );
+    let p = st.pending.clone().expect("良姻（移出）应询问周妃");
+    assert_eq!(p.skill.as_deref(), Some("liangyin"));
+    assert_eq!(p.actor, zhou_pid);
+}
+
 #[test]
 fn kongsheng_equip_cards_used_by_target() {
     let mgr = manager(1021);
