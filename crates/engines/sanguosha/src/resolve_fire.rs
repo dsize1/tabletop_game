@@ -716,7 +716,9 @@ pub(crate) fn jieming_target(
             .saturating_sub(st.config.max_hand_cards as usize)
     };
     if over > 0 {
-        crate::resolve::push_discard(st, target, over, "hand_cap");
+        // 界节命是「弃至体力上限 X」的技能自定义上限，不能沿用 `hand_cap`（= 持有上限）。
+        let reason = if jie { "jieming" } else { "hand_cap" };
+        crate::resolve::push_discard(st, target, over, reason);
     }
     st.push_log(
         Some(&st.seats[f.actor].player_id.clone()),

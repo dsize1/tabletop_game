@@ -782,6 +782,7 @@ npm run gen:sgs-audit-matrix           # 生成矩阵骨架（已存在则拒绝
 
 - 走查单：`npm run sheet:sgs-audit B0` → `docs/games/sanguosha/audit-sheets/<BATCH>.md`（原文+机检+判定点+场景提示；结论列留空）。
 - **开局 pending 坑**：预览 `scene` 注入会丢弃开局技 pending（明任/怀橘/宗祚/血裔/巧变/化身）→ 用 `npm run audit:sgs-generals:no-scene B2`（`--no-scene`）；实测卢植 `mingren,zhenliang`、严颜 `juzhan` 可触达。
+- **B1 走查修复（2026-11-05）**：拒战（阴）获得牌后误弃牌（`hand_cap` 误按技能上限重算）→ 改为「手牌上限只在弃牌阶段生效」，获得牌只看持有上限；界节命弃至 X 用独立 reason。急救红【酒】当【桃】救他人 legal/execute 同源修复。详见 `rules-rulings.md` 复验 18/19、`milestones.md` M69。
 
 **门禁**：`check:sgs-generals`（矩阵一致性 + 抽样 8 将）已并入 `sgs:check`（非 fast）与 fast 的 `generals-matrix` 步骤。
 

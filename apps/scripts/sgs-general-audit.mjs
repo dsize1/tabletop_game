@@ -837,13 +837,15 @@ async function main() {
     if (flag("--scenes-only")) return 0;
   }
 
-  const serverExe = path.join(
-    projectRoot,
-    "crates/target/debug",
-    process.platform === "win32" ? "server.exe" : "server",
-  );
+  const serverExe =
+    process.env.SGS_AUDIT_SERVER ??
+    path.join(
+      projectRoot,
+      "crates/target/debug",
+      process.platform === "win32" ? "server.exe" : "server",
+    );
   if (!existsSync(serverExe)) {
-    log("skip：server 未构建（cargo build -p server）");
+    log(`skip：server 未构建（cargo build -p server，或用 SGS_AUDIT_SERVER 指定二进制）`);
     return 0;
   }
   if (!(await tcpOk("127.0.0.1", 6379))) {

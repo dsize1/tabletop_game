@@ -294,7 +294,7 @@ fn zhijian_stage2_waits_target_and_rejects_replay() {
 }
 
 // ---------------------------------------------------------------------------
-// 弃牌：手牌已达上限不再询问；hand_cap 用技能上限而非大厅配置
+// 弃牌：手牌已达上限不再询问；hand_cap 只按持有上限（手牌上限只在弃牌阶段生效）
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -332,13 +332,10 @@ fn discard_not_asked_when_hand_equals_limit() {
     );
 }
 
-#[test]
-fn hand_cap_uses_skill_limit_not_lobby_config() {
-    let mgr = manager(3706);
-    let room = start_and_pick(&mgr, 5);
+/// 周泰 2「创」场景：手牌上限 = 创数 = 2；持有上限单独由 `config.max_hand_cards` 决定。
+fn buqu_seat_with_six_cards(mgr: &GameManager, room: &str) -> usize {
     let mut seat = 0;
-    let mut required = 0;
-    edit(&mgr, &room, |st| {
+    edit(mgr, room, |st| {
         clear_hands(st);
         seat = st.turn;
         set_general(st, seat, "sgs_hero_210");
@@ -352,16 +349,116 @@ fn hand_cap_uses_skill_limit_not_lobby_config() {
         for _ in 0..6 {
             give_filtered(st, seat, |c| c.def == "shan");
         }
-        // 调用方传 1（如大厅配置 5 算出的超限数）也必须按技能上限 2 重算为 4。
+    });
+    seat
+}
+
+/// 真机反馈（严颜·拒战阴获得 1 张即被要求弃牌）：**手牌上限只在弃牌阶段生效**，
+/// 回合内获得牌只要不超过持有上限（`config.max_hand_cards`，默认 20）就不该弃牌。
+#[test]
+fn hand_cap_not_asked_below_hold_limit() {
+    let mgr = manager(3706);
+    let room = start_and_pick(&mgr, 5);
+    let seat = buqu_seat_with_six_cards(&mgr, &room);
+    edit(&mgr, &room, |st| {
+        // 不屈上限 2、手牌 6：远低于持有上限 20 → 不得压弃牌帧。
+        assert_eq!(crate::skills::hand_limit(st, seat), 2);
         crate::resolve::push_discard(st, seat, 1, "hand_cap");
         advance_once(st);
-        required = st
-            .pending
-            .as_ref()
-            .and_then(|p| p.data["required"].as_u64())
-            .unwrap_or(0) as usize;
     });
-    assert_eq!(required, 4, "hand_cap 应按 手牌 6 − 不屈上限 2 = 4 张");
+    let st = state_of(&mgr, &room);
+    assert!(
+        st.pending
+            .as_ref()
+            .is_none_or(|p| p.kind != "discard"),
+        "获得牌后未超持有上限时不应弃牌：{:?}",
+        st.pending.as_ref().map(|p| (p.kind.clone(), p.data.clone()))
+    );
+    st_check(&mgr, &room);
+}
+
+/// 超过持有上限（`config.max_hand_cards`）时仍弃至持有上限，而不是弃到体力/技能手牌上限。
+#[test]
+fn hand_cap_uses_hold_limit_not_hand_limit() {
+    let mgr = manager(3707);
+    let room = start_and_pick(&mgr, 5);
+    let seat = buqu_seat_with_six_cards(&mgr, &room);
+    let (mut required, mut limit) = (0, 0);
+    edit(&mgr, &room, |st| {
+        st.config.max_hand_cards = 4;
+        crate::resolve::push_discard(st, seat, 1, "hand_cap");
+        advance_once(st);
+        if let Some(p) = st.pending.as_ref() {
+            required = p.data["required"].as_u64().unwrap_or(0) as usize;
+            limit = p.data["limit"].as_u64().unwrap_or(0) as usize;
+        }
+    });
+    assert_eq!(required, 2, "持有上限 4、手牌 6 → 需弃 2 张（不是按不屈上限 2 弃 4 张）");
+    assert_eq!(limit, 4, "上限展示应为持有上限 4");
+    st_check(&mgr, &room);
+}
+
+/// 弃牌阶段仍按技能手牌上限（不屈=创数）弃牌。
+#[test]
+fn discard_phase_still_uses_skill_hand_limit() {
+    let mgr = manager(3708);
+    let room = start_and_pick(&mgr, 5);
+    buqu_seat_with_six_cards(&mgr, &room);
+    let (mut required, mut limit) = (0, 0);
+    edit(&mgr, &room, |st| {
+        st.turn_phase = TurnPhase::Discard;
+        st.turn_counters.clear();
+        st.phase_discarded.clear();
+        advance_once(st);
+        if let Some(p) = st.pending.as_ref() {
+            required = p.data["required"].as_u64().unwrap_or(0) as usize;
+            limit = p.data["limit"].as_u64().unwrap_or(0) as usize;
+        }
+    });
+    assert_eq!(required, 4, "弃牌阶段：手牌 6 − 不屈上限 2 = 4");
+    assert_eq!(limit, 2, "弃牌阶段上限展示应为技能上限 2");
+    st_check(&mgr, &room);
+}
+
+/// 拒战（阴）：使用【杀】指定目标后获得其一张牌；若未超持有上限，**不得**要求弃牌。
+#[test]
+fn juzhan_yin_gain_does_not_ask_discard() {
+    let mgr = manager(3709);
+    let room = start_and_pick(&mgr, 5);
+    let (mut yan, mut target, mut sha) = (0, 0, String::new());
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        yan = st.turn;
+        set_general(st, yan, "sgs_hero_400"); // 严颜：拒战
+        target = other_seats(st, yan)[0];
+        set_general(st, target, "sgs_hero_1");
+        give(st, target, "shan");
+        // 手牌 4 = 体力上限 4：获得 1 张后 5 > 手牌上限，但仍远低于持有上限 20。
+        for _ in 0..4 {
+            give_filtered(st, yan, |c| c.def == "tao");
+        }
+        sha = give(st, yan, "sha");
+        st.turn_phase = TurnPhase::Play;
+        st.turn_counters.clear();
+        st.seats[yan].flags.insert("yj:juzhan".into(), true); // 阴面
+    });
+    let st = state_of(&mgr, &room);
+    let (yan_pid, target_pid) = (pid_of(&st, yan), pid_of(&st, target));
+    mgr.execute_action(&room, &yan_pid, &format!("play:{sha}"))
+        .unwrap();
+    mgr.execute_action(&room, &yan_pid, &format!("target:{target_pid}"))
+        .unwrap();
+    mgr.execute_action(&room, &yan_pid, "choose:juzhan").unwrap();
+    mgr.execute_action(&room, &yan_pid, "pick:hand").unwrap();
+    let st = state_of(&mgr, &room);
+    assert_eq!(st.seats[yan].hand.len(), 5, "拒战（阴）：获得目标一张牌");
+    assert!(
+        st.pending
+            .as_ref()
+            .is_none_or(|p| p.kind != "discard"),
+        "拒战（阴）获得牌后不应要求弃牌：{:?}",
+        st.pending.as_ref().map(|p| (p.kind.clone(), p.data.clone()))
+    );
     st_check(&mgr, &room);
 }
 

@@ -4,6 +4,7 @@
 //! （`respond:<card>`）两条路径都必须重校验，且引擎未下发的转化选项不可伪造。
 
 use super::p24::{set_general, start_and_pick};
+use super::support::give_filtered;
 use super::{clear_hands, drive_mgr_inject, edit, give, manager, state_of};
 use crate::state::*;
 
@@ -309,6 +310,49 @@ fn jijiu_red_card_as_tao_outside_turn() {
     );
     mgr.execute_action(&room, &hua_pid, &format!("respond:{red}"))
         .unwrap();
+    let st = state_of(&mgr, &room);
+    assert!(st.seats[victim].alive);
+    assert_eq!(st.seats[victim].hp, 1, "急救回复 1 点体力");
+    assert!(st.history.iter().any(|e| e.text.contains("急救")));
+    st.check_conservation().unwrap();
+}
+
+/// 红【酒】（♦9）也能被急救当【桃】救他人：legal 提供该选项时 execute 必须接受。
+/// （sgs-ai 100 局 seed=60：respond:<酒> 被 offer 却按「酒只能自救」拒绝。）
+#[test]
+fn jijiu_red_jiu_can_rescue_others_as_tao() {
+    let mgr = manager(3801);
+    let room = start_and_pick(&mgr, 5);
+    let (mut cur, mut victim, mut hua) = (0, 0, 0);
+    let (mut sha, mut red_jiu) = (String::new(), String::new());
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        cur = st.turn;
+        victim = st.seats_from_left_of(cur)[0];
+        hua = st.seats_from_left_of(cur)[1];
+        set_general(st, hua, "sgs_hero_22"); // 华佗：急救
+        st.seats[victim].hp = 1;
+        sha = give(st, cur, "sha");
+        red_jiu = give_filtered(st, hua, |c| c.def == "jiu" && c.suit == Suit::Diamond);
+        assert!(!red_jiu.is_empty(), "牌堆里应有红【酒】♦9");
+    });
+    let st = state_of(&mgr, &room);
+    let (cur_pid, victim_pid, hua_pid) = (pid(&st, cur), pid(&st, victim), pid(&st, hua));
+    mgr.execute_action(&room, &cur_pid, &format!("play:{sha}"))
+        .unwrap();
+    mgr.execute_action(&room, &cur_pid, &format!("target:{victim_pid}"))
+        .unwrap();
+    let st = state_of(&mgr, &room);
+    let pending = st.pending.clone().expect("应进入濒死求桃");
+    assert_eq!(pending.kind, "dying");
+    assert_eq!(pending.actor, hua_pid);
+    assert!(
+        pending.options.iter().any(|o| o.id == format!("respond:{red_jiu}")),
+        "急救应把红【酒】当作【桃】选项：{:?}",
+        pending.options
+    );
+    mgr.execute_action(&room, &hua_pid, &format!("respond:{red_jiu}"))
+        .expect("急救用红【酒】当【桃】救他人应合法");
     let st = state_of(&mgr, &room);
     assert!(st.seats[victim].alive);
     assert_eq!(st.seats[victim].hp, 1, "急救回复 1 点体力");

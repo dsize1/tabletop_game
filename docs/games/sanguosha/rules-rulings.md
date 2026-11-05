@@ -720,3 +720,30 @@
 - 缺陷：`step_dimeng` 列出全部候选（未过滤），选中付不起的目标后 `dimeng_target` 报「手牌不足」——
   全量审计（148 将 L1）因此把 界吕蒙/界董卓 误报为失败。
 - 修复：第二名候选按费用过滤（`|handA − handB| ≤ 自己手牌数`），legal/execute 同源。
+
+### （2026-11-05 复验 18）手牌上限只在弃牌阶段生效（拒战阴获得牌后误弃牌）
+
+- **触发**：真机 `preview:8ef0df87` 严颜对王基出【杀】→ 拒战（阴）获得【铁索连环】→ 立刻被要求「需弃 1 张（手牌 5 / 上限 4，获得牌后超过上限）」。
+- **口径（用户确认）**：`手牌上限`（体力/不屈=创数/技能修正）**只在弃牌阶段**生效；回合内获得牌只要不超过**持有上限**
+  `config.max_hand_cards`（默认 20，大厅可设）就不该弃牌。
+- **根因**：M67 复验 2 把 `hand_cap`（获得牌后）与 `discard_phase`（弃牌阶段）统一按 `skills::hand_limit` 重算，
+  `push_discard` 又忽略调用方传入的超限数 → 任一「获得牌」点（顺手/反馈/拒战阴/五谷/巨象/突袭…）在
+  「手牌 > 体力上限」时都会插一次弃牌 pending。`PickCard` 侧还用 `max_hand_cards` 算 `over` 且无 `over > 0` 保护。
+- **修复**：
+  1. `resolve::discard_limit(actor, reason)`：`discard_phase` → `skills::hand_limit`；`hand_cap` → `config.max_hand_cards`；
+     `push_discard` / `step_discard`（重算、历史文案、`data.limit`）/ `act_discard`（剩余张数）三处统一走它。
+  2. 界节命（界荀彧）「摸 X 后弃至体力上限 X」是技能自定义上限，改用独立 `reason = "jieming"`（不复用 `hand_cap`）。
+  3. 文案：`hand_cap` → 「获得牌后超过持有上限」；`jieming` → 「界节命：弃至体力上限」。
+- **回归**：`p107::hand_cap_not_asked_below_hold_limit`（手牌 6 / 不屈上限 2 / 持有上限 20 → 不弃）、
+  `hand_cap_uses_hold_limit_not_hand_limit`（持有上限 4 → 弃 2 张、上限展示 4）、
+  `discard_phase_still_uses_skill_hand_limit`（弃牌阶段仍按不屈上限 2 → 弃 4 张）、
+  `juzhan_yin_gain_does_not_ask_discard`（真机场景复刻）。
+
+### （2026-11-05 复验 19）急救：红【酒】可当【桃】救他人（legal/execute 同源）
+
+- **触发**：`check:sgs-ai:100` seed=60 非法动作 `respond:<酒 ♦9> → 回落 pass`：濒死 pending 由华佗（急救）接手，
+  legal 通过「急救 = 红牌当桃」给出了该【酒】，执行端却先按「【酒】只能濒死自救」拒绝。
+- **口径**：急救的「红色牌当【桃】」优先于「酒自救」判定——红【酒】可救他人；黑【酒】不行（无急救转化）。
+- **修复**：`act_dying` 先算「当桃的转化」（`tao_conversion`），存在时跳过酒自救分支并复用同一结果；
+  `酒池` 当【酒】仍只允许自救。
+- **回归**：`p42::jijiu_red_jiu_can_rescue_others_as_tao`；`check:sgs-ai:100` 100/100（illegal 0）。

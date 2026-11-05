@@ -64,7 +64,7 @@ GameState（game-engine-core 信封）
 | `target` | 出牌者 | `card/source/type` | `target:<player>` | 杀、乐不思蜀选目标 |
 | `respond` | 被杀目标 | `card/source/target/damage` | `respond:<闪>` / `pass` | 杀结算，目标需出闪 |
 | `dying` | 按响应顺序的持桃者 | `victim` | `respond:<桃>` / `pass` | 体力 ≤ 0 |
-| `discard` | 需弃牌者 | `required/reason`（`hand_cap` / `discard_phase`） | `discard:<csv>`（可逐张） | 超过持有上限、弃牌阶段 |
+| `discard` | 需弃牌者 | `required/reason`（`hand_cap`=超过持有上限 / `discard_phase`=弃牌阶段 / `jieming`=界节命弃至体力上限） | `discard:<csv>`（可逐张） | 超过持有上限、弃牌阶段、技能自定义上限 |
 | `wuxie` | 按座位顺序的**所有存活玩家** | `root` / `count` / `cursor` | `respond:<无懈>` / `pass` | 锦囊生效前、延时锦囊判定前 |
 | `pick_card` | 锦囊使用者 | `target` / `options`（装备槽/手牌/判定区） | `pick:hand` / `pick:equip:<slot>` / `pick:judge:<id>` | 顺手牵羊、过河拆桥（无懈后） |
 | `target`（借刀） | 锦囊使用者 | `stage`（`borrow_first`/`borrow_second`） | `target:<player>` / `confirm` / `cancel` | 借刀杀人二阶段目标 |
@@ -188,7 +188,7 @@ while judge_zone not empty:
 | `judge_before` / `judge_after` | 判定前后 |
 | `draw_count` | 计算摸牌数 |
 | `hand_limit` | 计算弃牌阶段手牌上限（当前体力值/技能） |
-| `hand_cap` | 检查持有上限 `max_hand_cards`（摸牌/获得后） |
+| `hand_cap` | 检查持有上限 `max_hand_cards`（摸牌/获得后；**手牌上限只在弃牌阶段生效**，见 `resolve::discard_limit`） |
 | `equip_change` | 装备变化 |
 | `card_lost` | 牌离开区域 |
 

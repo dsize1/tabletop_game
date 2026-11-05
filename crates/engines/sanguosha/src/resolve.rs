@@ -734,22 +734,35 @@ fn is_hand_cap_reason(reason: &str) -> bool {
     matches!(reason, "discard_phase" | "hand_cap")
 }
 
-/// 手牌超出上限的张数（用 `skills::hand_limit`：含不屈=创数、克己=不限、藏拙等）。
-pub fn hand_over_limit(st: &SgsState, actor: usize) -> usize {
+/// 该弃牌原因对应的「上限」：
+/// - `discard_phase`：技能手牌上限（体力/不屈=创数/技能修正）；
+/// - `hand_cap`：持有上限 `config.max_hand_cards`（默认 20，可在大厅设置）——
+///   手牌上限只在**弃牌阶段**生效，回合内获得牌只要不超持有上限就不该弃牌。
+pub fn discard_limit(st: &SgsState, actor: usize, reason: &str) -> usize {
+    match reason {
+        "hand_cap" => st.config.max_hand_cards as usize,
+        _ => crate::skills::hand_limit(st, actor),
+    }
+}
+
+/// 手牌超出上限的张数（按弃牌原因取对应上限）。
+pub fn hand_over_limit(st: &SgsState, actor: usize, reason: &str) -> usize {
     st.seats
         .get(actor)
-        .map(|s| s.hand.len().saturating_sub(crate::skills::hand_limit(st, actor)))
+        .map(|s| s.hand.len().saturating_sub(discard_limit(st, actor, reason)))
         .unwrap_or(0)
 }
 
 pub fn push_discard(st: &mut SgsState, actor: usize, required: usize, reason: &str) {
     // 真机反馈：手牌与上限相等时仍被要求弃牌。根因是各技能点用
-    // `config.max_hand_cards`（大厅配置，默认 5）而非技能上限计算超限张数，
+    // `config.max_hand_cards`（大厅配置）而非技能上限计算超限张数，
     // 且重复/过时压帧。这里统一按「当前手牌 − 当前上限」重算：
-    // - hand_cap / discard_phase：一律等于真实超限数（可能大于调用方传入的 required）；
+    // - `discard_phase`：一律等于真实超限数（按 `skills::hand_limit`，含不屈=创数/克己=不限）；
+    // - `hand_cap`：按**持有上限** `config.max_hand_cards`（获得牌后只要不超持有上限不弃，
+    //   手牌上限只在弃牌阶段生效。真机反馈：拒战（阴）获得牌后被要求弃牌即此错）；
     // - 其它显式张数（英魂/悲歌/飘零/庸肆）保持调用方口径。
     let required = if is_hand_cap_reason(reason) {
-        hand_over_limit(st, actor)
+        hand_over_limit(st, actor, reason)
     } else {
         required
     };
@@ -2752,7 +2765,7 @@ fn step_discard(st: &mut SgsState, mut f: DiscardFrame) -> Result<bool, EngineEr
     let hand = turn::hand_ids(st, f.actor);
     // 「弃至上限」类：每次进入都以当前手牌/上限重算；已达到上限则直接结束询问。
     if is_hand_cap_reason(&f.reason) {
-        let over = hand_over_limit(st, f.actor);
+        let over = hand_over_limit(st, f.actor, &f.reason);
         if over == 0 {
             pop(st);
             return Ok(false);
@@ -2766,10 +2779,11 @@ fn step_discard(st: &mut SgsState, mut f: DiscardFrame) -> Result<bool, EngineEr
     }
     {
         // 每次询问都写历史：原因 + 手牌/上限/应弃，便于定位「反复要求弃牌」类问题。
-        let limit = crate::skills::hand_limit(st, f.actor);
+        let limit = discard_limit(st, f.actor, &f.reason);
         let label = match f.reason.as_str() {
             "discard_phase" => "手牌超过上限",
-            "hand_cap" => "获得牌后超过上限",
+            "hand_cap" => "获得牌后超过持有上限",
+            "jieming" => "界节命：弃至体力上限",
             "yongsi" => "庸肆（本阶段仅一次）",
             "yinghun" => "英魂",
             "beige" => "悲歌",
@@ -2802,10 +2816,11 @@ fn step_discard(st: &mut SgsState, mut f: DiscardFrame) -> Result<bool, EngineEr
             "reason": f.reason,
             // 端侧解释用：手牌数 / 当前手牌上限 / 原因文案（不屈升限等归因于此）。
             "hand": st.seats[f.actor].hand.len(),
-            "limit": crate::skills::hand_limit(st, f.actor),
+            "limit": discard_limit(st, f.actor, &f.reason),
             "reason_label": match f.reason.as_str() {
                 "discard_phase" => "手牌超过上限",
-                "hand_cap" => "获得牌后超过上限",
+                "hand_cap" => "获得牌后超过持有上限",
+                "jieming" => "界节命：弃至体力上限",
                 "yongsi" => "庸肆：弃牌阶段先弃 X 张",
                 _ => "弃牌",
             },
@@ -5504,13 +5519,21 @@ fn act_dying(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Strin
         .strip_prefix("respond:")
         .ok_or_else(|| illegal("需要使用桃或 pass"))?;
     let actual = turn::card_def(st, card_id).map(|d| d.code);
+    // 急救（华佗类）：红色牌当【桃】。红【酒】（如 ♦9）也能当【桃】救**他人**，
+    // 因此「当桃的转化」优先于「酒」自救判定（否则 legal 会给出 respond:<酒>，
+    // 执行端却按自救拒绝 → legal/execute 不一致；sgs-ai seed=60 曾报非法动作）。
+    let tao_conversion = if actual == Some("tao") {
+        None
+    } else {
+        crate::skills::conversion_for(st, seat, card_id, "tao")
+    };
     // 酒自救：只允许对自己、且不享受救援加成（含酒池转化）。
-    let jiu_conversion = if actual == Some("jiu") {
+    let jiu_conversion = if actual == Some("jiu") || tao_conversion.is_some() {
         None
     } else {
         crate::skills::conversion_for(st, seat, card_id, "jiu")
     };
-    if actual == Some("jiu") || jiu_conversion.is_some() {
+    if (actual == Some("jiu") || jiu_conversion.is_some()) && tao_conversion.is_none() {
         if f.victim != seat {
             return Err(illegal("【酒】只能在濒死时对自己使用"));
         }
@@ -5542,10 +5565,7 @@ fn act_dying(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Strin
     let conversion = if actual == Some("tao") {
         None
     } else {
-        Some(
-            crate::skills::conversion_for(st, seat, card_id, "tao")
-                .ok_or_else(|| illegal("只能用【桃】救援"))?,
-        )
+        Some(tao_conversion.ok_or_else(|| illegal("只能用【桃】救援"))?)
     };
     turn::take_card(st, seat, card_id)?;
     turn::to_discard_card(st, card_id);
@@ -5620,7 +5640,7 @@ fn act_discard(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Str
     }
     let remaining = if is_hand_cap_reason(&f.reason) {
         // 以实际手牌与上限重算（手牌可能因弃牌钩子变化），保证「弃到不大于上限」为止。
-        hand_over_limit(st, f.actor)
+        hand_over_limit(st, f.actor, &f.reason)
     } else {
         required.saturating_sub(ids.len())
     };
@@ -5633,10 +5653,10 @@ fn act_discard(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Str
         st.bump_counter("discard_done");
     }
     let text = if remaining == 0 {
-        if f.reason == "hand_cap" {
-            format!("超过持有上限，弃置 {} 张", ids.len())
-        } else {
-            format!("弃牌阶段：弃置 {} 张", ids.len())
+        match f.reason.as_str() {
+            "hand_cap" => format!("超过持有上限，弃置 {} 张", ids.len()),
+            "jieming" => format!("界节命：弃至体力上限，弃置 {} 张", ids.len()),
+            _ => format!("弃牌阶段：弃置 {} 张", ids.len()),
         }
     } else {
         // 逐张弃时只提示当前动作，不写「还需弃 N 张」的中间日志（历史更干净）。

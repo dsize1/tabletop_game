@@ -13,6 +13,15 @@
   4. **B1 机检**：8 将 / 18 技能 → 触达 6 · 未触达 2 · 失败 0。
   5. **B2 机检**：8 将 / 15 技能 → 触达 6 · 未触达 2 · 失败 0；`--no-scene` 补测 严颜（`juzhan`）可触达。
   6. **L2 台账**：B2 新增 15 条场景骨架（共 40 条）；清理名称勘误后残留的张昭张弘 2 条；`expected` 仍全为 null（待人工）。
+- **真机缺陷修复（同日，B1 走查第 1 将 严颜）**：
+  1. **拒战（阴）获得牌后被要求弃牌**（`preview:8ef0df87`）：M67 复验 2 把 `hand_cap` 也按 `skills::hand_limit` 重算，
+     导致任一「获得牌」点在「手牌 > 体力上限」时插入弃牌 pending（`PickCard` 侧还用 `max_hand_cards` 算 `over` 且无保护）。
+     裁定：**手牌上限只在弃牌阶段生效**，获得牌后只看持有上限 `config.max_hand_cards`（默认 20）。
+     新增 `resolve::discard_limit`（`discard_phase`→技能上限 / `hand_cap`→持有上限），push/step/act 三处统一；
+     界节命「弃至体力上限 X」改用独立 `reason="jieming"`（不复用 `hand_cap`）。回归 `p107` +4。
+  2. **急救红【酒】当【桃】救他人被拒**（`check:sgs-ai:100` seed=60 非法动作）：legal 经急救给出红【酒】，
+     执行端先按「酒只能自救」拒绝。修为「当桃的转化」优先于酒自救判定。回归 `p42::jijiu_red_jiu_can_rescue_others_as_tao`。
+- **门禁**：`cargo test -p sanguosha` **959 全绿**；`sgs:check:fast` 16/16；`check:sgs-ai:100` **100/100**（illegal 0）。
 - **未完成（需人工）**：B0 七技能逐项走查签字；B1/B2 逐将走查。
 - **下一步**：用户在工作台按 `audit-sheets/B0.md` 走查 → 签字 → 回写矩阵 → 进 B1/B2。
 
