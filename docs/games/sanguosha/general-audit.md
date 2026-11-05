@@ -28,14 +28,14 @@
 | B0 | wind_fire_forest_mountain | 曹仁 | `sgs_hero_29` | 据守(`jushou`/normal)、解围(`jiewei`/normal) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B0 --seed 20261105` | |
 | B0 | wind_fire_forest_mountain | 周泰 | `sgs_hero_210` | 不屈(`buqu`/locked)、奋激(`fenji`/normal) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B0 --seed 20261105` | |
 | B0 | wind_fire_forest_mountain | 曹丕 | `sgs_hero_43` | 行殇(`xingshang`/normal)、放逐(`fangzhu`/normal)、颂威(`songwei`/lord) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B0 --seed 20261105` | |
-| B1 | wind_fire_forest_mountain | 袁术 | `sgs_hero_100` | 庸肆(`yongsi`/locked)、伪帝(`weidi`/locked) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B1 --seed 20261105` | |
-| B1 | wind_fire_forest_mountain | 王基 | `sgs_hero_362` | 奇制(`qizhi`/normal)、进趋(`jinzou`/normal) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B1 --seed 20261105` | |
-| B1 | wind_fire_forest_mountain | 严颜 | `sgs_hero_400` | 拒战(`juzhan`/normal) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B1 --seed 20261105` | |
-| B1 | wind_fire_forest_mountain | 王平 | `sgs_hero_401` | 飞军(`feijun`/normal)、兵略(`binglue`/locked) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B1 --seed 20261105` | |
-| B1 | wind_fire_forest_mountain | 陆绩 | `sgs_hero_402` | 怀橘(`huaiju`/locked)、遗礼(`yili`/normal)、整论(`zhenglun`/normal) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B1 --seed 20261105` | |
-| B1 | wind_fire_forest_mountain | 孙亮 | `sgs_hero_403` | 溃诛(`kuizhu`/normal)、掣政(`chezheng`/locked)、立军(`lijun`/lord) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B1 --seed 20261105` | |
-| B1 | wind_fire_forest_mountain | 蒯越蒯良 | `sgs_hero_404` | 荐降(`jianxiang`/normal)、审时(`shenshi`/normal) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B1 --seed 20261105` | |
-| B1 | wind_fire_forest_mountain | 许攸 | `sgs_hero_406` | 成略(`chenglue`/normal)、恃才(`shicai`/normal)、寸目(`cunmu`/locked) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B1 --seed 20261105` | |
+| B1 | wind_fire_forest_mountain | 袁术 | `sgs_hero_100` | 庸肆(`yongsi`/locked)、伪帝(`weidi`/locked) | ≥3（已过门禁） | 已裁定：庸肆按势力数（复验 8–12） | 见 evidence | 人工通过 | 用户 | `--batch B1 --seed 20261105` | 触达 `yongsi`；复验 8–12 弃牌/奋激口径已收敛 |
+| B1 | wind_fire_forest_mountain | 王基 | `sgs_hero_362` | 奇制(`qizhi`/normal)、进趋(`jinzou`/normal) | ≥3（已过门禁） | 已确认（skills.md 原文） | 见 evidence | 人工通过 | 用户 | `--batch B1 --seed 20261105` | 触达 `jinzou`；奇制需回合内用非装备牌后触发（走查结构已给出） |
+| B1 | wind_fire_forest_mountain | 严颜 | `sgs_hero_400` | 拒战(`juzhan`/normal) | ≥3（已过门禁） | 已裁定：拒战（阴）获牌不弃（复验 18） | 见 evidence | 人工通过 | 用户 | `--batch B1 --seed 20261105` | **缺陷已修**：拒战（阴）获牌后误弃牌（复验 18）；阳/阴两面已走查 |
+| B1 | wind_fire_forest_mountain | 王平 | `sgs_hero_401` | 飞军(`feijun`/normal)、兵略(`binglue`/locked) | ≥3（已过门禁） | 已确认（skills.md 原文） | 见 evidence | 人工通过 | 用户 | `--batch B1 --seed 20261105` | L1 未触达（需他人牌数多于你，条件不满足）；走查按场景构造通过 |
+| B1 | wind_fire_forest_mountain | 陆绩 | `sgs_hero_402` | 怀橘(`huaiju`/locked)、遗礼(`yili`/normal)、整论(`zhenglun`/normal) | ≥3（已过门禁） | 已确认（skills.md 原文） | 见 evidence | 人工通过 | 用户 | `--batch B1 --seed 20261105` | 开局钩子：`--no-scene` 可触达 `yili`；怀橘/整论按场景走查通过 |
+| B1 | wind_fire_forest_mountain | 孙亮 | `sgs_hero_403` | 溃诛(`kuizhu`/normal)、掣政(`chezheng`/locked)、立军(`lijun`/lord) | ≥3（已过门禁） | 已裁定：溃诛 X=本阶段弃牌数（复验 20） | 见 evidence | 人工通过 | 用户 | `--batch B1 --seed 20261105` | **缺陷已修**：溃诛给自己补牌后二次弃牌（复验 20）；掣政防伤/追加弃牌通过 |
+| B1 | wind_fire_forest_mountain | 蒯越蒯良 | `sgs_hero_404` | 荐降(`jianxiang`/normal)、审时(`shenshi`/normal) | ≥3（已过门禁） | 已裁定：审时（阴）濒死救起后仍触发（复验 21） | 见 evidence | 人工通过 | 用户 | `--batch B1 --seed 20261105` | **缺陷已修**：濒死救起后吞伤害后钩子（复验 21，同类 遗计/反馈/节命 同修） |
+| B1 | wind_fire_forest_mountain | 许攸 | `sgs_hero_406` | 成略(`chenglue`/normal)、恃才(`shicai`/normal)、寸目(`cunmu`/locked) | ≥3（已过门禁） | 已确认（skills.md 原文） | 见 evidence | 人工通过 | 用户 | `--batch B1 --seed 20261105` | 触达 `chenglue`；恃才/寸目按场景走查通过 |
 | B2 | wind_fire_forest_mountain | 卢植 | `sgs_hero_407` | 明任(`mingren`/normal)、贞良(`zhenliang`/normal) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B2 --seed 20261105` | |
 | B2 | wind_fire_forest_mountain | 郝昭 | `sgs_hero_408` | 镇骨(`zhengu`/normal) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B2 --seed 20261105` | |
 | B2 | wind_fire_forest_mountain | 陈到 | `sgs_hero_409` | 往烈(`wanglie`/normal) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B2 --seed 20261105` | |
