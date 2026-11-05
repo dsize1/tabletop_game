@@ -420,6 +420,53 @@ fn discard_phase_still_uses_skill_hand_limit() {
     st_check(&mgr, &room);
 }
 
+/// 溃诛令**自己**摸牌后不得再要求弃牌（弃牌阶段只按上限弃一次；真机 `#247-251`）。
+#[test]
+fn kuizhu_self_draw_does_not_ask_second_discard() {
+    let mgr = manager(3710);
+    let room = start_and_pick(&mgr, 5);
+    let (mut cur, mut cur_pid, mut first) = (0, String::new(), String::new());
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        cur = st.turn;
+        set_general(st, cur, "sgs_hero_403"); // 孙亮：溃诛（max_hp 3）
+        st.seats[cur].max_hp = 3;
+        st.seats[cur].hp = 3;
+        for seat in other_seats(st, cur) {
+            set_general(st, seat, "sgs_hero_1");
+        }
+        for _ in 0..4 {
+            give_filtered(st, cur, |c| c.def == "sha");
+        }
+        st.turn_phase = TurnPhase::Discard;
+        st.turn_counters.clear();
+        st.phase_discarded.clear();
+        cur_pid = st.seats[cur].player_id.clone();
+        first = st.seats[cur].hand[0].clone();
+    });
+    // 弃 1 张（手牌 4 → 3，上限 3）→ 溃诛 X=1 → 令自己摸 1（回到 4 > 上限 3，不得再弃）
+    edit(&mgr, &room, |st| advance_once(st));
+    let st = state_of(&mgr, &room);
+    assert_eq!(st.pending.as_ref().map(|p| p.kind.clone()), Some("discard".into()));
+    mgr.execute_action(&room, &cur_pid, &format!("discard:{first}"))
+        .unwrap();
+    edit(&mgr, &room, |st| advance_once(st));
+    mgr.execute_action(&room, &cur_pid, "choose:kuizhu:draw").unwrap();
+    edit(&mgr, &room, |st| advance_once(st));
+    mgr.execute_action(&room, &cur_pid, &format!("target:{cur_pid}"))
+        .unwrap();
+    edit(&mgr, &room, |st| advance_once(st));
+    let st = state_of(&mgr, &room);
+    assert_eq!(st.seats[cur].hand.len(), 4, "溃诛令自己摸 1：手牌回到 4");
+    assert!(
+        st.pending.as_ref().is_none_or(|p| !(p.kind == "discard" && p.actor == cur_pid)),
+        "溃诛补牌后不得再要求孙亮弃牌：{:?}",
+        st.pending.as_ref().map(|p| (p.kind.clone(), p.actor.clone(), p.data.clone()))
+    );
+    assert!(st.history.iter().any(|e| e.text.contains("溃诛")));
+    st_check(&mgr, &room);
+}
+
 /// 拒战（阴）：使用【杀】指定目标后获得其一张牌；若未超持有上限，**不得**要求弃牌。
 #[test]
 fn juzhan_yin_gain_does_not_ask_discard() {

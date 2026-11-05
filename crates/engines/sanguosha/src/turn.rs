@@ -1189,7 +1189,10 @@ pub(crate) fn phase_step(
             // 克己：出牌阶段未使用杀 → 跳过弃牌
             let limit = crate::skills::hand_limit(st, idx);
             let over = st.seats[idx].hand.len().saturating_sub(limit);
-            if over > 0 {
+            // 弃牌阶段只按上限弃**一次**：达到上限后再触发「弃牌阶段结束时」的钩子
+            // （固政归还一张 / 溃诛给自己补牌 / 瑰藻摸牌…）不得回头再要求弃牌。
+            // 真机反馈：孙亮溃诛令自己摸 1 → 手牌 4 > 上限 3 → 又被问弃 1 张。
+            if over > 0 && st.counter("discard_limit_satisfied") == 0 {
                 // 弃牌数可解释（真机反馈：玩家无法判断上限来自哪里）：
                 // 不屈（有「创」时手牌上限 = 创数）/ 克己（本回合未出杀视为不限）单独标注。
                 let detail = if crate::skills::has(st, idx, "buqu")
@@ -1213,6 +1216,7 @@ pub(crate) fn phase_step(
                 // 帧结算完后会再次进入本阶段
                 return Ok(true);
             }
+            st.set_counter("discard_limit_satisfied", 1);
             // 固政：其他角色弃牌阶段结束时，可令其获得一张弃牌并取得剩余。
             if st.counter("guzheng_done") == 0 {
                 if let Some(owner) = crate::resolve_mountain::guzheng_owner(st, idx) {
@@ -1268,6 +1272,7 @@ pub(crate) fn phase_step(
                 return Ok(true);
             }
             st.phase_discarded.clear();
+            st.set_counter("discard_limit_satisfied", 0);
             st.turn_phase = TurnPhase::End;
             Ok(true)
         }
