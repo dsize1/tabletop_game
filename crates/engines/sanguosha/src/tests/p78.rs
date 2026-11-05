@@ -66,6 +66,49 @@ fn mingren_places_ren_from_hand() {
     assert!(st.history.iter().any(|e| e.text.contains("明任")));
 }
 
+/// 明任结束阶段替换只做一次（真机：重复询问 → 「用【闪】替换「任」」死循环）。
+#[test]
+fn mingren_swap_ends_after_one_replacement() {
+    let mgr = manager(1013);
+    let room = start_and_pick(&mgr, 5);
+    let (mut cur, mut cur_pid, mut ren, mut new_card) = (0, String::new(), String::new(), String::new());
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        cur = st.turn;
+        set_general(st, cur, "sgs_hero_407");
+        ren = give(st, cur, "sha");
+        new_card = give(st, cur, "shan");
+        give(st, cur, "tao");
+        st.seats[cur].hand.retain(|c| c != &ren);
+        crate::skills::add_mark(st, cur, "ren", &ren);
+        cur_pid = st.seats[cur].player_id.clone();
+        st.turn_phase = TurnPhase::End;
+        st.turn_counters.clear();
+        let mut inject = vec![
+            format!("{cur_pid}=choose:mingren"),
+            format!("{cur_pid}=choose:{new_card}"),
+            format!("{cur_pid}=confirm"),
+            format!("{cur_pid}=choose:mingren"),
+            format!("{cur_pid}=choose:{new_card}"),
+            format!("{cur_pid}=confirm"),
+        ];
+        drive_phases(st, &mut inject);
+    });
+    let st = state_of(&mgr, &room);
+    assert_eq!(
+        skills::mark_cards(&st, cur, "ren"),
+        vec![new_card.clone()],
+        "明任：替换后「任」为新牌"
+    );
+    assert!(st.seats[cur].hand.contains(&ren), "原「任」回到手牌");
+    let swaps = st
+        .history
+        .iter()
+        .filter(|e| e.text.starts_with("明任：用"))
+        .count();
+    assert_eq!(swaps, 1, "明任替换每回合只结算一次（实际 {swaps} 次）");
+}
+
 #[test]
 fn zhenliang_yang_deals_damage_with_same_color() {
     let mgr = manager(1001);

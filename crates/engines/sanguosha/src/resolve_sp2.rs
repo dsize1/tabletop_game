@@ -147,6 +147,10 @@ pub(crate) fn mingren_swap(
         Some(&st.seats[seat].player_id.clone()),
         format!("明任：用【{}】替换「任」", turn::card_label(st, card)),
     );
+    // 替换只做一次：弹出明任帧（否则每轮都会再次询问 → 真机死循环）。
+    if matches!(top(st), Some(Frame::MingRen(_))) {
+        pop(st);
+    }
     Ok("明任：已替换「任」".to_string())
 }
 

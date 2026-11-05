@@ -2,6 +2,13 @@
 
 > 记录项目关键节点与验证结果，按时间倒序。重大技术决策见 `decisions/`。
 
+## M72：明任替换死循环（帧未弹出）修复 ✅
+
+- **触发（真机）**：卢植结束阶段「明任：用【闪】替换「任」」→【五谷】→【闪】反复替换。
+- **根因**：`MultiSelect(purpose="mingren")` 未 pop 本帧，`mingren_swap` 未 pop `MingRen` 帧 → 两帧滞留栈上反复询问。
+- **修复**：handler 先 pop MultiSelect、`mingren_swap` 末尾 pop MingRen。
+- **回归**：`p78::mingren_swap_ends_after_one_replacement`；`cargo test -p sanguosha` **970 全绿**；`check:sgs-ai:100` 100/100。
+
 ## M71：良姻/箜声 口径补全（移出/移入各一次 · 自选弃牌 · 回血判定延后）✅
 
 - **日期**：2026-11-05

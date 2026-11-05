@@ -2104,6 +2104,9 @@ pub(crate) fn multiselect_confirm(
             }
             let card = f.selected[0].clone();
             if f.purpose == "mingren" {
+                // 先 pop 本 MultiSelect 帧，再由 mingren_swap pop 明任帧：
+                // 否则两帧留在栈上会反复询问 → 真机出现「用【闪】替换「任」」死循环。
+                pop(st);
                 return Some(crate::resolve_sp2::mingren_swap(st, f.actor, &card));
             }
             if turn::take_card(st, f.actor, &card).is_err() {
