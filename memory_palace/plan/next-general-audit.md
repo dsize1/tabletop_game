@@ -1,18 +1,20 @@
 ---
 session_id: next-session
 date: 2026-11-03
-status: 规划中（待新会话执行）
-baseline_commit: 358bd4a
+status: 执行中（2026-11-05 批次重划：方案 A，148 将 / B0–B20）
+baseline_commit: c3af1ba（原 358bd4a；2026-11-05 重划批次）
 ---
 
-# 任务：全武将批量验证（232 将 / 294 技能）
+# 任务：全武将批量验证（148 将 / 295 技能；批次 B0–B20）
 
-> **给新会话的开工说明**：这是独立任务文档，不依赖某个 `plan/<sessionId>.md`。新会话可直接说「继续全武将批量验证」，从本文 §3 第 1 批开始。
-> 前置：工作台 + 沙盒创建对局 + 预览/AI + 测试玩家白名单已完成（M61–M64）；当前门禁 `sgs:check` 19/19、`cargo test -p sanguosha` 928 条。
+> **给新会话的开工说明**：这是独立任务文档，不依赖某个 `plan/<sessionId>.md`。新会话可直接说「继续全武将批量验证」，从 §7「待办」的下一批开始。
+> 前置：工作台/沙盒/预览/M64 白名单已完成；M66（2026-11-05）已落地工具链 + B0 首跑；当前门禁 `sgs:check`（含 `check:sgs-generals`）。
 
 ## 1. 背景与现状
 
-- 引擎已实现 **232 位武将 / 294 个技能**，覆盖标准 → 风林火山（含 SP）→ 一将成名 → 界限突破。
+- 引擎已实现 **232 位武将 / 295 个技能**（含 7 个授予技），覆盖标准 → 风林火山（含 SP）→ 一将成名 → 界限突破。
+- **验证范围 = 148 位**（口径 A：有界版同名的原版 84 位不入批次，见 §3）；机器证据 + 人工签字两轨并行。
+- **2026-11-05 名称勘误**：gid=55「张昭张弘」为官网错别字，正确为「张昭张纮」（与`界张昭张纮`同名将）。修正后按口径 A 被去重 → 原 149 降为 148，B0 由 4 将变 3 将（曹仁/周泰/曹丕）。勘误表：`apps/scripts/lib/sgs-name-fixes.mjs`；门禁 `check:sgs-general-names`（编辑距离 + 官方名录比对）。
 - 已有**批次开发流程**（`docs/games/sanguosha/batch-playbook.md`）解决「边实现边验证」：每批 8 将、每将 ≥3 用例、`sgs:check` 收尾。但这是**开发期验证**，不等于逐将的“技能可用性/语义走查”。
 - 工作台当前能力：
   - `POST /internal/game/preview/sandbox`：5–8 人、指定武将/身份、全 bot、跳过选将、随机牌堆/手牌、可选 seed/模板；
@@ -43,20 +45,40 @@ baseline_commit: 358bd4a
 - 不做 AI 训练/自对弈强化（P6.5/P6.6）。
 - 不把审计脚本做成线上路径：仅本机/中台白名单可用；不写 `game_state`/`game_events`/`game_decision_log`。
 
-## 3. 批次顺序与范围
+## 3. 批次顺序与范围（2026-11-05 重划：148 将 / B0–B20）
 
-| 批次 | 包 | 人数/将数 | 说明 |
-|---|---|---|---|
-| B0 | 标准 | 25 | 先跑通审计脚本与矩阵，作为样版 |
-| B1 | 风 | 8 | 含 SP 风？按 `data.rs` pack 分组 |
-| B2 | 林 | 8 | |
-| B3 | 火 | 8 | |
-| B4 | 山 | 8 | |
-| B5 | SP-1/SP-2 | 16 | 风林火山收尾（48） |
-| B6–B14 | 一将成名 | 72（9 批 ×8） | 沿用批次编号 Y1–Y7 的将组 |
-| B15–B25 | 界限突破 | 87（J1–J8 已实现分组，按 8 将切） | 界版技能与标准同名技能共用 code，需 `is_jiexian` 分支 |
+**池口径（方案 A，用户 2026-11-05 裁定）**：有界版同名的原版武将一律不进验证批次——标准包 25 位、风林火山 28 位、一将成名 30 位 + 名称勘误后新增的「张昭张纮」（原「张昭张弘」），共 **84 位排除**；剩余 **148 位** = `prefer_jiexian` 后的默认池（含名称勘误修正），因此 **无需改引擎/沙盒**（原「audit-only 全池」方案作废）。
 
-> 实际批次以 `docs/games/sanguosha/batch-playbook.md` + `npm run sgs:batch-status` 的武将清单为准；本文只固定顺序与粒度。
+> 排除口径：`界X` 存在 ⇒ 原版 `X` 排除（`data.rs` 中 `pack != "jiexian"` 且同名界版存在）。
+
+| 批次 | 来源（包/子包） | 将数 | 武将 | 说明 |
+|---|---|---|---|---|
+| B0 | 风林火山·风/林/山（保留） | 3 | 曹仁、周泰、曹丕 | **流程验证批**（火包保留 0 位；张昭张纮与界版同名已按口径 A 排除） |
+| B1 | 风林火山·SP-1 | 8 | 袁术、王基、严颜、王平、陆绩、孙亮、蒯越蒯良、许攸 | |
+| B2 | 风林火山·SP-2 | 8 | 卢植、郝昭、陈到、诸葛瞻、周妃、毌丘俭、陆抗、张绣 | |
+| B3 | 一将成名·批次1/2/Y1 保留 | 6 | 马谡、荀攸、将华雄、钟会、满宠、关平 | |
+| B4 | 一将成名·Y2+Y3 保留 | 8 | 刘封、潘璋马忠、朱然、曹真、韩浩史涣、陈群、吴懿、周仓 | |
+| B5 | 一将成名·Y4 保留 | 6 | 孙鲁班、朱桓、顾雍、曹叡、曹休、钟繇 | |
+| B6 | 一将成名·Y5 保留 | 7 | 刘谌、张嶷、孙休、朱治、全琮、公孙渊、郭图逢纪 | |
+| B7 | 一将成名·Y6 保留 | 7 | 李严、孙登、刘虞、岑昏、孙资刘放、黄皓、张让 | |
+| B8 | 一将成名·Y7 保留 | 8 | 辛宪英、吴苋、徐氏、曹节、嵇康、秦宓、薛综、蔡邕 | |
+| B9 | 界限突破·界标·蜀 | 7 | 界刘备、界关羽、界张飞、界赵云、界马超、界诸葛亮、界黄月英 | |
+| B10 | 界限突破·界标·吴 | 8 | 界甘宁、界吕蒙、界黄盖、界周瑜、界大乔、界陆逊、界孙权、界孙尚香 | |
+| B11 | 界限突破·界标·魏 | 8 | 界曹操、界司马懿、界夏侯惇、界张辽、界许褚、界郭嘉、界李典、界甄姬 | |
+| B12 | 界限突破·界标·群 | 4 | 界华佗、界吕布、界公孙瓒、界貂蝉 | |
+| B13 | 界限突破·J1 | 8 | 界黄忠、界徐庶、界华雄、界左慈、界张角、界于吉、界袁绍、界刘禅 | |
+| B14 | 界限突破·J2 | 8 | 界孙策、界夏侯渊、界卧龙诸葛亮、界庞统、界魏延、界小乔、界孙坚、界庞德 | |
+| B15 | 界限突破·J3 | 8 | 界太史慈、界董卓、界邓艾、界祝融、界姜维、界贾诩、界鲁肃、界张郃 | |
+| B16 | 界限突破·J4 | 8 | 界孟获、界徐晃、界蔡文姬、界荀彧、界典韦、界颜良文丑、界张昭张纮、界徐盛 | |
+| B17 | 界限突破·J5 | 8 | 界凌统、界陈宫、界曹彰、界简雍、界虞翻、界高顺、界法正、界程普 | |
+| B18 | 界限突破·J6 | 8 | 界王异、界张春华、界刘表、界蔡夫人、界曹冲、界曹植、界吴国太、界廖化 | |
+| B19 | 界限突破·J7 | 8 | 界李儒、界郭淮、界伏皇后、界韩当、界关兴张苞、界马岱、界郭皇后、界沮授 | |
+| B20 | 界限突破·J8 | 4 | 界夏侯氏、界张松、界于禁、界步练师 | 收官 |
+
+合计 **148 将 / 21 批**（3+8+8+6+8+6+7+7+8 = 61 → 风林火山 19 + 一将成名 42；界标 27 + J1–J8 60 = 87）。
+
+> 批次表单一事实源：`apps/scripts/lib/sgs-batches.mjs`（矩阵、审计脚本、门禁、`sgs:batch-status` 交叉校验均读它，防漂移）。
+> 验证批次 ≠ 开发批次：开发批次见 `docs/games/sanguosha/batch-playbook.md` + `npm run sgs:batch-status`（含已排除的原版武将）。
 
 ## 4. 每将验证流程（人工主导 + 机器辅助）
 
@@ -145,9 +167,9 @@ node apps/scripts/sgs-general-audit.mjs --check --sample 8   # CI 抽样
 
 ## 5. 结果记录
 
-### 5.1 矩阵文档（新建）
+### 5.1 矩阵文档（已生成，2026-11-05）
 
-`docs/games/sanguosha/general-audit.md`
+`docs/games/sanguosha/general-audit.md`（148 行 / 21 批；骨架由 `npm run gen:sgs-audit-matrix` 生成，**已存在则不覆写**，人工列只能人工改）（原建议列见下，实际列见文件头）
 
 建议列：
 
@@ -157,22 +179,21 @@ node apps/scripts/sgs-general-audit.mjs --check --sample 8   # CI 抽样
 状态枚举：`未验证 / 自动通过 / 自动失败 / 待裁定 / 人工通过 / 人工失败 / 阻塞`。
 
 > `自动通过` 只代表机械校验通过；只有 `人工通过` 才算验收完成。
+> 机器证据另存 `docs/games/sanguosha/general-audit-evidence.md`（生成、勿手改）+ `data/audit/<batch>.json`。
 
 ### 5.2 其他记录
 
 - 每批收尾：`docs/games/sanguosha/development-plan.md` 新增「P4.4.4 全武将验证」小节
 - 里程碑：`memory_palace/milestones.md` 新增 M65+（每批一条或每阶段一条）
 - 规则争议：`docs/games/sanguosha/rules-rulings.md`
-- 失败清单 JSON：`data/audit/<pack>.json`（不入库，可本地保留）
+- 失败/证据 JSON：`data/audit/<batch>.json`（不入库，可本地保留）
+- 矩阵↔名录一致性门禁：`npm run check:sgs-generals:matrix`（148 行 / 批次归属 / 技能 code 齐全）
 - 测试用例：`crates/engines/sanguosha/src/tests/p106.rs` 起按批续号
 
 ## 6. 待确定事项（开工前确认）
 
-1. **232 vs 149**：工作台沙盒表单/`sandbox_meta` 使用 149 去重池；全量审计要覆盖 232。
-   - 方案 A：审计仅 149（与正常选将池一致，推荐先跑）；
-   - 方案 B：给沙盒 API 增加 audit-only `pool:"all"`（可测原版+界版，需改引擎/接口）；
-   - 方案 C：用 `/preview/scene` 注入被去重武将（可绕过池，但开局技能不会重跑）。
-   - **建议**：先 A 跑通流程，再评估 B 补全 232。
+1. **232 vs 149（已裁定 2026-11-05 = 方案 A）**：有界版同名的原版（83 位）不进批次，保留 149 位 = 默认 149 池，**不改引擎/沙盒**。B0「标准 25 将」作废（原标将全在排除名单，火包保留 0 位），改为 B0 风林山保留 4 将做流程验证。
+   - 原备选：B 方案给沙盒加 audit-only `pool:"all"`（作废）；C 方案 scene 注入（作废）。
 2. **开启技能（左慈/陆绩/刘虞/界袁绍/界张郃/卢植）**：必须走正常开局；若用 scene 后注入武将，开局技能不会执行。审计脚本应优先用 sandbox 指定武将，避免 scene 改武将。
 3. **场景元数据来源**：每个技能的最小场景是否手写 JSON（`general-audit-scenarios.json`）还是脚本按技能类型启发式生成？建议首版手写高频技能 + 其余通用场景。
 4. **断言强度**：自动审计只做机械校验；`expected` 必须由人工确认。语义/歧义判定一律人工，agent 不得自行推断“正确行为”。
@@ -182,39 +203,60 @@ node apps/scripts/sgs-general-audit.mjs --check --sample 8   # CI 抽样
 
 ## 7. 待办实现
 
-- [ ] 建 `general-audit.md` 矩阵骨架（232 将/294 技能，状态列）
-- [ ] 写 `apps/scripts/sgs-general-audit.mjs`（启动临时 server/sandbox/scene/drive/断言/JSON 输出）
-- [ ] 写 `check:sgs-generals` 门禁（抽样 8 将）并入 `sgs:check` 非 fast
-- [ ] B0 标准 25 将：自动 + 人工走查 + 修复 + 回归
-- [ ] B1–B5 风/林/火/山/SP（48 将）
-- [ ] B6–B14 一将成名（72 将）
-- [ ] B15–B25 界限突破（87 将）
-- [ ] 全量 232 将矩阵补全；失败项清零或登记阻塞
-- [ ] 文档/里程碑/门禁收尾
+### 已完成（M66，2026-11-05）
+
+- [x] 批次重划：148 将 / B0–B20（`apps/scripts/lib/sgs-batches.mjs`，自检无重无漏）
+- [x] 名录解析 `apps/scripts/lib/sgs-catalog.mjs`（232 将 / 295 技能 / 149 审计 / 83 排除）
+- [x] 审计脚本 `apps/scripts/sgs-general-audit.mjs`（临时 server + 预览会话 L1 走查 + 机械断言 + JSON 证据）
+- [x] 矩阵骨架 `docs/games/sanguosha/general-audit.md`（148 行，人工列留空）
+- [x] 生成证据 `docs/games/sanguosha/general-audit-evidence.md`
+- [x] L2 场景台账 `docs/games/sanguosha/general-audit-scenarios.json`（B0，`expected` 待人工）
+- [x] `check:sgs-generals`（矩阵一致性 + 抽样 8 将）并入 `sgs:check` 非 fast；fast 增矩阵一致性步骤
+- [x] B0（曹仁/周泰/曹丕/张昭张弘）L1 首跑：触达 2 / 未触达 2 / 失败 0；不变量全 ✓、repeat=2 可复现、真相源未写
+- [x] 文档收尾：development-plan P4.4.4 / milestones M66 / AGENTS 索引 / batch-playbook 交叉引用
+
+### 待办（后续会话，按批次推进）
+
+- [ ] B0 人工走查签字（4 将 8 技能；L2 场景补 `expected` 后复核）
+- [ ] B1–B2 风林火山 SP-1/SP-2（16 将）
+- [ ] B3–B8 一将成名（42 将）
+- [ ] B9–B12 界标（27 将）
+- [ ] B13–B20 界限突破 J1–J8（60 将）
+- [ ] 148 将矩阵人工结果补全；失败项清零或登记阻塞（B1/B2 按批次修复 + 补回归）
+- [ ] 补 L2 定向场景的 `expected`（场景骨架已由 `gen:sgs-audit-scenes` 生成，语义期望待人工）
+- [ ] 开发批次文档补「一将成名批次 1/2 + 界标 27 位」表行（`check:sgs-batch-consistency` info 提示；当前属早期批次）
 
 ## 8. 验证事项
 
-- [ ] 矩阵覆盖 232 将/294 技能，无未登记技能
-- [ ] 自动审计可重复：同 seed/模板结果一致；失败可复现
-- [ ] 每个失败项有复现模板/种子/动作链
-- [ ] 修复项有 `tests/p106+` 回归，`cargo test -p sanguosha` + `sgs:check` 全绿
+- [x] 矩阵覆盖 148 将（批次范围）/ 295 技能，无未登记技能（`check:sgs-generals:matrix`）
+- [x] 自动审计可重复：同 seed/批次 repeat=2 digest 一致；失败可复现
+- [ ] 每个失败项有复现 batch+seed+动作链
+- [x] 修复项有 `tests/p106+` 回归，`cargo test -p sanguosha` + `sgs:check` 全绿（本轮未改引擎；B0 无失败）
 - [ ] 人工走查记录包含主动/触发/锁定/限定/觉醒/主公/转化/响应/视图/日志
-- [ ] 自动审计不写 `game_state`/`game_events`/`game_decision_log`，不影响真实对局
-- [ ] 测试玩家白名单账号可只访问工作台完成走查
+- [x] 自动审计不写 `game_state`/`game_events`/`game_decision_log`，不影响真实对局（每次运行自检行数不变）
+- [x] 测试玩家白名单账号可只访问工作台完成走查（M64 已落）
 
 ## 9. harness 优化项
 
-- `check:sgs-generals`：抽样 8 将自动审计（CI 非 fast），输出失败清单
-- 固定 fixture：standard 25 将 × 每将 1 主动/1 触发场景
-- 场景生成器：按技能类型（主动/触发/锁定/限定/觉醒/主公/转化）生成最小 hand/equip/judge/phase
-- 失败隔离：单个技能 internal error 不影响整批，JSON 汇总
-- 压力回归：全将 100 局 + 8 人局 20 局自对弈（终局率/非法/卡死/最长步数）
-- 文档校验：矩阵行数/技能 code 与 `skills.rs` 一致（防止漏项/错字）
+- [x] `check:sgs-generals`：矩阵一致性（fast）+ 抽样 8 将机械审计（非 fast），失败输出清单
+- [x] 失败隔离：单将异常不影响整批；JSON 汇总 + 退出码分类（触达/未触达≠失败）
+- [x] 名录/批次单一事实源：`lib/sgs-catalog.mjs` + `lib/sgs-batches.mjs`（矩阵/审计/门禁共用）
+- [x] 确定性：`--repeat 2` 逐将比对 digest（同 seed/场景）
+- [x] 真相源隔离：临时 server + 临时 SQLite，前后 `game_state`/`game_events`/`game_decision_log` 行数自检
+- [x] 场景生成器：`lib/sgs-scenes.mjs` + `--with-scenes/--scenes-only`（按 kind 预填 hand/equip/phase；`expected` 恒为 null 待人工）
+- [x] 触达率报表：证据 md 增加「批次/类型」触达率表 + JSON `reach`
+- [x] 审计结果 diff：`--diff <prev.json>`（状态翻转/触达增减）
+- [x] 全量压力：`--all`（148 将 L1，约 66s）；自对弈 100 局由 `check:sgs-ai:100` 覆盖（100/100）
+- [x] `check:sgs-decision-log` 自举（临时 server + MCP 现打一局，脱离开发库历史）
+- [x] 验证批次 ↔ 去重池 ↔ 开发批次交叉校验：`check:sgs-batch-consistency`
+- [x] `test:sgs-bot` 稳健化（弃牌一次凑齐；机器人推进以「回到真人回合」为证据）
 
 ## 10. 相关文件
 
 - `docs/games/sanguosha/batch-playbook.md`（批次开发/DoD）
-- `docs/games/sanguosha/development-plan.md`（P4.4.2/P4.4.3/P5）
+- `docs/games/sanguosha/development-plan.md`（P4.4.2/P4.4.3/P4.4.4/P5）
+- `docs/games/sanguosha/general-audit.md`（人工矩阵 148 行）、`general-audit-evidence.md`（生成）、`general-audit-scenarios.json`（L2 台账）
+- `apps/scripts/sgs-general-audit.mjs`（审计）、`apps/scripts/lib/sgs-catalog.mjs` / `sgs-batches.mjs`（名录/批次单一事实源）
 - `docs/games/sanguosha/skills.md`、`data.rs`、`skills.rs`（数据源）
 - `docs/games/sanguosha/rules-rulings.md`（裁定）
 - `crates/engines/sanguosha/src/tests/support.rs`（测试助手）
