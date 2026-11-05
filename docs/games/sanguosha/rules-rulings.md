@@ -773,3 +773,19 @@
   `fankui_triggers_after_dying_rescue`（司马懿）、`jieming_triggers_after_dying_rescue`（荀彧）；
   `p22::dying_player_can_be_rescued_by_tao` 断言更新（救起后允许存在伤害后钩子的 pending）。
 - **门禁**：`cargo test -p sanguosha` **964 全绿**；`check:sgs-ai:100` **100/100**（该改动曾暴露 强袭 空转，已一并修复）。
+
+### （2026-11-05 复验 22）罪论两段式（可选牌序）+ 明任「开局摸 1」
+
+- **罪论（诸葛瞻，用户裁定）**：结束阶段观看牌堆顶 3 张，按满足项数获得：
+  - **1 项** → 选 1 张后**进入第二段排序**：剩余 2 张由诸葛瞻决定谁在牌堆顶（一列 2 槽，`order:<第一张>,<第二张>`，第一张为新牌堆顶）；
+  - **2 项** → 取 2 张，剩余 1 张直接回牌堆顶（不进入排序段）；
+  - **3 项** → 取 3 张；**0 项** → 你与一名其他角色各失去 1 点体力（原实现保留）。
+  实现：`ZuiLunStage` 增 `Order`；特殊区 `zuilun` 在排序段写 `rows=2 / cols=1 / slots=[L1,L2]` + `interaction.commit="order"`
+  （owner 可见）；动作 `order:<第一张>,<第二张>`（校验为剩余两张的排列）。
+  回归：`p78::zuilun_one_condition_orders_remaining_two`（两种排列可选、提交后牌堆顶顺序正确、特殊区清理）。
+- **明任（卢植，用户裁定）**：原文是「**游戏开始时摸一张牌**，然后将一张手牌置于武将牌上为「任」」。
+  缺陷两处：① 描述/实现为摸 2；② `init_mingren` 在 `finish_setup` 的**建牌堆之前**调用 → `deck.draw` 为空，实际一张也没摸到。
+  修复：改为摸 1；调用点移到「建牌堆 + 发初始手牌」之后。
+  回归：`sandbox::sandbox_mingren_draws_one_after_deal`（初始手牌 4 + 明任 1 = 5，并压出选「任」pending）。
+- **待办（Web）**：罪论排序段当前以两个「牌堆顶顺序」按钮呈现（`choice` pending）；若要观星式 1×2 槽拖拽，
+  需把 `apps/web/src/view/sgs/guanxing.ts` 的 2×5 常量参数化（cols/rows + zone key）。

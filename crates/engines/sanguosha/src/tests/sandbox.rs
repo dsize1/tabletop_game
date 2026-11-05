@@ -12,6 +12,58 @@ fn spec(players: usize) -> SandboxSpec {
     }
 }
 
+/// 明任（卢植）：开局摸 1 张（在发完初始手牌之后），并进入「选任」pending。
+/// 真机反馈：原文是摸 1（此前实现摸 2），且开局在建牌堆之前调用 → 根本没摸到牌。
+#[test]
+fn sandbox_mingren_draws_one_after_deal() {
+    let mut seats = Vec::new();
+    let identities = [
+        Identity::Lord,
+        Identity::Loyalist,
+        Identity::Rebel,
+        Identity::Rebel,
+        Identity::Spy,
+    ];
+    for i in 0..5 {
+        seats.push(SandboxSeat {
+            index: Some(i),
+            player_id: None,
+            general: Some(if i == 1 {
+                "sgs_hero_407".to_string() // 卢植：明任
+            } else {
+                crate::catalog::default_general_pool()[i].code.to_string()
+            }),
+            identity: Some(identities[i]),
+        });
+    }
+    let mut rng = SeededRng::new(7);
+    let (state, _) = new_sandbox_game(
+        "r",
+        "g",
+        &SandboxSpec {
+            players: 5,
+            seats,
+        },
+        &mut rng,
+    )
+    .expect("sandbox game");
+    let st = SgsState::parse(&state.data).expect("parse");
+    let liao = st.seats[1].clone();
+    assert_eq!(liao.general.as_deref(), Some("sgs_hero_407"));
+    assert_eq!(
+        liao.hand.len(),
+        5,
+        "初始手牌 4 + 明任摸 1（选「任」pending 尚未结算）"
+    );
+    let pending = st.pending.clone().expect("明任应压出选牌 pending");
+    assert_eq!(pending.kind, "choose_many");
+    assert_eq!(pending.actor, liao.player_id);
+    assert!(
+        st.history.iter().any(|e| e.text.contains("明任")),
+        "明任应写历史"
+    );
+}
+
 #[test]
 fn sandbox_specifies_generals_identities_and_starts_game() {
     let pool = crate::catalog::default_general_pool();

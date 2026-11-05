@@ -2,6 +2,17 @@
 
 > 记录项目关键节点与验证结果，按时间倒序。重大技术决策见 `decisions/`。
 
+## M70：B2 走查修复（罪论两段式排序 + 明任开局摸 1）✅
+
+- **日期**：2026-11-05
+- **罪论（诸葛瞻）**：满足 1 项时新增第二段「排序」（剩余 2 张 → 一列 2 槽，`order:<第一>,<第二>`）；
+  满足 2 项取 2 张、剩余 1 张直接回顶；满足 3 项取 3 张；0 项两人各失 1 体力。特殊区 `zuilun`
+  在排序段写 `rows=2/cols=1/slots=[L1,L2]` + `interaction.commit="order"`（owner 可见）。
+- **明任（卢植）**：摸 2 → **摸 1**；调用点从「建牌堆之前」移到「发完初始手牌之后」（此前实际摸不到牌）。
+- **回归**：`p78::zuilun_one_condition_orders_remaining_two`、`sandbox::sandbox_mingren_draws_one_after_deal`。
+- **门禁**：`cargo test -p sanguosha` **966 全绿**；`sgs:check:fast` 16/16；`check:sgs-ai:100` **100/100**。
+- **待办（Web）**：罪论排序段目前是两个「牌堆顶顺序」按钮；观星式 1×2 槽拖拽需把 `guanxing.ts` 的 2×5 常量参数化。
+
 ## M69：B0 收口准备 + B1–B2 机检 + 批次走查单工具 ✅
 
 - **日期**：2026-11-05

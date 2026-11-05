@@ -193,11 +193,11 @@
 
 | 武将 | 技能 | code | 类型 | 实现要点 |
 |---|---|---|---|---|
-| 卢植 `sgs_hero_407` | 明任 | `mingren` | 普通 | 开局摸 2 后将 1 张手牌置于武将牌上为「任」；结束阶段可用手牌替换「任」 |
+| 卢植 `sgs_hero_407` | 明任 | `mingren` | 普通 | **游戏开始时摸 1 张**（在发完初始手牌之后；2026-11-05 裁定，此前误为摸 2 且在建牌堆前调用 → 摸不到牌），然后将 1 张手牌置于武将牌上为「任」；结束阶段可用手牌替换「任」 |
 | 卢植 `sgs_hero_407` | 贞良 | `zhenliang` | 转换 | 阳：出牌阶段限一次，选攻击范围内角色，弃一张与「任」同色的牌造成 1 伤；阴：回合外使用/打出的牌进入弃牌堆且与「任」同色时，可令一名角色摸 1 |
 | 郝昭 `sgs_hero_408` | 镇骨 | `zhengu` | 普通 | 结束阶段选一名其他角色：本回合结束时与其下回合结束时，其手牌调整至与你相同（至多 5，超出弃置） |
 | 陈到 `sgs_hero_409` | 往烈 | `wanglie` | 普通 | 出牌阶段首张牌无距离限制；使用【杀】/单目标普通锦囊（【无懈可击】除外）时可令此牌不能被响应，然后本阶段不能再使用牌 |
-| 诸葛瞻 `sgs_hero_410` | 罪论 | `zuilun` | 普通 | 结束阶段观看牌堆顶 3 张：每满足一项（造成过伤害/未弃置过牌/手牌最少）获得其中一张，剩余按原序回置；均不满足则你与一名其他角色各失去 1 体力 |
+| 诸葛瞻 `sgs_hero_410` | 罪论 | `zuilun` | 普通 | 结束阶段观看牌堆顶 3 张，每满足一项（造成过伤害/未弃置过牌/手牌最少）获得其中一张：**满足 1 项** → 选 1 张后进入第二段「排序」剩余 2 张（一列 2 槽，`order:<第一张>,<第二张>`，第一张为新牌堆顶）；**满足 2 项** → 取 2 张，剩余 1 张回牌堆顶（不排序）；**满足 3 项** → 取 3 张；均不满足 → 你与一名其他角色各失去 1 体力 |
 | 诸葛瞻 `sgs_hero_410` | 父荫 | `fuyin` | 锁定 | 每回合首次成为其他角色【杀】/【决斗】目标后，若其手牌数 ≥ 你，此牌对你无效 |
 | 周妃 `sgs_hero_411` | 良姻 | `liangyin` | 普通 | 每回合首次有牌移出/移入游戏后，与一名其他角色各摸 1 或各弃 1；然后可令其中手牌数 =「箜声」牌数的角色回复 1 |
 | 周妃 `sgs_hero_411` | 箜声 | `kongsheng` | 普通 | 准备阶段可将任意张牌置于武将牌上；结束阶段获得其中非装备牌，然后令一名角色使用剩余装备牌并失去 1 体力 |
@@ -790,7 +790,7 @@
 | 出牌阶段主动（阳）/ 回合外用牌入弃牌堆（阴） | `turn::legal_actions`/`execute` → `Frame::ZhenLiang`；`start_sha_flags`/`start_trick_code`/`finish_respond_play` → `Frame::ZhenLiangYin` | 贞良 |
 | 结束阶段（延迟两次结算） | `turn::phase_step` End → `Frame::ZhenGu` + `SgsState.scheduled` / `turn::end_turn` | 镇骨 |
 | 不可响应 / 本阶段禁用牌 | `skill:wanglie:<card>`（`ShaFrame.no_respond` / `TrickFrame.no_wuxie`）+ `turn_counters["no_card_use"]` | 往烈 |
-| 结束阶段观看牌堆顶 3 张 | `turn::phase_step` End → `Frame::ZuiLun` + 特殊区 `zuilun` | 罪论 |
+| 结束阶段观看牌堆顶 3 张 | `turn::phase_step` End → `Frame::ZuiLun` + 特殊区 `zuilun`（Pick → Order 两段；`order:<第一张>,<第二张>`） | 罪论 |
 | 成为【杀】/【决斗】目标无效 | `resolve::act_target` / `step_trick` → `resolve_sp2::fuyin_take` | 父荫 |
 | 牌移出/移入游戏 | `turn::to_void_card` / `from_void_card` → `Frame::LiangYin` | 良姻 |
 | 准备/结束阶段置入与收取 | `turn::phase_step` Prepare/End → `Frame::KongSheng` | 箜声 |

@@ -375,10 +375,6 @@ pub(crate) fn finish_setup(st: &mut SgsState) -> Result<Vec<EngineEvent>, Engine
     crate::resolve_jiexian2::init_xueyi(st);
     // 巧变（界张郃）：开局获得 2 枚「变」。
     crate::resolve_jiexian4::init_qiaobian(st);
-    // 明任（卢植）：开局摸 2 并选择「任」。
-    for i in 0..st.seats.len() {
-        crate::resolve_sp2::init_mingren(st, i);
-    }
     // 建牌堆：按 `Config.packs` 组堆（standard → junzheng），实例 id 按牌堆顺序编号，再整体洗牌。
     let deck = data::deck_cards(&st.config.packs).map_err(illegal)?;
     let deck_size = deck.len();
@@ -405,6 +401,12 @@ pub(crate) fn finish_setup(st: &mut SgsState) -> Result<Vec<EngineEvent>, Engine
                 st.seats[i].hand.push(id);
             }
         }
+    }
+
+    // 明任（卢植）：开局摸 1 并选择「任」。必须排在**建牌堆 + 发初始手牌之后**，
+    // 否则 `deck.draw` 还是空的（真机反馈：游戏开始时也没有摸牌）。
+    for i in 0..st.seats.len() {
+        crate::resolve_sp2::init_mingren(st, i);
     }
 
     let lord_idx = st.lord_index().ok_or_else(|| internal("缺少主公座位"))?;

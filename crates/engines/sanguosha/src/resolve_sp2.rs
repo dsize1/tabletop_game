@@ -51,15 +51,17 @@ fn general_name(st: &SgsState, seat: usize) -> String {
 // 卢植 · 明任 / 贞良
 // ---------------------------------------------------------------------------
 
-/// 明任初始化（finish_setup）：摸 2 张，然后将一张手牌置于武将牌上为「任」。
+/// 明任初始化（finish_setup）：**摸 1 张**，然后将一张手牌置于武将牌上为「任」。
+/// （用户 2026-11-05 裁定：原文为「游戏开始时摸一张牌」，此前误实现为摸 2。）
 pub(crate) fn init_mingren(st: &mut SgsState, seat: usize) {
     if !skills::has(st, seat, "mingren") {
         return;
     }
-    let drawn = draw_capped(st, seat, 2);
+    // 注意：必须在建牌堆/发完初始手牌之后调用（见 `finish_setup`），否则摸不到牌。
+    let drawn = draw_capped(st, seat, 1);
     st.push_log(
         Some(&st.seats[seat].player_id.clone()),
-        format!("明任：摸 {drawn} 张，并选择一张手牌置于武将牌上"),
+        format!("明任：摸 {drawn} 张，并选择一张手牌置于武将牌上为「任」"),
     );
     push(
         st,
@@ -584,6 +586,8 @@ pub(crate) fn wanglie_available(st: &SgsState, actor: usize) -> bool {
 #[serde(rename_all = "snake_case")]
 pub enum ZuiLunStage {
     Pick,
+    /// 仅满足 1 项条件：选完 1 张后，剩余 2 张由诸葛瞻排序（2 段式，一列 2 槽）。
+    Order,
     Zero,
 }
 
@@ -691,6 +695,44 @@ pub(crate) fn step_zuilun(st: &mut SgsState, f: ZuiLunFrame) -> Result<bool, Eng
             replace_top(st, Frame::ZuiLun(f));
             Ok(true)
         }
+        ZuiLunStage::Order => {
+            if f.cards.len() < 2 {
+                pop(st);
+                return Ok(false);
+            }
+            let (a, b) = (f.cards[0].clone(), f.cards[1].clone());
+            let la = turn::card_label(st, &a);
+            let lb = turn::card_label(st, &b);
+            write_zuilun_order_zone(st, f.actor, &f.cards);
+            st.pending = Some(Pending {
+                kind: "choice".into(),
+                actor: st.seats[f.actor].player_id.clone(),
+                skill: Some("zuilun".into()),
+                options: vec![
+                    PendingOption {
+                        id: format!("order:{a},{b}"),
+                        label: format!("罪论：牌堆顶第一张【{la}】，第二张【{lb}】"),
+                    },
+                    PendingOption {
+                        id: format!("order:{b},{a}"),
+                        label: format!("罪论：牌堆顶第一张【{lb}】，第二张【{la}】"),
+                    },
+                ],
+                data: json!({
+                    "stage": "zuilun_order",
+                    "cards": f
+                        .cards
+                        .iter()
+                        .map(|c| crate::view::card_view(st, c))
+                        .collect::<Vec<_>>(),
+                    "slots": { "L1": a, "L2": b },
+                    "rows": 2,
+                    "cols": 1,
+                }),
+            });
+            replace_top(st, Frame::ZuiLun(f));
+            Ok(true)
+        }
         ZuiLunStage::Zero => {
             let options: Vec<PendingOption> = st
                 .alive_indices()
@@ -723,6 +765,9 @@ pub(crate) fn act_zuilun(st: &mut SgsState, action: &str) -> Result<String, Engi
         Some(Frame::ZuiLun(f)) => f,
         _ => return Err(internal("栈顶不是罪论帧")),
     };
+    if f.stage == ZuiLunStage::Order {
+        return zuilun_order(st, &f, action);
+    }
     if f.stage != ZuiLunStage::Pick {
         return Err(illegal("请通过目标界面继续罪论"));
     }
@@ -752,6 +797,20 @@ pub(crate) fn act_zuilun(st: &mut SgsState, action: &str) -> Result<String, Engi
         );
         return Ok("罪论：可继续获得一张".to_string());
     }
+    // 只满足 1 项条件：剩余 2 张进入第二段「排序」（一列 2 槽，可决定谁是牌堆顶）。
+    if cards.len() == 2 {
+        write_zuilun_order_zone(st, f.actor, &cards);
+        replace_top(
+            st,
+            Frame::ZuiLun(ZuiLunFrame {
+                actor: f.actor,
+                cards,
+                stage: ZuiLunStage::Order,
+                picks: 0,
+            }),
+        );
+        return Ok("罪论：请排列剩余两张牌的顺序".to_string());
+    }
     // 剩余牌按原顺序放回牌堆顶。
     while let Some(id) = cards.pop() {
         crate::resolve::leave_processing(st, &id);
@@ -769,6 +828,82 @@ pub(crate) fn act_zuilun(st: &mut SgsState, action: &str) -> Result<String, Engi
     picks = 0;
     let _ = picks;
     Ok("罪论：已完成".to_string())
+}
+
+/// 罪论第二段（排序）：写特殊区（一列 2 槽 L1/L2，owner 可见）。
+fn write_zuilun_order_zone(st: &mut SgsState, actor: usize, cards: &[String]) {
+    let mut payload = serde_json::Map::new();
+    payload.insert("rows".into(), json!(2));
+    payload.insert("cols".into(), json!(1));
+    payload.insert(
+        "slots".into(),
+        json!({
+            "L1": cards.first().cloned(),
+            "L2": cards.get(1).cloned(),
+        }),
+    );
+    payload.insert(
+        "cards".into(),
+        json!(cards
+            .iter()
+            .map(|c| crate::view::card_view(st, c))
+            .collect::<Vec<_>>()),
+    );
+    payload.insert("rev".into(), json!(2));
+    payload.insert("skill".into(), json!("zuilun"));
+    payload.insert(
+        "interaction".into(),
+        json!({ "kind": "ordered", "commit": "order", "slots": "L1,L2" }),
+    );
+    st.special_zones.insert(
+        "zuilun".into(),
+        SpecialZone {
+            owner: Some(st.seats[actor].player_id.clone()),
+            visibility: Visibility::Owner,
+            payload,
+        },
+    );
+}
+
+/// 罪论第二段结算：`order:<第一张>,<第二张>`（第一张为新牌堆顶）。
+fn zuilun_order(
+    st: &mut SgsState,
+    f: &ZuiLunFrame,
+    action: &str,
+) -> Result<String, EngineError> {
+    let csv = action
+        .strip_prefix("order:")
+        .ok_or_else(|| illegal("需要提交排序（order:<第一张>,<第二张>）"))?;
+    let ids: Vec<String> = csv
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+        .collect();
+    if ids.len() != f.cards.len() || ids.iter().any(|id| !f.cards.iter().any(|c| c == id)) {
+        return Err(illegal("排序必须是剩余两张牌的一个排列"));
+    }
+    // draw 从尾部取牌 → 倒序 push，使 ids[0] 成为新牌堆顶。
+    for id in ids.iter().rev() {
+        crate::resolve::leave_processing(st, id);
+        st.deck.draw.push(id.clone());
+    }
+    st.special_zones.remove("zuilun");
+    let labels: Vec<String> = ids.iter().map(|id| turn::card_label(st, id)).collect();
+    let actor = f.actor;
+    pop(st);
+    st.push_log(
+        Some(&st.seats[actor].player_id.clone()),
+        format!("罪论：牌堆顶依次为【{}】", labels.join("】【")),
+    );
+    let over = st.seats[actor]
+        .hand
+        .len()
+        .saturating_sub(st.config.max_hand_cards as usize);
+    if over > 0 {
+        crate::resolve::push_discard(st, actor, over, "hand_cap");
+    }
+    Ok("罪论：排序完成".to_string())
 }
 
 pub(crate) fn zuilun_zero_target(

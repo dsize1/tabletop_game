@@ -395,6 +395,82 @@ fn zuilun_gains_cards_by_conditions() {
     assert!(st.special_zones.get("zuilun").is_none(), "罪论：特殊区已清理");
 }
 
+/// 罪论两段式：只满足 1 项 → 先选 1 张，再把剩余 2 张排序（`order:<第一张>,<第二张>`）。
+#[test]
+fn zuilun_one_condition_orders_remaining_two() {
+    let mgr = manager(1012);
+    let room = start_and_pick(&mgr, 5);
+    let (mut cur, mut cur_pid) = (0, String::new());
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        cur = st.turn;
+        set_general(st, cur, "sgs_hero_410");
+        for seat in other_seats(st, cur) {
+            set_general(st, seat, "sgs_hero_1");
+            for _ in 0..4 {
+                give(st, seat, "shan");
+            }
+        }
+        // 仅「未弃置过牌」1 项满足（手牌不是最少 → 给诸葛瞻更多手牌）。
+        for _ in 0..6 {
+            give(st, cur, "sha");
+        }
+        st.turn_phase = TurnPhase::End;
+        st.turn_counters.clear();
+        st.set_counter("damage_dealt", 0);
+        st.set_counter("discard_done", 0);
+        assert_eq!(crate::resolve_sp2::zuilun_count(st, cur), 1, "应只满足 1 项");
+        cur_pid = st.seats[cur].player_id.clone();
+        let mut ev = Vec::new();
+        crate::resolve::advance(st, &mut ev).unwrap();
+    });
+    // 第一段：亮出 3 张，选 1 张。
+    let st = state_of(&mgr, &room);
+    let p = st.pending.clone().expect("应进入罪论选牌段");
+    assert_eq!(p.skill.as_deref(), Some("zuilun"));
+    assert!(p.data.get("remaining").is_some(), "第一段应标记剩余张数");
+    let pick = p.options[0].id.trim_start_matches("choose:").to_string();
+    mgr.execute_action(&room, &cur_pid, &format!("choose:{pick}"))
+        .unwrap();
+    let mut ev = Vec::new();
+    edit(&mgr, &room, |st| crate::resolve::advance(st, &mut ev).unwrap());
+    // 第二段：排序（两种排列）。
+    let st = state_of(&mgr, &room);
+    let p = st.pending.clone().expect("应进入排序段");
+    assert_eq!(p.skill.as_deref(), Some("zuilun"));
+    let order_opts: Vec<String> = p
+        .options
+        .iter()
+        .map(|o| o.id.clone())
+        .filter(|id| id.starts_with("order:"))
+        .collect();
+    assert_eq!(order_opts.len(), 2, "排序段应给出两种排列：{:?}", p.options);
+    let head = order_opts[0].trim_start_matches("order:");
+    let first = head.split(',').next().unwrap().to_string();
+    let second = head.split(',').nth(1).unwrap().to_string();
+    // 提交「倒序」排列：第二张成为牌堆顶。必须在推进前断言（推进会让下家摸走这两张）。
+    edit(&mgr, &room, |st| {
+        crate::resolve::execute_pending(st, &cur_pid, &format!("order:{second},{first}"))
+            .expect("排序提交");
+        assert!(
+            st.special_zones.get("zuilun").is_none(),
+            "罪论：特殊区已清理"
+        );
+        assert_eq!(
+            st.deck.draw.last().cloned().unwrap_or_default(),
+            second,
+            "排序后 {second} 成为新牌堆顶"
+        );
+        assert_eq!(
+            st.deck.draw.iter().rev().nth(1).cloned().unwrap_or_default(),
+            first,
+            "{first} 在第二张"
+        );
+    });
+    let st = state_of(&mgr, &room);
+    st.check_conservation().unwrap();
+}
+
 #[test]
 fn zuilun_zero_conditions_loses_hp() {
     let mgr = manager(1010);
