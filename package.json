@@ -42,6 +42,8 @@
     "check:sgs-generals:matrix": "node apps/scripts/sgs-general-audit.mjs --check-matrix",
     "audit:sgs-generals": "node apps/scripts/sgs-general-audit.mjs --batch",
     "audit:sgs-generals:all": "node apps/scripts/sgs-general-audit.mjs --all --repeat 1",
+    "audit:sgs-generals:no-scene": "node apps/scripts/sgs-general-audit.mjs --no-scene --batch",
+    "sheet:sgs-audit": "node apps/scripts/sgs-audit-sheet.mjs --batch",
     "gen:sgs-audit-scenes": "node apps/scripts/sgs-general-audit.mjs --all --scenes-only",
     "check:sgs-batch-consistency": "node apps/scripts/check-sgs-batch-consistency.mjs",
     "audit:sgs-generals:list": "node apps/scripts/sgs-general-audit.mjs --list",

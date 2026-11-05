@@ -1,7 +1,7 @@
 ---
 session_id: next-session
 date: 2026-11-03
-status: 执行中（2026-11-05 批次重划：方案 A，148 将 / B0–B20）
+status: 执行中（2026-11-05 M69：B0 收口准备 + B1–B2 机检/走查单完成，待人工签字）
 baseline_commit: c3af1ba（原 358bd4a；2026-11-05 重划批次）
 ---
 
@@ -215,15 +215,26 @@ node apps/scripts/sgs-general-audit.mjs --check --sample 8   # CI 抽样
 - [x] B0（曹仁/周泰/曹丕/张昭张弘）L1 首跑：触达 2 / 未触达 2 / 失败 0；不变量全 ✓、repeat=2 可复现、真相源未写
 - [x] 文档收尾：development-plan P4.4.4 / milestones M66 / AGENTS 索引 / batch-playbook 交叉引用
 
+### 已完成（M69，2026-11-05：B0 收口准备 + B1–B2 机检）
+
+- [x] 走查单生成器 `apps/scripts/sgs-audit-sheet.mjs`（`npm run sheet:sgs-audit B0`）：把 `skills.md` 原文 + 技能类型 + `data/audit/<batch>.json` 机检 + 按类型判定点 + 场景构造提示合成人工签字单（**不生成 expected/结论**）→ `docs/games/sanguosha/audit-sheets/<BATCH>.md`
+- [x] **开局 pending 丢失缺陷（工具链）**：`POST /internal/game/preview` 带 `scene` 注入会丢弃开局技能压入的 pending（卢植·明任/陆绩·怀橘 走查必卡）。新增审计开关 `--no-scene`（`npm run audit:sgs-generals:no-scene B2`）直接从沙盒开局快照走；实测 卢植 → 触达 `mingren,zhenliang`（场景注入路径为 0 触达）
+- [x] B0 机检复跑（repeat=2）：3 将 / 7 技能 → 触达 2 · 未触达 1（曹丕 3 技能均为触发/主公）· 失败 0 · 真相源未写 ✓
+- [x] B1 机检（repeat=2）：8 将 / 18 技能 → 触达 6（袁术`yongsi`/王基`jinzou`/陆绩`yili`/孙亮`chezheng,kuizhu`/蒯越蒯良`shenshi`/许攸`chenglue`）· 未触达 2（严颜、王平）· 失败 0
+- [x] B2 机检（repeat=2）：8 将 / 15 技能 → 触达 6（郝昭`zhengu`/陈到`wanglie`/诸葛瞻`zuilun`/周妃`kongsheng`/陆抗`jueyan`/张绣`xiongluan`）· 未触达 2（卢植、毌丘俭）· 失败 0
+- [x] `--no-scene` 补测（保留开局 pending，逐批落 `data/audit/<batch>-noscene.json`）：B0 触达 2/7、B1 触达 8/18（严颜`juzhan` 新增）、B2 触达 7/15（卢植`mingren,zhenliang` 新增）；仍不触达的 王平/毌丘俭 为条件不满足（飞军需他人牌数多于你、征荣需目标手牌 ≥ 你且需出杀）
+- [x] L2 台账补齐：B2 新增 15 条场景骨架（B1 已有 18 条）；清理名称勘误后残留的 张昭张弘（`zhijian`/`guzheng`）2 条；台账 40 条 / `expected` 仍全为 null
+- [x] 走查单 B0/B1/B2 生成（`docs/games/sanguosha/audit-sheets/`）：单内同时展示 `scene` 与 `no-scene` 两路机检，开局技单独标注
+
 ### 待办（后续会话，按批次推进）
 
-- [ ] B0 人工走查签字（4 将 8 技能；L2 场景补 `expected` 后复核）
-- [ ] B1–B2 风林火山 SP-1/SP-2（16 将）
+- [ ] **B0 人工签字收口**（3 将 7 技能：曹仁 据守/解围、周泰 不屈/奋激、曹丕 行殇/放逐/颂威）→ 签字后写回矩阵人工列
+- [ ] B1 人工走查（8 将 18 技能；严颜·拒战 / 王平·飞军+兵略 需按场景提示构造）
 - [ ] B3–B8 一将成名（42 将）
 - [ ] B9–B12 界标（27 将）
 - [ ] B13–B20 界限突破 J1–J8（60 将）
 - [ ] 148 将矩阵人工结果补全；失败项清零或登记阻塞（B1/B2 按批次修复 + 补回归）
-- [ ] 补 L2 定向场景的 `expected`（场景骨架已由 `gen:sgs-audit-scenes` 生成，语义期望待人工）
+- [ ] 补 L2 定向场景的 `expected`（场景骨架已由 `gen:sgs-audit-scenes` 生成，语义期望待人工；B0/B1/B2 已补齐骨架）
 - [ ] 开发批次文档补「一将成名批次 1/2 + 界标 27 位」表行（`check:sgs-batch-consistency` info 提示；当前属早期批次）
 
 ## 8. 验证事项
@@ -250,6 +261,9 @@ node apps/scripts/sgs-general-audit.mjs --check --sample 8   # CI 抽样
 - [x] `check:sgs-decision-log` 自举（临时 server + MCP 现打一局，脱离开发库历史）
 - [x] 验证批次 ↔ 去重池 ↔ 开发批次交叉校验：`check:sgs-batch-consistency`
 - [x] `test:sgs-bot` 稳健化（弃牌一次凑齐；机器人推进以「回到真人回合」为证据）
+- [x] 走查单生成器 `sgs-audit-sheet.mjs`：原文 + 机检 + 判定点 + 场景提示一页化，省去人工翻 skills.md/evidence（结论/确认人列留空）
+- [x] 开局技机检：`--no-scene`（保留开局 pending），覆盖明任/怀橘/宗祚/血裔/巧变/化身 6 个开局技
+- [ ] 走查单与矩阵联动：签字后回写矩阵 + 批次状态（当前靠人工复制，可后续做 `--apply-sign`）
 
 ## 10. 相关文件
 
@@ -257,6 +271,7 @@ node apps/scripts/sgs-general-audit.mjs --check --sample 8   # CI 抽样
 - `docs/games/sanguosha/development-plan.md`（P4.4.2/P4.4.3/P4.4.4/P5）
 - `docs/games/sanguosha/general-audit.md`（人工矩阵 148 行）、`general-audit-evidence.md`（生成）、`general-audit-scenarios.json`（L2 台账）
 - `apps/scripts/sgs-general-audit.mjs`（审计）、`apps/scripts/lib/sgs-catalog.mjs` / `sgs-batches.mjs`（名录/批次单一事实源）
+- `apps/scripts/sgs-audit-sheet.mjs`（批次走查单）、`docs/games/sanguosha/audit-sheets/`（生成物，B0–B2 已出）
 - `docs/games/sanguosha/skills.md`、`data.rs`、`skills.rs`（数据源）
 - `docs/games/sanguosha/rules-rulings.md`（裁定）
 - `crates/engines/sanguosha/src/tests/support.rs`（测试助手）

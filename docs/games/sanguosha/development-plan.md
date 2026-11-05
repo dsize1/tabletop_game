@@ -772,6 +772,17 @@ npm run gen:sgs-audit-matrix           # 生成矩阵骨架（已存在则拒绝
 
 **B0 首跑（2026-11-05，流程验证批 4 将）**：曹仁（据守触达）、曹丕（放逐触达）、周泰（不屈锁定/奋激未触达）、张昭张纮（直谏/固政未触达）；4 条不变量全 ✓、同 seed 可复现、真相源未写、失败 0。未触达项已按类型给出原因（锁定技/触发时机/需构造响应方），写矩阵 `待裁定` 交人工。
 
+**进度（M69，2026-11-05）**：
+
+| 批次 | 将/技能 | 机检（repeat=2，seed 20261105） | 人工 |
+|---|---|---|---|
+| B0 风林山保留 | 3 / 7 | 触达 2 · 未触达 1（曹丕：行殇/放逐/颂威） · 失败 0 | 待签字（走查单 `audit-sheets/B0.md`） |
+| B1 风林 SP-1 | 8 / 18 | 触达 6 · 未触达 2（严颜/王平） · 失败 0 | 待走查 |
+| B2 风林 SP-2 | 8 / 15 | 触达 6 · 未触达 2（卢植/毌丘俭） · 失败 0 | 待走查 |
+
+- 走查单：`npm run sheet:sgs-audit B0` → `docs/games/sanguosha/audit-sheets/<BATCH>.md`（原文+机检+判定点+场景提示；结论列留空）。
+- **开局 pending 坑**：预览 `scene` 注入会丢弃开局技 pending（明任/怀橘/宗祚/血裔/巧变/化身）→ 用 `npm run audit:sgs-generals:no-scene B2`（`--no-scene`）；实测卢植 `mingren,zhenliang`、严颜 `juzhan` 可触达。
+
 **门禁**：`check:sgs-generals`（矩阵一致性 + 抽样 8 将）已并入 `sgs:check`（非 fast）与 fast 的 `generals-matrix` 步骤。
 
 ### P5 武将流程设计工作台 + 预览（L）

@@ -2,6 +2,20 @@
 
 > 记录项目关键节点与验证结果，按时间倒序。重大技术决策见 `decisions/`。
 
+## M69：B0 收口准备 + B1–B2 机检 + 批次走查单工具 ✅
+
+- **日期**：2026-11-05
+- **范围**：用户指令「1. B0 收口 2. 开始 B1–B2 验证」。
+- **完成**：
+  1. **走查单生成器** `apps/scripts/sgs-audit-sheet.mjs`（`npm run sheet:sgs-audit B0`）：合并 `skills.md` 原文 + 技能类型 + `data/audit/<batch>.json` 机检 + 按 kind 的判定点清单 + 场景构造提示（`SCENE_HINTS`）→ `docs/games/sanguosha/audit-sheets/<BATCH>.md`（B0/B1/B2 已出）。**结论/确认人列留空**，符合「agent 不得标人工通过」。
+  2. **工具链缺陷：场景注入丢弃开局 pending**。`POST /internal/game/preview` 带 `scene` 会把开局技能（明任/怀橘/宗祚/血裔/巧变/化身）压入的 pending 掉掉，导致卢植/陆绩 L1 永远 0 触达。新增 `--no-scene`（`npm run audit:sgs-generals:no-scene B2`）保留开局 pending；实测 卢植 → 触达 `mingren,zhenliang`。
+  3. **B0 机检复跑**（repeat=2）：3 将 / 7 技能 → 触达 2 · 未触达 1 · 失败 0 · 真相源未写 ✓（M67 15 轮修复后无回退）。
+  4. **B1 机检**：8 将 / 18 技能 → 触达 6 · 未触达 2 · 失败 0。
+  5. **B2 机检**：8 将 / 15 技能 → 触达 6 · 未触达 2 · 失败 0；`--no-scene` 补测 严颜（`juzhan`）可触达。
+  6. **L2 台账**：B2 新增 15 条场景骨架（共 40 条）；清理名称勘误后残留的张昭张弘 2 条；`expected` 仍全为 null（待人工）。
+- **未完成（需人工）**：B0 七技能逐项走查签字；B1/B2 逐将走查。
+- **下一步**：用户在工作台按 `audit-sheets/B0.md` 走查 → 签字 → 回写矩阵 → 进 B1/B2。
+
 ## M68：全武将验证 harness 优化 loop（B1–B7）✅
 
 - **日期**：2026-11-05
@@ -19,7 +33,7 @@
 
 ## 🔖 续接指针（下次会话说「继续」时从这里开工）
 
-- **入口（2026-11-05）**：M65 五谷无懈候选牌 ✅ → **M66 全武将验证工具链 + B0 首跑 ✅** → **M67 B0/袁术 真机复验修复（5 项）✅** → 下一步：用户复验通过后逐批（B1…B20）机器证据 + 人工走查签字
+- **入口（2026-11-05）**：M65 五谷无懈候选牌 ✅ → **M66 工具链 + B0 首跑 ✅** → **M67 B0 真机复验修复（15 轮）✅** → **M68 harness 优化 loop ✅** → **M69 走查单工具 + B0 收口准备 + B1–B2 机检 ✅** → 下一步：人工按 `docs/games/sanguosha/audit-sheets/B0.md` 签字收口，然后 B1/B2 走查
 - **下一任务文档（新会话直接读）**：`memory_palace/plan/next-general-audit.md`（§3 为 149 将 / B0–B20 新批次表；§4 人工主导审计流程）
 - **验证矩阵/证据**：`docs/games/sanguosha/general-audit.md`（人工列）、`docs/games/sanguosha/general-audit-evidence.md`（生成）
 - **口径（2026-11-05 裁定）**：有界版同名的原版不入批次（83 位排除），保留 149 = 默认池；不改引擎/沙盒

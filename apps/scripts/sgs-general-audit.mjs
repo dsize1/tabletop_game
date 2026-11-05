@@ -12,6 +12,7 @@
 //   node apps/scripts/sgs-general-audit.mjs --general 曹仁
 //   node apps/scripts/sgs-general-audit.mjs --check --sample 8         # 门禁抽样（失败非 0 退出）
 //   node apps/scripts/sgs-general-audit.mjs --all --out data/audit/all.json
+//   node apps/scripts/sgs-general-audit.mjs --general 卢植 --no-scene   # 保留开局 pending（开局技）
 //
 // 依赖：Redis（auth）、已构建 server（cargo build -p server）。缺失 → skip 0。
 
@@ -46,6 +47,8 @@ const REPEAT = Math.max(1, Number(opt("--repeat", flag("--check") ? 2 : 1)) || 1
 const PLAYERS = Number(opt("--players", 5));
 /** L1 走查步数：1 步 ≈ 一次 AI 动作；12 步约覆盖一轮（含目标下回合准备/判定/摸牌）。 */
 const MAX_STEPS = Math.max(1, Number(opt("--max-steps", 12)) || 12);
+/** `--no-scene`：不注入 L1 场景，直接从沙盒开局快照起走（用于开局技：明任/怀橘/宗祚/血裔/巧变/化身）。 */
+const NO_SCENE = flag("--no-scene");
 const SQLITE_PATH = path.join(os.tmpdir(), `sgs_audit_${Date.now()}.db`);
 const OUT_DIR = path.join(projectRoot, "data/audit");
 const MATRIX_FILE = path.join(projectRoot, "docs/games/sanguosha/general-audit.md");
@@ -270,7 +273,7 @@ async function auditGeneral(general) {
         body: {
           game_id: "sanguosha",
           snapshot: raw0,
-          scene: l1Scene(targetId),
+          ...(NO_SCENE ? {} : { scene: l1Scene(targetId) }),
           viewer: targetId,
         },
       }),
@@ -848,7 +851,9 @@ async function main() {
     return 0;
   }
 
-  log(`范围：${label}（${targets.length} 将）· seed=${SEED} · repeat=${REPEAT} · maxSteps=${MAX_STEPS}`);
+  log(
+    `范围：${label}（${targets.length} 将）· seed=${SEED} · repeat=${REPEAT} · maxSteps=${MAX_STEPS}${NO_SCENE ? " · no-scene（保留开局 pending）" : ""}`,
+  );
   const server = spawn(serverExe, [], {
     cwd: projectRoot,
     env: {
@@ -878,7 +883,7 @@ async function main() {
     repeat: REPEAT,
     players: PLAYERS,
     maxSteps: MAX_STEPS,
-    scope: { label, batch: batchId, generals: targets.map((g) => g.code) },
+    scope: { label, batch: batchId, generals: targets.map((g) => g.code), noScene: NO_SCENE },
     catalog: {
       generals: catalog.stats.generals,
       audited: catalog.stats.audited,
