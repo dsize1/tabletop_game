@@ -2121,11 +2121,23 @@ pub(crate) fn multiselect_confirm(
         "kongsheng" => {
             for id in &f.selected {
                 if turn::take_card(st, f.actor, id).is_err() {
-                    return Some(Err(illegal("手牌中没有该牌")));
+                    // 手牌里没有 → 可能在装备区（箜声允许置装备区的牌）。
+                    let slot = st.seats[f.actor]
+                        .equips
+                        .iter()
+                        .find(|(_, c)| c.as_deref() == Some(id.as_str()))
+                        .map(|(s, _)| *s);
+                    let Some(slot) = slot else {
+                        return Some(Err(illegal("该牌不在手牌或装备区")));
+                    };
+                    st.seats[f.actor].equips.insert(slot, None);
                 }
                 skills::add_mark(st, f.actor, "kong", id);
             }
+            // 先 pop 本帧，再触发良姻（否则新压的良姻帧会把本帧顶掉，导致重复结算）。
             pop(st);
+            // 牌置于武将牌上 = 移出游戏（触发良姻「移出」，每回合首次）。
+            crate::resolve_sp2::liangyin_trigger(st, crate::resolve_sp2::MoveDir::Out);
             Some(Ok(format!("箜声：置于武将牌上 {} 张", f.selected.len())))
         }
         "congjian" => match crate::resolve_sp2::congjian_confirm(st, f) {

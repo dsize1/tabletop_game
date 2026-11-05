@@ -320,7 +320,7 @@ pub(crate) fn draw_top_public(st: &mut SgsState, events: &mut Vec<EngineEvent>) 
 #[allow(dead_code)]
 pub(crate) fn to_void_card(st: &mut SgsState, card_id: &str) {
     st.deck.void.push(card_id.to_string());
-    crate::resolve_sp2::liangyin_trigger(st);
+    crate::resolve_sp2::liangyin_trigger(st, crate::resolve_sp2::MoveDir::Out);
 }
 
 /// 牌移入游戏（离开 `void`）；返回是否成功。
@@ -330,7 +330,7 @@ pub(crate) fn from_void_card(st: &mut SgsState, card_id: &str) -> bool {
         return false;
     };
     st.deck.void.remove(pos);
-    crate::resolve_sp2::liangyin_trigger(st);
+    crate::resolve_sp2::liangyin_trigger(st, crate::resolve_sp2::MoveDir::In);
     true
 }
 
@@ -1459,6 +1459,7 @@ pub(crate) fn phase_step(
                 st.set_counter("kongsheng_end", 1);
                 let mut kong = crate::skills::mark_cards(st, st.turn, "kong");
                 let mut equips = Vec::new();
+                let mut returned = false;
                 for card in kong.drain(..) {
                     let is_equip = card_def(st, &card).is_some_and(|d| d.equip_slot.is_some());
                     crate::skills::remove_mark(st, st.turn, "kong", &card);
@@ -1466,7 +1467,12 @@ pub(crate) fn phase_step(
                         equips.push(card);
                     } else {
                         st.seats[st.turn].hand.push(card);
+                        returned = true;
                     }
+                }
+                // 非装备牌回到手中 = 牌移入游戏（触发良姻「移入」，每回合首次）。
+                if returned {
+                    crate::resolve_sp2::liangyin_trigger(st, crate::resolve_sp2::MoveDir::In);
                 }
                 if !equips.is_empty() {
                     resolve::push(

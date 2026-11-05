@@ -869,6 +869,20 @@ pub fn advance(st: &mut SgsState, events: &mut Vec<EngineEvent>) -> Result<(), E
                 continue;
             }
         }
+        // 良姻（周妃）：栈空后判定回血候选（先让奋激/清俭等改变手牌数的钩子结算完）。
+        if top(st).is_none() && !st.liangyin_heal_queue.is_empty() {
+            let (owner, other) = st.liangyin_heal_queue.remove(0);
+            push(
+                st,
+                Frame::LiangYin(crate::resolve_sp2::LiangYinFrame {
+                    owner,
+                    stage: crate::resolve_sp2::LiangYinStage::Heal,
+                    draw: true,
+                    other: Some(other),
+                }),
+            );
+            continue;
+        }
         // 利驭（界吕布）：栈空后询问（避免覆盖父帧 outcome）。
         if top(st).is_none() && !st.pending_liyu.is_empty() {
             let (actor, target) = st.pending_liyu.remove(0);
@@ -2812,6 +2826,7 @@ fn step_discard(st: &mut SgsState, mut f: DiscardFrame) -> Result<bool, EngineEr
             "discard_phase" => "手牌超过上限",
             "hand_cap" => "获得牌后超过持有上限",
             "jieming" => "界节命：弃至体力上限",
+            "liangyin" => "良姻：各弃 1 张",
             "yongsi" => "庸肆（本阶段仅一次）",
             "yinghun" => "英魂",
             "beige" => "悲歌",
@@ -2849,6 +2864,8 @@ fn step_discard(st: &mut SgsState, mut f: DiscardFrame) -> Result<bool, EngineEr
                 "discard_phase" => "手牌超过上限",
                 "hand_cap" => "获得牌后超过持有上限",
                 "jieming" => "界节命：弃至体力上限",
+                "liangyin" => "良姻：各弃 1 张",
+            "liangyin" => "良姻：各弃 1 张",
                 "yongsi" => "庸肆：弃牌阶段先弃 X 张",
                 _ => "弃牌",
             },
@@ -3317,6 +3334,11 @@ fn step_quick_judge(
                         st.push_log(
                             Some(&pid),
                             format!("屯田：判定【{label}】非红桃，置于武将牌上为「田」"),
+                        );
+                        // 「田」置于武将牌上 = 牌移出游戏（触发良姻「移出」，每回合首次）。
+                        crate::resolve_sp2::liangyin_trigger(
+                            st,
+                            crate::resolve_sp2::MoveDir::Out,
                         );
                     } else {
                         st.push_log(Some(&pid), format!("屯田：判定【{label}】红桃，未生效"));
@@ -5684,6 +5706,7 @@ fn act_discard(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Str
         match f.reason.as_str() {
             "hand_cap" => format!("超过持有上限，弃置 {} 张", ids.len()),
             "jieming" => format!("界节命：弃至体力上限，弃置 {} 张", ids.len()),
+            "liangyin" => format!("良姻：弃置 {} 张", ids.len()),
             _ => format!("弃牌阶段：弃置 {} 张", ids.len()),
         }
     } else {

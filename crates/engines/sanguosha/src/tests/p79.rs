@@ -44,6 +44,96 @@ fn kongsheng_keeps_cards_and_returns_non_equips() {
     assert!(skills::mark_cards(&st, cur, "kong").is_empty());
 }
 
+/// 箜声准备阶段可置**装备区**的牌，并触发良姻「移出」（每回合首次）。
+#[test]
+fn kongsheng_can_keep_equipment_cards() {
+    let mgr = manager(1025);
+    let room = start_and_pick(&mgr, 5);
+    let (mut cur, mut cur_pid, mut equip) = (0, String::new(), String::new());
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        cur = st.turn;
+        set_general(st, cur, "sgs_hero_411");
+        // 把一张武器牌放进装备区，验证「装备区的牌也能置为箜声」。
+        equip = give(st, cur, "qinggang_jian");
+        st.seats[cur].hand.retain(|c| c != &equip);
+        st.seats[cur]
+            .equips
+            .insert(EquipSlot::Weapon, Some(equip.clone()));
+        st.turn_phase = TurnPhase::Prepare;
+        st.turn_counters.clear();
+        cur_pid = st.seats[cur].player_id.clone();
+        let mut inject = vec![format!("{cur_pid}=choose:{equip}"), format!("{cur_pid}=confirm")];
+        drive_phases(st, &mut inject);
+    });
+    let st = state_of(&mgr, &room);
+    assert_eq!(
+        skills::mark_cards(&st, cur, "kong"),
+        vec![equip.clone()],
+        "箜声：装备区的牌也能置于武将牌上"
+    );
+    assert!(
+        st.seats[cur].equips.get(&EquipSlot::Weapon).cloned().flatten().is_none(),
+        "装备区应已移除该牌"
+    );
+}
+
+/// 良姻「弃置」分支：由两名玩家各自选牌（不是自动弃首张）。
+#[test]
+fn liangyin_discard_is_chosen_by_each_player() {
+    let mgr = manager(1026);
+    let room = start_and_pick(&mgr, 5);
+    let (mut zhou, mut other, mut zhou_pid, mut other_pid) = (0, 0, String::new(), String::new());
+    let (mut zhou_cards, mut other_cards) = (Vec::new(), Vec::new());
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        zhou = st.turn;
+        set_general(st, zhou, "sgs_hero_411");
+        other = other_seats(st, zhou)[0];
+        set_general(st, other, "sgs_hero_1");
+        for _ in 0..3 {
+            zhou_cards.push(give(st, zhou, "sha"));
+            other_cards.push(give(st, other, "shan"));
+        }
+        st.turn_phase = TurnPhase::Play;
+        st.turn_counters.clear();
+        zhou_pid = st.seats[zhou].player_id.clone();
+        other_pid = st.seats[other].player_id.clone();
+        // 直接触发良姻「移出」分支（其余钩子行为另有用例）。
+        crate::resolve_sp2::liangyin_trigger(st, crate::resolve_sp2::MoveDir::Out);
+    });
+    let mut ev = Vec::new();
+    edit(&mgr, &room, |st| crate::resolve::advance(st, &mut ev).unwrap());
+    let st = state_of(&mgr, &room);
+    let p = st.pending.clone().expect("良姻应询问是否发动");
+    assert_eq!(p.skill.as_deref(), Some("liangyin"));
+    mgr.execute_action(&room, &zhou_pid, "choose:liangyin:discard")
+        .unwrap();
+    mgr.execute_action(&room, &zhou_pid, &format!("target:{other_pid}"))
+        .unwrap();
+    // 周妃自选（选最后一张，而非首张）。
+    let st = state_of(&mgr, &room);
+    let p = st.pending.clone().expect("周妃应自选弃牌");
+    assert_eq!(p.kind, "discard");
+    assert_eq!(p.actor, zhou_pid);
+    let pick = p.options.last().unwrap().id.trim_start_matches("discard:").to_string();
+    mgr.execute_action(&room, &zhou_pid, &format!("discard:{pick}"))
+        .unwrap();
+    // 对方自选。
+    let st = state_of(&mgr, &room);
+    let p = st.pending.clone().expect("对方应自选弃牌");
+    assert_eq!(p.kind, "discard");
+    assert_eq!(p.actor, other_pid);
+    let pick2 = p.options.first().unwrap().id.trim_start_matches("discard:").to_string();
+    mgr.execute_action(&room, &other_pid, &format!("discard:{pick2}"))
+        .unwrap();
+    let st = state_of(&mgr, &room);
+    assert_eq!(st.seats[zhou].hand.len(), 2, "周妃自选弃 1 张");
+    assert_eq!(st.seats[other].hand.len(), 2, "对方自选弃 1 张");
+    assert!(!st.seats[zhou].hand.contains(&pick));
+    assert!(!st.seats[other].hand.contains(&pick2));
+}
+
 #[test]
 fn kongsheng_equip_cards_used_by_target() {
     let mgr = manager(1021);

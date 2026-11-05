@@ -577,6 +577,9 @@ pub struct SgsState {
     /// 与具体技能解耦：由引擎在动作结束后做手牌差分得出，栈空时统一询问。
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub fenji_queue: Vec<usize>,
+    /// 良姻「回血」待办队列（(owner, other)）：等栈空（奋激/清俭等钩子先结算）后再判定手牌数。
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub liangyin_heal_queue: Vec<(usize, usize)>,
     /// 奋激自身摸牌不计入下一次「回合外手牌增加」判定（避免自查递归）。
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub fenji_suppress: Vec<usize>,

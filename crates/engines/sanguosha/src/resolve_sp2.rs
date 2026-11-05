@@ -982,6 +982,10 @@ pub(crate) fn fuyin_take(st: &mut SgsState, owner: usize, user: usize) -> bool {
 pub enum LiangYinStage {
     Choice,
     Target,
+    /// 弃置分支：由周妃自选弃 1 张。
+    DiscardOwner,
+    /// 弃置分支：由对方自选弃 1 张。
+    DiscardOther,
     Heal,
 }
 
@@ -994,8 +998,17 @@ pub struct LiangYinFrame {
     pub other: Option<usize>,
 }
 
-/// 良姻触发点：有牌移出/移入游戏后（每回合首次）。
-pub(crate) fn liangyin_trigger(st: &mut SgsState) {
+/// 移出/移入游戏的方向（良姻「每回合首次」分别计算）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum MoveDir {
+    /// 牌被置于武将牌上 / 移出游戏（箜声、屯田…）。
+    Out,
+    /// 这些牌回到游戏（箜声回手、装备被使用…）。
+    In,
+}
+
+/// 良姻触发点：**每回合首次**有牌移出游戏 / 移入游戏（两者各自一次，用户 2026-11-05 裁定）。
+pub(crate) fn liangyin_trigger(st: &mut SgsState, dir: MoveDir) {
     let Some(owner) = st
         .alive_indices()
         .into_iter()
@@ -1003,9 +1016,14 @@ pub(crate) fn liangyin_trigger(st: &mut SgsState) {
     else {
         return;
     };
-    if st.alive_indices().len() < 2 || !skills::first_each_turn(st, "liangyin") {
+    let key = match dir {
+        MoveDir::Out => "liangyin_out_done",
+        MoveDir::In => "liangyin_in_done",
+    };
+    if st.alive_indices().len() < 2 || st.counter(key) > 0 {
         return;
     }
+    st.set_counter(key, 1);
     push(
         st,
         Frame::LiangYin(LiangYinFrame {
@@ -1064,11 +1082,69 @@ pub(crate) fn step_liangyin(st: &mut SgsState, f: LiangYinFrame) -> Result<bool,
             replace_top(st, Frame::LiangYin(f));
             Ok(true)
         }
+        LiangYinStage::DiscardOwner | LiangYinStage::DiscardOther => {
+            let who = if f.stage == LiangYinStage::DiscardOwner {
+                f.owner
+            } else {
+                f.other.unwrap_or(f.owner)
+            };
+            let next = if f.stage == LiangYinStage::DiscardOwner {
+                LiangYinStage::DiscardOther
+            } else {
+                LiangYinStage::Heal
+            };
+            // 手牌为空 → 无需弃置，直接进入下一段。
+            if st.seats[who].hand.is_empty() {
+                if next == LiangYinStage::Heal {
+                    pop(st);
+                    crate::resolve::push(
+                        st,
+                        Frame::LiangYin(LiangYinFrame {
+                            owner: f.owner,
+                            stage: LiangYinStage::Heal,
+                            draw: f.draw,
+                            other: f.other,
+                        }),
+                    );
+                } else {
+                    replace_top(
+                        st,
+                        Frame::LiangYin(LiangYinFrame {
+                            owner: f.owner,
+                            stage: next,
+                            draw: f.draw,
+                            other: f.other,
+                        }),
+                    );
+                }
+                return Ok(false);
+            }
+            replace_top(
+                st,
+                Frame::LiangYin(LiangYinFrame {
+                    owner: f.owner,
+                    stage: next,
+                    draw: f.draw,
+                    other: f.other,
+                }),
+            );
+            crate::resolve::push_discard(st, who, 1, "liangyin");
+            Ok(false)
+        }
         LiangYinStage::Heal => {
+            // 由 DiscardOther 阶段推进而来：排队到栈空后判定（与摸牌分支一致）。
+            if st.counter("liangyin_heal_queued") == 0 {
+                st.set_counter("liangyin_heal_queued", 1);
+                pop(st);
+                st.liangyin_heal_queue.push((f.owner, f.other.unwrap_or(f.owner)));
+                return Ok(false);
+            }
+            st.set_counter("liangyin_heal_queued", 0);
             let x = skills::mark_cards(st, f.owner, "kong").len();
-            let options: Vec<PendingOption> = [Some(f.owner), f.other]
+            // 候选 = 任意存活角色中「手牌数 == 箜声牌数」（0 箜声 + 无手牌也算一致）。
+            let options: Vec<PendingOption> = st
+                .alive_indices()
                 .into_iter()
-                .flatten()
                 .filter(|i| st.seats[*i].hand.len() == x)
                 .map(|i| PendingOption {
                     id: format!("target:{}", st.seats[i].player_id),
@@ -1165,28 +1241,22 @@ pub(crate) fn liangyin_target(
             format!("良姻：与 {} 各摸 1 张（{a}/{b}）", general_name(st, other)),
         );
     } else {
-        for seat in [f.owner, other] {
-            if let Some(card) = st.seats[seat].hand.first().cloned() {
-                if turn::take_card(st, seat, &card).is_ok() {
-                    turn::to_discard_card(st, &card);
-                }
-            }
-        }
-        st.push_log(
-            Some(&st.seats[f.owner].player_id.clone()),
-            format!("良姻：与 {} 各弃 1 张", general_name(st, other)),
+        // 各弃 1 张：由**弃牌玩家自己选**（两个独立的 discard pending）。
+        replace_top(
+            st,
+            Frame::LiangYin(LiangYinFrame {
+                owner: f.owner,
+                stage: LiangYinStage::DiscardOwner,
+                draw: f.draw,
+                other: Some(other),
+            }),
         );
+        return Ok("良姻：你与目标各弃 1 张".to_string());
     }
-    replace_top(
-        st,
-        Frame::LiangYin(LiangYinFrame {
-            owner: f.owner,
-            stage: LiangYinStage::Heal,
-            draw: f.draw,
-            other: Some(other),
-        }),
-    );
-    Ok("良姻：可令手牌数为箜声数的角色回复 1 点体力".to_string())
+    // 回血段延后到栈空（先结算奋激/清俭等改变手牌数的钩子，再判定手牌数）。
+    pop(st);
+    st.liangyin_heal_queue.push((f.owner, other));
+    Ok("良姻：稍后判定回血".to_string())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -1208,10 +1278,16 @@ pub struct KongShengFrame {
 pub(crate) fn step_kongsheng(st: &mut SgsState, f: KongShengFrame) -> Result<bool, EngineError> {
     match f.stage {
         KongShengStage::Keep => {
-            if st.seats[f.actor].hand.is_empty() {
+            // 可置**手牌与装备区的牌**（用户 2026-11-05 补充口径）。
+            let mut allowed: Vec<String> = st.seats[f.actor].hand.clone();
+            for card in st.seats[f.actor].equips.values().flatten() {
+                allowed.push(card.clone());
+            }
+            if allowed.is_empty() {
                 pop(st);
                 return Ok(false);
             }
+            let max = allowed.len();
             replace_top(
                 st,
                 Frame::MultiSelect(MultiSelectFrame {
@@ -1219,8 +1295,8 @@ pub(crate) fn step_kongsheng(st: &mut SgsState, f: KongShengFrame) -> Result<boo
                     purpose: "kongsheng".into(),
                     selected: Vec::new(),
                     min: 0,
-                    max: st.seats[f.actor].hand.len(),
-                    data: json!({}),
+                    max,
+                    data: json!({ "allowed": allowed }),
                 }),
             );
             Ok(false)
@@ -1294,6 +1370,8 @@ pub(crate) fn kongsheng_target(
             turn::to_discard_card(st, card);
         }
     }
+    // 装备牌被使用 = 牌移入游戏（触发良姻「移入」，每回合首次）。
+    crate::resolve_sp2::liangyin_trigger(st, MoveDir::In);
     st.seats[target].hp -= 1;
     st.push_log(
         Some(&st.seats[f.actor].player_id.clone()),
