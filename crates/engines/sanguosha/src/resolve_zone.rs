@@ -89,6 +89,27 @@ pub fn start_wugu(st: &mut SgsState, user: usize, card: &str) {
     );
 }
 
+/// 更新五谷帧：**保证整条结算栈里只有一个 Wugu 帧**。
+///
+/// 原先各处用 `replace_top(Frame::Wugu(..))`；当栈顶不是 Wugu（例如无懈链的 Wuxie 帧
+/// 还在栈顶）时会插入第二个 Wugu 帧 → 结算两次 `finish_wugu`，把剩余牌/五谷本体
+/// 二次置入弃牌堆（真机：sgs-ai seed=77 牌数不守恒）。
+fn upsert_wugu(st: &mut SgsState, f: WuguFrame) {
+    if matches!(top(st), Some(Frame::Wugu(_))) {
+        replace_top(st, Frame::Wugu(f));
+        return;
+    }
+    if let Some(pos) = st
+        .resolution
+        .iter()
+        .rposition(|fr| matches!(fr, Frame::Wugu(_)))
+    {
+        st.resolution[pos] = Frame::Wugu(f);
+        return;
+    }
+    push(st, Frame::Wugu(f));
+}
+
 fn wugu_zone_payload(st: &SgsState, f: &WuguFrame) -> Map<String, Value> {
     let mut m = Map::new();
     m.insert(
@@ -150,9 +171,14 @@ fn write_wugu_zone(st: &mut SgsState, f: &WuguFrame) {
     );
 }
 
-fn finish_wugu(st: &mut SgsState, f: WuguFrame) {
+fn finish_wugu(st: &mut SgsState, mut f: WuguFrame) {
+    // 先弹出五谷帧：`to_discard_card` 会触发落英/界激昂等钩子，钩子可能压入新帧；
+    // 若先移动牌再 pop，弹出的会是钩子帧、五谷帧留栈顶 → 再次 finish 把牌二次置入弃牌堆
+    // （真机：sgs-ai seed=77 牌数不守恒 162≠160）。
+    pop(st);
     let remaining = f.revealed.len();
-    for id in &f.revealed {
+    let revealed = std::mem::take(&mut f.revealed);
+    for id in &revealed {
         leave_processing(st, id);
         turn::to_discard_card(st, id);
     }
@@ -167,7 +193,6 @@ fn finish_wugu(st: &mut SgsState, f: WuguFrame) {
             "【五谷丰登】结算完毕".to_string()
         },
     );
-    pop(st);
 }
 
 pub(crate) fn step_wugu(
@@ -193,7 +218,7 @@ pub(crate) fn step_wugu(
                 format!("【五谷丰登】亮出 {} 张牌", f.revealed.len()),
             );
             f.stage = WuguStage::Wuxie;
-            replace_top(st, Frame::Wugu(f));
+            upsert_wugu(st, f);
             Ok(false)
         }
         WuguStage::Wuxie => {
@@ -206,7 +231,7 @@ pub(crate) fn step_wugu(
             }
             let chooser = f.choosers[f.cursor];
             f.stage = WuguStage::WaitWuxie;
-            replace_top(st, Frame::Wugu(f.clone()));
+            upsert_wugu(st, f.clone());
             push(
                 st,
                 Frame::Wuxie(WuxieFrame {
@@ -239,7 +264,7 @@ pub(crate) fn step_wugu(
                 } else {
                     f.stage = WuguStage::Pick;
                 }
-                replace_top(st, Frame::Wugu(f));
+                upsert_wugu(st, f);
                 Ok(false)
             }
             _ => Err(internal("缺少五谷丰登无懈结果")),
@@ -272,7 +297,7 @@ pub(crate) fn step_wugu(
                     "zone": WUGU_ZONE,
                 }),
             });
-            replace_top(st, Frame::Wugu(f));
+            upsert_wugu(st, f);
             Ok(true)
         }
     }
@@ -307,7 +332,7 @@ pub(crate) fn act_wugu(
     f.picked.push((chooser, card_id.clone()));
     f.cursor += 1;
     f.stage = WuguStage::Wuxie;
-    replace_top(st, Frame::Wugu(f.clone()));
+    upsert_wugu(st, f.clone());
     write_wugu_zone(st, &f);
 
     let over = st.seats[chooser]

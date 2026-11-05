@@ -116,6 +116,8 @@ fn qiaobian_skip_play_moves_field_equipment() {
                 format!("{pid_c}|choose_many=choose:{cost}"),
                 format!("{pid_c}|choose_many=confirm"),
                 format!("{pid_c}|target=move:{equip}"),
+                // 二阶段：选择目的角色（移动场上牌 → 任意存活角色，含自己）
+                format!("{pid_c}|target=to:{pid_c}"),
             ],
         );
     });

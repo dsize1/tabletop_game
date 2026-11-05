@@ -709,7 +709,16 @@ fn guzheng_jie_after_two_discards() {
     );
     mgr.execute_action(&room, &owner_pid, "choose:guzheng")
         .unwrap();
+    // 二阶段：选择交给弃牌者的牌（不再固定首张）。
     let st = state_of(&mgr, &room);
+    assert_eq!(pending_skill(&st), Some("guzheng_jie"), "界固政：进入选牌阶段");
+    mgr.execute_action(&room, &owner_pid, &format!("give:{c2}"))
+        .unwrap();
+    let st = state_of(&mgr, &room);
+    assert!(
+        st.seats[discarder].hand.iter().any(|c| c == &c2),
+        "界固政：持有者选择的那张交给弃牌者（非首张）"
+    );
     let got_discarder = st.seats[discarder]
         .hand
         .iter()

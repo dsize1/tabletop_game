@@ -749,14 +749,51 @@ pub(crate) fn zhijian_target(
 // 固政（张昭张纮）：其他角色弃牌阶段结束时，令其获得一张弃牌，然后获得剩余
 // ---------------------------------------------------------------------------
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GuzhengStage {
+    /// 询问是否发动。
+    #[default]
+    Ask,
+    /// 已发动：由固政持有者选择「交给弃牌者」的那一张。
+    Pick,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct GuzhengFrame {
     pub owner: usize,
     pub discarder: usize,
     pub cards: Vec<String>,
+    #[serde(default)]
+    pub stage: GuzhengStage,
 }
 
 pub(crate) fn step_guzheng(st: &mut SgsState, f: GuzhengFrame) -> Result<bool, EngineError> {
+    if f.stage == GuzhengStage::Pick {
+        // 第二阶段：由固政持有者选择「交给弃牌者的那一张」（不再固定取首张）。
+        let options: Vec<PendingOption> = f
+            .cards
+            .iter()
+            .filter(|id| st.deck.discard.iter().any(|c| c == *id))
+            .map(|id| PendingOption {
+                id: format!("give:{id}"),
+                label: format!("交给 {}：{}", st.seats[f.discarder].general_name, turn::card_label(st, id)),
+            })
+            .collect();
+        if options.is_empty() {
+            pop(st);
+            return Ok(false);
+        }
+        st.pending = Some(Pending {
+            kind: "choice".into(),
+            actor: st.seats[f.owner].player_id.clone(),
+            skill: Some("guzheng".into()),
+            options,
+            data: json!({ "skill": "guzheng", "stage": "pick" }),
+        });
+        replace_top(st, Frame::Guzheng(f));
+        return Ok(true);
+    }
     st.pending = Some(Pending {
         kind: "choice".into(),
         actor: st.seats[f.owner].player_id.clone(),
@@ -782,26 +819,54 @@ pub(crate) fn act_guzheng(st: &mut SgsState, action: &str) -> Result<String, Eng
         Some(Frame::Guzheng(f)) => f,
         _ => return Err(internal("栈顶不是固政帧")),
     };
-    pop(st);
     if action != "choose:guzheng" {
+        pop(st);
         st.turn_phase = TurnPhase::End;
         return Ok("不发动固政".to_string());
     }
-    let mut cards = f.cards;
+    // 进入第二阶段：由持有者选择交给弃牌者的牌。
+    replace_top(
+        st,
+        Frame::Guzheng(GuzhengFrame {
+            stage: GuzhengStage::Pick,
+            ..f
+        }),
+    );
+    Ok("固政：请选择交给弃牌者的牌".to_string())
+}
+
+/// 固政第二阶段：`give:<card>` → 该牌交给弃牌者，其余归固政持有者。
+pub(crate) fn act_guzheng_pick(
+    st: &mut SgsState,
+    pending: &Pending,
+    action: &str,
+) -> Result<String, EngineError> {
+    let f = match top(st).cloned() {
+        Some(Frame::Guzheng(f)) => f,
+        _ => return Err(internal("栈顶不是固政帧")),
+    };
+    let given_card = action
+        .strip_prefix("give:")
+        .ok_or_else(|| illegal("需要选择交给弃牌者的牌"))?;
+    if !pending
+        .options
+        .iter()
+        .any(|o| o.id == format!("give:{given_card}"))
+    {
+        return Err(illegal("该牌不在可分配弃牌中"));
+    }
+    pop(st);
     let mut given = 0;
     let mut gained = 0;
-    if !cards.is_empty() {
-        let first = cards.remove(0);
-        if st.deck.discard.iter().any(|c| c == &first) {
-            st.deck.discard.retain(|c| c != &first);
-            st.seats[f.discarder].hand.push(first);
-            given += 1;
-        }
+    if st.deck.discard.iter().any(|c| c == given_card) {
+        st.deck.discard.retain(|c| c != given_card);
+        st.seats[f.discarder].hand.push(given_card.to_string());
+        given += 1;
     }
-    for id in cards {
-        if st.deck.discard.iter().any(|c| c == &id) {
-            st.deck.discard.retain(|c| c != &id);
-            st.seats[f.owner].hand.push(id);
+    for id in f.cards.iter().filter(|c| *c != given_card) {
+        if st.deck.discard.iter().any(|c| c == id) {
+            st.deck.discard.retain(|c| c != id);
+            st.seats[f.owner].hand.push(id.clone());
             gained += 1;
         }
     }
@@ -1243,6 +1308,9 @@ pub(crate) fn apply_qiaobian_choice(
                 Frame::Jiewei(crate::resolve_wind::JieweiFrame {
                     actor,
                     stage: crate::resolve_wind::JieweiStage::Move,
+                    card: None,
+                            source: None,
+                            hand: false,
                 }),
             );
             Ok("巧变：请选择移动的场牌".to_string())

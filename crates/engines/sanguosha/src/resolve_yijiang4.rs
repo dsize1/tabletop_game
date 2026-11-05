@@ -1819,6 +1819,10 @@ pub(crate) fn act_jujian(st: &mut SgsState, action: &str) -> Result<String, Engi
                 }
                 "opt3" => {
                     let was = crate::skills::restore_general(st, target);
+                    if was {
+                        // 解围②：被举荐复原（翻回正面）同样触发。
+                        crate::resolve_wind::jiewei_on_face_up(st, target);
+                    }
                     st.push_log(
                         Some(&pid(st, target)),
                         format!(

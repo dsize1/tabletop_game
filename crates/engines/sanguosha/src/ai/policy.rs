@@ -58,15 +58,52 @@ pub fn decide_traced(
     let view = SgsView::from_state(&st, player_id)?;
     let decision = tree::decide(&view, legal_actions)?;
     let candidates = prune::prune(&view, legal_actions, prune::DEFAULT_LIMIT);
+    // 固定张数弃牌（庸肆/镇骨等，`can_partial = false`）必须一次提交凑齐：
+    // AI 的合法动作仍是单张 `discard:<card>`，这里把最优张 + 其余合法张拼成 csv。
+    let action = batch_fixed_discard(&st, decision.action.clone(), legal_actions);
     Some(DecisionTrace {
         legal: legal_actions.to_vec(),
         candidates,
-        action: decision.action,
+        action,
         priority: decision.score.priority,
         score: decision.score.score,
         reason: decision.reason.to_string(),
         state_digest: digest,
     })
+}
+
+
+/// 固定张数弃牌：把单张 `discard:<card>` 决策补足为一次提交的 csv。
+fn batch_fixed_discard(st: &SgsState, action: String, legal: &[Action]) -> String {
+    let Some(p) = st.pending.as_ref() else {
+        return action;
+    };
+    if p.kind != "discard" || p.data["can_partial"] == true {
+        return action;
+    }
+    let required = p.data["required"].as_u64().unwrap_or(1) as usize;
+    if required <= 1 || !action.starts_with("discard:") {
+        return action;
+    }
+    let mut ids: Vec<String> = vec![action.clone()];
+    for a in legal {
+        if ids.len() >= required {
+            break;
+        }
+        if a.id.starts_with("discard:") && !ids.contains(&a.id) {
+            ids.push(a.id.clone());
+        }
+    }
+    if ids.len() != required {
+        return action;
+    }
+    format!(
+        "discard:{}",
+        ids.iter()
+            .map(|a| a.trim_start_matches("discard:"))
+            .collect::<Vec<_>>()
+            .join(",")
+    )
 }
 
 /// 调试入口：返回决策 + 依据（`--explain` / 单测用）。

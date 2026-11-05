@@ -1475,11 +1475,15 @@ pub(crate) fn tuxi_target(
         Some(&st.seats[f.actor].player_id.clone()),
         format!("突袭：获得 {} 一张手牌", st.seats[target].general_name),
     );
-    if f.targets.len() >= 2 {
+    let done = f.targets.len() >= 2;
+    if done {
         finish_tuxi(st, f);
-        Ok("突袭结束".to_string())
     } else {
         replace_top(st, Frame::Tuxi(f));
+    }
+    if done {
+        Ok("突袭结束".to_string())
+    } else {
         Ok("已获得一张手牌".to_string())
     }
 }
@@ -1921,6 +1925,9 @@ pub(crate) fn multiselect_confirm(
                         Frame::Jiewei(crate::resolve_wind::JieweiFrame {
                             actor: f.actor,
                             stage: crate::resolve_wind::JieweiStage::Move,
+                            card: None,
+                            source: None,
+                            hand: false,
                         }),
                     );
                     Some(Ok("巧变：请选择移动的场牌".to_string()))

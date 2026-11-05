@@ -143,6 +143,11 @@ button { font: inherit; color: inherit; }
 .sgs-card-rank { font-weight:700; font-size:13px; }
 .sgs-card-name { font-size:11px; text-align:center; padding:0 2px; }
 .sgs-card.selected { outline:2px solid var(--sgs-gold); transform:translateY(-4px); }
+/* 弃牌多选：可点手牌 + 选中态（金色描边 + 下沉，与出牌选中区分） */
+.sgs-card.discardable { border-color:#8a6d1f; box-shadow:0 0 0 1px rgba(227,179,65,.25) inset; cursor:pointer; }
+.sgs-card.discarded-on { outline:2px solid #e3b341; filter:brightness(.82); transform:translateY(2px); }
+.sgs-pending-discard .sgs-pending-head { line-height:1.5; }
+.sgs-pending-discard .sgs-pending-actions .btn { min-width:96px; }
 .sgs-chip { font-size:10px; padding:1px 5px; border-radius:6px; background:#21262d; border:1px solid #2b3644; white-space:nowrap; }
 .sgs-chip.red { color:#ff9b95; }
 .sgs-pending { border:1px dashed #3d4757; border-radius:10px; padding:6px 8px; font-size:12px; color:#c9d1d9; }
@@ -293,6 +298,7 @@ export function renderSgsApp(
   names?: Record<string, string>,
   actions?: Array<{ id: string; description: string }>,
   assets?: SgsAssetMap,
+  discardSelected: string[] = [],
 ): string {
   const mySeat = data.player_area?.seat ?? data.public_board.turn.seat;
   return (
@@ -305,6 +311,7 @@ export function renderSgsApp(
       names,
       actions,
       assets,
+      discardSelected,
     ) +
     `</div>`
   );

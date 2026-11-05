@@ -273,6 +273,7 @@ pub(crate) fn jiushi_heal_flip(st: &mut SgsState, victim: usize) {
         return;
     }
     st.seats[victim].flipped = false;
+    crate::resolve_wind::jiewei_on_face_up(st, victim);
     st.push_log(
         Some(&st.seats[victim].player_id.clone()),
         "酒诗：受伤后翻回正面",

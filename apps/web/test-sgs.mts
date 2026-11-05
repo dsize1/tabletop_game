@@ -209,9 +209,68 @@ const withPending: SgsPlayerArea = {
     data: { required: 2, reason: "discard_phase" },
   },
 };
+const discardPendingHtml = renderPersonalArea(withPending, board, {}, names);
 assert.ok(
-  renderPersonalArea(withPending, board, {}, names).includes("需弃 2 张"),
-  "弃牌 pending 应显示张数",
+  discardPendingHtml.includes("弃牌：已选") && discardPendingHtml.includes("0</b>/2 张"),
+  "弃牌 pending 应显示已选/张数（多选）",
+);
+assert.ok(
+  discardPendingHtml.includes('data-op="discard-confirm"') && discardPendingHtml.includes("确认弃牌"),
+  "弃牌 pending 应提供「确认弃牌」一次提交",
+);
+assert.ok(
+  !discardPendingHtml.includes('data-action="discard:'),
+  "弃牌 pending 不再逐张按钮提交（改为多选+确认）",
+);
+assert.ok(
+  discardPendingHtml.includes("sgs-card") && discardPendingHtml.includes("discardable"),
+  "弃牌 pending 时手牌标记为可多选",
+);
+// 弃牌数可解释（真机：周泰质疑弃牌数是否被袁术影响）：显示 手牌/上限/原因。
+const explainedPending: SgsPlayerArea = {
+  ...me,
+  pending: {
+    kind: "discard",
+    actor: "p0",
+    options: [{ id: "discard:c1", label: "杀♠7" }],
+    data: {
+      required: 3,
+      reason: "discard_phase",
+      reason_label: "手牌超过上限",
+      hand: 5,
+      limit: 2,
+    },
+  },
+};
+const explainedHtml = renderPersonalArea(explainedPending, board, {}, names);
+assert.ok(
+  explainedHtml.includes("0</b>/3 张") &&
+    explainedHtml.includes("手牌 5 / 上限 2") &&
+    explainedHtml.includes("手牌超过上限"),
+  "弃牌 pending 应显示手牌/上限/原因（不屈升限可解释）",
+);
+// 庸肆等固定张数弃牌（can_partial 缺省/false）：提示「需一次选满」
+const fixedPending: SgsPlayerArea = {
+  ...me,
+  pending: {
+    kind: "discard",
+    actor: "p0",
+    options: [
+      { id: "discard:c1", label: "杀♠7" },
+      { id: "discard:c2", label: "桃♥3" },
+    ],
+    data: { required: 2, reason: "yongsi", reason_label: "庸肆：弃牌阶段先弃 X 张" },
+  },
+};
+const fixedHtml = renderPersonalArea(fixedPending, board, {}, names);
+assert.ok(fixedHtml.includes("需一次选满"), "庸肆：固定张数弃牌提示需一次选满");
+assert.ok(fixedHtml.includes("庸肆：弃牌阶段先弃 X 张"), "庸肆：显示原因");
+
+// 选中态：外部传入已选牌 → 高亮 + 计数（客户端多选草稿）
+const pickedDiscardHtml = renderPersonalArea(withPending, board, {}, names, undefined, undefined, ["c1"]);
+assert.ok(
+  pickedDiscardHtml.includes("discarded-on") && pickedDiscardHtml.includes("1</b>/2 张"),
+  "弃牌多选：已选牌应高亮并计入已选数",
 );
 
 // —— 特殊区：观星（owner）+ 五谷（public）——
@@ -737,6 +796,65 @@ const tiesuoSecond = renderTargetOverlay(
 );
 assert.ok(tiesuoSecond.includes("第二名目标") && !tiesuoSecond.includes("重铸"), "铁索第二段不再给重铸");
 assert.ok(tiesuoSecond.includes('data-action="confirm"'), "铁索第二段可就选一名");
+
+// 解围/巧变：移动场牌（move: 选牌 → to: 选目的角色）必须出现在浮层里
+// （此前白名单只认 target/targets/recast → 列表渲染为空，真机「解围选择目标为空」）。
+const jieweiMove = renderTargetOverlay(
+  {
+    kind: "target",
+    actor: "p0",
+    options: [
+      { id: "move:c1", label: "移动 曹仁 的装备【青釭剑♠6】" },
+      { id: "move:c2", label: "移动 李四 的装备【丈八蛇矛♠Q】" },
+    ],
+    data: { stage: "jiewei" },
+  },
+  board,
+  names,
+);
+assert.ok(
+  jieweiMove.includes('data-action="move:c1"') && jieweiMove.includes('data-action="move:c2"'),
+  "解围：移动来源（含自己）应渲染为可点击选项",
+);
+assert.ok(
+  jieweiMove.includes("随机移动一张手牌"),
+  "解围：选牌阶段提示应说明可随机移动手牌",
+);
+// 解围三阶段：先选来源玩家（msrc:）——同样必须在浮层里可点。
+const jieweiSrc = renderTargetOverlay(
+  {
+    kind: "target",
+    actor: "p0",
+    options: [
+      { id: "msrc:p0", label: "曹仁（手牌 2 / 装备 1 / 判定 0）" },
+      { id: "msrc:p1", label: "李四（手牌 3 / 装备 0 / 判定 1）" },
+    ],
+    data: { stage: "jiewei_src" },
+  },
+  board,
+  names,
+);
+assert.ok(
+  jieweiSrc.includes('data-action="msrc:p0"') && jieweiSrc.includes("来源玩家"),
+  "解围：来源玩家（含自己）应渲染为可点击选项",
+);
+const jieweiDest = renderTargetOverlay(
+  {
+    kind: "target",
+    actor: "p0",
+    options: [
+      { id: "to:p1", label: "移动到 李四 的装备区" },
+      { id: "to:p2", label: "移动到 王五 的判定区" },
+    ],
+    data: { stage: "jiewei_dest", card: "c1" },
+  },
+  board,
+  names,
+);
+assert.ok(
+  jieweiDest.includes('data-action="to:p1"') && jieweiDest.includes("排除源玩家"),
+  "解围：目的角色选项应渲染并提示不能是原角色",
+);
 
 const manyHtml = renderChooseManyOverlay(
   {

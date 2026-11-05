@@ -410,7 +410,17 @@ pub fn player_area(st: &SgsState, viewer: &str) -> Option<Value> {
 /// 特殊交互区（公共 + 本人可见）。
 pub fn special_zones(st: &SgsState, viewer: Option<&str>) -> Value {
     let mut out = Map::new();
+    // 判定公开区（judge）只在「判定阶段 / 改判待办」期间有效：
+    // 否则出牌阶段仍会残留上一次判定（如兵粮寸断），造成待响应提示 / 公共区误导（真机反馈）。
+    let judge_live = st.turn_phase == TurnPhase::Judge
+        || st
+            .pending
+            .as_ref()
+            .is_some_and(|p| p.kind == "judge_rewrite");
     for (id, zone) in &st.special_zones {
+        if id == "judge" && !judge_live {
+            continue;
+        }
         let visible = zone.visibility == Visibility::Public
             || viewer.is_some_and(|v| zone.owner.as_deref() == Some(v));
         if !visible {

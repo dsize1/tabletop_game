@@ -156,18 +156,33 @@ export function renderTargetOverlay(
             ? "铁索连环：选择第一名目标（可重铸代替使用）"
             : stage === "tiesuo_second"
               ? "铁索连环：选择第二名目标，或「就选一名」开始结算"
-              : cardName
-                ? `使用【${cardName}】：请选择目标`
-                : "请选择目标";
+              : stage === "jiewei_src"
+                ? "解围：选择移动来源玩家（手牌/装备/判定区任一不为空）"
+                : stage === "jiewei"
+                  ? p.data?.card
+                    ? "选择要移动的牌"
+                    : "解围/巧变：选择要移动的牌（装备/判定区，解围可随机移动一张手牌）"
+                  : stage === "jiewei_dest"
+                    ? p.data?.hand === true
+                      ? "选择手牌接收者（手牌移动无区域限制）"
+                      : "选择移动到的角色（排除源玩家与同槽位/同类型冲突）"
+                    : cardName
+                    ? `使用【${cardName}】：请选择目标`
+                    : "请选择目标";
   return (
     `<p class="muted">${escapeHtml(hint)}</p>` +
     `<div class="sgs-zone-actions">` +
+    // 注意：除常规 target/targets 前缀外，还有「移动场上牌」语义的 move:/to:
+    // （解围/巧变/设变）。此前不在白名单 → 浮层渲染成空列表（真机：解围选择目标为空）。
     optionButtons(
       p,
       (id) =>
         id.startsWith("target:") ||
         id.startsWith("targets:") ||
         id.startsWith("recast:") ||
+        id.startsWith("msrc:") ||
+        id.startsWith("move:") ||
+        id.startsWith("to:") ||
         id === "confirm" ||
         id === "cancel",
     ) +

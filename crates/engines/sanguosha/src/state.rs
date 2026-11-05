@@ -573,6 +573,13 @@ pub struct SgsState {
     /// 审时（阴）待验证记录：本回合结束阶段检查该牌是否仍在目标手牌。
     #[serde(default)]
     pub shenshi_marks: Vec<ShenshiMark>,
+    /// 奋激待办队列（回合外手牌被弃置到弃牌堆 / 手牌数增加）。
+    /// 与具体技能解耦：由引擎在动作结束后做手牌差分得出，栈空时统一询问。
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fenji_queue: Vec<usize>,
+    /// 奋激自身摸牌不计入下一次「回合外手牌增加」判定（避免自查递归）。
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fenji_suppress: Vec<usize>,
     /// 延迟结算（P4.4.1 SP-2：郝昭·镇骨）：在指定座位回合结束时触发一次。
     #[serde(default)]
     pub scheduled: Vec<ScheduledEffect>,
@@ -860,11 +867,50 @@ impl SgsState {
     pub fn check_conservation(&self) -> Result<CardCounts, String> {
         let c = self.card_counts();
         if c.total_in_zones() != c.instances {
+            // 便于定位：列出在多个区域重复出现的牌（含所属座位）。
+            let mut seen: std::collections::BTreeMap<String, Vec<String>> = Default::default();
+            let mut note = |id: &str, where_: String| {
+                seen.entry(id.to_string()).or_default().push(where_);
+            };
+            for id in &self.deck.draw {
+                note(id, "draw".into());
+            }
+            for id in &self.deck.discard {
+                note(id, "discard".into());
+            }
+            for id in &self.deck.processing {
+                note(id, "processing".into());
+            }
+            for id in &self.deck.void {
+                note(id, "void".into());
+            }
+            for (i, seat) in self.seats.iter().enumerate() {
+                for id in &seat.hand {
+                    note(id, format!("hand:{i}"));
+                }
+                for card in seat.equips.values().flatten() {
+                    note(card, format!("equip:{i}"));
+                }
+                for id in &seat.judge_zone {
+                    note(id, format!("judge:{i}"));
+                }
+                for list in seat.marks.values() {
+                    for id in list {
+                        note(id, format!("mark:{i}"));
+                    }
+                }
+            }
+            let dups: Vec<String> = seen
+                .iter()
+                .filter(|(_, v)| v.len() > 1)
+                .map(|(k, v)| format!("{k}→[{}]", v.join(",")))
+                .collect();
             return Err(format!(
-                "牌数不守恒：区域合计 {} ≠ 实例总数 {}（{:?}）",
+                "牌数不守恒：区域合计 {} ≠ 实例总数 {}（{:?}）；重复牌：{}",
                 c.total_in_zones(),
                 c.instances,
-                c
+                c,
+                if dups.is_empty() { "无（疑似缺失）".to_string() } else { dups.join("；") }
             ));
         }
         Ok(c)

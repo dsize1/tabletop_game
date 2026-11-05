@@ -289,7 +289,10 @@ fn jiewei_moves_field_card_after_flip_back() {
             &mut vec![
                 format!("{pid_cr}|choice=choose:jiewei"),
                 format!("{pid_cr}|choice=choose:{hand}"),
+                // 解围三阶段：选移动来源玩家（此处为持装备的 other）→ 选牌 → 选目的角色
+                format!("{pid_cr}|target=msrc:{}", pid(st, other)),
                 format!("{pid_cr}|target=move:{equip}"),
+                format!("{pid_cr}|target=to:{pid_cr}"),
             ],
         );
     });

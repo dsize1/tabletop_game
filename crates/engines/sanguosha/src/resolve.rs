@@ -729,7 +729,30 @@ pub(crate) fn top(st: &SgsState) -> Option<&Frame> {
     st.resolution.last()
 }
 
+/// 「弃至手牌上限」类弃牌原因（数量必须按当前手牌与上限重算，而不是调用方传入值）。
+fn is_hand_cap_reason(reason: &str) -> bool {
+    matches!(reason, "discard_phase" | "hand_cap")
+}
+
+/// 手牌超出上限的张数（用 `skills::hand_limit`：含不屈=创数、克己=不限、藏拙等）。
+pub fn hand_over_limit(st: &SgsState, actor: usize) -> usize {
+    st.seats
+        .get(actor)
+        .map(|s| s.hand.len().saturating_sub(crate::skills::hand_limit(st, actor)))
+        .unwrap_or(0)
+}
+
 pub fn push_discard(st: &mut SgsState, actor: usize, required: usize, reason: &str) {
+    // 真机反馈：手牌与上限相等时仍被要求弃牌。根因是各技能点用
+    // `config.max_hand_cards`（大厅配置，默认 5）而非技能上限计算超限张数，
+    // 且重复/过时压帧。这里统一按「当前手牌 − 当前上限」重算：
+    // - hand_cap / discard_phase：一律等于真实超限数（可能大于调用方传入的 required）；
+    // - 其它显式张数（英魂/悲歌/飘零/庸肆）保持调用方口径。
+    let required = if is_hand_cap_reason(reason) {
+        hand_over_limit(st, actor)
+    } else {
+        required
+    };
     if required > 0 {
         push(
             st,
@@ -784,6 +807,27 @@ pub fn advance(st: &mut SgsState, events: &mut Vec<EngineEvent>) -> Result<(), E
         // 否则该玩家既无 pending 也无合法动作 → 全局卡死。
         if st.phase == Phase::Dying && st.resolution.is_empty() {
             st.phase = Phase::Turn;
+        }
+        // 奋激：栈空后统一询问（回合外手牌被弃置/获得；与具体技能解耦）。
+        if top(st).is_none() {
+            while let Some(victim) = {
+                if st.fenji_queue.is_empty() {
+                    None
+                } else {
+                    Some(st.fenji_queue.remove(0))
+                }
+            } {
+                if let Some(owner) = crate::skills::fenji_owner(st, victim) {
+                    push(
+                        st,
+                        Frame::Fenji(crate::resolve_wind::FenjiFrame { owner, lost_by: victim }),
+                    );
+                    break;
+                }
+            }
+            if top(st).is_some() {
+                continue;
+            }
         }
         // 利驭（界吕布）：栈空后询问（避免覆盖父帧 outcome）。
         if top(st).is_none() && !st.pending_liyu.is_empty() {
@@ -2704,11 +2748,42 @@ fn step_dying(
 
 // --- 弃牌 -----------------------------------------------------------------
 
-fn step_discard(st: &mut SgsState, f: DiscardFrame) -> Result<bool, EngineError> {
+fn step_discard(st: &mut SgsState, mut f: DiscardFrame) -> Result<bool, EngineError> {
     let hand = turn::hand_ids(st, f.actor);
+    // 「弃至上限」类：每次进入都以当前手牌/上限重算；已达到上限则直接结束询问。
+    if is_hand_cap_reason(&f.reason) {
+        let over = hand_over_limit(st, f.actor);
+        if over == 0 {
+            pop(st);
+            return Ok(false);
+        }
+        f.required = over;
+        replace_top(st, Frame::Discard(f.clone()));
+    }
     if f.required == 0 || hand.len() < f.required {
         pop(st);
         return Ok(false);
+    }
+    {
+        // 每次询问都写历史：原因 + 手牌/上限/应弃，便于定位「反复要求弃牌」类问题。
+        let limit = crate::skills::hand_limit(st, f.actor);
+        let label = match f.reason.as_str() {
+            "discard_phase" => "手牌超过上限",
+            "hand_cap" => "获得牌后超过上限",
+            "yongsi" => "庸肆（本阶段仅一次）",
+            "yinghun" => "英魂",
+            "beige" => "悲歌",
+            "piaoling" => "飘零",
+            other => other,
+        };
+        st.push_log(
+            Some(&st.seats[f.actor].player_id.clone()),
+            format!(
+                "需弃 {} 张（手牌 {} / 上限 {limit}，{label}）",
+                f.required,
+                st.seats[f.actor].hand.len()
+            ),
+        );
     }
     st.pending = Some(Pending {
         kind: "discard".into(),
@@ -2721,7 +2796,20 @@ fn step_discard(st: &mut SgsState, f: DiscardFrame) -> Result<bool, EngineError>
                 label: turn::card_label(st, id),
             })
             .collect(),
-        data: json!({ "required": f.required, "reason": f.reason }),
+        data: json!({
+            "required": f.required,
+            "can_partial": is_hand_cap_reason(&f.reason),
+            "reason": f.reason,
+            // 端侧解释用：手牌数 / 当前手牌上限 / 原因文案（不屈升限等归因于此）。
+            "hand": st.seats[f.actor].hand.len(),
+            "limit": crate::skills::hand_limit(st, f.actor),
+            "reason_label": match f.reason.as_str() {
+                "discard_phase" => "手牌超过上限",
+                "hand_cap" => "获得牌后超过上限",
+                "yongsi" => "庸肆：弃牌阶段先弃 X 张",
+                _ => "弃牌",
+            },
+        }),
     });
     replace_top(st, Frame::Discard(f));
     Ok(true)
@@ -3381,6 +3469,8 @@ fn step_judge(
                         );
                     }
                     pop(st);
+                    // 判定被无懈：公开判定区投影立即清除（否则后续阶段仍显示上一次判定的牌）。
+                    st.special_zones.remove("judge");
                 } else {
                     f.stage = JudgeStage::Reveal;
                     replace_top(st, Frame::Judge(f));
@@ -3704,7 +3794,20 @@ pub fn execute_pending(
             Some("tiaoxin") => crate::resolve_mountain::act_tiaoxin(st, action)?,
             Some("xiangle") => crate::resolve_mountain::act_xiangle(st, action)?,
             Some("zhiba") => crate::resolve_mountain::act_zhiba(st, action)?,
-            Some("guzheng") => crate::resolve_mountain::act_guzheng(st, action)?,
+            Some("guzheng") => {
+                if pending.data["stage"] == "pick" {
+                    crate::resolve_mountain::act_guzheng_pick(st, &pending, action)?
+                } else {
+                    crate::resolve_mountain::act_guzheng(st, action)?
+                }
+            }
+            Some("guzheng_jie") => {
+                if pending.data["stage"] == "pick" {
+                    crate::resolve_jiexian5::act_guzheng_jie_pick(st, &pending, action)?
+                } else {
+                    crate::resolve_jiexian5::act_guzheng_jie(st, action)?
+                }
+            }
             Some("huashen") => crate::resolve_mountain::act_huashen(st, action)?,
             Some("beige") => crate::resolve_mountain::act_beige(st, action)?,
             Some("qizhi") => crate::resolve_sp::act_qizhi(st, action)?,
@@ -3772,7 +3875,6 @@ pub fn execute_pending(
                 crate::resolve_jiexian5::act_zaizhi_jie(st, action)?
             }
             Some("jiezi") => crate::resolve_jiexian5::act_jiezi_jie(st, action)?,
-            Some("guzheng_jie") => crate::resolve_jiexian5::act_guzheng_jie(st, action)?,
             Some("zhenlie_jie") => crate::resolve_jiexian7::act_zhenlie_jie(st, action)?,
             Some("jianmie") => crate::resolve_jiexian7::act_jianmie(st, action)?,
             Some("jiangchi") => crate::resolve_yijiang2::act_jiangchi(st, action)?,
@@ -5147,23 +5249,12 @@ pub(crate) fn finish_respond_play(
     }
 }
 
-/// 奋激：手牌被弃置/获得后，周泰可失去 1 点体力令其摸 2 张。
-fn maybe_fenji(st: &mut SgsState, lost_by: usize) {
-    if let Some(owner) = crate::skills::fenji_owner(st, lost_by) {
-        push(
-            st,
-            Frame::Fenji(crate::resolve_wind::FenjiFrame { owner, lost_by }),
-        );
-    }
-}
-
 fn act_pick(st: &mut SgsState, pending: &Pending, action: &str) -> Result<String, EngineError> {
     let f = match top(st).cloned() {
         Some(Frame::PickCard(f)) => f,
         _ => return Err(internal("栈顶不是拿牌帧")),
     };
     let target = f.target;
-    let mut from_hand = false;
     let picked = if let Some(rest) = action.strip_prefix("pick:equip:") {
         let slot = slot_from_code(rest).ok_or_else(|| illegal("非法装备槽"))?;
         if pick_mode_discards(f.mode)
@@ -5185,7 +5276,6 @@ fn act_pick(st: &mut SgsState, pending: &Pending, action: &str) -> Result<String
         if st.seats[target].hand.is_empty() {
             return Err(illegal("目标没有手牌"));
         }
-        from_hand = true;
         let n = st.seats[target].hand.len();
         let idx = st.next_index(n);
         let card = st.seats[target].hand.remove(idx);
@@ -5292,9 +5382,6 @@ fn act_pick(st: &mut SgsState, pending: &Pending, action: &str) -> Result<String
             .len()
             .saturating_sub(st.config.max_hand_cards as usize);
         push_discard(st, user, over, "hand_cap");
-    }
-    if from_hand {
-        maybe_fenji(st, target);
     }
     if target != st.turn {
         crate::skills::tuotian_on_lose(st, target);
@@ -5512,8 +5599,16 @@ fn act_discard(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Str
         .filter(|s| !s.is_empty())
         .map(str::to_string)
         .collect();
-    if ids.len() != required && !(required > 1 && ids.len() == 1) {
-        return Err(illegal(format!("需弃 {required} 张牌")));
+    // 多选一次提交：
+    // - 「弃至手牌上限」类（hand_cap/discard_phase）：允许 1..=required（少选 → 结算后按当前手牌/上限再次要求）；
+    // - 固定张数类（庸肆/英魂/悲歌/飘零等）：必须一次凑齐 required（否则会表现为「反复要求弃 X 张」）。
+    let partial_ok = is_hand_cap_reason(&f.reason);
+    if ids.is_empty() || ids.len() > required || (!partial_ok && ids.len() != required) {
+        return Err(illegal(if partial_ok {
+            format!("需弃 1–{required} 张牌")
+        } else {
+            format!("需一次弃 {required} 张牌")
+        }));
     }
     let mut seen = std::collections::BTreeSet::new();
     for id in &ids {
@@ -5523,14 +5618,20 @@ fn act_discard(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Str
         turn::take_card(st, f.actor, id)?;
         turn::to_discard_card(st, id);
     }
-    let remaining = required - ids.len();
-    if f.reason == "discard_phase" {
+    let remaining = if is_hand_cap_reason(&f.reason) {
+        // 以实际手牌与上限重算（手牌可能因弃牌钩子变化），保证「弃到不大于上限」为止。
+        hand_over_limit(st, f.actor)
+    } else {
+        required.saturating_sub(ids.len())
+    };
+    // 固政口径（用户裁定）：**该角色弃牌阶段内**因弃置进入弃牌堆的牌全部计入，
+    // 不限于 reason=discard_phase（袁术·庸肆的先弃 X 张同样属于此阶段弃置）。
+    if f.actor == st.turn && st.turn_phase == TurnPhase::Discard {
         st.phase_discarded.extend(ids.iter().cloned());
     }
     if f.actor == st.turn {
         st.bump_counter("discard_done");
     }
-    maybe_fenji(st, f.actor);
     let text = if remaining == 0 {
         if f.reason == "hand_cap" {
             format!("超过持有上限，弃置 {} 张", ids.len())
@@ -5558,7 +5659,11 @@ fn act_discard(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Str
     // 弃牌堆钩子（落英等）必须在 pop/replace_top 之后压帧，避免被覆盖。
     for id in &ids {
         crate::resolve_yijiang::on_card_discarded(st, Some(f.actor), id);
+        // 界固政/界旋风/界醇醪 的弃置记账（同样在 pop/replace 之后）。
+        turn::note_discard_tracking(st, Some(f.actor), id);
     }
+    // 注意：**自己弃牌不触发奋激**（奋激要求「手牌被其他角色弃置或获得」）。
+    // 旧实现误在此处压奋激帧，导致袁术·庸肆 弃牌被反复重问（真机）——语义与帧顺序双错，已移除。
     Ok(text)
 }
 

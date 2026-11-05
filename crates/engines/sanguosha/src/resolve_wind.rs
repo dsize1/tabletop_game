@@ -234,13 +234,27 @@ pub(crate) fn act_jushou(st: &mut SgsState, action: &str) -> Result<String, Engi
 pub enum JieweiStage {
     Ask,
     Discard,
+    /// 解围专用：选择移动来源玩家（手牌/装备/判定区之一非空）。
+    MoveSrc,
+    /// 选择要移动的牌：解围=来源玩家的装备/判定区/随机手牌；巧变=全场的装备/判定区。
     Move,
+    /// 选择移动的目的角色。
+    MoveDest,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct JieweiFrame {
     pub actor: usize,
     pub stage: JieweiStage,
+    /// Move → MoveDest 之间选定的牌（随机手牌时为空）。
+    #[serde(default)]
+    pub card: Option<String>,
+    /// 解围：已选定的移动来源玩家（巧变为 None = 全场场牌）。
+    #[serde(default)]
+    pub source: Option<usize>,
+    /// 解围：本次移动的是来源玩家的一张随机手牌。
+    #[serde(default)]
+    pub hand: bool,
 }
 
 fn field_cards(st: &SgsState) -> Vec<(usize, EquipSlot, String)> {
@@ -272,6 +286,7 @@ pub(crate) fn step_jiewei(st: &mut SgsState, f: JieweiFrame) -> Result<bool, Eng
                 && st.seats[f.actor].equips.values().all(|c| c.is_none())
             {
                 pop(st);
+                clear_jiewei_pending(st, f.actor);
                 return Ok(false);
             }
             st.pending = Some(Pending {
@@ -292,6 +307,9 @@ pub(crate) fn step_jiewei(st: &mut SgsState, f: JieweiFrame) -> Result<bool, Eng
                 Frame::Jiewei(JieweiFrame {
                     actor: f.actor,
                     stage: JieweiStage::Ask,
+                    card: None,
+                            source: None,
+                            hand: false,
                 }),
             );
             Ok(true)
@@ -314,6 +332,7 @@ pub(crate) fn step_jiewei(st: &mut SgsState, f: JieweiFrame) -> Result<bool, Eng
             }
             if options.is_empty() {
                 pop(st);
+                clear_jiewei_pending(st, f.actor);
                 return Ok(false);
             }
             st.pending = Some(Pending {
@@ -326,39 +345,126 @@ pub(crate) fn step_jiewei(st: &mut SgsState, f: JieweiFrame) -> Result<bool, Eng
             replace_top(st, Frame::Jiewei(f));
             Ok(true)
         }
-        JieweiStage::Move => {
+        JieweiStage::MoveSrc => {
+            // 解围：先选「移动来源玩家」——手牌/装备区/判定区任一非空即可（含自己）。
+            let hand_sizes: Vec<usize> = st.seats.iter().map(|s| s.hand.len()).collect();
+            let equip_counts: Vec<usize> = st
+                .seats
+                .iter()
+                .map(|s| s.equips.values().filter(|c| c.is_some()).count())
+                .collect();
+            let judge_counts: Vec<usize> = st.seats.iter().map(|s| s.judge_zone.len()).collect();
             let mut options: Vec<PendingOption> = Vec::new();
-            for (idx, slot, id) in field_cards(st) {
-                if idx == f.actor {
+            for idx in st.alive_indices() {
+                let (h, e, j) = (hand_sizes[idx], equip_counts[idx], judge_counts[idx]);
+                if h + e + j == 0 {
                     continue;
                 }
                 options.push(PendingOption {
-                    id: format!("move:{id}"),
+                    id: format!("msrc:{}", st.seats[idx].player_id),
                     label: format!(
-                        "移动 {} 的装备【{}】到你的{}区",
-                        st.seats[idx].general_name,
-                        turn::card_label(st, &id),
-                        match slot {
-                            EquipSlot::Weapon => "武器",
-                            EquipSlot::Armor => "防具",
-                            EquipSlot::HorseOffense | EquipSlot::HorseDefense => "坐骑",
-                            EquipSlot::Treasure => "宝物",
-                        }
-                    ),
-                });
-            }
-            for (idx, id) in field_judge_cards(st) {
-                options.push(PendingOption {
-                    id: format!("move:{id}"),
-                    label: format!(
-                        "移动 {} 判定区的【{}】到你的判定区",
-                        st.seats[idx].general_name,
-                        turn::card_label(st, &id)
+                        "{}（手牌 {h} / 装备 {e} / 判定 {j}）",
+                        st.seats[idx].general_name
                     ),
                 });
             }
             if options.is_empty() {
+                let pid = st.seats[f.actor].player_id.clone();
+                st.push_log(Some(&pid), "解围：没有可移动的牌，交互结束");
                 pop(st);
+                clear_jiewei_pending(st, f.actor);
+                return Ok(false);
+            }
+            st.pending = Some(Pending {
+                kind: "target".into(),
+                actor: st.seats[f.actor].player_id.clone(),
+                skill: Some("jiewei".into()),
+                options,
+                data: json!({ "stage": "jiewei_src" }),
+            });
+            replace_top(
+                st,
+                Frame::Jiewei(JieweiFrame {
+                    actor: f.actor,
+                    stage: JieweiStage::MoveSrc,
+                    card: None,
+                    source: None,
+                    hand: false,
+                }),
+            );
+            Ok(true)
+        }
+        JieweiStage::Move => {
+            let mut options: Vec<PendingOption> = Vec::new();
+            match f.source {
+                // 解围：只列来源玩家的装备/判定区 + 一张随机手牌。
+                Some(src) => {
+                    for (slot, card) in &st.seats[src].equips {
+                        if let Some(id) = card {
+                            options.push(PendingOption {
+                                id: format!("move:{id}"),
+                                label: format!(
+                                    "移动装备【{}】（{}区）",
+                                    turn::card_label(st, id),
+                                    match slot {
+                                        EquipSlot::Weapon => "武器",
+                                        EquipSlot::Armor => "防具",
+                                        EquipSlot::HorseOffense | EquipSlot::HorseDefense => "坐骑",
+                                        EquipSlot::Treasure => "宝物",
+                                    }
+                                ),
+                            });
+                        }
+                    }
+                    for id in st.seats[src].judge_zone.clone() {
+                        options.push(PendingOption {
+                            id: format!("move:{id}"),
+                            label: format!(
+                                "移动判定区【{}】",
+                                turn::card_label(st, &id)
+                            ),
+                        });
+                    }
+                    if !st.seats[src].hand.is_empty() {
+                        options.push(PendingOption {
+                            id: "move:hand".into(),
+                            label: format!(
+                                "随机移动 {} 的一张手牌（共 {} 张）",
+                                st.seats[src].general_name,
+                                st.seats[src].hand.len()
+                            ),
+                        });
+                    }
+                }
+                // 巧变：全场（含自己）的装备/判定区场牌，不含手牌。
+                None => {
+                    for (idx, _slot, id) in field_cards(st) {
+                        options.push(PendingOption {
+                            id: format!("move:{id}"),
+                            label: format!(
+                                "移动 {} 的装备【{}】",
+                                st.seats[idx].general_name,
+                                turn::card_label(st, &id)
+                            ),
+                        });
+                    }
+                    for (idx, id) in field_judge_cards(st) {
+                        options.push(PendingOption {
+                            id: format!("move:{id}"),
+                            label: format!(
+                                "移动 {} 判定区的【{}】",
+                                st.seats[idx].general_name,
+                                turn::card_label(st, &id)
+                            ),
+                        });
+                    }
+                }
+            }
+            if options.is_empty() {
+                let pid = st.seats[f.actor].player_id.clone();
+                st.push_log(Some(&pid), "解围/巧变：没有可移动的牌，交互结束");
+                pop(st);
+                clear_jiewei_pending(st, f.actor);
                 return Ok(false);
             }
             st.pending = Some(Pending {
@@ -373,11 +479,162 @@ pub(crate) fn step_jiewei(st: &mut SgsState, f: JieweiFrame) -> Result<bool, Eng
                 Frame::Jiewei(JieweiFrame {
                     actor: f.actor,
                     stage: JieweiStage::Move,
+                    card: None,
+                    source: f.source,
+                    hand: false,
                 }),
             );
             Ok(true)
         }
+        JieweiStage::MoveDest => {
+            // 目的地候选：解围的随机手牌无限制；装备牌排除同槽位已装备者；
+            // 判定牌排除判定区已有同类型（同延时锦囊）者；源玩家一律排除。
+            let src = f.source.or_else(|| {
+                f.card
+                    .as_deref()
+                    .and_then(|c| locate_field_card(st, c).map(|(i, _, _)| i))
+            });
+            let mut options: Vec<PendingOption> = Vec::new();
+            if let Some(src) = src {
+                let (card_slot, card_def, is_judge) = if f.hand {
+                    (None, None, false)
+                } else {
+                    let Some(card_id) = f.card.as_deref() else {
+                        pop(st);
+                        clear_jiewei_pending(st, f.actor);
+                        return Ok(false);
+                    };
+                    let Some((_i, slot, judge)) = locate_field_card(st, card_id) else {
+                        pop(st);
+                        clear_jiewei_pending(st, f.actor);
+                        return Ok(false);
+                    };
+                    let def = if judge {
+                        st.effective_def_code(card_id)
+                    } else {
+                        None
+                    };
+                    (Some(slot), def, judge)
+                };
+                for idx in st.alive_indices() {
+                    if idx == src {
+                        continue;
+                    }
+                    let dest_name = st.seats[idx].general_name.clone();
+                    if f.hand {
+                        options.push(PendingOption {
+                            id: format!("to:{}", st.seats[idx].player_id),
+                            label: format!("将其一张手牌交给 {dest_name}"),
+                        });
+                        continue;
+                    }
+                    if is_judge {
+                        let conflict = card_def.is_some_and(|d| {
+                            st.seats[idx]
+                                .judge_zone
+                                .iter()
+                                .any(|c| st.effective_def_code(c) == Some(d))
+                        });
+                        if conflict {
+                            continue;
+                        }
+                        options.push(PendingOption {
+                            id: format!("to:{}", st.seats[idx].player_id),
+                            label: format!("移动到 {dest_name} 的判定区"),
+                        });
+                    } else if let Some(slot) = card_slot {
+                        if st.seats[idx].equips.get(&slot).cloned().flatten().is_some() {
+                            continue;
+                        }
+                        options.push(PendingOption {
+                            id: format!("to:{}", st.seats[idx].player_id),
+                            label: format!("移动到 {dest_name} 的{}区", slot_label(slot)),
+                        });
+                    }
+                }
+            }
+            if options.is_empty() {
+                let pid = st.seats[f.actor].player_id.clone();
+                st.push_log(Some(&pid), "解围/巧变：没有可移动的目的角色，交互结束");
+                pop(st);
+                clear_jiewei_pending(st, f.actor);
+                return Ok(false);
+            }
+            st.pending = Some(Pending {
+                kind: "target".into(),
+                actor: st.seats[f.actor].player_id.clone(),
+                skill: Some("jiewei".into()),
+                options,
+                data: json!({
+                    "stage": "jiewei_dest",
+                    "card": if f.hand { serde_json::Value::Null } else { json!(f.card) },
+                    "hand": f.hand,
+                }),
+            });
+            replace_top(st, Frame::Jiewei(f));
+            Ok(true)
+        }
     }
+}
+
+/// 装备槽中文名。
+fn slot_label(slot: EquipSlot) -> &'static str {
+    match slot {
+        EquipSlot::Weapon => "武器",
+        EquipSlot::Armor => "防具",
+        EquipSlot::HorseOffense | EquipSlot::HorseDefense => "坐骑",
+        EquipSlot::Treasure => "宝物",
+    }
+}
+
+/// 定位场上牌：返回 (所属座位, 槽位, 是否判定区)。
+fn locate_field_card(st: &SgsState, card_id: &str) -> Option<(usize, EquipSlot, bool)> {
+    for (idx, seat) in st.seats.iter().enumerate() {
+        for (slot, card) in &seat.equips {
+            if card.as_deref() == Some(card_id) {
+                return Some((idx, *slot, false));
+            }
+        }
+        if seat.judge_zone.iter().any(|c| c == card_id) {
+            return Some((idx, EquipSlot::Weapon, true));
+        }
+    }
+    None
+}
+
+/// 解围②：当你翻回正面时，可弃置 1 张牌，然后移动场上 1 张牌。
+///
+/// 任何「背面 → 正面」来源（放逐 / 酒诗 / 举荐复原 / 回合开始跳过）都应调用本函数；
+/// 返回 true 表示已压入解围帧（由后续 advance 推进 Ask → Discard → Move）。
+pub(crate) fn jiewei_on_face_up(st: &mut SgsState, seat: usize) -> bool {
+    if !crate::skills::has(st, seat, "jiewei") {
+        return false;
+    }
+    let has_card = !st.seats[seat].hand.is_empty()
+        || st.seats[seat].equips.values().any(|c| c.is_some());
+    if !has_card {
+        return false;
+    }
+    if st.seats[seat].flags.contains_key("jiewei_pending") {
+        return false;
+    }
+    st.seats[seat].flags.insert("jiewei_pending".into(), true);
+    crate::resolve::push(
+        st,
+        crate::resolve::Frame::Jiewei(JieweiFrame {
+            actor: seat,
+            stage: JieweiStage::Ask,
+            card: None,
+                            source: None,
+                            hand: false,
+        }),
+    );
+    true
+}
+
+/// 解围帧结束：清理“本次翻回已询问”标记，避免下次翻回被永久拦截。
+fn clear_jiewei_pending(st: &mut SgsState, seat: usize) {
+    st.seats[seat].flags.remove("jiewei_pending");
 }
 
 pub(crate) fn act_jiewei(st: &mut SgsState, action: &str) -> Result<String, EngineError> {
@@ -387,6 +644,7 @@ pub(crate) fn act_jiewei(st: &mut SgsState, action: &str) -> Result<String, Engi
     };
     if action == "pass" {
         pop(st);
+        clear_jiewei_pending(st, f.actor);
         return Ok("不发动解围".to_string());
     }
     if action != "choose:jiewei" {
@@ -400,6 +658,9 @@ pub(crate) fn act_jiewei(st: &mut SgsState, action: &str) -> Result<String, Engi
         Frame::Jiewei(JieweiFrame {
             actor: f.actor,
             stage: JieweiStage::Discard,
+            card: f.card.clone(),
+            source: f.source,
+            hand: f.hand,
         }),
     );
     Ok("解围：请选择弃置的牌".to_string())
@@ -448,10 +709,13 @@ pub(crate) fn act_jiewei_discard(st: &mut SgsState, action: &str) -> Result<Stri
         st,
         Frame::Jiewei(JieweiFrame {
             actor: f.actor,
-            stage: JieweiStage::Move,
+            stage: JieweiStage::MoveSrc,
+            card: None,
+            source: None,
+            hand: false,
         }),
     );
-    Ok("解围：请选择移动场上的牌".to_string())
+    Ok("解围：请选择移动来源玩家".to_string())
 }
 
 /// 解围移动阶段（`pending.kind = target`）。
@@ -464,54 +728,132 @@ pub(crate) fn jiewei_target(
         Some(Frame::Jiewei(f)) => f,
         _ => return Err(internal("栈顶不是解围帧")),
     };
-    let card_id = action
-        .strip_prefix("move:")
-        .ok_or_else(|| illegal("需要选择要移动的牌"))?;
+    // 解围 1/3：选择移动来源玩家。
+    if let Some(src_pid) = action.strip_prefix("msrc:") {
+        if !pending
+            .options
+            .iter()
+            .any(|o| o.id == format!("msrc:{src_pid}"))
+        {
+            return Err(illegal("该角色不是可用的移动来源"));
+        }
+        let Some(src) = st.seat_index(src_pid) else {
+            return Err(illegal("来源角色不在座"));
+        };
+        replace_top(
+            st,
+            Frame::Jiewei(JieweiFrame {
+                actor: f.actor,
+                stage: JieweiStage::Move,
+                card: None,
+                source: Some(src),
+                hand: false,
+            }),
+        );
+        return Ok("解围：请选择要移动的牌".to_string());
+    }
+    // 解围/巧变 2/3：选择要移动的牌（解围支持「随机一张手牌」）。
+    if let Some(token) = action.strip_prefix("move:") {
+        if !pending
+            .options
+            .iter()
+            .any(|o| o.id == format!("move:{token}"))
+        {
+            return Err(illegal("该牌不可移动"));
+        }
+        let hand = token == "hand";
+        replace_top(
+            st,
+            Frame::Jiewei(JieweiFrame {
+                actor: f.actor,
+                stage: JieweiStage::MoveDest,
+                card: if hand { None } else { Some(token.to_string()) },
+                source: f.source,
+                hand,
+            }),
+        );
+        return Ok("解围：请选择移动到哪里".to_string());
+    }
+    // 3/3：选择目的角色并结算。
+    let dest_pid = action
+        .strip_prefix("to:")
+        .ok_or_else(|| illegal("需要选择要移动的牌 / 目的角色"))?;
     if !pending
         .options
         .iter()
-        .any(|o| o.id == format!("move:{card_id}"))
+        .any(|o| o.id == format!("to:{dest_pid}"))
     {
-        return Err(illegal("该牌不可移动"));
+        return Err(illegal("目的角色不合法"));
     }
-    // 先从原位置移除
-    let mut moved = None;
-    for seat in st.seats.iter_mut() {
-        for card in seat.equips.values_mut() {
-            if card.as_deref() == Some(card_id) {
-                *card = None;
-                moved = Some("equip");
-            }
-        }
-        if let Some(pos) = seat.judge_zone.iter().position(|c| c == card_id) {
-            seat.judge_zone.remove(pos);
-            moved = Some("judge");
-        }
-    }
-    let Some(kind) = moved else {
-        return Err(illegal("场上没有该牌"));
+    let Some(dest) = st.seat_index(dest_pid) else {
+        return Err(illegal("目的角色不在座"));
     };
     let pid = st.seats[f.actor].player_id.clone();
-    let label = turn::card_label(st, card_id);
-    if kind == "equip" {
-        let slot = st
-            .cards
-            .get(card_id)
-            .and_then(|c| crate::data::card_def(&c.def))
-            .and_then(|d| d.equip_slot)
-            .ok_or_else(|| internal("移动的牌不是装备"))?;
-        let old = st.seats[f.actor]
-            .equips
-            .insert(slot, Some(card_id.to_string()));
+    if f.hand {
+        // 手牌：从来源玩家随机一张 → 目的玩家手牌（无区域限制）。
+        let Some(src) = f.source else {
+            return Err(illegal("缺少来源角色"));
+        };
+        if st.seats[src].hand.is_empty() {
+            return Err(illegal("来源角色没有手牌"));
+        }
+        let n = st.seats[src].hand.len();
+        let idx = st.next_index(n);
+        let card = st.seats[src].hand.remove(idx);
+        let label = turn::card_label(st, &card);
+        let src_name = st.seats[src].general_name.clone();
+        let dest_name = st.seats[dest].general_name.clone();
+        st.seats[dest].hand.push(card.clone());
+        st.push_log(
+            Some(&pid),
+            format!("解围：将 {src_name} 的一张随机手牌【{label}】交给 {dest_name}"),
+        );
+        // 先弹出解围帧再返回；奋激由引擎在动作结束后按「回合外 + 手牌弃置/增加」差分统一判定，
+        // 不再在这里按技能硬编码（避免帧顺序问题：曾导致移动后重复询问）。
+        pop(st);
+        clear_jiewei_pending(st, f.actor);
+        return Ok(format!("解围：已移动【{label}】"));
+    }
+    let Some(card_id) = f.card.clone() else {
+        return Err(illegal("缺少要移动的牌"));
+    };
+    let Some((src, slot, is_judge)) = locate_field_card(st, &card_id) else {
+        return Err(illegal("场上没有该牌"));
+    };
+    if src == dest {
+        return Err(illegal("不能移动回原角色"));
+    }
+    // 从原位置移除
+    for seat in st.seats.iter_mut() {
+        for card in seat.equips.values_mut() {
+            if card.as_deref() == Some(card_id.as_str()) {
+                *card = None;
+            }
+        }
+        if let Some(pos) = seat.judge_zone.iter().position(|c| c == &card_id) {
+            seat.judge_zone.remove(pos);
+        }
+    }
+    let label = turn::card_label(st, &card_id);
+    let dest_name = st.seats[dest].general_name.clone();
+    if is_judge {
+        st.seats[dest].judge_zone.push(card_id.clone());
+    } else {
+        let old = st.seats[dest].equips.insert(slot, Some(card_id.clone()));
         if let Some(Some(old_id)) = old {
             turn::to_discard_card(st, &old_id);
-            skills::xiaoji_on_lose_equip(st, f.actor);
+            skills::xiaoji_on_lose_equip(st, dest);
         }
-    } else {
-        st.seats[f.actor].judge_zone.push(card_id.to_string());
     }
-    st.push_log(Some(&pid), format!("解围：移动【{label}】到自己的区域"));
+    st.push_log(
+        Some(&pid),
+        format!(
+            "解围/巧变：将【{label}】移动到 {dest_name} 的{}",
+            if is_judge { "判定区" } else { "装备区" }
+        ),
+    );
     pop(st);
+    clear_jiewei_pending(st, f.actor);
     Ok(format!("解围：已移动【{label}】"))
 }
 
@@ -560,6 +902,8 @@ pub(crate) fn act_fenji(st: &mut SgsState, action: &str) -> Result<String, Engin
         return Err(illegal("未知奋激选项"));
     }
     pop(st);
+    // 奋激摸牌本身属于「回合外手牌增加」，但不应再次触发奋激（自查递归）。
+    st.fenji_suppress.push(f.lost_by);
     st.seats[f.owner].hp -= 1;
     let drawn = draw_capped(st, f.lost_by, 2);
     let hp = st.seats[f.owner].hp;

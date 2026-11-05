@@ -258,17 +258,23 @@ fn discard_phase_limits_to_hp() {
     assert_eq!(pending.data["required"], 3);
     assert_eq!(pending.data["reason"], "discard_phase");
 
-    // 数量不足（required=3，一次只给 2 张）→ 拒绝
-    assert!(mgr
-        .execute_action(&room, &cur_pid, &format!("discard:{},{}", ids[0], ids[1]))
-        .is_err());
-    // 逐张弃也允许：先 1 张，pending 变成 required=2
-    mgr.execute_action(&room, &cur_pid, &format!("discard:{}", ids[0]))
+    // 空选 → 拒绝
+    assert!(mgr.execute_action(&room, &cur_pid, "discard:").is_err());
+    // 多选一次提交允许「少弃」（1..=required）：弃 2 张后仍超上限 → 再次要求弃 1 张
+    mgr.execute_action(&room, &cur_pid, &format!("discard:{},{}", ids[0], ids[1]))
         .unwrap();
     let st = state_of(&mgr, &room);
     let pending = st.pending.clone().expect("还需继续弃牌");
-    assert_eq!(pending.data["required"], 2);
-    mgr.execute_action(&room, &cur_pid, &format!("discard:{},{}", ids[1], ids[2]))
+    assert_eq!(pending.data["required"], 1, "弃后按当前手牌/上限重算");
+    // 超过 required → 拒绝（当前只需 1 张，一次给 3 张）
+    assert!(mgr
+        .execute_action(
+            &room,
+            &cur_pid,
+            &format!("discard:{},{},{}", ids[2], ids[3], ids[4])
+        )
+        .is_err());
+    mgr.execute_action(&room, &cur_pid, &format!("discard:{}", ids[2]))
         .unwrap();
     // 下家若是诸葛亮，准备阶段的「观星」会先要一次排序提交。
     resolve_arrange(&mgr, &room);

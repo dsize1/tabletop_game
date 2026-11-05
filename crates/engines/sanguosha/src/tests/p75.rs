@@ -200,6 +200,8 @@ fn guzheng_returns_discard_to_owner() {
                     cards[0], cards[1], cards[2]
                 ),
                 format!("{}|choice=choose:guzheng", pid(st, owner)),
+                // 二阶段：由固政持有者选择交给弃牌者的那一张（不再固定首张）。
+                format!("{}|choice=give:{}", pid(st, owner), cards[0]),
             ],
         );
     });

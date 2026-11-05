@@ -28,12 +28,49 @@ import type {
   SgsSpecialZones,
 } from "./types.js";
 
-function pendingSummary(area: SgsPlayerArea): string {
+function pendingSummary(area: SgsPlayerArea, discardSelected: string[] = []): string {
   const p = area.pending;
   if (!p) return "";
-  const extra =
+  // 弃牌 pending：手牌上多选 + 一次确认（多人反馈：逐张点太慢且易误触）。
+  // 确认后若仍超上限，服务端会再次下发 discard pending（直至手牌 ≤ 上限）。
+  if (p.kind === "discard" && typeof p.data?.required === "number") {
+    const required = Number(p.data.required);
+    const partialOk = p.data?.can_partial === true;
+    const label = typeof p.data?.reason_label === "string" ? p.data.reason_label : "";
+    const hand = typeof p.data?.hand === "number" ? p.data.hand : null;
+    const limit = typeof p.data?.limit === "number" ? p.data.limit : null;
+    const why = label ? `，${label}` : "";
+    const nums = hand !== null && limit !== null ? `：手牌 ${hand} / 上限 ${limit}` : "";
+    const selected = discardSelected.filter((id) => (area.hand ?? []).some((c) => c.id === id));
+    const canConfirm = partialOk
+      ? selected.length >= 1 && selected.length <= required
+      : selected.length === required;
+    return (
+      `<div class="sgs-pending sgs-pending-discard" data-kind="discard" data-required="${required}">` +
+      `<div class="sgs-pending-head">弃牌：已选 <b>${selected.length}</b>/${required} 张${nums}${why}` +
+      `<span class="muted">（点手牌多选；${
+        partialOk ? "可少选，确认后不足会继续提示" : "需一次选满"
+      }）</span></div>` +
+      `<div class="sgs-pending-actions">` +
+      `<button type="button" class="btn" data-op="discard-confirm"${canConfirm ? "" : " disabled"}>确认弃牌</button>` +
+      `<button type="button" class="btn ghost" data-op="discard-clear"${selected.length ? "" : " disabled"}>清空选择</button>` +
+      `</div></div>`
+    );
+  }
+  const discardDetail =
     p.kind === "discard" && typeof p.data?.required === "number"
-      ? `（需弃 ${p.data.required} 张，可逐张点）`
+      ? (() => {
+          const label = typeof p.data?.reason_label === "string" ? p.data.reason_label : "";
+          const hand = typeof p.data?.hand === "number" ? p.data.hand : null;
+          const limit = typeof p.data?.limit === "number" ? p.data.limit : null;
+          const why = label ? `，${label}` : "";
+          const nums = hand !== null && limit !== null ? `：手牌 ${hand} / 上限 ${limit}` : "";
+          return `（需弃 ${p.data.required} 张${nums}${why}，可逐张点）`;
+        })()
+      : "";
+  const extra =
+    discardDetail
+      ? discardDetail
       : p.kind === "arrange"
         ? "（观星：P3.5 提供槽位，这里可用默认顺序）"
         : p.skill === "huogong_reveal"
@@ -180,6 +217,7 @@ export function renderPersonalArea(
   names?: Record<string, string>,
   actions?: SgsActionItem[],
   assets?: SgsAssetMap,
+  discardSelected: string[] = [],
 ): string {
   if (!area) return `<section class="sgs-personal muted">个人资源区不可见（未坐下或已阵亡）</section>`;
   const acts = actions ?? [];
@@ -248,8 +286,19 @@ export function renderPersonalArea(
       },
     )
     .join("");
+  const discarding = area.pending?.kind === "discard";
+  const discardSet = new Set(discardSelected);
   const hand = (area.hand ?? [])
-    .map((c) => cardFaceHtml(c, playable.has(c.id) ? " playable" : ""))
+    .map((c) => {
+      const cls = [
+        playable.has(c.id) ? "playable" : "",
+        discarding ? " discardable" : "",
+        discarding && discardSet.has(c.id) ? " discarded-on" : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+      return cardFaceHtml(c, cls ? ` ${cls}` : "");
+    })
     .join("");
   // 装备技能高亮（P4.5）：pending.data.option_sources / 出牌阶段丈八选项。
   const optionSources = ((area.pending?.data as Record<string, unknown> | undefined)
@@ -338,7 +387,7 @@ export function renderPersonalArea(
     setupPanel(area, board, assets) +
     `<div class="sgs-hand-head"><span class="sgs-equip-label">手牌</span> ${(area.hand ?? []).length}/${handLimitLabel(area.hand_limit)}</div>` +
     `<div class="sgs-hand" role="list">${hand || `<span class="muted">无手牌</span>`}</div>` +
-    pendingSummary(area) +
+    pendingSummary(area, discardSelected) +
     wuguPanel(zones, names) +
     zuilunPanel(zones) +
     `<div class="sgs-ops" data-my-turn="${isMyTurn ? "1" : "0"}">` +

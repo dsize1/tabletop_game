@@ -95,6 +95,14 @@ pub(crate) fn discard_by(st: &mut SgsState, seat: Option<usize>, card_id: &str) 
     crate::resolve_yijiang::on_card_discarded(st, seat, card_id);
     // 界激昂（界孙策）。
     crate::resolve_jiexian3::jiang_jie_on_discard(st, card_id);
+    note_discard_tracking(st, seat, card_id);
+}
+
+/// 弃置后的技能记账（界固政/界旋风/界醇醪）。
+///
+/// 供「已经入弃牌堆」的路径复用（如弃牌阶段 `act_discard` 先 `to_discard_card` 再记账），
+/// 必须在 `pop`/`replace_top` 之后调用（内部可能压帧）。
+pub(crate) fn note_discard_tracking(st: &mut SgsState, seat: Option<usize>, card_id: &str) {
     // 界固政（界张昭张纮）：统计该角色本阶段弃置的牌（每阶段限一次）。
     if let Some(seat) = seat {
         st.bump_counter(&format!("discarded_by:{seat}"));
@@ -405,6 +413,9 @@ pub(crate) fn phase_step(
                         resolve::Frame::Jiewei(crate::resolve_wind::JieweiFrame {
                             actor: idx,
                             stage: crate::resolve_wind::JieweiStage::Ask,
+                            card: None,
+                            source: None,
+                            hand: false,
                         }),
                     );
                     return Ok(true);
@@ -1179,6 +1190,25 @@ pub(crate) fn phase_step(
             let limit = crate::skills::hand_limit(st, idx);
             let over = st.seats[idx].hand.len().saturating_sub(limit);
             if over > 0 {
+                // 弃牌数可解释（真机反馈：玩家无法判断上限来自哪里）：
+                // 不屈（有「创」时手牌上限 = 创数）/ 克己（本回合未出杀视为不限）单独标注。
+                let detail = if crate::skills::has(st, idx, "buqu")
+                    && !crate::skills::buqu_cards(st, idx).is_empty()
+                {
+                    format!(
+                        "（不屈：手牌上限 = 创数 {}）",
+                        crate::skills::buqu_cards(st, idx).len()
+                    )
+                } else {
+                    String::new()
+                };
+                st.push_log(
+                    Some(&st.seats[idx].player_id.clone()),
+                    format!(
+                        "弃牌阶段：手牌 {}，上限 {limit}{detail}，需弃 {over} 张",
+                        st.seats[idx].hand.len()
+                    ),
+                );
                 resolve::push_discard(st, idx, over, "discard_phase");
                 // 帧结算完后会再次进入本阶段
                 return Ok(true);
@@ -1195,6 +1225,7 @@ pub(crate) fn phase_step(
                                 owner,
                                 discarder: idx,
                                 cards,
+                                stage: crate::resolve_mountain::GuzhengStage::Ask,
                             }),
                         );
                         return Ok(true);
@@ -3594,7 +3625,8 @@ pub fn execute(
         );
         "已使用【酒】".to_string()
     } else if let Some((skill, card_id)) =
-        ["wusheng", "longdan", "jixi", "jinjiu"]
+        // 锁定转化技（禁酒/矢志）与主动转化技共用 `skill:<code>:<card>` 口径。
+        ["wusheng", "longdan", "jixi", "jinjiu", "shizhi"]
             .iter()
             .find_map(|code| {
                 action

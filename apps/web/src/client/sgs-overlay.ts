@@ -5,6 +5,8 @@ import { renderOverlayShell } from "../view/sgs/overlay.js";
 let opened = false;
 let blocking = false;
 let lastFocus: Element | null = null;
+/** 浮层关闭后的回调（供 pending 浮层延后弹出使用）。 */
+let onClosed: (() => void) | null = null;
 
 function root(): HTMLElement | null {
   return document.getElementById("sgs-overlay");
@@ -12,6 +14,11 @@ function root(): HTMLElement | null {
 
 export function isOverlayOpen(): boolean {
   return opened;
+}
+
+/** 注册「浮层已关闭」回调（只保留一个；传 null 取消）。 */
+export function setOverlayClosedHandler(fn: (() => void) | null): void {
+  onClosed = fn;
 }
 
 /** 打开（或替换）浮层内容；同一时刻只有一层。 */
@@ -57,6 +64,13 @@ export function closeOverlay(force = false): void {
   if (history.state && (history.state as { sgsOverlay?: boolean }).sgsOverlay) {
     history.back();
   }
+  const cb = onClosed;
+  onClosed = null;
+  if (cb) {
+    // 回调可能再次打开浮层（pending 延后弹出）：重挂回调。
+    cb();
+    onClosed = cb;
+  }
 }
 
 /** 只初始化一次：遮罩/关闭按钮委托、Esc、浏览器返回。 */
@@ -88,5 +102,11 @@ export function initOverlay(): void {
     document.body.style.overflow = "";
     if (lastFocus && lastFocus instanceof HTMLElement) lastFocus.focus();
     lastFocus = null;
+    const cb = onClosed;
+    onClosed = null;
+    if (cb) {
+      cb();
+      onClosed = cb;
+    }
   });
 }

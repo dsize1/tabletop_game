@@ -332,7 +332,31 @@ pub(crate) fn act_jiaojin(st: &mut SgsState, action: &str) -> Result<String, Eng
     let card = action
         .strip_prefix("equip:")
         .ok_or_else(|| illegal("需要弃置一张装备牌"))?;
-    turn::take_card(st, f.owner, card)?;
+    // 选项同时包含手牌中的装备牌与装备区的牌：先手牌，再装备区（原来只取手牌 → legal/execute 不一致）。
+    let in_hand = st.seats[f.owner].hand.iter().any(|c| c == card);
+    if in_hand {
+        turn::take_card(st, f.owner, card)?;
+    } else {
+        let mut removed = false;
+        for slot in EquipSlot::ALL {
+            if st.seats[f.owner]
+                .equips
+                .get(&slot)
+                .cloned()
+                .flatten()
+                .as_deref()
+                == Some(card)
+            {
+                st.seats[f.owner].equips.insert(slot, None);
+                crate::skills::xiaoji_on_lose_equip(st, f.owner);
+                removed = true;
+                break;
+            }
+        }
+        if !removed {
+            return Err(illegal("没有该装备牌"));
+        }
+    }
     let label = turn::card_label(st, card);
     turn::discard_by(st, Some(f.owner), card);
     st.push_log(

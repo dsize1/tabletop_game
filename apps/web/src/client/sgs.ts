@@ -13,7 +13,13 @@ import { buildFxCues } from "../view/sgs/fx.js";
 import { awaitingLocal, nextPollDelay, sideSignature, stateSignature } from "../view/sgs/poll.js";
 import { enqueueFx, fxLocked, initFx } from "./sgs-fx.js";
 import { bindPress } from "./sgs-gestures.js";
-import { closeOverlay, initOverlay, isOverlayOpen, openOverlay } from "./sgs-overlay.js";
+import {
+  closeOverlay,
+  initOverlay,
+  isOverlayOpen,
+  openOverlay,
+  setOverlayClosedHandler,
+} from "./sgs-overlay.js";
 import {
   GX_ROWS,
   applyDrop,
@@ -66,6 +72,10 @@ let submitting = false;
 let boot: Bootstrap | null = null;
 /** 当前自动打开的 pending 浮层签名（空 = 没有 pending 浮层）。 */
 let pendingOverlaySig = "";
+/** 因其他浮层（技能/牌详情）打开而延后弹出的 pending 签名（关闭后立即弹）。 */
+let pendingDeferredSig = "";
+/** 弃牌多选草稿（kind=discard 时点手牌累加，一次确认提交 `discard:<csv>`）。 */
+let discardSel: string[] = [];
 /** 观星本地槽位（端侧草稿；提交时一次性发 arrange:<csv>）。 */
 let gxSlots: GxSlots | null = null;
 let gxInitial: GxSlots | null = null;
@@ -150,6 +160,7 @@ function canPlaySelected(): boolean {
 function syncSelection(): void {
   document.querySelectorAll<HTMLElement>(".sgs-hand .sgs-card").forEach((el) => {
     el.classList.toggle("selected", el.dataset.card === selectedCard);
+    el.classList.toggle("discarded-on", discardSel.includes(el.dataset.card ?? ""));
   });
   const confirm = document.querySelector<HTMLButtonElement>('[data-op="confirm"]');
   if (confirm) confirm.disabled = !canPlaySelected();
@@ -159,8 +170,45 @@ function syncSelection(): void {
 }
 
 function toggleSelect(cardId: string): void {
+  // 弃牌 pending：多选累加（一次确认提交），同时保留单选草稿供出牌使用。
+  if (currentData?.player_area?.pending?.kind === "discard") {
+    discardSel = discardSel.includes(cardId)
+      ? discardSel.filter((id) => id !== cardId)
+      : [...discardSel, cardId];
+    syncDiscardSelection();
+    return;
+  }
   selectedCard = selectedCard === cardId ? null : cardId;
   syncSelection();
+}
+
+/**
+ * 弃牌多选的就地同步（不重建 `#sgs-app`）：
+ * 只切换手牌高亮与「确认弃牌」可用状态，避免选择时整块重绘导致滚动/动画抖动与
+ * 元素被替换（连点失效）。
+ */
+function syncDiscardSelection(): void {
+  const discarding = currentData?.player_area?.pending?.kind === "discard";
+  document.querySelectorAll<HTMLElement>(".sgs-hand .sgs-card[data-card]").forEach((el) => {
+    el.classList.toggle("discardable", discarding);
+    el.classList.toggle("discarded-on", discardSel.includes(el.dataset.card ?? ""));
+  });
+  const bar = document.querySelector<HTMLElement>(".sgs-pending-discard");
+  if (!bar) return;
+  const required = Number(bar.dataset.required ?? 0);
+  const count = bar.querySelector("b");
+  if (count) count.textContent = String(discardSel.length);
+  const partialOk =
+    (currentData?.player_area?.pending?.data as { can_partial?: boolean } | undefined)?.can_partial ===
+    true;
+  const confirm = bar.querySelector<HTMLButtonElement>('[data-op="discard-confirm"]');
+  if (confirm) {
+    confirm.disabled = partialOk
+      ? !(discardSel.length >= 1 && discardSel.length <= required)
+      : discardSel.length !== required;
+  }
+  const clear = bar.querySelector<HTMLButtonElement>('[data-op="discard-clear"]');
+  if (clear) clear.disabled = discardSel.length === 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -207,6 +255,9 @@ function message(text: string, warn = false): void {
 
 async function submitAction(action: string): Promise<void> {
   if (!boot || submitting || !action || fxLocked()) return;
+  // 从「技能选择层/牌详情」等非 pending 浮层提交后必须关闭旧浮层：
+  // 否则二阶段 pending（如直谏选目标）不会弹出，且旧按钮可重复提交导致服务端报错（真机反馈）。
+  const closeStaleOverlay = isOverlayOpen() && !pendingOverlaySig;
   submitting = true;
   document.body.classList.add("busy");
   try {
@@ -236,6 +287,8 @@ async function submitAction(action: string): Promise<void> {
       message(body.error ?? `提交失败（${r.status}）`, true);
     } else {
       message(body.step?.message ?? body.message ?? "已提交");
+      discardSel = [];
+      if (closeStaleOverlay) closeOverlay(true);
     }
     await refreshNow();
   } catch (err) {
@@ -287,7 +340,14 @@ function syncPendingOverlay(): void {
   }
   const sig = pendingSignature(p);
   if (sig === pendingOverlaySig) return;
+  // 已有非 pending 浮层（技能选择/牌详情）打开：不抢占，记录待弹签名，
+  // 由浮层关闭回调 `flushDeferredPendingOverlay` 立即弹出。
+  if (!pendingOverlaySig && isOverlayOpen()) {
+    pendingDeferredSig = sig;
+    return;
+  }
   pendingOverlaySig = sig;
+  pendingDeferredSig = "";
   const blocking = isBlockingPending(p.kind);
   let body = "";
   switch (kind) {
@@ -325,6 +385,13 @@ function syncPendingOverlay(): void {
     blocking,
     size: kind === "choose_many" || kind === "pick_card" || kind === "arrange" ? "wide" : "normal",
   });
+}
+
+/** 浮层关闭后：若有延后的 pending 浮层，立即弹出（避免等下一次轮询）。 */
+function flushDeferredPendingOverlay(): void {
+  if (!pendingDeferredSig) return;
+  pendingDeferredSig = "";
+  syncPendingOverlay();
 }
 
 function redrawGuanxingOverlay(): void {
@@ -475,6 +542,34 @@ function onClick(ev: MouseEvent): void {
   const opEl = target?.closest?.("[data-op]") as HTMLElement | null;
   if (opEl) {
     const op = opEl.dataset.op;
+    if (op === "discard-confirm") {
+      const p = currentData?.player_area?.pending;
+      const required = Number((p?.data as { required?: number } | undefined)?.required ?? 0);
+      if (!p || p.kind !== "discard") return;
+      if (discardSel.length === 0) {
+        message("请先选择要弃置的牌", true);
+        return;
+      }
+      const partialOk = (p.data as { can_partial?: boolean } | undefined)?.can_partial === true;
+      if (discardSel.length > required) {
+        message(`最多弃 ${required} 张`, true);
+        return;
+      }
+      if (!partialOk && discardSel.length !== required) {
+        // 庸肆等固定张数弃牌：必须一次凑齐（少选会被服务端拒绝，表现为「反复要求弃 X 张」）。
+        message(`需一次选择 ${required} 张`, true);
+        return;
+      }
+      const csv = discardSel.join(",");
+      discardSel = [];
+      void submitAction(`discard:${csv}`);
+      return;
+    }
+    if (op === "discard-clear") {
+      discardSel = [];
+      syncDiscardSelection();
+      return;
+    }
     if (op === "confirm") {
       // 直接使用优先；否则回落到「转化技把这张牌当别的牌使用」（武圣/龙胆/国色/奇袭/连环等）。
       const playId = selectedCard ? `play:${selectedCard}` : "";
@@ -604,6 +699,13 @@ function applyState(res: StateResponse): void {
   currentData = data;
   currentActions = nextActions;
   lastNames = res.names;
+  // 弃牌草稿：pending 变化/结束时清空；仍为弃牌则保留仍在手牌的选中项。
+  if (data.player_area?.pending?.kind === "discard") {
+    const hand = new Set((data.player_area.hand ?? []).map((c) => c.id));
+    discardSel = discardSel.filter((id) => hand.has(id));
+  } else {
+    discardSel = [];
+  }
   // 选中的牌可能已被打出/弃置：不再存在于手牌则清空。
   if (selectedCard && !(data.player_area?.hand ?? []).some((c) => c.id === selectedCard)) {
     selectedCard = null;
@@ -612,7 +714,7 @@ function applyState(res: StateResponse): void {
   const app = q<HTMLElement>("#sgs-app");
   if (app && nextAppSig !== appSig) {
     appSig = nextAppSig;
-    app.innerHTML = renderSgsApp(data, res.names, currentActions, boot?.assets);
+    app.innerHTML = renderSgsApp(data, res.names, currentActions, boot?.assets, discardSel);
     bindInteractions();
     syncSelection();
   }
@@ -638,8 +740,9 @@ function applyState(res: StateResponse): void {
 async function refreshNow(): Promise<void> {
   if (!boot) return;
   const res = await fetchState(boot);
-  // 详情浮层打开时不打断；pending 浮层必须随提交结果更新（否则会停在旧的待办上）。
-  if (!isOverlayOpen() || pendingOverlaySig) applyState(res);
+  // 始终应用最新状态（公共区/待响应提示必须随对局推进更新）；
+  // 浮层是否被抢占由 syncPendingOverlay 内的「延后弹出」策略决定（真机：兵粮判定残留）。
+  applyState(res);
   applyRestoredScroll();
   setText("sgs-warn", "");
   setText("sgs-updated", `更新于 ${hhmmss(new Date())}`);
@@ -726,6 +829,11 @@ function start(): void {
   window.addEventListener("pagehide", saveScroll);
   window.addEventListener("beforeunload", saveScroll);
   initOverlay();
+  setOverlayClosedHandler(() => {
+    flushDeferredPendingOverlay();
+    // 关闭详情/技能层后刷新一次：可能在浮层打开期间错过了 pending 变化。
+    void refreshNow();
+  });
   bindInteractions();
   bindPreviewControls();
   // 点击/拖拽委托只绑一次（容器元素不变，innerHTML 重渲染不影响）

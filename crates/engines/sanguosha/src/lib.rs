@@ -625,6 +625,8 @@ impl EnginePlugin for SanguoshaEngine {
             scheduled: Vec::new(),
             void_return: Vec::new(),
             pending_liyu: Vec::new(),
+            fenji_queue: Vec::new(),
+            fenji_suppress: Vec::new(),
             extra_turn: None,
             winner: None,
             abort_reason: None,
@@ -796,6 +798,14 @@ impl EnginePlugin for SanguoshaEngine {
         if st.phase.is_over() {
             return Err(illegal("对局已结束"));
         }
+        // 奋激口径（用户裁定）：不按技能硬编码，只看两个客观条件——
+        // ① 该玩家处于回合外（动作发生时不是他的回合）；
+        // ② 其手牌被弃置到弃牌堆，或手牌数增加。
+        // 这里在动作前后做手牌差分，命中则入 `fenji_queue`，由 `resolve::advance`
+        // 在结算栈空时统一询问（避免与无懈/响应窗口抢帧）。
+        let hand_before: Vec<Vec<String>> =
+            st.seats.iter().map(|s| s.hand.clone()).collect();
+        let turn_before = st.turn;
 
         if action == "resume" || action == "hint" {
             return Ok(ActionResult {
@@ -945,6 +955,31 @@ impl EnginePlugin for SanguoshaEngine {
             events.extend(finish_setup(&mut st)?);
         }
 
+        // 奋激差分：回合外 + （手牌进弃牌堆 / 手牌数增加）
+        {
+            let mut events2: Vec<EngineEvent> = Vec::new();
+            for (seat, before) in hand_before.iter().enumerate() {
+                if seat >= st.seats.len() || seat == turn_before {
+                    continue;
+                }
+                // 奋激自身造成的摸牌不再次触发（避免自查递归）。
+                if st.fenji_suppress.contains(&seat) {
+                    st.fenji_suppress.retain(|s| *s != seat);
+                    continue;
+                }
+                let after = &st.seats[seat].hand;
+                let discarded_to_pile = before
+                    .iter()
+                    .filter(|id| !after.contains(id))
+                    .any(|id| st.deck.discard.contains(id));
+                let gained = after.len() > before.len();
+                if (discarded_to_pile || gained) && !st.fenji_queue.contains(&seat) {
+                    st.fenji_queue.push(seat);
+                }
+            }
+            // 队列在栈空时统一询问；动作若已停在待办上则留待后续 advance 消费。
+            resolve::advance(&mut st, &mut events2)?;
+        }
         st.check_conservation().map_err(internal)?;
         let finished = st.phase.is_over();
         Ok(ActionResult {

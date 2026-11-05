@@ -159,9 +159,14 @@ pub(crate) fn fangzhu_target(
     let target = st.seat_index(pid).ok_or_else(|| illegal("目标不在座"))?;
     pop(st);
     st.seats[target].flipped = !st.seats[target].flipped;
+    let now_face_up = !st.seats[target].flipped;
     crate::resolve_jiexian3::shebian_on_flip(st, target);
     let lost = (st.seats[f.actor].max_hp - st.seats[f.actor].hp).max(0) as u32;
     let drawn = draw_capped(st, target, lost.min(5));
+    // 解围②：被放逐从背面翻回正面时，可弃 1 张牌并移动场上一张牌。
+    if now_face_up {
+        crate::resolve_wind::jiewei_on_face_up(st, target);
+    }
     st.push_log(
         Some(&st.seats[f.actor].player_id.clone()),
         format!(
@@ -795,10 +800,19 @@ pub struct DimengFrame {
 }
 
 pub(crate) fn step_dimeng(st: &mut SgsState, f: DimengFrame) -> Result<bool, EngineError> {
+    let budget = st.seats[f.actor].hand.len();
     let options: Vec<PendingOption> = st
         .alive_indices()
         .into_iter()
         .filter(|i| *i != f.actor && Some(*i) != f.first)
+        .filter(|i| {
+            // 已选第一名时，第二名的手牌差即费用：超出自己手牌数的目标不可选
+            // （legal/execute 必须同源；AI 曾因选中不可支付目标报「手牌不足」）。
+            match f.first {
+                Some(first) => st.seats[first].hand.len().abs_diff(st.seats[*i].hand.len()) <= budget,
+                None => true,
+            }
+        })
         .map(|i| PendingOption {
             id: format!("target:{}", st.seats[i].player_id),
             label: format!(

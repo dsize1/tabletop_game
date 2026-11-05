@@ -236,6 +236,19 @@ fn drive_state_inject(st: &mut SgsState, inject: &mut Vec<String>) {
         crate::resolve::advance(st, &mut events).unwrap();
         let Some(p) = st.pending.clone() else { return };
         let mut action = take_inject(inject, &p.actor, &p.kind);
+        if action == "pass" && p.kind == "discard" {
+            // 弃牌：一次提交凑齐（固定张数类必须一次交满）。
+            let required = p.data["required"].as_u64().unwrap_or(1) as usize;
+            let n = required.min(p.options.len());
+            let csv = p
+                .options
+                .iter()
+                .take(n)
+                .map(|o| o.id.trim_start_matches("discard:").to_string())
+                .collect::<Vec<_>>()
+                .join(",");
+            action = format!("discard:{csv}");
+        }
         if action == "pass" && !p.options.iter().any(|o| o.id == "pass") {
             action = p.options.first().map(|o| o.id.clone()).unwrap_or(action);
         }
@@ -262,7 +275,19 @@ fn drive_phases(st: &mut SgsState, inject: &mut Vec<String>) {
             }
             inject.insert(pos, entry);
         }
-        let action = if p.kind == "choose_many" {
+        let action = if p.kind == "discard" {
+            // 弃牌：一次提交凑齐（固定张数类如庸肆/镇骨必须一次交满）。
+            let required = p.data["required"].as_u64().unwrap_or(1) as usize;
+            let n = required.min(p.options.len());
+            let csv = p
+                .options
+                .iter()
+                .take(n)
+                .map(|o| o.id.trim_start_matches("discard:").to_string())
+                .collect::<Vec<_>>()
+                .join(",");
+            format!("discard:{csv}")
+        } else if p.kind == "choose_many" {
             let selected: Vec<String> = p
                 .data["selected"]
                 .as_array()
@@ -977,6 +1002,7 @@ mod p103;
 mod p104;
 mod p105;
 mod p106;
+mod p107;
 mod replay;
 mod view_contract;
 

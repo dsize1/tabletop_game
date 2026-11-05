@@ -4,6 +4,7 @@
 //! 界固政（界张昭张纮）、界悲歌（界蔡文姬）、界节命（界荀彧）、界破军（界徐盛）。
 //! 同名技能 code 复用（ADR-0024），差异按 `skills::is_jiexian` 分支。
 
+use crate::illegal;
 use crate::internal;
 use crate::resolve::{pop, push, replace_top, top, Frame};
 use crate::skills::{has, is_jiexian};
@@ -422,17 +423,56 @@ pub(crate) fn guzheng_jie_on_discard(st: &mut SgsState, seat: usize) {
         Frame::GuZhengJie(GuZhengJieFrame {
             owner,
             discarder: seat,
+            cards: Vec::new(),
+            stage: GuZhengJieStage::Ask,
         }),
     );
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GuZhengJieStage {
+    #[default]
+    Ask,
+    Pick,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct GuZhengJieFrame {
     pub owner: usize,
     pub discarder: usize,
+    /// 本阶段因弃置进入弃牌堆的牌（第一阶段发动时采集，供第二阶段选择）。
+    #[serde(default)]
+    pub cards: Vec<String>,
+    #[serde(default)]
+    pub stage: GuZhengJieStage,
 }
 
 pub(crate) fn step_guzheng_jie(st: &mut SgsState, f: GuZhengJieFrame) -> Result<bool, EngineError> {
+    if f.stage == GuZhengJieStage::Pick {
+        let options: Vec<PendingOption> = f
+            .cards
+            .iter()
+            .filter(|id| st.deck.discard.iter().any(|c| c == *id))
+            .map(|id| PendingOption {
+                id: format!("give:{id}"),
+                label: format!("交给 {}：{}", st.seats[f.discarder].general_name, turn::card_label(st, id)),
+            })
+            .collect();
+        if options.is_empty() {
+            pop(st);
+            return Ok(false);
+        }
+        st.pending = Some(Pending {
+            kind: "choice".into(),
+            actor: pid(st, f.owner),
+            skill: Some("guzheng_jie".into()),
+            options,
+            data: json!({ "skill": "guzheng_jie", "stage": "pick" }),
+        });
+        replace_top(st, Frame::GuZhengJie(f));
+        return Ok(true);
+    }
     st.pending = Some(Pending {
         kind: "choice".into(),
         actor: pid(st, f.owner),
@@ -458,11 +498,11 @@ pub(crate) fn act_guzheng_jie(st: &mut SgsState, action: &str) -> Result<String,
         Some(Frame::GuZhengJie(f)) => f,
         _ => return Err(internal("栈顶不是固政帧")),
     };
-    pop(st);
     if action != "choose:guzheng" {
+        pop(st);
         return Ok("不发动固政".to_string());
     }
-    // 该角色本阶段弃置的牌（`gz_jie:<seat>:<card>` 记录挂在弃置者身上，见 turn::discard_by）。
+    // 采集弃牌者本阶段弃置的牌（`gz_jie:<seat>:<card>` 标记）。
     let prefix = format!("gz_jie:{}:", f.discarder);
     let keys: Vec<String> = st.seats[f.discarder]
         .flags
@@ -475,15 +515,50 @@ pub(crate) fn act_guzheng_jie(st: &mut SgsState, action: &str) -> Result<String,
         st.seats[f.discarder].flags.remove(&k);
         cards.push(k.trim_start_matches(&prefix).to_string());
     }
+    replace_top(
+        st,
+        Frame::GuZhengJie(GuZhengJieFrame {
+            stage: GuZhengJieStage::Pick,
+            cards,
+            ..f
+        }),
+    );
+    Ok("固政：请选择交给弃牌者的牌".to_string())
+}
+
+/// 界固政第二阶段：`give:<card>` → 该牌交给弃牌者，其余归持有者。
+pub(crate) fn act_guzheng_jie_pick(
+    st: &mut SgsState,
+    pending: &Pending,
+    action: &str,
+) -> Result<String, EngineError> {
+    let f = match top(st).cloned() {
+        Some(Frame::GuZhengJie(f)) => f,
+        _ => return Err(internal("栈顶不是固政帧")),
+    };
+    let given_card = action
+        .strip_prefix("give:")
+        .ok_or_else(|| illegal("需要选择交给弃牌者的牌"))?;
+    if !pending
+        .options
+        .iter()
+        .any(|o| o.id == format!("give:{given_card}"))
+    {
+        return Err(illegal("该牌不在可分配弃牌中"));
+    }
+    pop(st);
     let mut moved = 0;
-    for (i, card) in cards.iter().enumerate() {
-        if !st.deck.discard.iter().any(|c| c == card) {
-            continue;
-        }
-        st.deck.discard.retain(|c| c != card);
-        let to = if i == 0 { f.discarder } else { f.owner };
-        st.seats[to].hand.push(card.clone());
+    if st.deck.discard.iter().any(|c| c == given_card) {
+        st.deck.discard.retain(|c| c != given_card);
+        st.seats[f.discarder].hand.push(given_card.to_string());
         moved += 1;
+    }
+    for id in f.cards.iter().filter(|c| *c != given_card) {
+        if st.deck.discard.iter().any(|c| c == id) {
+            st.deck.discard.retain(|c| c != id);
+            st.seats[f.owner].hand.push(id.clone());
+            moved += 1;
+        }
     }
     st.push_log(
         Some(&pid(st, f.owner)),
