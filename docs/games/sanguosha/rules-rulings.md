@@ -756,3 +756,20 @@
 - **修复**：`turn.rs` 弃牌分支加 `discard_limit_satisfied` 计数：达到上限（或已满足）后置 1，检查条件改为 `over > 0 && counter == 0`；离开弃牌阶段时清零（回合结束 `turn_counters.clear()` 兜底）。
 - **影响面**：所有「弃牌阶段结束时摸/获得牌」的技能（溃诛、固政、瑰藻…）不再二次询问；固定张数弃牌（庸肆/英魂/悲歌/飘零）仍一次凑齐。
 - **回归**：`p107::kuizhu_self_draw_does_not_ask_second_discard`（未修复时失败，修复后通过）。
+
+### （2026-11-05 复验 21）濒死被救起后仍要结算「受到伤害后」技能（审时阴/遗计/反馈/节命…）
+
+- **触发**：真机反馈「审时（阴）在濒死被【桃】救以后不能发动」，并怀疑 郭嘉·遗计 / 司马懿·反馈 / 荀彧·节命 同类。
+- **口径**：伤害已经发生；进入濒死**不取消**伤害后钩子——被救起（体力 > 0）后必须继续结算；死亡则跳过。
+- **根因**：`apply_damage_inner` 在 `hp <= 0` 时 `push_dying(...); return;`，直接跳过了其后 400+ 行的
+  「受到伤害后」代码块（遗计/反馈/节命/刚烈/放逐/夺刀/恩怨/审时阴/狂骨…），因此**任何**把目标打进濒死的伤害都会吞掉这些技能。
+- **修复**：
+  1. 把该代码块抽为 `resolve::damage_after(st, victim, source, card, amount)`；
+  2. 濒死路径改为先压 `Frame::DamageAfter`（在 `Dying` 之下）→ 濒死结算完（救起）后自动执行；
+     未救起（死亡）时该帧直接丢弃；
+  3. 顺手修正 4 处「先 apply_damage 再 pop」的旧假设（贯石斧/排异/伏诛/强袭）：伤害现在可能压帧，
+     改为**先 pop 本帧再结算伤害**（强袭改为先切到选目标阶段再付代价）。
+- **回归**：`p107::shenshi_yin_triggers_after_dying_rescue`（真机场景）、`yiji_triggers_after_dying_rescue`（郭嘉）、
+  `fankui_triggers_after_dying_rescue`（司马懿）、`jieming_triggers_after_dying_rescue`（荀彧）；
+  `p22::dying_player_can_be_rescued_by_tao` 断言更新（救起后允许存在伤害后钩子的 pending）。
+- **门禁**：`cargo test -p sanguosha` **964 全绿**；`check:sgs-ai:100` **100/100**（该改动曾暴露 强袭 空转，已一并修复）。

@@ -444,7 +444,13 @@ fn dying_player_can_be_rescued_by_tao() {
 
     let st = state_of(&mgr, &room);
     assert_eq!(st.phase, Phase::Turn);
-    assert!(st.pending.is_none());
+    // 救起后仍会结算「受到伤害后」钩子（如夏侯惇·刚烈，2026-11-05 修：濒死救起不再丢弃伤害后钩子），
+    // 因此这里只断言不再处于濒死询问。
+    assert!(
+        st.pending.as_ref().is_none_or(|p| p.kind != "dying"),
+        "救援完成后不应再处于濒死询问：{:?}",
+        st.pending.as_ref().map(|p| (p.kind.clone(), p.skill.clone()))
+    );
     assert_eq!(st.seats[target].hp, 1);
     assert!(st.seats[target].alive);
     st.check_conservation().unwrap();

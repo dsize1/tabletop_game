@@ -26,6 +26,15 @@
 - 回归：`p107::kuizhu_self_draw_does_not_ask_second_discard`；详见 `rules-rulings.md` 复验 20。
 - 状态：**待用户重启后复验**。
 
+## 2026-11-05 · 蒯越蒯良 · 审时（阴）+ 同类（郭嘉/司马懿/荀彧）
+
+- 现象：审时（阴）在濒死被【桃】救起后不发动。
+- 结论：**实现 bug**（已修）：`apply_damage_inner` 在 `hp <= 0` 时 `push_dying; return`，跳过其后整段「受到伤害后」钩子
+  （遗计/反馈/节命/刚烈/放逐/审时阴…）。已抽 `resolve::damage_after` + `Frame::DamageAfter`（濒死救起后执行）。
+- 同类核查：郭嘉·遗计、司马懿·反馈、荀彧·节命 同因同修，均补回归用例（救起后 pending 出现）。
+- 回归：`p107::shenshi_yin_triggers_after_dying_rescue` / `yiji_…` / `fankui_…` / `jieming_…`。
+- 状态：**待用户重启后复验**。
+
 ## 待走查（B1 剩余）
 
 | 武将 | 技能 | 走查要点 / 场景构造 |

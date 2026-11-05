@@ -371,20 +371,8 @@ pub(crate) fn act_qiangxi(st: &mut SgsState, action: &str) -> Result<String, Eng
     }
     match action {
         "choose:qiangxi:hp" => {
-            // 界强袭（界典韦）：代价改为「受到 1 点伤害」。
-            if skills::is_jiexian(st, f.actor) {
-                crate::resolve::apply_damage_now(st, f.actor, 1, None, DamageType::Normal, None);
-            } else {
-                st.seats[f.actor].hp -= 1;
-            }
-            let hp = st.seats[f.actor].hp;
-            let pid = st.seats[f.actor].player_id.clone();
-            st.push_log(Some(&pid), format!("强袭：代价已支付（体力 {hp}）"));
-            if hp <= 0 {
-                pop(st);
-                crate::resolve::push_dying(st, f.actor, None);
-                return Ok("强袭：体力不足，进入濒死".to_string());
-            }
+            // 先进目标阶段再付代价：代价若把体力打到 0，`apply_damage_now` 会把
+            // 濒死帧压在本帧之上，救起后回到「选目标」阶段（不能再 pop 自己那一帧）。
             replace_top(
                 st,
                 Frame::Qiangxi(QiangxiFrame {
@@ -392,6 +380,18 @@ pub(crate) fn act_qiangxi(st: &mut SgsState, action: &str) -> Result<String, Eng
                     stage: QiangxiStage::Target,
                 }),
             );
+            // 界强袭（界典韦）：代价改为「受到 1 点伤害」。
+            if skills::is_jiexian(st, f.actor) {
+                crate::resolve::apply_damage_now(st, f.actor, 1, None, DamageType::Normal, None);
+            } else {
+                st.seats[f.actor].hp -= 1;
+                if st.seats[f.actor].hp <= 0 {
+                    crate::resolve::push_dying(st, f.actor, None);
+                }
+            }
+            let hp = st.seats[f.actor].hp;
+            let pid = st.seats[f.actor].player_id.clone();
+            st.push_log(Some(&pid), format!("强袭：代价已支付（体力 {hp}）"));
             Ok("强袭：请选择目标".to_string())
         }
         "choose:qiangxi:weapon" => {

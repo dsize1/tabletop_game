@@ -420,6 +420,141 @@ fn discard_phase_still_uses_skill_hand_limit() {
     st_check(&mgr, &room);
 }
 
+/// 濒死被【桃】救起后，仍须结算「受到伤害后」钩子（真机反馈：审时阴不发动）。
+#[test]
+fn shenshi_yin_triggers_after_dying_rescue() {
+    let mgr = manager(3711);
+    let room = start_and_pick(&mgr, 5);
+    let (mut attacker, mut victim, mut rescuer) = (0, 0, 0);
+    let mut tao = String::new();
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        attacker = st.turn;
+        set_general(st, attacker, "sgs_hero_1");
+        let others = other_seats(st, attacker);
+        victim = others[0];
+        rescuer = others[1];
+        set_general(st, victim, "sgs_hero_404"); // 蒯越蒯良：审时
+        st.seats[victim].hp = 1;
+        st.seats[victim].flags.insert("yj:shenshi".into(), true); // 阴面
+        // 审时（阴）需要受害者有手牌（交给来源一张）。
+        give_filtered(st, victim, |c| c.def == "shan");
+        // 来源留一张牌：反馈/节命等「获得来源牌」类钩子需要目标有牌。
+        give_filtered(st, attacker, |c| c.def == "shan");
+        tao = give(st, rescuer, "tao");
+        crate::resolve::apply_damage(st, victim, 1, Some(attacker), crate::resolve::DamageType::Normal, None);
+        advance_once(st);
+    });
+    let st = state_of(&mgr, &room);
+    let victim_pid = pid_of(&st, victim);
+    let mut p = st.pending.clone().expect("应进入濒死求桃");
+    assert_eq!(p.kind, "dying");
+    if p.actor == victim_pid {
+        mgr.execute_action(&room, &p.actor, "pass").unwrap();
+        p = state_of(&mgr, &room).pending.clone().expect("仍有救援者求桃窗口");
+    }
+    assert_eq!(p.kind, "dying");
+    mgr.execute_action(&room, &p.actor, &format!("respond:{tao}"))
+        .expect("救援者出【桃】");
+    // 救起后：伤害后钩子必须结算 → 审时（阴）询问。
+    edit(&mgr, &room, |st| advance_once(st));
+    let st = state_of(&mgr, &room);
+    assert_eq!(st.seats[victim].hp, 1, "被【桃】救起，体力 1");
+    let pending = st.pending.clone().expect("救起后应结算审时（阴）");
+    assert_eq!(
+        pending.skill.as_deref(),
+        Some("shenshi"),
+        "审时（阴）应在濒死救起后发动：{:?}",
+        (pending.kind.clone(), pending.skill.clone())
+    );
+    assert!(pending.options.iter().any(|o| o.id == "choose:shenshi"));
+    st_check(&mgr, &room);
+}
+
+/// 濒死+被【桃】救起 → 检查救起后结算的「受到伤害后」技能（pending.skill）。
+fn damage_to_dying_then_rescue(victim_general: &str, seed: u64) -> (GameManager, String, usize, usize) {
+    let mgr = manager(seed);
+    let room = start_and_pick(&mgr, 5);
+    let (mut attacker, mut victim, mut rescuer) = (0, 0, 0);
+    let mut tao = String::new();
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        attacker = st.turn;
+        set_general(st, attacker, "sgs_hero_1");
+        let others = other_seats(st, attacker);
+        victim = others[0];
+        rescuer = others[1];
+        set_general(st, victim, victim_general);
+        st.seats[victim].hp = 1;
+        give_filtered(st, victim, |c| c.def == "shan");
+        // 来源留一张牌：反馈/节命等「获得来源牌」类钩子需要目标有牌。
+        give_filtered(st, attacker, |c| c.def == "shan");
+        tao = give(st, rescuer, "tao");
+        crate::resolve::apply_damage(
+            st,
+            victim,
+            1,
+            Some(attacker),
+            crate::resolve::DamageType::Normal,
+            None,
+        );
+        advance_once(st);
+    });
+    let st = state_of(&mgr, &room);
+    let victim_pid = pid_of(&st, victim);
+    let mut p = st.pending.clone().expect("应进入濒死求桃");
+    assert_eq!(p.kind, "dying");
+    if p.actor == victim_pid {
+        mgr.execute_action(&room, &p.actor, "pass").unwrap();
+        p = state_of(&mgr, &room).pending.clone().expect("仍有救援者求桃窗口");
+    }
+    assert_eq!(p.kind, "dying");
+    mgr.execute_action(&room, &p.actor, &format!("respond:{tao}"))
+        .expect("救援者出【桃】");
+    edit(&mgr, &room, |st| advance_once(st));
+    (mgr, room, victim, rescuer)
+}
+
+#[test]
+fn yiji_triggers_after_dying_rescue() {
+    let (mgr, room, victim, _rescuer) = damage_to_dying_then_rescue("sgs_hero_20", 3720); // 郭嘉
+    let st = state_of(&mgr, &room);
+    assert_eq!(st.seats[victim].hp, 1);
+    assert_eq!(
+        st.pending.as_ref().and_then(|p| p.skill.as_deref()),
+        Some("yiji"),
+        "遗计应在濒死救起后发动"
+    );
+    st_check(&mgr, &room);
+}
+
+#[test]
+fn fankui_triggers_after_dying_rescue() {
+    let (mgr, room, victim, _rescuer) = damage_to_dying_then_rescue("sgs_hero_16", 3721); // 司马懿
+    let st = state_of(&mgr, &room);
+    assert_eq!(st.seats[victim].hp, 1);
+    // 反馈走 `PickCard`（pending.skill 为空），用 kind + 选项确认。
+    assert_eq!(
+        st.pending.as_ref().map(|p| p.kind.clone()),
+        Some("pick_card".into()),
+        "反馈应在濒死救起后发动（pick_card 选牌）"
+    );
+    st_check(&mgr, &room);
+}
+
+#[test]
+fn jieming_triggers_after_dying_rescue() {
+    let (mgr, room, victim, _rescuer) = damage_to_dying_then_rescue("sgs_hero_35", 3722); // 荀彧
+    let st = state_of(&mgr, &room);
+    assert_eq!(st.seats[victim].hp, 1);
+    assert_eq!(
+        st.pending.as_ref().and_then(|p| p.skill.as_deref()),
+        Some("jieming"),
+        "节命应在濒死救起后发动"
+    );
+    st_check(&mgr, &room);
+}
+
 /// 溃诛令**自己**摸牌后不得再要求弃牌（弃牌阶段只按上限弃一次；真机 `#247-251`）。
 #[test]
 fn kuizhu_self_draw_does_not_ask_second_discard() {

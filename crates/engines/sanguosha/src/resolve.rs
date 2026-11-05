@@ -28,6 +28,8 @@ pub enum Frame {
     PickCard(PickCardFrame),
     Respond(RespondFrame),
     Dying(DyingFrame),
+    /// 濒死救起后的「受到伤害后」钩子（见 `damage_after`）。
+    DamageAfter(DamageAfterFrame),
     Discard(DiscardFrame),
     Judge(JudgeFrame),
     /// 奸雄：受伤后选择是否获得造成伤害的牌。
@@ -531,6 +533,31 @@ pub struct DyingFrame {
     pub passed: Vec<String>,
 }
 
+/// 濒死救起后延迟结算的「受到伤害后」钩子。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DamageAfterFrame {
+    pub victim: usize,
+    #[serde(default)]
+    pub source: Option<usize>,
+    #[serde(default)]
+    pub card: Option<String>,
+    #[serde(default)]
+    pub amount: i32,
+}
+
+/// 濒死结算结束后执行伤害后钩子；未救起（死亡）则跳过。
+fn step_damage_after(st: &mut SgsState, f: DamageAfterFrame) -> Result<bool, EngineError> {
+    pop(st);
+    let alive = st
+        .seats
+        .get(f.victim)
+        .is_some_and(|s| s.alive && s.hp > 0);
+    if alive {
+        damage_after(st, f.victim, f.source, f.card.as_deref(), f.amount);
+    }
+    Ok(false)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DiscardFrame {
     pub actor: usize,
@@ -892,6 +919,7 @@ fn step(
         Frame::PickCard(f) => step_pick(st, f),
         Frame::Respond(f) => step_respond(st, f),
         Frame::Dying(f) => step_dying(st, f, events),
+        Frame::DamageAfter(f) => step_damage_after(st, f),
         Frame::Discard(f) => step_discard(st, f),
         Frame::Judge(f) => step_judge(st, f, events),
         Frame::Jianxiong(f) => crate::resolve_skill::step_jianxiong(st, f),
@@ -6083,9 +6111,31 @@ fn apply_damage_inner(
         ),
     );
     if st.seats[victim].hp <= 0 {
+        // 「受到伤害后」钩子必须在**濒死结算之后**跑：伤害已发生，即使被【桃】救起，
+        // 遗计/反馈/节命/刚烈/放逐/审时（阴）等仍要结算（真机反馈：濒死被救后审时阴不发动）。
+        push(
+            st,
+            Frame::DamageAfter(DamageAfterFrame {
+                victim,
+                source,
+                card: card.map(str::to_string),
+                amount,
+            }),
+        );
         push_dying(st, victim, source);
         return;
     }
+    damage_after(st, victim, source, card, amount);
+}
+
+/// 「受到伤害后」钩子集合（存活时调用；濒死路径由 `Frame::DamageAfter` 在救起后调用）。
+pub(crate) fn damage_after(
+    st: &mut SgsState,
+    victim: usize,
+    source: Option<usize>,
+    card: Option<&str>,
+    amount: i32,
+) {
     // 趫猛（界公孙瓒）/ 利驭（界吕布）：使用【杀】造成伤害后。
     if let (Some(card_id), Some(src)) = (card, source) {
         let is_sha = st

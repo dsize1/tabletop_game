@@ -701,13 +701,14 @@ pub(crate) fn act_fuzhu(st: &mut SgsState, action: &str) -> Result<String, Engin
             Some(&pid(st, f.owner)),
             format!("伏诛：【{label}】造成 1 点伤害"),
         );
+        // 先 pop 再结算伤害：伤害可能压入濒死/伤害后帧，之后再 pop 会弹错帧。
+        pop(st);
         crate::resolve::apply_damage(st, f.current, 1, Some(f.owner), DamageType::Normal, None);
     }
     let mut deck = std::mem::take(&mut st.deck.draw);
     st.shuffle(&mut deck);
     st.deck.draw = deck;
     st.push_log(Some(&pid(st, f.owner)), "伏诛：洗牌");
-    pop(st);
     Ok("伏诛结算完成".to_string())
 }
 

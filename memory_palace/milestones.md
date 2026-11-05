@@ -24,7 +24,12 @@
   3. **弃牌阶段二次弃牌**（`#247-251` 孙亮溃诛给自己补牌后又要求弃 1 张）：`TurnPhase::Discard` 在钩子帧结算后被重新进入，
      `over > 0` 就再压 `discard_phase`。加 `discard_limit_satisfied` 门：弃牌阶段只按上限弃**一次**，之后的
      固政归还/溃诛补牌/瑰藻摸牌不再触发。回归 `p107::kuizhu_self_draw_does_not_ask_second_discard`（未修复时失败，已验证）。
-- **门禁**：`cargo test -p sanguosha` **960 全绿**；`sgs:check:fast` 16/16；`check:sgs-ai:100` **100/100**（illegal 0）。
+  4. **濒死救起后吞掉「受到伤害后」技能**（用户反馈：审时阴在濒死被桃救后不发动；郭嘉/司马懿/荀彧同类存疑）：
+     `apply_damage_inner` 在 `hp <= 0` 时 `push_dying; return`，跳过其后整段伤害后钩子。
+     抽 `resolve::damage_after` + 新增 `Frame::DamageAfter`（压在 `Dying` 之下，救起后执行、死亡则丢弃）；
+     并修正 4 处「apply_damage 后 pop」的旧假设（贯石斧/排异/伏诛/强袭，强袭曾因此空转）。
+     回归 `p107` 4 条（审时阴/遗计/反馈/节命）。
+- **门禁**：`cargo test -p sanguosha` **964 全绿**；`sgs:check:fast` 16/16；`check:sgs-ai:100` **100/100**（illegal 0）。
 - **未完成（需人工）**：B0 七技能逐项走查签字；B1/B2 逐将走查。
 - **下一步**：用户在工作台按 `audit-sheets/B0.md` 走查 → 签字 → 回写矩阵 → 进 B1/B2。
 

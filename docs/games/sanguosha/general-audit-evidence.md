@@ -1,6 +1,6 @@
 # 全武将验证 · 机器证据（自动生成，勿手改）
 
-> 生成：`apps/scripts/sgs-general-audit.mjs` · 时间：2026-11-05T14:20:12.761Z
+> 生成：`apps/scripts/sgs-general-audit.mjs` · 时间：2026-11-05T14:35:11.219Z
 > 只含**机械证据**（可达/不报错/守恒/pending/可复现），不含语义判定；
 > 人工走查结论请写入 `docs/games/sanguosha/general-audit.md`。
 

@@ -461,9 +461,10 @@ pub(crate) fn act_paiyi(st: &mut SgsState, action: &str) -> Result<String, Engin
                 st.seats[target].general_name
             ),
         );
-        crate::resolve::apply_damage(st, target, 1, Some(f.actor), DamageType::Normal, None);
     }
+    // 先 pop 再结算伤害：伤害可能压入濒死/伤害后帧，之后再 pop 会弹错帧。
     pop(st);
+    crate::resolve::apply_damage(st, target, 1, Some(f.actor), DamageType::Normal, None);
     Ok("排异结算完成".to_string())
 }
 

@@ -1705,8 +1705,9 @@ pub(crate) fn multiselect_confirm(
                 Some(&pid),
                 "贯石斧：弃置 2 张手牌，【杀】依然造成伤害".to_string(),
             );
-            crate::resolve::apply_damage(st, target, 1, Some(source), dtype, Some(&card));
+            // 先 pop 本帧再结算伤害：伤害可能压入濒死/伤害后帧，之后不能再 pop（会弹错帧）。
             pop(st);
+            crate::resolve::apply_damage(st, target, 1, Some(source), dtype, Some(&card));
             Some(Ok("贯石斧：目标受到 1 点伤害".to_string()))
         }
         "ganglie" => {
