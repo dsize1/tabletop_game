@@ -49,6 +49,7 @@ baseline_commit: 见 git log（2026-11-05 全武将验证会话结束点）
 - 新：`skills::add_mark` / `remove_mark` / `turn::to_void_card` / `from_void_card` 统一上报
   `state::CardMoveEvent`，`advance` 在栈空派发 → 良姻订阅。**技能不再硬编码触发点**。
 - **仍未覆盖**：延时锦囊（小乔♦当乐不思蜀、徐晃黑牌当兵粮寸断）的「移出/移入」——
+  另：事件全局产生，**技能需自行按「生效窗口」过滤**（良姻/箜声已加「仅周妃回合内」门闩，复验 35）。
   判定区（`judge_zone`）的进入/离开没有统一钩子（散落在 `resolve.rs:2389/2399/3532`、`resolve_fire.rs:948`、
   `resolve_forest.rs:531`、`resolve_wind.rs:834/840`、`resolve_yijiang5.rs:722`、`resolve_sp2.rs:2188`…）。
   对良姻而言可达场景是**周妃自己判定阶段**延时锦囊判定后进弃牌堆（=移入）。

@@ -1080,6 +1080,12 @@ pub(crate) fn liangyin_trigger(st: &mut SgsState, dir: MoveDir) {
     else {
         return;
     };
+    // 用户裁定（2026-11-05）：良姻/箜声**只在周妃自己的回合内生效**
+    // （等价于「回合开始时挂上钩子、回合结束时摘掉」）。
+    // 因此开局明任置「任」这类发生在回合外/开局阶段的移出，不应触发良姻。
+    if st.turn != owner || st.phase != Phase::Turn {
+        return;
+    }
     let key = match dir {
         MoveDir::Out => "liangyin_out_done",
         MoveDir::In => "liangyin_in_done",

@@ -468,6 +468,39 @@ fn kongsheng_end_phase_order_liangyin_before_equip_use() {
     st.check_conservation().unwrap();
 }
 
+/// 良姻/箜声只在**周妃自己的回合内**生效：开局明任置「任」（回合外/开局）不触发良姻。
+#[test]
+fn liangyin_ignores_game_start_mingren() {
+    let mgr = manager(1034);
+    let room = start_and_pick(&mgr, 5);
+    let mut zhou = 0;
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        zhou = st.turn;
+        set_general(st, zhou, "sgs_hero_411"); // 周妃
+        let lu = other_seats(st, zhou)[0];
+        set_general(st, lu, "sgs_hero_407"); // 卢植
+        // 模拟「游戏开始时明任置『任』」：一张牌进 marks → 移出事件。
+        let ren = give(st, lu, "sha");
+        st.seats[lu].hand.retain(|c| c != &ren);
+        skills::add_mark(st, lu, "ren", &ren);
+        // 此刻仍是周妃回合（st.turn == zhou），但良姻「每回合首次」尚未用掉；
+        // 这里真正要验证的是：**开局阶段**（phase != Turn / 非其回合）不触发。
+        st.phase = Phase::Setup;
+        let mut ev = Vec::new();
+        crate::resolve::advance(st, &mut ev).unwrap();
+    });
+    let st = state_of(&mgr, &room);
+    assert!(
+        !st.pending
+            .as_ref()
+            .is_some_and(|p| p.skill.as_deref() == Some("liangyin")),
+        "开局阶段不应触发良姻：{:?}",
+        st.pending.as_ref().map(|p| p.skill.clone())
+    );
+    let _ = zhou;
+}
+
 #[test]
 fn kongsheng_equip_cards_used_by_target() {
     let mgr = manager(1021);

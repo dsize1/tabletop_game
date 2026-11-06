@@ -953,3 +953,12 @@
 - **回归**：`p79::kongsheng_end_phase_order_liangyin_before_equip_use`（断言历史中「良姻：与…」早于「使用剩余装备」）。
 - **怀柔/清侧文本**：`gen-sgs-skill-text.mjs` 增 `GRANTED_SKILL_TEXT`（授予技不在 heroes.json，需单独补），
   已重新生成 `skill-text.ts`（`check:sgs-skill-text` 通过）。
+
+### （2026-11-05 复验 35）良姻/箜声只在周妃自己的回合内生效
+
+- **现象**：把「移出/移入」抽象成事件后，**开局明任置「任」**也触发了良姻（事件是全局的，但周妃不该在别人的回合/开局阶段响应）。
+- **用户裁定**：良姻与箜声**只在周妃自己的回合内生效**（技能描述没写这条，但实现上按「回合开始 push 钩子 / 回合结束 pop」理解）。
+- **实现**：`liangyin_trigger` 增加门闩 `st.turn == owner && st.phase == Phase::Turn`；事件源与派发保持不变
+  （事件仍全局产生，只是订阅方按回合窗口过滤）。
+- **回归**：`p79::liangyin_ignores_game_start_mingren`（开局阶段置「任」不触发良姻）。
+- **备注**：这条与「事件驱动」并不冲突 —— 事件总线负责**发现**移出/移入，技能自己负责**是否在窗口内响应**。
