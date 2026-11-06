@@ -328,23 +328,43 @@ pub(crate) fn act_zhenliang(st: &mut SgsState, action: &str) -> Result<String, E
 
 /// 贞良（阴）触发点：回合外使用/打出的牌进入弃牌堆且与「任」同色。
 pub(crate) fn push_zhenliang_yin(st: &mut SgsState, owner: usize, card: &str) {
-    let _dbg = ();
     if !skills::has(st, owner, "zhenliang") || !skills::yj_yin(st, owner, "zhenliang") {
         return;
     }
-    if st.turn == owner || st.counter("zhenliang_yin_done") > 0 {
+    if st.turn == owner {
+        return;
+    }
+    // 诊断（真机「阴不发动」）：回合外+阴面时写一条带原因的历史，便于定位卡在哪一步。
+    if st.counter("zhenliang_yin_done") > 0 {
+        st.push_log(
+            Some(&st.seats[owner].player_id.clone()),
+            "贞良（阴）未触发：本回合已发动过".to_string(),
+        );
         return;
     }
     let Some(red) = ren_color(st, owner) else {
+        st.push_log(
+            Some(&st.seats[owner].player_id.clone()),
+            "贞良（阴）未触发：没有「任」".to_string(),
+        );
         return;
     };
-    if !st
+    let hit = st
         .cards
         .get(card)
-        .is_some_and(|c| skills::is_red(c.suit) == red)
-    {
+        .is_some_and(|c| skills::is_red(c.suit) == red);
+    if !hit {
+        let label = turn::card_label(st, card);
+        st.push_log(
+            Some(&st.seats[owner].player_id.clone()),
+            format!("贞良（阴）未触发：【{label}】与「任」异色"),
+        );
         return;
     }
+    st.push_log(
+        Some(&st.seats[owner].player_id.clone()),
+        "贞良（阴）：同色牌入弃牌堆，询问是否令一名角色摸 1 张".to_string(),
+    );
     push(
         st,
         Frame::ZhenLiangYin(ZhenLiangYinFrame {
@@ -392,7 +412,7 @@ pub(crate) fn step_zhenliang_yin(
             Ok(true)
         }
         ZhenLiangYinStage::Target => {
-            let options: Vec<PendingOption> = st
+            let mut options: Vec<PendingOption> = st
                 .alive_indices()
                 .into_iter()
                 .map(|i| PendingOption {
@@ -400,6 +420,7 @@ pub(crate) fn step_zhenliang_yin(
                     label: format!("贞良（阴）：令 {} 摸 1 张", general_name(st, i)),
                 })
                 .collect();
+            options.push(pass_option("不发动贞良（阴）"));
             st.pending = Some(Pending {
                 kind: "target".into(),
                 actor: st.seats[f.owner].player_id.clone(),
@@ -441,6 +462,10 @@ pub(crate) fn zhenliang_yin_target(
         Some(Frame::ZhenLiangYin(f)) => f,
         _ => return Err(internal("栈顶不是贞良（阴）帧")),
     };
+    if action == "pass" {
+        pop(st);
+        return Ok("不发动贞良（阴）".to_string());
+    }
     let pid = action
         .strip_prefix("target:")
         .ok_or_else(|| illegal("需要选择目标"))?;
