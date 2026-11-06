@@ -865,8 +865,56 @@ impl SgsState {
             c.judge += s.judge_zone.len();
             c.marks += s.marks.values().map(Vec::len).sum::<usize>();
         }
+        // 帧内牌只统计**不在任何区域**的那些（否则 processing 与 frame 会重复计数）。
+        let mut zoned: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        zoned.extend(self.deck.draw.iter().cloned());
+        zoned.extend(self.deck.discard.iter().cloned());
+        zoned.extend(self.deck.processing.iter().cloned());
+        zoned.extend(self.deck.void.iter().cloned());
+        for s in &self.seats {
+            zoned.extend(s.hand.iter().cloned());
+            zoned.extend(s.equips.values().flatten().cloned());
+            zoned.extend(s.judge_zone.iter().cloned());
+            for l in s.marks.values() {
+                zoned.extend(l.iter().cloned());
+            }
+        }
+        c.in_frames = self
+            .cards_in_frames()
+            .into_iter()
+            .filter(|id| !zoned.contains(id))
+            .count();
         c.instances = self.cards.len();
         c
+    }
+
+    /// 结算帧里暂存的牌 id（去重）。用于守恒断言时排除「帧持有」的正常中间态。
+    pub fn cards_in_frames(&self) -> Vec<String> {
+        let mut out: Vec<String> = Vec::new();
+        fn walk(
+            v: &serde_json::Value,
+            known: &std::collections::BTreeMap<String, CardInst>,
+            out: &mut Vec<String>,
+        ) {
+            match v {
+                serde_json::Value::String(s) => {
+                    if known.contains_key(s) {
+                        out.push(s.clone());
+                    }
+                }
+                serde_json::Value::Array(a) => a.iter().for_each(|x| walk(x, known, out)),
+                serde_json::Value::Object(m) => m.values().for_each(|x| walk(x, known, out)),
+                _ => {}
+            }
+        }
+        for f in &self.resolution {
+            if let Ok(v) = serde_json::to_value(f) {
+                walk(&v, &self.cards, &mut out);
+            }
+        }
+        out.sort();
+        out.dedup();
+        out
     }
 
     /// 牌数守恒：所有区域的牌实例数之和 == `cards` 中的实例总数。
@@ -949,6 +997,9 @@ pub struct CardCounts {
     pub judge: usize,
     /// 武将牌上的标记（不屈「创」等）。
     pub marks: usize,
+    /// **暂存在结算帧里**的牌（箜声剩余装备、罪论亮牌等）：结算中途的正常中间态，
+    /// 必须计入总数，否则「帧持有牌」会被误报成「缺失牌」（真机反复误报的根因）。
+    pub in_frames: usize,
     /// 牌实例总数（`state.cards.len()`）。
     pub instances: usize,
 }
@@ -963,5 +1014,6 @@ impl CardCounts {
             + self.equips
             + self.judge
             + self.marks
+            + self.in_frames
     }
 }

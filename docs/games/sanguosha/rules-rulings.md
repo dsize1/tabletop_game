@@ -907,3 +907,17 @@
   （「不回复 / 不发动 / 不使用」这类放弃项统一放进浮层）。
 - **顺带确认**：该局状态**牌数守恒**（`draw129 + discard13 + hands13 + equips1 + marks4 = 160`）——
   上一轮的箜声明细修复生效，罐失牌问题不再复现。
+
+### （2026-11-05 复验 32）守恒统计漏算「结算帧持有的牌」（误报根因）
+
+- **用户判断正确**：`preview:abcbac6b` 里 `draw124 + discard12 + hands17 + equips2 + marks(kong3+rong1+ren1=5) = 160`，
+  但哨兵报 `marks: 2`、缺 `c136/c81`。
+- **根因**：`CardCounts` 只统计 draw/discard/processing/void/hands/equips/judge/marks 八个区域，
+  **没有统计「暂存在结算帧里的牌」**（箜声结束阶段把剩余装备放进 `KongShengFrame.cards`、罪论亮牌等在帧里）。
+  帧持有期间牌不在任何区域 → 守恒自检判定「缺失」→ **误报**（这也解释了为什么修了几处真 bug 后仍然报错）。
+- **修复**：`CardCounts` 新增 `in_frames`；`SgsState::cards_in_frames()` 扫描 `resolution` 栈里出现的牌 id，
+  只统计**不在任何区域**的那些（避免 processing 重复计数），并计入 `total_in_zones()`。
+- **回归**：`p79::conservation_counts_cards_held_in_frames`（把两张牌放进箜声帧 → `in_frames==2` 且守恒通过）。
+- **门禁**：`cargo test -p sanguosha` **979 全绿**。
+- **备注**：本轮之前修的 4 处（hand_cap 口径、弃牌阶段只弃一次、濒死吞伤害后钩子、箜声不使用出口）
+  都是**真缺陷**，与本次误报叠加在一起；现在统计口径正确，剩余报警可视为真丢牌。

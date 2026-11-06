@@ -339,6 +339,47 @@ fn kongsheng_skip_equip_use_discards_cards() {
     st.check_conservation().unwrap();
 }
 
+/// 守恒统计必须把「暂存在结算帧里的牌」计入（否则箜声/罪论结算中途会误报缺牌）。
+#[test]
+fn conservation_counts_cards_held_in_frames() {
+    let mgr = manager(4401);
+    let room = start_and_pick(&mgr, 5);
+    let mut cur = 0;
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        cur = st.turn;
+        set_general(st, cur, "sgs_hero_411"); // 周妃
+        // 直接把两张牌放进「箜声」标记，再模拟结束阶段把它们移入结算帧。
+        let a = give(st, cur, "qinggang_jian");
+        let b = give(st, cur, "sha");
+        for id in [&a, &b] {
+            if crate::turn::take_card(st, cur, id).is_err() {
+                let def = st.cards.get(id).map(|c| c.def.clone()).unwrap_or_default();
+                let slot = crate::turn::card_def(st, &def).and_then(|d| d.equip_slot);
+                if let Some(sl) = slot {
+                    st.seats[cur].equips.insert(sl, None);
+                }
+            }
+            crate::skills::add_mark(st, cur, "kong", id);
+        }
+        st.check_conservation().expect("进 marks 后应守恒");
+        // 模拟结束阶段：把牌从 marks 取出、只放在帧里（尚未使用/弃置）。
+        st.seats[cur].marks.remove("kong");
+        crate::resolve::push(
+            st,
+            crate::resolve::Frame::KongSheng(crate::resolve_sp2::KongShengFrame {
+                actor: cur,
+                stage: crate::resolve_sp2::KongShengStage::UseEquip,
+                cards: vec![a.clone(), b.clone()],
+            }),
+        );
+        let c = st.card_counts();
+        assert_eq!(c.in_frames, 2, "帧内两张牌应被统计：{c:?}");
+        st.check_conservation()
+            .expect("帧持有牌不应被判为缺失（真机误报根因）");
+    });
+}
+
 #[test]
 fn kongsheng_equip_cards_used_by_target() {
     let mgr = manager(1021);
