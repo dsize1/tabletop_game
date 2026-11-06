@@ -2,6 +2,14 @@
 
 > 记录项目关键节点与验证结果，按时间倒序。重大技术决策见 `decisions/`。
 
+## M74：罪论排序校验 + 自查结论 ✅
+
+- **自查**：排序后两张牌**确实放到牌堆顶**（`deck.draw` 尾部 = 新顶；`ids` 倒序 push），回归断言 top/次顶顺序。
+- **修复**：`zuilun_order` 只校验「都在」不校验互斥 → `order:c1,c1` 会把同牌压两次、另一张留在 processing（不守恒隐患）。
+  改为「去重排序后与剩余牌完全相等」。回归 `p78::zuilun_order_rejects_duplicate_ids`。
+- **不修（用户裁定）**：`zuilun` Zero 段无其他存活角色时直接 pop —— 那时对局已结束，3 张亮牌留在 processing 无影响。
+- **门禁**：`cargo test -p sanguosha` **974 全绿**。
+
 ## M73：良姻回血过滤满血 + 箜声浮层选项与操作条一致 ✅
 
 - **良姻**：回血候选加 `hp < max_hp` 过滤（满血不再出现）；候选为空直接跳过询问。回归 `p79::liangyin_heal_skips_full_hp_candidates`。

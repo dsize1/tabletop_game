@@ -852,4 +852,5 @@
   客户端提交 `order:c1,c1` 时会把同一张牌 push 两次、另一张永远留在 `processing`（牌数不守恒 159/160 的候选之一）。
   已修：要求 `ids` 去重后与 `f.cards` 排序后完全相等（不能重复/遗漏）。
 - **回归**：`p78::zuilun_order_rejects_duplicate_ids`（重复 id 必须报错）。
-- **仍待修**：`zuilun` Zero 段「除自己外无存活角色」时直接 pop，3 张亮牌留在 processing（需落盘）。
+- **不修（用户裁定）**：`zuilun` Zero 段「除自己外无存活角色」时直接 pop —— 此时对局已结束（无其他存活角色 = 只剩自己），
+  3 张亮牌留在 processing 不影响结算与回放，**按设计接受**，不再改动。
