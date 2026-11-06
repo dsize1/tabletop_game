@@ -375,7 +375,9 @@ fn hongju_swap_uses_player_selection() {
     let st = state_of(&mgr, &room);
     let p = st.pending.clone().expect("鸿举应弹选牌（choose_many）");
     assert_eq!(p.kind, "choose_many", "应由玩家选牌：{:?}", p.kind);
-    assert_eq!(u64::from(p.data["min"].as_u64().unwrap_or(0)), 3, "需选 3 张");
+    // 「任意手牌替换等量」→ min=0、max=min(荣数, 手牌数)=3，玩家可选 0–3 张。
+    assert_eq!(p.data["min"].as_u64().unwrap_or(9), 0, "允许不替换");
+    assert_eq!(p.data["max"].as_u64().unwrap_or(0), 3, "至多 3 张");
     assert!(p.options.iter().filter(|o| o.id.starts_with("choose:")).count() >= 3);
     st.check_conservation().unwrap();
 }

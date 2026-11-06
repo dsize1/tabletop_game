@@ -4368,6 +4368,12 @@ pub fn execute(
         if crate::skills::mark_cards(st, idx, "rong").is_empty() {
             return Err(illegal("没有「荣」可移去"));
         }
+        // 防重复：上一次清侧还在等待选择时，不允许再次发动（真机曾连续「发动清侧」×4 叠帧）。
+        if st.pending.is_some()
+            || matches!(crate::resolve::top(st), Some(crate::resolve::Frame::QingCe(_)))
+        {
+            return Err(illegal("清侧仍在结算中"));
+        }
         resolve::push(
             st,
             resolve::Frame::QingCe(crate::resolve_sp2::QingCeFrame { actor: idx }),

@@ -14,8 +14,12 @@ function seatLabel(board: SgsPublicBoard, pid: string | null | undefined, names?
 }
 
 function optionButtons(p: SgsPending, filter?: (id: string) => boolean): string {
-  return p.options
-    .filter((o) => (filter ? filter(o.id) : true))
+  // 过滤只用于**分组**：若过滤后为空，回退为「全量渲染」——
+  // 否则引擎新增动作前缀（如清侧的 `card:`）时，白名单漏一个就变成「按钮不出现、无交互」
+  // （真机：发动清侧后没有任何可点项）。
+  const picked = p.options.filter((o) => (filter ? filter(o.id) : true));
+  const list = picked.length > 0 ? picked : p.options;
+  return list
     .map(
       (o) =>
         `<button type="button" class="btn small${o.id === "pass" ? " ghost" : ""}" ` +

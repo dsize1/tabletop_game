@@ -1627,6 +1627,7 @@ pub(crate) fn hongju_awaken(st: &mut SgsState, seat: usize) -> bool {
         Some(&st.seats[seat].player_id.clone()),
         "鸿举：觉醒，减少 1 点体力上限并获得「清侧」",
     );
+    // 官方文本：「用**任意**手牌替换等量的『荣』」→ 张数由玩家选（0..=min(荣数, 手牌数)）。
     let n = rong.len().min(st.seats[seat].hand.len());
     if n > 0 {
         push(
@@ -1635,9 +1636,9 @@ pub(crate) fn hongju_awaken(st: &mut SgsState, seat: usize) -> bool {
                 actor: seat,
                 purpose: "hongju".into(),
                 selected: Vec::new(),
-                min: n,
+                min: 0,
                 max: n,
-                data: json!({}),
+                data: json!({ "max_note": "任意张（不超过「荣」数与手牌数）" }),
             }),
         );
     }
