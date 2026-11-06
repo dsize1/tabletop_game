@@ -4553,7 +4553,9 @@ pub fn on_non_delayed_trick_used(st: &mut SgsState, seat: usize, events: &mut Ve
     if st.turn == seat {
         st.bump_counter("trick_used");
     }
-    if !has(st, seat, "jizhi") {
+    // 决堰（陆抗·宝物栏）：本回合获得「集智」（按座位计数，回合结束随 turn_counters 清空）。
+    let jueyan_jizhi = st.counter(&format!("jueyan_jizhi:{seat}")) > 0;
+    if !has(st, seat, "jizhi") && !jueyan_jizhi {
         return;
     }
     if is_jiexian(st, seat) {

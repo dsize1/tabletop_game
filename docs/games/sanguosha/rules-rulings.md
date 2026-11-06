@@ -984,3 +984,16 @@
   队列在栈空派发（濒死救援自然先结算）。**移除 6 处逐路径接线**。
 - **回归**：`p78::zhenliang_yin_asks_after_respond_settles`、`p78::zhenliang_yin_triggers_on_jiu_self_rescue`（均通过）。
 - **推广**：所有「使用/打出/失牌」类触发都应走这套差分/事件，而不是逐路径调用（写入重构评估 §7.5）。
+
+### （2026-11-05 复验 38）决堰宝物栏·集智 / 明任开局必选 / 清侧入口
+
+- **决堰·宝物栏（陆抗）**：原先只写了一个**全局计数器** `jueyan_jizhi`，而集智钩子只认 `skills::has(seat,"jizhi")`
+  → **拿到「集智」但不生效**（用锦囊不摸牌）。修复：计数器改为**按座位** `jueyan_jizhi:<seat>`，
+  并在 `on_non_delayed_trick_used` 里把它当作「本回合拥有集智」。
+  回归：`p78::jueyan_treasure_grants_jizhi_this_turn`。
+- **明任（卢植）开局**：允许「取消」会导致「任」永远为空 → 明任/贞良两个技能全废。
+  修复：开局 `mingren_init` 的 MultiSelect `min=1`（**必选**，不再提供取消）。
+- **清侧（毌丘俭·鸿举授予）**：`skill:qingce` 的执行分支与帧早已存在，但**出牌阶段没下发合法动作**
+  → 玩家看不到按钮、不能手动使用。修复：`turn::legal_actions` 增加条件（有「荣」+ 场上有装备/判定牌）。
+- **鸿举选牌**：`hongju_awaken` 的 `MultiSelect(min=max=荣数)` 本身是**玩家选牌**；真机看到的「随机替换」
+  是 **AI 代选**（沙盒全 bot）。回归 `p78::hongju_swap_uses_player_selection` 断言 pending 为 `choose_many` 且需选满。

@@ -267,6 +267,88 @@ fn zhenliang_yin_triggers_on_jiu_self_rescue() {
     st.check_conservation().unwrap();
 }
 
+/// 决堰·宝物栏：本回合应真正获得「集智」（用非延时锦囊摸 1）。
+#[test]
+fn jueyan_treasure_grants_jizhi_this_turn() {
+    let mgr = manager(1018);
+    let room = start_and_pick(&mgr, 5);
+    let (mut lu, mut lu_pid) = (0, String::new());
+    let mut trump = String::new();
+    let mut hand_before = 0;
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        lu = st.turn;
+        set_general(st, lu, "sgs_hero_414"); // 陆抗（非界，非自带集智）
+        trump = give(st, lu, "wuzhong_shengyou");
+        st.turn_phase = TurnPhase::Play;
+        st.turn_counters.clear();
+        lu_pid = st.seats[lu].player_id.clone();
+        // 通过帧入口发动：先压决堰帧，再执行选项。
+        crate::resolve::push(
+            st,
+            crate::resolve::Frame::JueYan(crate::resolve_sp2::JueYanFrame { actor: lu }),
+        );
+        let mut ev0 = Vec::new();
+        crate::resolve::advance(st, &mut ev0).unwrap();
+        crate::resolve_sp2::act_jueyan(st, "choose:jueyan:treasure").expect("决堰宝物栏");
+        hand_before = st.seats[lu].hand.len();
+        // 使用【无中生有】：集智应额外摸 1（无中生有本身摸 2）。
+        let mut ev = Vec::new();
+        crate::resolve::advance(st, &mut ev).unwrap();
+    });
+    // 直接调用「使用锦囊后」钩子验证集智生效。
+    edit(&mgr, &room, |st| {
+        let mut ev = Vec::new();
+        crate::skills::on_non_delayed_trick_used(st, lu, &mut ev);
+    });
+    let st = state_of(&mgr, &room);
+    assert!(
+        st.seats[lu].hand.len() > hand_before,
+        "决堰宝物栏后使用锦囊应触发集智摸 1（{} → {}）",
+        hand_before,
+        st.seats[lu].hand.len()
+    );
+    let _ = (lu_pid, trump);
+}
+
+/// 鸿举觉醒：替换「荣」由玩家选牌（MultiSelect min=max=荣数），不是随机。
+#[test]
+fn hongju_swap_uses_player_selection() {
+    let mgr = manager(1019);
+    let room = start_and_pick(&mgr, 5);
+    let mut wu = 0;
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        wu = st.turn;
+        set_general(st, wu, "sgs_hero_413"); // 毌丘俭
+        for _ in 0..3 {
+            let c = st
+                .deck
+                .draw
+                .iter()
+                .find(|id| st.cards.get(*id).is_some_and(|x| x.def == "sha"))
+                .cloned()
+                .expect("应有【杀】");
+            st.deck.draw.retain(|x| x != &c);
+            skills::add_mark(st, wu, "rong", &c);
+        }
+        for _ in 0..3 {
+            give(st, wu, "shan");
+        }
+        st.turn_phase = TurnPhase::Prepare;
+        st.turn_counters.clear();
+        assert!(crate::resolve_sp2::hongju_awaken(st, wu), "应觉醒");
+        let mut ev = Vec::new();
+        crate::resolve::advance(st, &mut ev).unwrap();
+    });
+    let st = state_of(&mgr, &room);
+    let p = st.pending.clone().expect("鸿举应弹选牌（choose_many）");
+    assert_eq!(p.kind, "choose_many", "应由玩家选牌：{:?}", p.kind);
+    assert_eq!(u64::from(p.data["min"].as_u64().unwrap_or(0)), 3, "需选 3 张");
+    assert!(p.options.iter().filter(|o| o.id.starts_with("choose:")).count() >= 3);
+    st.check_conservation().unwrap();
+}
+
 #[test]
 fn zhenliang_yang_deals_damage_with_same_color() {
     let mgr = manager(1001);

@@ -3186,6 +3186,18 @@ pub fn legal_actions(st: &SgsState, player_id: &str) -> Vec<Action> {
             description: "决堰：废除一个装备栏并获得本回合效果".into(),
         });
     }
+    // 清侧（毌丘俭·鸿举授予）：出牌阶段，移去一张「荣」，弃置场上一张装备/延时锦囊。
+    if crate::skills::has(st, idx, "qingce")
+        && !crate::skills::mark_cards(st, idx, "rong").is_empty()
+        && st.alive_indices().into_iter().any(|i| {
+            !st.seats[i].judge_zone.is_empty() || st.seats[i].equips.values().any(|c| c.is_some())
+        })
+    {
+        out.push(Action {
+            id: "skill:qingce".into(),
+            description: "清侧：移去一张「荣」，弃置场上一张装备/延时锦囊".into(),
+        });
+    }
     // 雄乱（张绣，限定）：指定一名其他角色，废判定区/装备区。
     if crate::skills::has(st, idx, "xiongluan")
         && !st.seats[idx].flags.contains_key("xiongluan_used")

@@ -69,9 +69,10 @@ pub(crate) fn init_mingren(st: &mut SgsState, seat: usize) {
             actor: seat,
             purpose: "mingren_init".into(),
             selected: Vec::new(),
-            min: 0,
+            // 开局**必须**置「任」：允许取消会导致「任」永远为空 → 明任/贞良两个技能全废（真机反馈）。
+            min: 1,
             max: 1,
-            data: json!({}),
+            data: json!({ "mandatory": true }),
         }),
     );
 }
@@ -1786,7 +1787,7 @@ pub(crate) fn act_jueyan(st: &mut SgsState, action: &str) -> Result<String, Engi
             st.push_log(Some(&pid), "决堰：废除坐骑栏，本回合使用牌无距离限制");
         }
         JueYanSlot::Treasure => {
-            st.set_counter("jueyan_jizhi", 1);
+            st.set_counter(&format!("jueyan_jizhi:{}", f.actor), 1);
             st.push_log(Some(&pid), "决堰：废除宝物栏，本回合获得「集智」");
         }
     }
