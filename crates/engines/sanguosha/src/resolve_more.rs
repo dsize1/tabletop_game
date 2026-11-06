@@ -2122,20 +2122,38 @@ pub(crate) fn multiselect_confirm(
             Some(crate::resolve_sp2::hongju_swap(st, f.actor, &cards))
         }
         "kongsheng" => {
+            // 原子性：先校验**全部**选中牌（手牌或装备区），再统一改动；
+            // 否则中途报错会留下「已从装备区移除、但未入 marks」的中间态（真机牌数不守恒 c123 藤甲）。
+            let mut slots: Vec<(String, Option<EquipSlot>)> = Vec::new();
             for id in &f.selected {
-                if turn::take_card(st, f.actor, id).is_err() {
-                    // 手牌里没有 → 可能在装备区（箜声允许置装备区的牌）。
-                    let slot = st.seats[f.actor]
-                        .equips
-                        .iter()
-                        .find(|(_, c)| c.as_deref() == Some(id.as_str()))
-                        .map(|(s, _)| *s);
-                    let Some(slot) = slot else {
-                        return Some(Err(illegal("该牌不在手牌或装备区")));
-                    };
-                    st.seats[f.actor].equips.insert(slot, None);
+                if st.seats[f.actor].hand.contains(id) {
+                    slots.push((id.clone(), None));
+                    continue;
                 }
-                skills::add_mark(st, f.actor, "kong", id);
+                let slot = st.seats[f.actor]
+                    .equips
+                    .iter()
+                    .find(|(_, c)| c.as_deref() == Some(id.as_str()))
+                    .map(|(s, _)| *s);
+                let Some(slot) = slot else {
+                    return Some(Err(illegal(format!(
+                        "该牌不在手牌或装备区：{id}"
+                    ))));
+                };
+                slots.push((id.clone(), Some(slot)));
+            }
+            for (id, slot) in slots {
+                match slot {
+                    None => {
+                        if turn::take_card(st, f.actor, &id).is_err() {
+                            return Some(Err(illegal(format!("手牌中没有该牌：{id}"))));
+                        }
+                    }
+                    Some(sl) => {
+                        st.seats[f.actor].equips.insert(sl, None);
+                    }
+                }
+                skills::add_mark(st, f.actor, "kong", &id);
             }
             // 先 pop 本帧，再触发良姻（否则新压的良姻帧会把本帧顶掉，导致重复结算）。
             pop(st);

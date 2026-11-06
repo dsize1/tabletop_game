@@ -328,6 +328,7 @@ pub(crate) fn act_zhenliang(st: &mut SgsState, action: &str) -> Result<String, E
 
 /// 贞良（阴）触发点：回合外使用/打出的牌进入弃牌堆且与「任」同色。
 pub(crate) fn push_zhenliang_yin(st: &mut SgsState, owner: usize, card: &str) {
+    let _dbg = ();
     if !skills::has(st, owner, "zhenliang") || !skills::yj_yin(st, owner, "zhenliang") {
         return;
     }
@@ -1707,6 +1708,18 @@ pub(crate) fn poshi_awaken(st: &mut SgsState, seat: usize) -> bool {
         return false;
     }
     st.seats[seat].flags.insert("awaken_poshi".into(), true);
+    // 用户裁定（2026-11-05）：**觉醒即废除全部装备栏**（无论此前是否用过决堰），栏内装备进弃牌堆。
+    let slots: Vec<EquipSlot> = EquipSlot::ALL
+        .iter()
+        .copied()
+        .filter(|sl| !st.seats[seat].abolished_slots.contains(sl))
+        .collect();
+    for sl in slots {
+        if let Some(Some(card)) = st.seats[seat].equips.insert(sl, None) {
+            turn::to_discard_card(st, &card);
+        }
+        st.seats[seat].abolished_slots.push(sl);
+    }
     st.seats[seat].max_hp = (st.seats[seat].max_hp - 1).max(1);
     st.seats[seat].hp = st.seats[seat].hp.min(st.seats[seat].max_hp);
     skills::lose_skill(st, seat, "jueyan");

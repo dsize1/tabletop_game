@@ -109,6 +109,50 @@ fn mingren_swap_ends_after_one_replacement() {
     assert_eq!(swaps, 1, "明任替换每回合只结算一次（实际 {swaps} 次）");
 }
 
+/// 破势觉醒：即使此前没有废除装备栏，觉醒时也要废除全部装备栏（栏内装备进弃牌堆）。
+#[test]
+fn poshi_awaken_abolishes_all_slots() {
+    let mgr = manager(1015);
+    let room = start_and_pick(&mgr, 5);
+    let (mut lu, mut weapon, mut discard_before) = (0, String::new(), 0);
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        lu = st.turn;
+        set_general(st, lu, "sgs_hero_414"); // 陆抗
+        st.seats[lu].hp = 1;
+        weapon = give(st, lu, "qinggang_jian");
+        st.seats[lu].hand.retain(|c| c != &weapon);
+        st.seats[lu]
+            .equips
+            .insert(EquipSlot::Weapon, Some(weapon.clone()));
+        st.turn_phase = TurnPhase::Prepare;
+        st.turn_counters.clear();
+        discard_before = st.deck.discard.len();
+        let mut ev = Vec::new();
+        crate::resolve::advance(st, &mut ev).unwrap();
+    });
+    let st = state_of(&mgr, &room);
+    assert!(
+        st.seats[lu].flags.contains_key("awaken_poshi"),
+        "破势应已觉醒（体力=1）"
+    );
+    assert_eq!(
+        st.seats[lu].abolished_slots.len(),
+        EquipSlot::ALL.len(),
+        "觉醒后应废除全部装备栏"
+    );
+    assert!(
+        st.seats[lu].equips.values().all(|c| c.is_none()),
+        "废除栏位的装备应被移除"
+    );
+    assert!(
+        st.deck.discard.contains(&weapon),
+        "栏内装备应进弃牌堆（不能凭空消失）"
+    );
+    assert!(st.deck.discard.len() > discard_before);
+    st.check_conservation().unwrap();
+}
+
 #[test]
 fn zhenliang_yang_deals_damage_with_same_color() {
     let mgr = manager(1001);
