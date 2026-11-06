@@ -938,3 +938,18 @@
 - **回归**：`p79::kongsheng_all_equip_end_phase_does_nothing`（全装备 → 标记不变、无良姻）、
   `kongsheng_skip_equip_use_keeps_cards_in_marks`（不使用 → 留在标记）、`kongsheng_equip_cards_used_by_target`（有非装备时才询问）。
 - **门禁**：`cargo test -p sanguosha` **980 全绿**。
+
+### （2026-11-05 复验 34）箜声结束阶段时序 ①→②→③→④（用户口径）
+
+- **口径（用户）**：结束阶段开始时就要压箜声帧；随后
+  **① 取回非装备牌（=移入）→ ② 触发良姻（各摸/各弃 + 选人）→ ③ 良姻回血判定（须晚于②及其引发的奋激/清俭等）→
+  ④ 令一名角色使用剩余「箜声」装备牌并失去 1 点体力**。
+  不可能「没有移入却触发良姻」，也不能跳过②直接到④。
+- **实现**：
+  1. `turn.rs` 结束阶段只压 `KongSheng{stage: Return}`；
+  2. `step_kongsheng(Return)`：partition 非装备/装备 → 非装备回手 → **pop 自己** → 触发良姻（移入）→
+     把装备放入 `kongsheng_use_queue`（排队）；
+  3. `advance` 在「栈空 + 良姻回血队列之后」才弹出 `UseEquip` 帧 → 保证 ③ 先于 ④。
+- **回归**：`p79::kongsheng_end_phase_order_liangyin_before_equip_use`（断言历史中「良姻：与…」早于「使用剩余装备」）。
+- **怀柔/清侧文本**：`gen-sgs-skill-text.mjs` 增 `GRANTED_SKILL_TEXT`（授予技不在 heroes.json，需单独补），
+  已重新生成 `skill-text.ts`（`check:sgs-skill-text` 通过）。

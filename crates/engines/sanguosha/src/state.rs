@@ -577,6 +577,9 @@ pub struct SgsState {
     /// 与具体技能解耦：由引擎在动作结束后做手牌差分得出，栈空时统一询问。
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub fenji_queue: Vec<usize>,
+    /// 箜声「令一名角色使用剩余装备」待办队列：必须等良姻（含回血判定）全部结算完再弹出。
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub kongsheng_use_queue: Vec<(usize, Vec<String>)>,
     /// 贞良（阴）待办队列（(owner, card)）：栈空后压帧询问。
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub zhenliang_yin_queue: Vec<(usize, String)>,

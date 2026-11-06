@@ -1454,37 +1454,18 @@ pub(crate) fn phase_step(
             if crate::resolve_sp2::start_zuilun(st) {
                 return Ok(true);
             }
-            // 箜声（周妃）：结束阶段获得非装备牌，并令一名角色使用剩余装备牌。
+            // 箜声（周妃）：结束阶段。**先压帧**，由帧内按 ①取回非装备 →（触发良姻）→ ④使用剩余装备 的顺序结算。
             if crate::skills::has(st, st.turn, "kongsheng") && st.counter("kongsheng_end") == 0 {
                 st.set_counter("kongsheng_end", 1);
-                let kong = crate::skills::mark_cards(st, st.turn, "kong");
-                // 口径（用户 2026-11-05）：先取回**非装备牌**；装备牌**留在「箜声」标记里**，
-                // 只有「确实取回了非装备牌」才进入「然后令一名角色使用剩余装备」这一步。
-                // 全是装备牌 → 什么都没发生：不询问、装备继续留在标记、也不触发良姻「移入」。
-                let (non_equips, equips): (Vec<String>, Vec<String>) = kong.into_iter().partition(|card| {
-                    !card_def(st, card).is_some_and(|d| d.equip_slot.is_some())
-                });
-                if non_equips.is_empty() {
-                    // 全装备：结束阶段箜声不产生任何效果（直接结束本技能结算）。
-                    return Ok(false);
-                }
-                for card in &non_equips {
-                    crate::skills::remove_mark(st, st.turn, "kong", card);
-                    st.seats[st.turn].hand.push(card.clone());
-                }
-                // 非装备牌回到手中 = 牌移入游戏（触发良姻「移入」，每回合首次）。
-                crate::resolve_sp2::liangyin_trigger(st, crate::resolve_sp2::MoveDir::In);
-                if !equips.is_empty() {
-                    resolve::push(
-                        st,
-                        resolve::Frame::KongSheng(crate::resolve_sp2::KongShengFrame {
-                            actor: st.turn,
-                            stage: crate::resolve_sp2::KongShengStage::UseEquip,
-                            cards: equips,
-                        }),
-                    );
-                    return Ok(true);
-                }
+                resolve::push(
+                    st,
+                    resolve::Frame::KongSheng(crate::resolve_sp2::KongShengFrame {
+                        actor: st.turn,
+                        stage: crate::resolve_sp2::KongShengStage::Return,
+                        cards: Vec::new(),
+                    }),
+                );
+                return Ok(true);
             }
             // 勤学（界吕蒙）：结束阶段同样可觉醒（每局只询问一次）。
             if crate::resolve_jiexian::qinxue_ready(st, st.turn)

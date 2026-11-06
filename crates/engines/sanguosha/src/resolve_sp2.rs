@@ -1331,6 +1331,8 @@ pub(crate) fn liangyin_target(
 pub enum KongShengStage {
     /// 准备阶段：选择置于武将牌上的牌。
     Keep,
+    /// 结束阶段：① 取回非装备牌（=牌移入）→ 触发良姻 → ④ 使用剩余装备排队延后。
+    Return,
     /// 结束阶段：选择使用剩余装备牌的角色。
     UseEquip,
 }
@@ -1344,6 +1346,32 @@ pub struct KongShengFrame {
 
 pub(crate) fn step_kongsheng(st: &mut SgsState, f: KongShengFrame) -> Result<bool, EngineError> {
     match f.stage {
+        KongShengStage::Return => {
+            // ① 取回「箜声」中的**非装备牌**；装备牌留在标记里，等 ④ 再处理。
+            let kong = crate::skills::mark_cards(st, f.actor, "kong");
+            let (non_equips, equips): (Vec<String>, Vec<String>) = kong
+                .into_iter()
+                .partition(|card| {
+                    !turn::card_def(st, card).is_some_and(|d| d.equip_slot.is_some())
+                });
+            if non_equips.is_empty() {
+                // 全是装备牌：什么都不发生（不询问、不触发良姻、装备继续留在「箜声」）。
+                pop(st);
+                return Ok(false);
+            }
+            for card in &non_equips {
+                crate::skills::remove_mark(st, f.actor, "kong", card);
+                st.seats[f.actor].hand.push(card.clone());
+            }
+            pop(st);
+            // ② 非装备牌回手 = 牌移入游戏 → 触发良姻（移入）。良姻帧压在栈顶先结算。
+            // ④ 使用剩余装备**排队**，等良姻（含其回血判定）全部结算完再弹（`advance` 里处理）。
+            if !equips.is_empty() {
+                st.kongsheng_use_queue.push((f.actor, equips));
+            }
+            crate::resolve_sp2::liangyin_trigger(st, MoveDir::In);
+            Ok(false)
+        }
         KongShengStage::Keep => {
             // 可置**手牌与装备区的牌**（用户 2026-11-05 补充口径）。
             let mut allowed: Vec<String> = st.seats[f.actor].hand.clone();

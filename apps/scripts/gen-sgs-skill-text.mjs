@@ -27,8 +27,14 @@ const implemented = new Set(
 );
 const heroes = allHeroes.filter((h) => h?.name && implemented.has(h.name));
 
+// 授予技（觉醒/破势等）不在 heroes.json 里，需在此补官方文本；键为技能名。
+const GRANTED_SKILL_TEXT = {
+  怀柔: "出牌阶段，你可以重铸一张装备牌（弃置并摸一张牌）。",
+  清侧: "出牌阶段限一次，你可以弃置一名角色一张牌，然后若你与其的距离大于1，你摸一张牌。",
+};
+
 const generals = {};
-const byName = {};
+const byName = { ...GRANTED_SKILL_TEXT };
 for (const h of heroes) {
   if (!h?.name) continue;
   const skills = {};

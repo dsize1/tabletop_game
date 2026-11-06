@@ -627,6 +627,7 @@ impl EnginePlugin for SanguoshaEngine {
             scheduled: Vec::new(),
             void_return: Vec::new(),
             pending_liyu: Vec::new(),
+            kongsheng_use_queue: Vec::new(),
             zhenliang_yin_queue: Vec::new(),
             liangyin_heal_queue: Vec::new(),
             fenji_queue: Vec::new(),

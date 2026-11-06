@@ -891,6 +891,19 @@ pub fn advance(st: &mut SgsState, events: &mut Vec<EngineEvent>) -> Result<(), E
             );
             continue;
         }
+        // 箜声（周妃）④：良姻（含回血判定）结算完后，才「令一名角色使用剩余装备并失去 1 点体力」。
+        if top(st).is_none() && !st.kongsheng_use_queue.is_empty() {
+            let (actor, cards) = st.kongsheng_use_queue.remove(0);
+            push(
+                st,
+                Frame::KongSheng(crate::resolve_sp2::KongShengFrame {
+                    actor,
+                    stage: crate::resolve_sp2::KongShengStage::UseEquip,
+                    cards,
+                }),
+            );
+            continue;
+        }
         // 利驭（界吕布）：栈空后询问（避免覆盖父帧 outcome）。
         if top(st).is_none() && !st.pending_liyu.is_empty() {
             let (actor, target) = st.pending_liyu.remove(0);

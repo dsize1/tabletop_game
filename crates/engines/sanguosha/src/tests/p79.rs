@@ -420,6 +420,54 @@ fn conservation_counts_cards_held_in_frames() {
     });
 }
 
+/// 箜声结束阶段时序：①非装备回手 → ②良姻（摸/弃）→ ③良姻回血判定 → ④使用剩余装备。
+/// 真机反馈：此前 ①之后直接跳 ④（良姻的摸/弃都没弹）。
+#[test]
+fn kongsheng_end_phase_order_liangyin_before_equip_use() {
+    let mgr = manager(1033);
+    let room = start_and_pick(&mgr, 5);
+    let (mut cur, mut cur_pid, mut other_pid, mut equip) =
+        (0, String::new(), String::new(), String::new());
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        cur = st.turn;
+        set_general(st, cur, "sgs_hero_411");
+        let other = other_seats(st, cur)[0];
+        set_general(st, other, "sgs_hero_1");
+        other_pid = st.seats[other].player_id.clone();
+        equip = give(st, cur, "qinggang_jian");
+        st.seats[cur].hand.retain(|c| c != &equip);
+        crate::skills::add_mark(st, cur, "kong", &equip);
+        let filler = give(st, cur, "sha");
+        st.seats[cur].hand.retain(|c| c != &filler);
+        crate::skills::add_mark(st, cur, "kong", &filler);
+        cur_pid = st.seats[cur].player_id.clone();
+        st.turn_phase = TurnPhase::End;
+        st.turn_counters.clear();
+        let mut inject = vec![
+            format!("{cur_pid}=choose:liangyin:draw"),
+            format!("{cur_pid}=target:{other_pid}"),
+            format!("{cur_pid}=pass"),
+            format!("{cur_pid}=target:{other_pid}"),
+        ];
+        drive_phases(st, &mut inject);
+    });
+    let st = state_of(&mgr, &room);
+    let pos = |needle: &str| {
+        st.history
+            .iter()
+            .position(|e| e.text.contains(needle))
+            .unwrap_or_else(|| panic!("历史里没有「{needle}」：{:?}", st.history.iter().map(|e| &e.text).collect::<Vec<_>>()))
+    };
+    // ② 良姻（摸/弃）必须先于 ④「使用剩余装备」。
+    assert!(
+        pos("良姻：与") < pos("使用剩余装备"),
+        "顺序应为 良姻 → 使用剩余装备：{:?}",
+        st.history.iter().map(|e| &e.text).collect::<Vec<_>>()
+    );
+    st.check_conservation().unwrap();
+}
+
 #[test]
 fn kongsheng_equip_cards_used_by_target() {
     let mgr = manager(1021);
