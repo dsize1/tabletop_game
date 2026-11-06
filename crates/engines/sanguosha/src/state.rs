@@ -908,12 +908,27 @@ impl SgsState {
                 .filter(|(_, v)| v.len() > 1)
                 .map(|(k, v)| format!("{k}→[{}]", v.join(",")))
                 .collect();
+            // 缺失牌清单（实例存在但不在任何区域）：直接指出是哪张牌，方便定位吞牌的技能。
+            let missing: Vec<String> = self
+                .cards
+                .keys()
+                .filter(|id| !seen.contains_key(*id))
+                .map(|id| {
+                    let def = self
+                        .cards
+                        .get(id)
+                        .map(|c| c.def.clone())
+                        .unwrap_or_default();
+                    format!("{id}({def})")
+                })
+                .collect();
             return Err(format!(
-                "牌数不守恒：区域合计 {} ≠ 实例总数 {}（{:?}）；重复牌：{}",
+                "牌数不守恒：区域合计 {} ≠ 实例总数 {}（{:?}）；重复牌：{}；缺失牌：{}",
                 c.total_in_zones(),
                 c.instances,
                 c,
-                if dups.is_empty() { "无（疑似缺失）".to_string() } else { dups.join("；") }
+                if dups.is_empty() { "无".to_string() } else { dups.join("；") },
+                if missing.is_empty() { "无".to_string() } else { missing.join(",") }
             ));
         }
         Ok(c)
