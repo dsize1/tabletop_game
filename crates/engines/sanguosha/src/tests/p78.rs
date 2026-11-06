@@ -207,6 +207,66 @@ fn zhenliang_yin_asks_after_respond_settles() {
     st.check_conservation().unwrap();
 }
 
+/// 贞良（阴）：濒死用【酒】自救（回合外的「使用」）也要触发 —— 真机漏触发案例。
+#[test]
+fn zhenliang_yin_triggers_on_jiu_self_rescue() {
+    let mgr = manager(1017);
+    let room = start_and_pick(&mgr, 5);
+    let (mut attacker, mut lu, mut lu_pid, mut jiu) = (0, 0, String::new(), String::new());
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        attacker = st.turn;
+        set_general(st, attacker, "sgs_hero_1");
+        lu = other_seats(st, attacker)[0];
+        set_general(st, lu, "sgs_hero_407"); // 卢植
+        st.seats[lu].flags.insert("yj:zhenliang".into(), true); // 阴
+        st.seats[lu].hp = 1;
+        // 「任」为黑色（♠ 杀），自救用的【酒♠9】也是黑色 → 同色。
+        let ren = st
+            .deck
+            .draw
+            .iter()
+            .find(|id| {
+                st.cards
+                    .get(*id)
+                    .is_some_and(|c| c.def == "sha" && !crate::skills::is_red(c.suit))
+            })
+            .cloned()
+            .expect("牌堆应有黑色【杀】");
+        st.deck.draw.retain(|c| c != &ren);
+        crate::skills::add_mark(st, lu, "ren", &ren);
+        jiu = give(st, lu, "jiu");
+        lu_pid = st.seats[lu].player_id.clone();
+        st.turn_counters.clear();
+        crate::resolve::apply_damage(
+            st,
+            lu,
+            1,
+            Some(attacker),
+            crate::resolve::DamageType::Normal,
+            None,
+        );
+        let mut ev = Vec::new();
+        crate::resolve::advance(st, &mut ev).unwrap();
+    });
+    let st = state_of(&mgr, &room);
+    let p = st.pending.clone().expect("应进入濒死求桃");
+    assert_eq!(p.kind, "dying");
+    mgr.execute_action(&room, &p.actor, &format!("respond:{jiu}"))
+        .expect("【酒】自救");
+    // 自救成功后栈空 → 贞良（阴）必须询问。
+    let st = state_of(&mgr, &room);
+    let p = st.pending.clone().expect("应有贞良（阴）询问");
+    assert_eq!(
+        p.skill.as_deref(),
+        Some("zhenliang"),
+        "濒死用【酒】自救后应触发贞良（阴）：{:?}",
+        (p.kind.clone(), p.skill.clone())
+    );
+    let _ = lu_pid;
+    st.check_conservation().unwrap();
+}
+
 #[test]
 fn zhenliang_yang_deals_damage_with_same_color() {
     let mgr = manager(1001);

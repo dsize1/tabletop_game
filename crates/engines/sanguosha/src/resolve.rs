@@ -4184,6 +4184,8 @@ fn act_wuxie(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Strin
         turn::take_card(st, seat, card_id)?;
         turn::to_discard_card(st, card_id);
     }
+    // 贞良（阴）：回合外「使用」的牌进入弃牌堆（无懈可击路径）。
+    crate::resolve_sp2::queue_zhenliang_yin(st, seat, card_id);
     f.count += 1;
     f.cursor = 0;
     f.passed = 0;
@@ -5656,6 +5658,8 @@ fn act_dying(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Strin
         };
         turn::take_card(st, seat, card_id)?;
         turn::to_discard_card(st, card_id);
+        // 贞良（阴）：回合外「使用」的牌进入弃牌堆（濒死自救【酒】路径）。
+        crate::resolve_sp2::queue_zhenliang_yin(st, seat, card_id);
         let victim = f.victim;
         st.seats[victim].hp += 1;
         let hp = st.seats[victim].hp;
@@ -5679,6 +5683,8 @@ fn act_dying(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Strin
     };
     turn::take_card(st, seat, card_id)?;
     turn::to_discard_card(st, card_id);
+    // 贞良（阴）：回合外「使用」的牌进入弃牌堆（濒死【桃】/急救转化路径）。
+    crate::resolve_sp2::queue_zhenliang_yin(st, seat, card_id);
     let victim = f.victim;
     // 界救援（主公技）：吴势力角色于其回合内自救时，可改为令主公回复 1 并摸 1。
     if seat == victim && crate::skills::jie_jiuyuan_redirect(st, seat) {
