@@ -1149,7 +1149,10 @@ pub(crate) fn step_liangyin(st: &mut SgsState, f: LiangYinFrame) -> Result<bool,
             let options: Vec<PendingOption> = st
                 .alive_indices()
                 .into_iter()
-                .filter(|i| st.seats[*i].hand.len() == x)
+                // 满血（hp == max_hp）无法回复 → 不作为候选；候选为空则直接跳过询问。
+                .filter(|i| {
+                    st.seats[*i].hand.len() == x && st.seats[*i].hp < st.seats[*i].max_hp
+                })
                 .map(|i| PendingOption {
                     id: format!("target:{}", st.seats[i].player_id),
                     label: format!("良姻：令 {} 回复 1 点体力", general_name(st, i)),

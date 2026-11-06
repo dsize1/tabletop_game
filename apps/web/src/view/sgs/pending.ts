@@ -202,15 +202,27 @@ export function renderChooseManyOverlay(
   const min = Number(p.data?.min ?? 0);
   const max = Number(p.data?.max ?? 0);
   const purpose = typeof p.data?.purpose === "string" ? p.data.purpose : p.skill ?? "";
-  const cards = (area?.hand ?? [])
-    .map((c) => {
-      const on = selected.has(c.id);
+  const handIds = new Set((area?.hand ?? []).map((c) => c.id));
+  const handCards = (area?.hand ?? []).map((c) => {
+    const on = selected.has(c.id);
+    return (
+      `<button type="button" class="sgs-multi-card${on ? " on" : ""}" ` +
+      `data-action="choose:${escapeHtml(c.id)}">${escapeHtml(cardLabel(c))}</button>`
+    );
+  });
+  // 白名单里可能含**非手牌**（箜声可置装备区的牌；界天香可弃装备区红桃）：
+  // 个人区操作条已按 options 渲染，浮层过去只看 area.hand → 两处选项不一致（真机反馈）。
+  const extraCards = p.options
+    .filter((o) => o.id.startsWith("choose:") && !handIds.has(o.id.slice("choose:".length)))
+    .map((o) => {
+      const id = o.id.slice("choose:".length);
+      const on = selected.has(id);
       return (
         `<button type="button" class="sgs-multi-card${on ? " on" : ""}" ` +
-        `data-action="choose:${escapeHtml(c.id)}">${escapeHtml(cardLabel(c))}</button>`
+        `data-action="${escapeHtml(o.id)}">${escapeHtml(o.label.replace(/^✔ /, ""))}</button>`
       );
-    })
-    .join("");
+    });
+  const cards = [...handCards, ...extraCards].join("");
   return (
     `<p class="muted">${escapeHtml(purpose)}：已选 ${selected.size} 张（${min}–${max}）` +
     `${names ? "" : ""}</p>` +

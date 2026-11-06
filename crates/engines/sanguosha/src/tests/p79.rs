@@ -173,6 +173,56 @@ fn quanji_triggers_liangyin_out() {
     assert_eq!(p.actor, zhou_pid);
 }
 
+/// 良姻回血段：满血玩家不作候选；全满血 → 直接跳过（不弹交互）。
+#[test]
+fn liangyin_heal_skips_full_hp_candidates() {
+    let mgr = manager(1028);
+    let room = start_and_pick(&mgr, 5);
+    let (mut zhou, mut other) = (0, 0);
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        zhou = st.turn;
+        set_general(st, zhou, "sgs_hero_411");
+        other = other_seats(st, zhou)[0];
+        set_general(st, other, "sgs_hero_1");
+        // 全员满血 + 手牌数都等于 0 箜声 → 没有任何可回复候选。
+        st.seats[zhou].hp = st.seats[zhou].max_hp;
+        st.seats[other].hp = st.seats[other].max_hp;
+        for i in st.alive_indices() {
+            st.seats[i].hp = st.seats[i].max_hp;
+        }
+        st.turn_phase = TurnPhase::Play;
+        st.turn_counters.clear();
+        crate::resolve_sp2::liangyin_trigger(st, crate::resolve_sp2::MoveDir::Out);
+    });
+    let mut ev = Vec::new();
+    edit(&mgr, &room, |st| crate::resolve::advance(st, &mut ev).unwrap());
+    let st = state_of(&mgr, &room);
+    let zhou_pid = st.seats[zhou].player_id.clone();
+    // 选择「各摸 1 张」（都要摸，之后手牌数可能一致，但满血不该出现回血询问）。
+    let p = st.pending.clone().expect("良姻应询问");
+    assert_eq!(p.skill.as_deref(), Some("liangyin"));
+    mgr.execute_action(&room, &p.actor, "choose:liangyin:draw").unwrap();
+    let st = state_of(&mgr, &room);
+    let p = st.pending.clone().expect("良姻选人");
+    let target = p
+        .options
+        .iter()
+        .find(|o| o.id.starts_with("target:") && o.id != format!("target:{zhou_pid}"))
+        .map(|o| o.id.clone())
+        .expect("应能选一名其他角色");
+    mgr.execute_action(&room, &p.actor, &target).unwrap();
+    // 栈空后才会判定回血；此时全员满血 → 不应出现「良姻：令…回复」pending。
+    let mut ev = Vec::new();
+    edit(&mgr, &room, |st| crate::resolve::advance(st, &mut ev).unwrap());
+    let st = state_of(&mgr, &room);
+    let heal_prompt = st.pending.as_ref().is_some_and(|p| {
+        p.skill.as_deref() == Some("liangyin")
+            && p.options.iter().any(|o| o.label.contains("回复"))
+    });
+    assert!(!heal_prompt, "满血时不应出现回血询问：{:?}", st.pending);
+}
+
 #[test]
 fn kongsheng_equip_cards_used_by_target() {
     let mgr = manager(1021);

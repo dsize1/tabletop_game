@@ -815,3 +815,15 @@
   两次换牌成功后两帧仍在栈上 → 反复重新询问（每次都能成功换牌，所以看起来像"死循环替换"）。
 - **修复**：handler 先 `pop`（MultiSelect），`mingren_swap` 结束时 `pop`（MingRen 帧）。
 - **回归**：`p78::mingren_swap_ends_after_one_replacement`（重复注入 2 轮替换动作，断言只结算 1 次）。
+
+### （2026-11-05 复验 25）良姻回血过滤满血 + 箜声浮层/操作条选项一致
+
+- **良姻回血（用户裁定）**：候选必须是**能回复的角色** —— `hp < max_hp` 且 `手牌数 == 箜声数`；
+  满血玩家即使手牌数吻合也不出现；过滤后候选为空 → **直接跳过回血交互**（不再弹「无意义」询问）。
+- **箜声 UI 不一致（真机反馈）**：个人区操作条按 `pending.options` 渲染（含装备区牌），
+  而 `choose_many` **浮层**只按 `area.hand` 渲染 → 特殊区/浮层看不到装备区牌。
+  修复：`apps/web/src/view/sgs/pending.ts::renderChooseManyOverlay` 追加「options 中不属于手牌」的 `choose:` 项
+  （用 option.label 渲染），与操作条同源。
+- **回归**：`p79::liangyin_heal_skips_full_hp_candidates`；`npm --prefix apps run test:web` 通过。
+- **待查（需用户回帖）**：`discard:` 动作被拒的报错未给响应体 —— 若为「该牌不在手牌」，多为 UI 陈旧
+  （牌已被置入「箜声」/被他人拿走）。下次请把 4xx 响应 JSON 一并贴出，便于定位是 actor/张数/牌位不符。
