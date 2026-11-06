@@ -4048,6 +4048,11 @@ pub fn execute_pending(
     // 不一致时直接报错并带上「谁用什么动作」，便于定位是哪一步吞了牌（真机 159/160 曾难复现）。
     if std::env::var("SGS_DEBUG_CONSERVATION").is_ok() {
         if let Err(e) = st.check_conservation() {
+            // 同时写历史：即使这次请求失败，也能在「历史」里看到**第一个**坏掉的动作。
+            st.push_log(
+                None,
+                format!("⚠️ 守恒哨兵：{player_id} 执行【{action}】后不守恒：{e}"),
+            );
             return Err(internal(format!(
                 "守恒哨兵：{player_id} 执行 `{action}` 后牌数不守恒：{e}"
             )));
