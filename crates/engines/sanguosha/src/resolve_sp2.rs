@@ -1369,7 +1369,7 @@ pub(crate) fn step_kongsheng(st: &mut SgsState, f: KongShengFrame) -> Result<boo
             if !equips.is_empty() {
                 st.kongsheng_use_queue.push((f.actor, equips));
             }
-            crate::resolve_sp2::liangyin_trigger(st, MoveDir::In);
+            // 非装备牌回手 → 由 `remove_mark` 上报「移入」事件（不再硬编码）。
             Ok(false)
         }
         KongShengStage::Keep => {
@@ -1481,8 +1481,7 @@ pub(crate) fn kongsheng_target(
             turn::to_discard_card(st, card);
         }
     }
-    // 装备牌被使用 = 牌移入游戏（触发良姻「移入」，每回合首次）。
-    crate::resolve_sp2::liangyin_trigger(st, MoveDir::In);
+    // 装备牌被使用 → 由 `remove_mark` 上报「移入」事件。
     st.seats[target].hp -= 1;
     st.push_log(
         Some(&st.seats[f.actor].player_id.clone()),

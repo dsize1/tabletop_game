@@ -577,6 +577,9 @@ pub struct SgsState {
     /// 与具体技能解耦：由引擎在动作结束后做手牌差分得出，栈空时统一询问。
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub fenji_queue: Vec<usize>,
+    /// 「牌移出/移入游戏」事件队列（抽象事件，栈空统一派发）。
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub card_moves: Vec<CardMoveEvent>,
     /// 箜声「令一名角色使用剩余装备」待办队列：必须等良姻（含回血判定）全部结算完再弹出。
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub kongsheng_use_queue: Vec<(usize, Vec<String>)>,
@@ -989,7 +992,21 @@ impl SgsState {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+/// 「牌移出游戏 / 移入游戏」事件。
+///
+/// 口径（用户 2026-11-05）：移出 = 牌被置于武将牌上（标记）或进入 `void`；
+/// 移入 = 这些牌回到游戏（回手 / 被使用 / 离开 void）。
+/// **单一事件源**：`skills::add_mark`/`remove_mark`、`turn::to_void_card`/`from_void_card` 统一上报，
+/// 技能（如良姻）只订阅事件，不再逐技能硬编码触发点。
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct CardMoveEvent {
+    /// true = 移出游戏；false = 移入游戏。
+    pub out: bool,
+    pub seat: usize,
+    pub card: String,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct CardCounts {
     pub draw: usize,
     pub discard: usize,

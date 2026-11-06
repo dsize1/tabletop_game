@@ -2157,8 +2157,7 @@ pub(crate) fn multiselect_confirm(
             }
             // 先 pop 本帧，再触发良姻（否则新压的良姻帧会把本帧顶掉，导致重复结算）。
             pop(st);
-            // 牌置于武将牌上 = 移出游戏（触发良姻「移出」，每回合首次）。
-            crate::resolve_sp2::liangyin_trigger(st, crate::resolve_sp2::MoveDir::Out);
+            // 牌置于武将牌上 → 由 `add_mark` 上报「移出」事件。
             Some(Ok(format!("箜声：置于武将牌上 {} 张", f.selected.len())))
         }
         "congjian" => match crate::resolve_sp2::congjian_confirm(st, f) {

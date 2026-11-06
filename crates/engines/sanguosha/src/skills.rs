@@ -5241,10 +5241,29 @@ pub fn add_mark(st: &mut SgsState, seat: usize, code: &str, card: &str) {
             .or_default()
             .push(card.to_string());
     }
+    // 置于武将牌上 = 牌移出游戏（抽象事件，栈空统一派发；技能不应各自手写触发）。
+    st.card_moves.push(crate::state::CardMoveEvent {
+        out: true,
+        seat,
+        card: card.to_string(),
+    });
 }
 
 /// 从武将牌上取出一张标记牌（返回是否成功）。
 pub fn remove_mark(st: &mut SgsState, seat: usize, code: &str, card: &str) -> bool {
+    let removed = remove_mark_inner(st, seat, code, card);
+    if removed {
+        // 从武将牌上取回 = 牌移入游戏。
+        st.card_moves.push(crate::state::CardMoveEvent {
+            out: false,
+            seat,
+            card: card.to_string(),
+        });
+    }
+    removed
+}
+
+fn remove_mark_inner(st: &mut SgsState, seat: usize, code: &str, card: &str) -> bool {
     let Some(s) = st.seats.get_mut(seat) else {
         return false;
     };

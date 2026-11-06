@@ -877,6 +877,33 @@ pub fn advance(st: &mut SgsState, events: &mut Vec<EngineEvent>) -> Result<(), E
                 continue;
             }
         }
+        // 「牌移出/移入游戏」事件（抽象事件，栈空统一派发）→ 良姻等技能订阅。
+        if top(st).is_none() && !st.card_moves.is_empty() {
+            let mut moves = std::mem::take(&mut st.card_moves);
+            let mut i = 0;
+            while i < moves.len() {
+                let mv = moves[i].clone();
+                crate::resolve_sp2::liangyin_trigger(
+                    st,
+                    if mv.out {
+                        crate::resolve_sp2::MoveDir::Out
+                    } else {
+                        crate::resolve_sp2::MoveDir::In
+                    },
+                );
+                if top(st).is_some() {
+                    // 本批**剩余**事件与期间新产生的事件一起放回队列，等这轮结算完继续。
+                    let mut rest: Vec<_> = moves.drain(i + 1..).collect();
+                    rest.extend(std::mem::take(&mut st.card_moves));
+                    st.card_moves = rest;
+                    break;
+                }
+                i += 1;
+            }
+            if top(st).is_some() {
+                continue;
+            }
+        }
         // 良姻（周妃）：栈空后判定回血候选（先让奋激/清俭等改变手牌数的钩子结算完）。
         if top(st).is_none() && !st.liangyin_heal_queue.is_empty() {
             let (owner, other) = st.liangyin_heal_queue.remove(0);
@@ -3356,11 +3383,7 @@ fn step_quick_judge(
                             Some(&pid),
                             format!("屯田：判定【{label}】非红桃，置于武将牌上为「田」"),
                         );
-                        // 「田」置于武将牌上 = 牌移出游戏（触发良姻「移出」，每回合首次）。
-                        crate::resolve_sp2::liangyin_trigger(
-                            st,
-                            crate::resolve_sp2::MoveDir::Out,
-                        );
+                        // 「田」置于武将牌上 → 由 `add_mark` 上报「移出」事件（不再硬编码）。
                     } else {
                         st.push_log(Some(&pid), format!("屯田：判定【{label}】红桃，未生效"));
                     }
@@ -6431,8 +6454,7 @@ pub(crate) fn damage_after(
                     Some(&st.seats[victim].player_id.clone()),
                     format!("权计：摸 1 张并将【{label}】置于武将牌上为「权」"),
                 );
-                // 「权」置于武将牌上 = 牌移出游戏（触发良姻「移出」，每回合首次）。
-                crate::resolve_sp2::liangyin_trigger(st, crate::resolve_sp2::MoveDir::Out);
+                // 「权」置于武将牌上 → 由 `add_mark` 上报「移出」事件。
             }
         }
     }
