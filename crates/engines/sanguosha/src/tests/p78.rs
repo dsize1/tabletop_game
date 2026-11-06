@@ -67,6 +67,37 @@ fn mingren_places_ren_from_hand() {
 }
 
 /// 明任结束阶段替换只做一次（真机：重复询问 → 「用【闪】替换「任」」死循环）。
+/// 明任开局：取消不能跳过「置任」（必须选中 1 张，否则帧重新询问）。
+#[test]
+fn mingren_init_cannot_be_skipped() {
+    let mgr = manager(1020);
+    let room = start_and_pick(&mgr, 5);
+    let mut lu = 0;
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        lu = st.turn;
+        set_general(st, lu, "sgs_hero_407");
+        give(st, lu, "sha");
+        give(st, lu, "shan");
+        crate::resolve_sp2::init_mingren(st, lu);
+        let mut ev = Vec::new();
+        crate::resolve::advance(st, &mut ev).unwrap();
+    });
+    let st = state_of(&mgr, &room);
+    let pid = st.seats[lu].player_id.clone();
+    // 取消必须被拒（min=1）。
+    let err = mgr.execute_action(&room, &pid, "cancel").expect_err("取消应被拒");
+    assert!(format!("{err:?}").contains("至少需要选择"), "{err:?}");
+    // 即使绕过（直接提交 confirm 空选），也必须重新询问且「任」仍为空。
+    let st = state_of(&mgr, &room);
+    assert!(
+        st.pending.as_ref().is_some_and(|p| p.kind == "choose_many"),
+        "应继续等待选牌：{:?}",
+        st.pending.as_ref().map(|p| p.kind.clone())
+    );
+    assert!(skills::mark_cards(&st, lu, "ren").is_empty());
+}
+
 #[test]
 fn mingren_swap_ends_after_one_replacement() {
     let mgr = manager(1013);

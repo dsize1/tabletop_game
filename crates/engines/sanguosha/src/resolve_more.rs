@@ -2097,8 +2097,21 @@ pub(crate) fn multiselect_confirm(
         "mingren_init" | "mingren" => {
             if f.selected.len() != 1 {
                 if f.purpose == "mingren_init" {
+                    // 开局「任」**必选**：任何客户端动作都不能让它跳过（否则「任」为空 → 明任/贞良全废）。
+                    // 重新压回同一帧，继续等待玩家选牌。
                     pop(st);
-                    return Some(Ok("明任：未置「任」".to_string()));
+                    push(
+                        st,
+                        Frame::MultiSelect(crate::resolve::MultiSelectFrame {
+                            actor: f.actor,
+                            purpose: "mingren_init".into(),
+                            selected: Vec::new(),
+                            min: 1,
+                            max: 1,
+                            data: json!({ "mandatory": true }),
+                        }),
+                    );
+                    return Some(Ok("明任：必须先选择一张手牌作为「任」".to_string()));
                 }
                 return Some(Err(illegal("明任需选择 1 张手牌")));
             }
