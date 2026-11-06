@@ -884,8 +884,16 @@ fn zuilun_order(
         .filter(|s| !s.is_empty())
         .map(str::to_string)
         .collect();
-    if ids.len() != f.cards.len() || ids.iter().any(|id| !f.cards.iter().any(|c| c == id)) {
-        return Err(illegal("排序必须是剩余两张牌的一个排列"));
+    // 必须是**恰好一个排列**：张数相同 + 每张都在 + 无重复 + 无遗漏。
+    // （此前只校验「都在」→ 客户端若提交 `order:c1,c1` 会把同一张牌压两次，
+    //   另一张永远留在 processing：牌数不守恒的隐患。）
+    let mut uniq = ids.clone();
+    uniq.sort();
+    uniq.dedup();
+    let mut expect = f.cards.clone();
+    expect.sort();
+    if ids.len() != f.cards.len() || uniq.len() != ids.len() || uniq != expect {
+        return Err(illegal("排序必须是剩余两张牌的一个排列（不能重复/遗漏）"));
     }
     // draw 从尾部取牌 → 倒序 push，使 ids[0] 成为新牌堆顶。
     for id in ids.iter().rev() {

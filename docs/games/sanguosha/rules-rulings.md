@@ -843,3 +843,13 @@
   （`KongShengFrame.cards`、`ZuiLunFrame.cards`、`PickCardFrame`、`LiangYinFrame` 等）。
   已处置：箜声 UseEquip 空候选；尚未处置：`zuilun` Zero 段「无其他存活角色」时直接 pop（3 张亮牌会留在 processing）。
 - **复现步骤（下次）**：`SGS_DEBUG_CONSERVATION=1 npm run dev:up` → 重现 → 报错会直接指出动作。
+
+### （2026-11-05 复验 27）罪论排序：重复 id 校验（潜在丢牌）
+
+- **自查结论**：排序后两张牌**确实放到牌堆顶**（`deck.draw` 尾部 = 新顶；`ids` 倒序 push，
+  `p78::zuilun_one_condition_orders_remaining_two` 断言了「第一张 = 新牌堆顶、第二张在其下」）。
+- **发现一个真实漏洞**：`zuilun_order` 只校验「两张都在剩余牌里」，**不校验互斥** →
+  客户端提交 `order:c1,c1` 时会把同一张牌 push 两次、另一张永远留在 `processing`（牌数不守恒 159/160 的候选之一）。
+  已修：要求 `ids` 去重后与 `f.cards` 排序后完全相等（不能重复/遗漏）。
+- **回归**：`p78::zuilun_order_rejects_duplicate_ids`（重复 id 必须报错）。
+- **仍待修**：`zuilun` Zero 段「除自己外无存活角色」时直接 pop，3 张亮牌留在 processing（需落盘）。

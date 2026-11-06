@@ -514,6 +514,52 @@ fn zuilun_one_condition_orders_remaining_two() {
     st.check_conservation().unwrap();
 }
 
+/// 罪论排序：提交重复 id 必须被拒（不能把同一张牌压两次、另一张留在 processing）。
+#[test]
+fn zuilun_order_rejects_duplicate_ids() {
+    let mgr = manager(1014);
+    let room = start_and_pick(&mgr, 5);
+    let (mut cur, mut cur_pid) = (0, String::new());
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        cur = st.turn;
+        set_general(st, cur, "sgs_hero_410");
+        for seat in other_seats(st, cur) {
+            set_general(st, seat, "sgs_hero_1");
+            for _ in 0..4 {
+                give(st, seat, "shan");
+            }
+        }
+        for _ in 0..6 {
+            give(st, cur, "sha");
+        }
+        st.turn_phase = TurnPhase::End;
+        st.turn_counters.clear();
+        st.set_counter("damage_dealt", 0);
+        st.set_counter("discard_done", 0);
+        cur_pid = st.seats[cur].player_id.clone();
+        let mut ev = Vec::new();
+        crate::resolve::advance(st, &mut ev).unwrap();
+    });
+    let st = state_of(&mgr, &room);
+    let p = st.pending.clone().expect("罪论选牌");
+    let pick = p.options[0].id.trim_start_matches("choose:").to_string();
+    mgr.execute_action(&room, &cur_pid, &format!("choose:{pick}"))
+        .unwrap();
+    let mut ev = Vec::new();
+    edit(&mgr, &room, |st| crate::resolve::advance(st, &mut ev).unwrap());
+    let st = state_of(&mgr, &room);
+    let p = st.pending.clone().expect("排序段");
+    let head = p.options[0].id.trim_start_matches("order:").to_string();
+    let first = head.split(',').next().unwrap().to_string();
+    let err = mgr
+        .execute_action(&room, &cur_pid, &format!("order:{first},{first}"))
+        .expect_err("重复 id 应被拒绝");
+    let msg = format!("{err:?}");
+    assert!(msg.contains("排列"), "错误信息应说明需要排列：{msg}");
+    st.check_conservation().unwrap();
+}
+
 #[test]
 fn zuilun_zero_conditions_loses_hp() {
     let mgr = manager(1010);
