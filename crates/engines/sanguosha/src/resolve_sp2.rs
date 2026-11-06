@@ -1381,10 +1381,7 @@ pub(crate) fn step_kongsheng(st: &mut SgsState, f: KongShengFrame) -> Result<boo
                 })
                 .collect();
             if options.is_empty() {
-                // 防御：帧里还挂着「箜声」牌时必须落盘，否则帧被丢弃 → 牌从所有区域消失（牌数不守恒）。
-                for card in f.cards.iter() {
-                    crate::turn::to_discard_card(st, card);
-                }
+                // 无合法目标：装备继续留在「箜声」标记（牌本来就在标记里，帧只是引用）。
                 pop(st);
                 return Ok(false);
             }
@@ -1415,16 +1412,13 @@ pub(crate) fn kongsheng_target(
         _ => return Err(internal("栈顶不是箜声帧")),
     };
     if action == "pass" {
-        // 不使用：剩余「箜声」装备牌进弃牌堆（不能让它们随帧消失）。
+        // 不使用：装备牌**继续留在「箜声」标记**（不移入游戏、也不弃置；用户 2026-11-05 裁定）。
         pop(st);
-        for card in f.cards.iter() {
-            crate::turn::to_discard_card(st, card);
-        }
         st.push_log(
             Some(&st.seats[f.actor].player_id.clone()),
-            "箜声：不使用剩余装备，装备进弃牌堆".to_string(),
+            "箜声：不使用剩余装备，继续留在「箜声」".to_string(),
         );
-        return Ok("箜声：已弃置剩余装备".to_string());
+        return Ok("箜声：装备留在「箜声」".to_string());
     }
     let pid = action
         .strip_prefix("target:")
@@ -1439,6 +1433,8 @@ pub(crate) fn kongsheng_target(
     let target = st.seat_index(pid).ok_or_else(|| illegal("目标不在座"))?;
     pop(st);
     for card in f.cards.iter() {
+        // 牌此前一直留在「箜声」标记里：使用时才移出标记。
+        crate::skills::remove_mark(st, f.actor, "kong", card);
         if turn::card_def(st, card).is_some_and(|d| d.equip_slot.is_some()) {
             // 装备牌：置入目标装备区（废除栏则弃置）。
             let slot = turn::card_def(st, card)

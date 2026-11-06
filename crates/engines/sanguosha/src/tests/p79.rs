@@ -308,13 +308,50 @@ fn kongsheng_equip_keep_then_liangyin_keeps_conservation() {
     st.check_conservation().expect("最终守恒");
 }
 
-/// 箜声结束阶段：选择「不使用」时剩余装备必须进弃牌堆（不能随帧消失）。
+/// 箜声结束阶段：选择「不使用」时装备**留在「箜声」标记**（不移入、不弃置）。
 #[test]
-fn kongsheng_skip_equip_use_discards_cards() {
+fn kongsheng_skip_equip_use_keeps_cards_in_marks() {
     let mgr = manager(1031);
     let room = start_and_pick(&mgr, 5);
     let (mut cur, mut cur_pid, mut equip) = (0, String::new(), String::new());
-    let mut discard_before = 0;
+    let mut non_equip = String::new();
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        cur = st.turn;
+        set_general(st, cur, "sgs_hero_411");
+        equip = give(st, cur, "qinggang_jian");
+        st.seats[cur].hand.retain(|c| c != &equip);
+        crate::skills::add_mark(st, cur, "kong", &equip);
+        // 必须至少有 1 张非装备牌，才会进入「令一名角色使用剩余装备」这一步。
+        non_equip = give(st, cur, "sha");
+        st.seats[cur].hand.retain(|c| c != &non_equip);
+        crate::skills::add_mark(st, cur, "kong", &non_equip);
+        cur_pid = st.seats[cur].player_id.clone();
+        st.turn_phase = TurnPhase::End;
+        st.turn_counters.clear();
+        let mut inject = vec![format!("{cur_pid}=pass")];
+        drive_phases(st, &mut inject);
+    });
+    let st = state_of(&mgr, &room);
+    assert_eq!(
+        skills::mark_cards(&st, cur, "kong"),
+        vec![equip.clone()],
+        "「不使用」时装备应继续留在「箜声」"
+    );
+    assert!(
+        st.seats[cur].hand.contains(&non_equip),
+        "非装备牌应已回手"
+    );
+    assert!(!st.deck.discard.contains(&equip), "装备不应被弃置");
+    st.check_conservation().unwrap();
+}
+
+/// 箜声标记**全是装备**：结束阶段什么都不发生（不询问、装备留在标记、不触发良姻移入）。
+#[test]
+fn kongsheng_all_equip_end_phase_does_nothing() {
+    let mgr = manager(1032);
+    let room = start_and_pick(&mgr, 5);
+    let (mut cur, mut cur_pid, mut equip) = (0, String::new(), String::new());
     edit(&mgr, &room, |st| {
         clear_hands(st);
         cur = st.turn;
@@ -325,17 +362,20 @@ fn kongsheng_skip_equip_use_discards_cards() {
         cur_pid = st.seats[cur].player_id.clone();
         st.turn_phase = TurnPhase::End;
         st.turn_counters.clear();
-        discard_before = st.deck.discard.len();
         let mut inject = vec![format!("{cur_pid}=pass")];
         drive_phases(st, &mut inject);
     });
     let st = state_of(&mgr, &room);
-    assert!(
-        st.deck.discard.contains(&equip),
-        "「不使用」时剩余装备应进弃牌堆"
+    assert_eq!(
+        skills::mark_cards(&st, cur, "kong"),
+        vec![equip.clone()],
+        "全装备时装备应留在「箜声」（不询问、不使用）"
     );
-    assert!(st.deck.discard.len() > discard_before);
-    assert!(skills::mark_cards(&st, cur, "kong").is_empty());
+    assert!(st.seats[cur].hand.is_empty(), "没有非装备牌可回手");
+    assert!(
+        !st.history.iter().any(|e| e.text.contains("良姻：与")),
+        "没有牌移入游戏 → 不触发良姻（移入）"
+    );
     st.check_conservation().unwrap();
 }
 
@@ -395,6 +435,10 @@ fn kongsheng_equip_cards_used_by_target() {
         let weapon = give(st, cur, "qinggang_jian");
         st.seats[cur].hand.retain(|c| c != &weapon);
         skills::add_mark(st, cur, "kong", &weapon);
+        // 需要一张非装备牌回手，才会「然后令一名角色使用剩余装备」。
+        let filler = give(st, cur, "sha");
+        st.seats[cur].hand.retain(|c| c != &filler);
+        skills::add_mark(st, cur, "kong", &filler);
         st.turn_phase = TurnPhase::End;
         st.turn_counters.clear();
         cur_pid = st.seats[cur].player_id.clone();
