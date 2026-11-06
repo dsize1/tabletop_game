@@ -153,6 +153,60 @@ fn poshi_awaken_abolishes_all_slots() {
     st.check_conservation().unwrap();
 }
 
+/// 贞良（阴）：回合外打出同色牌 → 应在结算栈空后弹询问（不能因父帧 pop 而丢失）。
+#[test]
+fn zhenliang_yin_asks_after_respond_settles() {
+    let mgr = manager(1016);
+    let room = start_and_pick(&mgr, 5);
+    let (mut attacker, mut lu, mut sha, mut shan, mut lu_pid) =
+        (0, 0, String::new(), String::new(), String::new());
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        attacker = st.turn;
+        set_general(st, attacker, "sgs_hero_1");
+        lu = crate::turn::sha_targets(st, attacker)[0];
+        set_general(st, lu, "sgs_hero_407"); // 卢植
+        st.seats[lu].flags.insert("yj:zhenliang".into(), true); // 阴
+        // 「任」为红；卢植手里一张红【闪】(闪全是红) → 打出应触发。
+        let ren = st
+            .deck
+            .draw
+            .iter()
+            .find(|id| st.cards.get(*id).is_some_and(|c| c.def == "shan"))
+            .cloned()
+            .expect("牌堆应有【闪】");
+        st.deck.draw.retain(|c| c != &ren);
+        crate::skills::add_mark(st, lu, "ren", &ren);
+        shan = give(st, lu, "shan");
+        sha = give(st, attacker, "sha");
+        st.turn_phase = TurnPhase::Play;
+        st.turn_counters.clear();
+        lu_pid = st.seats[lu].player_id.clone();
+    });
+    let st = state_of(&mgr, &room);
+    let attacker_pid = st.seats[attacker].player_id.clone();
+    let lu_id = st.seats[lu].player_id.clone();
+    mgr.execute_action(&room, &attacker_pid, &format!("play:{sha}"))
+        .unwrap();
+    mgr.execute_action(&room, &attacker_pid, &format!("target:{lu_id}"))
+        .unwrap();
+    let st = state_of(&mgr, &room);
+    assert_eq!(st.pending.as_ref().map(|p| p.kind.clone()), Some("respond".into()));
+    mgr.execute_action(&room, &lu_pid, &format!("respond:{shan}"))
+        .unwrap();
+    // 关键：响应结算完，贞良（阴）的询问必须出现（此前被父帧 pop 掉 → 真机不弹）。
+    let st = state_of(&mgr, &room);
+    let p = st.pending.clone().expect("应弹贞良（阴）询问");
+    assert_eq!(p.skill.as_deref(), Some("zhenliang"), "应是贞良 pending：{p:?}");
+    assert!(
+        p.options.iter().any(|o| o.id == "choose:zhenliang_yin"),
+        "应提供发动选项：{:?}",
+        p.options
+    );
+    assert!(p.options.iter().any(|o| o.id == "pass"), "应可放弃");
+    st.check_conservation().unwrap();
+}
+
 #[test]
 fn zhenliang_yang_deals_damage_with_same_color() {
     let mgr = manager(1001);

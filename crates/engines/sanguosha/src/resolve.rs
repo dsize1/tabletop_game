@@ -869,6 +869,14 @@ pub fn advance(st: &mut SgsState, events: &mut Vec<EngineEvent>) -> Result<(), E
                 continue;
             }
         }
+        // 贞良（阴，卢植）：栈空后询问（父帧已结算完，不会被 pop 掉）。
+        if top(st).is_none() && !st.zhenliang_yin_queue.is_empty() {
+            let (owner, card) = st.zhenliang_yin_queue.remove(0);
+            crate::resolve_sp2::push_zhenliang_yin(st, owner, &card);
+            if top(st).is_some() {
+                continue;
+            }
+        }
         // 良姻（周妃）：栈空后判定回血候选（先让奋激/清俭等改变手牌数的钩子结算完）。
         if top(st).is_none() && !st.liangyin_heal_queue.is_empty() {
             let (owner, other) = st.liangyin_heal_queue.remove(0);
@@ -5196,7 +5204,9 @@ pub(crate) fn finish_respond_play(
         ),
     }
     // 贞良（阴，卢植）：回合外打出的牌进入弃牌堆。
-    crate::resolve_sp2::push_zhenliang_yin(st, played_by, card_id);
+    // 注意：必须**延后**压帧 —— 此处响应帧稍后会被 pop，若此刻 push 会被 pop 掉
+    // （真机：历史有「询问」但从不弹浮层）。改为记待办，响应结算完（栈空）再询问。
+    crate::resolve_sp2::queue_zhenliang_yin(st, played_by, card_id);
     match f.kind {
         RespondKind::Shan => {
             turn::to_discard_card(st, card_id);

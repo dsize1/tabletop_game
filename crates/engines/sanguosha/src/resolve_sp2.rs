@@ -327,6 +327,32 @@ pub(crate) fn act_zhenliang(st: &mut SgsState, action: &str) -> Result<String, E
 }
 
 /// 贞良（阴）触发点：回合外使用/打出的牌进入弃牌堆且与「任」同色。
+/// 贞良（阴）**延后**触发：判定通过后入队，等结算栈空再由 `advance` 压帧询问
+/// （避免在「打出/使用」的父帧里 push 后被 pop 掉）。
+pub(crate) fn queue_zhenliang_yin(st: &mut SgsState, owner: usize, card: &str) {
+    if !skills::has(st, owner, "zhenliang") || !skills::yj_yin(st, owner, "zhenliang") {
+        return;
+    }
+    if st.turn == owner || st.counter("zhenliang_yin_done") > 0 {
+        return;
+    }
+    let Some(red) = ren_color(st, owner) else {
+        return;
+    };
+    if !st
+        .cards
+        .get(card)
+        .is_some_and(|c| skills::is_red(c.suit) == red)
+    {
+        return;
+    }
+    st.zhenliang_yin_queue.push((owner, card.to_string()));
+    st.push_log(
+        Some(&st.seats[owner].player_id.clone()),
+        "贞良（阴）：同色牌入弃牌堆，稍后询问".to_string(),
+    );
+}
+
 pub(crate) fn push_zhenliang_yin(st: &mut SgsState, owner: usize, card: &str) {
     if !skills::has(st, owner, "zhenliang") || !skills::yj_yin(st, owner, "zhenliang") {
         return;
