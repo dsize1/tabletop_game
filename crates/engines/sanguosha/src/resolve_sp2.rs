@@ -1321,6 +1321,10 @@ pub(crate) fn step_kongsheng(st: &mut SgsState, f: KongShengFrame) -> Result<boo
                 })
                 .collect();
             if options.is_empty() {
+                // 防御：帧里还挂着「箜声」牌时必须落盘，否则帧被丢弃 → 牌从所有区域消失（牌数不守恒）。
+                for card in f.cards.iter() {
+                    crate::turn::to_discard_card(st, card);
+                }
                 pop(st);
                 return Ok(false);
             }

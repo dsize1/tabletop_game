@@ -223,6 +223,44 @@ fn liangyin_heal_skips_full_hp_candidates() {
     assert!(!heal_prompt, "满血时不应出现回血询问：{:?}", st.pending);
 }
 
+/// 箜声完整一轮（准备置装备区牌 → 结束回非装备 + 目标使用装备）牌数守恒。
+#[test]
+fn kongsheng_full_cycle_keeps_conservation() {
+    let mgr = manager(1029);
+    let room = start_and_pick(&mgr, 5);
+    let (mut cur, mut cur_pid, mut target_pid) = (0, String::new(), String::new());
+    let mut equips = Vec::new();
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        cur = st.turn;
+        set_general(st, cur, "sgs_hero_411");
+        for def in ["qinggang_jian", "bagua_zhen"] {
+            let id = give(st, cur, def);
+            st.seats[cur].hand.retain(|c| c != &id);
+            let slot = crate::turn::card_def(st, &id).and_then(|d| d.equip_slot).unwrap();
+            st.seats[cur].equips.insert(slot, Some(id.clone()));
+            equips.push(id);
+        }
+        give(st, cur, "sha");
+        st.turn_phase = TurnPhase::Prepare;
+        st.turn_counters.clear();
+        cur_pid = st.seats[cur].player_id.clone();
+        target_pid = st.seats[other_seats(st, cur)[0]].player_id.clone();
+        let mut inject = vec![
+            format!("{cur_pid}=choose:{}", equips[0]),
+            format!("{cur_pid}=choose:{}", equips[1]),
+            format!("{cur_pid}=confirm"),
+        ];
+        drive_phases(st, &mut inject);
+        st.check_conservation().expect("准备阶段后守恒");
+        st.turn_phase = TurnPhase::End;
+        st.turn_counters.clear();
+        let mut inject2 = vec![format!("{cur_pid}=target:{target_pid}")];
+        drive_phases(st, &mut inject2);
+        st.check_conservation().expect("结束阶段后守恒");
+    });
+}
+
 #[test]
 fn kongsheng_equip_cards_used_by_target() {
     let mgr = manager(1021);
