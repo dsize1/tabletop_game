@@ -184,7 +184,10 @@ export function renderTargetOverlay(
         id.startsWith("move:") ||
         id.startsWith("to:") ||
         id === "confirm" ||
-        id === "cancel",
+        id === "cancel" ||
+        // 「不回复」/「不发动」等放弃选项：良姻回血、箜声不使用装备等 pending 必须能在浮层里放弃，
+        // 否则个人区看得到、浮层看不到（真机：良姻回血想选「不回复」，只能点结束出牌 → 报错）。
+        id === "pass",
     ) +
     `</div>`
   );
