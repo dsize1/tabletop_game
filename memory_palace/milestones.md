@@ -16,6 +16,15 @@
 - **Web**：`choose_many` 浮层追加「非手牌但出现在 options 里的牌」（箜声可置装备区牌），与个人区操作条一致。
 - **门禁**：`cargo test -p sanguosha` **971 全绿**；`npm --prefix apps run test:web` 通过。
 
+## M77：会话收尾（文案类缺陷模式 + 缺陷模式总览）✅
+
+- **无懈文案**：`cancelled` 语义与文案相反（`cancelled=false` 时打「效果生效」= 锦囊恢复生效）→
+  改为「共 N 张无懈 → 锦囊被抵消 / 无懈被抵消，锦囊照常生效」；回归 `p78::huogong_negated_by_wuxie_does_not_reveal`
+  证明**引擎本来是对的**（火攻被无懈不亮牌）。同步更新 3 个旧文案断言。
+- **文档**：`next-skill-abstraction-audit.md` 增 §8.4（文案类缺陷）与 §8.5（6 类缺陷模式总览 + 命中次数 + 修复方向），
+  作为下个会话重构排期的输入。
+- **门禁**：`cargo test -p sanguosha` **987 全绿**；`sgs:check:fast` 16/16。
+
 ## M76：B2 走查最后一轮缺陷（决堰集智/明任必选/清侧入口/鸿举选牌）✅
 
 - **决堰·宝物栏**：「获得集智」只写了计数器、集智钩子不认 → 改用按座位 `jueyan_jizhi:<seat>` 并让钩子识别。

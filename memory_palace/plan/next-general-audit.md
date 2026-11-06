@@ -234,6 +234,7 @@ node apps/scripts/sgs-general-audit.mjs --check --sample 8   # CI 抽样
   - 记录：`docs/games/sanguosha/audit-sheets/B1-notes.md`；矩阵 B1 8 行已写回
   - 遗留（不阻塞）：B1 的 18 条 L2 `expected` 仍为 null
 - [ ] **B2 人工走查（暂停：先做技能抽象评估，见 `memory_palace/plan/next-skill-abstraction-audit.md`）**（8 将 15 技能：卢植/郝昭/陈到/诸葛瞻/周妃/毌丘俭/陆抗/张绣）
+  - 2026-11-05 会话末状态：本批共修 17 项缺陷（决堰集智/明任必选/清侧入口/鸿举任意张/无懈文案…），机检 0 失败；**不签字**，待重构后统一复验
   - 已修（M70）：罪论两段式排序（`order:`）、明任开局摸 1（此前摸 2 且在建牌堆前 → 摸不到牌）
   - 待办（Web）：罪论排序段目前为两个顺序按钮；观星式 1×2 槽拖拽待做（`guanxing.ts` 常量参数化）
 - [ ] B3–B8 一将成名（42 将）
