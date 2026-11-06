@@ -982,6 +982,20 @@ impl EnginePlugin for SanguoshaEngine {
                 if (discarded_to_pile || gained) && !st.fenji_queue.contains(&seat) {
                     st.fenji_queue.push(seat);
                 }
+                // 贞良（阴）：**通用差分**，不枚举「使用/打出」路径 ——
+                // 回合外 + 本动作有手牌离开手牌且进入弃牌堆（且该动作不是弃置/重铸）→ 入队。
+                // 判定延后到栈空（濒死会先救回，再询问），见 `resolve::advance`。
+                let is_discard_action = action.starts_with("discard:") || action.starts_with("recast:");
+                if !is_discard_action {
+                    let used_to_pile: Vec<String> = before
+                        .iter()
+                        .filter(|id| !after.contains(id) && st.deck.discard.contains(id))
+                        .cloned()
+                        .collect();
+                    for card in used_to_pile {
+                        crate::resolve_sp2::queue_zhenliang_yin(&mut st, seat, &card);
+                    }
+                }
             }
             // 队列在栈空时统一询问；动作若已停在待办上则留待后续 advance 消费。
             resolve::advance(&mut st, &mut events2)?;

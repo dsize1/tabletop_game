@@ -1587,8 +1587,7 @@ pub fn start_sha_flags(
     }
     // 征荣（毌丘俭）：使用【杀】时（压在用牌帧之上先询问）。
     crate::resolve_sp2::zhengrong_trigger(st, user, card);
-    // 贞良（阴，卢植）：回合外使用的牌进入弃牌堆（按使用时机结算）。
-    crate::resolve_sp2::push_zhenliang_yin(st, user, card);
+    // 贞良（阴）：由 `execute_action` 的手牌差分统一判定（不在此处逐路径接线）。
     // 奇制（王基）：回合内使用非装备牌后。
     crate::resolve_sp::qizhi_trigger(st, user);
     Ok(())
@@ -1749,8 +1748,7 @@ fn start_trick_code_ext(
     if st.turn == user {
         st.bump_counter("play_cards_used");
     }
-    // 贞良（阴，卢植）：回合外使用的锦囊。
-    crate::resolve_sp2::push_zhenliang_yin(st, user, card);
+    // 贞良（阴）：由 `execute_action` 的手牌差分统一判定。
     // 征荣（毌丘俭）：使用伤害锦囊时（压在用牌帧之上先询问）。
     if matches!(
         st.effective_def_code(card),
@@ -4184,8 +4182,7 @@ fn act_wuxie(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Strin
         turn::take_card(st, seat, card_id)?;
         turn::to_discard_card(st, card_id);
     }
-    // 贞良（阴）：回合外「使用」的牌进入弃牌堆（无懈可击路径）。
-    crate::resolve_sp2::queue_zhenliang_yin(st, seat, card_id);
+    // 贞良（阴）：由 `execute_action` 的手牌差分统一判定。
     f.count += 1;
     f.cursor = 0;
     f.passed = 0;
@@ -5241,10 +5238,7 @@ pub(crate) fn finish_respond_play(
             format!("打出【{label}】"),
         ),
     }
-    // 贞良（阴，卢植）：回合外打出的牌进入弃牌堆。
-    // 注意：必须**延后**压帧 —— 此处响应帧稍后会被 pop，若此刻 push 会被 pop 掉
-    // （真机：历史有「询问」但从不弹浮层）。改为记待办，响应结算完（栈空）再询问。
-    crate::resolve_sp2::queue_zhenliang_yin(st, played_by, card_id);
+    // 贞良（阴）：由 `execute_action` 的手牌差分统一判定（不在此处逐路径接线）。
     match f.kind {
         RespondKind::Shan => {
             turn::to_discard_card(st, card_id);
@@ -5658,8 +5652,7 @@ fn act_dying(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Strin
         };
         turn::take_card(st, seat, card_id)?;
         turn::to_discard_card(st, card_id);
-        // 贞良（阴）：回合外「使用」的牌进入弃牌堆（濒死自救【酒】路径）。
-        crate::resolve_sp2::queue_zhenliang_yin(st, seat, card_id);
+        // 贞良（阴）：由 `execute_action` 的手牌差分统一判定。
         let victim = f.victim;
         st.seats[victim].hp += 1;
         let hp = st.seats[victim].hp;
@@ -5683,8 +5676,7 @@ fn act_dying(st: &mut SgsState, pending: &Pending, action: &str) -> Result<Strin
     };
     turn::take_card(st, seat, card_id)?;
     turn::to_discard_card(st, card_id);
-    // 贞良（阴）：回合外「使用」的牌进入弃牌堆（濒死【桃】/急救转化路径）。
-    crate::resolve_sp2::queue_zhenliang_yin(st, seat, card_id);
+    // 贞良（阴）：由 `execute_action` 的手牌差分统一判定。
     let victim = f.victim;
     // 界救援（主公技）：吴势力角色于其回合内自救时，可改为令主公回复 1 并摸 1。
     if seat == victim && crate::skills::jie_jiuyuan_redirect(st, seat) {
