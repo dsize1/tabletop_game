@@ -308,6 +308,37 @@ fn kongsheng_equip_keep_then_liangyin_keeps_conservation() {
     st.check_conservation().expect("最终守恒");
 }
 
+/// 箜声结束阶段：选择「不使用」时剩余装备必须进弃牌堆（不能随帧消失）。
+#[test]
+fn kongsheng_skip_equip_use_discards_cards() {
+    let mgr = manager(1031);
+    let room = start_and_pick(&mgr, 5);
+    let (mut cur, mut cur_pid, mut equip) = (0, String::new(), String::new());
+    let mut discard_before = 0;
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        cur = st.turn;
+        set_general(st, cur, "sgs_hero_411");
+        equip = give(st, cur, "qinggang_jian");
+        st.seats[cur].hand.retain(|c| c != &equip);
+        crate::skills::add_mark(st, cur, "kong", &equip);
+        cur_pid = st.seats[cur].player_id.clone();
+        st.turn_phase = TurnPhase::End;
+        st.turn_counters.clear();
+        discard_before = st.deck.discard.len();
+        let mut inject = vec![format!("{cur_pid}=pass")];
+        drive_phases(st, &mut inject);
+    });
+    let st = state_of(&mgr, &room);
+    assert!(
+        st.deck.discard.contains(&equip),
+        "「不使用」时剩余装备应进弃牌堆"
+    );
+    assert!(st.deck.discard.len() > discard_before);
+    assert!(skills::mark_cards(&st, cur, "kong").is_empty());
+    st.check_conservation().unwrap();
+}
+
 #[test]
 fn kongsheng_equip_cards_used_by_target() {
     let mgr = manager(1021);

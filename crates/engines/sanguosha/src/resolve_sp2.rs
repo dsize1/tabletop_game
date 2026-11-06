@@ -1337,6 +1337,10 @@ pub(crate) fn step_kongsheng(st: &mut SgsState, f: KongShengFrame) -> Result<boo
                 pop(st);
                 return Ok(false);
             }
+            let mut options = options;
+            // 「不使用」：剩余装备牌进弃牌堆（**必须**给出口，否则 pending 无 pass 时客户端无法退出，
+            // 帧被丢弃/回合推进后牌就凭空消失 —— 真机缺牌 c136 藤甲）。
+            options.push(pass_option("不使用（装备进弃牌堆）"));
             st.pending = Some(Pending {
                 kind: "target".into(),
                 actor: st.seats[f.actor].player_id.clone(),
@@ -1359,6 +1363,18 @@ pub(crate) fn kongsheng_target(
         Some(Frame::KongSheng(f)) => f,
         _ => return Err(internal("栈顶不是箜声帧")),
     };
+    if action == "pass" {
+        // 不使用：剩余「箜声」装备牌进弃牌堆（不能让它们随帧消失）。
+        pop(st);
+        for card in f.cards.iter() {
+            crate::turn::to_discard_card(st, card);
+        }
+        st.push_log(
+            Some(&st.seats[f.actor].player_id.clone()),
+            "箜声：不使用剩余装备，装备进弃牌堆".to_string(),
+        );
+        return Ok("箜声：已弃置剩余装备".to_string());
+    }
     let pid = action
         .strip_prefix("target:")
         .ok_or_else(|| illegal("需要选择目标"))?;
