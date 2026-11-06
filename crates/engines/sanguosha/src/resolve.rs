@@ -1213,12 +1213,15 @@ fn step_wuxie(st: &mut SgsState, mut f: WuxieFrame) -> Result<bool, EngineError>
         st.push_log(
             None,
             format!(
-                "无懈可击：{} {}",
+                // 文案必须区分「谁受影响」：cancelled 表示**锦囊**被抵消（无可再结算）；
+                // 偶数层（false）表示无懈被反无懈抵消、**锦囊恢复生效**。
+                "无懈结算：{} 共 {} 张无懈 → {}",
                 f.root.summary(st),
+                f.count,
                 if cancelled {
-                    "效果被抵消"
+                    "锦囊被抵消，不再结算（如火攻不亮牌）"
                 } else {
-                    "效果生效"
+                    "无懈被抵消，锦囊照常生效"
                 }
             ),
         );

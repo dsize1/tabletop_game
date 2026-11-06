@@ -382,6 +382,60 @@ fn hongju_swap_uses_player_selection() {
     st.check_conservation().unwrap();
 }
 
+/// 火攻被无懈抵消后：不得再让目标亮牌（真机 #66-69）。
+#[test]
+fn huogong_negated_by_wuxie_does_not_reveal() {
+    let mgr = manager(1021);
+    let room = start_and_pick(&mgr, 5);
+    let (mut user, mut target, mut hg, mut wx) = (0, 0, String::new(), String::new());
+    let (mut user_pid, mut target_pid, mut wx_pid) = (String::new(), String::new(), String::new());
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        user = st.turn;
+        set_general(st, user, "sgs_hero_1");
+        target = other_seats(st, user)[0];
+        set_general(st, target, "sgs_hero_1");
+        let wx_seat = other_seats(st, user)[1];
+        set_general(st, wx_seat, "sgs_hero_1");
+        give(st, target, "shan");
+        give(st, target, "sha");
+        hg = give(st, user, "huo_gong");
+        wx = give(st, wx_seat, "wuxie_keji");
+        st.turn_phase = TurnPhase::Play;
+        st.turn_counters.clear();
+        user_pid = st.seats[user].player_id.clone();
+        target_pid = st.seats[target].player_id.clone();
+        wx_pid = st.seats[wx_seat].player_id.clone();
+    });
+    mgr.execute_action(&room, &user_pid, &format!("play:{hg}")).unwrap();
+    mgr.execute_action(&room, &user_pid, &format!("target:{target_pid}"))
+        .unwrap();
+    // 无懈响应。
+    let mut st = state_of(&mgr, &room);
+    let mut p = st.pending.clone().expect("应进入无懈窗口");
+    assert_eq!(p.kind, "wuxie", "应是无懈窗口：{:?}", p.kind);
+    // 无懈询问按顺序轮询：轮到持牌者时再打出。
+    for _ in 0..6 {
+        if p.actor == wx_pid {
+            break;
+        }
+        mgr.execute_action(&room, &p.actor, "pass").unwrap();
+        st = state_of(&mgr, &room);
+        p = st.pending.clone().expect("仍应有无懈窗口");
+    }
+    assert_eq!(p.actor, wx_pid, "应轮到持无懈者");
+    mgr.execute_action(&room, &wx_pid, &format!("respond:{wx}"))
+        .expect("打出无懈可击");
+    let st = state_of(&mgr, &room);
+    // 关键：被无懈抵消后，不应出现「火攻亮牌」pending。
+    let reveal = st.pending.as_ref().is_some_and(|p| {
+        p.skill.as_deref() == Some("huogong_reveal")
+            || p.options.iter().any(|o| o.label.contains("亮出"))
+    });
+    assert!(!reveal, "火攻被无懈后不应亮牌：{:?}", st.pending);
+    st.check_conservation().unwrap();
+}
+
 #[test]
 fn zhenliang_yang_deals_damage_with_same_color() {
     let mgr = manager(1001);
