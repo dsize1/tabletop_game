@@ -64,6 +64,8 @@ const SEAT_KEYS: &[&str] = &[
     "is_bot",
     "has_picked",
     "skills",
+    // 转换技当前面（阳/阴）：公开信息（贞良/拒战/审时/成略）。
+    "transforms",
 ];
 
 const AREA_KEYS: &[&str] = &[
@@ -139,6 +141,36 @@ fn start(mgr: &GameManager) -> String {
     mgr.execute_action(&room, "u1", "lobby:start").unwrap();
     pick_all(mgr, &room);
     room
+}
+
+/// 转换技当前面（阳/阴）是公开信息：贞良（卢植）在公共座位与个人区都要有 `transforms`。
+/// 真机反馈：贞良个人区/武将详情看不到阴/阳（视图白名单漏了 zhenliang）。
+#[test]
+fn view_contract_transform_faces_are_public() {
+    let mgr = manager(4301);
+    let room = start(&mgr);
+    let mut lu = 0;
+    edit(&mgr, &room, |st| {
+        lu = st.turn;
+        set_general(st, lu, "sgs_hero_407"); // 卢植：贞良（转换技）
+        st.seats[lu].flags.remove("yj:zhenliang");
+    });
+    let data = public_view(&mgr, &room);
+    let seat = &data["public_board"]["seats"][lu];
+    assert_eq!(
+        seat["transforms"]["zhenliang"], "yang",
+        "公共座位应下发转换技当前面：{seat}"
+    );
+    // 翻转后应变为阴。
+    edit(&mgr, &room, |st| {
+        crate::skills::toggle_yj(st, lu, "zhenliang");
+    });
+    let data2 = public_view(&mgr, &room);
+    assert_eq!(
+        data2["public_board"]["seats"][lu]["transforms"]["zhenliang"],
+        "yin",
+        "翻转后应为阴"
+    );
 }
 
 #[test]

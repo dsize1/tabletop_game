@@ -866,3 +866,16 @@
   此前中途报错会留下「已从装备区移除、未入 marks」的中间态（真机缺牌 `c123 藤甲` 的首要嫌疑）。
 - **贞良（阴）**：触发点（用牌/锦囊/打出三处）已确认接线；本轮未定位到「不发动」的确切原因，
   已加 `⚠️ 守恒哨兵` 式历史留痕思路（下一步给阴面加分步日志）。用户另外反馈「阴阳从未切换」→ 待复核 `yj:zhenliang` 翻转与 UI 展示。
+
+### （2026-11-05 复验 29）转换技阴/阳状态的视图与展示
+
+- **真机反馈**：贞良个人区 + 武将详情看不到阴/阳；怀疑其他转换技同样缺失。
+- **根因**：`view::transforms_view` 的转换技清单硬编码为 `["juzhan","shenshi","chenglue"]`，**漏了 `zhenliang`**；
+  且 `transforms` 只出现在 `player_area`（本人可见），**公共座位的 `seats[]` 没有**，武将详情（读公共座位）就无从显示。
+- **修复**：
+  1. `skills::TRANSFORM_SKILLS` 单一事实源（拒战/审时/成略/**贞良**），`transforms_view` 读它；
+  2. 公共座位 `seats[]` 也下发 `transforms`（转换技当前面是**公开信息**）；
+  3. Web：`SgsSeat.transforms` 类型补齐；武将详情的技能行显示「（阳）/（阴）」并把类型文案补 `transform=转换技`；
+     个人区原本已按 `transforms` 渲染，现在有数据了。
+- **门禁**：`view_contract` 座位字段集补 `transforms`；新增 `view_contract::view_contract_transform_faces_are_public`
+  （卢植 → 公共座位 `transforms.zhenliang=="yang"`，翻转后为 `"yin"`）。`cargo test` **976 全绿**、`test:web` 通过。

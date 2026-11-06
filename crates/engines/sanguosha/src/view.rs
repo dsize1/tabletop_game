@@ -94,11 +94,10 @@ fn abolished_slots_view(seat: &Seat) -> Vec<Value> {
         .collect()
 }
 
-/// 转换技当前面（阳/阴）视图：仅返回已实现的转换技。
+/// 转换技当前面（阳/阴）视图（公开信息）：清单见 `skills::TRANSFORM_SKILLS`。
 fn transforms_view(st: &SgsState, seat: usize) -> Value {
-    const TRANSFORMS: &[&str] = &["juzhan", "shenshi", "chenglue"];
     let mut out = Map::new();
-    for code in TRANSFORMS {
+    for code in crate::skills::TRANSFORM_SKILLS {
         if !crate::skills::has(st, seat, code) {
             continue;
         }
@@ -169,6 +168,8 @@ pub fn public_board(st: &SgsState) -> Value {
                 "general_name": general_name,
                 "kingdom": general_code.and_then(data::general).map(|g| g.kingdom),
                 "skills": skills,
+                // 转换技当前面（阳/阴）：公开信息，公共区/武将详情也展示。
+                "transforms": transforms_view(st, i),
                 "hp": s.hp,
                 "max_hp": s.max_hp,
                 "hand_count": s.hand.len(),

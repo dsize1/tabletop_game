@@ -81,6 +81,7 @@ export function renderGeneralDetail(
   ];
   const skillTypeLabel: Record<string, string> = {
     normal: "普通",
+    transform: "转换技",
     lord: "主公技",
     locked: "锁定技",
     limited: "限定技",
@@ -94,10 +95,17 @@ export function renderGeneralDetail(
           .map((skill) => {
             const desc = skillDescription(seat.general_name, skill.name);
             const type = skillTypeLabel[skill.type] ?? skill.type;
+            // 转换技：显示当前面（阳/阴）——真机反馈「贞良个人区/武将详情缺少阴/阳」。
+            const face =
+              seat.transforms?.[skill.code] === "yin"
+                ? "（阴）"
+                : seat.transforms?.[skill.code] === "yang"
+                  ? "（阳）"
+                  : "";
             const unimplemented = skill.implemented === false ? `<span class="muted">（未实装）</span>` : "";
             return (
               `<li><div><strong>${escapeHtml(skill.name)}</strong>` +
-              `<span class="muted"> · ${escapeHtml(type)}</span>${unimplemented}</div>` +
+              `<span class="muted">${escapeHtml(face)} · ${escapeHtml(type)}</span>${unimplemented}</div>` +
               (desc ? `<p>${escapeHtml(desc)}</p>` : "") +
               `</li>`
             );

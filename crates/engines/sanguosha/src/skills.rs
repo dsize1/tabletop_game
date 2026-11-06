@@ -3717,6 +3717,10 @@ pub fn yj_yin(st: &SgsState, seat: usize, code: &str) -> bool {
 }
 
 /// 转换技切换（每次发动后调用）。
+/// 转换技（阴/阳）清单：凡调用 `toggle_yj` 的技能都必须登记在这里，
+/// 视图据此下发当前面（`view::transforms_view`），新增转换技时只改这一处。
+pub const TRANSFORM_SKILLS: &[&str] = &["juzhan", "shenshi", "chenglue", "zhenliang"];
+
 pub fn toggle_yj(st: &mut SgsState, seat: usize, code: &str) {
     if let Some(s) = st.seats.get_mut(seat) {
         let key = format!("yj:{code}");

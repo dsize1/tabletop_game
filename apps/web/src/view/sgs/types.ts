@@ -85,6 +85,8 @@ export interface SgsSeat {
   alive: boolean;
   is_bot?: boolean;
   /** 已公开武将的技能（公开信息；未公示时为空/缺省）。 */
+  /** 转换技当前面：code → "yang" | "yin"（公开信息）。 */
+  transforms?: Record<string, string>;
   skills?: SgsSkill[];
 }
 
