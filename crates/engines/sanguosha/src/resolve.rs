@@ -4044,6 +4044,15 @@ pub fn execute_pending(
         other => return Err(internal(format!("未知 pending 类型：{other}"))),
     };
     st.pending = None;
+    // 开发期守恒哨兵：设置 `SGS_DEBUG_CONSERVATION=1` 后，每个动作结束都自检牌数，
+    // 不一致时直接报错并带上「谁用什么动作」，便于定位是哪一步吞了牌（真机 159/160 曾难复现）。
+    if std::env::var("SGS_DEBUG_CONSERVATION").is_ok() {
+        if let Err(e) = st.check_conservation() {
+            return Err(internal(format!(
+                "守恒哨兵：{player_id} 执行 `{action}` 后牌数不守恒：{e}"
+            )));
+        }
+    }
     Ok(msg)
 }
 

@@ -261,6 +261,53 @@ fn kongsheng_full_cycle_keeps_conservation() {
     });
 }
 
+/// 复刻真机：准备阶段把**装备区**牌置为箜声 → 良姻 → 出牌/弃牌阶段全程守恒。
+#[test]
+fn kongsheng_equip_keep_then_liangyin_keeps_conservation() {
+    let mgr = manager(1030);
+    let room = start_and_pick(&mgr, 5);
+    let (mut cur, mut cur_pid) = (0, String::new());
+    let mut equips = Vec::new();
+    edit(&mgr, &room, |st| {
+        clear_hands(st);
+        cur = st.turn;
+        set_general(st, cur, "sgs_hero_411");
+        for def in ["qinggang_jian", "bagua_zhen"] {
+            let id = give(st, cur, def);
+            st.seats[cur].hand.retain(|c| c != &id);
+            let slot = crate::turn::card_def(st, &id).and_then(|d| d.equip_slot).unwrap();
+            st.seats[cur].equips.insert(slot, Some(id.clone()));
+            equips.push(id);
+        }
+        for _ in 0..4 {
+            give(st, cur, "sha");
+        }
+        cur_pid = st.seats[cur].player_id.clone();
+        st.turn_phase = TurnPhase::Prepare;
+        st.turn_counters.clear();
+        let mut inject = vec![
+            format!("{cur_pid}=choose:{}", equips[0]),
+            format!("{cur_pid}=choose:{}", equips[1]),
+            format!("{cur_pid}=confirm"),
+            format!("{cur_pid}=choose:liangyin:draw"),
+        ];
+        drive_phases(st, &mut inject);
+        st.check_conservation().expect("准备阶段+良姻后守恒");
+        assert_eq!(crate::skills::mark_cards(st, cur, "kong").len(), 2, "两张装备应成为箜声");
+    });
+    // 推进到弃牌阶段（真机在此时报不守恒）。
+    let mut ev = Vec::new();
+    edit(&mgr, &room, |st| {
+        st.turn_phase = TurnPhase::Discard;
+        st.turn_counters.clear();
+        crate::resolve::advance(st, &mut ev).unwrap();
+        st.check_conservation().expect("弃牌阶段守恒");
+    });
+    let st = state_of(&mgr, &room);
+    let _ = cur_pid;
+    st.check_conservation().expect("最终守恒");
+}
+
 #[test]
 fn kongsheng_equip_cards_used_by_target() {
     let mgr = manager(1021);

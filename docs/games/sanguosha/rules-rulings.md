@@ -827,3 +827,19 @@
 - **回归**：`p79::liangyin_heal_skips_full_hp_candidates`；`npm --prefix apps run test:web` 通过。
 - **待查（需用户回帖）**：`discard:` 动作被拒的报错未给响应体 —— 若为「该牌不在手牌」，多为 UI 陈旧
   （牌已被置入「箜声」/被他人拿走）。下次请把 4xx 响应 JSON 一并贴出，便于定位是 actor/张数/牌位不符。
+
+### （2026-11-05 复验 26）牌数不守恒哨兵 + 箜声链路自查（159/160 待复现）
+
+- **现象**：真机 `preview:de5e7c6e` 报 `区域合计 159 ≠ 160`，快照 `marks: 2 / equips: 0 / hands: 35`；
+  用户确认「置了装备区」（箜声把装备区的牌置为标记）。
+- **已做的自查与加固**：
+  1. 新增 `p79::kongsheng_equip_keep_then_liangyin_keeps_conservation`：复刻「准备阶段置 2 张装备区牌 → 良姻各摸 →
+     推进到弃牌阶段」，每步 `check_conservation` **通过** → 常规链路不丢牌。
+  2. `step_kongsheng(UseEquip)` 候选为空的早退路径：先把 `KongShengFrame.cards` 落进弃牌堆再弹帧
+     （帧里暂存的牌若随帧丢弃会凭空消失）。
+  3. **守恒哨兵**：`SGS_DEBUG_CONSERVATION=1` 时，`execute_pending` 每个动作结束自检牌数，
+     不一致直接报错并带上「谁 + 动作 id」，下次真机可一步定位。
+- **机制性风险（待修／待复现）**：任何把牌**暂存在结算帧里**、却在结算前被 pop/replace 的路径都会丢牌
+  （`KongShengFrame.cards`、`ZuiLunFrame.cards`、`PickCardFrame`、`LiangYinFrame` 等）。
+  已处置：箜声 UseEquip 空候选；尚未处置：`zuilun` Zero 段「无其他存活角色」时直接 pop（3 张亮牌会留在 processing）。
+- **复现步骤（下次）**：`SGS_DEBUG_CONSERVATION=1 npm run dev:up` → 重现 → 报错会直接指出动作。
