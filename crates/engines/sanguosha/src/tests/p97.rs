@@ -363,7 +363,7 @@ fn kanpo_jie_equip_black_card_and_no_counter() {
         .unwrap();
     let st = state_of(&mgr, &room);
     assert!(
-        st.history.iter().any(|e| e.text.contains("效果被抵消")),
+        st.history.iter().any(|e| e.text.contains("锦囊被抵消")),
         "界看破：无懈不能被响应，直接生效果"
     );
 }

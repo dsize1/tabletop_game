@@ -500,5 +500,5 @@ fn kanpo_black_hand_as_wuxie() {
     );
     let st = state_of(&mgr, &room);
     assert!(st.history.iter().any(|e| e.text.contains("看破")));
-    assert!(st.history.iter().any(|e| e.text.contains("效果被抵消")));
+    assert!(st.history.iter().any(|e| e.text.contains("锦囊被抵消")));
 }

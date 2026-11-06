@@ -344,7 +344,7 @@ fn jiewei_equipment_works_as_wuxie() {
     let st = state_of(&mgr, &room);
     assert!(st.deck.discard.contains(&equip), "装备应进入弃牌堆");
     assert!(st.history.iter().any(|e| e.text.contains("解围")));
-    assert!(st.history.iter().any(|e| e.text.contains("效果被抵消")));
+    assert!(st.history.iter().any(|e| e.text.contains("锦囊被抵消")));
 }
 
 // ---------------------------------------------------------------------------
