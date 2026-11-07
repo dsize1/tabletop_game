@@ -59,3 +59,38 @@ node apps/scripts/check-sgs-align.mjs                       # 全局门禁（含
 ## 7. 为何用 JSON 而不是 YAML
 
 本仓 Node 侧无 yaml 依赖（无根 `node_modules`），引入新依赖违背「轻量」；JSON 同样可 git diff、可机读，且零依赖。
+
+---
+
+## 8. 进度与「新会话开工」（2026-11-06 收口）
+
+| 批次 | 状态 | 说明 |
+|---|---|---|
+| B0（3 将 / 7 技能） | **7/7 implemented** | 据守/解围/不屈/奋激/行殇/放逐/颂威 |
+| B1（8 将 / 18 技能） | **18/18 implemented** | 含庸肆/奇制/进趋/怀橘/寸目/伪帝/拒战/飞军/兵略/遗礼/整论/溃诛/掣政/立军/荐降/审时/成略/恃才 |
+| B2（8 将 / 15 技能） | **15/15 implemented** | 明任/贞良/镇骨/往烈/罪论/父荫/良姻/箜声/征荣/鸿举/谦节/决堰/破势/雄乱/从谏 |
+| B3（6 将） | 待出对齐单 | 马谡/荀攸/将华雄/钟会/满宠/关平 |
+
+**新会话直接照做：**
+
+```bash
+# 1) 出 B3 骨架（自动带官方原文，已清洗重复拼接噪声）
+node apps/scripts/sgs-align-sheet.mjs --batch B3 --new
+# 2) 填「现实现/差异/疑点」（agent 干活；每条技能 ≥3 条陈述；疑点给候选+倾向+影响）
+# 3) 渲染 + 自检
+node apps/scripts/sgs-align-sheet.mjs --batch B3 --check
+# 4) 交用户裁定 → 落「对齐后描述」→ confirmed → 实现
+```
+
+**开工必读（按顺序）**
+
+1. `docs/conventions/skill-spec-rules.md` —— 4 条强制规则（目标列表 / 手牌冻结 / 卡牌属性 / 转换技双窗口）
+2. `docs/games/sanguosha/align/mechanics.json` —— 14 条共享机制与不变量
+3. `docs/games/sanguosha/spike-report.md` —— 6 类缺陷与结构性对策
+4. 本文件 §1–§7 —— 7 段格式、状态机、DoD、冲突阻断
+
+**已知欠账（不在 B3 之前做也行，但别忘）**
+
+- `use_card` 已消费冻结/目标合法性，但**Web 工作台跑的是旧引擎**（`sanguosha`），新 crate 未注册 → 工作台验证要等引擎重构（注册 + 视图适配）。
+- 距离系统只做了「基础 1 + 往烈首张无距离」，武器范围未接。
+- 罪论 `order:` 两选项在 Web 上需要视图层支持该前缀（与 8 类 pending 一致）。
