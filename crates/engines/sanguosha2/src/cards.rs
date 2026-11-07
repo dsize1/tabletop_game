@@ -147,3 +147,28 @@ mod tests {
         assert!(!needs_choice("五谷丰登") && needs_choice("杀"));
     }
 }
+
+/// 武器攻击范围（与旧引擎 data.rs 的 range_value 一致）。
+const WEAPON_RANGE: &[(&str, usize)] = &[
+    ("诸葛连弩", 1),
+    ("青釭剑", 2),
+    ("雌雄双股剑", 2),
+    ("寒冰剑", 2),
+    ("古锭刀", 2),
+    ("青龙偃月刀", 3),
+    ("丈八蛇矛", 3),
+    ("贯石斧", 3),
+    ("方天画戟", 4),
+    ("朱雀羽扇", 4),
+    ("麒麟弓", 5),
+];
+
+pub fn weapon_range(name: &str) -> Option<usize> {
+    WEAPON_RANGE.iter().find(|(n, _)| *n == name).map(|(_, r)| *r)
+}
+
+/// 坐骑距离修正（进攻马/防御马都是 1）。
+pub fn horse_bonus(name: &str) -> Option<usize> {
+    const HORSES: &[&str] = &["赤兔", "爪黄飞电", "绝影", "大宛", "紫骍", "的卢", "骅骝"];
+    if HORSES.contains(&name) { Some(1) } else { None }
+}

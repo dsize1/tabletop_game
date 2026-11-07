@@ -179,3 +179,21 @@ fn wiring_reach_uses_wanglie_first_card() {
     // 距离 1 的目标本来就在范围内
     assert!(g.can_reach(0, 1, &"c2".to_string()));
 }
+
+// 攻击范围与坐骑（与旧引擎 range_value 一致）
+#[test]
+fn attack_range_reads_weapon_and_horses() {
+    use sanguosha2::kernel::Slot;
+    let mut g = g4();
+    assert_eq!(g.attack_range(0), 1, "无武器时范围 1");
+    // 装备麒麟弓（范围 5）
+    g.cards.get_mut("c1").unwrap().name = "麒麟弓".to_string();
+    g.to_equip(&"c1".to_string(), 0, Slot::Weapon).unwrap();
+    assert_eq!(g.attack_range(0), 5, "武器范围应生效");
+    // 距离：4 人局 0→2 基础距离 2；装备进攻马（赤兔）后 -1
+    assert_eq!(g.distance(0, 2), 2);
+    g.cards.get_mut("c2").unwrap().name = "赤兔".to_string();
+    g.to_equip(&"c2".to_string(), 0, Slot::HorseOffense).unwrap();
+    assert_eq!(g.distance(0, 2), 1, "进攻马使距离 -1");
+    assert!(g.can_reach(0, 2, &"c1".to_string()), "范围 5 应能打到距离 1");
+}

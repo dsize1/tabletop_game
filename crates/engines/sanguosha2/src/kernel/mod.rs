@@ -632,16 +632,31 @@ impl Game {
             return 0;
         }
         let d = (a + n - b) % n;
-        d.min(n - d)
+        let mut base = d.min(n - d);
+        let horse = |seat: usize, slot: Slot| -> usize {
+            self.ids_in(|z| *z == Zone::Equip(seat, slot))
+                .iter()
+                .filter_map(|id| self.cards.get(id))
+                .filter_map(|c| crate::cards::horse_bonus(&c.name))
+                .sum()
+        };
+        base = base.saturating_sub(horse(a, Slot::HorseOffense));
+        base = base.saturating_sub(horse(b, Slot::HorseDefense));
+        if crate::skills::active(self, a, "mashu") {
+            base = base.saturating_sub(1);
+        }
+        base.max(1)
     }
 
-    /// 攻击范围（基础 1，武器在这里扩展）。
+    /// 攻击范围：装备武器时 = 武器范围；否则 1。
     pub fn attack_range(&self, seat: usize) -> usize {
-        let mut r = 1;
-        if self.ids_in(|z| matches!(z, Zone::Equip(s, _) if *s == seat)).len() > 0 {
-            r += 0; // 武器范围待接（B3+ 装备定义）
-        }
-        r
+        let weapon = self.ids_in(|z| matches!(z, Zone::Equip(s, _) if *s == seat));
+        weapon
+            .iter()
+            .filter_map(|id| self.cards.get(id))
+            .filter_map(|c| crate::cards::weapon_range(&c.name))
+            .max()
+            .unwrap_or(1)
     }
 
     /// 能否打到（往烈的「首张牌无距离限制」在这里生效）。
