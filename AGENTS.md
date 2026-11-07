@@ -37,6 +37,8 @@
 | 三国杀技能注册表 / 触发钩子 / 实现进度 | `docs/games/sanguosha/skills.md` |
 | 三国杀 AI（分层 / 打分 / 威胁模型 / 自对弈门禁 / 已知缺陷） | `docs/games/sanguosha/ai.md` |
 | 三国杀规则裁定 / 特殊交互区 | `docs/games/sanguosha/rules-rulings.md`、`docs/games/sanguosha/special-zones.md` |
+| 三国杀技能对齐单（148 将 / 7 段 / 疑点裁定） | `docs/games/sanguosha/align/README.md`、`align/B0.md`、`align/mechanics.json` |
+| 内核 v2 spike 结论（6 类缺陷对策 / 度量 / 迁移条件） | `docs/games/sanguosha/spike-report.md`、ADR-0038 |
 | 三国杀武将抓取数据（696 位） | `docs/games/sanguosha/data/README.md`、`docs/games/sanguosha/data/heroes.json` |
 | 三国杀武将表（自动生成） | `docs/games/sanguosha/generals.md` |
 | 三国杀武将素材流水线（剧照采集 + 卡面生成） | `docs/games/sanguosha/props/media-pipeline.md` |
@@ -44,6 +46,7 @@
 | MCP 统一原语 / 能力描述符规范 | `docs/conventions/mcp-primitives.md` |
 | 本地开发环境（Docker/Redis） | `docs/dev-environment.md` |
 | 编码规范 | `docs/conventions/coding-standards.md` |
+| **技能实现规范（目标列表/手牌冻结/卡牌属性/转换技窗口）** | `docs/conventions/skill-spec-rules.md` |
 | 某模块职责/接口 | `docs/modules/<模块>.md` |
 | 道具中台（P1，三国杀） | `docs/modules/props-admin.md` |
 | 版图页 / 素材流水线 | `docs/modules/board-view.md`、`docs/games/las-vegas/props/asset-mapping.md`、`board-layout.md` |

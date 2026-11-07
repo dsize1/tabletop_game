@@ -1,9 +1,16 @@
 ---
 session_id: next-session
 date: 2026-11-05
-status: 待启动（B2 走查暂停，先做架构评估）
+status: 已执行（P-A/P-C/P-D 完成，见 2026-11-06 执行会话）
 baseline_commit: 见 git log（2026-11-05 全武将验证会话结束点）
 ---
+
+> **2026-11-06 进展（执行会话）**：本文件的评估结论已落地为
+> ① 执行计划 `memory_palace/plan/01a1b06a-688a-74d1-b696-ad42658c5d13.md`；
+> ② ADR-0038（对齐单 + 规格即数据，不引 spec-kit）；
+> ③ 对齐产线 `docs/games/sanguosha/align/`（B0 已出对齐单，15 条疑点待用户裁定）；
+> ④ 内核 v2 spike `crates/engines/sanguosha2`（6/6 缺陷类结构性消除）+ `docs/games/sanguosha/spike-report.md`。
+> §6.4「歧义台账」的字段已升级为 7 段对齐单（新增 UI 期望 + 对齐后描述），见 `align/README.md`。
 
 # 任务：技能/标记/虚拟牌 抽象与解耦评估（B2 走查前置）
 

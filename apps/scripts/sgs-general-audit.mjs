@@ -501,9 +501,9 @@ async function auditGeneral(general) {
 /** 矩阵骨架（人工列留空；脚本不覆写已存在的矩阵，除非 --force）。 */
 function renderMatrix(catalog, batches) {
   const lines = [];
-  lines.push("# 三国杀 · 全武将验证矩阵（149 将 / 人工验收台账）");
+  lines.push(`# 三国杀 · 全武将验证矩阵（${catalog.audited.length} 将 / 人工验收台账）`);
   lines.push("");
-  lines.push("> 口径：有界版同名的原版不进批次（用户 2026-11-05 裁定，方案 A）；149 位 = 默认选将池。");
+  lines.push(`> 口径：有界版同名的原版不进批次（用户 2026-11-05 裁定，方案 A）；${catalog.audited.length} 位 = 默认选将池（${catalog.generals.length} − ${catalog.excluded.length}）。`);
   lines.push("> 批次表单一事实源：`apps/scripts/lib/sgs-batches.mjs`（B0–B20）。");
   lines.push("> 机器证据：`docs/games/sanguosha/general-audit-evidence.md`（生成，勿手改）+ `data/audit/<batch>.json`。");
   lines.push("> **人工列（原文/歧义、人工结果、确认人、备注）只能由人工填写**；agent 不得自行标「人工通过」。");
@@ -539,7 +539,7 @@ function renderMatrix(catalog, batches) {
     }
   }
   lines.push("");
-  lines.push("## 4. 未纳入批次的武将（83 位，有界版同名）");
+  lines.push(`## 4. 未纳入批次的武将（${catalog.excluded.length} 位，有界版同名）`);
   lines.push("");
   lines.push("按口径 A 排除，验证由界版覆盖同名技能（如 `界刘备` 覆盖 `刘备`）：");
   lines.push("");
@@ -787,7 +787,7 @@ async function main() {
       throw new Error(
         ex
           ? `${generalArg} 有界版同名，按口径 A 已排除（${ex.excludedBy}）`
-          : `${generalArg} 不在 149 审计范围`,
+          : `${generalArg} 不在 ${catalog.audited.length} 审计范围`,
       );
     }
     targets = [g];
@@ -797,7 +797,7 @@ async function main() {
     label = `包 ${packArg}`;
   } else if (flag("--all")) {
     targets = catalog.audited;
-    label = "全量 149 将";
+    label = `全量 ${catalog.audited.length} 将`;
   } else if (flag("--check") || sample > 0) {
     const n = sample || 8;
     const picked = [];

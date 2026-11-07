@@ -1,10 +1,11 @@
 // 全武将验证批次表（单一事实源；矩阵/审计/门禁/文档均以此为准）。
 //
 // 口径（用户 2026-11-05 裁定「方案 A」）：
-// - 有界版同名武将的原版不进验证批次（界优先去重），保留 149 位 = 默认选将池；
-// - 批次按「子包边界」切分，每批 ≤8 将；B0 为流程验证批（4 将）。
+// - 有界版同名武将的原版不进验证批次（界优先去重），保留 148 位 = 默认选将池（232 − 84）；
+// - 批次按「子包边界」切分，每批 ≤8 将；B0 为流程验证批（3 将）。
 //
-// 校验：`node apps/scripts/sgs-general-audit.mjs --list` 会核对该表 ↔ data.rs（149 位、无重无漏）。
+// 校验：`node apps/scripts/sgs-general-audit.mjs --list` 会核对该表 ↔ data.rs（148 位、无重无漏）。
+// 注意：不要在此手写人数；`npm run check:sgs-counts` 会校验文档/脚本里的计数与 catalog 一致。
 
 export const BATCHES = [
   { id: "B0", source: "风林火山·风/林/山（保留）", names: ["曹仁", "周泰", "曹丕"] },
@@ -145,7 +146,7 @@ export function expandBatches(catalog) {
         throw new Error(
           ex
             ? `武将「${name}」有界版同名，按口径已排除，不应出现在批次 ${b.id}`
-            : `武将「${name}」不在 149 审计范围内（批次 ${b.id}）`,
+            : `武将「${name}」不在 148 审计范围内（批次 ${b.id}）`,
         );
       }
       return g;

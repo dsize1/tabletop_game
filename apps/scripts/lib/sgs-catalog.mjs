@@ -5,7 +5,7 @@
 // - crates/engines/sanguosha/src/skills.rs → 技能注册表（code/name/kind/implemented）+ 武将→技能映射 + EXTRA_SKILLS
 //
 // 口径（用户 2026-11-05 裁定「方案 A」）：
-// 有界版同名武将的原版不进验证批次（界优先去重），剩 149 位 = 默认选将池。
+// 有界版同名武将的原版不进验证批次（界优先去重），剩 148 位 = 默认选将池（232 − 84）。
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -77,7 +77,7 @@ export function loadSkills() {
 }
 
 /**
- * 完整名录：232 将 + 技能 + 149 审计范围 + 83 排除清单。
+ * 完整名录：232 将 + 技能 + 148 审计范围 + 84 排除清单（232 − 84 = 148）。
  *
  * `audited` = 有界版同名的原版被剔除后的武将（顺序同 data.rs：standard → wind… → yijiang → jiexian）。
  */

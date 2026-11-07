@@ -31,6 +31,11 @@ const steps = [
     cmd: `${node} apps/scripts/check-sgs-batch-consistency.mjs`,
   },
   { name: "skill-docs（skills.md ↔ 注册表）", cmd: `${node} apps/scripts/check-sgs-skill-docs.mjs` },
+  // 2026-11-06：计数类事实门禁（防 149/83 这类文档漂移）+ 技能对齐单 + 内核 v2 spike
+  { name: "counts（148/84/232/预设人数 ↔ 文档）", cmd: `${node} apps/scripts/check-sgs-counts.mjs` },
+  { name: "align（技能对齐单一致性/冲突阻断）", cmd: `${node} apps/scripts/check-sgs-align.mjs` },
+  { name: "sgs2（内核 v2 spike 用例 + 6 类缺陷门禁）", cmd: `${cargo} test --manifest-path crates/Cargo.toml -p sanguosha2` },
+  { name: "retire（旧 crate 退役 deadline 提醒）", cmd: `${node} apps/scripts/check-sgs-retire.mjs` },
   { name: "engine-data（data.rs 最新）", cmd: `${node} apps/scripts/gen-sanguosha-engine-data.mjs --check` },
   { name: "skill-text（长按技能简述最新）", cmd: `${node} apps/scripts/gen-sgs-skill-text.mjs --check` },
   { name: "fx-assets（特效素材/manifest/预算）", cmd: `${node} apps/scripts/check-fx-assets.mjs` },

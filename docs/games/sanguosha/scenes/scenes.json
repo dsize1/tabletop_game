@@ -1,0 +1,762 @@
+{
+  "all_ok": true,
+  "engine": "sanguosha2 (spike)",
+  "generated_at": "2026-11-06",
+  "scenes": [
+    {
+      "checks": [
+        {
+          "desc": "据守应询问",
+          "ok": true
+        },
+        {
+          "desc": "翻回正面后应先结算解围②",
+          "ok": true
+        },
+        {
+          "desc": "据守把背面翻回正面（取反）",
+          "ok": true
+        },
+        {
+          "desc": "解围结束后继续据守（摸 4 后询问弃/使用）",
+          "ok": true
+        }
+      ],
+      "id": "jushou-flip-jiewei",
+      "name": "据守翻回正面 → 先结算解围②",
+      "ok": true,
+      "steps": [
+        {
+          "action": null,
+          "actor": null,
+          "error": null,
+          "label": "结束阶段：据守询问",
+          "log": [],
+          "pending_after": {
+            "actor": 0,
+            "escape": "pass",
+            "options": [
+              "choose:jushou",
+              "pass"
+            ],
+            "skill": "jushou"
+          },
+          "pending_before": {
+            "actor": 0,
+            "options": [
+              "choose:jushou",
+              "pass"
+            ],
+            "skill": "jushou"
+          },
+          "presentation": [],
+          "state": {
+            "discard": 0,
+            "hands": [
+              3,
+              3
+            ],
+            "hp": [
+              4,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "End",
+            "turn": 0,
+            "void": 0
+          }
+        },
+        {
+          "action": "choose:jushou",
+          "actor": 0,
+          "error": null,
+          "label": "发动据守（翻面）",
+          "log": [],
+          "pending_after": {
+            "actor": 0,
+            "escape": "pass",
+            "options": [
+              "choose:jiewei",
+              "pass"
+            ],
+            "skill": "jiewei"
+          },
+          "pending_before": {
+            "actor": 0,
+            "options": [
+              "choose:jushou",
+              "pass"
+            ],
+            "skill": "jushou"
+          },
+          "presentation": [],
+          "state": {
+            "discard": 0,
+            "hands": [
+              3,
+              3
+            ],
+            "hp": [
+              4,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "End",
+            "turn": 0,
+            "void": 0
+          }
+        },
+        {
+          "action": "pass",
+          "actor": 0,
+          "error": null,
+          "label": "不发动解围",
+          "log": [],
+          "pending_after": {
+            "actor": 0,
+            "escape": "pass",
+            "options": [
+              "choose:c1",
+              "choose:c2",
+              "choose:c3",
+              "choose:c7",
+              "choose:c8",
+              "choose:c9",
+              "choose:c10",
+              "pass"
+            ],
+            "skill": "jushou"
+          },
+          "pending_before": {
+            "actor": 0,
+            "options": [
+              "choose:jiewei",
+              "pass"
+            ],
+            "skill": "jiewei"
+          },
+          "presentation": [
+            "摸 4 张牌",
+            "【jiewei】未发动"
+          ],
+          "state": {
+            "discard": 0,
+            "hands": [
+              7,
+              3
+            ],
+            "hp": [
+              4,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "End",
+            "turn": 0,
+            "void": 0
+          }
+        }
+      ]
+    },
+    {
+      "checks": [
+        {
+          "desc": "不屈回复至 1 点体力",
+          "ok": true
+        },
+        {
+          "desc": "「创」移出游戏（void=1）",
+          "ok": true
+        }
+      ],
+      "id": "buqu-chuang-void",
+      "name": "不屈：判定牌 → 「创」移出游戏",
+      "ok": true,
+      "steps": [
+        {
+          "action": null,
+          "actor": null,
+          "error": null,
+          "label": "进入濒死（不屈自动判定）",
+          "log": [
+            "不屈：判定牌点数 7，作为「创」移出游戏，回复至 1 点体力"
+          ],
+          "pending_after": null,
+          "pending_before": null,
+          "presentation": [
+            "回复 1 点体力"
+          ],
+          "state": {
+            "discard": 0,
+            "hands": [
+              3,
+              3
+            ],
+            "hp": [
+              1,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Prepare",
+            "turn": 0,
+            "void": 1
+          }
+        }
+      ]
+    },
+    {
+      "checks": [
+        {
+          "desc": "奋激应询问",
+          "ok": true
+        },
+        {
+          "desc": "失去体力后进入濒死（先救）",
+          "ok": true
+        },
+        {
+          "desc": "脱困后体力为 1",
+          "ok": true
+        },
+        {
+          "desc": "脱困后才令其摸 2（p2 手牌 +2）",
+          "ok": true
+        }
+      ],
+      "id": "fenji-after-dying",
+      "name": "奋激：脱困后才摸 2",
+      "ok": true,
+      "steps": [
+        {
+          "action": null,
+          "actor": null,
+          "error": null,
+          "label": "回合外弃牌 → 奋激询问",
+          "log": [],
+          "pending_after": {
+            "actor": 0,
+            "escape": "pass",
+            "options": [
+              "choose:fenji",
+              "pass"
+            ],
+            "skill": "fenji"
+          },
+          "pending_before": null,
+          "presentation": [],
+          "state": {
+            "discard": 1,
+            "hands": [
+              3,
+              3,
+              2
+            ],
+            "hp": [
+              1,
+              4,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Play",
+            "turn": 1,
+            "void": 0
+          }
+        },
+        {
+          "action": "choose:fenji",
+          "actor": 0,
+          "error": null,
+          "label": "发动奋激（失去 1 点体力）",
+          "log": [],
+          "pending_after": {
+            "actor": 0,
+            "escape": "pass",
+            "options": [
+              "respond:c3",
+              "pass"
+            ],
+            "skill": "dying"
+          },
+          "pending_before": {
+            "actor": 0,
+            "options": [
+              "choose:fenji",
+              "pass"
+            ],
+            "skill": "fenji"
+          },
+          "presentation": [],
+          "state": {
+            "discard": 1,
+            "hands": [
+              3,
+              3,
+              2
+            ],
+            "hp": [
+              0,
+              4,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Play",
+            "turn": 1,
+            "void": 0
+          }
+        },
+        {
+          "action": "respond:c3",
+          "actor": 0,
+          "error": null,
+          "label": "濒死求桃",
+          "log": [
+            "p0 救援 p0（体力 1）"
+          ],
+          "pending_after": {
+            "actor": 0,
+            "escape": "pass",
+            "options": [
+              "choose:fenji",
+              "pass"
+            ],
+            "skill": "fenji"
+          },
+          "pending_before": {
+            "actor": 0,
+            "options": [
+              "respond:c3",
+              "pass"
+            ],
+            "skill": "dying"
+          },
+          "presentation": [
+            "摸 2 张牌",
+            "回复 1 点体力"
+          ],
+          "state": {
+            "discard": 2,
+            "hands": [
+              2,
+              3,
+              4
+            ],
+            "hp": [
+              1,
+              4,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Play",
+            "turn": 1,
+            "void": 0
+          }
+        }
+      ]
+    },
+    {
+      "checks": [
+        {
+          "desc": "阳面（他人回合内）触发",
+          "ok": true
+        },
+        {
+          "desc": "阳面提供发动选项",
+          "ok": true
+        },
+        {
+          "desc": "阴面（自己回合内）触发",
+          "ok": true
+        }
+      ],
+      "id": "juzhan-two-windows",
+      "name": "拒战：阴阳两面各自窗口",
+      "ok": true,
+      "steps": [
+        {
+          "action": null,
+          "actor": null,
+          "error": null,
+          "label": "他人回合：用杀指定严颜 → 阳面",
+          "log": [],
+          "pending_after": {
+            "actor": 0,
+            "escape": "pass",
+            "options": [
+              "choose:juzhan",
+              "pass"
+            ],
+            "skill": "juzhan"
+          },
+          "pending_before": null,
+          "presentation": [],
+          "state": {
+            "discard": 0,
+            "hands": [
+              3,
+              3
+            ],
+            "hp": [
+              4,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Play",
+            "turn": 1,
+            "void": 0
+          }
+        },
+        {
+          "action": "pass",
+          "actor": 0,
+          "error": null,
+          "label": "不发动（pass）",
+          "log": [],
+          "pending_after": null,
+          "pending_before": {
+            "actor": 0,
+            "options": [
+              "choose:juzhan",
+              "pass"
+            ],
+            "skill": "juzhan"
+          },
+          "presentation": [
+            "【juzhan】未发动"
+          ],
+          "state": {
+            "discard": 0,
+            "hands": [
+              3,
+              3
+            ],
+            "hp": [
+              4,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Play",
+            "turn": 1,
+            "void": 0
+          }
+        },
+        {
+          "action": null,
+          "actor": null,
+          "error": null,
+          "label": "自己回合：用杀指定他人 → 阴面",
+          "log": [],
+          "pending_after": {
+            "actor": 0,
+            "escape": "pass",
+            "options": [
+              "choose:juzhan",
+              "pass"
+            ],
+            "skill": "juzhan"
+          },
+          "pending_before": null,
+          "presentation": [
+            "【juzhan】未发动"
+          ],
+          "state": {
+            "discard": 0,
+            "hands": [
+              3,
+              3
+            ],
+            "hp": [
+              4,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Play",
+            "turn": 0,
+            "void": 0
+          }
+        }
+      ]
+    },
+    {
+      "checks": [
+        {
+          "desc": "遗礼应询问",
+          "ok": true
+        },
+        {
+          "desc": "代价致濒死：先进入濒死结算",
+          "ok": true
+        },
+        {
+          "desc": "救回后体力 1",
+          "ok": true
+        },
+        {
+          "desc": "脱困后才询问给「橘」",
+          "ok": true
+        }
+      ],
+      "id": "yili-dying-defer",
+      "name": "遗礼：濒死救回后才给「橘」",
+      "ok": true,
+      "steps": [
+        {
+          "action": null,
+          "actor": null,
+          "error": null,
+          "label": "出牌阶段开始：遗礼询问",
+          "log": [],
+          "pending_after": {
+            "actor": 0,
+            "escape": "pass",
+            "options": [
+              "choose:yili:hp",
+              "pass"
+            ],
+            "skill": "yili"
+          },
+          "pending_before": {
+            "actor": 0,
+            "options": [
+              "choose:yili:hp",
+              "pass"
+            ],
+            "skill": "yili"
+          },
+          "presentation": [],
+          "state": {
+            "discard": 0,
+            "hands": [
+              3,
+              3
+            ],
+            "hp": [
+              1,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Play",
+            "turn": 0,
+            "void": 0
+          }
+        },
+        {
+          "action": "choose:yili:hp",
+          "actor": 0,
+          "error": null,
+          "label": "选择失去 1 点体力",
+          "log": [],
+          "pending_after": {
+            "actor": 0,
+            "escape": "pass",
+            "options": [
+              "respond:c3",
+              "pass"
+            ],
+            "skill": "dying"
+          },
+          "pending_before": {
+            "actor": 0,
+            "options": [
+              "choose:yili:hp",
+              "pass"
+            ],
+            "skill": "yili"
+          },
+          "presentation": [],
+          "state": {
+            "discard": 0,
+            "hands": [
+              3,
+              3
+            ],
+            "hp": [
+              0,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Play",
+            "turn": 0,
+            "void": 0
+          }
+        },
+        {
+          "action": "respond:c3",
+          "actor": 0,
+          "error": null,
+          "label": "濒死求桃",
+          "log": [
+            "p0 救援 p0（体力 1）"
+          ],
+          "pending_after": {
+            "actor": 0,
+            "escape": "pass",
+            "options": [
+              "target:1",
+              "pass"
+            ],
+            "skill": "yili"
+          },
+          "pending_before": {
+            "actor": 0,
+            "options": [
+              "respond:c3",
+              "pass"
+            ],
+            "skill": "dying"
+          },
+          "presentation": [
+            "回复 1 点体力"
+          ],
+          "state": {
+            "discard": 1,
+            "hands": [
+              2,
+              3
+            ],
+            "hp": [
+              1,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Play",
+            "turn": 0,
+            "void": 0
+          }
+        }
+      ]
+    },
+    {
+      "checks": [
+        {
+          "desc": "先问使用者是否交出",
+          "ok": true
+        },
+        {
+          "desc": "杀进入孙亮手牌",
+          "ok": true
+        },
+        {
+          "desc": "第二段由孙亮决定（不自动摸牌）",
+          "ok": true
+        },
+        {
+          "desc": "孙亮选择后才摸 1",
+          "ok": true
+        },
+        {
+          "desc": "杀次数加成已记录",
+          "ok": true
+        }
+      ],
+      "id": "lijun-second-choice",
+      "name": "立军：孙亮二次选择",
+      "ok": true,
+      "steps": [
+        {
+          "action": null,
+          "actor": null,
+          "error": null,
+          "label": "吴势力用杀 → 立军询问",
+          "log": [],
+          "pending_after": {
+            "actor": 1,
+            "escape": "pass",
+            "options": [
+              "choose:lijun",
+              "pass"
+            ],
+            "skill": "lijun"
+          },
+          "pending_before": null,
+          "presentation": [],
+          "state": {
+            "discard": 0,
+            "hands": [
+              3,
+              3
+            ],
+            "hp": [
+              4,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Play",
+            "turn": 1,
+            "void": 0
+          }
+        },
+        {
+          "action": "choose:lijun",
+          "actor": 1,
+          "error": null,
+          "label": "交杀给孙亮",
+          "log": [],
+          "pending_after": {
+            "actor": 0,
+            "escape": "pass",
+            "options": [
+              "choose:lijun_bonus",
+              "pass"
+            ],
+            "skill": "lijun"
+          },
+          "pending_before": {
+            "actor": 1,
+            "options": [
+              "choose:lijun",
+              "pass"
+            ],
+            "skill": "lijun"
+          },
+          "presentation": [],
+          "state": {
+            "discard": 0,
+            "hands": [
+              4,
+              2
+            ],
+            "hp": [
+              4,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Play",
+            "turn": 1,
+            "void": 0
+          }
+        },
+        {
+          "action": "choose:lijun_bonus",
+          "actor": 0,
+          "error": null,
+          "label": "孙亮选择：摸 1 + 杀次数 +1",
+          "log": [],
+          "pending_after": null,
+          "pending_before": {
+            "actor": 0,
+            "options": [
+              "choose:lijun_bonus",
+              "pass"
+            ],
+            "skill": "lijun"
+          },
+          "presentation": [],
+          "state": {
+            "discard": 0,
+            "hands": [
+              4,
+              3
+            ],
+            "hp": [
+              4,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Play",
+            "turn": 1,
+            "void": 0
+          }
+        }
+      ]
+    }
+  ]
+}

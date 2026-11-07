@@ -1,6 +1,8 @@
-# 三国杀 · 全武将验证矩阵（149 将 / 人工验收台账）
+# 三国杀 · 全武将验证矩阵（148 将 / 人工验收台账）
 
-> 口径：有界版同名的原版不进批次（用户 2026-11-05 裁定，方案 A）；149 位 = 默认选将池。
+> 口径：有界版同名的原版不进批次（用户 2026-11-05 裁定，方案 A）；148 位 = 默认选将池（232 − 84）。
+> **计数口径（2026-11-06 修正）**：此前标题与排除人数分别是 149 与 83，系「张昭张纮」与界版同名勘误前的旧数字（勘误后 148 / 84）；`npm run check:sgs-counts` 校验本文与 catalog 一致，禁止手写。
+> **对齐流程（2026-11-06 起）**：148 将按 B0→B20 重新对齐原文（`docs/games/sanguosha/align/`），旧签字全部撤回，人工列重置。
 > 批次表单一事实源：`apps/scripts/lib/sgs-batches.mjs`（B0–B20）。
 > 机器证据：`docs/games/sanguosha/general-audit-evidence.md`（生成，勿手改）+ `data/audit/<batch>.json`。
 > **人工列（原文/歧义、人工结果、确认人、备注）只能由人工填写**；agent 不得自行标「人工通过」。
@@ -25,17 +27,17 @@
 
 | 批次 | 包 | 武将 | code | 技能（类型） | 定向用例 | 原文/歧义 | 机器证据 | 人工结果 | 确认人 | 复现 | 备注 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| B0 | wind_fire_forest_mountain | 曹仁 | `sgs_hero_29` | 据守(`jushou`/normal)、解围(`jiewei`/normal) | ≥3（已过门禁） | 已裁定：解围可移动他人手牌·三阶段（复验 5） | 见 evidence | 人工通过 | 用户 | `--batch B0 --seed 20261105` | **缺陷已修**：解围三阶段/翻回触发/空场结束（复验 3–6）；据守结束阶段翻面摸 4 弃 1（装备牌改为使用） |
-| B0 | wind_fire_forest_mountain | 周泰 | `sgs_hero_210` | 不屈(`buqu`/locked)、奋激(`fenji`/normal) | ≥3（已过门禁） | 已裁定：奋激=回合外手牌被弃置/增加（复验 11） | 见 evidence | 人工通过 | 用户 | `--batch B0 --seed 20261105` | **缺陷已修**：弃牌数解释 + 弃牌多选（复验 2/7）、奋激改客观判定（复验 10/11）；不屈=创数上限 |
-| B0 | wind_fire_forest_mountain | 曹丕 | `sgs_hero_43` | 行殇(`xingshang`/normal)、放逐(`fangzhu`/normal)、颂威(`songwei`/lord) | ≥3（已过门禁） | 已确认（skills.md 原文） | 见 evidence | 人工通过 | 用户 | `--batch B0 --seed 20261105` | 行殇（死亡清理前获得其所有牌）/放逐（翻面+摸已损失体力）/颂威（魏势力黑判定摸 1）本次走查通过；放逐翻回与解围②联动（复验 4） |
-| B1 | wind_fire_forest_mountain | 袁术 | `sgs_hero_100` | 庸肆(`yongsi`/locked)、伪帝(`weidi`/locked) | ≥3（已过门禁） | 已裁定：庸肆按势力数（复验 8–12） | 见 evidence | 人工通过 | 用户 | `--batch B1 --seed 20261105` | 触达 `yongsi`；复验 8–12 弃牌/奋激口径已收敛 |
-| B1 | wind_fire_forest_mountain | 王基 | `sgs_hero_362` | 奇制(`qizhi`/normal)、进趋(`jinzou`/normal) | ≥3（已过门禁） | 已确认（skills.md 原文） | 见 evidence | 人工通过 | 用户 | `--batch B1 --seed 20261105` | 触达 `jinzou`；奇制需回合内用非装备牌后触发（走查结构已给出） |
-| B1 | wind_fire_forest_mountain | 严颜 | `sgs_hero_400` | 拒战(`juzhan`/normal) | ≥3（已过门禁） | 已裁定：拒战（阴）获牌不弃（复验 18） | 见 evidence | 人工通过 | 用户 | `--batch B1 --seed 20261105` | **缺陷已修**：拒战（阴）获牌后误弃牌（复验 18）；阳/阴两面已走查 |
-| B1 | wind_fire_forest_mountain | 王平 | `sgs_hero_401` | 飞军(`feijun`/normal)、兵略(`binglue`/locked) | ≥3（已过门禁） | 已确认（skills.md 原文） | 见 evidence | 人工通过 | 用户 | `--batch B1 --seed 20261105` | L1 未触达（需他人牌数多于你，条件不满足）；走查按场景构造通过 |
-| B1 | wind_fire_forest_mountain | 陆绩 | `sgs_hero_402` | 怀橘(`huaiju`/locked)、遗礼(`yili`/normal)、整论(`zhenglun`/normal) | ≥3（已过门禁） | 已确认（skills.md 原文） | 见 evidence | 人工通过 | 用户 | `--batch B1 --seed 20261105` | 开局钩子：`--no-scene` 可触达 `yili`；怀橘/整论按场景走查通过 |
-| B1 | wind_fire_forest_mountain | 孙亮 | `sgs_hero_403` | 溃诛(`kuizhu`/normal)、掣政(`chezheng`/locked)、立军(`lijun`/lord) | ≥3（已过门禁） | 已裁定：溃诛 X=本阶段弃牌数（复验 20） | 见 evidence | 人工通过 | 用户 | `--batch B1 --seed 20261105` | **缺陷已修**：溃诛给自己补牌后二次弃牌（复验 20）；掣政防伤/追加弃牌通过 |
-| B1 | wind_fire_forest_mountain | 蒯越蒯良 | `sgs_hero_404` | 荐降(`jianxiang`/normal)、审时(`shenshi`/normal) | ≥3（已过门禁） | 已裁定：审时（阴）濒死救起后仍触发（复验 21） | 见 evidence | 人工通过 | 用户 | `--batch B1 --seed 20261105` | **缺陷已修**：濒死救起后吞伤害后钩子（复验 21，同类 遗计/反馈/节命 同修） |
-| B1 | wind_fire_forest_mountain | 许攸 | `sgs_hero_406` | 成略(`chenglue`/normal)、恃才(`shicai`/normal)、寸目(`cunmu`/locked) | ≥3（已过门禁） | 已确认（skills.md 原文） | 见 evidence | 人工通过 | 用户 | `--batch B1 --seed 20261105` | 触达 `chenglue`；恃才/寸目按场景走查通过 |
+| B0 | wind_fire_forest_mountain | 曹仁 | `sgs_hero_29` | 据守(`jushou`/normal)、解围(`jiewei`/normal) | ≥3（已过门禁） | 已裁定：解围可移动他人手牌·三阶段（复验 5） | 见 evidence | 未验证 | - | `--batch B0 --seed 20261105` | **缺陷已修**：解围三阶段/翻回触发/空场结束（复验 3–6）；据守结束阶段翻面摸 4 弃 1（装备牌改为使用） |
+| B0 | wind_fire_forest_mountain | 周泰 | `sgs_hero_210` | 不屈(`buqu`/locked)、奋激(`fenji`/normal) | ≥3（已过门禁） | 已裁定：奋激=回合外手牌被弃置/增加（复验 11） | 见 evidence | 未验证 | - | `--batch B0 --seed 20261105` | **缺陷已修**：弃牌数解释 + 弃牌多选（复验 2/7）、奋激改客观判定（复验 10/11）；不屈=创数上限 |
+| B0 | wind_fire_forest_mountain | 曹丕 | `sgs_hero_43` | 行殇(`xingshang`/normal)、放逐(`fangzhu`/normal)、颂威(`songwei`/lord) | ≥3（已过门禁） | 已确认（skills.md 原文） | 见 evidence | 未验证 | - | `--batch B0 --seed 20261105` | 行殇（死亡清理前获得其所有牌）/放逐（翻面+摸已损失体力）/颂威（魏势力黑判定摸 1）本次走查通过；放逐翻回与解围②联动（复验 4） |
+| B1 | wind_fire_forest_mountain | 袁术 | `sgs_hero_100` | 庸肆(`yongsi`/locked)、伪帝(`weidi`/locked) | ≥3（已过门禁） | 已裁定：庸肆按势力数（复验 8–12） | 见 evidence | 未验证 | - | `--batch B1 --seed 20261105` | 触达 `yongsi`；复验 8–12 弃牌/奋激口径已收敛 |
+| B1 | wind_fire_forest_mountain | 王基 | `sgs_hero_362` | 奇制(`qizhi`/normal)、进趋(`jinzou`/normal) | ≥3（已过门禁） | 已确认（skills.md 原文） | 见 evidence | 未验证 | - | `--batch B1 --seed 20261105` | 触达 `jinzou`；奇制需回合内用非装备牌后触发（走查结构已给出） |
+| B1 | wind_fire_forest_mountain | 严颜 | `sgs_hero_400` | 拒战(`juzhan`/normal) | ≥3（已过门禁） | 已裁定：拒战（阴）获牌不弃（复验 18） | 见 evidence | 未验证 | - | `--batch B1 --seed 20261105` | **缺陷已修**：拒战（阴）获牌后误弃牌（复验 18）；阳/阴两面已走查 |
+| B1 | wind_fire_forest_mountain | 王平 | `sgs_hero_401` | 飞军(`feijun`/normal)、兵略(`binglue`/locked) | ≥3（已过门禁） | 已确认（skills.md 原文） | 见 evidence | 未验证 | - | `--batch B1 --seed 20261105` | L1 未触达（需他人牌数多于你，条件不满足）；走查按场景构造通过 |
+| B1 | wind_fire_forest_mountain | 陆绩 | `sgs_hero_402` | 怀橘(`huaiju`/locked)、遗礼(`yili`/normal)、整论(`zhenglun`/normal) | ≥3（已过门禁） | 已确认（skills.md 原文） | 见 evidence | 未验证 | - | `--batch B1 --seed 20261105` | 开局钩子：`--no-scene` 可触达 `yili`；怀橘/整论按场景走查通过 |
+| B1 | wind_fire_forest_mountain | 孙亮 | `sgs_hero_403` | 溃诛(`kuizhu`/normal)、掣政(`chezheng`/locked)、立军(`lijun`/lord) | ≥3（已过门禁） | 已裁定：溃诛 X=本阶段弃牌数（复验 20） | 见 evidence | 未验证 | - | `--batch B1 --seed 20261105` | **缺陷已修**：溃诛给自己补牌后二次弃牌（复验 20）；掣政防伤/追加弃牌通过 |
+| B1 | wind_fire_forest_mountain | 蒯越蒯良 | `sgs_hero_404` | 荐降(`jianxiang`/normal)、审时(`shenshi`/normal) | ≥3（已过门禁） | 已裁定：审时（阴）濒死救起后仍触发（复验 21） | 见 evidence | 未验证 | - | `--batch B1 --seed 20261105` | **缺陷已修**：濒死救起后吞伤害后钩子（复验 21，同类 遗计/反馈/节命 同修） |
+| B1 | wind_fire_forest_mountain | 许攸 | `sgs_hero_406` | 成略(`chenglue`/normal)、恃才(`shicai`/normal)、寸目(`cunmu`/locked) | ≥3（已过门禁） | 已确认（skills.md 原文） | 见 evidence | 未验证 | - | `--batch B1 --seed 20261105` | 触达 `chenglue`；恃才/寸目按场景走查通过 |
 | B2 | wind_fire_forest_mountain | 卢植 | `sgs_hero_407` | 明任(`mingren`/normal)、贞良(`zhenliang`/normal) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B2 --seed 20261105` | |
 | B2 | wind_fire_forest_mountain | 郝昭 | `sgs_hero_408` | 镇骨(`zhengu`/normal) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B2 --seed 20261105` | |
 | B2 | wind_fire_forest_mountain | 陈到 | `sgs_hero_409` | 往烈(`wanglie`/normal) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B2 --seed 20261105` | |
@@ -174,7 +176,7 @@
 | B20 | jiexian | 界于禁 | `sgs_hero_756` | 镇军(`zhenjun`/normal)、毅重(`yizhong`/locked) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B20 --seed 20261105` | |
 | B20 | jiexian | 界步练师 | `sgs_hero_775` | 安恤(`anxu`/normal)、追忆(`zhuixi`/limited) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B20 --seed 20261105` | |
 
-## 4. 未纳入批次的武将（83 位，有界版同名）
+## 4. 未纳入批次的武将（84 位，有界版同名）
 
 按口径 A 排除，验证由界版覆盖同名技能（如 `界刘备` 覆盖 `刘备`）：
 

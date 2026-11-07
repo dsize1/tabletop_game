@@ -27,6 +27,12 @@
     "check:sgs-skill-cases": "node apps/scripts/check-sgs-skill-cases.mjs",
     "check:sgs-general-names": "node apps/scripts/check-sgs-general-names.mjs",
     "check:sgs-skill-docs": "node apps/scripts/check-sgs-skill-docs.mjs",
+    "check:sgs-counts": "node apps/scripts/check-sgs-counts.mjs",
+    "check:sgs-align": "node apps/scripts/check-sgs-align.mjs",
+    "sgs:align": "node apps/scripts/sgs-align-sheet.mjs",
+    "check:sgs2": "cargo test --manifest-path crates/Cargo.toml -p sanguosha2",
+    "check:sgs2:metrics": "node apps/scripts/check-sgs2-metrics.mjs",
+    "check:sgs-retire": "node apps/scripts/check-sgs-retire.mjs",
     "gen:sgs-skill-text": "node apps/scripts/gen-sgs-skill-text.mjs",
     "check:sgs-skill-text": "node apps/scripts/gen-sgs-skill-text.mjs --check",
     "check:sgs-pack-presets": "node apps/scripts/check-sgs-pack-presets.mjs",
@@ -69,6 +75,8 @@
     "check:sgs-preview:ui": "node apps/scripts/check-sgs-preview.mjs --ui",
     "check:sgs-assets": "node apps/scripts/check-sgs-assets.mjs",
     "gen:fx": "node apps/scripts/gen-fx-assets.mjs",
-    "check:fx-assets": "node apps/scripts/check-fx-assets.mjs"
+    "check:fx-assets": "node apps/scripts/check-fx-assets.mjs",
+    "sgs2:scenes": "node apps/scripts/sgs2-scenes.mjs",
+    "check:sgs2:scenes": "node apps/scripts/sgs2-scenes.mjs --check"
   }
 }

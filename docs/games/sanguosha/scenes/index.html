@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>三国杀 · 内核 v2 抽检场景（B0/B1）</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 14px/1.6 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; margin: 0; padding: 24px; background:#faf9f7; color:#1d1b19; }
+  @media (prefers-color-scheme: dark) { body { background:#16161a; color:#e6e6ea; } .scene{background:#1e1e24;border-color:#333} code{background:#2a2a33} }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color:#777; margin-bottom: 20px; }
+  .scene { background:#fff; border:1px solid #e6e2dd; border-radius:10px; padding:16px 18px; margin:0 0 18px; }
+  .scene.bad { border-color:#d9534f; }
+  .scene h2 { font-size:16px; margin:0 0 8px; }
+  .id { color:#999; font-weight:400; font-size:12px; margin-left:6px; }
+  .checks { margin:8px 0 12px; padding-left:18px; }
+  .checks li { list-style:none; }
+  .checks li::before { content:""; }
+  .steps { padding-left: 18px; }
+  .steps > li { margin-bottom:14px; }
+  .row { display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; }
+  .act { color:#0a7a3f; }
+  .err { color:#c0392b; }
+  .cols { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:6px; }
+  @media (max-width: 820px){ .cols{ grid-template-columns:1fr; } }
+  .k { font-size:12px; color:#888; margin-bottom:2px; }
+  .muted { color:#666; }
+  .opts { margin-top:4px; display:flex; gap:6px; flex-wrap:wrap; }
+  code { background:#f1efec; padding:1px 5px; border-radius:4px; font-size:12px; }
+</style></head>
+<body>
+  <h1>三国杀 · 内核 v2 抽检场景</h1>
+  <div class="sub">由 <code>sgs2-scenes</code> 真实执行新内核生成（2026-11-06）·
+    全部断言通过 ·
+    共 6 个场景 · 逐步骤展示 pending / 状态 / 日志</div>
+  
+  <section class="scene ok">
+    <h2>✔ 据守翻回正面 → 先结算解围② <span class="id">jushou-flip-jiewei</span></h2>
+    <ul class="checks"><li>✔ 据守应询问</li><li>✔ 翻回正面后应先结算解围②</li><li>✔ 据守把背面翻回正面（取反）</li><li>✔ 解围结束后继续据守（摸 4 后询问弃/使用）</li></ul>
+    <ol class="steps">
+      
+        <li>
+          <div class="row"><b>结束阶段：据守询问</b>
+            
+            
+          </div>
+          <div class="cols">
+            <div><div class="k">动作前 pending</div><div><b>jushou</b> · 等待 <code>0</code></div><div class="opts"><code>choose:jushou</code> <code>pass</code></div></div>
+            <div><div class="k">动作后 pending</div><div><b>jushou</b> · 等待 <code>0</code> · 出口 <code>pass</code></div><div class="opts"><code>choose:jushou</code> <code>pass</code></div></div>
+          </div>
+          <div class="cols">
+            <div><div class="k">状态</div>
+              <div class="muted">回合 0 · 阶段 End · 体力 4/4 · 手牌 3/3 · void 0 · 弃牌堆 0</div>
+            </div>
+            <div><div class="k">日志 / 展示</div>
+              <div class="muted"></div>
+            </div>
+          </div>
+        </li>
+        <li>
+          <div class="row"><b>发动据守（翻面）</b>
+            <span class="act">0 → <code>choose:jushou</code></span>
+            
+          </div>
+          <div class="cols">
+            <div><div class="k">动作前 pending</div><div><b>jushou</b> · 等待 <code>0</code></div><div class="opts"><code>choose:jushou</code> <code>pass</code></div></div>
+            <div><div class="k">动作后 pending</div><div><b>jiewei</b> · 等待 <code>0</code> · 出口 <code>pass</code></div><div class="opts"><code>choose:jiewei</code> <code>pass</code></div></div>
+          </div>
+          <div class="cols">
+            <div><div class="k">状态</div>
+              <div class="muted">回合 0 · 阶段 End · 体力 4/4 · 手牌 3/3 · void 0 · 弃牌堆 0</div>
+            </div>
+            <div><div class="k">日志 / 展示</div>
+              <div class="muted"></div>
+            </div>
+          </div>
+        </li>
+        <li>
+          <div class="row"><b>不发动解围</b>
+            <span class="act">0 → <code>pass</code></span>
+            
+          </div>
+          <div class="cols">
+            <div><div class="k">动作前 pending</div><div><b>jiewei</b> · 等待 <code>0</code></div><div class="opts"><code>choose:jiewei</code> <code>pass</code></div></div>
+            <div><div class="k">动作后 pending</div><div><b>jushou</b> · 等待 <code>0</code> · 出口 <code>pass</code></div><div class="opts"><code>choose:c1</code> <code>choose:c2</code> <code>choose:c3</code> <code>choose:c7</code> <code>choose:c8</code> <code>choose:c9</code> <code>choose:c10</code> <code>pass</code></div></div>
+          </div>
+          <div class="cols">
+            <div><div class="k">状态</div>
+              <div class="muted">回合 0 · 阶段 End · 体力 4/4 · 手牌 7/3 · void 0 · 弃牌堆 0</div>
+            </div>
+            <div><div class="k">日志 / 展示</div>
+              <div class="muted"><br>— 摸 4 张牌<br>— 【jiewei】未发动</div>
+            </div>
+          </div>
+        </li>
+    </ol>
+  </section>
+
+  <section class="scene ok">
+    <h2>✔ 不屈：判定牌 → 「创」移出游戏 <span class="id">buqu-chuang-void</span></h2>
+    <ul class="checks"><li>✔ 不屈回复至 1 点体力</li><li>✔ 「创」移出游戏（void=1）</li></ul>
+    <ol class="steps">
+      
+        <li>
+          <div class="row"><b>进入濒死（不屈自动判定）</b>
+            
+            
+          </div>
+          <div class="cols">
+            <div><div class="k">动作前 pending</div><div class="muted">（无 pending）</div></div>
+            <div><div class="k">动作后 pending</div><div class="muted">（无 pending）</div></div>
+          </div>
+          <div class="cols">
+            <div><div class="k">状态</div>
+              <div class="muted">回合 0 · 阶段 Prepare · 体力 1/4 · 手牌 3/3 · void 1 · 弃牌堆 0</div>
+            </div>
+            <div><div class="k">日志 / 展示</div>
+              <div class="muted">不屈：判定牌点数 7，作为「创」移出游戏，回复至 1 点体力<br>— 回复 1 点体力</div>
+            </div>
+          </div>
+        </li>
+    </ol>
+  </section>
+
+  <section class="scene ok">
+    <h2>✔ 奋激：脱困后才摸 2 <span class="id">fenji-after-dying</span></h2>
+    <ul class="checks"><li>✔ 奋激应询问</li><li>✔ 失去体力后进入濒死（先救）</li><li>✔ 脱困后体力为 1</li><li>✔ 脱困后才令其摸 2（p2 手牌 +2）</li></ul>
+    <ol class="steps">
+      
+        <li>
+          <div class="row"><b>回合外弃牌 → 奋激询问</b>
+            
+            
+          </div>
+          <div class="cols">
+            <div><div class="k">动作前 pending</div><div class="muted">（无 pending）</div></div>
+            <div><div class="k">动作后 pending</div><div><b>fenji</b> · 等待 <code>0</code> · 出口 <code>pass</code></div><div class="opts"><code>choose:fenji</code> <code>pass</code></div></div>
+          </div>
+          <div class="cols">
+            <div><div class="k">状态</div>
+              <div class="muted">回合 1 · 阶段 Play · 体力 1/4/4 · 手牌 3/3/2 · void 0 · 弃牌堆 1</div>
+            </div>
+            <div><div class="k">日志 / 展示</div>
+              <div class="muted"></div>
+            </div>
+          </div>
+        </li>
+        <li>
+          <div class="row"><b>发动奋激（失去 1 点体力）</b>
+            <span class="act">0 → <code>choose:fenji</code></span>
+            
+          </div>
+          <div class="cols">
+            <div><div class="k">动作前 pending</div><div><b>fenji</b> · 等待 <code>0</code></div><div class="opts"><code>choose:fenji</code> <code>pass</code></div></div>
+            <div><div class="k">动作后 pending</div><div><b>dying</b> · 等待 <code>0</code> · 出口 <code>pass</code></div><div class="opts"><code>respond:c3</code> <code>pass</code></div></div>
+          </div>
+          <div class="cols">
+            <div><div class="k">状态</div>
+              <div class="muted">回合 1 · 阶段 Play · 体力 0/4/4 · 手牌 3/3/2 · void 0 · 弃牌堆 1</div>
+            </div>
+            <div><div class="k">日志 / 展示</div>
+              <div class="muted"></div>
+            </div>
+          </div>
+        </li>
+        <li>
+          <div class="row"><b>濒死求桃</b>
+            <span class="act">0 → <code>respond:c3</code></span>
+            
+          </div>
+          <div class="cols">
+            <div><div class="k">动作前 pending</div><div><b>dying</b> · 等待 <code>0</code></div><div class="opts"><code>respond:c3</code> <code>pass</code></div></div>
+            <div><div class="k">动作后 pending</div><div><b>fenji</b> · 等待 <code>0</code> · 出口 <code>pass</code></div><div class="opts"><code>choose:fenji</code> <code>pass</code></div></div>
+          </div>
+          <div class="cols">
+            <div><div class="k">状态</div>
+              <div class="muted">回合 1 · 阶段 Play · 体力 1/4/4 · 手牌 2/3/4 · void 0 · 弃牌堆 2</div>
+            </div>
+            <div><div class="k">日志 / 展示</div>
+              <div class="muted">p0 救援 p0（体力 1）<br>— 摸 2 张牌<br>— 回复 1 点体力</div>
+            </div>
+          </div>
+        </li>
+    </ol>
+  </section>
+
+  <section class="scene ok">
+    <h2>✔ 拒战：阴阳两面各自窗口 <span class="id">juzhan-two-windows</span></h2>
+    <ul class="checks"><li>✔ 阳面（他人回合内）触发</li><li>✔ 阳面提供发动选项</li><li>✔ 阴面（自己回合内）触发</li></ul>
+    <ol class="steps">
+      
+        <li>
+          <div class="row"><b>他人回合：用杀指定严颜 → 阳面</b>
+            
+            
+          </div>
+          <div class="cols">
+            <div><div class="k">动作前 pending</div><div class="muted">（无 pending）</div></div>
+            <div><div class="k">动作后 pending</div><div><b>juzhan</b> · 等待 <code>0</code> · 出口 <code>pass</code></div><div class="opts"><code>choose:juzhan</code> <code>pass</code></div></div>
+          </div>
+          <div class="cols">
+            <div><div class="k">状态</div>
+              <div class="muted">回合 1 · 阶段 Play · 体力 4/4 · 手牌 3/3 · void 0 · 弃牌堆 0</div>
+            </div>
+            <div><div class="k">日志 / 展示</div>
+              <div class="muted"></div>
+            </div>
+          </div>
+        </li>
+        <li>
+          <div class="row"><b>不发动（pass）</b>
+            <span class="act">0 → <code>pass</code></span>
+            
+          </div>
+          <div class="cols">
+            <div><div class="k">动作前 pending</div><div><b>juzhan</b> · 等待 <code>0</code></div><div class="opts"><code>choose:juzhan</code> <code>pass</code></div></div>
+            <div><div class="k">动作后 pending</div><div class="muted">（无 pending）</div></div>
+          </div>
+          <div class="cols">
+            <div><div class="k">状态</div>
+              <div class="muted">回合 1 · 阶段 Play · 体力 4/4 · 手牌 3/3 · void 0 · 弃牌堆 0</div>
+            </div>
+            <div><div class="k">日志 / 展示</div>
+              <div class="muted"><br>— 【juzhan】未发动</div>
+            </div>
+          </div>
+        </li>
+        <li>
+          <div class="row"><b>自己回合：用杀指定他人 → 阴面</b>
+            
+            
+          </div>
+          <div class="cols">
+            <div><div class="k">动作前 pending</div><div class="muted">（无 pending）</div></div>
+            <div><div class="k">动作后 pending</div><div><b>juzhan</b> · 等待 <code>0</code> · 出口 <code>pass</code></div><div class="opts"><code>choose:juzhan</code> <code>pass</code></div></div>
+          </div>
+          <div class="cols">
+            <div><div class="k">状态</div>
+              <div class="muted">回合 0 · 阶段 Play · 体力 4/4 · 手牌 3/3 · void 0 · 弃牌堆 0</div>
+            </div>
+            <div><div class="k">日志 / 展示</div>
+              <div class="muted"><br>— 【juzhan】未发动</div>
+            </div>
+          </div>
+        </li>
+    </ol>
+  </section>
+
+  <section class="scene ok">
+    <h2>✔ 遗礼：濒死救回后才给「橘」 <span class="id">yili-dying-defer</span></h2>
+    <ul class="checks"><li>✔ 遗礼应询问</li><li>✔ 代价致濒死：先进入濒死结算</li><li>✔ 救回后体力 1</li><li>✔ 脱困后才询问给「橘」</li></ul>
+    <ol class="steps">
+      
+        <li>
+          <div class="row"><b>出牌阶段开始：遗礼询问</b>
+            
+            
+          </div>
+          <div class="cols">
+            <div><div class="k">动作前 pending</div><div><b>yili</b> · 等待 <code>0</code></div><div class="opts"><code>choose:yili:hp</code> <code>pass</code></div></div>
+            <div><div class="k">动作后 pending</div><div><b>yili</b> · 等待 <code>0</code> · 出口 <code>pass</code></div><div class="opts"><code>choose:yili:hp</code> <code>pass</code></div></div>
+          </div>
+          <div class="cols">
+            <div><div class="k">状态</div>
+              <div class="muted">回合 0 · 阶段 Play · 体力 1/4 · 手牌 3/3 · void 0 · 弃牌堆 0</div>
+            </div>
+            <div><div class="k">日志 / 展示</div>
+              <div class="muted"></div>
+            </div>
+          </div>
+        </li>
+        <li>
+          <div class="row"><b>选择失去 1 点体力</b>
+            <span class="act">0 → <code>choose:yili:hp</code></span>
+            
+          </div>
+          <div class="cols">
+            <div><div class="k">动作前 pending</div><div><b>yili</b> · 等待 <code>0</code></div><div class="opts"><code>choose:yili:hp</code> <code>pass</code></div></div>
+            <div><div class="k">动作后 pending</div><div><b>dying</b> · 等待 <code>0</code> · 出口 <code>pass</code></div><div class="opts"><code>respond:c3</code> <code>pass</code></div></div>
+          </div>
+          <div class="cols">
+            <div><div class="k">状态</div>
+              <div class="muted">回合 0 · 阶段 Play · 体力 0/4 · 手牌 3/3 · void 0 · 弃牌堆 0</div>
+            </div>
+            <div><div class="k">日志 / 展示</div>
+              <div class="muted"></div>
+            </div>
+          </div>
+        </li>
+        <li>
+          <div class="row"><b>濒死求桃</b>
+            <span class="act">0 → <code>respond:c3</code></span>
+            
+          </div>
+          <div class="cols">
+            <div><div class="k">动作前 pending</div><div><b>dying</b> · 等待 <code>0</code></div><div class="opts"><code>respond:c3</code> <code>pass</code></div></div>
+            <div><div class="k">动作后 pending</div><div><b>yili</b> · 等待 <code>0</code> · 出口 <code>pass</code></div><div class="opts"><code>target:1</code> <code>pass</code></div></div>
+          </div>
+          <div class="cols">
+            <div><div class="k">状态</div>
+              <div class="muted">回合 0 · 阶段 Play · 体力 1/4 · 手牌 2/3 · void 0 · 弃牌堆 1</div>
+            </div>
+            <div><div class="k">日志 / 展示</div>
+              <div class="muted">p0 救援 p0（体力 1）<br>— 回复 1 点体力</div>
+            </div>
+          </div>
+        </li>
+    </ol>
+  </section>
+
+  <section class="scene ok">
+    <h2>✔ 立军：孙亮二次选择 <span class="id">lijun-second-choice</span></h2>
+    <ul class="checks"><li>✔ 先问使用者是否交出</li><li>✔ 杀进入孙亮手牌</li><li>✔ 第二段由孙亮决定（不自动摸牌）</li><li>✔ 孙亮选择后才摸 1</li><li>✔ 杀次数加成已记录</li></ul>
+    <ol class="steps">
+      
+        <li>
+          <div class="row"><b>吴势力用杀 → 立军询问</b>
+            
+            
+          </div>
+          <div class="cols">
+            <div><div class="k">动作前 pending</div><div class="muted">（无 pending）</div></div>
+            <div><div class="k">动作后 pending</div><div><b>lijun</b> · 等待 <code>1</code> · 出口 <code>pass</code></div><div class="opts"><code>choose:lijun</code> <code>pass</code></div></div>
+          </div>
+          <div class="cols">
+            <div><div class="k">状态</div>
+              <div class="muted">回合 1 · 阶段 Play · 体力 4/4 · 手牌 3/3 · void 0 · 弃牌堆 0</div>
+            </div>
+            <div><div class="k">日志 / 展示</div>
+              <div class="muted"></div>
+            </div>
+          </div>
+        </li>
+        <li>
+          <div class="row"><b>交杀给孙亮</b>
+            <span class="act">1 → <code>choose:lijun</code></span>
+            
+          </div>
+          <div class="cols">
+            <div><div class="k">动作前 pending</div><div><b>lijun</b> · 等待 <code>1</code></div><div class="opts"><code>choose:lijun</code> <code>pass</code></div></div>
+            <div><div class="k">动作后 pending</div><div><b>lijun</b> · 等待 <code>0</code> · 出口 <code>pass</code></div><div class="opts"><code>choose:lijun_bonus</code> <code>pass</code></div></div>
+          </div>
+          <div class="cols">
+            <div><div class="k">状态</div>
+              <div class="muted">回合 1 · 阶段 Play · 体力 4/4 · 手牌 4/2 · void 0 · 弃牌堆 0</div>
+            </div>
+            <div><div class="k">日志 / 展示</div>
+              <div class="muted"></div>
+            </div>
+          </div>
+        </li>
+        <li>
+          <div class="row"><b>孙亮选择：摸 1 + 杀次数 +1</b>
+            <span class="act">0 → <code>choose:lijun_bonus</code></span>
+            
+          </div>
+          <div class="cols">
+            <div><div class="k">动作前 pending</div><div><b>lijun</b> · 等待 <code>0</code></div><div class="opts"><code>choose:lijun_bonus</code> <code>pass</code></div></div>
+            <div><div class="k">动作后 pending</div><div class="muted">（无 pending）</div></div>
+          </div>
+          <div class="cols">
+            <div><div class="k">状态</div>
+              <div class="muted">回合 1 · 阶段 Play · 体力 4/4 · 手牌 4/3 · void 0 · 弃牌堆 0</div>
+            </div>
+            <div><div class="k">日志 / 展示</div>
+              <div class="muted"></div>
+            </div>
+          </div>
+        </li>
+    </ol>
+  </section>
+</body></html>
