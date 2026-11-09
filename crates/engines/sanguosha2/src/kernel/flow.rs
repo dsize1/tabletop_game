@@ -450,6 +450,18 @@ pub fn step_dying(g: &mut Game, a: &Ask) -> Result<Step, String> {
             );
         }
     }
+    // 被动转化【桃】（急救：回合外红色牌当【桃】；候选与 execute 共用 `dying_conversions`）。
+    for conv in crate::skills::dying_conversions(g, asker) {
+        has = true;
+        b = b.option(
+            format!("vrespond:{}:{}", conv.skill, conv.from),
+            format!(
+                "用【{}】当【桃】救援（{}）",
+                g.card_label(&conv.from),
+                g.seats[victim].name
+            ),
+        );
+    }
     if !has {
         let mut next = a.data.clone();
         next["cursor"] = json!(cursor + 1);
@@ -468,6 +480,32 @@ pub fn step_dying(g: &mut Game, a: &Ask) -> Result<Step, String> {
             Ok(Step::Next(Stage::DyingAsk, a.data.clone()))
         }
         Some(act) => {
+            // 转化牌救援（急救）：承载牌进弃牌堆，体力 +1（与【桃】同一结算点）。
+            if let Some(rest) = act.strip_prefix("vrespond:") {
+                let mut parts = rest.splitn(2, ':');
+                let skill = parts.next().unwrap_or_default().to_string();
+                let from = parts.next().unwrap_or_default().to_string();
+                let ok = crate::skills::dying_conversions(g, asker)
+                    .into_iter()
+                    .any(|c| c.skill == skill && c.from == from);
+                if !ok {
+                    return Err("濒死：非法的转化【桃】".into());
+                }
+                g.to_discard(&from, "dying_heal")?;
+                g.seats[victim].hp += 1;
+                g.presentation.push(
+                    Presentation::new("dying", POutcome::Heal { amount: 1 })
+                        .actor(asker)
+                        .target(victim)
+                        .cards(vec![from])
+                        .fx("dying_heal"),
+                );
+                g.push_log(format!(
+                    "{} 急救救援 {}（体力 {}）",
+                    g.seats[asker].name, g.seats[victim].name, g.seats[victim].hp
+                ));
+                return Ok(Step::Done);
+            }
             let id = act
                 .strip_prefix("respond:")
                 .ok_or_else(|| format!("濒死：未知选项 {act}"))?

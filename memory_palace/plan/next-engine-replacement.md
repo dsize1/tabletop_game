@@ -507,3 +507,31 @@ node apps/scripts/check-sgs2-metrics.mjs
 3. 再按 `align/B11.json` 第 7 段实现 14 技能（文件已写过两版，可复用结构）+ `tests/b11.rs` 15 条。
 4. `V2_BATCHES` 加 11 → `check:sgs2` → `sgs:check:fast` → 回写 impl/tests → M83 → 单条 commit。
 
+
+## 17. B12 实施记录（2026-11-09，已收口）
+
+**结论：B12 已整批收口**（4 将 / 8 技能 + 18 用例，`cargo test -p sanguosha2` 448 全绿；
+`check:sgs2` 与 `sgs:check:fast` 全绿）。本批没有走「先失败两轮」的弯路，因为两条内核缺口在
+对齐阶段就被登记成机制条目（`multi-response` / `no-wuxie`），实现前先补内核再写技能。
+
+### 17.1 新增的内核能力
+
+| 能力 | 落点 | 备注 |
+|---|---|---|
+| 多张响应（`multi-response`） | `skills::response_need` + `card_play::sha_loop` / `duel` 的 `data[need]/[got]` 计数 | 技能只声明张数，不改响应窗口；不足 N 张 = 未抵消 |
+| 不能被无懈可击抵消（`no-wuxie`） | `UseOpts::no_wuxie` → 使用帧 `data["no_wuxie"]`；`Game::use_virtual_no_wuxie` | 与 `unresponsive`（闪/杀不响应）**分开**，否则会误关【决斗】的出杀响应 |
+| 濒死救援的转化【桃】 | `skills::dying_conversions` + `flow::step_dying` 的 `vrespond:<skill>:<牌>` | 承载牌可来自装备区（走统一移动，触发失去装备钩子） |
+| 反向距离修正 | `skills::distance_to_delta` → `Game::distance_raw` | 义从「他人算到我 +1」；距离链统一改 `i32` 累加、下限 1 |
+
+### 17.2 语义裁定里值得记住的（用户 2026-11-09）
+
+- **除疠**：弃牌由**被弃置的角色本人**选（不是华佗代选）；判定区不参与、离开判定区不算弃置。
+- **利驭**：装备牌分支的【决斗】对象由**受伤角色**指定（v1 是吕布指定，属实现偏差）。
+- **无双**：决斗时「与吕布决斗的对方」每次两张【杀】，**不论决斗由谁发起**（v1 只做了吕布发起一侧）。
+- **闭月**：结束阶段在弃牌阶段**之后**，本次摸牌不会再触发弃牌，超上限的牌留到下个弃牌阶段。
+
+### 17.3 下轮（B13 界标·J1）开工顺序
+
+1. `node apps/scripts/sgs-align-sheet.mjs --batch B13 --new` → 填 2–5 段 → 交用户裁定。
+2. 先看 `npm run sgs2:batch -- B13` 的机制缺口（`multi-response` / `no-wuxie` 已 ok）。
+3. 实现 `skills/b13.rs` + `tests/b13.rs` → `V2_BATCHES` 加 13 → 回写 impl/tests → M85 → 单条 commit。

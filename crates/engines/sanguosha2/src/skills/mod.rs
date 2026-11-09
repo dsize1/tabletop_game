@@ -17,6 +17,7 @@ pub mod b8;
 pub mod b9;
 pub mod b10;
 pub mod b11;
+pub mod b12;
 pub mod mingren;
 pub mod kongsheng;
 pub mod liangyin;
@@ -226,6 +227,15 @@ pub const SKILLS: &[SkillDef] = &[
     b11::WANGXI,
     b11::QINGGUO,
     b11::LUOSHEN,
+    // B12（界华佗 / 界吕布 / 界公孙瓒 / 界貂蝉）
+    b12::JIJIU,
+    b12::CHULI,
+    b12::WUSHUANG,
+    b12::LIYU,
+    b12::YICONG,
+    b12::QIAOMENG,
+    b12::LIJIAN,
+    b12::BIYUE,
 ];
 
 /// 转换技（阳/阴两面）：视图按此清单投影 `transforms`（与 handlers 的 `g.yang/toggle_yang` 对应）。
@@ -262,7 +272,7 @@ pub fn active(g: &Game, seat: usize, code: &str) -> bool {
 /// 明确的**锁定技**（义绝/铁骑的「非锁定技失效」不作用于这些）。
 pub const LOCKED_SKILLS: &[&str] = &[
     "jueyan", "jishe", "lianhuo", "zongzuo", "shushen", "weimu", "wushuang", "tieqi_locked",
-    "kongcheng", "mashu", "paoxiao", "qicai", "fulin", "yingzi", "zhaxiang",
+    "kongcheng", "mashu", "paoxiao", "qicai", "fulin", "yingzi", "zhaxiang", "yicong",
 ];
 
 /// 「本回合非锁定技失效」（义绝·黑 / 铁骑）。
@@ -823,7 +833,16 @@ pub fn conversions(g: &Game, seat: usize) -> Vec<Conversion> {
     let mut out = b9::conversions(g, seat);
     out.extend(b10::conversions(g, seat));
     out.extend(b11::conversions(g, seat));
+    out.extend(b12::conversions(g, seat));
     out
+}
+
+/// 濒死救援可用的转化【桃】（急救）：`legal` 与 `execute` 共用同一份候选。
+pub fn dying_conversions(g: &Game, seat: usize) -> Vec<Conversion> {
+    conversions(g, seat)
+        .into_iter()
+        .filter(|c| c.to == "桃" && c.playable)
+        .collect()
 }
 
 /// 响应窗口的额外选项（主公技接力「激将」）。
@@ -862,9 +881,25 @@ pub fn sha_limit_override(g: &Game, seat: usize) -> Option<usize> {
     b9::sha_limit_override(g, seat)
 }
 
-/// 距离修正（马术 -1）。
+/// 距离修正（马术 -1 / 义从 -1）。
 pub fn distance_delta(g: &Game, seat: usize) -> i32 {
-    b9::distance_delta(g, seat)
+    b9::distance_delta(g, seat) + b12::distance_delta(g, seat)
+}
+
+/// 「他人 → 我」的距离修正（义从：体力 ≤2 时 +1）。
+pub fn distance_to_delta(g: &Game, seat: usize) -> i32 {
+    b12::distance_to_delta(g, seat)
+}
+
+/// 同一响应窗口需连续打出的响应牌张数（multi-response；无双）。
+pub fn response_need(
+    g: &Game,
+    responder: usize,
+    opponent: usize,
+    kind: crate::cards::ResponseKind,
+    effect: crate::cards::Effect,
+) -> usize {
+    b12::response_need(g, responder, opponent, kind, effect)
 }
 
 /// 【杀】无距离限制（界武圣·方片【杀】）。

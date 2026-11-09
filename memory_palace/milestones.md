@@ -2,6 +2,19 @@
 
 > 记录项目关键节点与验证结果，按时间倒序。重大技术决策见 `decisions/`。
 
+## M84：B12 界标·群 八技能落地（v2 迁移批次第 5 批）✅
+
+- **日期**：2026-11-09
+- **对齐**：`align/B12.json` 28 条疑点逐条裁定（急救含装备区、除疠由被弃置者自选、无双决斗双向、
+  利驭由受伤角色指定决斗对象、趫猛询问发动、离间不能被无懈、闭月询问且结束阶段摸牌不触发弃牌）
+  → implemented。
+- **实现**：`skills/b12.rs` 8 技能（急救/除疠、无双/利驭、义从/趫猛、离间/闭月）。
+- **内核增量**：`multi-response`（`skills::response_need` + `sha_loop`/`duel` 的 need/got 计数）、
+  `no-wuxie`（`UseOpts.no_wuxie` → 使用帧 data，`Game::use_virtual_no_wuxie`）、
+  濒死救援的转化【桃】（`skills::dying_conversions`）、义从的**反向距离钩子**（`distance_to_delta`）。
+- **度量**：`cargo test -p sanguosha2` **448** 条全绿（新增 `tests/b12.rs` 18 条）；`check:sgs2` 全绿
+  （注册 172 / 对齐单 167 / B0–B12 精确一致）；`sgs:check:fast` 全绿。
+
 ## M83：B11 界标·魏 十四技能落地（v2 迁移批次第 4 批）✅
 
 - **日期**：2026-11-09

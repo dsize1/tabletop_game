@@ -35,6 +35,9 @@ pub struct UseOpts {
     pub strict: bool,
     /// 伤害来源覆盖（勤王：代出的【杀】伤害来源视为刘谌）。
     pub damage_source: Option<usize>,
+    /// 不能被【无懈可击】抵消（机制 `no-wuxie`；如离间「不能被无懈可击抵消」）。
+    /// 只关无懈窗口，不影响该牌的其它响应（【决斗】仍需出【杀】）。
+    pub no_wuxie: bool,
 }
 
 impl UseOpts {
@@ -43,6 +46,7 @@ impl UseOpts {
         Self {
             strict: true,
             damage_source: None,
+            no_wuxie: false,
         }
     }
 
@@ -51,6 +55,7 @@ impl UseOpts {
         Self {
             strict: false,
             damage_source: None,
+            no_wuxie: false,
         }
     }
 
@@ -59,11 +64,17 @@ impl UseOpts {
         Self {
             strict: true,
             damage_source: None,
+            no_wuxie: false,
         }
     }
 
     pub fn with_damage_source(mut self, seat: usize) -> Self {
         self.damage_source = Some(seat);
+        self
+    }
+
+    pub fn with_no_wuxie(mut self) -> Self {
+        self.no_wuxie = true;
         self
     }
 }
@@ -507,7 +518,18 @@ pub fn start_virtual(
     name: &str,
     targets: Vec<usize>,
 ) -> Result<(), String> {
-    start_use(g, seat, None, name, targets, UseOpts::skill())
+    start_virtual_with(g, seat, name, targets, UseOpts::skill())
+}
+
+/// 纯虚拟牌 + 使用选项（离间的「不能被无懈可击抵消」）。
+pub fn start_virtual_with(
+    g: &mut Game,
+    seat: usize,
+    name: &str,
+    targets: Vec<usize>,
+    opts: UseOpts,
+) -> Result<(), String> {
+    start_use(g, seat, None, name, targets, opts)
 }
 
 /// 技能入口：转化牌（实体承载 + 生效牌名）。
@@ -633,6 +655,7 @@ pub fn start_use(
         "responder": planned.first().copied(),
         "opponent": seat,
         "damage_source": opts.damage_source,
+        "no_wuxie": opts.no_wuxie,
     });
     g.stack.push(Frame::Flow(FlowFrame {
         kind: FlowKind::Card,
@@ -722,10 +745,12 @@ pub fn step_card(g: &mut Game, a: &Ask) -> Result<Step, String> {
     // 无懈链：普通锦囊（无懈本身与延时锦囊不问）。
     if def.kind == CardKind::Trick && !def.tags.wuxie && !def.tags.delayed {
         let unresponsive = card_ref.map(|c| g.is_unresponsive(c)).unwrap_or(false);
+        // 机制 `no-wuxie`：只关无懈窗口，不影响【决斗】等的其它响应。
+        let no_wuxie = data["no_wuxie"].as_bool().unwrap_or(false);
         if !data["wuxie_started"].as_bool().unwrap_or(false) {
             data["wuxie_started"] = json!(true);
-            if unresponsive {
-                // 往烈/雄乱：此牌不能被响应（含无懈）。
+            if unresponsive || no_wuxie {
+                // 往烈/雄乱/离间：此牌不能被无懈。
                 data["wuxie_done"] = json!(true);
             } else {
                 flow::start_wuxie(g, source, card_ref.cloned().unwrap_or_else(|| name.clone()));
@@ -933,6 +958,8 @@ fn sha_loop(
                     list.retain(|x| g.seats.get(*x).is_some_and(|s| s.hp > 0));
                     data["targets"] = json!(list);
                     data["asked"] = json!(false);
+                    data["need"] = json!(0);
+                    data["got"] = json!(0);
                     data["cursor"] = json!(0);
                     targets = list;
                     cursor = 0;
@@ -972,23 +999,48 @@ fn sha_loop(
             let responded = apply_response(g, t, ResponseKind::Shan, card)?;
             data["asked"] = json!(false);
             if responded {
-                // 界咆哮：【杀】被抵消后，本回合下一次【杀】伤害 +1。
-                if crate::skills::active(g, damage_source, "paoxiao") {
-                    g.counters.insert("turn.paoxiao_bonus".to_string(), 1);
-                    g.push_log("咆哮：【杀】被抵消，本回合下一次【杀】伤害 +1".to_string());
+                let got = num(data, "got") + 1;
+                data["got"] = json!(got);
+                let need = num(data, "need").max(1);
+                if got >= need {
+                    data["need"] = json!(0);
+                    data["got"] = json!(0);
+                    // 界咆哮：【杀】被抵消后，本回合下一次【杀】伤害 +1。
+                    if crate::skills::active(g, damage_source, "paoxiao") {
+                        g.counters.insert("turn.paoxiao_bonus".to_string(), 1);
+                        g.push_log("咆哮：【杀】被抵消，本回合下一次【杀】伤害 +1".to_string());
+                    }
+                    skills::on_sha_finished(g, source, Some(t), card, None, false);
+                    cursor += 1;
+                    data["cursor"] = json!(cursor);
+                    continue;
                 }
+                // multi-response：还需同一目标继续打出（落到下方重新询问）。
             } else {
+                data["need"] = json!(0);
+                data["got"] = json!(0);
                 let bonus = jiu_take_bonus(g);
                 deal_damage(g, damage_source, t, 1 + bonus, def, card);
+                skills::on_sha_finished(g, source, Some(t), card, None, true);
+                cursor += 1;
+                data["cursor"] = json!(cursor);
+                continue;
             }
-            skills::on_sha_finished(g, source, Some(t), card, None, !responded);
-            cursor += 1;
-            data["cursor"] = json!(cursor);
-            continue;
         }
         // 不能被响应的牌（往烈/雄乱）：直接结算伤害。
         if !unresponsive {
             if let Some(p) = response_pending(g, t, ResponseKind::Shan) {
+                if num(data, "need") == 0 {
+                    let need = skills::response_need(g, t, source, ResponseKind::Shan, def.effect);
+                    data["need"] = json!(need);
+                    data["got"] = json!(0);
+                    if need > 1 {
+                        g.push_log(format!(
+                            "无双：{} 需连续打出 {need} 张【闪】",
+                            g.seats[t].name
+                        ));
+                    }
+                }
                 data["asked"] = json!(true);
                 return need_at(g, Stage::CardAsk, data.clone(), p).map(Some);
             }
@@ -1105,8 +1157,16 @@ fn duel(
         let responded = apply_response(g, responder, ResponseKind::Sha, card)?;
         data["asked"] = json!(false);
         if responded {
-            // 轮换：由对方继续出【杀】。
-            data["responder"] = json!(opponent);
+            let got = num(data, "got") + 1;
+            data["got"] = json!(got);
+            let need = num(data, "need").max(1);
+            if got >= need {
+                // 轮换：由对方继续出【杀】。
+                data["responder"] = json!(opponent);
+                data["need"] = json!(0);
+                data["got"] = json!(0);
+            }
+            // multi-response：未凑满张数时同一方继续（`need` 保留）。
             return Ok(Step::Next(Stage::CardOpt, data.clone()));
         }
         let source_of_damage = if damage_source == source {
@@ -1114,6 +1174,8 @@ fn duel(
         } else {
             damage_source
         };
+        data["need"] = json!(0);
+        data["got"] = json!(0);
         deal_damage(g, source_of_damage, responder, 1, def, card);
         skills::zhanjue_on_damage(g, source, responder);
         return advance_target(g, card, data);
@@ -1128,6 +1190,23 @@ fn duel(
         if let Some(p) = response_pending(g, responder, ResponseKind::Sha) {
             data["responder"] = json!(responder);
             data["asked"] = json!(true);
+            if num(data, "need") == 0 {
+                let need = crate::skills::response_need(
+                    g,
+                    responder,
+                    opponent,
+                    ResponseKind::Sha,
+                    def.effect,
+                );
+                data["need"] = json!(need);
+                data["got"] = json!(0);
+                if need > 1 {
+                    g.push_log(format!(
+                        "无双：{} 需连续打出 {need} 张【杀】",
+                        g.seats[responder].name
+                    ));
+                }
+            }
             return need_at(g, Stage::CardAsk, data.clone(), p);
         }
     }
@@ -1157,6 +1236,8 @@ fn advance_target(
     data["tcursor"] = json!(tc);
     if tc < targets.len() {
         data["asked"] = json!(false);
+        data["need"] = json!(0);
+        data["got"] = json!(0);
         data["step"] = json!("start");
         data["responder"] = json!(targets[tc]);
         data["opponent"] = data["source_seat"].clone();

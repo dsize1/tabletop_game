@@ -1079,6 +1079,22 @@ impl Game {
         crate::kernel::card_play::start_virtual(self, seat, name, targets)
     }
 
+    /// 纯虚拟牌 + 「不能被【无懈可击】抵消」（离间：「不能被无懈可击抵消」）。
+    pub fn use_virtual_no_wuxie(
+        &mut self,
+        seat: usize,
+        name: &str,
+        targets: Vec<usize>,
+    ) -> Result<(), String> {
+        crate::kernel::card_play::start_virtual_with(
+            self,
+            seat,
+            name,
+            targets,
+            crate::kernel::card_play::UseOpts::skill().with_no_wuxie(),
+        )
+    }
+
     /// 转化牌（实体承载 + 生效牌名；如奇策/战绝/滔乱/慎断）。
     ///
     /// `strict=true` = 出牌阶段的严格校验（次数/距离）；`damage_source` 用于勤王（伤害来源视为刘谌）。
@@ -1130,30 +1146,34 @@ impl Game {
             return 0;
         }
         let d = (a + n - b) % n;
-        let mut base = d.min(n - d);
-        let horse = |seat: usize, slot: Slot| -> usize {
+        let mut base = d.min(n - d) as i32;
+        let horse = |seat: usize, slot: Slot| -> i32 {
             self.ids_in(|z| *z == Zone::Equip(seat, slot))
                 .iter()
                 .filter_map(|id| self.cards.get(id))
                 .filter_map(|c| crate::cards::horse_bonus(&c.name))
-                .sum()
+                .sum::<usize>() as i32
         };
         // 与 v1 `effective_distance` 一致：进攻马缩短「我到你」的距离，防御马增加「你到你」的距离。
-        base = base.saturating_sub(horse(a, Slot::HorseOffense));
+        base -= horse(a, Slot::HorseOffense);
         base += horse(b, Slot::HorseDefense);
+        // 义从（界公孙瓒）：体力 ≤2 时其他角色算与你的距离 +1（统一距离入口）。
+        if a != b {
+            base += crate::skills::distance_to_delta(self, b);
+        }
         if crate::skills::active(self, a, "mashu") {
-            base = base.saturating_sub(1);
+            base -= 1;
         }
         // 奔袭（吴懿）第一段：回合内计算与其他角色的距离 -1（等价自带进攻马，可与进攻马叠加）。
         if a != b && self.turn == a && crate::skills::active(self, a, "benxi") {
-            base = base.saturating_sub(1);
+            base -= 1;
         }
         // 千驹（曹休，锁定）：每损失 1 点体力，距离 -1（与进攻马叠加；统一距离入口）。
         if a != b && crate::skills::active(self, a, "qianju") {
-            let lost = (self.seats[a].max_hp - self.seats[a].hp).max(0) as usize;
-            base = base.saturating_sub(lost);
+            let lost = (self.seats[a].max_hp - self.seats[a].hp).max(0);
+            base -= lost;
         }
-        base.max(1)
+        base.max(1) as usize
     }
 
     /// 攻击范围：装备武器时 = 武器范围；否则 1。

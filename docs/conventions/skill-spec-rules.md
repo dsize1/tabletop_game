@@ -152,3 +152,22 @@
 - 无懈链复用 `flow::start_wuxie`，结果经 `Game::wuxie_result` 回传父流程（不与牌结算各写一半）。
 - 延时锦囊在判定阶段按 `Game::judge_zone_lifo` 结算（后置先判）；判定区进出只发
   `JudgeZoneEntered` / `JudgeZoneLeft`，不算弃置。
+
+## 15. B12 跨批机制（2026-11-09）
+
+- **多张响应**（`multi-response`，无双）：同一响应窗口可要求响应者**连续**打出 N 张同类响应牌。
+  声明入口 `skills::response_need(g, responder, opponent, kind, effect)`；内核在 `card_play::sha_loop`
+  （【杀】的【闪】）与 `card_play::duel`（每次出【杀】）用使用帧 `data["need"]/data["got"]` 计数，
+  **技能不得删改响应窗口**。不足 N 张 = 未抵消，已打出的牌不退；「不能被响应」的牌整段跳过计数。
+- **不能被无懈可击抵消**（`no-wuxie`，离间）：`UseOpts::no_wuxie` → 使用帧 `data["no_wuxie"]`，
+  `card_play::play` 的无懈窗口据此跳过。与「不能被响应」（`unresponsive`，闪/杀）是**两个不同事实**，
+  禁止复用 `unresponsive`（否则会把【决斗】的出【杀】响应一起关掉）。技能入口
+  `Game::use_virtual_no_wuxie`。
+- **濒死救援的转化【桃】**（急救）：`skills::conversions` 返回 `to: "桃"` 的项，濒死流程通过
+  `skills::dying_conversions` 生成 `vrespond:<skill>:<承载牌>` 选项（legal 与 execute 同源），
+  承载牌可来自手牌或装备区（装备区走统一移动 → 触发失去装备钩子）。
+- **参与者自选弃牌**（除疠）：由**被弃置的角色本人**（pending actor = 该角色）从自己的手牌/装备区
+  选一张，而不是由技能持有者代选；「区域里的一张牌」在弃置类效果中**不含判定区**
+  （判定区离开不算弃置，见 `discard-contract`）。
+- **距离双向修正**：`skills::distance_delta`（我 → 他人）与 `skills::distance_to_delta`（他人 → 我）；
+  两者都在 `Game::distance_raw` 的单一入口累加，最终 `Game::distance` 保证下限 1。

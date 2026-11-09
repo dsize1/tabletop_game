@@ -1,7 +1,7 @@
 {
   "batch": "B12",
   "source": "界限突破·界标·群",
-  "status": "confirmed",
+  "status": "implemented",
   "mechanics_version": 2,
   "confirmed_by": "用户",
   "confirmed_at": "2026-11-09",
@@ -16,22 +16,19 @@
           "code": "jijiu",
           "name": "急救",
           "kind": "normal",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "在你的回合外，你可以将一张红色牌当【桃】使用。",
           "original_source": "heroes.json#gid=318",
           "mechanics_version": 2,
           "current": [
-            "v2 未实现（注册表无 `jijiu`，`skills/b12.rs` 待建）；以下为 v1 行为（锚点 `sanguosha/src/skills.rs:4231`）。",
-            "v1 `conversion_for(st, seat, card, \"tao\")` 条件：拥有 `jijiu` + 承载牌为**红色** + `st.turn != seat`（回合外）→ 返回 `(jijiu, 急救)`。",
-            "v1 候选集合只遍历**手牌**（`resolve.rs:2797` 的 `for id in &st.seats[seat].hand`）：装备区的红色牌不能当【桃】。",
-            "v1 唯一可用场景是**濒死救援窗口**（`respond:` 选项，可救他人/自己）；自己回合的出牌阶段用不了（回合内本来可以用真实【桃】）。",
+            "v2（本批落地）：`b12::conversions` 在「拥有急救 + 承载牌为红色 + 当前回合不是自己」时返回 `to=\"桃\"`、`playable=true` 的转化项（承载牌 = 手牌 ∪ 装备区，**不含判定区**）。",
+            "濒死救援窗口（`flow::step_dying`）通过 `skills::dying_conversions` 追加 `vrespond:jijiu:<承载牌>` 选项；执行时校验候选后弃置承载牌（装备区走统一移动，触发失去装备钩子）并回复 1 点体力。",
+            "由于【桃】没有独立 ResponseKind，急救不会出现在【杀】/【闪】等响应窗口；自己回合内（`g.turn == seat`）候选为空。",
             "转化牌的颜色/点数按承载牌（机制 `card-attributes`）；打出后承载牌进弃牌堆。"
           ],
           "confidence": "verified",
           "diff": [
-            "原文「一张红色牌」未限定手牌 → v1 只允许手牌，装备区红色牌不可（与 B11 倾国「手牌 + 装备区」的裁定不一致）。",
-            "「在你的回合外」v1 用 `st.turn != seat` 判定；v2 的额外回合（博图）仍计为自己的回合，回合外口径需明确。",
-            "v1 未登记「判定区牌不能作为承载牌」的反例（判定区牌本就不可主动使用，属隐含约束）。"
+            "v1 只允许红色**手牌**；本批按裁定扩到装备区（与 B11 倾国一致），判定区明确排除。"
           ],
           "questions": [
             {
@@ -86,29 +83,29 @@
               "黑色牌与判定区的红色牌都不出现急救选项"
             ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b12::JIJIU + skills::dying_conversions（kernel/flow::step_dying）",
+          "tests": [
+            "b12::jijiu_rescues_with_red_hand_and_equip",
+            "b12::jijiu_is_off_outside_turn_and_red_only"
+          ]
         },
         {
           "code": "chuli",
           "name": "除疠",
           "kind": "normal",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "出牌阶段限一次，你可以选择任意名势力各不相同的其他角色，弃置你和这些角色的各一张牌，然后被弃置黑桃牌的角色各摸一张牌。",
           "original_source": "heroes.json#gid=318",
           "mechanics_version": 2,
           "current": [
-            "v2 未实现（`skills/b12.rs` 待建）；以下为 v1 行为（`resolve_jiexian.rs:1732` step / `1779` act；出牌阶段入口 `turn.rs:2723`）。",
-            "选人：遍历存活其他角色，若已选集合中已有同势力（`kingdom_of`）则该角色不再出现；可点选/再点取消；`confirm` 需已选 ≥1 名，`pass` 取消整个发动。",
-            "结算顺序：`[自己, 已选角色…]` 逐个 `take_one_from_region` 取牌（**判定区 → 装备区 → 手牌随机**）并 `discard_by` 弃置。",
-            "每弃一张立即按牌面判定：若为**黑桃**，该角色摸 1 张（`draw_cards`），逐人结算（弃→判→摸）。",
-            "无牌可弃的角色直接跳过（不报错），发动本身仍然成立；计数器 `chuli_used` 保证出牌阶段限一次。"
+            "v2（本批落地）：主动技（`can_active = can_chuli`：出牌阶段 + 本阶段未用过 + 自己手牌/装备区非空 + 至少一名「有牌且势力不重复」的其他角色）。",
+            "选人：`chuli_select` 逐次点选（选项排除已选同势力与无牌者；已选 ≥1 时出现 `confirm`）；`pass` 取消整个发动。",
+            "结算：确认后按 `[自己, 已选…]` 逐个询问**该参与者本人**（pending actor = 参与者）从自己的手牌/装备区选一张（`pick:<牌>`；`pass` 跳过该人）。",
+            "全部弃置完成后（「然后」），凡被弃置的牌为**黑桃**的参与者（含华佗自己）各摸 1 张；判定区不参与，离开判定区也**不算弃置**（机制 `discard-contract`）。"
           ],
           "confidence": "verified",
           "diff": [
-            "「弃置你和这些角色的各一张牌」→ v1 由系统自动选牌（判定区优先 → 装备区 → 手牌随机），玩家没有任何选择权。",
-            "判定区牌被当作「弃置」取走 → 与机制 `discard-contract`（判定区离开不算弃置）冲突；判定区黑桃牌还会触发「摸一张牌」。",
-            "「选择任意名势力各不相同的其他角色」→ v1 只保证所选角色之间势力不同（与文本一致），未与自己势力比较。"
+            "v1 由系统自动选牌（判定区优先）且无询问；本批按裁定改为「参与者自选 + 判定区不参与」。"
           ],
           "questions": [
             {
@@ -189,8 +186,11 @@
               "自己无牌时不能发动"
             ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b12::CHULI",
+          "tests": [
+            "b12::chuli_distinct_kingdoms_discard_and_spade_draw",
+            "b12::chuli_requires_own_card_and_skips_judge_zone"
+          ]
         }
       ]
     },
@@ -203,22 +203,20 @@
           "code": "wushuang",
           "name": "无双",
           "kind": "locked",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "锁定技，你使用的【杀】需两张【闪】才能抵消；与你【决斗】的角色每次需打出两张【杀】。",
           "original_source": "heroes.json#gid=319",
           "mechanics_version": 2,
           "current": [
-            "v2 未实现（注册表无 `wushuang`，只有 `LOCKED_SKILLS` 名单里预留了该 code）；以下为 v1 行为（`resolve.rs:1454 / 2321 / 4424` 的【杀】、`5310 / 5341` 的【决斗】/借刀）。",
-            "【杀】：使用者有 `wushuang` 时把目标的响应需求设为 **2**（`need=2`），目标需连续打出两张【闪】；第一张后仍继续询问第二张。",
-            "第二张未打出 → 视为未抵消，【杀】正常造成伤害；已打出的第一张【闪】不退（进弃牌堆）。",
-            "【决斗】：v1 只在**吕布发起**决斗时把对方 `need` 设为 2；吕布**被决斗**时，发起者那一侧 `need` 仍是 1（与文本不一致的缺陷）。",
-            "多目标【杀】（方天画戟/额外目标）在 `ShaStage::WaitRespond` 重设 `need=2`，即**每个目标各自**需两张【闪】。"
+            "v2（本批落地）：锁定技，无 handler；`b12::response_need` 由内核响应流程调用（`skills::response_need`）。",
+            "【杀】：使用者有 `wushuang` 时目标 `need = 2`；`card_play::sha_loop` 用使用帧 `data[\"need\"]/data[\"got\"]` 累计已响应张数；不足两张 → 未抵消，已打出的【闪】不退（进弃牌堆）。",
+            "【决斗】：`card_play::duel` 对**每次响应**调用 `response_need(responder, opponent, Sha, Duel)` → 只要对方（非响应方）有 `wushuang` 就需两张【杀】；吕布自己被决斗时他只需 1 张、对方每次 2 张。",
+            "真实【闪】、转化【闪】（倾国/龙胆）、八卦阵判定视为的【闪】都在同一响应窗口按张计 1。",
+            "【杀】被其它效果判为无效（往烈/雄乱/仁王盾/藤甲等）时不进入响应计数。"
           ],
           "confidence": "verified",
           "diff": [
-            "文本「与你【决斗】的角色每次需打出两张【杀】」→ v1 只覆盖「吕布发起」的一侧；吕布作为被决斗方时对方无需两张（功能缺口）。",
-            "「抵消」在 v1 无独立事件，仅由连续响应计数（`played < need`）表达。",
-            "v2 内核目前**没有多张响应机制**（`card_play` 的响应窗口只处理单张 `respond:`），本批需要新增「响应计数 need N」跨批机制。"
+            "v1 的决斗只在吕布发起时生效；本批按裁定改为「任何与吕布决斗的对方每次两张」（修正 v1 缺陷）。"
           ],
           "questions": [
             {
@@ -286,30 +284,31 @@
               "只打出不足两张则未抵消，已出的牌不退"
             ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b12::WUSHUANG + skills::response_need（kernel/card_play::sha_loop / duel）",
+          "tests": [
+            "b12::wushuang_sha_needs_two_shan",
+            "b12::wushuang_single_shan_does_not_cancel",
+            "b12::wushuang_duel_applies_from_both_sides"
+          ]
         },
         {
           "code": "liyu",
           "name": "利驭",
           "kind": "normal",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "当你使用【杀】对其他角色造成伤害后，你可以获得其区域里的一张牌，若获得的牌：\n•不为装备牌，其摸一张牌；\n•为装备牌，你视为对由其指定的另一名角色使用一张【决斗】。",
           "original_source": "heroes.json#gid=319",
           "mechanics_version": 2,
           "current": [
-            "v2 未实现；以下为 v1 行为（`resolve_jiexian.rs:1865` trigger / `1876` step / `1959` act；触发点 `resolve.rs:6261` 的 `damage_after`）。",
-            "触发：伤害牌为【杀】类（`sha` / `huo_sha` / `lei_sha`）、来源有 `liyu`、来源 ≠ 目标、目标存活且**有牌可拿**；条件满足则把 `(源, 目标)` 推入 `pending_liyu`，**栈空后**再询问（避免覆盖父帧 outcome）。",
-            "发动后选牌：手牌 → 随机 1 张；装备区 → 逐槽可选；**判定区不提供**；获得的牌进吕布手牌。",
-            "若获得的牌**不是装备牌** → 受伤角色摸 1 张；若**是装备牌** → 进入 Designate：由**吕布**选另一名角色（排除吕布与受伤者），随后压 `RespondFrame{kind: Duel}` 视为吕布对其使用【决斗】（该角色先出【杀】），并按吕布有无无双设 `need=2`。",
-            "受伤角色已死亡 / 无牌可拿 → 不询问（不发动）。"
+            "v2（本批落地）：订阅 `DamageAfter`；从事件取 `cause`（来源座位）、`seat`（受伤者）、`card`，只接受「自己使用【杀】类牌（`tags.sha`）造成且受害者存活」的伤害。",
+            "询问是否发动（`opt1`/`pass`）→ `pick` 阶段：手牌随机 1 张（`pick:hand`，走 `Game::rand_below`）或装备区指定一张（`pick:<牌>`；判定区不可选）。",
+            "获得的牌走 `Game::gain` 进吕布手牌；**非装备牌** → 受伤角色摸 1 张；**装备牌**（按牌的 `slot` 判定，含手牌随机到的装备）→ 压 `designate` 帧，由**受伤角色**指定另一名角色（排除吕布与该角色）。",
+            "指定后 `Game::use_virtual(吕布, 决斗, [目标])` 走真实结算（可被【无懈可击】响应；吕布有【无双】时对方需两张【杀】）。",
+            "受伤者已死亡或无牌可拿 → 不询问。"
           ],
           "confidence": "verified",
           "diff": [
-            "「为装备牌，你视为对**由其**指定的另一名角色使用一张【决斗】」→ v1 由**吕布**指定决斗对象（文本是受伤角色指定）。",
-            "「获得其**区域里**的一张牌」→ v1 只覆盖手牌 + 装备区，判定区不可选。",
-            "手牌不展示、随机取（装备区由吕布选）。",
-            "v1 的【决斗】是简化 `RespondFrame`（无无懈窗口）；v2 需走 `Game::use_virtual(\"决斗\")` 真实结算。"
+            "v1 由吕布指定决斗对象；本批按裁定改为「受伤角色指定」，判定区仍不可选（v1 口径保留）。"
           ],
           "questions": [
             {
@@ -401,8 +400,12 @@
               "判定区不可选（v1 口径）"
             ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b12::LIYU",
+          "tests": [
+            "b12::liyu_equip_card_lets_victim_designate_duel",
+            "b12::liyu_non_equip_makes_victim_draw",
+            "b12::liyu_ignores_judge_zone_only_victim"
+          ]
         }
       ]
     },
@@ -415,21 +418,19 @@
           "code": "yicong",
           "name": "义从",
           "kind": "locked",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "锁定技，你计算与其他角色的距离-1；若你的体力值小于等于2，其他角色计算与你的距离+1。",
           "original_source": "heroes.json#gid=320",
           "mechanics_version": 2,
           "current": [
-            "v2 未实现；以下为 v1 行为（`skills.rs:4459` `yicong_attack_bonus` / `4464` `yicong_defense_bonus`）。",
-            "「我 → 其他角色」距离 **-1**（`yicong_attack_bonus` 恒为 1），等价自带进攻马。",
-            "「其他角色 → 我」距离 **+1**，且**仅在当前体力值 ≤ 2** 时生效（`yicong_defense_bonus` 实时读 `hp`）。",
-            "两个修正都进统一距离入口 `turn::effective_distance`（`turn.rs:253–266`）与 `state.rs:797–799`，与进攻马 / 防御马 / 马术 / 奔袭 / 千驹等叠加，最终距离下限 1。",
-            "锁定技：不需要发动、不询问；掉到 2 血或回复后立即生效（无回合快照）。"
+            "v2（本批落地）：锁定技，无 handler；双向距离钩子接入统一入口 `Game::distance_raw`（机制 `distance-modifier`）。",
+            "「我 → 他人」-1：`skills::distance_delta`（与马术合并；`Game::distance` 统一应用）。",
+            "「他人 → 我」+1：`skills::distance_to_delta`，仅在 `hp <= 2` 时返回 1，实时按当前体力。",
+            "两项与进攻马/防御马/马术/奔袭/千驹逐项累加，作用于所有读距离的路径（【杀】攻击范围、顺手牵羊类锦囊距离），最终下限 1。"
           ],
           "confidence": "verified",
           "diff": [
-            "v2 的 `Game::distance_raw` 只有「使用者方向」的修正链（马术/奔袭/千驹），**没有**「他人算到我」的钩子；义从的 +1 需要新增反向距离钩子。",
-            "v1 把修正散在 `turn::effective_distance` 与 `SgsState` 的两处距离函数里；v2 需集中到 `Game::distance` 单一入口（机制 `distance-modifier`）。"
+            "无（v1 语义与原文一致；只是把散在两处的修正集中到 v2 统一距离入口）。"
           ],
           "questions": [
             {
@@ -493,30 +494,29 @@
               "修正叠加后距离仍不低于 1"
             ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b12::YICONG + skills::distance_delta / distance_to_delta",
+          "tests": [
+            "b12::yicong_modifies_distance_both_ways",
+            "b12::yicong_distance_never_below_one"
+          ]
         },
         {
           "code": "qiaomeng",
           "name": "趫猛",
           "kind": "normal",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "当你使用【杀】对一名角色造成伤害后，你可以弃置其区域里的一张牌。若此牌为坐骑牌，你获得之。",
           "original_source": "heroes.json#gid=320",
           "mechanics_version": 2,
           "current": [
-            "v2 未实现；以下为 v1 行为（`resolve.rs:6231` 的 `damage_after` 内联分支）。",
-            "触发：伤害牌为【杀】类、来源有 `qiaomeng` 且 `is_jiexian`、目标存活且**有牌可拿**。",
-            "动作：**自动**取目标一张牌（判定区 → 装备区 → 手牌随机）；若该牌为**坐骑牌**（`HorseOffense` / `HorseDefense`）→ 进公孙瓒手牌，否则 `discard_by` 弃置。",
-            "全程无询问：「可以」没有被实现为可选发动，玩家无法放弃或选牌。",
-            "目标已死亡 / 无牌 → 不触发。"
+            "v2（本批落地）：订阅 `DamageAfter`，与利驭同一解析（自己用【杀】类牌造成、目标存活）。",
+            "询问是否发动 → `pick`：手牌随机 1 张或装备区指定一张（判定区不参与）。",
+            "若该牌为**坐骑牌**（`Slot::HorseOffense/HorseDefense`，含手牌随机到的坐骑牌）→ `Game::gain` 进公孙瓒手牌；否则 `Game::to_discard(牌, \"qiaomeng\")` 弃置。",
+            "目标已死亡或无牌可弃 → 不触发。"
           ],
           "confidence": "verified",
           "diff": [
-            "「可以」→ v1 自动发动（缺可放弃出口）。",
-            "「弃置其区域里的一张牌」→ v1 系统自动选（判定区优先），玩家没有选择权。",
-            "判定区牌被弃置 → 同除疠，与 `discard-contract` 冲突。",
-            "坐骑判定按 `equip_slot`（含从手牌随机到的坐骑牌）。"
+            "v1 全自动（无询问、系统选牌且取判定区）；本批按裁定改为「询问 + 手牌随机/装备区可选 + 判定区不参与」。"
           ],
           "questions": [
             {
@@ -596,8 +596,11 @@
               "判定区牌不参与"
             ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b12::QIAOMENG",
+          "tests": [
+            "b12::qiaomeng_gains_mount_card",
+            "b12::qiaomeng_discards_non_mount_card"
+          ]
         }
       ]
     },
@@ -610,23 +613,19 @@
           "code": "lijian",
           "name": "离间",
           "kind": "normal",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "出牌阶段限一次，你可以弃置一张牌令一名男性角色视为对另一名男性角色使用一张【决斗】（不能被【无懈可击】抵消）。",
           "original_source": "heroes.json#gid=445",
           "mechanics_version": 2,
           "current": [
-            "v2 未实现；以下为 v1 行为（`resolve_more.rs:283` step / `457` 帧；入口 `turn.rs:3380` 的 `lijian_used` 限一次）。",
-            "三段选择：`Discard` 选 1 张牌（手牌；`is_jiexian` 时额外提供装备区）→ `Attacker` 选一名**男性**角色作决斗发起者 → `Defender` 选另一名男性作目标（排除发起者，并排除空城者）。",
-            "确认后按已选集合弃置该牌（手牌 → 弃置；装备区 → 移出并触发失去装备钩子），计 `lijian_used`（出牌阶段限一次）。",
-            "随后压 `RespondFrame{kind: Duel, actor: 目标, source: 发起者, target: 发起者}`：目标先出【杀】，双方交替；伤害来源为「视为使用【决斗】」的发起者。",
-            "不经过无懈窗口（v1 直接压决斗帧），天然满足「不能被【无懈可击】抵消」。"
+            "v2（本批落地）：主动技（`can_lijian`：出牌阶段 + 本阶段未用过 + 自己手牌/装备区非空 + 存在两名男性角色使 `can_target(发起者, 决斗, 目标)` 成立）。",
+            "交互三段：`discard` 选一张自己的牌（手牌/装备区，`pick:<牌>`）→ `attacker` 选其他男性角色作决斗发起者 → `defender` 选另一名男性作目标（排除发起者；**目标**受空城限制，发起者不受）。",
+            "确认后一次性弃置承载牌（`to_discard(牌, \"lijian\")`，装备区触发失去装备钩子），计 `turn.lijian_used`。",
+            "`Game::use_virtual_no_wuxie(发起者, 决斗, [目标])`：走真实决斗结算（目标先出【杀】），但**跳过无懈窗口**（使用帧 `data[\"no_wuxie\"]`，机制 `no-wuxie`）。"
           ],
           "confidence": "verified",
           "diff": [
-            "「弃置一张牌」→ 界版把范围扩到装备区（v1 有 `is_jiexian` 分支）；判定区牌不可弃置。",
-            "v2 若用 `use_virtual(\"决斗\")` 会进无懈窗口 → 需要显式的「不能被无懈可击抵消」标记（新机制；v1 是靠绕过无懈实现）。",
-            "空城只限制**目标**（文本「不能成为【杀】或【决斗】的目标」），发起者不受限（v1 一致）。",
-            "v1 的决斗为简化帧，未透传伤害属性；v2 走真实结算（普通伤害）。"
+            "v1 靠「直接压决斗帧」绕过无懈；v2 改为显式 `no-wuxie` 标记（语义等价且不牺牲其它响应）。"
           ],
           "questions": [
             {
@@ -707,29 +706,28 @@
               "出牌阶段第二次发动被拒绝"
             ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b12::LIJIAN + Game::use_virtual_no_wuxie",
+          "tests": [
+            "b12::lijian_discards_equip_and_duel_cannot_be_wuxied",
+            "b12::lijian_needs_two_male_targets"
+          ]
         },
         {
           "code": "biyue",
           "name": "闭月",
           "kind": "normal",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "结束阶段，若你没有手牌，你可以摸两张牌，否则你可以摸一张牌。",
           "original_source": "heroes.json#gid=445",
           "mechanics_version": 2,
           "current": [
-            "v2 未实现；以下为 v1 行为（`skills.rs:4510` `on_phase_start`，`TurnPhase::End` 阶段开始）。",
-            "v1：拥有 `biyue` 时在**结束阶段开始**自动摸牌，无询问（「可以」未实现为可选）。",
-            "界版：结束时**无手牌** → 摸 2 张；否则摸 1 张（`is_jiexian` 分支；标版恒摸 1）。",
-            "摸牌走 `draw_and_cap`（摸 n 张后若超过手牌上限则压弃牌帧），因此可能立刻触发弃牌。",
-            "触发时机是阶段开始（`phase_start(end)`），此时手牌数是判定「有没有手牌」的依据。"
+            "v2（本批落地）：订阅 `PhaseStart`，窗口 `OwnPhase(End)`。",
+            "询问是否发动；发动瞬间读当前手牌数：无手牌 → 摸 2 张，否则摸 1 张。",
+            "摸牌走 `Game::draw`（正常计入本回合手牌上限）；因结束阶段在弃牌阶段之后，本次摸牌不会触发弃牌。"
           ],
           "confidence": "verified",
           "diff": [
-            "「你可以摸两张牌/摸一张牌」→ v1 强制自动摸牌，缺放弃出口。",
-            "v1 的 `draw_and_cap` 用 `config.max_hand_cards` 粗算上限，未接 v2 的 `Game::hand_limit`（技能改上限/赋值需统一入口）。",
-            "v1 未处理「摸牌后是否再判一次手牌」——判据只在触发时读一次（符合文本）。"
+            "v1 自动摸牌（无询问）；本批按裁定改为询问（可放弃）。"
           ],
           "questions": [
             {
@@ -794,8 +792,11 @@
               "结束阶段摸牌不立即触发弃牌（弃牌阶段已过）"
             ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b12::BIYUE",
+          "tests": [
+            "b12::biyue_draws_two_without_hand",
+            "b12::biyue_draws_one_with_hand_and_can_decline"
+          ]
         }
       ]
     }
