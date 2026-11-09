@@ -22,13 +22,22 @@ const problems = [];
 const fail = (m) => problems.push(m);
 
 /** 已迁移到 v2 的批次（B8 起每迁一批就追加；gate 随之要求注册表与对齐单精确一致）。 */
-const V2_BATCHES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+const V2_BATCHES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
 
 /**
  * 授予型子技能：**只**能通过技能授予获得（不在 heroes.json 的技能表里），因此对齐单没有独立技能行。
  * 权威文本写在授予者技能的「对齐后描述」里（B8 绝响 → 和弦/柔弦/烈弦/激弦）。
  */
-const GRANT_ONLY = new Set(["hexian", "rouxian", "liexian", "jixian", "gongxin"]);
+const GRANT_ONLY = new Set([
+  "hexian",
+  "rouxian",
+  "liexian",
+  "jixian",
+  "gongxin",
+  // B13 授予技（权威文本写在授予者技能的第 7 段）
+  "jianyan",
+  "sishu",
+]);
 
 /**
  * 机制 → 内核用例锚点：迁移批次里声明过的机制，必须在 tests/*.rs 的某个 `#[test]` 里
@@ -64,6 +73,12 @@ const MECHANISM_ANCHORS = new Map([
   ["zone-ownership", ["check_conservation"]],
   ["discard-contract", ["to_discard("]],
   ["multi-response", ["response_need"]],
+  ["general-pool", ["live()"]],
+  ["hidden-declaration", ["guhuo"]],
+  ["aoe-target-trim", ["aoe_trim_target"]],
+  ["sha-intercept", ["sha_intercept"]],
+  ["judge-reversal", ["sishu_reversed"]],
+  ["range-override", ["range_override_reach"]],
   ["no-wuxie", ["no_wuxie"]],
   ["wording-can", ["\"pass\"", "\"cancel\""]],
   ["wording-then", ["Step::Next"]],

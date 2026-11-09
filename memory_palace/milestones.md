@@ -2,6 +2,20 @@
 
 > 记录项目关键节点与验证结果，按时间倒序。重大技术决策见 `decisions/`。
 
+## M85：B13 界标·J1 十六技能落地（v2 迁移批次第 6 批）✅
+
+- **日期**：2026-11-09
+- **对齐**：`align/B13.json` 54 条疑点裁定（烈弓询问/诛害真实杀无距离/荐言需存活男性/耀武红牌无来源不摸/
+  势斩可无懈/化身池走中台 live + 2 换 1/新生逐点/雷击询问/鬼道含装备区 + 延时锦囊判定/黄天仅黑桃手牌/
+  蛊惑同时质疑 + 质疑者自选/乱击承载与少选/血裔/享乐/放权自选/若愚严格最小 + 思蜀 toggle）→ implemented。
+- **实现**：`skills/b13.rs` 16 技能 + 授予技「荐言」「思蜀」。
+- **内核增量**：`general-pool`（`generals_generated.rs` 武将牌池 + 中台 status）、
+  `hidden-declaration`（蛊惑：`Game.guhuo_result` 延后通道 + 同时质疑链）、
+  `aoe-target-trim`（乱击）、`sha-intercept`（烈弓/享乐）、`judge-reversal`（思蜀）、
+  `range-override`（烈弓）；改判改为「一轮询问」且覆盖延时锦囊判定。
+- **度量**：`cargo test -p sanguosha2` **482** 条全绿（新增 `tests/b13.rs` 34 条）；`check:sgs2` 全绿
+  （注册 190 / 对齐单 183 / B0–B13 精确一致）；`sgs:check:fast` 全绿。
+
 ## M84：B12 界标·群 八技能落地（v2 迁移批次第 5 批）✅
 
 - **日期**：2026-11-09

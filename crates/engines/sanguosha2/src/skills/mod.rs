@@ -237,6 +237,25 @@ pub const SKILLS: &[SkillDef] = &[
     b12::QIAOMENG,
     b12::LIJIAN,
     b12::BIYUE,
+    // B13（界黄忠 / 界徐庶 / 界华雄 / 界张角 / 界左慈 / 界于吉 / 界袁绍 / 界刘禅）
+    b13::LIEGONG,
+    b13::ZHUHAI,
+    b13::QIANXIN,
+    b13::JIANYAN,
+    b13::YAOWU,
+    b13::SHIZHAN,
+    b13::LEIJI,
+    b13::GUIDAO,
+    b13::HUANGTIAN,
+    b13::HUASHEN,
+    b13::XINSHENG,
+    b13::GUHUO,
+    b13::LUANJI,
+    b13::XUEYI,
+    b13::XIANGLE,
+    b13::FANGQUAN,
+    b13::RUOYU,
+    b13::SISHU,
 ];
 
 /// 转换技（阳/阴两面）：视图按此清单投影 `transforms`（与 handlers 的 `g.yang/toggle_yang` 对应）。
@@ -943,6 +962,20 @@ pub fn start_rewrite_for(
     }
     let _ = card;
     false
+}
+
+/// 蛊惑是否可用（每回合限一次 + 有手牌）。
+pub fn guhuo_available(g: &Game, seat: usize) -> bool {
+    b13::guhuo_available(g, seat)
+}
+
+/// 响应窗口进入蛊惑（延后结果经 `Game.guhuo_result` 回传）。
+pub fn start_guhuo_response(
+    g: &mut Game,
+    seat: usize,
+    kind: crate::cards::ResponseKind,
+) -> Result<(), String> {
+    b13::start_guhuo_response(g, seat, kind)
 }
 
 /// 思蜀：该角色的【乐不思蜀】判定效果是否被反转。

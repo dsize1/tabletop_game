@@ -34,6 +34,13 @@ fn label(g: &Game, id: &CardId) -> String {
 fn noop(_g: &mut Game, _a: &Ask) -> Result<Step, String> {
     Ok(Step::Done)
 }
+/// 主动技「本阶段已放弃」标记（防抖：同一阶段不再重复提示）。
+fn cancelled(g: &Game, code: &str) -> bool {
+    g.counter(&format!("phase.cancel_{code}")) > 0
+}
+fn mark_cancelled(g: &mut Game, code: &str) {
+    g.bump(&format!("phase.cancel_{code}"));
+}
 fn equip_ids(g: &Game, seat: usize) -> Vec<CardId> {
     g.ids_in(|z| matches!(z, Zone::Equip(s, _) if *s == seat))
 }
@@ -248,13 +255,15 @@ fn zhuhai(g: &mut Game, a: &Ask) -> Result<Step, String> {
     if g.counter(&format!("turn.damage_by:{ending}")) == 0 {
         return Ok(Step::Done);
     }
-    if g.counter(&format!("turn.zhuhai_asked:{owner}")) > 0 {
-        return Ok(Step::Done);
+    if g.answer.is_none() {
+        if g.counter(&format!("turn.zhuhai_asked:{owner}")) > 0 {
+            return Ok(Step::Done);
+        }
+        if !g.hand(owner).into_iter().any(|c| is_sha(g, &c)) {
+            return Ok(Step::Done);
+        }
+        g.bump(&format!("turn.zhuhai_asked:{owner}"));
     }
-    if !g.hand(owner).into_iter().any(|c| is_sha(g, &c)) {
-        return Ok(Step::Done);
-    }
-    g.bump(&format!("turn.zhuhai_asked:{owner}"));
     match g.answer.take().as_deref() {
         None => {
             let mut b = builder(owner, "choice").skill("zhuhai");
@@ -428,6 +437,7 @@ fn jianyan(g: &mut Game, a: &Ask) -> Result<Step, String> {
         let modes = jianyan_modes(g);
         match g.answer.take().as_deref() {
             None => {
+                g.bump("turn.jianyan_used");
                 let mut b = builder(owner, "choice").skill("jianyan");
                 for m in &modes {
                     let name = match *m {
@@ -456,7 +466,6 @@ fn jianyan(g: &mut Game, a: &Ask) -> Result<Step, String> {
                     .ok_or_else(|| "荐言：牌堆中没有符合条件的牌".to_string())?;
                 g.to_processing(&card)?;
                 g.reveal(&card, Some(owner), "jianyan");
-                g.bump("turn.jianyan_used");
                 g.push_log(format!(
                     "荐言：声明后亮出牌堆中的【{}】",
                     label(g, &card)
@@ -549,7 +558,10 @@ pub const SHIZHAN: SkillDef = SkillDef {
 };
 
 fn can_shizhan(g: &Game, seat: usize) -> bool {
-    play_phase(g, seat) && g.counter("turn.shizhan_used") < 2 && !other_alive(g, seat).is_empty()
+    play_phase(g, seat)
+        && g.counter("turn.shizhan_used") < 2
+        && !cancelled(g, "shizhan")
+        && !other_alive(g, seat).is_empty()
 }
 
 fn shizhan(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -566,7 +578,10 @@ fn shizhan(g: &mut Game, a: &Ask) -> Result<Step, String> {
             }
             Ok(Step::Need(b.escape("取消势斩").build()))
         }
-        Some("pass") => Ok(Step::Done),
+        Some("pass") => {
+            mark_cancelled(g, "shizhan");
+            Ok(Step::Done)
+        }
         Some(act) => {
             let target = act
                 .strip_prefix("target:")
@@ -901,6 +916,7 @@ fn huangtian_cards(g: &Game, seat: usize) -> Vec<CardId> {
 
 fn can_huangtian(g: &Game, seat: usize) -> bool {
     play_phase(g, seat)
+        && !cancelled(g, "huangtian")
         && g.counter("turn.huangtian_used") == 0
         && huangtian_lord(g, seat).is_some()
         && !huangtian_cards(g, seat).is_empty()
@@ -916,7 +932,10 @@ fn huangtian(g: &mut Game, a: &Ask) -> Result<Step, String> {
             }
             Ok(Step::Need(b.escape("取消黄天").build()))
         }
-        Some("pass") => Ok(Step::Done),
+        Some("pass") => {
+            mark_cancelled(g, "huangtian");
+            Ok(Step::Done)
+        }
         Some(act) => {
             let id = act
                 .strip_prefix("pick:")
@@ -971,7 +990,21 @@ fn basic_hand(g: &Game, seat: usize) -> Vec<CardId> {
 
 fn xiangle(g: &mut Game, a: &Ask) -> Result<Step, String> {
     let holder = a.data["target"].as_u64().unwrap_or(0) as usize;
-    let user = a.actor;
+    let user = a
+        .data["user"]
+        .as_u64()
+        .map(|n| n as usize)
+        .unwrap_or(a.actor);
+    if a.data["stage"].is_null() {
+        // 首个询问发给【杀】的使用者（享乐是目标锁定技）。
+        push(
+            g,
+            "xiangle",
+            user,
+            json!({ "stage": "ask", "target": holder, "user": user }),
+        );
+        return Ok(Step::Done);
+    }
     if a.data["stage"].as_str() == Some("pick") {
         let cards = basic_hand(g, user);
         return match g.answer.take().as_deref() {
@@ -1081,7 +1114,10 @@ fn luanji_pairs(g: &Game, seat: usize) -> Vec<(CardId, CardId)> {
 }
 
 fn can_luanji(g: &Game, seat: usize) -> bool {
-    play_phase(g, seat) && !other_alive(g, seat).is_empty() && !luanji_pairs(g, seat).is_empty()
+    play_phase(g, seat)
+        && !cancelled(g, "luanji")
+        && !other_alive(g, seat).is_empty()
+        && !luanji_pairs(g, seat).is_empty()
 }
 
 fn luanji(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -1128,7 +1164,10 @@ fn luanji(g: &mut Game, a: &Ask) -> Result<Step, String> {
             }
             Ok(Step::Need(b.escape("取消乱击").build()))
         }
-        Some("pass") => Ok(Step::Done),
+        Some("pass") => {
+            mark_cancelled(g, "luanji");
+            Ok(Step::Done)
+        }
         Some(act) => {
             let pair = act
                 .strip_prefix("pair:")
@@ -1226,13 +1265,15 @@ pub fn hand_limit_delta(g: &Game, seat: usize) -> i32 {
 
 fn xueyi(g: &mut Game, a: &Ask) -> Result<Step, String> {
     let owner = a.actor;
-    if g.phase != Phase::Play || g.counter("phase.xueyi_asked") > 0 {
+    if g.phase != Phase::Play || !g.seats[owner].flags.contains("lord") {
         return Ok(Step::Done);
     }
-    if !g.seats[owner].flags.contains("lord") || xueyi_marks(g, owner) == 0 {
-        return Ok(Step::Done);
+    if g.answer.is_none() {
+        if g.counter("phase.xueyi_asked") > 0 || xueyi_marks(g, owner) == 0 {
+            return Ok(Step::Done);
+        }
+        g.bump("phase.xueyi_asked");
     }
-    g.bump("phase.xueyi_asked");
     match g.answer.take().as_deref() {
         None => {
             let mut b = builder(owner, "choice").skill("xueyi");
@@ -1283,6 +1324,17 @@ fn can_fangquan(g: &Game, seat: usize) -> bool {
 
 fn fangquan(g: &mut Game, a: &Ask) -> Result<Step, String> {
     let owner = a.actor;
+    // 触发路径（PhaseStart）：只在弃牌阶段开始时询问弃牌 → 指定额外回合目标。
+    if a.data["event"].is_string() {
+        if g.phase != Phase::Discard
+            || !g.seats[owner].flags.contains("fangquan_pending")
+            || g.hand(owner).is_empty()
+        {
+            return Ok(Step::Done);
+        }
+        push(g, "fangquan", owner, json!({ "stage": "discard" }));
+        return Ok(Step::Done);
+    }
     match a.data["stage"].as_str() {
         None => {
             if !play_phase(g, owner) {
@@ -1463,10 +1515,15 @@ pub fn sishu_reversed(g: &Game, seat: usize) -> bool {
 
 fn sishu(g: &mut Game, a: &Ask) -> Result<Step, String> {
     let owner = a.actor;
-    if g.phase != Phase::Play || g.counter("phase.sishu_asked") > 0 {
+    if g.phase != Phase::Play {
         return Ok(Step::Done);
     }
-    g.bump("phase.sishu_asked");
+    if g.answer.is_none() {
+        if g.counter("phase.sishu_asked") > 0 {
+            return Ok(Step::Done);
+        }
+        g.bump("phase.sishu_asked");
+    }
     let cands: Vec<usize> = (0..g.seats.len()).filter(|i| g.seats[*i].hp > 0).collect();
     match g.answer.take().as_deref() {
         None => {
@@ -1493,10 +1550,11 @@ fn sishu(g: &mut Game, a: &Ask) -> Result<Step, String> {
             if !cands.contains(&t) {
                 return Err("思蜀：目标不合法".into());
             }
+            let already = sishu_reversed(g, t);
             if let Some(prev) = sishu_target(g) {
                 g.seats[prev].flags.remove("sishu_reverse");
             }
-            if sishu_reversed(g, t) {
+            if already {
                 // toggle off：恢复常规效果
                 g.seats[t].flags.remove("sishu_reverse");
                 g.counters.remove("sishu_target");
@@ -1732,10 +1790,12 @@ fn huashen(g: &mut Game, a: &Ask) -> Result<Step, String> {
                 return Ok(Step::Done);
             }
             let key = if is_start { "turn.huashen_start" } else { "turn.huashen_end" };
-            if g.counter(key) > 0 {
-                return Ok(Step::Done);
+            if g.answer.is_none() {
+                if g.counter(key) > 0 {
+                    return Ok(Step::Done);
+                }
+                g.bump(key);
             }
-            g.bump(key);
             st = huashen_state(g, owner);
             let others = st
                 .cards
@@ -1878,6 +1938,510 @@ fn xinsheng(g: &mut Game, a: &Ask) -> Result<Step, String> {
             Ok(Step::Done)
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// 蛊惑（界于吉）：扣置声明 + 同时质疑链 + 缠怨
+// ---------------------------------------------------------------------------
+
+pub const GUHUO: SkillDef = SkillDef {
+    code: "guhuo",
+    name: "蛊惑",
+    triggers: &[],
+    window: Window::AnyTime,
+    priority: 0,
+    can_active: Some(can_guhuo),
+    handler: guhuo,
+    dying_hook: None,
+    flip_hook: None,
+    wuxie_opts: None,
+    wuxie_use: None,
+    target_blocker: None,
+    yang_window: None,
+    yin_window: None,
+};
+
+pub fn guhuo_available(g: &Game, seat: usize) -> bool {
+    active(g, seat, "guhuo")
+        && g.counter(&format!("turn.guhuo_used:{seat}")) == 0
+        && !g.hand(seat).is_empty()
+        && g.seats.get(seat).is_some_and(|s| s.hp > 0)
+}
+
+fn can_guhuo(g: &Game, seat: usize) -> bool {
+    play_phase(g, seat) && guhuo_available(g, seat)
+}
+
+/// 响应窗口进入蛊惑：声明牌名由需要牌固定（闪/杀/无懈）。
+pub fn start_guhuo_response(
+    g: &mut Game,
+    seat: usize,
+    kind: ResponseKind,
+) -> Result<(), String> {
+    if !guhuo_available(g, seat) {
+        return Err("蛊惑：本回合已使用过或没有手牌".into());
+    }
+    let declared = match kind {
+        ResponseKind::Shan => "闪",
+        ResponseKind::Sha => "杀",
+        ResponseKind::Wuxie => "无懈可击",
+    };
+    push(
+        g,
+        "guhuo",
+        seat,
+        json!({
+            "stage": "card",
+            "owner": seat,
+            "purpose": "respond",
+            "declared": declared,
+        }),
+    );
+    Ok(())
+}
+
+/// 可声明的基本牌/普通锦囊（按牌定义属性筛选；延时锦囊与【无懈可击】不可声明）。
+fn declare_options(g: &Game, seat: usize) -> Vec<&'static str> {
+    let mut out = Vec::new();
+    for row in crate::cards_generated::DEFS {
+        let usable = match row.kind {
+            crate::cards::CardKind::Basic => !row.shan && !row.wuxie,
+            crate::cards::CardKind::Trick => !row.delayed && !row.wuxie,
+            _ => false,
+        };
+        if !usable {
+            continue;
+        }
+        // 目标结构过于特殊的两张（借刀/铁索）不在本期声明范围（对齐单第 2 段边界）。
+        if matches!(
+            row.effect,
+            Effect::Collateral | Effect::IronChain | Effect::None
+        ) {
+            continue;
+        }
+        if row.tao && g.seats[seat].hp >= g.seats[seat].max_hp {
+            continue;
+        }
+        out.push(row.name);
+    }
+    out
+}
+
+fn guhuo_questions(g: &Game, owner: usize) -> Vec<usize> {
+    (0..g.seats.len())
+        .filter(|i| {
+            *i != owner
+                && g.seats[*i].hp > 0
+                && !g.seats[*i].flags.contains("chanyuan")
+        })
+        .collect()
+}
+
+fn guhuo(g: &mut Game, a: &Ask) -> Result<Step, String> {
+    let owner = a
+        .data["owner"]
+        .as_u64()
+        .map(|n| n as usize)
+        .unwrap_or(a.actor);
+    let stage = a.data["stage"].as_str().unwrap_or("card").to_string();
+    let purpose = a.data["purpose"].as_str().unwrap_or("play").to_string();
+    match stage.as_str() {
+        "card" => match g.answer.take().as_deref() {
+            None => {
+                if purpose == "play" {
+                    g.bump(&format!("turn.guhuo_used:{owner}"));
+                }
+                let mut b = builder(owner, "choice").skill("guhuo");
+                for id in g.hand(owner) {
+                    b = b.option(format!("pick:{id}"), format!("扣置【{}】", label(g, &id)));
+                }
+                Ok(Step::Need(b.escape("取消蛊惑").build()))
+            }
+            Some("pass") => Ok(Step::Done),
+            Some(act) => {
+                let carrier = act
+                    .strip_prefix("pick:")
+                    .ok_or_else(|| format!("蛊惑：未知选项 {act}"))?
+                    .to_string();
+                if !g.hand(owner).contains(&carrier) {
+                    return Err("蛊惑：只能扣置手牌".into());
+                }
+                if purpose == "respond" {
+                    g.bump(&format!("turn.guhuo_used:{owner}"));
+                    let declared = a.data["declared"].as_str().unwrap_or("闪").to_string();
+                    push(
+                        g,
+                        "guhuo",
+                        owner,
+                        json!({
+                            "stage": "question",
+                            "owner": owner,
+                            "purpose": purpose,
+                            "declared": declared,
+                            "carrier": carrier,
+                            "questions": [],
+                            "index": 0,
+                        }),
+                    );
+                } else {
+                    push(
+                        g,
+                        "guhuo",
+                        owner,
+                        json!({
+                            "stage": "declare",
+                            "owner": owner,
+                            "purpose": purpose,
+                            "carrier": carrier,
+                        }),
+                    );
+                }
+                Ok(Step::Done)
+            }
+        },
+        "declare" => {
+            let carrier = a.data["carrier"].as_str().unwrap_or_default().to_string();
+            let names = declare_options(g, owner);
+            match g.answer.take().as_deref() {
+                None => {
+                    let mut b = builder(owner, "choice").skill("guhuo");
+                    for n in &names {
+                        b = b.option(format!("declare:{n}"), format!("蛊惑为【{n}】"));
+                    }
+                    Ok(Step::Need(b.escape("取消蛊惑").build()))
+                }
+                Some("pass") => {
+                    if g.cards.contains_key(&carrier) {
+                        g.guhuo_result = None;
+                    }
+                    Ok(Step::Done)
+                }
+                Some(act) => {
+                    let declared = act
+                        .strip_prefix("declare:")
+                        .ok_or_else(|| format!("蛊惑：未知选项 {act}"))?
+                        .to_string();
+                    if !names.contains(&declared.as_str()) {
+                        return Err("蛊惑：该牌名不可声明".into());
+                    }
+                    let def = crate::cards::def(&declared);
+                    let (stage, targets) = match def.tags.target_mode {
+                        Some(crate::cards::TargetMode::AllAlive) => ("question", Vec::new()),
+                        Some(crate::cards::TargetMode::SelfOnly) => ("question", vec![owner]),
+                        _ => ("target", Vec::new()),
+                    };
+                    if stage == "question" {
+                        push(
+                            g,
+                            "guhuo",
+                            owner,
+                            json!({
+                                "stage": "question",
+                                "owner": owner,
+                                "purpose": purpose,
+                                "declared": declared,
+                                "carrier": carrier,
+                                "targets": targets,
+                                "questions": [],
+                                "index": 0,
+                            }),
+                        );
+                    } else {
+                        push(
+                            g,
+                            "guhuo",
+                            owner,
+                            json!({
+                                "stage": "target",
+                                "owner": owner,
+                                "purpose": purpose,
+                                "declared": declared,
+                                "carrier": carrier,
+                            }),
+                        );
+                    }
+                    Ok(Step::Done)
+                }
+            }
+        }
+        "target" => {
+            let declared = a.data["declared"].as_str().unwrap_or_default().to_string();
+            let carrier = a.data["carrier"].as_str().unwrap_or_default().to_string();
+            let cands: Vec<usize> = (0..g.seats.len())
+                .filter(|i| *i != owner && g.seats[*i].hp > 0)
+                .collect();
+            match g.answer.take().as_deref() {
+                None => {
+                    let mut b = builder(owner, "target").skill("guhuo");
+                    for t in &cands {
+                        b = b.option(
+                            format!("target:{t}"),
+                            format!("目标：{}", g.seats[*t].name),
+                        );
+                    }
+                    Ok(Step::Need(b.escape("取消蛊惑").build()))
+                }
+                Some("pass") => Ok(Step::Done),
+                Some(act) => {
+                    let t = act
+                        .strip_prefix("target:")
+                        .and_then(|x| x.parse::<usize>().ok())
+                        .ok_or_else(|| format!("蛊惑：未知选项 {act}"))?;
+                    if !cands.contains(&t) {
+                        return Err("蛊惑：目标不合法".into());
+                    }
+                    push(
+                        g,
+                        "guhuo",
+                        owner,
+                        json!({
+                            "stage": "question",
+                            "owner": owner,
+                            "purpose": purpose,
+                            "declared": declared,
+                            "carrier": carrier,
+                            "targets": vec![t],
+                            "questions": [],
+                            "index": 0,
+                        }),
+                    );
+                    Ok(Step::Done)
+                }
+            }
+        }
+        "question" => {
+            let carrier = a.data["carrier"].as_str().unwrap_or_default().to_string();
+            let declared = a.data["declared"].as_str().unwrap_or_default().to_string();
+            let targets: Vec<usize> = a.data["targets"]
+                .as_array()
+                .map(|v| v.iter().filter_map(|x| x.as_u64().map(|n| n as usize)).collect())
+                .unwrap_or_default();
+            let mut questions: Vec<usize> = a.data["questions"]
+                .as_array()
+                .map(|v| v.iter().filter_map(|x| x.as_u64().map(|n| n as usize)).collect())
+                .unwrap_or_default();
+            let order = guhuo_questions(g, owner);
+            let mut idx = a.data["index"].as_u64().unwrap_or(0) as usize;
+            // 跳过已不在场的顺序项
+            while idx < order.len() && !order.contains(&order[idx]) {
+                idx += 1;
+            }
+            if idx >= order.len() {
+                return guhuo_resolve(g, owner, &carrier, &declared, &targets, &purpose, &questions);
+            }
+            let asker = order[idx];
+            match g.answer.take().as_deref() {
+                None => {
+                    let mut b = builder(asker, "choice").skill("guhuo");
+                    b = b.option("choose:question", "质疑：翻开此牌");
+                    Ok(Step::Need(b.escape("不质疑").build()))
+                }
+                Some(act) => {
+                    if act == "choose:question" {
+                        questions.push(asker);
+                    }
+                    push(
+                        g,
+                        "guhuo",
+                        owner,
+                        json!({
+                            "stage": "question",
+                            "owner": owner,
+                            "purpose": purpose,
+                            "declared": declared,
+                            "carrier": carrier,
+                            "targets": targets,
+                            "questions": questions,
+                            "index": idx + 1,
+                        }),
+                    );
+                    Ok(Step::Done)
+                }
+            }
+        }
+        "penalty" => {
+            let carrier = a.data["carrier"].as_str().unwrap_or_default().to_string();
+            let declared = a.data["declared"].as_str().unwrap_or_default().to_string();
+            let targets: Vec<usize> = a.data["targets"]
+                .as_array()
+                .map(|v| v.iter().filter_map(|x| x.as_u64().map(|n| n as usize)).collect())
+                .unwrap_or_default();
+            let questions: Vec<usize> = a.data["questions"]
+                .as_array()
+                .map(|v| v.iter().filter_map(|x| x.as_u64().map(|n| n as usize)).collect())
+                .unwrap_or_default();
+            let qidx = a.data["qidx"].as_u64().unwrap_or(0) as usize;
+            if qidx >= questions.len() {
+                return guhuo_effect(g, owner, &carrier, &declared, &targets, &purpose);
+            }
+            let q = questions[qidx];
+            if g.seats[q].hp <= 0 {
+                push(
+                    g,
+                    "guhuo",
+                    owner,
+                    json!({
+                        "stage": "penalty", "owner": owner, "purpose": purpose,
+                        "declared": declared, "carrier": carrier, "targets": targets,
+                        "questions": questions, "qidx": qidx + 1,
+                    }),
+                );
+                return Ok(Step::Done);
+            }
+            let hand = g.hand(q);
+            match g.answer.take().as_deref() {
+                None => {
+                    let mut b = builder(q, "choice").skill("guhuo");
+                    for id in &hand {
+                        b = b.option(format!("pick:{id}"), format!("弃置【{}】", label(g, id)));
+                    }
+                    b = b.option("hurt", "失去 1 点体力");
+                    Ok(Step::Need(b.escape("不选择（失去 1 点体力）").build()))
+                }
+                Some("hurt") | Some("pass") => {
+                    flow::lose_hp(g, q, 1, "guhuo");
+                    g.push_log(format!(
+                        "蛊惑：{} 质疑为真，获得「缠怨」并失去 1 点体力",
+                        g.seats[q].name
+                    ));
+                    push(
+                        g,
+                        "guhuo",
+                        owner,
+                        json!({
+                            "stage": "penalty", "owner": owner, "purpose": purpose,
+                            "declared": declared, "carrier": carrier, "targets": targets,
+                            "questions": questions, "qidx": qidx + 1,
+                        }),
+                    );
+                    Ok(Step::Done)
+                }
+                Some(act) => {
+                    let id = act
+                        .strip_prefix("pick:")
+                        .ok_or_else(|| format!("蛊惑：未知选项 {act}"))?
+                        .to_string();
+                    if !hand.contains(&id) {
+                        return Err("蛊惑：该牌不在其手牌".into());
+                    }
+                    g.to_discard(&id, "guhuo")?;
+                    g.push_log(format!(
+                        "蛊惑：{} 质疑为真，获得「缠怨」并弃置【{}】",
+                        g.seats[q].name,
+                        label(g, &id)
+                    ));
+                    push(
+                        g,
+                        "guhuo",
+                        owner,
+                        json!({
+                            "stage": "penalty", "owner": owner, "purpose": purpose,
+                            "declared": declared, "carrier": carrier, "targets": targets,
+                            "questions": questions, "qidx": qidx + 1,
+                        }),
+                    );
+                    Ok(Step::Done)
+                }
+            }
+        }
+        _ => Ok(Step::Done),
+    }
+}
+
+fn guhuo_resolve(
+    g: &mut Game,
+    owner: usize,
+    carrier: &CardId,
+    declared: &str,
+    targets: &[usize],
+    purpose: &str,
+    questions: &[usize],
+) -> Result<Step, String> {
+    g.reveal(carrier, Some(owner), "guhuo");
+    let real = g
+        .cards
+        .get(carrier)
+        .map(|c| c.name == declared)
+        .unwrap_or(false);
+    if !real {
+        // 假：此牌作废，质疑者各摸一张。
+        if g.cards.contains_key(carrier) {
+            g.to_discard(carrier, "guhuo")?;
+        }
+        for q in questions {
+            let n = g.draw(*q, 1).len();
+            g.push_log(format!(
+                "蛊惑：展示为假（声明【{declared}】），{} 摸 {n} 张",
+                g.seats[*q].name
+            ));
+        }
+        g.push_log(format!(
+            "蛊惑：{} 的扣置牌为假，此牌作废",
+            g.seats[owner].name
+        ));
+        if purpose == "respond" {
+            g.guhuo_result = Some(None);
+        }
+        return Ok(Step::Done);
+    }
+    for q in questions {
+        g.seats[*q].flags.insert("chanyuan".to_string());
+    }
+    g.push_log(format!(
+        "蛊惑：{} 的扣置牌为真（声明【{declared}】），质疑者获得「缠怨」",
+        g.seats[owner].name
+    ));
+    push(
+        g,
+        "guhuo",
+        owner,
+        json!({
+            "stage": "penalty", "owner": owner, "purpose": purpose,
+            "declared": declared, "carrier": carrier, "targets": targets,
+            "questions": questions, "qidx": 0,
+        }),
+    );
+    Ok(Step::Done)
+}
+
+fn guhuo_effect(
+    g: &mut Game,
+    owner: usize,
+    carrier: &CardId,
+    declared: &str,
+    targets: &[usize],
+    purpose: &str,
+) -> Result<Step, String> {
+    if purpose == "respond" {
+        if !g.cards.contains_key(carrier) {
+            g.guhuo_result = Some(None);
+            return Ok(Step::Done);
+        }
+        g.to_discard(carrier, "respond")?;
+        g.events.push(crate::kernel::event::Event::card(
+            crate::kernel::event::EventKind::CardPlayed,
+            Some(owner),
+            carrier.clone(),
+            Some("response".to_string()),
+        ));
+        crate::skills::on_response_played(g, None, owner, carrier);
+        g.push_log(format!(
+            "蛊惑：将【{}】当【{declared}】打出",
+            label(g, carrier)
+        ));
+        g.guhuo_result = Some(Some(carrier.clone()));
+        return Ok(Step::Done);
+    }
+    if !g.cards.contains_key(carrier) {
+        return Ok(Step::Done);
+    }
+    g.push_log(format!(
+        "蛊惑：将【{}】当【{declared}】使用",
+        label(g, carrier)
+    ));
+    g.set_virtual(carrier, declared, vec![carrier.clone()]);
+    g.use_as(owner, carrier, declared, targets.to_vec(), true, None)?;
+    Ok(Step::Done)
 }
 
 // ---------------------------------------------------------------------------

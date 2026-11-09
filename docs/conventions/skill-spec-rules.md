@@ -171,3 +171,24 @@
   （判定区离开不算弃置，见 `discard-contract`）。
 - **距离双向修正**：`skills::distance_delta`（我 → 他人）与 `skills::distance_to_delta`（他人 → 我）；
   两者都在 `Game::distance_raw` 的单一入口累加，最终 `Game::distance` 保证下限 1。
+
+## 16. B13 跨批机制（2026-11-09）
+
+- **武将牌池**（`general-pool`，化身/新生）：生成物 `generals_generated.rs`（`gen:sgs-engine-data` 从
+  `engine-catalog.json` 生成，带 `status`）。状态口径与中台 `sgs_generals.status` 一致：
+  `live`（147 审计池）/ `offline`（被「界/将」同名去重排除的原版）/ `review`（技能未完成）。
+  化身只取 `live()`；化身状态存 `Game.huashen`（不占牌区），切换时覆盖 `Seat.kingdom/male` 并保存原值。
+- **扣置声明 + 同时质疑链**（`hidden-declaration`，蛊惑）：声明候选按牌定义属性筛选；质疑**先收集**
+  全部「质疑/不质疑」再公开翻开；结果（真/假）与惩罚（质疑者自选弃牌或失去体力）逐层结算。
+  响应窗口的**延后结果**走 `Game.guhuo_result`（`Some(Some(牌))` = 已响应 / `Some(None)` = 假牌作废），
+  由 `apply_response` 返回 `None` 触发重入——这是既有「激将接力」模式的最小扩展，不是新子系统。
+- **群体锦囊少选目标**（`aoe-target-trim`，乱击）：`skills::aoe_trim_target` 在 `planned_targets` 的
+  AllAlive 分支裁剪；裁剪必须发生在目标确定阶段（无懈/响应之前），`finish` 清理标记。
+- **【杀】结算前介入**（`sha-intercept`，烈弓/享乐）：扩展 B8 `sha_intercept_skills` 的提供者清单；
+  技能只能返回 `Continue / Immune / Unresponsive / Replace`，不得就地改目标或吞掉响应。
+- **判定效果反转**（`judge-reversal`，思蜀）：`skills::sishu_reversed` 只改判定分支（红桃↔非红桃），
+  同一时间只允许一个目标；再次指定同一角色 = 恢复常规。
+- **范围覆盖**（`range-override`，烈弓）：`skills::range_override_reach` 接入 `Game::can_reach`，
+  逐目标判定（不改写全局 `attack_range`）。
+- **改判是一轮询问**：判定牌亮出后，从判定者左手侧起逐个询问有改判能力的角色（判定者最后），
+  每个持有者只问一次；**延时锦囊判定也走这一轮**（此前 v2 只覆盖技能判定）。

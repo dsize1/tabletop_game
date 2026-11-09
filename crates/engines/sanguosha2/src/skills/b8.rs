@@ -2517,6 +2517,8 @@ pub fn sha_intercept_skills(
     if target != user && active(g, user, "zhuandui") && !g.hand(user).is_empty() && !g.hand(target).is_empty() {
         out.push((user, "zhuandui"));
     }
+    // B13：烈弓（不能【闪】/ +1）、享乐（弃基本牌否则无效）。
+    out.extend(crate::skills::b13::sha_intercept(g, user, target, card));
     out
 }
 

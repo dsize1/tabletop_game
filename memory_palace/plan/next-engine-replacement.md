@@ -535,3 +535,32 @@ node apps/scripts/check-sgs2-metrics.mjs
 1. `node apps/scripts/sgs-align-sheet.mjs --batch B13 --new` → 填 2–5 段 → 交用户裁定。
 2. 先看 `npm run sgs2:batch -- B13` 的机制缺口（`multi-response` / `no-wuxie` 已 ok）。
 3. 实现 `skills/b13.rs` + `tests/b13.rs` → `V2_BATCHES` 加 13 → 回写 impl/tests → M85 → 单条 commit。
+
+## 18. B13 实施记录（2026-11-09，已收口）
+
+**结论：B13 已整批收口**（8 将 / 16 技能 + 34 用例；`cargo test -p sanguosha2` 482 全绿；`check:sgs2` 与
+`sgs:check:fast` 全绿）。
+
+### 18.1 新增的内核能力
+
+| 能力 | 落点 | 备注 |
+|---|---|---|
+| 武将牌池（general-pool） | `generals_generated.rs`（live 147 / offline 85 / review）+ `Game.huashen` | 中台 `sgs_generals.status` 改为按 `catalog::general_status` 写入 |
+| 扣置声明 + 同时质疑（hidden-declaration） | `Game.guhuo_result` 延后通道 + 质疑链 | `apply_response` 返回 `Option<bool>`，3 处响应调用点重入消费 |
+| AOE 少选目标（aoe-target-trim） | `skills::aoe_trim_target` → `planned_targets` | 裁剪在无懈/响应之前 |
+| 【杀】介入（sha-intercept） | B8 `sha_intercept_skills` 扩展点 | 烈弓（Unresponsive/+1）、享乐（Immune） |
+| 判定反转（judge-reversal） | `skills::sishu_reversed` → 延时锦囊判定 | 同时只允许一个目标 |
+| 范围覆盖（range-override） | `skills::range_override_reach` → `Game::can_reach` | 逐目标，不改写全局攻击范围 |
+| 改判一轮询问 | `judge_rewrite_holders` / `start_rewrite_for` | 覆盖延时锦囊判定（v2 此前缺失） |
+
+### 18.2 已知边界（下一轮补）
+
+- **蛊惑**：【无懈可击】窗口、濒死自救入口尚未接入（出牌阶段 + 【闪】/【杀】响应已接入）；
+  声明范围暂排除借刀/铁索（目标结构特殊）。
+- **化身**：武将牌池依赖生成物；换入/换出只维护 `Game.huashen`，不含 Web 侧化身 UI。
+
+### 18.3 下轮（B14 界标·J2）开工顺序
+
+1. `node apps/scripts/sgs-align-sheet.mjs --batch B14 --new` → 填 2–5 段 → 用户裁定。
+2. `npm run sgs2:batch -- B14` 看机制缺口。
+3. 实现 `skills/b14.rs` + `tests/b14.rs` → `V2_BATCHES` 加 14 → 回写对齐单 → M86 → 单条 commit。

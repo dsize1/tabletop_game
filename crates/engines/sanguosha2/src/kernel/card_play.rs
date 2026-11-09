@@ -1003,7 +1003,14 @@ fn sha_loop(
             return Ok(Some(Step::Next(Stage::CardOpt, data.clone())));
         }
         if data["asked"].as_bool().unwrap_or(false) {
-            let responded = apply_response(g, t, ResponseKind::Shan, card)?;
+            // 蛊惑延后结果优先；未就绪则保持 asked，等待流程结束重入。
+            let outcome = match g.guhuo_result.take() {
+                Some(r) => Some(r.is_some()),
+                None => apply_response(g, t, ResponseKind::Shan, card)?,
+            };
+            let Some(responded) = outcome else {
+                return Ok(Some(Step::Next(Stage::CardAsk, data.clone())));
+            };
             data["asked"] = json!(false);
             if responded {
                 let got = num(data, "got") + 1;
@@ -1096,7 +1103,13 @@ fn aoe(
             }
         }
         if data["asked"].as_bool().unwrap_or(false) {
-            let responded = apply_response(g, t, kind, card)?;
+            let outcome = match g.guhuo_result.take() {
+                Some(r) => Some(r.is_some()),
+                None => apply_response(g, t, kind, card)?,
+            };
+            let Some(responded) = outcome else {
+                return Ok(Step::Next(Stage::CardOpt, data.clone()));
+            };
             data["asked"] = json!(false);
             if !responded {
                 deal_damage(g, damage_source, t, 1, def, card);
@@ -1161,7 +1174,13 @@ fn duel(
         }
     }
     if data["asked"].as_bool().unwrap_or(false) {
-        let responded = apply_response(g, responder, ResponseKind::Sha, card)?;
+        let outcome = match g.guhuo_result.take() {
+            Some(r) => Some(r.is_some()),
+            None => apply_response(g, responder, ResponseKind::Sha, card)?,
+        };
+        let Some(responded) = outcome else {
+            return Ok(Step::Next(Stage::CardOpt, data.clone()));
+        };
         data["asked"] = json!(false);
         if responded {
             let got = num(data, "got") + 1;
@@ -1682,6 +1701,16 @@ fn response_options(g: &Game, target: usize, kind: ResponseKind) -> Vec<(String,
     for (id, label) in skills::relay_options(g, target, kind) {
         out.push((id, label));
     }
+    // 蛊惑（于吉）：扣置一张手牌当本次需要的牌打出（延后结算：质疑链后再回传结果）。
+    if (kind == ResponseKind::Shan || kind == ResponseKind::Sha)
+        && skills::guhuo_available(g, target)
+    {
+        let name = if kind == ResponseKind::Shan { "闪" } else { "杀" };
+        out.push((
+            "guhuo".to_string(),
+            format!("蛊惑：扣置一张手牌当【{name}】打出"),
+        ));
+    }
     out
 }
 
@@ -1720,11 +1749,16 @@ fn apply_response(
     actor: usize,
     kind: ResponseKind,
     used: Option<&CardId>,
-) -> Result<bool, String> {
+) -> Result<Option<bool>, String> {
     let ans = read_answer(g)?;
+    // 蛊惑：扣置声明 + 质疑链，结果延后回传（内核对「响应是否成立」只认结果通道）。
+    if ans == "guhuo" {
+        crate::skills::start_guhuo_response(g, actor, kind)?;
+        return Ok(None);
+    }
     g.response_context = None;
     if ans == "pass" {
-        return Ok(false);
+        return Ok(Some(false));
     }
     if let Some(id) = ans.strip_prefix("respond:") {
         let id = id.to_string();
@@ -1754,14 +1788,14 @@ fn apply_response(
         g.push_log(format!("{} 打出【{}】响应", g.seats[actor].name, g.card_label(&id)));
         // 「其他角色响应你使用的牌」统一接入点（复难）。
         crate::skills::on_response_played(g, used, actor, &id);
-        return Ok(true);
+        return Ok(Some(true));
     }
     if ans == "armor:bagua" {
         if g.armor(actor) != ArmorKind::Bagua {
             return Err("八卦阵：未装备【八卦阵】".into());
         }
         let Some(judge) = flow::judge_card(g, actor) else {
-            return Ok(false);
+            return Ok(Some(false));
         };
         let red = g.is_red(&judge);
         let label = g.card_label(&judge);
@@ -1787,7 +1821,7 @@ fn apply_response(
             "八卦阵：判定【{label}】→ {}",
             if red { "视为打出【闪】" } else { "判定失败" }
         ));
-        return Ok(red);
+        return Ok(Some(red));
     }
     if let Some(rest) = ans.strip_prefix("vrespond:") {
         // 被动转化技打出：`vrespond:<skill>:<承载牌>`
@@ -1821,15 +1855,15 @@ fn apply_response(
             g.card_label(&carrier)
         ));
         crate::skills::on_response_played(g, used, actor, &carrier);
-        return Ok(true);
+        return Ok(Some(true));
     }
     if ans == "jijiang" {
         // 主公技接力：压入激将帧（响应流程在下一轮读取 `relay_played` / `relay_none`）。
         crate::skills::start_relay(g, actor, kind, used);
-        return Ok(false);
+        return Ok(Some(false));
     }
     if kind == ResponseKind::Shan && skills::dodge_use(g, actor, &ans)? {
-        return Ok(true);
+        return Ok(Some(true));
     }
     Err(format!("未知响应选项：{ans}"))
 }

@@ -56,28 +56,28 @@ const MECHANISM_SUPPORT = {
   },
   // B13 声明的机制缺口（ok: false = 本批必须先补内核）
   "general-pool": {
-    ok: false,
-    where: "待建：生成物 generals_generated.rs（武将牌池）+ 化身状态（B13·化身/新生）",
+    ok: true,
+    where: "生成物 generals_generated.rs（status）+ Game.huashen（B13）",
   },
   "hidden-declaration": {
-    ok: false,
-    where: "待建：扣置声明 + 同时质疑链 + 缠怨（B13·蛊惑）",
+    ok: true,
+    where: "Game.guhuo_result 延后通道 + 质疑链（B13·蛊惑）",
   },
   "aoe-target-trim": {
-    ok: false,
-    where: "待建：目标确定阶段裁剪界面（B13·乱击：万箭少选一个目标）",
+    ok: true,
+    where: "skills::aoe_trim_target + planned_targets 裁剪（B13）",
   },
   "sha-intercept": {
-    ok: false,
-    where: "待建：结算前【杀】介入（锁定/可选，结果 Immune 等；B13·享乐）",
+    ok: true,
+    where: "B8 sha_intercept_skills 扩展点（B13·烈弓/享乐）",
   },
   "judge-reversal": {
-    ok: false,
-    where: "待建：判定效果反转（本局、按角色；B13·思蜀）",
+    ok: true,
+    where: "skills::sishu_reversed → 延时锦囊判定分支（B13）",
   },
   "range-override": {
-    ok: false,
-    where: "待建：按牌属性覆盖可达性（B13·烈弓：距离 ≤ 杀点数）",
+    ok: true,
+    where: "skills::range_override_reach → Game::can_reach（B13）",
   },
   "no-wuxie": {
     ok: true,
