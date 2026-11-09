@@ -153,6 +153,9 @@ pub const SKILLS: &[SkillDef] = &[
     b7::TAOLUAN,
 ];
 
+/// 转换技（阳/阴两面）：视图按此清单投影 `transforms`（与 handlers 的 `g.yang/toggle_yang` 对应）。
+pub const TRANSFORM_SKILLS: &[&str] = &["zhenliang", "juzhan", "shenshi", "chenglue"];
+
 pub fn def(code: &str) -> Option<&'static SkillDef> {
     SKILLS.iter().find(|s| s.code == code)
 }

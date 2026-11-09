@@ -487,7 +487,7 @@ fn zhige(g: &mut Game, a: &Ask) -> Result<Step, String> {
                         return Err("止戈：只能使用自己的【杀】".into());
                     }
                     g.to_discard(&id, "zhige")?;
-                    g.use_virtual(t, "杀", vec![a.actor]);
+                    g.use_virtual(t, "杀", vec![a.actor])?;
                     g.presentation.push(
                         Presentation::new("zhige", POutcome::Activated {
                             skill: "止戈".to_string(),
@@ -1406,6 +1406,63 @@ fn can_taoluan(g: &Game, seat: usize) -> bool {
         && !taoluan_names(g, seat).is_empty()
 }
 
+/// 滔乱声明的牌需要几个目标（min, max）：借刀 2/2；铁索 1/2；其余 1/1。
+fn taoluan_target_need(name: &str) -> (usize, usize) {
+    match cards::def(name).effect {
+        cards::Effect::Collateral => (2, 2),
+        cards::Effect::IronChain => (1, 2),
+        _ => (1, 1),
+    }
+}
+
+/// 滔乱选目标的候选池（读牌定义，不比较牌名）。
+fn taoluan_target_candidates(g: &Game, actor: usize, name: &str, picked: &[usize]) -> Vec<usize> {
+    let alive: Vec<usize> = (0..g.seats.len()).filter(|i| g.seats[*i].hp > 0).collect();
+    match cards::def(name).effect {
+        cards::Effect::Collateral => match picked.first() {
+            // 第二个目标：任意存活角色（可以是张让自己），但不能与 A 相同。
+            Some(a) => alive.into_iter().filter(|i| i != a).collect(),
+            // 第一个目标：装备区有武器、且不是自己。
+            None => alive
+                .into_iter()
+                .filter(|i| *i != actor && g.equip_in(*i, crate::kernel::Slot::Weapon).is_some())
+                .collect(),
+        },
+        cards::Effect::IronChain => alive.into_iter().filter(|i| !picked.contains(i)).collect(),
+        _ => other_alive(g, actor)
+            .into_iter()
+            .filter(|i| !picked.contains(i))
+            .collect(),
+    }
+}
+
+/// 滔乱的实际使用（真实结算 + 展示/日志）。
+fn taoluan_finish_use(
+    g: &mut Game,
+    actor: usize,
+    id: &CardId,
+    name: &str,
+    kind: u32,
+    label: &str,
+    targets: Vec<usize>,
+) -> Result<(), String> {
+    g.use_as(actor, id, name, targets, true, None)?;
+    g.seats[actor]
+        .flags
+        .insert(format!("taoluan_used:{name}"));
+    let _ = kind;
+    g.presentation.push(
+        Presentation::new("taoluan", POutcome::Activated {
+            skill: "滔乱".to_string(),
+        })
+        .actor(actor)
+        .cards(vec![id.clone()])
+        .fx("taoluan"),
+    );
+    g.push_log(format!("滔乱：将【{label}】当【{name}】使用"));
+    Ok(())
+}
+
 fn taoluan(g: &mut Game, a: &Ask) -> Result<Step, String> {
     match a.stage {
         Stage::Choose => {
@@ -1442,28 +1499,99 @@ fn taoluan(g: &mut Game, a: &Ask) -> Result<Step, String> {
                     }
                     let kind = kind_bit(g, &id);
                     let label = label(g, &id);
-                    g.seats[a.actor]
-                        .flags
-                        .insert(format!("taoluan_used:{name}"));
-                    g.set_virtual(&id, &name, vec![id.clone()]);
-                    g.use_card(a.actor, &id, vec![]);
-                    g.to_discard(&id, "taoluan")?;
-                    g.clear_virtual(&id);
-                    g.presentation.push(
-                        Presentation::new("taoluan", POutcome::Activated {
-                            skill: "滔乱".to_string(),
-                        })
-                        .actor(a.actor)
-                        .cards(vec![id.clone()])
-                        .fx("taoluan"),
-                    );
-                    g.push_log(format!("滔乱：将【{label}】当【{name}】使用"));
+                    // M2：真实结算。需要选目标的牌先进入 CardTarget 选目标（取消不烧牌名）。
+                    if cards::target_mode(&name) == cards::TargetMode::Chosen {
+                        return Ok(Step::Next(
+                            Stage::CardTarget,
+                            json!({
+                                "id": id,
+                                "name": name,
+                                "kind": kind,
+                                "label": label,
+                                "picked": [],
+                            }),
+                        ));
+                    }
+                    taoluan_finish_use(g, a.actor, &id, &name, kind, &label, vec![])?;
                     Ok(Step::Next(
                         Stage::Target,
                         json!({ "kind": kind, "name": name }),
                     ))
                 }
                 Some(other) => Err(format!("滔乱：未知选项 {other}")),
+            }
+        }
+        Stage::CardTarget => {
+            let id = a.data["id"].as_str().unwrap_or_default().to_string();
+            let name = a.data["name"].as_str().unwrap_or_default().to_string();
+            let label = a.data["label"].as_str().unwrap_or_default().to_string();
+            let kind = a.data["kind"].as_u64().unwrap_or(0) as u32;
+            let mut picked: Vec<usize> = a.data["picked"]
+                .as_array()
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_u64().map(|n| n as usize))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let (min, max) = taoluan_target_need(&name);
+            let cands = taoluan_target_candidates(g, a.actor, &name, &picked);
+            if cands.is_empty() && picked.len() < min {
+                return Ok(Step::Done);
+            }
+            match g.answer.take().as_deref() {
+                None => {
+                    let mut b = super::builder(a.actor, "card_target").skill("taoluan");
+                    for i in &cands {
+                        b = b.option(
+                            format!("cardtarget:{i}"),
+                            format!("【{name}】目标：{}", g.seats[*i].name),
+                        );
+                    }
+                    if picked.len() >= min {
+                        b = b.option("confirm", "确定（按当前目标使用）");
+                    }
+                    Ok(Step::Need(b.escape("取消（不使用此牌）").build()))
+                }
+                Some("pass") => Ok(Step::Done),
+                Some("confirm") => {
+                    if picked.len() < min {
+                        return Err("滔乱：目标数量不足".into());
+                    }
+                    taoluan_finish_use(g, a.actor, &id, &name, kind, &label, picked)?;
+                    Ok(Step::Next(
+                        Stage::Target,
+                        json!({ "kind": kind, "name": name }),
+                    ))
+                }
+                Some(act) => {
+                    let t: usize = act
+                        .strip_prefix("cardtarget:")
+                        .and_then(|s| s.parse().ok())
+                        .ok_or_else(|| format!("滔乱：目标不合法 {act}"))?;
+                    if !cands.contains(&t) {
+                        return Err("滔乱：目标不合法".into());
+                    }
+                    picked.push(t);
+                    if picked.len() < min || (max > picked.len() && max > min) {
+                        // 借刀必须选满 2 个；铁索选到第 1 个后仍可继续选第 2 个。
+                        return Ok(Step::Next(
+                            Stage::CardTarget,
+                            json!({
+                                "id": id,
+                                "name": name,
+                                "kind": kind,
+                                "label": label,
+                                "picked": picked,
+                            }),
+                        ));
+                    }
+                    taoluan_finish_use(g, a.actor, &id, &name, kind, &label, picked)?;
+                    Ok(Step::Next(
+                        Stage::Target,
+                        json!({ "kind": kind, "name": name }),
+                    ))
+                }
             }
         }
         Stage::Target => {

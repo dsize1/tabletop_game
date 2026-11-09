@@ -51,7 +51,55 @@ pub fn damage_typed(
     card: Option<&CardId>,
     chain_origin: bool,
 ) {
+    let def = card.map(|c| g.def_of(c));
+    damage_impl(g, source, victim, amount, dtype, def.as_ref(), card, chain_origin);
+}
+
+/// 带**牌定义**的伤害入口（虚拟牌没有实体牌实例，但仍有 `cards::def` 属性）。
+///
+/// 防具判定（仁王盾/藤甲）与数值链（藤甲 +1 / 白银狮子最后）都读这里的 `def`，
+/// 因此「视为使用【火杀】」也能正确吃到藤甲 +1。
+pub fn damage_def(
+    g: &mut Game,
+    source: Option<usize>,
+    victim: usize,
+    amount: i32,
+    def: &crate::cards::CardDef,
+    card: Option<&CardId>,
+    chain_origin: bool,
+) {
+    damage_impl(
+        g,
+        source,
+        victim,
+        amount,
+        def.damage_kind,
+        Some(def),
+        card,
+        chain_origin,
+    );
+}
+
+fn damage_impl(
+    g: &mut Game,
+    source: Option<usize>,
+    victim: usize,
+    amount: i32,
+    dtype: crate::cards::DamageKind,
+    def: Option<&crate::cards::CardDef>,
+    card: Option<&CardId>,
+    chain_origin: bool,
+) {
     if g.seats[victim].hp <= 0 {
+        return;
+    }
+    if armor_prevents(g, source, victim, def, card, dtype) {
+        g.push_log(format!(
+            "{} 的防具使【{}】无效",
+            g.seats[victim].name,
+            card.map(|c| g.name_of(c))
+                .unwrap_or_else(|| "虚拟牌".to_string())
+        ));
         return;
     }
     if crate::skills::damage_prevent(g, victim) {
@@ -67,7 +115,7 @@ pub fn damage_typed(
     if source.is_none() && crate::skills::damage_before_sourceless(g, victim, amount, card) {
         return;
     }
-    damage_now_typed(g, source, victim, amount, card, dtype, chain_origin);
+    damage_now_impl(g, source, victim, amount, card, dtype, def, chain_origin);
 }
 
 /// 直接结算伤害（**不**再走「造成伤害时」拦截；技能自行补结算时用）。
@@ -81,7 +129,8 @@ pub fn damage_now(
     let dtype = card
         .map(|c| g.def_of(c).damage_kind)
         .unwrap_or(crate::cards::DamageKind::Normal);
-    damage_now_typed(g, source, victim, amount, card, dtype, false);
+    let def = card.map(|c| g.def_of(c));
+    damage_now_impl(g, source, victim, amount, card, dtype, def.as_ref(), false);
 }
 
 pub fn damage_now_typed(
@@ -93,16 +142,46 @@ pub fn damage_now_typed(
     dtype: crate::cards::DamageKind,
     chain_origin: bool,
 ) {
+    let def = card.map(|c| g.def_of(c));
+    damage_now_impl(g, source, victim, amount, card, dtype, def.as_ref(), chain_origin);
+}
+
+fn damage_now_impl(
+    g: &mut Game,
+    source: Option<usize>,
+    victim: usize,
+    amount: i32,
+    card: Option<&CardId>,
+    dtype: crate::cards::DamageKind,
+    def: Option<&crate::cards::CardDef>,
+    chain_origin: bool,
+) {
     if g.seats[victim].hp <= 0 {
         return;
     }
+    if armor_prevents(g, source, victim, def, card, dtype) {
+        return;
+    }
     // 「造成伤害时」的数值加成（暗箭/链祸等）：先加成，再做「受到的伤害改为 1」类终局修正。
-    let amount = amount
+    let mut amount = amount
         + source
             .map(|s| crate::skills::damage_bonus_typed(g, s, victim, card, dtype, chain_origin))
             .unwrap_or_else(|| {
                 crate::skills::damage_bonus_sourceless(g, victim, dtype, chain_origin)
             });
+    // 装备数值链（顺序固定）：技能加成 → 藤甲（火伤 +1）→ 白银狮子（最后，>1 改为 1）。
+    if !armor_ignored(g, source, def)
+        && g.armor(victim) == crate::cards::ArmorKind::Tengjia
+        && dtype == crate::cards::DamageKind::Fire
+    {
+        amount += 1;
+    }
+    if !armor_ignored(g, source, def)
+        && g.armor(victim) == crate::cards::ArmorKind::Baiyin
+        && amount > 1
+    {
+        amount = 1;
+    }
     if let Some(s) = source {
         g.bump(&format!("turn.damage_by:{s}"));
     }
@@ -137,9 +216,95 @@ pub fn damage_now_typed(
     );
     ev.card = card.cloned();
     g.events.push(ev);
+    // 属性伤害 + 连环状态 → 解除连环并传导给其他连环角色（链祸等技能按 `chain_origin` 判定）。
+    if dtype != crate::cards::DamageKind::Normal && g.seats[victim].chained && !chain_origin {
+        chain_leave(g, victim);
+        let others: Vec<usize> = (0..g.seats.len())
+            .filter(|i| *i != victim && g.seats[*i].hp > 0 && g.seats[*i].chained)
+            .collect();
+        for other in others {
+            chain_leave(g, other);
+            damage_now_impl(g, source, other, amount, card, dtype, def, true);
+        }
+    }
     if g.seats[victim].hp <= 0 {
         start_dying(g, victim, source);
     }
+}
+
+/// 青釭剑：使用【杀】时无视目标防具（只对【杀】生效）。
+fn armor_ignored(
+    g: &Game,
+    source: Option<usize>,
+    def: Option<&crate::cards::CardDef>,
+) -> bool {
+    let Some(def) = def else { return false };
+    if !def.tags.sha {
+        return false;
+    }
+    source
+        .map(|s| g.weapon(s) == crate::cards::WeaponKind::Qinggang)
+        .unwrap_or(false)
+}
+
+/// 防具使本次伤害无效（仁王盾 / 藤甲）。返回 true = 伤害被防止。
+fn armor_prevents(
+    g: &Game,
+    source: Option<usize>,
+    victim: usize,
+    def: Option<&crate::cards::CardDef>,
+    card: Option<&CardId>,
+    dtype: crate::cards::DamageKind,
+) -> bool {
+    let Some(def) = def else { return false };
+    if g.seats[victim].hp <= 0 {
+        return false;
+    }
+    let armor = g.armor(victim);
+    if armor == crate::cards::ArmorKind::None || armor_ignored(g, source, Some(def)) {
+        return false;
+    }
+    match armor {
+        // 仁王盾：黑色【杀】对你无效（虚拟牌无花色 → 不构成「黑色」）。
+        crate::cards::ArmorKind::Renwang => {
+            def.tags.sha && card.map(|c| !g.is_red(c)).unwrap_or(false)
+        }
+        // 藤甲：普通【杀】/【南蛮入侵】/【万箭齐发】对你无效（火伤在数值链里 +1）。
+        crate::cards::ArmorKind::Tengjia => {
+            (def.tags.sha && dtype == crate::cards::DamageKind::Normal)
+                || (def.damage_trick
+                    && def.tags.target_mode == Some(crate::cards::TargetMode::AllAlive))
+        }
+        _ => false,
+    }
+}
+
+/// 回复体力（唯一入口；不产生伤害事件）。
+pub fn heal(g: &mut Game, seat: usize, n: i32, cause: &str) {
+    if n <= 0 || g.seats[seat].hp <= 0 {
+        return;
+    }
+    let before = g.seats[seat].hp;
+    g.seats[seat].hp = (before + n).min(g.seats[seat].max_hp);
+    let healed = g.seats[seat].hp - before;
+    if healed <= 0 {
+        return;
+    }
+    g.events.push(Event::with_amount(
+        EventKind::Healed,
+        Some(seat),
+        Some(cause),
+        healed,
+    ));
+    g.presentation.push(
+        Presentation::new("heal", POutcome::Heal { amount: healed })
+            .target(seat)
+            .fx("heal"),
+    );
+    g.push_log(format!(
+        "{} 回复 {healed} 点体力（体力 {}，原因：{cause}）",
+        g.seats[seat].name, g.seats[seat].hp
+    ));
 }
 
 /// 失去（流失）体力：**不产生伤害事件**（mechanics `damage-vs-hp-loss`，2026-11-06 用户裁定）。
@@ -377,7 +542,9 @@ pub fn step_wuxie(g: &mut Game, a: &Ask) -> Result<Step, String> {
         .filter(|i| g.seats[*i].hp > 0)
         .collect();
     if cursor >= order.len() {
-        let outcome = if count % 2 == 1 {
+        let negated = count % 2 == 1;
+        g.wuxie_result = Some(negated);
+        let outcome = if negated {
             POutcome::TrickNegated
         } else {
             POutcome::TrickEffective

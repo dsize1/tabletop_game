@@ -15,15 +15,18 @@ pub enum DeferredKind {
     KongShengUse,
     /// 技能触发询问。
     SkillTrigger,
+    /// 判定阶段：延时锦囊 LIFO 结算（必须在「阶段开始」技能触发之后）。
+    JudgePhase,
     /// 死亡清理（必须排在所有死亡时技能之后）。
     DeathCleanup,
 }
 
 /// **顺序表**（常量即文档）。改动必须同步 `docs/games/sanguosha/align/mechanics.json`。
-pub const ORDER: [DeferredKind; 4] = [
+pub const ORDER: [DeferredKind; 5] = [
     DeferredKind::LiangYinHeal,
     DeferredKind::KongShengUse,
     DeferredKind::SkillTrigger,
+    DeferredKind::JudgePhase,
     DeferredKind::DeathCleanup,
 ];
 
@@ -53,6 +56,10 @@ pub enum Payload {
     Land {
         card: CardId,
         to: Zone,
+    },
+    /// 判定阶段：对某座位的延时锦囊发起 LIFO 结算。
+    JudgePhase {
+        seat: usize,
     },
 }
 

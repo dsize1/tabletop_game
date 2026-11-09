@@ -47,6 +47,16 @@ pub enum Stage {
     DyingAsk,
     /// 无懈窗口（内核）。
     WuxieAsk,
+    /// 牌结算：等待目标/使用者给出响应牌（闪/杀/无懈替代）。
+    CardAsk,
+    /// 牌结算：从某角色的牌区选择一张牌（过河拆桥 / 顺手牵羊）。
+    CardPick,
+    /// 牌结算：牌特有的额外选择（火攻弃同花色 / 五谷选牌 / 借刀出杀或交武器）。
+    CardOpt,
+    /// 技能声明的牌需要选目标（滔乱：按声明牌名的目标规则）。
+    CardTarget,
+    /// 判定阶段（内核）：逐张结算判定区延时锦囊。
+    JudgeResolve,
     /// 翻面结算完（解围②等子流程返回后继续）。
     AfterFlip,
     /// 濒死结算完（奋激：脱困后才摸牌）。
@@ -57,6 +67,12 @@ pub enum Stage {
 pub enum FlowKind {
     Dying,
     Wuxie,
+    /// 牌结算（使用→目标→响应→结算→弃牌/装备/判定区）。
+    Card,
+    /// 判定阶段：延时锦囊 LIFO 结算。
+    Judge,
+    /// 弃牌阶段：逐张弃置直到手牌上限。
+    Discard,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -140,6 +156,24 @@ pub fn advance(g: &mut Game) -> Result<(), String> {
                         data: f.data.clone(),
                     })?,
                     FlowKind::Wuxie => super::flow::step_wuxie(g, &Ask {
+                        skill: f.skill.clone(),
+                        stage: f.stage,
+                        actor: f.actor,
+                        data: f.data.clone(),
+                    })?,
+                    FlowKind::Card => super::card_play::step_card(g, &Ask {
+                        skill: f.skill.clone(),
+                        stage: f.stage,
+                        actor: f.actor,
+                        data: f.data.clone(),
+                    })?,
+                    FlowKind::Judge => super::card_play::step_judge(g, &Ask {
+                        skill: f.skill.clone(),
+                        stage: f.stage,
+                        actor: f.actor,
+                        data: f.data.clone(),
+                    })?,
+                    FlowKind::Discard => crate::turn::step_discard(g, &Ask {
                         skill: f.skill.clone(),
                         stage: f.stage,
                         actor: f.actor,
@@ -279,6 +313,10 @@ fn run_deferred(g: &mut Game, d: Deferred) -> Result<(), String> {
             }
             Ok(())
         }
+        Payload::JudgePhase { seat } => {
+            super::card_play::start_judge(g, seat);
+            Ok(())
+        }
     }
 }
 
@@ -331,11 +369,17 @@ pub fn submit(g: &mut Game, actor: usize, action: &str) -> Result<String, String
         );
     }
     advance(g)?;
-    Ok(g.log.last().map(|e| e.text.clone()).unwrap_or_default())
+    Ok(g
+        .log
+        .last()
+        .map(|e| e.text.clone())
+        .filter(|t| !t.is_empty())
+        .unwrap_or_else(|| format!("已执行：{action}")))
 }
 
 /// 回合/阶段切换（测试与引擎共用）：清一次性计数器 + 发事件。
 pub fn begin_phase(g: &mut Game, seat: usize, phase: Phase) -> Result<(), String> {
+    let mut phase = phase;
     if g.turn != seat {
         for i in 0..g.seats.len() {
             g.unfreeze_hand(i);
@@ -357,6 +401,12 @@ pub fn begin_phase(g: &mut Game, seat: usize, phase: Phase) -> Result<(), String
             None,
         ));
     }
+    // 判定区效果（乐不思蜀）：跳过出牌阶段（唯一消费点；判定阶段写入 `turn.skip_play`）。
+    if phase == Phase::Play && g.counter("turn.skip_play") > 0 {
+        g.counters.insert("turn.skip_play".to_string(), 0);
+        g.push_log(format!("{} 跳过出牌阶段", g.seats[seat].name));
+        phase = Phase::Discard;
+    }
     if g.phase != phase {
         g.phase = phase;
         g.clear_prefix("phase.");
@@ -370,6 +420,17 @@ pub fn begin_phase(g: &mut Game, seat: usize, phase: Phase) -> Result<(), String
             Some(seat),
             Some(&format!("{phase:?}")),
         ));
+        // 判定阶段：排一个「延时锦囊 LIFO 结算」（在阶段开始技能触发之后）。
+        if phase == Phase::Judge
+            && g.judge_zone(seat)
+                .iter()
+                .any(|id| g.def_of(id).tags.delayed)
+        {
+            g.deferred.push(super::deferred::Deferred {
+                kind: super::deferred::DeferredKind::JudgePhase,
+                payload: super::deferred::Payload::JudgePhase { seat },
+            });
+        }
     }
     advance(g)
 }

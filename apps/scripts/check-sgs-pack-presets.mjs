@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// 门禁：武将包预设 ↔ `data.rs` ↔ `data-model.md` 一致（P4.4.3 harness）。
+// 门禁：武将包预设 ↔ `engine-catalog.json` ↔ `data-model.md` 一致（P4.4.3 harness）。
 //
 // 目的：扩包 / 改同名去重 / 改预设时，防止「代码池变了但文档表没改」或「文档写了预设但代码没提供」。
 //
 // 口径：
-//   1. `data.rs`：`GENERAL_PACK_KEYS`（包顺序）+ 全部 `GeneralDef`（pack/name）；
+//   1. `engine-catalog.json`：`general_pack_keys`（包顺序）+ 全部武将（pack/name）；
 //   2. 预设 = `standard` + 其余包的全部子集（2^(N-1)），按包数升序（与 `lib.rs::general_pack_presets` 同序）；
 //   3. 可用人数 = 包过滤 → 同名去重（`prefer_jiexian`：与「界化」武将同名的原版剔除）；
 //   4. 文档侧：`data-model.md` §3.7「武将包口径」预设表（mode / 标签 / 人数）；
@@ -16,7 +16,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-const DATA_RS = resolve("crates", "engines", "sanguosha", "src", "data.rs");
+const CATALOG_JSON = resolve("docs", "games", "sanguosha", "data", "engine-catalog.json");
 const LIB_RS = resolve("crates", "engines", "sanguosha", "src", "lib.rs");
 const STATE_RS = resolve("crates", "engines", "sanguosha", "src", "state.rs");
 const DATA_MODEL_MD = resolve("docs", "games", "sanguosha", "data-model.md");
@@ -97,17 +97,19 @@ function parseDocRows(text) {
   return rows;
 }
 
-const [dataRs, libRs, stateRs, dataModel, legalActions] = await Promise.all([
-  readFile(DATA_RS, "utf8"),
+const [catalogText, libRs, stateRs, dataModel, legalActions] = await Promise.all([
+  readFile(CATALOG_JSON, "utf8"),
   readFile(LIB_RS, "utf8"),
   readFile(STATE_RS, "utf8"),
   readFile(DATA_MODEL_MD, "utf8"),
   readFile(LEGAL_ACTIONS_MD, "utf8"),
 ]);
 
-const keys = parsePackKeys(dataRs);
-const generals = parseGenerals(dataRs);
-if (generals.length === 0) throw new Error("data.rs 未解析到 GeneralDef");
+const catalog = JSON.parse(catalogText);
+const keys = catalog.general_pack_keys;
+const generals = catalog.generals.map((g) => ({ code: g.code, name: g.name, pack: g.pack }));
+if (!Array.isArray(keys) || keys.length === 0) throw new Error("engine-catalog.json 缺少 general_pack_keys");
+if (generals.length === 0) throw new Error("engine-catalog.json 未解析到 GeneralDef");
 
 // —— 代码侧 ——
 if (!libRs.includes("general_pack_presets()")) {

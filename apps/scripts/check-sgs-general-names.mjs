@@ -16,6 +16,7 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { fixedGeneralName, GENERAL_NAME_FIX_NOTES } from "./lib/sgs-name-fixes.mjs";
+import { loadGenerals } from "./lib/sgs-catalog.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "../..");
@@ -24,21 +25,7 @@ const verbose = process.argv.includes("--verbose");
 const heroes = JSON.parse(
   readFileSync(resolve(root, "docs/games/sanguosha/data/heroes.json"), "utf8"),
 ).heroes;
-const dataRs = readFileSync(resolve(root, "crates/engines/sanguosha/src/data.rs"), "utf8");
-const gens = [...dataRs.matchAll(
-  /GeneralDef \{ code: "(sgs_hero_\d+)", gid: (\d+), name: "([^"]+)", pack: "([^"]+)", kingdom: "([^"]+)", max_hp: (\d+), gender: "[^"]+", is_lord: (?:true|false), skills: &\[([^\]]*)\],\}/g,
-)].map((m) => ({
-  code: m[1],
-  gid: Number(m[2]),
-  name: m[3],
-  pack: m[4],
-  kingdom: m[5],
-  maxHp: Number(m[6]),
-  skills: m[7]
-    .split(",")
-    .map((x) => x.trim().replace(/^"|"$/g, ""))
-    .filter(Boolean),
-}));
+const gens = loadGenerals();
 
 const official = [...new Set(heroes.map((h) => fixedGeneralName(h)))];
 const officialSet = new Set(official);
@@ -102,7 +89,7 @@ for (const g of gens) {
   const want = fixedGeneralName(h);
   if (want !== g.name) {
     gidMismatch += 1;
-    problems.push(`gid=${g.gid} 名称不一致：data.rs「${g.name}」≠ 官方「${want}」`);
+    problems.push(`gid=${g.gid} 名称不一致：catalog「${g.name}」≠ 官方「${want}」`);
   }
   const os = (Array.isArray(h.skills) ? h.skills : []).map((x) => x.name);
   const missing = os.filter((n) => !g.skills.includes(n));

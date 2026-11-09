@@ -293,12 +293,24 @@ fn gate_single_deferred_queue() {
     assert_eq!(queue_fields, 0, "不得新增 per-skill 队列字段");
     assert!(src.contains("pub deferred: Vec<Deferred>"), "必须只有单一 deferred");
     let order = sanguosha2::kernel::deferred::ORDER;
-    assert_eq!(order.len(), 4);
+    assert_eq!(order.len(), 5, "单一延迟队列：新增一项必须同步 ORDER");
     assert_eq!(order[0], sanguosha2::kernel::deferred::DeferredKind::LiangYinHeal);
     assert_eq!(order[1], sanguosha2::kernel::deferred::DeferredKind::KongShengUse);
     assert_eq!(
-        order[3],
-        sanguosha2::kernel::deferred::DeferredKind::DeathCleanup
+        order[order.len() - 1],
+        sanguosha2::kernel::deferred::DeferredKind::DeathCleanup,
+        "死亡清理必须排最后"
+    );
+    assert!(
+        order
+            .iter()
+            .position(|k| *k == sanguosha2::kernel::deferred::DeferredKind::JudgePhase)
+            .unwrap()
+            > order
+                .iter()
+                .position(|k| *k == sanguosha2::kernel::deferred::DeferredKind::SkillTrigger)
+                .unwrap(),
+        "判定阶段结算必须在阶段开始技能触发之后"
     );
 }
 

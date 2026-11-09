@@ -21,6 +21,8 @@ pub enum EventKind {
     DamageAfter,
     /// 失去（流失）体力：**不是**伤害（mechanics `damage-vs-hp-loss`）。
     HpLost,
+    /// 回复体力（桃/桃园/白银狮子/技能回血）；不产生伤害事件。
+    Healed,
     /// 体力上限变化（自立觉醒 / 减上限类效果）。
     MaxHpChanged,
     /// 进入连环状态（`chained_enter`）：**所有**进入连环状态的对象都发（用户 2026-11-06 裁定）。

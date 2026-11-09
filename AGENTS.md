@@ -33,7 +33,9 @@
 | 三国杀规则 / 牌表 / 状态机 / 动作 / 校验 | `docs/games/sanguosha/rules.md`、`cards.md`、`state-machine.md`、`legal-actions.md`、`rule-engine-permission.md` |
 | 三国杀视图 / 布局 / 手势 / 浮层 / 观星交互 | `docs/games/sanguosha/ui-spec.md` |
 | 三国杀 Web 真机验收清单（人工） | `docs/games/sanguosha/p3-manual-test.md` |
-| 三国杀批次开发 playbook（流程/模板/门禁） | `docs/games/sanguosha/batch-playbook.md` |
+| 三国杀批次开发 playbook（流程/模板/门禁，含 v2 B8+ 开工命令） | `docs/games/sanguosha/batch-playbook.md` §9 |
+| 引擎替换（v1→v2）：M1–M4 记录 / 注册接口清单 / 删除清单 / 对拍白名单 | `memory_palace/plan/next-engine-replacement.md`、`docs/games/sanguosha/engine-replacement/README.md` |
+| v2 门禁 / B8+ 脚手架命令 | `npm run check:sgs2`、`npm run sgs2:batch -- B8`、`npm run check:sgs2-registry` |
 | 三国杀技能注册表 / 触发钩子 / 实现进度 | `docs/games/sanguosha/skills.md` |
 | 三国杀 AI（分层 / 打分 / 威胁模型 / 自对弈门禁 / 已知缺陷） | `docs/games/sanguosha/ai.md` |
 | 三国杀规则裁定 / 特殊交互区 | `docs/games/sanguosha/rules-rulings.md`、`docs/games/sanguosha/special-zones.md` |

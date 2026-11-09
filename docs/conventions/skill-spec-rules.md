@@ -72,6 +72,22 @@
 
 - `check:sgs-align`：对齐单必填字段、正/反例、机制引用、原文限定语复述。
 - `cargo test -p sanguosha2`：内核「禁止出现技能名」、单一延迟队列、pending 出口、守恒/无帧遗留。
-- **待补门禁**：静态扫描 `crates/engines/sanguosha2/src` 中的牌名比较（`name ==` / `matches!(name, ...)`），命中即失败。
-- 已知违反项（B0–B1 回溯修复清单，见计划「待办实现」）：
-  `kernel/flow.rs`（桃/酒/无懈可击）、`skills/b1b.rs`（`is_basic`、`c.name != "杀"` ×2）。
+- `tests/cards.rs::gate_kernel_has_no_card_name_branch`：内核（`kernel/*`）不得出现牌名比较/构造
+  （`== "杀"` / `cards::def("…")`）；牌名只允许出现在日志/展示文案里。
+- `tests/cards.rs::gate_card_play_never_touches_hp_directly`：牌结算不得直接改 `hp`（必须走 `flow::*`）。
+- 已知违反项：**已清零**（M1，2026-11-06）：`kernel/flow.rs` 的桃/酒/无懈判定已改读 `cards::def().tags`；
+  `skills/b1b.rs` 已改用 `cards::is_basic` / `tags().sha`。
+
+## 10. 牌结算（M1）的单一出口
+
+- 牌定义是**生成物**：`docs/games/sanguosha/data/cards.json` → `npm run gen:sgs-engine-data`
+  → `crates/engines/sanguosha2/src/cards_generated.rs`（160 张 + 属性/效果表）。
+  手写代码**只读** `cards::def()`，不得在运行时读 JSON，也不得手写牌名白名单。
+- 使用一张牌有三个**真实结算**入口（M2 起技能全部走这里）：
+  `Game::resolve_use`（普通使用）/ `Game::use_virtual`（纯虚拟牌）/ `Game::use_as`（转化牌 = 实体承载 + 生效牌名）。
+  `Game::use_card` 仅保留为「事件模拟」兼容入口，**技能代码禁止调用**（门禁 `tests/m2_wiring.rs`）。
+- 牌结算的**唯一**伤害/回血出口是 `flow::damage*` / `flow::lose_hp` / `flow::heal`；
+  装备数值链顺序固定：技能加成 → 藤甲（火焰 +1）→ 白银狮子（最后，>1 改为 1）。
+- 无懈链复用 `flow::start_wuxie`，结果经 `Game::wuxie_result` 回传父流程（不与牌结算各写一半）。
+- 延时锦囊在判定阶段按 `Game::judge_zone_lifo` 结算（后置先判）；判定区进出只发
+  `JudgeZoneEntered` / `JudgeZoneLeft`，不算弃置。

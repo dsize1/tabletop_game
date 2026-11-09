@@ -125,6 +125,8 @@ fn xiansi_other_player_can_use_two_ni_without_phase_limit() {
     assert_eq!(skills::ni(&g, 0), 2, "移去两张「逆」");
     assert_eq!(g.ids_in(|z| *z == Zone::Void).len(), 2, "还剩 2 张「逆」");
     assert!(log_text(&g).contains("视为对"), "视为使用【杀】：{}", log_text(&g));
+    // M2：真实结算（刘封无闪 → 受到 1 点伤害）。
+    assert_eq!(g.seats[0].hp, 3, "视为使用的【杀】真实造成伤害");
     // 不限次数：剩余 2 张仍可再用
     assert!(skills::legal_actions(&g, 1).iter().any(|(id, _)| id == "skill:xiansi"));
 }
@@ -348,6 +350,8 @@ fn sidi_end_of_phase_virtual_sha_when_no_sha_used() {
     // 出牌阶段结束：未使用【杀】→ 视为使用【杀】
     g.end_phase("Play").unwrap();
     assert!(log_text(&g).contains("视为对其使用【杀】"), "{}", log_text(&g));
+    // M2：真实结算（p1 无手牌 → 受到 1 点伤害）。
+    assert_eq!(g.seats[1].hp, 3, "司敌【杀】真实造成伤害");
 }
 
 #[test]
@@ -385,6 +389,8 @@ fn shenduan_uses_discarded_black_basic_as_bingliang() {
     answer(&mut g, 0, "choose:shenduan");
     answer(&mut g, 0, "target:1");
     assert!(log_text(&g).contains("兵粮寸断"), "{}", log_text(&g));
+    // M2：真实结算 → 进入目标判定区。
+    assert_eq!(g.judge_zone(1), vec![card.clone()], "置于判定区");
 }
 
 #[test]
@@ -413,16 +419,27 @@ fn yonglue_uses_judge_card_then_draws_when_no_damage() {
         ("hanhao", &["yonglue"], 4),
         ("p1", &[], 4),
     ]);
+    give(&mut g, 1, &["c2"]); // p1 有【闪】
     g.to_judge(&"c6".to_string(), 1).unwrap();
     begin_phase(&mut g, 1, Phase::Judge).unwrap();
     assert_eq!(pend(&g).skill(), Some("yonglue"));
+    let before = g.hand(0).len();
     answer(&mut g, 0, "choose:c6");
     assert_eq!(g.zone_of(&"c6".to_string()), Some(&Zone::Discard), "判定牌被弃置");
-    assert!(log_text(&g).contains("视为使用【杀】"), "{}", log_text(&g));
-    let before = g.hand(0).len();
-    // 未造成伤害（damaged=false）→ 摸 1
-    skills::on_sha_finished(&mut g, 0, Some(1), None, None, false);
-    assert_eq!(g.hand(0).len(), before + 1);
+    assert!(
+        log_text(&g).contains("视为对其使用【杀】"),
+        "{}",
+        log_text(&g)
+    );
+    // M2：真实结算 → p1 打出【闪】抵消 → 未造成伤害 → 勇略摸 1。
+    assert_eq!(pend(&g).actor(), 1, "视为使用的【杀】要求 p1 响应");
+    let shan = options(&g)
+        .into_iter()
+        .find(|o| o.starts_with("respond:"))
+        .expect("p1 有闪");
+    answer(&mut g, 1, &shan);
+    assert_eq!(g.seats[1].hp, 4, "闪抵消，未造成伤害");
+    assert_eq!(g.hand(0).len(), before + 1, "未造成伤害 → 勇略摸 1");
 }
 
 #[test]
@@ -433,9 +450,11 @@ fn yonglue_no_draw_when_damage_happened() {
     ]);
     g.to_judge(&"c6".to_string(), 1).unwrap();
     begin_phase(&mut g, 1, Phase::Judge).unwrap();
-    answer(&mut g, 0, "choose:c6");
     let before = g.hand(0).len();
-    skills::on_sha_finished(&mut g, 0, Some(1), None, None, true);
+    answer(&mut g, 0, "choose:c6");
+    // M2：真实结算 → p1 无闪 → 受到 1 点伤害 → 不摸牌。
+    assert!(g.pending.is_none(), "p1 无闪，直接结算");
+    assert_eq!(g.seats[1].hp, 3, "造成伤害");
     assert_eq!(g.hand(0).len(), before, "造成伤害则不摸牌");
 }
 
@@ -669,6 +688,8 @@ fn zhongyong_gives_sha_and_asks_receiver_for_red_card() {
     assert!(!opts.contains(&"target:1".to_string()), "不能对接收者自己使用：{opts:?}");
     answer(&mut g, 1, "target:2");
     assert!(log_text(&g).contains("视为对"), "接收者视为使用【杀】：{}", log_text(&g));
+    // M2：真实结算（p2 无闪 → 受到 1 点伤害）。
+    assert_eq!(g.seats[2].hp, 3, "接收者的【杀】真实造成伤害");
 }
 
 #[test]

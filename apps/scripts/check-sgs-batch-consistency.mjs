@@ -91,7 +91,7 @@ for (const e of devEntries) {
     continue;
   }
   if (g.name !== e.name) {
-    problems.push(`开发批次 ${e.batch} gid=${e.gid} 名字不一致：表「${e.name}」≠ data.rs「${g.name}」`);
+    problems.push(`开发批次 ${e.batch} gid=${e.gid} 名字不一致：表「${e.name}」≠ catalog「${g.name}」`);
   }
 }
 const devCodes = new Set(devEntries.map((e) => byGid.get(e.gid)?.code).filter(Boolean));
@@ -115,5 +115,5 @@ if (verbose || uncovered.length) {
   );
 }
 console.log(
-  `${tag} OK：验证批次 ${batches.length} 批 / ${total} 将 ↔ 去重池 ${pool.length} 一致；开发批次表 ${devTotal} 条均与 data.rs 一致`,
+  `${tag} OK：验证批次 ${batches.length} 批 / ${total} 将 ↔ 去重池 ${pool.length} 一致；开发批次表 ${devTotal} 条均与 engine-catalog.json 一致`,
 );

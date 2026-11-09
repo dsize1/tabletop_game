@@ -1,16 +1,17 @@
 // 三国杀脚本共用数据读取（P4.4.2 harness）。
 //
 // 供 `sgs-batch-status.mjs` / `sgs-batch-scaffold.mjs` 复用：
-// - skills.rs 已实现武将
-// - data.rs 武将元数据
+// - skills.rs 已实现武将（v1 实现表；v2 注册表接管后迁移）
+// - engine-catalog.json 武将元数据（生成物；替代 v1 data.rs）
 // - development-plan.md 批次表
 // - p67「一将成名已实现数」断言值
 
 import { readFileSync } from "node:fs";
+import { loadEngineCatalog } from "./lib/sgs-catalog.mjs";
 
 export const PATHS = {
   skillsRs: "crates/engines/sanguosha/src/skills.rs",
-  dataRs: "crates/engines/sanguosha/src/data.rs",
+  catalogJson: "docs/games/sanguosha/data/engine-catalog.json",
   planMd: "docs/games/sanguosha/development-plan.md",
   p67Rs: "crates/engines/sanguosha/src/tests/p67.rs",
 };
@@ -51,23 +52,20 @@ export function loadReadyGenerals() {
   return ready;
 }
 
-/** data.rs：gid → { code, gid, name, pack, kingdom, max_hp, gender, skills[] }。 */
+/** engine-catalog.json：gid → { code, gid, name, pack, kingdom, max_hp, gender, skills[] }。 */
 export function loadGenerals() {
-  const text = readFile(PATHS.dataRs);
   const out = new Map();
-  const re =
-    /GeneralDef \{ code: "(sgs_hero_\d+)", gid: (\d+), name: "([^"]+)", pack: "([a-z_]+)", kingdom: "([a-z]+)", max_hp: (\d+), gender: "([a-z]+)", is_lord: (true|false), skills: &\[([^\]]*)\]/g;
-  for (const m of text.matchAll(re)) {
-    out.set(Number(m[2]), {
-      code: m[1],
-      gid: Number(m[2]),
-      name: m[3],
-      pack: m[4],
-      kingdom: m[5],
-      max_hp: Number(m[6]),
-      gender: m[7],
-      is_lord: m[8] === "true",
-      skills: [...m[9].matchAll(/"([^"]+)"/g)].map((s) => s[1]),
+  for (const g of loadEngineCatalog().generals) {
+    out.set(g.gid, {
+      code: g.code,
+      gid: g.gid,
+      name: g.name,
+      pack: g.pack,
+      kingdom: g.kingdom,
+      max_hp: g.max_hp,
+      gender: g.gender,
+      is_lord: g.is_lord,
+      skills: g.skills,
     });
   }
   return out;

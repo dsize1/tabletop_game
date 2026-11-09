@@ -1,8 +1,10 @@
 // 三国杀武将/技能名录解析（验证批次、审计脚本、文档门禁共用单一事实源）。
 //
-// 数据来源（Rust 源码，自动生成文件）：
-// - crates/engines/sanguosha/src/data.rs   → 232 将自己（code/gid/name/pack/kingdom/max_hp/gender/is_lord/skills）
-// - crates/engines/sanguosha/src/skills.rs → 技能注册表（code/name/kind/implemented）+ 武将→技能映射 + EXTRA_SKILLS
+// 数据来源：
+// - docs/games/sanguosha/data/engine-catalog.json → 232 将自己（code/gid/name/pack/kingdom/max_hp/gender/is_lord/skills）
+//   **生成物**（`npm run gen:sgs-engine-data`）；v1 `data.rs` 退役后仍是唯一机器源。
+// - crates/engines/sanguosha/src/skills.rs → 技能实现表（code/name/kind/implemented）+ 武将→技能映射 + EXTRA_SKILLS
+//   （v1 删除前保留；v2 注册表接管后迁移，见计划 M4）
 //
 // 口径（用户 2026-11-05 裁定「方案 A」）：
 // 有界版同名武将的原版不进验证批次（界优先去重），剩 148 位 = 默认选将池（232 − 84）。
@@ -13,11 +15,13 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const projectRoot = path.resolve(__dirname, "../../..");
-const DATA_RS = path.join(projectRoot, "crates/engines/sanguosha/src/data.rs");
+const CATALOG_JSON = path.join(
+  projectRoot,
+  "docs/games/sanguosha/data/engine-catalog.json",
+);
 const SKILLS_RS = path.join(projectRoot, "crates/engines/sanguosha/src/skills.rs");
 
-const GENERAL_RE =
-  /GeneralDef \{ code: "([^"]+)", gid: (\d+), name: "([^"]+)", pack: "([^"]+)", kingdom: "([^"]+)", max_hp: (\d+), gender: "([^"]+)", is_lord: (true|false), skills: &\[([^\]]*)\],\}/g;
+
 const SKILL_CONST_RE =
   /const\s+([A-Z0-9_]+):\s*&\[SkillDef\]\s*=\s*&\[([\s\S]*?)\n\s*\}?\];/g;
 const SKILL_MAP_RE = /"sgs_hero_(\d+)"\s*=>\s*([A-Z0-9_]+)/g;
@@ -36,27 +40,25 @@ function parseSkillEntries(block) {
   return out;
 }
 
-/** 解析全部武将（232）。 */
+/** 读取生成的名录 JSON（`npm run gen:sgs-engine-data`）。 */
+export function loadEngineCatalog() {
+  return JSON.parse(readFileSync(CATALOG_JSON, "utf8"));
+}
+
+/** 解析全部武将（232；数据源 = engine-catalog.json）。 */
 export function loadGenerals() {
-  const text = readFileSync(DATA_RS, "utf8");
-  const generals = [];
-  for (const m of text.matchAll(GENERAL_RE)) {
-    generals.push({
-      code: m[1],
-      gid: Number(m[2]),
-      name: m[3],
-      pack: m[4],
-      kingdom: m[5],
-      maxHp: Number(m[6]),
-      gender: m[7],
-      isLord: m[8] === "true",
-      skillNames: m[9]
-        .split(",")
-        .map((s) => s.trim().replace(/^"|"$/g, ""))
-        .filter(Boolean),
-    });
-  }
-  return generals;
+  return loadEngineCatalog().generals.map((g) => ({
+    code: g.code,
+    gid: g.gid,
+    name: g.name,
+    pack: g.pack,
+    kingdom: g.kingdom,
+    maxHp: g.max_hp,
+    gender: g.gender,
+    isLord: g.is_lord,
+    skills: g.skills,
+    skillNames: g.skills,
+  }));
 }
 
 /** 解析技能注册表：{ consts, byGid, extras }。 */
@@ -79,7 +81,7 @@ export function loadSkills() {
 /**
  * 完整名录：232 将 + 技能 + 147 审计范围 + 85 排除清单（232 − 85 = 147）。
  *
- * `audited` = 有界版同名的原版被剔除后的武将（顺序同 data.rs：standard → wind… → yijiang → jiexian）。
+ * `audited` = 有界版同名的原版被剔除后的武将（顺序同 engine-catalog.json：standard → wind… → yijiang → jiexian）。
  * 同名判定剔除前缀「界」「将」（2026-11-06 裁定：「将华雄」与「界华雄」重复，剔除前缀后同名即视为重复）。
  */
 export function loadCatalog() {
@@ -133,7 +135,7 @@ export function loadCatalog() {
   };
 }
 
-/** 名字列表 → 武将（校验用；找不到直接抛错，避免批次表与 data.rs 漂移）。 */
+/** 名字列表 → 武将（校验用；找不到直接抛错，避免批次表与 engine-catalog.json 漂移）。 */
 export function resolveNames(generals, names, label = "批次") {
   const byName = new Map(generals.map((g) => [g.name, g]));
   const out = [];
@@ -144,7 +146,7 @@ export function resolveNames(generals, names, label = "批次") {
     else out.push(g);
   }
   if (missing.length) {
-    throw new Error(`${label} 中的武将名在 data.rs 找不到：${missing.join("、")}`);
+    throw new Error(`${label} 中的武将名在 engine-catalog.json 找不到：${missing.join("、")}`);
   }
   return out;
 }

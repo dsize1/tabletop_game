@@ -95,7 +95,15 @@ node apps/scripts/sgs-align-sheet.mjs --batch B7 --check
 
 **已知欠账（不在 B3 之前做也行，但别忘）**
 
-- `use_card` 已消费冻结/目标合法性，但**Web 工作台跑的是旧引擎**（`sanguosha`），新 crate 未注册 → 工作台验证要等引擎重构（注册 + 视图适配）。
-- 距离系统只做了「基础 1 + 往烈首张无距离」，武器范围未接。
-- **卡牌结算引擎未做**（B0–B7 用 `use_virtual`/打桩）；整体替换 v1 的计划与风险见 `memory_palace/plan/next-engine-replacement.md`。
+- **Web 工作台仍跑旧引擎**（`sanguosha`），新 crate 尚未注册（M4，OQ3：重构完成前不开发注册/网关）。
+  新 crate 的 v2 视图契约/AI 自对弈门禁已就绪（`check:sgs-view-contract` 覆盖 v1+v2、`check:sgs2-ai`）。
+- 距离系统已接武器范围/坐骑（M1），「往烈首张无距离」走统一入口。
+- **卡牌结算引擎已落地（M1）**，B0–B7 的「视为使用牌」已改走真实结算（M2）：
+  `Game::resolve_use`（普通使用）/ `use_virtual`（纯虚拟）/ `use_as`（转化牌）。
+  `Game::use_card` 仅保留为「事件模拟」兼容入口（技能不得调用）。
+  仍有一处未销号：谮毁的「代用 / 额外目标」需要在结算前修改目标（内核时序缺口），见
+  `memory_palace/plan/next-engine-replacement.md` §9.2 台账。整体替换 v1 的计划与风险同见该文件。
+- **门禁数据源已迁到生成物**：武将/牌名录读 `docs/games/sanguosha/data/engine-catalog.json`
+  （`npm run gen:sgs-engine-data` 生成并 `--check`）；脚本不再解析 v1 `data.rs`。
+  注册前置清单与删除清单见 `docs/games/sanguosha/engine-replacement/`。
 - 罪论 `order:` 两选项在 Web 上需要视图层支持该前缀（与 8 类 pending 一致）。

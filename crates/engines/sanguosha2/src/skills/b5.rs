@@ -1368,13 +1368,14 @@ fn huomo_names(g: &Game) -> Vec<&'static str> {
 }
 
 fn huomo(g: &mut Game, a: &Ask) -> Result<Step, String> {
-    let cards = huomo_cards(g, a.actor);
-    if cards.is_empty() {
-        return Ok(Step::Done);
-    }
-    let names = huomo_names(g);
     match a.stage {
-        Stage::Choose => match g.answer.take().as_deref() {
+        Stage::Choose => {
+            let cards = huomo_cards(g, a.actor);
+            if cards.is_empty() {
+                return Ok(Step::Done);
+            }
+            let names = huomo_names(g);
+            match g.answer.take().as_deref() {
             None => {
                 let mut b = super::builder(a.actor, "choice").skill("huomo");
                 for id in &cards {
@@ -1413,23 +1414,6 @@ fn huomo(g: &mut Game, a: &Ask) -> Result<Step, String> {
                 let used = huomo_used(g) | bit;
                 g.counters.insert("turn.huomo_used".to_string(), used);
                 let label = label(g, &id);
-                let outcome = match name.as_str() {
-                    "杀" => {
-                        g.use_virtual(a.actor, "杀", vec![]);
-                        format!("活墨：将【{label}】置于牌堆顶，视为使用【杀】")
-                    }
-                    "桃" => {
-                        if g.seats[a.actor].hp < g.seats[a.actor].max_hp {
-                            g.seats[a.actor].hp += 1;
-                        }
-                        format!("活墨：将【{label}】置于牌堆顶，视为使用【桃】（体力 {}）", g.seats[a.actor].hp)
-                    }
-                    _ => {
-                        g.bump("turn.huomo_jiu");
-                        g.counters.insert("jiu".to_string(), 1);
-                        format!("活墨：将【{label}】置于牌堆顶，视为使用【酒】")
-                    }
-                };
                 g.presentation.push(
                     Presentation::new("huomo", POutcome::Activated {
                         skill: "活墨".to_string(),
@@ -1437,11 +1421,69 @@ fn huomo(g: &mut Game, a: &Ask) -> Result<Step, String> {
                     .actor(a.actor)
                     .fx("huomo"),
                 );
-                g.push_log(outcome);
-                Ok(Step::Done)
+                match name.as_str() {
+                    "杀" => {
+                        // M2：视为使用【杀】需要真实选目标 + 结算。
+                        g.push_log(format!(
+                            "活墨：将【{label}】置于牌堆顶，视为使用【杀】"
+                        ));
+                        Ok(Step::Next(Stage::Target, json!({})))
+                    }
+                    "桃" => {
+                        flow::heal(g, a.actor, 1, "huomo");
+                        g.push_log(format!(
+                            "活墨：将【{label}】置于牌堆顶，视为使用【桃】（体力 {}）",
+                            g.seats[a.actor].hp
+                        ));
+                        Ok(Step::Done)
+                    }
+                    _ => {
+                        g.bump("turn.huomo_jiu");
+                        crate::kernel::card_play::apply_jiu(g, a.actor);
+                        g.push_log(format!(
+                            "活墨：将【{label}】置于牌堆顶，视为使用【酒】"
+                        ));
+                        Ok(Step::Done)
+                    }
+                }
             }
             Some(other) => Err(format!("活墨：未知选项 {other}")),
-        },
+            }
+        }
+        Stage::Target => {
+            let cands: Vec<usize> = other_alive(g, a.actor)
+                .into_iter()
+                .filter(|i| g.in_attack_range(a.actor, *i))
+                .collect();
+            if cands.is_empty() {
+                return Ok(Step::Done);
+            }
+            match g.answer.take().as_deref() {
+                None => {
+                    let mut b = super::builder(a.actor, "target").skill("huomo");
+                    for i in &cands {
+                        b = b.option(
+                            format!("target:{i}"),
+                            format!("对 {} 使用【杀】", g.seats[*i].name),
+                        );
+                    }
+                    Ok(Step::Need(b.escape("取消（不用此【杀】）").build()))
+                }
+                Some("pass") => Ok(Step::Done),
+                Some(act) => {
+                    let target: usize = act
+                        .strip_prefix("target:")
+                        .and_then(|s| s.parse().ok())
+                        .ok_or_else(|| format!("活墨：目标不合法 {act}"))?;
+                    if !cands.contains(&target) {
+                        return Err("活墨：目标不在攻击范围内".into());
+                    }
+                    g.use_virtual(a.actor, "杀", vec![target])?;
+                    g.push_log(format!("活墨：视为对 {} 使用【杀】", g.seats[target].name));
+                    Ok(Step::Done)
+                }
+            }
+        }
         _ => Err("活墨：未知阶段".into()),
     }
 }

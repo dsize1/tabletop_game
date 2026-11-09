@@ -91,13 +91,17 @@ fn zhanjue_uses_all_hand_and_limits_to_two_activations() {
     play(&mut g, 0);
     skills::execute_active(&mut g, 0, "skill:zhanjue").unwrap();
     answer(&mut g, 0, "choose:zhanjue");
-    assert!(g.hand(0).is_empty(), "全部手牌消耗");
-    assert_eq!(g.discard_pile().len(), 2);
+    answer(&mut g, 0, "target:1");
+    // 真实结算：p1 无【杀】→ 受到 1 点伤害；战绝：刘谌与受伤者各摸 1。
+    assert_eq!(g.seats[1].hp, 3, "决斗造成伤害");
+    assert_eq!(g.discard_pile().len(), 2, "origin 整组进弃牌堆");
+    assert_eq!(g.hand(0).len(), 1, "战绝摸 1");
     assert_eq!(g.counter("turn.zhanjue_uses"), 1);
     // 第 2 次
     give(&mut g, 0, &["c9"]);
     skills::execute_active(&mut g, 0, "skill:zhanjue").unwrap();
     answer(&mut g, 0, "choose:zhanjue");
+    answer(&mut g, 0, "target:1");
     assert_eq!(g.counter("turn.zhanjue_uses"), 2);
     // 第 3 次不可用（裁定 Q2=B：按发动次数）
     give(&mut g, 0, &["c11"]);
@@ -117,10 +121,11 @@ fn zhanjue_damage_draws_once_per_character() {
     play(&mut g, 0);
     skills::execute_active(&mut g, 0, "skill:zhanjue").unwrap();
     answer(&mut g, 0, "choose:zhanjue");
-    let before = g.hand(1).len();
-    skills::zhanjue_on_damage(&mut g, 0, 1);
-    assert_eq!(g.hand(1).len(), before + 1, "受伤者摸 1");
-    // 自己受伤（owner==victim）只摸 1 张（裁定 Q1=B）
+    answer(&mut g, 0, "target:1");
+    // 真实结算：p1 受到伤害后，刘谌与受伤者各摸 1（同一次伤害只摸一次）。
+    assert_eq!(g.hand(1).len(), 1, "受伤者摸 1");
+    assert_eq!(g.hand(0).len(), 1, "刘谌摸 1");
+    // 自己受伤（owner==victim）只摸 1 张（裁定 Q1=B）。
     let me_before = g.hand(0).len();
     skills::zhanjue_on_damage(&mut g, 0, 0);
     assert_eq!(g.hand(0).len(), me_before + 1, "同一角色只摸一次");
@@ -139,14 +144,22 @@ fn qinwang_costs_equipment_and_ally_draws() {
     g.seats[0].flags.insert("lord".to_string());
     g.seats[1].kingdom = g.seats[0].kingdom.clone();
     equip(&mut g, 0, "c12", Slot::Weapon);
+    give(&mut g, 1, &["c1"]); // 代出者需有【杀】
     play(&mut g, 0);
     skills::execute_active(&mut g, 0, "skill:qinwang").unwrap();
     let opts = options(&g);
     assert!(opts.contains(&"choose:c12".to_string()), "成本含装备区：{opts:?}");
     answer(&mut g, 0, "choose:c12");
-    let before = g.hand(1).len();
     answer(&mut g, 0, "target:1");
-    assert_eq!(g.hand(1).len(), before + 1, "代出者摸 1");
+    // 代出者选【杀】+ 目标（真实结算）。
+    let pick = options(&g)
+        .into_iter()
+        .find(|o| o.starts_with("choose:c1:"))
+        .unwrap_or_else(|| panic!("缺少代出选项：{:?}", options(&g)));
+    let before = g.hand(1).len();
+    answer(&mut g, 1, &pick);
+    assert_eq!(g.hand(1).len(), before, "用掉 1 张【杀】+ 摸 1 张");
+    assert_eq!(g.seats[0].hp, 3, "伤害来源视为刘谌");
     assert!(log_text(&g).contains("伤害来源视为"), "{}", log_text(&g));
 }
 

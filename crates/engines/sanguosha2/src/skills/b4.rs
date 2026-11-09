@@ -123,7 +123,7 @@ fn xiansi(g: &mut Game, a: &Ask) -> Result<Step, String> {
         if removed.len() < 2 {
             return Ok(Step::Done);
         }
-        g.use_virtual(a.actor, "杀", vec![owner]);
+        g.use_virtual(a.actor, "杀", vec![owner])?;
         g.presentation.push(
             Presentation::new("xiansi", POutcome::Activated {
                 skill: "陷嗣".to_string(),
@@ -689,7 +689,7 @@ fn sidi(g: &mut Game, a: &Ask) -> Result<Step, String> {
                 return Ok(Step::Done);
             }
         } else {
-            sidi_end_play(g, a.actor, current);
+            sidi_end_play(g, a.actor, current)?;
             return Ok(Step::Done);
         }
     }
@@ -763,22 +763,22 @@ fn sidi(g: &mut Game, a: &Ask) -> Result<Step, String> {
 }
 
 /// 司敌第二时刻：该角色出牌阶段结束，若未使用【杀】→ 视为对其使用【杀】。
-fn sidi_end_play(g: &mut Game, owner: usize, current: usize) {
+fn sidi_end_play(g: &mut Game, owner: usize, current: usize) -> Result<(), String> {
     let key = format!("turn.sidi_target:{current}");
     if g.counter(&key) == 0 {
-        return;
+        return Ok(());
     }
     if g.seats[owner].hp <= 0 || g.seats[current].hp <= 0 {
-        return;
+        return Ok(());
     }
     if g.sha_used(current) > 0 {
         g.push_log(format!(
             "司敌：{} 本阶段使用过【杀】，不触发",
             g.seats[current].name
         ));
-        return;
+        return Ok(());
     }
-    g.use_virtual(owner, "杀", vec![current]);
+    g.use_virtual(owner, "杀", vec![current])?;
     g.presentation.push(
         Presentation::new("sidi", POutcome::Activated {
             skill: "司敌".to_string(),
@@ -791,6 +791,7 @@ fn sidi_end_play(g: &mut Game, owner: usize, current: usize) {
         "司敌：{} 未使用【杀】，视为对其使用【杀】",
         g.seats[current].name
     ));
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -886,13 +887,8 @@ fn shenduan(g: &mut Game, a: &Ask) -> Result<Step, String> {
                     if !cands.contains(&target) {
                         return Err("慎断：目标不可选".into());
                     }
-                    g.set_virtual(&card, "兵粮寸断", vec![card.clone()]);
-                    g.use_card(a.actor, &card, vec![target]);
-                    // v2 尚无延时锦囊结算：等价于结算完成 → 原牌进弃牌堆并清除虚拟定义。
-                    if g.zone_of(&card) != Some(&Zone::Discard) {
-                        g.to_discard(&card, "shenduan")?;
-                    }
-                    g.clear_virtual(&card);
+                    // M2：真实结算（弃牌堆里的牌当【兵粮寸断】；触发跨阶段 → 非严格校验）。
+                    g.use_as(a.actor, &card, "兵粮寸断", vec![target], false, None)?;
                     g.push_log(format!(
                         "慎断：将【{}】当无距离限制的【兵粮寸断】对 {} 使用",
                         label(g, &card),
@@ -982,7 +978,7 @@ fn yonglue(g: &mut Game, a: &Ask) -> Result<Step, String> {
                     // 「此【杀】未造成伤害则摸 1」由 `on_sha_finished` 结算（裁定 Q1=A：读伤害事件）。
                     super::set_yonglue_owner(g, a.actor);
                     g.bump(&format!("turn.yonglue_pending:{current}"));
-                    g.use_virtual(a.actor, "杀", vec![current]);
+                    g.use_virtual(a.actor, "杀", vec![current])?;
                     g.presentation.push(
                         Presentation::new("yonglue", POutcome::Activated {
                             skill: "勇略".to_string(),
@@ -1663,7 +1659,7 @@ fn zhongyong(g: &mut Game, a: &Ask) -> Result<Step, String> {
                     if !cands.contains(&target) {
                         return Err("忠勇：目标不在周仓的攻击范围内".into());
                     }
-                    g.use_virtual(receiver, "杀", vec![target]);
+                    g.use_virtual(receiver, "杀", vec![target])?;
                     g.presentation.push(
                         Presentation::new("zhongyong", POutcome::Activated {
                             skill: "忠勇".to_string(),

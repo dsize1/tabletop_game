@@ -585,6 +585,10 @@ fn huomo_places_black_trick_on_top_and_uses_missing_basic() {
     assert_eq!(g.zone_of(&"c4".to_string()), Some(&Zone::Draw), "置于牌堆顶");
     assert_eq!(g.counter("turn.huomo_used"), 1);
     assert!(log_text(&g).contains("视为使用【杀】"));
+    // M2：真实结算 → 选目标后 p1 无闪，受到 1 点伤害。
+    assert_eq!(pend(&g).actor(), 0, "活墨【杀】需要选目标");
+    answer(&mut g, 0, "target:1");
+    assert_eq!(g.seats[1].hp, 3, "视为使用【杀】真实造成伤害");
 }
 
 #[test]

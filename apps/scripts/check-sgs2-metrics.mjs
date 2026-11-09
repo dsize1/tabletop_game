@@ -3,7 +3,7 @@
 //
 // 用法：node apps/scripts/check-sgs2-metrics.mjs [--verbose]
 
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { projectRoot } from "./lib/sgs-catalog.mjs";
 
@@ -72,6 +72,26 @@ const testCount = walk(NEW_TESTS).reduce(
   0,
 );
 
+// 牌结算（M1）：手写内核 LOC / 牌型数；牌定义是生成物，单独计数。
+const cardPlayFile = newSrcFiles.find((f) => f.endsWith(path.join("kernel", "card_play.rs")));
+const cardPlayLoc = cardPlayFile ? loc([cardPlayFile]) : 0;
+const cardGenFile = newSrcFiles.find((f) => f.endsWith("cards_generated.rs"));
+const cardGenSrc = cardGenFile ? readFileSync(cardGenFile, "utf8") : "";
+const cardDefCount = (cardGenSrc.match(/^    Row \{/gm) ?? []).length;
+const cardEffects = new Set(
+  [...cardGenSrc.matchAll(/effect: Effect::(\w+)/g)].map((m) => m[1]).filter((e) => e !== "None"),
+).size;
+const cardTests = walk(NEW_TESTS)
+  .filter((f) => path.basename(f) === "cards.rs")
+  .reduce((n, f) => n + (readFileSync(f, "utf8").match(/#\[test\]/g) ?? []).length, 0);
+const viewLoc = loc(newSrcFiles.filter((f) => f.endsWith(path.join("src", "view.rs"))));
+const turnLoc = loc(newSrcFiles.filter((f) => f.endsWith(path.join("src", "turn.rs"))));
+const viewTests = walk(NEW_TESTS)
+  .filter((f) => path.basename(f) === "view_contract.rs")
+  .reduce((n, f) => n + (readFileSync(f, "utf8").match(/#\[test\]/g) ?? []).length, 0);
+const aiExample = path.join(projectRoot, "crates/engines/sanguosha2/examples/sgs2-selfplay.rs");
+const aiLoc = existsSync(aiExample) ? readFileSync(aiExample, "utf8").split(String.fromCharCode(10)).length : 0;
+
 const old = oldPerSkill(codes);
 const oldTotal = Object.values(old).reduce((n, v) => n + v.loc, 0);
 
@@ -80,6 +100,14 @@ console.log(`  内核      ${String(newKernel).padStart(5)} 行（一次性，�
 console.log(`  技能专属  ${String(newSkills).padStart(5)} 行 / ${skillUnits} 技能 = ${(newSkills / skillUnits).toFixed(0)} 行/技能`);
 console.log(`  展示+插件 ${String(newPlugin).padStart(5)} 行`);
 console.log(`  用例      ${String(newTests).padStart(5)} 行 / ${testCount} 条 = ${(testCount / skillUnits).toFixed(1)} 条/技能`);
+console.log("== 牌结算（M1 内核） ==");
+console.log(`  牌结算    ${String(cardPlayLoc).padStart(5)} 行 / ${cardEffects} 个牌型 = ${(cardPlayLoc / Math.max(cardEffects, 1)).toFixed(1)} 行/牌型`);
+console.log(`  牌定义    ${String(cardDefCount).padStart(5)} 条（生成物，不计入手写 LOC）`);
+console.log(`  牌用例    ${String(cardTests).padStart(5)} 条（tests/cards.rs）`);
+console.log("== 视图 / AI（M3） ==");
+console.log(`  视图      ${String(viewLoc).padStart(5)} 行 / ${viewTests} 条契约用例`);
+console.log(`  回合驱动  ${String(turnLoc).padStart(5)} 行`);
+console.log(`  AI 示例   ${String(aiLoc).padStart(5)} 行（examples/sgs2-selfplay.rs）`);
 console.log("== 旧引擎（sanguosha）同技能专属代码 ==");
 for (const c of codes) console.log(`  ${c.padEnd(12)} ${String(old[c].loc).padStart(4)} 行`);
 console.log(`  合计        ${oldTotal} 行 / ${skillUnits} 技能 = ${(oldTotal / skillUnits).toFixed(0)} 行/技能`);

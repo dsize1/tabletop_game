@@ -283,10 +283,10 @@ export function validateSpec(spec, catalog, mechanics, { strict = true } = {}) {
   for (const g of spec.generals) {
     const cg = auditByCode.get(g.code);
     if (!cg) {
-      errors.push(`${g.name}: code ${g.code} 不在 data.rs`);
+      errors.push(`${g.name}: code ${g.code} 不在 engine-catalog.json`);
       continue;
     }
-    if (cg.name !== g.name) errors.push(`${g.code}: 名字 ${g.name} ≠ data.rs ${cg.name}`);
+    if (cg.name !== g.name) errors.push(`${g.code}: 名字 ${g.name} ≠ engine-catalog.json ${cg.name}`);
     const impl = cg.skills.filter((s) => s.implemented).map((s) => s.code);
     const specCodes = g.skills.map((s) => s.code);
     for (const code of impl) {

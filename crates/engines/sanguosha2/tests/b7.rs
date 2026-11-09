@@ -164,6 +164,10 @@ fn zhige_requires_hand_over_hp_and_target_with_sha_or_equip() {
     answer(&mut g, 1, "opt1");
     answer(&mut g, 1, "choose:c1");
     assert!(log_text(&g).contains("对刘虞使用【杀】"), "{}", log_text(&g));
+    // M2：真实结算 → 刘虞被询问【闪】；放弃则受到 1 点伤害。
+    assert_eq!(pend(&g).actor(), 0, "止戈的【杀】要求刘虞响应");
+    answer(&mut g, 0, "pass");
+    assert_eq!(g.seats[0].hp, 2, "止戈【杀】真实造成伤害");
 }
 
 #[test]
@@ -398,12 +402,15 @@ fn taoluan_uses_card_as_trick_and_each_name_once() {
         ("p1", &[], 4),
     ]);
     give(&mut g, 0, &["c2"]);
+    give(&mut g, 1, &["c9"]); // 顺手牵羊目标必须有牌
     play(&mut g, 0);
     skills::execute_active(&mut g, 0, "skill:taoluan").unwrap();
     let opts = options(&g);
     assert!(opts.iter().any(|o| o.ends_with(":顺手牵羊")), "普通锦囊按属性可选：{opts:?}");
     answer(&mut g, 0, "choose:c2:顺手牵羊");
-    answer(&mut g, 0, "target:1");
+    answer(&mut g, 0, "cardtarget:1"); // 声明的牌先选目标
+    answer(&mut g, 0, "pick:hand"); // 真实结算：顺手牵羊获得一张
+    answer(&mut g, 0, "target:1"); // 滔乱后：选一名其他角色
     answer(&mut g, 1, "opt2"); // 令张让失去体力
     assert_eq!(g.seats[0].hp, 3, "滔乱：失去 1 点体力");
     // 同一牌名整局只能用一次

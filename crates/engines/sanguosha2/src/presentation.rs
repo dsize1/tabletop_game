@@ -21,6 +21,8 @@ pub enum POutcome {
     TrickNegated,
     /// 无懈被反无懈抵消：**锦囊照常生效**。
     TrickEffective,
+    /// 使用/打出一张牌（label = 牌名，可以是虚拟牌名）。
+    Played { label: String },
 }
 
 impl POutcome {
@@ -36,6 +38,7 @@ impl POutcome {
             POutcome::MarkPlaced { n } => format!("置于武将牌上 {n} 张"),
             POutcome::TrickNegated => "锦囊被抵消（无懈层数为奇数）".to_string(),
             POutcome::TrickEffective => "锦囊照常生效（无懈被反无懈抵消）".to_string(),
+            POutcome::Played { label } => format!("使用【{label}】"),
         }
         .replace("{skill}", skill_label)
     }
@@ -80,6 +83,12 @@ impl Presentation {
 
     pub fn target(mut self, seat: usize) -> Self {
         self.targets.push(seat);
+        self
+    }
+
+    /// 一次性设置目标列表（多目标牌）。
+    pub fn targets(mut self, seats: Vec<usize>) -> Self {
+        self.targets = seats;
         self
     }
 

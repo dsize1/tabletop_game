@@ -22,6 +22,10 @@ import { fixedGeneralName } from "./lib/sgs-name-fixes.mjs";
 const DEFAULT_CARDS = resolve("docs", "games", "sanguosha", "data", "cards.json");
 const DEFAULT_HEROES = resolve("docs", "games", "sanguosha", "data", "heroes.json");
 const DEFAULT_OUT = resolve("crates", "engines", "sanguosha", "src", "data.rs");
+/// 内核 v2（`sanguosha2`）的牌表产物：只含牌定义 + 160 张物理牌（不含武将）。
+const DEFAULT_OUT_V2 = resolve("crates", "engines", "sanguosha2", "src", "cards_generated.rs");
+/// 门禁/脚本的机器可读名录（v1 `data.rs` 退役后，这是武将/牌数据的唯一来源）。
+const DEFAULT_CATALOG = resolve("docs", "games", "sanguosha", "data", "engine-catalog.json");
 
 /// 牌堆包（顺序即建堆顺序：同种子下 standard-only 对局的牌实例 id 保持 c1..c108）。
 const DECKS = [
@@ -145,6 +149,96 @@ const DEF_CODE = {
   骅骝: "hualiu",
 };
 
+// ---------------------------------------------------------------------------
+// 内核 v2（`sanguosha2/src/cards_generated.rs`）映射。
+// 口径：v2 **只读生成物**；本文件是唯一「牌名 → 属性/效果」的映射点，v2 内核不得按牌名判定。
+// ---------------------------------------------------------------------------
+
+/// 牌效果（`cards::Effect`）。新增牌必须在此登记（否则生成失败）。
+const V2_EFFECT = {
+  杀: "Sha",
+  火杀: "Sha",
+  雷杀: "Sha",
+  闪: "Shan",
+  桃: "Tao",
+  酒: "Jiu",
+  无懈可击: "Wuxie",
+  决斗: "Duel",
+  过河拆桥: "Dismantle",
+  顺手牵羊: "Snatch",
+  无中生有: "ExNihilo",
+  南蛮入侵: "SavageAssault",
+  万箭齐发: "ArcheryAttack",
+  桃园结义: "PeachGarden",
+  五谷丰登: "Harvest",
+  火攻: "FireAttack",
+  借刀杀人: "Collateral",
+  铁索连环: "IronChain",
+  乐不思蜀: "Indulgence",
+  兵粮寸断: "SupplyShortage",
+  闪电: "Lightning",
+};
+
+/// 防具（`cards::ArmorKind`）。未登记的防具 = `None`。
+const V2_ARMOR = {
+  八卦阵: "Bagua",
+  仁王盾: "Renwang",
+  藤甲: "Tengjia",
+  白银狮子: "Baiyin",
+};
+
+/// 武器（`cards::WeaponKind`）。未登记的武器 = `None`（只有攻击范围）。
+const V2_WEAPON = {
+  青釭剑: "Qinggang",
+  雌雄双股剑: "Cixiong",
+  寒冰剑: "Hanbing",
+  青龙偃月刀: "Qinglong",
+  贯石斧: "Guanshi",
+  方天画戟: "Fangtian",
+  麒麟弓: "Qilin",
+  诸葛连弩: "Zhugeliannu",
+  古锭刀: "Gudingdao",
+  丈八蛇矛: "Zhangba",
+  朱雀羽扇: "Zhuque",
+};
+
+/// 目标模式（`cards::TargetMode`）：JSON 的 `target_mode` 只有 single/aoe，
+/// 「只对自己 / 必须选人」按 v2 口径显式覆盖（禁止用牌名启发式）。
+const V2_TARGET = {
+  杀: "Chosen",
+  火杀: "Chosen",
+  雷杀: "Chosen",
+  闪: "SelfOnly",
+  桃: "SelfOnly",
+  酒: "SelfOnly",
+  无懈可击: "SelfOnly",
+  无中生有: "SelfOnly",
+  铁索连环: "Chosen",
+  乐不思蜀: "Chosen",
+  兵粮寸断: "Chosen",
+  闪电: "SelfOnly",
+};
+
+/// 响应牌（`cards::ResponseKind`）：该牌要求的响应。
+const V2_RESPOND = {
+  杀: "Shan",
+  火杀: "Shan",
+  雷杀: "Shan",
+  南蛮入侵: "Sha",
+  万箭齐发: "Shan",
+  决斗: "Sha",
+};
+
+/// 不在 160 张牌堆内、但被测试夹具/沙盒使用的牌（宝物等）。
+const V2_EXTRA_DEFS = [
+  {
+    name: "木牛流马",
+    category: "treasure",
+    equip_slot: "treasure",
+    range_value: null,
+  },
+];
+
 const CATEGORY = {
   basic: "Basic",
   trick: "Trick",
@@ -170,6 +264,8 @@ function parseArgs(argv) {
     cards: DEFAULT_CARDS,
     heroes: DEFAULT_HEROES,
     out: DEFAULT_OUT,
+    outV2: DEFAULT_OUT_V2,
+    catalog: DEFAULT_CATALOG,
     generalPacks: DEFAULT_GENERAL_PACKS,
     check: false,
   };
@@ -177,6 +273,8 @@ function parseArgs(argv) {
     if (argv[i] === "--cards") opts.cards = resolve(argv[++i]);
     else if (argv[i] === "--heroes") opts.heroes = resolve(argv[++i]);
     else if (argv[i] === "--out") opts.out = resolve(argv[++i]);
+    else if (argv[i] === "--out-v2") opts.outV2 = resolve(argv[++i]);
+    else if (argv[i] === "--catalog") opts.catalog = resolve(argv[++i]);
     else if (argv[i] === "--general-packs") {
       opts.generalPacks = String(argv[++i] ?? "")
         .split(",")
@@ -192,7 +290,7 @@ function parseArgs(argv) {
     } else if (argv[i] === "--check") opts.check = true;
     else if (argv[i] === "--help" || argv[i] === "-h") {
       console.log(
-        "用法：node apps/scripts/gen-sanguosha-engine-data.mjs [--cards cards.json] [--heroes heroes.json] [--out data.rs] [--general-packs standard|all] [--check]",
+        "用法：node apps/scripts/gen-sanguosha-engine-data.mjs [--cards cards.json] [--heroes heroes.json] [--out data.rs] [--out-v2 cards_generated.rs] [--catalog engine-catalog.json] [--general-packs standard|all] [--check]",
       );
       process.exit(0);
     } else {
@@ -297,6 +395,235 @@ function buildCards(payload) {
     defRows,
     total: deckRows.reduce((n, d) => n + d.physical.length, 0),
   };
+}
+
+/// v2 产物：牌定义 + 160 张物理牌（不生成武将：v2 尚未使用武将表）。
+function buildV2(built, payload) {
+  const damageType = new Map();
+  for (const c of payload.cards ?? []) {
+    if (c.damage_type) damageType.set(c.name, c.damage_type);
+  }
+  const slotOf = (equipSlot) => (equipSlot ? SLOT[equipSlot] : null);
+  const rows = [];
+  const addDef = (d) => {
+    const effect = V2_EFFECT[d.name];
+    const cat = String(d.category).toLowerCase();
+    const isEquip = ["weapon", "armor", "horse", "treasure"].includes(cat);
+    if (!effect && !isEquip) throw new Error(`v2 未登记牌效果：${d.name}`);
+    const kind = isEquip ? "Equip" : cat === "basic" ? "Basic" : "Trick";
+    const targetMode =
+      V2_TARGET[d.name] ??
+      (cat === "trick" || cat === "delayed_trick"
+        ? d.target_mode === "aoe"
+          ? "AllAlive"
+          : "Chosen"
+        : "SelfOnly");
+    const dt = damageType.get(d.name);
+    const damageKind = dt === "fire" ? "Fire" : dt === "thunder" ? "Thunder" : "Normal";
+    rows.push({
+      name: d.name,
+      kind,
+      slot: slotOf(d.equip_slot),
+      weapon_range: cat === "weapon" ? d.range_value : null,
+      horse: cat === "horse" ? (d.range_value ?? 1) : null,
+      damage_kind: damageKind,
+      damage_trick: ["决斗", "万箭齐发", "南蛮入侵", "火攻"].includes(d.name),
+      effect: effect ?? "None",
+      armor: V2_ARMOR[d.name] ?? "None",
+      weapon: V2_WEAPON[d.name] ?? "None",
+      target_mode: targetMode,
+      respond: V2_RESPOND[d.name] ?? null,
+      sha: ["杀", "火杀", "雷杀"].includes(d.name),
+      shan: d.name === "闪",
+      tao: d.name === "桃",
+      jiu: d.name === "酒",
+      wuxie: d.name === "无懈可击",
+      duel: d.name === "决斗",
+      delayed: Boolean(d.delayed),
+      lianhuan: d.name === "铁索连环",
+    });
+  };
+  for (const d of built.defs.values()) addDef(d);
+  for (const d of V2_EXTRA_DEFS) {
+    if (built.defs.has(d.name)) continue;
+    addDef({
+      name: d.name,
+      category: d.category,
+      equip_slot: d.equip_slot,
+      range_value: d.range_value,
+      target_mode: null,
+      delayed: false,
+    });
+  }
+
+  const deckRows = [];
+  for (const deck of built.decks) {
+    for (const c of deck.physical) {
+      const def = built.defs.get(c.def);
+      if (!def) throw new Error(`物理牌缺少定义：${c.def}`);
+      deckRows.push({ name: def.name, suit: c.suit, rank: c.rank });
+    }
+  }
+  return { rows, deckRows };
+}
+
+function renderV2({ rows, deckRows }) {
+  const opt = (v, fn) => (v === null || v === undefined ? "None" : `Some(${fn(v)})`);
+  const lines = [];
+  lines.push("//! 三国杀内核 v2 卡牌数据（**自动生成，勿手改**）。");
+  lines.push("//!");
+  lines.push(
+    "//! 生成：`node apps/scripts/gen-sanguosha-engine-data.mjs`（同时生成 v1 `data.rs`）",
+  );
+  lines.push("//! 校验：`node apps/scripts/gen-sanguosha-engine-data.mjs --check`");
+  lines.push(
+    "//! 来源：`docs/games/sanguosha/data/cards.json`（standard 108 + junzheng 52 = 160）。",
+  );
+  lines.push("//!");
+  lines.push(
+    "//! 约束（`docs/conventions/skill-spec-rules.md` §3）：v2 内核与本表**只允许**按属性字段判定，",
+  );
+  lines.push("//! 禁止按牌名 `match`/字符串比较；新增牌必须先在生成脚本登记属性。");
+  lines.push("");
+  lines.push("use crate::cards::{ArmorKind, CardKind, DamageKind, Effect, TargetMode, WeaponKind};");
+  lines.push("use crate::kernel::{Slot, Suit};");
+  lines.push("");
+  lines.push("/// 生成的全部物理牌数（standard + junzheng）。");
+  lines.push(`pub const DECK_SIZE: usize = ${deckRows.length};`);
+  lines.push("");
+  lines.push("/// 牌定义（每张名称一条；物理牌实例见 `DECK`）。");
+  lines.push("pub struct Row {");
+  lines.push("    pub name: &'static str,");
+  lines.push("    pub kind: CardKind,");
+  lines.push("    pub slot: Option<Slot>,");
+  lines.push("    /// 武器攻击距离 / 坐骑距离。");
+  lines.push("    pub weapon_range: Option<usize>,");
+  lines.push("    pub horse: Option<usize>,");
+  lines.push("    pub damage_kind: DamageKind,");
+  lines.push("    /// 伤害锦囊（决斗/万箭/南蛮/火攻）。");
+  lines.push("    pub damage_trick: bool,");
+  lines.push("    pub effect: Effect,");
+  lines.push("    pub armor: ArmorKind,");
+  lines.push("    pub weapon: WeaponKind,");
+  lines.push("    pub target_mode: TargetMode,");
+  lines.push("    /// 该牌要求的响应牌（杀→闪 / 南蛮→杀 / 万箭→闪 / 决斗→杀）。");
+  lines.push("    pub respond: Option<crate::cards::ResponseKind>,");
+  lines.push("    pub sha: bool,");
+  lines.push("    pub shan: bool,");
+  lines.push("    pub tao: bool,");
+  lines.push("    pub jiu: bool,");
+  lines.push("    pub wuxie: bool,");
+  lines.push("    pub duel: bool,");
+  lines.push("    pub delayed: bool,");
+  lines.push("    pub lianhuan: bool,");
+  lines.push("}");
+  lines.push("");
+  lines.push("#[rustfmt::skip]");
+  lines.push("pub static DEFS: &[Row] = &[");
+  for (const r of rows) {
+    lines.push(
+      `    Row { name: ${rustStr(r.name)}, kind: CardKind::${r.kind}, slot: ${opt(
+        r.slot,
+        (v) => `Slot::${v}`,
+      )}, weapon_range: ${opt(r.weapon_range, (v) => v)}, horse: ${opt(
+        r.horse,
+        (v) => v,
+      )}, damage_kind: DamageKind::${r.damage_kind}, damage_trick: ${r.damage_trick}, effect: Effect::${r.effect}, armor: ArmorKind::${r.armor}, weapon: WeaponKind::${r.weapon}, target_mode: TargetMode::${r.target_mode}, respond: ${opt(
+        r.respond,
+        (v) => `crate::cards::ResponseKind::${v}`,
+      )}, sha: ${r.sha}, shan: ${r.shan}, tao: ${r.tao}, jiu: ${r.jiu}, wuxie: ${r.wuxie}, duel: ${r.duel}, delayed: ${r.delayed}, lianhuan: ${r.lianhuan} },`,
+    );
+  }
+  lines.push("];");
+  lines.push("");
+  lines.push("/// 物理牌（按建堆顺序：standard → junzheng）。");
+  lines.push("pub struct Phy {");
+  lines.push("    pub name: &'static str,");
+  lines.push("    pub suit: Suit,");
+  lines.push("    pub rank: u8,");
+  lines.push("}");
+  lines.push("");
+  lines.push("#[rustfmt::skip]");
+  lines.push("pub static DECK: &[Phy] = &[");
+  for (const c of deckRows) {
+    lines.push(`    Phy { name: ${rustStr(c.name)}, suit: Suit::${c.suit}, rank: ${c.rank} },`);
+  }
+  lines.push("];");
+  lines.push("");
+  return lines.join("\n");
+}
+
+/// 机器可读名录（JSON）：武将 + 牌定义 + 物理牌 + 包清单。
+///
+/// 口径：与 v1 `data.rs` / v2 `cards_generated.rs` 同源同序（同一份生成逻辑），
+/// 供门禁脚本读取；字段命名与 Rust 结构一致（Suit 用枚举名）。
+function buildCatalog(built, gens, cardsPayload) {
+  const defs = [...built.defs.values()].map((d) => ({
+    code: d.code,
+    name: d.name,
+    category: d.category,
+    equip_slot: d.equip_slot ?? null,
+    range_value: d.range_value ?? null,
+    range_type: d.range_type ?? null,
+    target_mode: d.target_mode ?? null,
+    delayed: Boolean(d.delayed),
+    damage_type: (() => {
+      const hit = (cardsPayload.cards ?? []).find((c) => c.name === d.name && c.damage_type);
+      return hit ? hit.damage_type : null;
+    })(),
+  }));
+  const decks = built.decks.map((deck) => ({
+    key: deck.key,
+    label: deck.label,
+    size: deck.physical.length,
+    cards: deck.physical.map((c) => ({
+      pack: c.pack,
+      def: c.def,
+      name: defs.find((d) => d.code === c.def)?.name ?? c.def,
+      suit: c.suit,
+      rank: c.rank,
+    })),
+  }));
+  const generals = gens.built.flatMap((pack) =>
+    pack.picked.map((g) => ({
+      code: g.code,
+      gid: g.gid,
+      name: g.name,
+      pack: g.pack,
+      kingdom: g.kingdom,
+      max_hp: g.max_hp,
+      gender: g.gender,
+      is_lord: g.is_lord,
+      skills: g.skills,
+    })),
+  );
+  return {
+    generated_by: "apps/scripts/gen-sanguosha-engine-data.mjs",
+    note: "自动生成，勿手改。v1 data.rs 退役后，本文件是脚本/门禁的武将+牌名录唯一机器源。",
+    source: {
+      cards: "docs/games/sanguosha/data/cards.json",
+      heroes: "docs/games/sanguosha/data/heroes.json",
+    },
+    card_counts: {
+      standard: built.decks.find((d) => d.key === "standard")?.physical.length ?? 0,
+      junzheng: built.decks.find((d) => d.key === "junzheng")?.physical.length ?? 0,
+      total: built.total,
+      defs: defs.length,
+    },
+    card_packs: built.decks.map((d) => ({ key: d.key, label: d.label, size: d.physical.length })),
+    card_defs: defs,
+    decks,
+    general_counts: {
+      total: gens.total,
+      packs: gens.built.map((p) => ({ key: p.key, label: p.label, count: p.picked.length })),
+    },
+    general_pack_keys: gens.built.map((p) => p.key),
+    generals,
+  };
+}
+
+function renderCatalog(catalog) {
+  return JSON.stringify(catalog, null, 2) + "\n";
 }
 
 function resolveGeneralPacks(keys) {
@@ -538,6 +865,10 @@ async function main() {
     generals: gens.built,
     generalTotal: gens.total,
   });
+  const v2 = buildV2(built, cards);
+  const textV2 = renderV2(v2);
+  const catalog = buildCatalog(built, gens, cards);
+  const textCatalog = renderCatalog(catalog);
 
   const deckSummary = built.decks
     .map((d) => `${d.label} ${d.physical.length}`)
@@ -547,27 +878,44 @@ async function main() {
     .join(" + ");
 
   if (opts.check) {
-    let current = "";
-    try {
-      current = await readFile(opts.out, "utf8");
-    } catch {
-      console.error(`[check] 缺少生成文件：${opts.out}`);
-      process.exit(1);
-    }
-    if (current !== text) {
-      console.error(`[check] 生成文件过期：${opts.out}（请重新运行生成脚本）`);
-      process.exit(1);
+    const targets = [
+      { out: opts.out, text, label: "v1 data.rs" },
+      { out: opts.outV2, text: textV2, label: "v2 cards_generated.rs" },
+      { out: opts.catalog, text: textCatalog, label: "engine-catalog.json" },
+    ];
+    for (const t of targets) {
+      let current = "";
+      try {
+        current = await readFile(t.out, "utf8");
+      } catch {
+        console.error(`[check] 缺少生成文件（${t.label}）：${t.out}`);
+        process.exit(1);
+      }
+      if (current !== t.text) {
+        console.error(`[check] 生成文件过期（${t.label}）：${t.out}（请重新运行生成脚本）`);
+        process.exit(1);
+      }
     }
     console.log(
-      `[check] OK：${built.total} 张牌（${deckSummary}）/ ${gens.total} 位武将（${generalSummary}），${opts.out} 已是最新`,
+      `[check] OK：${built.total} 张牌（${deckSummary}）/ ${gens.total} 位武将（${generalSummary}）/ v2 ${v2.deckRows.length} 张物理牌 + ${v2.rows.length} 条定义 / catalog ${catalog.generals.length} 将 + ${catalog.card_defs.length} 定义，三个产物均为最新`,
     );
     return;
   }
 
   await mkdir(dirname(opts.out), { recursive: true });
   await writeFile(opts.out, text, "utf8");
+  await mkdir(dirname(opts.outV2), { recursive: true });
+  await writeFile(opts.outV2, textV2, "utf8");
+  await mkdir(dirname(opts.catalog), { recursive: true });
+  await writeFile(opts.catalog, textCatalog, "utf8");
   console.log(
     `[gen] ${built.defs.size} 个牌定义 / ${built.total} 张物理牌（${deckSummary}）/ ${gens.total} 位武将（${generalSummary}）→ ${opts.out}`,
+  );
+  console.log(
+    `[gen] v2：${v2.rows.length} 条牌定义 / ${v2.deckRows.length} 张物理牌 → ${opts.outV2}`,
+  );
+  console.log(
+    `[gen] catalog：${catalog.generals.length} 将 / ${catalog.card_defs.length} 牌定义 / ${catalog.decks.length} 牌堆 → ${opts.catalog}`,
   );
 }
 

@@ -1,0 +1,4897 @@
+{
+  "generated_by": "apps/scripts/gen-sanguosha-engine-data.mjs",
+  "note": "自动生成，勿手改。v1 data.rs 退役后，本文件是脚本/门禁的武将+牌名录唯一机器源。",
+  "source": {
+    "cards": "docs/games/sanguosha/data/cards.json",
+    "heroes": "docs/games/sanguosha/data/heroes.json"
+  },
+  "card_counts": {
+    "standard": 108,
+    "junzheng": 52,
+    "total": 160,
+    "defs": 43
+  },
+  "card_packs": [
+    {
+      "key": "standard",
+      "label": "标准",
+      "size": 108
+    },
+    {
+      "key": "junzheng",
+      "label": "军争",
+      "size": 52
+    }
+  ],
+  "card_defs": [
+    {
+      "code": "taoyuan_jieyi",
+      "name": "桃园结义",
+      "category": "Trick",
+      "equip_slot": null,
+      "range_value": null,
+      "range_type": null,
+      "target_mode": "aoe",
+      "delayed": false,
+      "damage_type": null
+    },
+    {
+      "code": "wanjian_qifa",
+      "name": "万箭齐发",
+      "category": "Trick",
+      "equip_slot": null,
+      "range_value": null,
+      "range_type": null,
+      "target_mode": "aoe",
+      "delayed": false,
+      "damage_type": null
+    },
+    {
+      "code": "shan",
+      "name": "闪",
+      "category": "Basic",
+      "equip_slot": null,
+      "range_value": null,
+      "range_type": null,
+      "target_mode": null,
+      "delayed": false,
+      "damage_type": null
+    },
+    {
+      "code": "tao",
+      "name": "桃",
+      "category": "Basic",
+      "equip_slot": null,
+      "range_value": null,
+      "range_type": null,
+      "target_mode": null,
+      "delayed": false,
+      "damage_type": null
+    },
+    {
+      "code": "wugu_fengdeng",
+      "name": "五谷丰登",
+      "category": "Trick",
+      "equip_slot": null,
+      "range_value": null,
+      "range_type": null,
+      "target_mode": "aoe",
+      "delayed": false,
+      "damage_type": null
+    },
+    {
+      "code": "qilin_gong",
+      "name": "麒麟弓",
+      "category": "Weapon",
+      "equip_slot": "weapon",
+      "range_value": 5,
+      "range_type": null,
+      "target_mode": null,
+      "delayed": false,
+      "damage_type": null
+    },
+    {
+      "code": "chitu",
+      "name": "赤兔",
+      "category": "Horse",
+      "equip_slot": "horse_offense",
+      "range_value": 1,
+      "range_type": "attack",
+      "target_mode": null,
+      "delayed": false,
+      "damage_type": null
+    },
+    {
+      "code": "lebu_sishu",
+      "name": "乐不思蜀",
+      "category": "DelayedTrick",
+      "equip_slot": null,
+      "range_value": null,
+      "range_type": null,
+      "target_mode": null,
+      "delayed": true,
+      "damage_type": null
+    },
+    {
+      "code": "wuzhong_shengyou",
+      "name": "无中生有",
+      "category": "Trick",
+      "equip_slot": null,
+      "range_value": null,
+      "range_type": null,
+      "target_mode": "single",
+      "delayed": false,
+      "damage_type": null
+    },
+    {
+      "code": "sha",
+      "name": "杀",
+      "category": "Basic",
+      "equip_slot": null,
+      "range_value": null,
+      "range_type": null,
+      "target_mode": null,
+      "delayed": false,
+      "damage_type": null
+    },
+    {
+      "code": "guohe_chaiqiao",
+      "name": "过河拆桥",
+      "category": "Trick",
+      "equip_slot": null,
+      "range_value": null,
+      "range_type": null,
+      "target_mode": "single",
+      "delayed": false,
+      "damage_type": null
+    },
+    {
+      "code": "shandian",
+      "name": "闪电",
+      "category": "DelayedTrick",
+      "equip_slot": null,
+      "range_value": null,
+      "range_type": null,
+      "target_mode": null,
+      "delayed": true,
+      "damage_type": null
+    },
+    {
+      "code": "zhuahuang_feidian",
+      "name": "爪黄飞电",
+      "category": "Horse",
+      "equip_slot": "horse_defense",
+      "range_value": 1,
+      "range_type": "defense",
+      "target_mode": null,
+      "delayed": false,
+      "damage_type": null
+    },
+    {
+      "code": "juedou",
+      "name": "决斗",
+      "category": "Trick",
+      "equip_slot": null,
+      "range_value": null,
+      "range_type": null,
+      "target_mode": "single",
+      "delayed": false,
+      "damage_type": null
+    },
+    {
+      "code": "cixiong_shuanggujian",
+      "name": "雌雄双股剑",
+      "category": "Weapon",
+      "equip_slot": "weapon",
+      "range_value": 2,
+      "range_type": null,
+      "target_mode": null,
+      "delayed": false,
+      "damage_type": null
+    },
+    {
+      "code": "bagua_zhen",
+      "name": "八卦阵",
+      "category": "Armor",
+      "equip_slot": "armor",
+      "range_value": null,
+      "range_type": null,
+      "target_mode": null,
+      "delayed": false,
+      "damage_type": null
+    },
+    {
+      "code": "hanbing_jian",
+      "name": "寒冰剑",
+      "category": "Weapon",
+      "equip_slot": "weapon",
+      "range_value": 2,
+      "range_type": null,
+      "target_mode": null,
+      "delayed": false,
+      "damage_type": null
+    },
+    {
+      "code": "shunshou_qianyang",
+      "name": "顺手牵羊",
+      "category": "Trick",
+      "equip_slot": null,
+      "range_value": 1,
+      "range_type": null,
+      "target_mode": "single",
+      "delayed": false,
+      "damage_type": null
+    },
+    {
+      "code": "qinglong_yanyue",
+      "name": "青龙偃月刀",
+      "category": "Weapon",
+      "equip_slot": "weapon",
+      "range_value": 3,
+      "range_type": null,
+      "target_mode": null,
+      "delayed": false,
+      "damage_type": null
+    },
+    {
+      "code": "jueying",
+      "name": "绝影",
+      "category": "Horse",
+      "equip_slot": "horse_defense",
+      "range_value": 1,
+      "range_type": "defense",
+      "target_mode": null,
+      "delayed": false,
+      "damage_type": null
+    },
+    {
+      "code": "qinggang_jian",
+      "name": "青釭剑",
+      "category": "Weapon",
+      "equip_slot": "weapon",
+      "range_value": 2,
+      "range_type": null,
+      "target_mode": null,
+      "delayed": false,
+      "damage_type": null
+    },
+    {
+      "code": "nanman_ruqin",
+      "name": "南蛮入侵",
+      "category": "Trick",
+      "equip_slot": null,
+      "range_value": null,
+      "range_type": null,
+      "target_mode": "aoe",
+      "delayed": false,
+      "damage_type": null
+    },
+    {
+      "code": "wuxie_keji",
+      "name": "无懈可击",
+      "category": "Trick",
+      "equip_slot": null,
+      "range_value": null,
+      "range_type": null,
+      "target_mode": null,
+      "delayed": false,
+      "damage_type": null
+    },
+    {
+      "code": "zhangba_shemao",
+      "name": "丈八蛇矛",
+      "category": "Weapon",
+      "equip_slot": "weapon",
+      "range_value": 3,
+      "range_type": null,
+      "target_mode": null,
+      "delayed": false,
+      "damage_type": null
+    },
+    {
+      "code": "dawan",
+      "name": "大宛",
+      "category": "Horse",
+      "equip_slot": "horse_offense",
+      "range_value": 1,
+      "range_type": "attack",
+      "target_mode": null,
+      "delayed": false,
+      "damage_type": null
+    },
+    {
+      "code": "zhuge_liannu",
+      "name": "诸葛连弩",
+      "category": "Weapon",
+      "equip_slot": "weapon",
+      "range_value": 1,
+      "range_type": null,
+      "target_mode": null,
+      "delayed": false,
+      "damage_type": null
+    },
+    {
+      "code": "guanshi_fu",
+      "name": "贯石斧",
+      "category": "Weapon",
+      "equip_slot": "weapon",
+      "range_value": 3,
+      "range_type": null,
+      "target_mode": null,
+      "delayed": false,
+      "damage_type": null
+    },
+    {
+      "code": "fangtian_huaji",
+      "name": "方天画戟",
+      "category": "Weapon",
+      "equip_slot": "weapon",
+      "range_value": 4,
+      "range_type": null,
+      "target_mode": null,
+      "delayed": false,
+      "damage_type": null
+    },
+    {
+      "code": "zixing",
+      "name": "紫骍",
+      "category": "Horse",
+      "equip_slot": "horse_offense",
+      "range_value": 1,
+      "range_type": "attack",
+      "target_mode": null,
+      "delayed": false,
+      "damage_type": null
+    },
+    {
+      "code": "renwang_dun",
+      "name": "仁王盾",
+      "category": "Armor",
+      "equip_slot": "armor",
+      "range_value": null,
+      "range_type": null,
+      "target_mode": null,
+      "delayed": false,
+      "damage_type": null
+    },
+    {
+      "code": "dilu",
+      "name": "的卢",
+      "category": "Horse",
+      "equip_slot": "horse_defense",
+      "range_value": 1,
+      "range_type": "defense",
+      "target_mode": null,
+      "delayed": false,
+      "damage_type": null
+    },
+    {
+      "code": "jiedao_sharen",
+      "name": "借刀杀人",
+      "category": "Trick",
+      "equip_slot": null,
+      "range_value": null,
+      "range_type": null,
+      "target_mode": "single",
+      "delayed": false,
+      "damage_type": null
+    },
+    {
+      "code": "huo_gong",
+      "name": "火攻",
+      "category": "Trick",
+      "equip_slot": null,
+      "range_value": null,
+      "range_type": null,
+      "target_mode": "single",
+      "delayed": false,
+      "damage_type": null
+    },
+    {
+      "code": "huo_sha",
+      "name": "火杀",
+      "category": "Basic",
+      "equip_slot": null,
+      "range_value": null,
+      "range_type": null,
+      "target_mode": null,
+      "delayed": false,
+      "damage_type": "fire"
+    },
+    {
+      "code": "baiyin_shizi",
+      "name": "白银狮子",
+      "category": "Armor",
+      "equip_slot": "armor",
+      "range_value": null,
+      "range_type": null,
+      "target_mode": null,
+      "delayed": false,
+      "damage_type": null
+    },
+    {
+      "code": "tengjia",
+      "name": "藤甲",
+      "category": "Armor",
+      "equip_slot": "armor",
+      "range_value": null,
+      "range_type": null,
+      "target_mode": null,
+      "delayed": false,
+      "damage_type": null
+    },
+    {
+      "code": "jiu",
+      "name": "酒",
+      "category": "Basic",
+      "equip_slot": null,
+      "range_value": null,
+      "range_type": null,
+      "target_mode": null,
+      "delayed": false,
+      "damage_type": null
+    },
+    {
+      "code": "bingliang_cunduan",
+      "name": "兵粮寸断",
+      "category": "DelayedTrick",
+      "equip_slot": null,
+      "range_value": 1,
+      "range_type": null,
+      "target_mode": null,
+      "delayed": true,
+      "damage_type": null
+    },
+    {
+      "code": "lei_sha",
+      "name": "雷杀",
+      "category": "Basic",
+      "equip_slot": null,
+      "range_value": null,
+      "range_type": null,
+      "target_mode": null,
+      "delayed": false,
+      "damage_type": "thunder"
+    },
+    {
+      "code": "tiesuo_lianhuan",
+      "name": "铁索连环",
+      "category": "Trick",
+      "equip_slot": null,
+      "range_value": null,
+      "range_type": null,
+      "target_mode": null,
+      "delayed": false,
+      "damage_type": null
+    },
+    {
+      "code": "guding_dao",
+      "name": "古锭刀",
+      "category": "Weapon",
+      "equip_slot": "weapon",
+      "range_value": 2,
+      "range_type": null,
+      "target_mode": null,
+      "delayed": false,
+      "damage_type": null
+    },
+    {
+      "code": "zhuque_yushan",
+      "name": "朱雀羽扇",
+      "category": "Weapon",
+      "equip_slot": "weapon",
+      "range_value": 4,
+      "range_type": null,
+      "target_mode": null,
+      "delayed": false,
+      "damage_type": null
+    },
+    {
+      "code": "hualiu",
+      "name": "骅骝",
+      "category": "Horse",
+      "equip_slot": "horse_defense",
+      "range_value": 1,
+      "range_type": "defense",
+      "target_mode": null,
+      "delayed": false,
+      "damage_type": null
+    }
+  ],
+  "decks": [
+    {
+      "key": "standard",
+      "label": "标准",
+      "size": 108,
+      "cards": [
+        {
+          "pack": "standard",
+          "def": "taoyuan_jieyi",
+          "name": "桃园结义",
+          "suit": "Heart",
+          "rank": 1
+        },
+        {
+          "pack": "standard",
+          "def": "wanjian_qifa",
+          "name": "万箭齐发",
+          "suit": "Heart",
+          "rank": 1
+        },
+        {
+          "pack": "standard",
+          "def": "shan",
+          "name": "闪",
+          "suit": "Heart",
+          "rank": 2
+        },
+        {
+          "pack": "standard",
+          "def": "shan",
+          "name": "闪",
+          "suit": "Heart",
+          "rank": 2
+        },
+        {
+          "pack": "standard",
+          "def": "tao",
+          "name": "桃",
+          "suit": "Heart",
+          "rank": 3
+        },
+        {
+          "pack": "standard",
+          "def": "wugu_fengdeng",
+          "name": "五谷丰登",
+          "suit": "Heart",
+          "rank": 3
+        },
+        {
+          "pack": "standard",
+          "def": "tao",
+          "name": "桃",
+          "suit": "Heart",
+          "rank": 4
+        },
+        {
+          "pack": "standard",
+          "def": "wugu_fengdeng",
+          "name": "五谷丰登",
+          "suit": "Heart",
+          "rank": 4
+        },
+        {
+          "pack": "standard",
+          "def": "qilin_gong",
+          "name": "麒麟弓",
+          "suit": "Heart",
+          "rank": 5
+        },
+        {
+          "pack": "standard",
+          "def": "chitu",
+          "name": "赤兔",
+          "suit": "Heart",
+          "rank": 5
+        },
+        {
+          "pack": "standard",
+          "def": "tao",
+          "name": "桃",
+          "suit": "Heart",
+          "rank": 6
+        },
+        {
+          "pack": "standard",
+          "def": "lebu_sishu",
+          "name": "乐不思蜀",
+          "suit": "Heart",
+          "rank": 6
+        },
+        {
+          "pack": "standard",
+          "def": "tao",
+          "name": "桃",
+          "suit": "Heart",
+          "rank": 7
+        },
+        {
+          "pack": "standard",
+          "def": "wuzhong_shengyou",
+          "name": "无中生有",
+          "suit": "Heart",
+          "rank": 7
+        },
+        {
+          "pack": "standard",
+          "def": "tao",
+          "name": "桃",
+          "suit": "Heart",
+          "rank": 8
+        },
+        {
+          "pack": "standard",
+          "def": "wuzhong_shengyou",
+          "name": "无中生有",
+          "suit": "Heart",
+          "rank": 8
+        },
+        {
+          "pack": "standard",
+          "def": "tao",
+          "name": "桃",
+          "suit": "Heart",
+          "rank": 9
+        },
+        {
+          "pack": "standard",
+          "def": "wuzhong_shengyou",
+          "name": "无中生有",
+          "suit": "Heart",
+          "rank": 9
+        },
+        {
+          "pack": "standard",
+          "def": "sha",
+          "name": "杀",
+          "suit": "Heart",
+          "rank": 10
+        },
+        {
+          "pack": "standard",
+          "def": "sha",
+          "name": "杀",
+          "suit": "Heart",
+          "rank": 10
+        },
+        {
+          "pack": "standard",
+          "def": "sha",
+          "name": "杀",
+          "suit": "Heart",
+          "rank": 11
+        },
+        {
+          "pack": "standard",
+          "def": "wuzhong_shengyou",
+          "name": "无中生有",
+          "suit": "Heart",
+          "rank": 11
+        },
+        {
+          "pack": "standard",
+          "def": "tao",
+          "name": "桃",
+          "suit": "Heart",
+          "rank": 12
+        },
+        {
+          "pack": "standard",
+          "def": "guohe_chaiqiao",
+          "name": "过河拆桥",
+          "suit": "Heart",
+          "rank": 12
+        },
+        {
+          "pack": "standard",
+          "def": "shandian",
+          "name": "闪电",
+          "suit": "Heart",
+          "rank": 12
+        },
+        {
+          "pack": "standard",
+          "def": "shan",
+          "name": "闪",
+          "suit": "Heart",
+          "rank": 13
+        },
+        {
+          "pack": "standard",
+          "def": "zhuahuang_feidian",
+          "name": "爪黄飞电",
+          "suit": "Heart",
+          "rank": 13
+        },
+        {
+          "pack": "standard",
+          "def": "juedou",
+          "name": "决斗",
+          "suit": "Spade",
+          "rank": 1
+        },
+        {
+          "pack": "standard",
+          "def": "shandian",
+          "name": "闪电",
+          "suit": "Spade",
+          "rank": 1
+        },
+        {
+          "pack": "standard",
+          "def": "cixiong_shuanggujian",
+          "name": "雌雄双股剑",
+          "suit": "Spade",
+          "rank": 2
+        },
+        {
+          "pack": "standard",
+          "def": "bagua_zhen",
+          "name": "八卦阵",
+          "suit": "Spade",
+          "rank": 2
+        },
+        {
+          "pack": "standard",
+          "def": "hanbing_jian",
+          "name": "寒冰剑",
+          "suit": "Spade",
+          "rank": 2
+        },
+        {
+          "pack": "standard",
+          "def": "guohe_chaiqiao",
+          "name": "过河拆桥",
+          "suit": "Spade",
+          "rank": 3
+        },
+        {
+          "pack": "standard",
+          "def": "shunshou_qianyang",
+          "name": "顺手牵羊",
+          "suit": "Spade",
+          "rank": 3
+        },
+        {
+          "pack": "standard",
+          "def": "guohe_chaiqiao",
+          "name": "过河拆桥",
+          "suit": "Spade",
+          "rank": 4
+        },
+        {
+          "pack": "standard",
+          "def": "shunshou_qianyang",
+          "name": "顺手牵羊",
+          "suit": "Spade",
+          "rank": 4
+        },
+        {
+          "pack": "standard",
+          "def": "qinglong_yanyue",
+          "name": "青龙偃月刀",
+          "suit": "Spade",
+          "rank": 5
+        },
+        {
+          "pack": "standard",
+          "def": "jueying",
+          "name": "绝影",
+          "suit": "Spade",
+          "rank": 5
+        },
+        {
+          "pack": "standard",
+          "def": "lebu_sishu",
+          "name": "乐不思蜀",
+          "suit": "Spade",
+          "rank": 6
+        },
+        {
+          "pack": "standard",
+          "def": "qinggang_jian",
+          "name": "青釭剑",
+          "suit": "Spade",
+          "rank": 6
+        },
+        {
+          "pack": "standard",
+          "def": "sha",
+          "name": "杀",
+          "suit": "Spade",
+          "rank": 7
+        },
+        {
+          "pack": "standard",
+          "def": "nanman_ruqin",
+          "name": "南蛮入侵",
+          "suit": "Spade",
+          "rank": 7
+        },
+        {
+          "pack": "standard",
+          "def": "sha",
+          "name": "杀",
+          "suit": "Spade",
+          "rank": 8
+        },
+        {
+          "pack": "standard",
+          "def": "sha",
+          "name": "杀",
+          "suit": "Spade",
+          "rank": 8
+        },
+        {
+          "pack": "standard",
+          "def": "sha",
+          "name": "杀",
+          "suit": "Spade",
+          "rank": 9
+        },
+        {
+          "pack": "standard",
+          "def": "sha",
+          "name": "杀",
+          "suit": "Spade",
+          "rank": 9
+        },
+        {
+          "pack": "standard",
+          "def": "sha",
+          "name": "杀",
+          "suit": "Spade",
+          "rank": 10
+        },
+        {
+          "pack": "standard",
+          "def": "sha",
+          "name": "杀",
+          "suit": "Spade",
+          "rank": 10
+        },
+        {
+          "pack": "standard",
+          "def": "shunshou_qianyang",
+          "name": "顺手牵羊",
+          "suit": "Spade",
+          "rank": 11
+        },
+        {
+          "pack": "standard",
+          "def": "wuxie_keji",
+          "name": "无懈可击",
+          "suit": "Spade",
+          "rank": 11
+        },
+        {
+          "pack": "standard",
+          "def": "guohe_chaiqiao",
+          "name": "过河拆桥",
+          "suit": "Spade",
+          "rank": 12
+        },
+        {
+          "pack": "standard",
+          "def": "zhangba_shemao",
+          "name": "丈八蛇矛",
+          "suit": "Spade",
+          "rank": 12
+        },
+        {
+          "pack": "standard",
+          "def": "nanman_ruqin",
+          "name": "南蛮入侵",
+          "suit": "Spade",
+          "rank": 13
+        },
+        {
+          "pack": "standard",
+          "def": "dawan",
+          "name": "大宛",
+          "suit": "Spade",
+          "rank": 13
+        },
+        {
+          "pack": "standard",
+          "def": "zhuge_liannu",
+          "name": "诸葛连弩",
+          "suit": "Diamond",
+          "rank": 1
+        },
+        {
+          "pack": "standard",
+          "def": "juedou",
+          "name": "决斗",
+          "suit": "Diamond",
+          "rank": 1
+        },
+        {
+          "pack": "standard",
+          "def": "shan",
+          "name": "闪",
+          "suit": "Diamond",
+          "rank": 2
+        },
+        {
+          "pack": "standard",
+          "def": "shan",
+          "name": "闪",
+          "suit": "Diamond",
+          "rank": 2
+        },
+        {
+          "pack": "standard",
+          "def": "shan",
+          "name": "闪",
+          "suit": "Diamond",
+          "rank": 3
+        },
+        {
+          "pack": "standard",
+          "def": "shunshou_qianyang",
+          "name": "顺手牵羊",
+          "suit": "Diamond",
+          "rank": 3
+        },
+        {
+          "pack": "standard",
+          "def": "shan",
+          "name": "闪",
+          "suit": "Diamond",
+          "rank": 4
+        },
+        {
+          "pack": "standard",
+          "def": "shunshou_qianyang",
+          "name": "顺手牵羊",
+          "suit": "Diamond",
+          "rank": 4
+        },
+        {
+          "pack": "standard",
+          "def": "shan",
+          "name": "闪",
+          "suit": "Diamond",
+          "rank": 5
+        },
+        {
+          "pack": "standard",
+          "def": "guanshi_fu",
+          "name": "贯石斧",
+          "suit": "Diamond",
+          "rank": 5
+        },
+        {
+          "pack": "standard",
+          "def": "sha",
+          "name": "杀",
+          "suit": "Diamond",
+          "rank": 6
+        },
+        {
+          "pack": "standard",
+          "def": "shan",
+          "name": "闪",
+          "suit": "Diamond",
+          "rank": 6
+        },
+        {
+          "pack": "standard",
+          "def": "sha",
+          "name": "杀",
+          "suit": "Diamond",
+          "rank": 7
+        },
+        {
+          "pack": "standard",
+          "def": "shan",
+          "name": "闪",
+          "suit": "Diamond",
+          "rank": 7
+        },
+        {
+          "pack": "standard",
+          "def": "sha",
+          "name": "杀",
+          "suit": "Diamond",
+          "rank": 8
+        },
+        {
+          "pack": "standard",
+          "def": "shan",
+          "name": "闪",
+          "suit": "Diamond",
+          "rank": 8
+        },
+        {
+          "pack": "standard",
+          "def": "sha",
+          "name": "杀",
+          "suit": "Diamond",
+          "rank": 9
+        },
+        {
+          "pack": "standard",
+          "def": "shan",
+          "name": "闪",
+          "suit": "Diamond",
+          "rank": 9
+        },
+        {
+          "pack": "standard",
+          "def": "sha",
+          "name": "杀",
+          "suit": "Diamond",
+          "rank": 10
+        },
+        {
+          "pack": "standard",
+          "def": "shan",
+          "name": "闪",
+          "suit": "Diamond",
+          "rank": 10
+        },
+        {
+          "pack": "standard",
+          "def": "shan",
+          "name": "闪",
+          "suit": "Diamond",
+          "rank": 11
+        },
+        {
+          "pack": "standard",
+          "def": "shan",
+          "name": "闪",
+          "suit": "Diamond",
+          "rank": 11
+        },
+        {
+          "pack": "standard",
+          "def": "tao",
+          "name": "桃",
+          "suit": "Diamond",
+          "rank": 12
+        },
+        {
+          "pack": "standard",
+          "def": "fangtian_huaji",
+          "name": "方天画戟",
+          "suit": "Diamond",
+          "rank": 12
+        },
+        {
+          "pack": "standard",
+          "def": "wuxie_keji",
+          "name": "无懈可击",
+          "suit": "Diamond",
+          "rank": 12
+        },
+        {
+          "pack": "standard",
+          "def": "sha",
+          "name": "杀",
+          "suit": "Diamond",
+          "rank": 13
+        },
+        {
+          "pack": "standard",
+          "def": "zixing",
+          "name": "紫骍",
+          "suit": "Diamond",
+          "rank": 13
+        },
+        {
+          "pack": "standard",
+          "def": "juedou",
+          "name": "决斗",
+          "suit": "Club",
+          "rank": 1
+        },
+        {
+          "pack": "standard",
+          "def": "zhuge_liannu",
+          "name": "诸葛连弩",
+          "suit": "Club",
+          "rank": 1
+        },
+        {
+          "pack": "standard",
+          "def": "sha",
+          "name": "杀",
+          "suit": "Club",
+          "rank": 2
+        },
+        {
+          "pack": "standard",
+          "def": "bagua_zhen",
+          "name": "八卦阵",
+          "suit": "Club",
+          "rank": 2
+        },
+        {
+          "pack": "standard",
+          "def": "renwang_dun",
+          "name": "仁王盾",
+          "suit": "Club",
+          "rank": 2
+        },
+        {
+          "pack": "standard",
+          "def": "sha",
+          "name": "杀",
+          "suit": "Club",
+          "rank": 3
+        },
+        {
+          "pack": "standard",
+          "def": "guohe_chaiqiao",
+          "name": "过河拆桥",
+          "suit": "Club",
+          "rank": 3
+        },
+        {
+          "pack": "standard",
+          "def": "sha",
+          "name": "杀",
+          "suit": "Club",
+          "rank": 4
+        },
+        {
+          "pack": "standard",
+          "def": "guohe_chaiqiao",
+          "name": "过河拆桥",
+          "suit": "Club",
+          "rank": 4
+        },
+        {
+          "pack": "standard",
+          "def": "sha",
+          "name": "杀",
+          "suit": "Club",
+          "rank": 5
+        },
+        {
+          "pack": "standard",
+          "def": "dilu",
+          "name": "的卢",
+          "suit": "Club",
+          "rank": 5
+        },
+        {
+          "pack": "standard",
+          "def": "sha",
+          "name": "杀",
+          "suit": "Club",
+          "rank": 6
+        },
+        {
+          "pack": "standard",
+          "def": "lebu_sishu",
+          "name": "乐不思蜀",
+          "suit": "Club",
+          "rank": 6
+        },
+        {
+          "pack": "standard",
+          "def": "sha",
+          "name": "杀",
+          "suit": "Club",
+          "rank": 7
+        },
+        {
+          "pack": "standard",
+          "def": "nanman_ruqin",
+          "name": "南蛮入侵",
+          "suit": "Club",
+          "rank": 7
+        },
+        {
+          "pack": "standard",
+          "def": "sha",
+          "name": "杀",
+          "suit": "Club",
+          "rank": 8
+        },
+        {
+          "pack": "standard",
+          "def": "sha",
+          "name": "杀",
+          "suit": "Club",
+          "rank": 8
+        },
+        {
+          "pack": "standard",
+          "def": "sha",
+          "name": "杀",
+          "suit": "Club",
+          "rank": 9
+        },
+        {
+          "pack": "standard",
+          "def": "sha",
+          "name": "杀",
+          "suit": "Club",
+          "rank": 9
+        },
+        {
+          "pack": "standard",
+          "def": "sha",
+          "name": "杀",
+          "suit": "Club",
+          "rank": 10
+        },
+        {
+          "pack": "standard",
+          "def": "sha",
+          "name": "杀",
+          "suit": "Club",
+          "rank": 10
+        },
+        {
+          "pack": "standard",
+          "def": "sha",
+          "name": "杀",
+          "suit": "Club",
+          "rank": 11
+        },
+        {
+          "pack": "standard",
+          "def": "sha",
+          "name": "杀",
+          "suit": "Club",
+          "rank": 11
+        },
+        {
+          "pack": "standard",
+          "def": "jiedao_sharen",
+          "name": "借刀杀人",
+          "suit": "Club",
+          "rank": 12
+        },
+        {
+          "pack": "standard",
+          "def": "wuxie_keji",
+          "name": "无懈可击",
+          "suit": "Club",
+          "rank": 12
+        },
+        {
+          "pack": "standard",
+          "def": "jiedao_sharen",
+          "name": "借刀杀人",
+          "suit": "Club",
+          "rank": 13
+        },
+        {
+          "pack": "standard",
+          "def": "wuxie_keji",
+          "name": "无懈可击",
+          "suit": "Club",
+          "rank": 13
+        }
+      ]
+    },
+    {
+      "key": "junzheng",
+      "label": "军争",
+      "size": 52,
+      "cards": [
+        {
+          "pack": "junzheng",
+          "def": "wuxie_keji",
+          "name": "无懈可击",
+          "suit": "Heart",
+          "rank": 1
+        },
+        {
+          "pack": "junzheng",
+          "def": "huo_gong",
+          "name": "火攻",
+          "suit": "Heart",
+          "rank": 2
+        },
+        {
+          "pack": "junzheng",
+          "def": "huo_gong",
+          "name": "火攻",
+          "suit": "Heart",
+          "rank": 3
+        },
+        {
+          "pack": "junzheng",
+          "def": "huo_sha",
+          "name": "火杀",
+          "suit": "Heart",
+          "rank": 4
+        },
+        {
+          "pack": "junzheng",
+          "def": "tao",
+          "name": "桃",
+          "suit": "Heart",
+          "rank": 5
+        },
+        {
+          "pack": "junzheng",
+          "def": "tao",
+          "name": "桃",
+          "suit": "Heart",
+          "rank": 6
+        },
+        {
+          "pack": "junzheng",
+          "def": "huo_sha",
+          "name": "火杀",
+          "suit": "Heart",
+          "rank": 7
+        },
+        {
+          "pack": "junzheng",
+          "def": "shan",
+          "name": "闪",
+          "suit": "Heart",
+          "rank": 8
+        },
+        {
+          "pack": "junzheng",
+          "def": "shan",
+          "name": "闪",
+          "suit": "Heart",
+          "rank": 9
+        },
+        {
+          "pack": "junzheng",
+          "def": "huo_sha",
+          "name": "火杀",
+          "suit": "Heart",
+          "rank": 10
+        },
+        {
+          "pack": "junzheng",
+          "def": "shan",
+          "name": "闪",
+          "suit": "Heart",
+          "rank": 11
+        },
+        {
+          "pack": "junzheng",
+          "def": "shan",
+          "name": "闪",
+          "suit": "Heart",
+          "rank": 12
+        },
+        {
+          "pack": "junzheng",
+          "def": "wuxie_keji",
+          "name": "无懈可击",
+          "suit": "Heart",
+          "rank": 13
+        },
+        {
+          "pack": "junzheng",
+          "def": "baiyin_shizi",
+          "name": "白银狮子",
+          "suit": "Club",
+          "rank": 1
+        },
+        {
+          "pack": "junzheng",
+          "def": "tengjia",
+          "name": "藤甲",
+          "suit": "Club",
+          "rank": 2
+        },
+        {
+          "pack": "junzheng",
+          "def": "jiu",
+          "name": "酒",
+          "suit": "Club",
+          "rank": 3
+        },
+        {
+          "pack": "junzheng",
+          "def": "bingliang_cunduan",
+          "name": "兵粮寸断",
+          "suit": "Club",
+          "rank": 4
+        },
+        {
+          "pack": "junzheng",
+          "def": "lei_sha",
+          "name": "雷杀",
+          "suit": "Club",
+          "rank": 5
+        },
+        {
+          "pack": "junzheng",
+          "def": "lei_sha",
+          "name": "雷杀",
+          "suit": "Club",
+          "rank": 6
+        },
+        {
+          "pack": "junzheng",
+          "def": "lei_sha",
+          "name": "雷杀",
+          "suit": "Club",
+          "rank": 7
+        },
+        {
+          "pack": "junzheng",
+          "def": "lei_sha",
+          "name": "雷杀",
+          "suit": "Club",
+          "rank": 8
+        },
+        {
+          "pack": "junzheng",
+          "def": "jiu",
+          "name": "酒",
+          "suit": "Club",
+          "rank": 9
+        },
+        {
+          "pack": "junzheng",
+          "def": "tiesuo_lianhuan",
+          "name": "铁索连环",
+          "suit": "Club",
+          "rank": 10
+        },
+        {
+          "pack": "junzheng",
+          "def": "tiesuo_lianhuan",
+          "name": "铁索连环",
+          "suit": "Club",
+          "rank": 11
+        },
+        {
+          "pack": "junzheng",
+          "def": "tiesuo_lianhuan",
+          "name": "铁索连环",
+          "suit": "Club",
+          "rank": 12
+        },
+        {
+          "pack": "junzheng",
+          "def": "tiesuo_lianhuan",
+          "name": "铁索连环",
+          "suit": "Club",
+          "rank": 13
+        },
+        {
+          "pack": "junzheng",
+          "def": "guding_dao",
+          "name": "古锭刀",
+          "suit": "Spade",
+          "rank": 1
+        },
+        {
+          "pack": "junzheng",
+          "def": "tengjia",
+          "name": "藤甲",
+          "suit": "Spade",
+          "rank": 2
+        },
+        {
+          "pack": "junzheng",
+          "def": "jiu",
+          "name": "酒",
+          "suit": "Spade",
+          "rank": 3
+        },
+        {
+          "pack": "junzheng",
+          "def": "lei_sha",
+          "name": "雷杀",
+          "suit": "Spade",
+          "rank": 4
+        },
+        {
+          "pack": "junzheng",
+          "def": "lei_sha",
+          "name": "雷杀",
+          "suit": "Spade",
+          "rank": 5
+        },
+        {
+          "pack": "junzheng",
+          "def": "lei_sha",
+          "name": "雷杀",
+          "suit": "Spade",
+          "rank": 6
+        },
+        {
+          "pack": "junzheng",
+          "def": "lei_sha",
+          "name": "雷杀",
+          "suit": "Spade",
+          "rank": 7
+        },
+        {
+          "pack": "junzheng",
+          "def": "lei_sha",
+          "name": "雷杀",
+          "suit": "Spade",
+          "rank": 8
+        },
+        {
+          "pack": "junzheng",
+          "def": "jiu",
+          "name": "酒",
+          "suit": "Spade",
+          "rank": 9
+        },
+        {
+          "pack": "junzheng",
+          "def": "bingliang_cunduan",
+          "name": "兵粮寸断",
+          "suit": "Spade",
+          "rank": 10
+        },
+        {
+          "pack": "junzheng",
+          "def": "tiesuo_lianhuan",
+          "name": "铁索连环",
+          "suit": "Spade",
+          "rank": 11
+        },
+        {
+          "pack": "junzheng",
+          "def": "tiesuo_lianhuan",
+          "name": "铁索连环",
+          "suit": "Spade",
+          "rank": 12
+        },
+        {
+          "pack": "junzheng",
+          "def": "wuxie_keji",
+          "name": "无懈可击",
+          "suit": "Spade",
+          "rank": 13
+        },
+        {
+          "pack": "junzheng",
+          "def": "zhuque_yushan",
+          "name": "朱雀羽扇",
+          "suit": "Diamond",
+          "rank": 1
+        },
+        {
+          "pack": "junzheng",
+          "def": "tao",
+          "name": "桃",
+          "suit": "Diamond",
+          "rank": 2
+        },
+        {
+          "pack": "junzheng",
+          "def": "tao",
+          "name": "桃",
+          "suit": "Diamond",
+          "rank": 3
+        },
+        {
+          "pack": "junzheng",
+          "def": "huo_sha",
+          "name": "火杀",
+          "suit": "Diamond",
+          "rank": 4
+        },
+        {
+          "pack": "junzheng",
+          "def": "huo_sha",
+          "name": "火杀",
+          "suit": "Diamond",
+          "rank": 5
+        },
+        {
+          "pack": "junzheng",
+          "def": "shan",
+          "name": "闪",
+          "suit": "Diamond",
+          "rank": 6
+        },
+        {
+          "pack": "junzheng",
+          "def": "shan",
+          "name": "闪",
+          "suit": "Diamond",
+          "rank": 7
+        },
+        {
+          "pack": "junzheng",
+          "def": "shan",
+          "name": "闪",
+          "suit": "Diamond",
+          "rank": 8
+        },
+        {
+          "pack": "junzheng",
+          "def": "jiu",
+          "name": "酒",
+          "suit": "Diamond",
+          "rank": 9
+        },
+        {
+          "pack": "junzheng",
+          "def": "shan",
+          "name": "闪",
+          "suit": "Diamond",
+          "rank": 10
+        },
+        {
+          "pack": "junzheng",
+          "def": "shan",
+          "name": "闪",
+          "suit": "Diamond",
+          "rank": 11
+        },
+        {
+          "pack": "junzheng",
+          "def": "huo_gong",
+          "name": "火攻",
+          "suit": "Diamond",
+          "rank": 12
+        },
+        {
+          "pack": "junzheng",
+          "def": "hualiu",
+          "name": "骅骝",
+          "suit": "Diamond",
+          "rank": 13
+        }
+      ]
+    }
+  ],
+  "general_counts": {
+    "total": 232,
+    "packs": [
+      {
+        "key": "standard",
+        "label": "标准",
+        "count": 25
+      },
+      {
+        "key": "wind_fire_forest_mountain",
+        "label": "风林火山",
+        "count": 48
+      },
+      {
+        "key": "yijiang",
+        "label": "一将成名",
+        "count": 72
+      },
+      {
+        "key": "jiexian",
+        "label": "界限突破",
+        "count": 87
+      }
+    ]
+  },
+  "general_pack_keys": [
+    "standard",
+    "wind_fire_forest_mountain",
+    "yijiang",
+    "jiexian"
+  ],
+  "generals": [
+    {
+      "code": "sgs_hero_1",
+      "gid": 1,
+      "name": "刘备",
+      "pack": "standard",
+      "kingdom": "shu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": true,
+      "skills": [
+        "仁德",
+        "激将"
+      ]
+    },
+    {
+      "code": "sgs_hero_2",
+      "gid": 2,
+      "name": "关羽",
+      "pack": "standard",
+      "kingdom": "shu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "武圣"
+      ]
+    },
+    {
+      "code": "sgs_hero_3",
+      "gid": 3,
+      "name": "张飞",
+      "pack": "standard",
+      "kingdom": "shu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "咆哮"
+      ]
+    },
+    {
+      "code": "sgs_hero_4",
+      "gid": 4,
+      "name": "诸葛亮",
+      "pack": "standard",
+      "kingdom": "shu",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "观星",
+        "空城"
+      ]
+    },
+    {
+      "code": "sgs_hero_5",
+      "gid": 5,
+      "name": "赵云",
+      "pack": "standard",
+      "kingdom": "shu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "龙胆"
+      ]
+    },
+    {
+      "code": "sgs_hero_6",
+      "gid": 6,
+      "name": "马超",
+      "pack": "standard",
+      "kingdom": "shu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "铁骑",
+        "马术"
+      ]
+    },
+    {
+      "code": "sgs_hero_7",
+      "gid": 7,
+      "name": "黄月英",
+      "pack": "standard",
+      "kingdom": "shu",
+      "max_hp": 3,
+      "gender": "female",
+      "is_lord": false,
+      "skills": [
+        "集智",
+        "奇才"
+      ]
+    },
+    {
+      "code": "sgs_hero_8",
+      "gid": 8,
+      "name": "孙权",
+      "pack": "standard",
+      "kingdom": "wu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": true,
+      "skills": [
+        "制衡",
+        "救援"
+      ]
+    },
+    {
+      "code": "sgs_hero_9",
+      "gid": 9,
+      "name": "甘宁",
+      "pack": "standard",
+      "kingdom": "wu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "奇袭"
+      ]
+    },
+    {
+      "code": "sgs_hero_10",
+      "gid": 10,
+      "name": "吕蒙",
+      "pack": "standard",
+      "kingdom": "wu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "克己"
+      ]
+    },
+    {
+      "code": "sgs_hero_11",
+      "gid": 11,
+      "name": "黄盖",
+      "pack": "standard",
+      "kingdom": "wu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "苦肉"
+      ]
+    },
+    {
+      "code": "sgs_hero_12",
+      "gid": 12,
+      "name": "周瑜",
+      "pack": "standard",
+      "kingdom": "wu",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "英姿",
+        "反间"
+      ]
+    },
+    {
+      "code": "sgs_hero_13",
+      "gid": 13,
+      "name": "大乔",
+      "pack": "standard",
+      "kingdom": "wu",
+      "max_hp": 3,
+      "gender": "female",
+      "is_lord": false,
+      "skills": [
+        "国色",
+        "流离"
+      ]
+    },
+    {
+      "code": "sgs_hero_14",
+      "gid": 14,
+      "name": "陆逊",
+      "pack": "standard",
+      "kingdom": "wu",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "谦逊",
+        "连营"
+      ]
+    },
+    {
+      "code": "sgs_hero_15",
+      "gid": 15,
+      "name": "曹操",
+      "pack": "standard",
+      "kingdom": "wei",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": true,
+      "skills": [
+        "奸雄",
+        "护驾"
+      ]
+    },
+    {
+      "code": "sgs_hero_16",
+      "gid": 16,
+      "name": "司马懿",
+      "pack": "standard",
+      "kingdom": "wei",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "反馈",
+        "鬼才"
+      ]
+    },
+    {
+      "code": "sgs_hero_17",
+      "gid": 17,
+      "name": "夏侯惇",
+      "pack": "standard",
+      "kingdom": "wei",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "刚烈"
+      ]
+    },
+    {
+      "code": "sgs_hero_18",
+      "gid": 18,
+      "name": "张辽",
+      "pack": "standard",
+      "kingdom": "wei",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "突袭"
+      ]
+    },
+    {
+      "code": "sgs_hero_19",
+      "gid": 19,
+      "name": "许褚",
+      "pack": "standard",
+      "kingdom": "wei",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "裸衣"
+      ]
+    },
+    {
+      "code": "sgs_hero_20",
+      "gid": 20,
+      "name": "郭嘉",
+      "pack": "standard",
+      "kingdom": "wei",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "天妒",
+        "遗计"
+      ]
+    },
+    {
+      "code": "sgs_hero_21",
+      "gid": 21,
+      "name": "甄姬",
+      "pack": "standard",
+      "kingdom": "wei",
+      "max_hp": 3,
+      "gender": "female",
+      "is_lord": false,
+      "skills": [
+        "洛神",
+        "倾国"
+      ]
+    },
+    {
+      "code": "sgs_hero_22",
+      "gid": 22,
+      "name": "华佗",
+      "pack": "standard",
+      "kingdom": "qun",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "急救",
+        "青囊"
+      ]
+    },
+    {
+      "code": "sgs_hero_23",
+      "gid": 23,
+      "name": "吕布",
+      "pack": "standard",
+      "kingdom": "qun",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "无双"
+      ]
+    },
+    {
+      "code": "sgs_hero_24",
+      "gid": 24,
+      "name": "貂蝉",
+      "pack": "standard",
+      "kingdom": "qun",
+      "max_hp": 3,
+      "gender": "female",
+      "is_lord": false,
+      "skills": [
+        "闭月",
+        "离间"
+      ]
+    },
+    {
+      "code": "sgs_hero_25",
+      "gid": 25,
+      "name": "孙尚香",
+      "pack": "standard",
+      "kingdom": "wu",
+      "max_hp": 3,
+      "gender": "female",
+      "is_lord": false,
+      "skills": [
+        "枭姬",
+        "结姻"
+      ]
+    },
+    {
+      "code": "sgs_hero_27",
+      "gid": 27,
+      "name": "魏延",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "shu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "狂骨",
+        "奇谋"
+      ]
+    },
+    {
+      "code": "sgs_hero_28",
+      "gid": 28,
+      "name": "夏侯渊",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "wei",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "神速"
+      ]
+    },
+    {
+      "code": "sgs_hero_29",
+      "gid": 29,
+      "name": "曹仁",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "wei",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "据守",
+        "解围"
+      ]
+    },
+    {
+      "code": "sgs_hero_30",
+      "gid": 30,
+      "name": "小乔",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "wu",
+      "max_hp": 3,
+      "gender": "female",
+      "is_lord": false,
+      "skills": [
+        "红颜",
+        "天香"
+      ]
+    },
+    {
+      "code": "sgs_hero_34",
+      "gid": 34,
+      "name": "典韦",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "wei",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "强袭"
+      ]
+    },
+    {
+      "code": "sgs_hero_35",
+      "gid": 35,
+      "name": "荀彧",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "wei",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "驱虎",
+        "节命"
+      ]
+    },
+    {
+      "code": "sgs_hero_36",
+      "gid": 36,
+      "name": "庞统",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "shu",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "连环",
+        "涅槃"
+      ]
+    },
+    {
+      "code": "sgs_hero_37",
+      "gid": 37,
+      "name": "卧龙诸葛亮",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "shu",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "八阵",
+        "火计",
+        "看破"
+      ]
+    },
+    {
+      "code": "sgs_hero_38",
+      "gid": 38,
+      "name": "太史慈",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "wu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "天义"
+      ]
+    },
+    {
+      "code": "sgs_hero_39",
+      "gid": 39,
+      "name": "庞德",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "qun",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "马术",
+        "鞬出"
+      ]
+    },
+    {
+      "code": "sgs_hero_40",
+      "gid": 40,
+      "name": "颜良文丑",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "qun",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "双雄"
+      ]
+    },
+    {
+      "code": "sgs_hero_41",
+      "gid": 41,
+      "name": "袁绍",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "qun",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": true,
+      "skills": [
+        "乱击",
+        "血裔"
+      ]
+    },
+    {
+      "code": "sgs_hero_42",
+      "gid": 42,
+      "name": "徐晃",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "wei",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "断粮",
+        "截辎"
+      ]
+    },
+    {
+      "code": "sgs_hero_43",
+      "gid": 43,
+      "name": "曹丕",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "wei",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": true,
+      "skills": [
+        "行殇",
+        "放逐",
+        "颂威"
+      ]
+    },
+    {
+      "code": "sgs_hero_44",
+      "gid": 44,
+      "name": "孙坚",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "wu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "英魂"
+      ]
+    },
+    {
+      "code": "sgs_hero_45",
+      "gid": 45,
+      "name": "董卓",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "qun",
+      "max_hp": 8,
+      "gender": "male",
+      "is_lord": true,
+      "skills": [
+        "酒池",
+        "肉林",
+        "崩坏",
+        "暴虐"
+      ]
+    },
+    {
+      "code": "sgs_hero_46",
+      "gid": 46,
+      "name": "祝融",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "shu",
+      "max_hp": 4,
+      "gender": "female",
+      "is_lord": false,
+      "skills": [
+        "巨象",
+        "烈刃"
+      ]
+    },
+    {
+      "code": "sgs_hero_47",
+      "gid": 47,
+      "name": "孟获",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "shu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "祸首",
+        "再起"
+      ]
+    },
+    {
+      "code": "sgs_hero_48",
+      "gid": 48,
+      "name": "贾诩",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "qun",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "完杀",
+        "乱武",
+        "帷幕"
+      ]
+    },
+    {
+      "code": "sgs_hero_49",
+      "gid": 49,
+      "name": "鲁肃",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "wu",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "好施",
+        "缔盟"
+      ]
+    },
+    {
+      "code": "sgs_hero_50",
+      "gid": 50,
+      "name": "张郃",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "wei",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "巧变"
+      ]
+    },
+    {
+      "code": "sgs_hero_51",
+      "gid": 51,
+      "name": "邓艾",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "wei",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "屯田",
+        "凿险"
+      ]
+    },
+    {
+      "code": "sgs_hero_52",
+      "gid": 52,
+      "name": "姜维",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "shu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "挑衅",
+        "志继"
+      ]
+    },
+    {
+      "code": "sgs_hero_53",
+      "gid": 53,
+      "name": "刘禅",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "shu",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": true,
+      "skills": [
+        "享乐",
+        "放权",
+        "若愚"
+      ]
+    },
+    {
+      "code": "sgs_hero_54",
+      "gid": 54,
+      "name": "孙策",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "wu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": true,
+      "skills": [
+        "激昂",
+        "魂姿",
+        "制霸"
+      ]
+    },
+    {
+      "code": "sgs_hero_55",
+      "gid": 55,
+      "name": "张昭张纮",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "wu",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "直谏",
+        "固政"
+      ]
+    },
+    {
+      "code": "sgs_hero_56",
+      "gid": 56,
+      "name": "左慈",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "qun",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "化身",
+        "新生"
+      ]
+    },
+    {
+      "code": "sgs_hero_57",
+      "gid": 57,
+      "name": "蔡文姬",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "qun",
+      "max_hp": 3,
+      "gender": "female",
+      "is_lord": false,
+      "skills": [
+        "悲歌",
+        "断肠"
+      ]
+    },
+    {
+      "code": "sgs_hero_61",
+      "gid": 61,
+      "name": "黄忠",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "shu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "烈弓"
+      ]
+    },
+    {
+      "code": "sgs_hero_100",
+      "gid": 100,
+      "name": "袁术",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "qun",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "庸肆",
+        "伪帝"
+      ]
+    },
+    {
+      "code": "sgs_hero_210",
+      "gid": 210,
+      "name": "周泰",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "wu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "不屈",
+        "奋激"
+      ]
+    },
+    {
+      "code": "sgs_hero_211",
+      "gid": 211,
+      "name": "于吉",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "qun",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "蛊惑"
+      ]
+    },
+    {
+      "code": "sgs_hero_212",
+      "gid": 212,
+      "name": "张角",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "qun",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": true,
+      "skills": [
+        "鬼道",
+        "黄天",
+        "雷击"
+      ]
+    },
+    {
+      "code": "sgs_hero_362",
+      "gid": 362,
+      "name": "王基",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "wei",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "奇制",
+        "进趋"
+      ]
+    },
+    {
+      "code": "sgs_hero_400",
+      "gid": 400,
+      "name": "严颜",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "shu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "拒战"
+      ]
+    },
+    {
+      "code": "sgs_hero_401",
+      "gid": 401,
+      "name": "王平",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "shu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "飞军",
+        "兵略"
+      ]
+    },
+    {
+      "code": "sgs_hero_402",
+      "gid": 402,
+      "name": "陆绩",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "wu",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "怀橘",
+        "遗礼",
+        "整论"
+      ]
+    },
+    {
+      "code": "sgs_hero_403",
+      "gid": 403,
+      "name": "孙亮",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "wu",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": true,
+      "skills": [
+        "溃诛",
+        "掣政",
+        "立军"
+      ]
+    },
+    {
+      "code": "sgs_hero_404",
+      "gid": 404,
+      "name": "蒯越蒯良",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "wei",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "荐降",
+        "审时"
+      ]
+    },
+    {
+      "code": "sgs_hero_406",
+      "gid": 406,
+      "name": "许攸",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "qun",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "成略",
+        "恃才",
+        "寸目"
+      ]
+    },
+    {
+      "code": "sgs_hero_407",
+      "gid": 407,
+      "name": "卢植",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "qun",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "明任",
+        "贞良"
+      ]
+    },
+    {
+      "code": "sgs_hero_408",
+      "gid": 408,
+      "name": "郝昭",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "wei",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "镇骨"
+      ]
+    },
+    {
+      "code": "sgs_hero_409",
+      "gid": 409,
+      "name": "陈到",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "shu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "往烈"
+      ]
+    },
+    {
+      "code": "sgs_hero_410",
+      "gid": 410,
+      "name": "诸葛瞻",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "shu",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "罪论",
+        "父荫"
+      ]
+    },
+    {
+      "code": "sgs_hero_411",
+      "gid": 411,
+      "name": "周妃",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "wu",
+      "max_hp": 3,
+      "gender": "female",
+      "is_lord": false,
+      "skills": [
+        "良姻",
+        "箜声"
+      ]
+    },
+    {
+      "code": "sgs_hero_413",
+      "gid": 413,
+      "name": "毌丘俭",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "wei",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "征荣",
+        "鸿举"
+      ]
+    },
+    {
+      "code": "sgs_hero_414",
+      "gid": 414,
+      "name": "陆抗",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "wu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "谦节",
+        "决堰",
+        "破势"
+      ]
+    },
+    {
+      "code": "sgs_hero_415",
+      "gid": 415,
+      "name": "张绣",
+      "pack": "wind_fire_forest_mountain",
+      "kingdom": "qun",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "雄乱",
+        "从谏"
+      ]
+    },
+    {
+      "code": "sgs_hero_151",
+      "gid": 151,
+      "name": "曹植",
+      "pack": "yijiang",
+      "kingdom": "wei",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "落英",
+        "酒诗"
+      ]
+    },
+    {
+      "code": "sgs_hero_152",
+      "gid": 152,
+      "name": "高顺",
+      "pack": "yijiang",
+      "kingdom": "qun",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "陷阵",
+        "禁酒"
+      ]
+    },
+    {
+      "code": "sgs_hero_153",
+      "gid": 153,
+      "name": "陈宫",
+      "pack": "yijiang",
+      "kingdom": "qun",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "明策",
+        "智迟"
+      ]
+    },
+    {
+      "code": "sgs_hero_155",
+      "gid": 155,
+      "name": "凌统",
+      "pack": "yijiang",
+      "kingdom": "wu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "旋风"
+      ]
+    },
+    {
+      "code": "sgs_hero_156",
+      "gid": 156,
+      "name": "马谡",
+      "pack": "yijiang",
+      "kingdom": "shu",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "散谣",
+        "制蛮"
+      ]
+    },
+    {
+      "code": "sgs_hero_157",
+      "gid": 157,
+      "name": "吴国太",
+      "pack": "yijiang",
+      "kingdom": "wu",
+      "max_hp": 3,
+      "gender": "female",
+      "is_lord": false,
+      "skills": [
+        "甘露",
+        "补益"
+      ]
+    },
+    {
+      "code": "sgs_hero_158",
+      "gid": 158,
+      "name": "徐盛",
+      "pack": "yijiang",
+      "kingdom": "wu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "破军"
+      ]
+    },
+    {
+      "code": "sgs_hero_160",
+      "gid": 160,
+      "name": "于禁",
+      "pack": "yijiang",
+      "kingdom": "wei",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "镇军"
+      ]
+    },
+    {
+      "code": "sgs_hero_161",
+      "gid": 161,
+      "name": "张春华",
+      "pack": "yijiang",
+      "kingdom": "wei",
+      "max_hp": 3,
+      "gender": "female",
+      "is_lord": false,
+      "skills": [
+        "绝情",
+        "伤逝"
+      ]
+    },
+    {
+      "code": "sgs_hero_162",
+      "gid": 162,
+      "name": "曹彰",
+      "pack": "yijiang",
+      "kingdom": "wei",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "将驰"
+      ]
+    },
+    {
+      "code": "sgs_hero_164",
+      "gid": 164,
+      "name": "荀攸",
+      "pack": "yijiang",
+      "kingdom": "wei",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "奇策",
+        "智愚"
+      ]
+    },
+    {
+      "code": "sgs_hero_166",
+      "gid": 166,
+      "name": "廖化",
+      "pack": "yijiang",
+      "kingdom": "shu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "当先",
+        "伏枥"
+      ]
+    },
+    {
+      "code": "sgs_hero_167",
+      "gid": 167,
+      "name": "马岱",
+      "pack": "yijiang",
+      "kingdom": "shu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "马术",
+        "潜袭"
+      ]
+    },
+    {
+      "code": "sgs_hero_168",
+      "gid": 168,
+      "name": "步练师",
+      "pack": "yijiang",
+      "kingdom": "wu",
+      "max_hp": 3,
+      "gender": "female",
+      "is_lord": false,
+      "skills": [
+        "安恤",
+        "追忆"
+      ]
+    },
+    {
+      "code": "sgs_hero_169",
+      "gid": 169,
+      "name": "程普",
+      "pack": "yijiang",
+      "kingdom": "wu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "疠火",
+        "醇醪"
+      ]
+    },
+    {
+      "code": "sgs_hero_170",
+      "gid": 170,
+      "name": "韩当",
+      "pack": "yijiang",
+      "kingdom": "wu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "弓骑",
+        "解烦"
+      ]
+    },
+    {
+      "code": "sgs_hero_171",
+      "gid": 171,
+      "name": "将华雄",
+      "pack": "yijiang",
+      "kingdom": "qun",
+      "max_hp": 6,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "恃勇"
+      ]
+    },
+    {
+      "code": "sgs_hero_172",
+      "gid": 172,
+      "name": "刘表",
+      "pack": "yijiang",
+      "kingdom": "qun",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "自守",
+        "宗室"
+      ]
+    },
+    {
+      "code": "sgs_hero_173",
+      "gid": 173,
+      "name": "钟会",
+      "pack": "yijiang",
+      "kingdom": "wei",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "权计",
+        "自立"
+      ]
+    },
+    {
+      "code": "sgs_hero_174",
+      "gid": 174,
+      "name": "曹冲",
+      "pack": "yijiang",
+      "kingdom": "wei",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "称象",
+        "仁心"
+      ]
+    },
+    {
+      "code": "sgs_hero_175",
+      "gid": 175,
+      "name": "郭淮",
+      "pack": "yijiang",
+      "kingdom": "wei",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "精策"
+      ]
+    },
+    {
+      "code": "sgs_hero_176",
+      "gid": 176,
+      "name": "满宠",
+      "pack": "yijiang",
+      "kingdom": "wei",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "峻刑",
+        "御策"
+      ]
+    },
+    {
+      "code": "sgs_hero_177",
+      "gid": 177,
+      "name": "关平",
+      "pack": "yijiang",
+      "kingdom": "shu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "龙吟"
+      ]
+    },
+    {
+      "code": "sgs_hero_178",
+      "gid": 178,
+      "name": "简雍",
+      "pack": "yijiang",
+      "kingdom": "shu",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "巧说",
+        "纵适"
+      ]
+    },
+    {
+      "code": "sgs_hero_179",
+      "gid": 179,
+      "name": "刘封",
+      "pack": "yijiang",
+      "kingdom": "shu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "陷嗣"
+      ]
+    },
+    {
+      "code": "sgs_hero_180",
+      "gid": 180,
+      "name": "潘璋马忠",
+      "pack": "yijiang",
+      "kingdom": "wu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "夺刀",
+        "暗箭"
+      ]
+    },
+    {
+      "code": "sgs_hero_181",
+      "gid": 181,
+      "name": "虞翻",
+      "pack": "yijiang",
+      "kingdom": "wu",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "纵玄",
+        "直言"
+      ]
+    },
+    {
+      "code": "sgs_hero_182",
+      "gid": 182,
+      "name": "朱然",
+      "pack": "yijiang",
+      "kingdom": "wu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "胆守"
+      ]
+    },
+    {
+      "code": "sgs_hero_183",
+      "gid": 183,
+      "name": "伏皇后",
+      "pack": "yijiang",
+      "kingdom": "qun",
+      "max_hp": 3,
+      "gender": "female",
+      "is_lord": false,
+      "skills": [
+        "惴恐",
+        "求援"
+      ]
+    },
+    {
+      "code": "sgs_hero_184",
+      "gid": 184,
+      "name": "李儒",
+      "pack": "yijiang",
+      "kingdom": "qun",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "灭计",
+        "绝策",
+        "焚城"
+      ]
+    },
+    {
+      "code": "sgs_hero_185",
+      "gid": 185,
+      "name": "法正",
+      "pack": "yijiang",
+      "kingdom": "shu",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "恩怨",
+        "眩惑"
+      ]
+    },
+    {
+      "code": "sgs_hero_186",
+      "gid": 186,
+      "name": "徐庶",
+      "pack": "yijiang",
+      "kingdom": "shu",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "无言",
+        "举荐"
+      ]
+    },
+    {
+      "code": "sgs_hero_187",
+      "gid": 187,
+      "name": "王异",
+      "pack": "yijiang",
+      "kingdom": "wei",
+      "max_hp": 3,
+      "gender": "female",
+      "is_lord": false,
+      "skills": [
+        "贞烈",
+        "秘计"
+      ]
+    },
+    {
+      "code": "sgs_hero_188",
+      "gid": 188,
+      "name": "关兴张苞",
+      "pack": "yijiang",
+      "kingdom": "shu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "父魂"
+      ]
+    },
+    {
+      "code": "sgs_hero_321",
+      "gid": 321,
+      "name": "曹真",
+      "pack": "yijiang",
+      "kingdom": "wei",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "司敌"
+      ]
+    },
+    {
+      "code": "sgs_hero_322",
+      "gid": 322,
+      "name": "韩浩史涣",
+      "pack": "yijiang",
+      "kingdom": "wei",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "慎断",
+        "勇略"
+      ]
+    },
+    {
+      "code": "sgs_hero_323",
+      "gid": 323,
+      "name": "陈群",
+      "pack": "yijiang",
+      "kingdom": "wei",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "品第",
+        "法恩"
+      ]
+    },
+    {
+      "code": "sgs_hero_324",
+      "gid": 324,
+      "name": "吴懿",
+      "pack": "yijiang",
+      "kingdom": "shu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "奔袭"
+      ]
+    },
+    {
+      "code": "sgs_hero_325",
+      "gid": 325,
+      "name": "周仓",
+      "pack": "yijiang",
+      "kingdom": "shu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "忠勇"
+      ]
+    },
+    {
+      "code": "sgs_hero_326",
+      "gid": 326,
+      "name": "张松",
+      "pack": "yijiang",
+      "kingdom": "shu",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "强识",
+        "献图"
+      ]
+    },
+    {
+      "code": "sgs_hero_327",
+      "gid": 327,
+      "name": "孙鲁班",
+      "pack": "yijiang",
+      "kingdom": "wu",
+      "max_hp": 3,
+      "gender": "female",
+      "is_lord": false,
+      "skills": [
+        "谮毁",
+        "骄矜"
+      ]
+    },
+    {
+      "code": "sgs_hero_328",
+      "gid": 328,
+      "name": "朱桓",
+      "pack": "yijiang",
+      "kingdom": "wu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "奋励",
+        "平寇"
+      ]
+    },
+    {
+      "code": "sgs_hero_329",
+      "gid": 329,
+      "name": "顾雍",
+      "pack": "yijiang",
+      "kingdom": "wu",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "慎行",
+        "秉壹"
+      ]
+    },
+    {
+      "code": "sgs_hero_330",
+      "gid": 330,
+      "name": "沮授",
+      "pack": "yijiang",
+      "kingdom": "qun",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "渐营",
+        "矢北"
+      ]
+    },
+    {
+      "code": "sgs_hero_331",
+      "gid": 331,
+      "name": "蔡夫人",
+      "pack": "yijiang",
+      "kingdom": "qun",
+      "max_hp": 3,
+      "gender": "female",
+      "is_lord": false,
+      "skills": [
+        "窃听",
+        "献州"
+      ]
+    },
+    {
+      "code": "sgs_hero_332",
+      "gid": 332,
+      "name": "曹叡",
+      "pack": "yijiang",
+      "kingdom": "wei",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": true,
+      "skills": [
+        "恢拓",
+        "明鉴",
+        "兴衰"
+      ]
+    },
+    {
+      "code": "sgs_hero_333",
+      "gid": 333,
+      "name": "曹休",
+      "pack": "yijiang",
+      "kingdom": "wei",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "千驹",
+        "倾袭"
+      ]
+    },
+    {
+      "code": "sgs_hero_334",
+      "gid": 334,
+      "name": "钟繇",
+      "pack": "yijiang",
+      "kingdom": "wei",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "活墨",
+        "佐定"
+      ]
+    },
+    {
+      "code": "sgs_hero_335",
+      "gid": 335,
+      "name": "刘谌",
+      "pack": "yijiang",
+      "kingdom": "shu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": true,
+      "skills": [
+        "战绝",
+        "勤王"
+      ]
+    },
+    {
+      "code": "sgs_hero_336",
+      "gid": 336,
+      "name": "夏侯氏",
+      "pack": "yijiang",
+      "kingdom": "shu",
+      "max_hp": 3,
+      "gender": "female",
+      "is_lord": false,
+      "skills": [
+        "樵拾",
+        "燕语"
+      ]
+    },
+    {
+      "code": "sgs_hero_337",
+      "gid": 337,
+      "name": "张嶷",
+      "pack": "yijiang",
+      "kingdom": "shu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "怃戎",
+        "矢志"
+      ]
+    },
+    {
+      "code": "sgs_hero_338",
+      "gid": 338,
+      "name": "孙休",
+      "pack": "yijiang",
+      "kingdom": "wu",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": true,
+      "skills": [
+        "宴诛",
+        "兴学",
+        "诏缚"
+      ]
+    },
+    {
+      "code": "sgs_hero_339",
+      "gid": 339,
+      "name": "朱治",
+      "pack": "yijiang",
+      "kingdom": "wu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "安国"
+      ]
+    },
+    {
+      "code": "sgs_hero_340",
+      "gid": 340,
+      "name": "全琮",
+      "pack": "yijiang",
+      "kingdom": "wu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "邀名"
+      ]
+    },
+    {
+      "code": "sgs_hero_341",
+      "gid": 341,
+      "name": "公孙渊",
+      "pack": "yijiang",
+      "kingdom": "qun",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "怀异"
+      ]
+    },
+    {
+      "code": "sgs_hero_342",
+      "gid": 342,
+      "name": "郭图逢纪",
+      "pack": "yijiang",
+      "kingdom": "qun",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "急攻",
+        "饰非"
+      ]
+    },
+    {
+      "code": "sgs_hero_380",
+      "gid": 380,
+      "name": "郭皇后",
+      "pack": "yijiang",
+      "kingdom": "wei",
+      "max_hp": 3,
+      "gender": "female",
+      "is_lord": false,
+      "skills": [
+        "矫诏",
+        "殚心"
+      ]
+    },
+    {
+      "code": "sgs_hero_381",
+      "gid": 381,
+      "name": "李严",
+      "pack": "yijiang",
+      "kingdom": "shu",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "督粮",
+        "腹鳞"
+      ]
+    },
+    {
+      "code": "sgs_hero_382",
+      "gid": 382,
+      "name": "孙登",
+      "pack": "yijiang",
+      "kingdom": "wu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "匡弼"
+      ]
+    },
+    {
+      "code": "sgs_hero_383",
+      "gid": 383,
+      "name": "刘虞",
+      "pack": "yijiang",
+      "kingdom": "qun",
+      "max_hp": 2,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "止戈",
+        "宗祚"
+      ]
+    },
+    {
+      "code": "sgs_hero_384",
+      "gid": 384,
+      "name": "岑昏",
+      "pack": "yijiang",
+      "kingdom": "wu",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "极奢",
+        "链祸"
+      ]
+    },
+    {
+      "code": "sgs_hero_385",
+      "gid": 385,
+      "name": "孙资刘放",
+      "pack": "yijiang",
+      "kingdom": "wei",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "瑰藻",
+        "讥谀"
+      ]
+    },
+    {
+      "code": "sgs_hero_386",
+      "gid": 386,
+      "name": "黄皓",
+      "pack": "yijiang",
+      "kingdom": "shu",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "寝情",
+        "贿生"
+      ]
+    },
+    {
+      "code": "sgs_hero_387",
+      "gid": 387,
+      "name": "张让",
+      "pack": "yijiang",
+      "kingdom": "qun",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "滔乱"
+      ]
+    },
+    {
+      "code": "sgs_hero_388",
+      "gid": 388,
+      "name": "辛宪英",
+      "pack": "yijiang",
+      "kingdom": "wei",
+      "max_hp": 3,
+      "gender": "female",
+      "is_lord": false,
+      "skills": [
+        "忠鉴",
+        "才识"
+      ]
+    },
+    {
+      "code": "sgs_hero_389",
+      "gid": 389,
+      "name": "吴苋",
+      "pack": "yijiang",
+      "kingdom": "shu",
+      "max_hp": 3,
+      "gender": "female",
+      "is_lord": false,
+      "skills": [
+        "福绵",
+        "怠宴"
+      ]
+    },
+    {
+      "code": "sgs_hero_390",
+      "gid": 390,
+      "name": "徐氏",
+      "pack": "yijiang",
+      "kingdom": "wu",
+      "max_hp": 3,
+      "gender": "female",
+      "is_lord": false,
+      "skills": [
+        "问卦",
+        "伏诛"
+      ]
+    },
+    {
+      "code": "sgs_hero_391",
+      "gid": 391,
+      "name": "曹节",
+      "pack": "yijiang",
+      "kingdom": "qun",
+      "max_hp": 3,
+      "gender": "female",
+      "is_lord": false,
+      "skills": [
+        "守玺",
+        "惠民"
+      ]
+    },
+    {
+      "code": "sgs_hero_392",
+      "gid": 392,
+      "name": "嵇康",
+      "pack": "yijiang",
+      "kingdom": "wei",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "清弦",
+        "绝响"
+      ]
+    },
+    {
+      "code": "sgs_hero_393",
+      "gid": 393,
+      "name": "秦宓",
+      "pack": "yijiang",
+      "kingdom": "shu",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "谏征",
+        "专对",
+        "天辩"
+      ]
+    },
+    {
+      "code": "sgs_hero_394",
+      "gid": 394,
+      "name": "薛综",
+      "pack": "yijiang",
+      "kingdom": "wu",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "复难",
+        "诫训"
+      ]
+    },
+    {
+      "code": "sgs_hero_395",
+      "gid": 395,
+      "name": "蔡邕",
+      "pack": "yijiang",
+      "kingdom": "qun",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "辟撰",
+        "通博"
+      ]
+    },
+    {
+      "code": "sgs_hero_26",
+      "gid": 26,
+      "name": "界黄忠",
+      "pack": "jiexian",
+      "kingdom": "shu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "烈弓"
+      ]
+    },
+    {
+      "code": "sgs_hero_299",
+      "gid": 299,
+      "name": "界刘备",
+      "pack": "jiexian",
+      "kingdom": "shu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": true,
+      "skills": [
+        "仁德",
+        "激将"
+      ]
+    },
+    {
+      "code": "sgs_hero_300",
+      "gid": 300,
+      "name": "界关羽",
+      "pack": "jiexian",
+      "kingdom": "shu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "义绝",
+        "武圣"
+      ]
+    },
+    {
+      "code": "sgs_hero_301",
+      "gid": 301,
+      "name": "界张飞",
+      "pack": "jiexian",
+      "kingdom": "shu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "替身",
+        "咆哮"
+      ]
+    },
+    {
+      "code": "sgs_hero_302",
+      "gid": 302,
+      "name": "界赵云",
+      "pack": "jiexian",
+      "kingdom": "shu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "涯角",
+        "龙胆"
+      ]
+    },
+    {
+      "code": "sgs_hero_303",
+      "gid": 303,
+      "name": "界马超",
+      "pack": "jiexian",
+      "kingdom": "shu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "马术",
+        "铁骑"
+      ]
+    },
+    {
+      "code": "sgs_hero_304",
+      "gid": 304,
+      "name": "界徐庶",
+      "pack": "jiexian",
+      "kingdom": "shu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "诛害",
+        "潜心"
+      ]
+    },
+    {
+      "code": "sgs_hero_305",
+      "gid": 305,
+      "name": "界甘宁",
+      "pack": "jiexian",
+      "kingdom": "wu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "奇袭",
+        "奋威"
+      ]
+    },
+    {
+      "code": "sgs_hero_306",
+      "gid": 306,
+      "name": "界吕蒙",
+      "pack": "jiexian",
+      "kingdom": "wu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "克己",
+        "勤学",
+        "博图"
+      ]
+    },
+    {
+      "code": "sgs_hero_307",
+      "gid": 307,
+      "name": "界黄盖",
+      "pack": "jiexian",
+      "kingdom": "wu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "苦肉",
+        "诈降"
+      ]
+    },
+    {
+      "code": "sgs_hero_308",
+      "gid": 308,
+      "name": "界周瑜",
+      "pack": "jiexian",
+      "kingdom": "wu",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "英姿",
+        "反间"
+      ]
+    },
+    {
+      "code": "sgs_hero_309",
+      "gid": 309,
+      "name": "界大乔",
+      "pack": "jiexian",
+      "kingdom": "wu",
+      "max_hp": 3,
+      "gender": "female",
+      "is_lord": false,
+      "skills": [
+        "流离",
+        "国色"
+      ]
+    },
+    {
+      "code": "sgs_hero_310",
+      "gid": 310,
+      "name": "界陆逊",
+      "pack": "jiexian",
+      "kingdom": "wu",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "谦逊",
+        "连营"
+      ]
+    },
+    {
+      "code": "sgs_hero_311",
+      "gid": 311,
+      "name": "界曹操",
+      "pack": "jiexian",
+      "kingdom": "wei",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": true,
+      "skills": [
+        "奸雄",
+        "护驾"
+      ]
+    },
+    {
+      "code": "sgs_hero_312",
+      "gid": 312,
+      "name": "界司马懿",
+      "pack": "jiexian",
+      "kingdom": "wei",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "反馈",
+        "鬼才"
+      ]
+    },
+    {
+      "code": "sgs_hero_313",
+      "gid": 313,
+      "name": "界夏侯惇",
+      "pack": "jiexian",
+      "kingdom": "wei",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "刚烈",
+        "清俭"
+      ]
+    },
+    {
+      "code": "sgs_hero_314",
+      "gid": 314,
+      "name": "界张辽",
+      "pack": "jiexian",
+      "kingdom": "wei",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "突袭"
+      ]
+    },
+    {
+      "code": "sgs_hero_315",
+      "gid": 315,
+      "name": "界许褚",
+      "pack": "jiexian",
+      "kingdom": "wei",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "裸衣"
+      ]
+    },
+    {
+      "code": "sgs_hero_316",
+      "gid": 316,
+      "name": "界郭嘉",
+      "pack": "jiexian",
+      "kingdom": "wei",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "天妒",
+        "遗计"
+      ]
+    },
+    {
+      "code": "sgs_hero_317",
+      "gid": 317,
+      "name": "界李典",
+      "pack": "jiexian",
+      "kingdom": "wei",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "恂恂",
+        "忘隙"
+      ]
+    },
+    {
+      "code": "sgs_hero_318",
+      "gid": 318,
+      "name": "界华佗",
+      "pack": "jiexian",
+      "kingdom": "qun",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "急救",
+        "除疠"
+      ]
+    },
+    {
+      "code": "sgs_hero_319",
+      "gid": 319,
+      "name": "界吕布",
+      "pack": "jiexian",
+      "kingdom": "qun",
+      "max_hp": 5,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "无双",
+        "利驭"
+      ]
+    },
+    {
+      "code": "sgs_hero_320",
+      "gid": 320,
+      "name": "界公孙瓒",
+      "pack": "jiexian",
+      "kingdom": "qun",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "义从",
+        "趫猛"
+      ]
+    },
+    {
+      "code": "sgs_hero_440",
+      "gid": 440,
+      "name": "界诸葛亮",
+      "pack": "jiexian",
+      "kingdom": "shu",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "空城",
+        "观星"
+      ]
+    },
+    {
+      "code": "sgs_hero_441",
+      "gid": 441,
+      "name": "界黄月英",
+      "pack": "jiexian",
+      "kingdom": "shu",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "集智",
+        "奇才"
+      ]
+    },
+    {
+      "code": "sgs_hero_442",
+      "gid": 442,
+      "name": "界孙权",
+      "pack": "jiexian",
+      "kingdom": "wu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": true,
+      "skills": [
+        "制衡",
+        "救援"
+      ]
+    },
+    {
+      "code": "sgs_hero_443",
+      "gid": 443,
+      "name": "界孙尚香",
+      "pack": "jiexian",
+      "kingdom": "wu",
+      "max_hp": 3,
+      "gender": "female",
+      "is_lord": false,
+      "skills": [
+        "枭姬",
+        "结姻"
+      ]
+    },
+    {
+      "code": "sgs_hero_444",
+      "gid": 444,
+      "name": "界甄姬",
+      "pack": "jiexian",
+      "kingdom": "wei",
+      "max_hp": 3,
+      "gender": "female",
+      "is_lord": false,
+      "skills": [
+        "倾国",
+        "洛神"
+      ]
+    },
+    {
+      "code": "sgs_hero_445",
+      "gid": 445,
+      "name": "界貂蝉",
+      "pack": "jiexian",
+      "kingdom": "qun",
+      "max_hp": 3,
+      "gender": "female",
+      "is_lord": false,
+      "skills": [
+        "离间",
+        "闭月"
+      ]
+    },
+    {
+      "code": "sgs_hero_446",
+      "gid": 446,
+      "name": "界华雄",
+      "pack": "jiexian",
+      "kingdom": "qun",
+      "max_hp": 6,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "耀武",
+        "势斩"
+      ]
+    },
+    {
+      "code": "sgs_hero_447",
+      "gid": 447,
+      "name": "界左慈",
+      "pack": "jiexian",
+      "kingdom": "qun",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "化身",
+        "新生"
+      ]
+    },
+    {
+      "code": "sgs_hero_448",
+      "gid": 448,
+      "name": "界张角",
+      "pack": "jiexian",
+      "kingdom": "qun",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": true,
+      "skills": [
+        "雷击",
+        "鬼道",
+        "黄天"
+      ]
+    },
+    {
+      "code": "sgs_hero_449",
+      "gid": 449,
+      "name": "界于吉",
+      "pack": "jiexian",
+      "kingdom": "qun",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "蛊惑"
+      ]
+    },
+    {
+      "code": "sgs_hero_450",
+      "gid": 450,
+      "name": "界袁绍",
+      "pack": "jiexian",
+      "kingdom": "qun",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": true,
+      "skills": [
+        "乱击",
+        "血裔"
+      ]
+    },
+    {
+      "code": "sgs_hero_451",
+      "gid": 451,
+      "name": "界刘禅",
+      "pack": "jiexian",
+      "kingdom": "shu",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": true,
+      "skills": [
+        "享乐",
+        "放权",
+        "若愚"
+      ]
+    },
+    {
+      "code": "sgs_hero_452",
+      "gid": 452,
+      "name": "界孙策",
+      "pack": "jiexian",
+      "kingdom": "wu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": true,
+      "skills": [
+        "制霸",
+        "激昂",
+        "魂姿"
+      ]
+    },
+    {
+      "code": "sgs_hero_453",
+      "gid": 453,
+      "name": "界夏侯渊",
+      "pack": "jiexian",
+      "kingdom": "wei",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "神速",
+        "设变"
+      ]
+    },
+    {
+      "code": "sgs_hero_454",
+      "gid": 454,
+      "name": "界卧龙诸葛亮",
+      "pack": "jiexian",
+      "kingdom": "shu",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "八阵",
+        "藏拙",
+        "火计",
+        "看破"
+      ]
+    },
+    {
+      "code": "sgs_hero_455",
+      "gid": 455,
+      "name": "界庞统",
+      "pack": "jiexian",
+      "kingdom": "shu",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "连环",
+        "涅槃"
+      ]
+    },
+    {
+      "code": "sgs_hero_456",
+      "gid": 456,
+      "name": "界魏延",
+      "pack": "jiexian",
+      "kingdom": "shu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "狂骨",
+        "奇谋"
+      ]
+    },
+    {
+      "code": "sgs_hero_457",
+      "gid": 457,
+      "name": "界小乔",
+      "pack": "jiexian",
+      "kingdom": "wu",
+      "max_hp": 3,
+      "gender": "female",
+      "is_lord": false,
+      "skills": [
+        "红颜",
+        "天香",
+        "飘零"
+      ]
+    },
+    {
+      "code": "sgs_hero_458",
+      "gid": 458,
+      "name": "界孙坚",
+      "pack": "jiexian",
+      "kingdom": "wu",
+      "max_hp": 5,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "英魂",
+        "武烈"
+      ]
+    },
+    {
+      "code": "sgs_hero_462",
+      "gid": 462,
+      "name": "界庞德",
+      "pack": "jiexian",
+      "kingdom": "qun",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "马术",
+        "鞬出"
+      ]
+    },
+    {
+      "code": "sgs_hero_463",
+      "gid": 463,
+      "name": "界太史慈",
+      "pack": "jiexian",
+      "kingdom": "wu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "天义",
+        "酣战"
+      ]
+    },
+    {
+      "code": "sgs_hero_470",
+      "gid": 470,
+      "name": "界董卓",
+      "pack": "jiexian",
+      "kingdom": "qun",
+      "max_hp": 8,
+      "gender": "male",
+      "is_lord": true,
+      "skills": [
+        "肉林",
+        "崩坏",
+        "酒池",
+        "暴虐"
+      ]
+    },
+    {
+      "code": "sgs_hero_471",
+      "gid": 471,
+      "name": "界邓艾",
+      "pack": "jiexian",
+      "kingdom": "wei",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "屯田",
+        "凿险"
+      ]
+    },
+    {
+      "code": "sgs_hero_479",
+      "gid": 479,
+      "name": "界祝融",
+      "pack": "jiexian",
+      "kingdom": "shu",
+      "max_hp": 4,
+      "gender": "female",
+      "is_lord": false,
+      "skills": [
+        "巨象",
+        "烈刃",
+        "长标"
+      ]
+    },
+    {
+      "code": "sgs_hero_480",
+      "gid": 480,
+      "name": "界姜维",
+      "pack": "jiexian",
+      "kingdom": "shu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "挑衅",
+        "志继"
+      ]
+    },
+    {
+      "code": "sgs_hero_484",
+      "gid": 484,
+      "name": "界贾诩",
+      "pack": "jiexian",
+      "kingdom": "qun",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "帷幕",
+        "乱武",
+        "完杀"
+      ]
+    },
+    {
+      "code": "sgs_hero_485",
+      "gid": 485,
+      "name": "界鲁肃",
+      "pack": "jiexian",
+      "kingdom": "wu",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "好施",
+        "缔盟"
+      ]
+    },
+    {
+      "code": "sgs_hero_486",
+      "gid": 486,
+      "name": "界张郃",
+      "pack": "jiexian",
+      "kingdom": "wei",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "巧变"
+      ]
+    },
+    {
+      "code": "sgs_hero_492",
+      "gid": 492,
+      "name": "界孟获",
+      "pack": "jiexian",
+      "kingdom": "shu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "祸首",
+        "再起"
+      ]
+    },
+    {
+      "code": "sgs_hero_496",
+      "gid": 496,
+      "name": "界徐晃",
+      "pack": "jiexian",
+      "kingdom": "wei",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "断粮",
+        "截辎"
+      ]
+    },
+    {
+      "code": "sgs_hero_505",
+      "gid": 505,
+      "name": "界蔡文姬",
+      "pack": "jiexian",
+      "kingdom": "qun",
+      "max_hp": 3,
+      "gender": "female",
+      "is_lord": false,
+      "skills": [
+        "断肠",
+        "悲歌"
+      ]
+    },
+    {
+      "code": "sgs_hero_515",
+      "gid": 515,
+      "name": "界荀彧",
+      "pack": "jiexian",
+      "kingdom": "wei",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "驱虎",
+        "节命"
+      ]
+    },
+    {
+      "code": "sgs_hero_526",
+      "gid": 526,
+      "name": "界典韦",
+      "pack": "jiexian",
+      "kingdom": "wei",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "强袭",
+        "狞恶"
+      ]
+    },
+    {
+      "code": "sgs_hero_550",
+      "gid": 550,
+      "name": "界颜良文丑",
+      "pack": "jiexian",
+      "kingdom": "qun",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "双雄"
+      ]
+    },
+    {
+      "code": "sgs_hero_563",
+      "gid": 563,
+      "name": "界张昭张纮",
+      "pack": "jiexian",
+      "kingdom": "wu",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "直谏",
+        "固政"
+      ]
+    },
+    {
+      "code": "sgs_hero_587",
+      "gid": 587,
+      "name": "界徐盛",
+      "pack": "jiexian",
+      "kingdom": "wu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "破军"
+      ]
+    },
+    {
+      "code": "sgs_hero_588",
+      "gid": 588,
+      "name": "界凌统",
+      "pack": "jiexian",
+      "kingdom": "wu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "旋风"
+      ]
+    },
+    {
+      "code": "sgs_hero_597",
+      "gid": 597,
+      "name": "界陈宫",
+      "pack": "jiexian",
+      "kingdom": "qun",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "智迟",
+        "明策"
+      ]
+    },
+    {
+      "code": "sgs_hero_599",
+      "gid": 599,
+      "name": "界曹彰",
+      "pack": "jiexian",
+      "kingdom": "wei",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "将驰"
+      ]
+    },
+    {
+      "code": "sgs_hero_600",
+      "gid": 600,
+      "name": "界简雍",
+      "pack": "jiexian",
+      "kingdom": "shu",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "纵适",
+        "巧说"
+      ]
+    },
+    {
+      "code": "sgs_hero_603",
+      "gid": 603,
+      "name": "界虞翻",
+      "pack": "jiexian",
+      "kingdom": "wu",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "纵玄",
+        "直言"
+      ]
+    },
+    {
+      "code": "sgs_hero_604",
+      "gid": 604,
+      "name": "界高顺",
+      "pack": "jiexian",
+      "kingdom": "qun",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "陷阵",
+        "禁酒"
+      ]
+    },
+    {
+      "code": "sgs_hero_610",
+      "gid": 610,
+      "name": "界法正",
+      "pack": "jiexian",
+      "kingdom": "shu",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "眩惑",
+        "恩怨"
+      ]
+    },
+    {
+      "code": "sgs_hero_620",
+      "gid": 620,
+      "name": "界程普",
+      "pack": "jiexian",
+      "kingdom": "wu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "疠火",
+        "醇醪"
+      ]
+    },
+    {
+      "code": "sgs_hero_621",
+      "gid": 621,
+      "name": "界王异",
+      "pack": "jiexian",
+      "kingdom": "wei",
+      "max_hp": 3,
+      "gender": "female",
+      "is_lord": false,
+      "skills": [
+        "贞烈",
+        "秘计"
+      ]
+    },
+    {
+      "code": "sgs_hero_625",
+      "gid": 625,
+      "name": "界张春华",
+      "pack": "jiexian",
+      "kingdom": "wei",
+      "max_hp": 3,
+      "gender": "female",
+      "is_lord": false,
+      "skills": [
+        "绝情",
+        "伤逝",
+        "翦灭"
+      ]
+    },
+    {
+      "code": "sgs_hero_626",
+      "gid": 626,
+      "name": "界刘表",
+      "pack": "jiexian",
+      "kingdom": "qun",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "自守",
+        "宗室"
+      ]
+    },
+    {
+      "code": "sgs_hero_627",
+      "gid": 627,
+      "name": "界蔡夫人",
+      "pack": "jiexian",
+      "kingdom": "qun",
+      "max_hp": 3,
+      "gender": "female",
+      "is_lord": false,
+      "skills": [
+        "献州",
+        "窃听"
+      ]
+    },
+    {
+      "code": "sgs_hero_628",
+      "gid": 628,
+      "name": "界曹冲",
+      "pack": "jiexian",
+      "kingdom": "wei",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "称象",
+        "仁心"
+      ]
+    },
+    {
+      "code": "sgs_hero_629",
+      "gid": 629,
+      "name": "界曹植",
+      "pack": "jiexian",
+      "kingdom": "wei",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "落英",
+        "酒诗"
+      ]
+    },
+    {
+      "code": "sgs_hero_640",
+      "gid": 640,
+      "name": "界吴国太",
+      "pack": "jiexian",
+      "kingdom": "wu",
+      "max_hp": 3,
+      "gender": "female",
+      "is_lord": false,
+      "skills": [
+        "甘露",
+        "补益"
+      ]
+    },
+    {
+      "code": "sgs_hero_641",
+      "gid": 641,
+      "name": "界廖化",
+      "pack": "jiexian",
+      "kingdom": "shu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "当先",
+        "伏枥"
+      ]
+    },
+    {
+      "code": "sgs_hero_642",
+      "gid": 642,
+      "name": "界李儒",
+      "pack": "jiexian",
+      "kingdom": "qun",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "灭计",
+        "焚城",
+        "绝策"
+      ]
+    },
+    {
+      "code": "sgs_hero_658",
+      "gid": 658,
+      "name": "界郭淮",
+      "pack": "jiexian",
+      "kingdom": "wei",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "精策"
+      ]
+    },
+    {
+      "code": "sgs_hero_671",
+      "gid": 671,
+      "name": "界伏皇后",
+      "pack": "jiexian",
+      "kingdom": "qun",
+      "max_hp": 3,
+      "gender": "female",
+      "is_lord": false,
+      "skills": [
+        "惴恐",
+        "求援"
+      ]
+    },
+    {
+      "code": "sgs_hero_676",
+      "gid": 676,
+      "name": "界韩当",
+      "pack": "jiexian",
+      "kingdom": "wu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "弓骑",
+        "解烦"
+      ]
+    },
+    {
+      "code": "sgs_hero_690",
+      "gid": 690,
+      "name": "界关兴张苞",
+      "pack": "jiexian",
+      "kingdom": "shu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "父魂"
+      ]
+    },
+    {
+      "code": "sgs_hero_696",
+      "gid": 696,
+      "name": "界马岱",
+      "pack": "jiexian",
+      "kingdom": "shu",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "马术",
+        "潜袭"
+      ]
+    },
+    {
+      "code": "sgs_hero_726",
+      "gid": 726,
+      "name": "界郭皇后",
+      "pack": "jiexian",
+      "kingdom": "wei",
+      "max_hp": 3,
+      "gender": "female",
+      "is_lord": false,
+      "skills": [
+        "矫诏",
+        "殚心"
+      ]
+    },
+    {
+      "code": "sgs_hero_749",
+      "gid": 749,
+      "name": "界沮授",
+      "pack": "jiexian",
+      "kingdom": "qun",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "矢北",
+        "渐营"
+      ]
+    },
+    {
+      "code": "sgs_hero_752",
+      "gid": 752,
+      "name": "界夏侯氏",
+      "pack": "jiexian",
+      "kingdom": "shu",
+      "max_hp": 3,
+      "gender": "female",
+      "is_lord": false,
+      "skills": [
+        "樵拾",
+        "燕语"
+      ]
+    },
+    {
+      "code": "sgs_hero_753",
+      "gid": 753,
+      "name": "界张松",
+      "pack": "jiexian",
+      "kingdom": "shu",
+      "max_hp": 3,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "强识",
+        "献图"
+      ]
+    },
+    {
+      "code": "sgs_hero_756",
+      "gid": 756,
+      "name": "界于禁",
+      "pack": "jiexian",
+      "kingdom": "wei",
+      "max_hp": 4,
+      "gender": "male",
+      "is_lord": false,
+      "skills": [
+        "镇军",
+        "毅重"
+      ]
+    },
+    {
+      "code": "sgs_hero_775",
+      "gid": 775,
+      "name": "界步练师",
+      "pack": "jiexian",
+      "kingdom": "wu",
+      "max_hp": 3,
+      "gender": "female",
+      "is_lord": false,
+      "skills": [
+        "安恤",
+        "追忆"
+      ]
+    }
+  ]
+}

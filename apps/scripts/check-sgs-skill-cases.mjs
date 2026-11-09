@@ -16,7 +16,7 @@ import { resolve } from "node:path";
 const TESTS_DIR = resolve("crates", "engines", "sanguosha", "src", "tests");
 const SRC_DIR = resolve("crates", "engines", "sanguosha", "src");
 const SKILLS_RS = resolve("crates", "engines", "sanguosha", "src", "skills.rs");
-const DATA_RS = resolve("crates", "engines", "sanguosha", "src", "data.rs");
+const CATALOG_JSON = resolve("docs", "games", "sanguosha", "data", "engine-catalog.json");
 
 function parseArgs(argv) {
   const opts = { min: 3, verbose: false };
@@ -104,12 +104,8 @@ async function loadGrantedInactive() {
 }
 
 async function loadGeneralNames() {
-  const text = await readFile(DATA_RS, "utf8");
-  const names = new Map();
-  for (const m of text.matchAll(/code: "(sgs_hero_\d+)", gid: (\d+), name: "([^"]+)"/g)) {
-    names.set(Number(m[2]), m[3]);
-  }
-  return names;
+  const catalog = JSON.parse(await readFile(CATALOG_JSON, "utf8"));
+  return new Map(catalog.generals.map((g) => [g.gid, g.name]));
 }
 
 /**

@@ -83,6 +83,9 @@ fn can_zhanjue(g: &Game, seat: usize) -> bool {
 }
 
 fn zhanjue(g: &mut Game, a: &Ask) -> Result<Step, String> {
+    if a.stage == Stage::Target {
+        return zhanjue_target(g, a);
+    }
     match g.answer.take().as_deref() {
         None => Ok(Step::Need(
             super::builder(a.actor, "choice")
@@ -93,18 +96,46 @@ fn zhanjue(g: &mut Game, a: &Ask) -> Result<Step, String> {
         )),
         Some("pass") => Ok(Step::Done),
         Some("choose:zhanjue") => {
+            // M2：真实结算需要选【决斗】目标。
+            Ok(Step::Next(Stage::Target, json!({})))
+        }
+        Some(other) => Err(format!("战绝：未知选项 {other}")),
+    }
+}
+
+fn zhanjue_target(g: &mut Game, a: &Ask) -> Result<Step, String> {
+    let cands = other_alive(g, a.actor);
+    if cands.is_empty() {
+        return Ok(Step::Done);
+    }
+    match g.answer.take().as_deref() {
+        None => {
+            let mut b = super::builder(a.actor, "target").skill("zhanjue");
+            for i in &cands {
+                b = b.option(
+                    format!("target:{i}"),
+                    format!("对 {} 使用【决斗】", g.seats[*i].name),
+                );
+            }
+            Ok(Step::Need(b.escape("取消（不发动战绝）").build()))
+        }
+        Some("pass") => Ok(Step::Done),
+        Some(act) => {
+            let target: usize = act
+                .strip_prefix("target:")
+                .and_then(|s| s.parse().ok())
+                .ok_or_else(|| format!("战绝：目标不合法 {act}"))?;
+            if !cands.contains(&target) {
+                return Err("战绝：目标不合法".into());
+            }
             let origins = g.hand(a.actor);
             if origins.is_empty() {
                 return Ok(Step::Done);
             }
             let base = origins[0].clone();
+            // 全部手牌当【决斗】；origins 在结算后一并进弃牌堆。
             g.set_virtual(&base, "决斗", origins.clone());
-            g.use_card(a.actor, &base, vec![]);
-            // v2 无锦囊结算：origin 整组进弃牌堆（等价「结算完成」）。
-            for id in &origins {
-                g.to_discard(id, "zhanjue")?;
-            }
-            g.clear_virtual(&base);
+            g.use_as(a.actor, &base, "决斗", vec![target], true, None)?;
             g.bump("turn.zhanjue_uses");
             g.bump("turn.zhanjue_active");
             g.presentation.push(
@@ -116,13 +147,13 @@ fn zhanjue(g: &mut Game, a: &Ask) -> Result<Step, String> {
                 .fx("zhanjue"),
             );
             g.push_log(format!(
-                "战绝：将 {} 张手牌当【决斗】使用（本阶段第 {} 次）",
+                "战绝：将 {} 张手牌当【决斗】对 {} 使用（本阶段第 {} 次）",
                 origins.len(),
+                g.seats[target].name,
                 g.counter("turn.zhanjue_uses")
             ));
             Ok(Step::Done)
         }
-        Some(other) => Err(format!("战绝：未知选项 {other}")),
     }
 }
 
@@ -168,10 +199,11 @@ pub const QINWANG: SkillDef = SkillDef {
 };
 
 fn qinwang_allies(g: &Game, seat: usize) -> Vec<usize> {
-    // 自己不能响应（裁定 Q3=B）
+    // 自己不能响应（裁定 Q3=B）；且必须有【杀】可代出。
     other_alive(g, seat)
         .into_iter()
         .filter(|i| same_kingdom(g, seat, *i))
+        .filter(|i| g.hand(*i).iter().any(|id| g.def_of(id).tags.sha))
         .collect()
 }
 
@@ -242,11 +274,70 @@ fn qinwang(g: &mut Game, a: &Ask) -> Result<Step, String> {
                     if !cands.contains(&ally) {
                         return Err("勤王：只能令同势力其他角色代出".into());
                     }
-                    // 响应此激将的角色摸一张
+                    g.push_log(format!("勤王：令 {} 代出【杀】", g.seats[ally].name));
+                    Ok(Step::Next(Stage::CardOpt, json!({ "ally": ally })))
+                }
+            }
+        }
+        Stage::CardOpt => {
+            let ally = a.data["ally"]
+                .as_u64()
+                .map(|n| n as usize)
+                .ok_or_else(|| "勤王：缺少代出角色".to_string())?;
+            let shas: Vec<CardId> = g
+                .hand(ally)
+                .into_iter()
+                .filter(|id| g.def_of(id).tags.sha)
+                .collect();
+            let cands: Vec<usize> = other_alive(g, ally)
+                .into_iter()
+                .filter(|i| g.in_attack_range(ally, *i))
+                .collect();
+            if shas.is_empty() || cands.is_empty() {
+                return Ok(Step::Done);
+            }
+            match g.answer.take().as_deref() {
+                None => {
+                    let mut b = super::builder(ally, "qinwang_sha").skill("qinwang");
+                    for id in &shas {
+                        for t in &cands {
+                            b = b.option(
+                                format!("choose:{id}:{t}"),
+                                format!(
+                                    "用【{}】对 {} 使用【杀】",
+                                    label(g, id),
+                                    g.seats[*t].name
+                                ),
+                            );
+                        }
+                    }
+                    Ok(Step::Need(b.escape("不出【杀】（激将取消）").build()))
+                }
+                Some("pass") => Ok(Step::Done),
+                Some(act) => {
+                    let rest = act
+                        .strip_prefix("choose:")
+                        .ok_or_else(|| format!("勤王：未知选项 {act}"))?;
+                    let (id, target) = rest
+                        .rsplit_once(':')
+                        .ok_or_else(|| format!("勤王：未知选项 {act}"))?;
+                    let id = id.to_string();
+                    let target: usize = target
+                        .parse()
+                        .map_err(|_| format!("勤王：目标不合法 {act}"))?;
+                    if !shas.contains(&id) || !cands.contains(&target) {
+                        return Err("勤王：该组合不可用".into());
+                    }
+                    // 响应此激将的角色摸一张；伤害来源视为刘谌（裁定 Q3）。
                     let n = g.draw(ally, 1).len();
-                    // 该【杀】的伤害来源视为刘谌（裁定 Q3）
-                    g.use_virtual(a.actor, "杀", vec![]);
-                    g.bump("turn.qinwang_active");
+                    g.use_as(
+                        ally,
+                        &id,
+                        "杀",
+                        vec![target],
+                        false,
+                        Some(a.actor),
+                    )?;
                     g.presentation.push(
                         Presentation::new("qinwang", POutcome::Activated {
                             skill: "勤王".to_string(),
@@ -256,11 +347,11 @@ fn qinwang(g: &mut Game, a: &Ask) -> Result<Step, String> {
                         .fx("qinwang"),
                     );
                     g.push_log(format!(
-                        "勤王：{} 代出【杀】（摸 {n} 张）；此【杀】伤害来源视为 {}",
-                        g.seats[ally].name, g.seats[a.actor].name
+                        "勤王：{} 代出【杀】（摸 {n} 张）对 {}；伤害来源视为 {}",
+                        g.seats[ally].name,
+                        g.seats[target].name,
+                        g.seats[a.actor].name
                     ));
-                    // 激将结算完毕即清除标记（裁定 Q2）
-                    g.counters.insert("turn.qinwang_active".to_string(), 0);
                     Ok(Step::Done)
                 }
             }

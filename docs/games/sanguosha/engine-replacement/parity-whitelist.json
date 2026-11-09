@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "updated_at": "2026-11-06",
+  "note": "对拍白名单（OQ4）：v1 ↔ v2 的差异只对白名单外报警。v1 已知缺陷来自 docs/games/sanguosha/spike-report.md §12.2（v1 代码中同类「按牌名枚举杀」仍有多处，本清单为已知清单而非全量）。v1 crate 删除时本文件一并归档。",
+  "target_mode": {
+    "无中生有": "v1 Single（必须选目标）→ v2 SelfOnly（只对自己；生成器 V2_TARGET 显式覆盖）",
+    "闪": "v1 None → v2 SelfOnly（只能响应，主动使用被拒绝）",
+    "桃": "v1 None → v2 SelfOnly（只对自己）",
+    "酒": "v1 None → v2 SelfOnly（只对自己）",
+    "铁索连环": "v1 None → v2 Chosen（需选 1–2 个目标）",
+    "乐不思蜀": "v1 None → v2 Chosen（延时锦囊需选目标）",
+    "兵粮寸断": "v1 None → v2 Chosen（延时锦囊需选目标）",
+    "闪电": "v1 None → v2 SelfOnly（置于自己判定区）",
+    "无懈可击": "v1 None → v2 SelfOnly（以「一张牌」为目标）",
+    "杀": "v1 target_mode=None（引擎按单目标处理）→ v2 Chosen（显式单目标）",
+    "火杀": "v1 target_mode=None（引擎按单目标处理）→ v2 Chosen（显式单目标）",
+    "雷杀": "v1 target_mode=None（引擎按单目标处理）→ v2 Chosen（显式单目标）"
+  },
+  "v2_extra_defs": {
+    "木牛流马": "v2 额外生成的宝物定义（沙盒/测试夹具用，不在 160 张牌堆内）"
+  },
+  "v1_known_defects": [
+    {
+      "id": "v1-chiyong-name-match",
+      "file": "crates/engines/sanguosha/src/resolve.rs",
+      "needles": [
+        "恃勇（将华雄",
+        "matches!(c.def.as_str(), \"sha\" | \"huo_sha\" | \"lei_sha\")"
+      ],
+      "note": "恃勇：按物理牌名枚举【杀】（spike-report §12.2 第 1 处）。注意：v1 同类枚举仍有多处，本清单只登记已知/影响语义的条目。"
+    },
+    {
+      "id": "v1-jiuchi-name-match",
+      "file": "crates/engines/sanguosha/src/resolve.rs",
+      "needles": [
+        "\"jiuchi\"",
+        "matches!(c.def.as_str(), \"sha\" | \"huo_sha\" | \"lei_sha\")"
+      ],
+      "note": "界酒池：按物理牌名枚举【杀】（spike-report §12.2 第 2 处）；v2 已改读 cards::def().tags.sha。"
+    },
+    {
+      "id": "v1-qiaomeng-name-match",
+      "file": "crates/engines/sanguosha/src/resolve.rs",
+      "needles": [
+        "\"qiaomeng\"",
+        "matches!(c.def.as_str(), \"sha\" | \"huo_sha\" | \"lei_sha\")"
+      ],
+      "note": "趫猛/利驭：按物理牌名枚举【杀】；v2 对应技能（止戈/滔乱等）已改读属性。"
+    },
+    {
+      "id": "v1-ai-is-sha-name-match",
+      "file": "crates/engines/sanguosha/src/ai/card.rs",
+      "needles": [
+        "pub fn is_sha(code: &str) -> bool",
+        "matches!(code, \"sha\" | \"huo_sha\" | \"lei_sha\")"
+      ],
+      "note": "AI 判断是否【杀】按牌名（spike-report §12.2 第 3 处）；只影响取舍，不参与规则判定。"
+    }
+  ]
+}

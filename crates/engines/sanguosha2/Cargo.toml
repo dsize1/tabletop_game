@@ -4,9 +4,10 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
-# P-C 内核 spike（2026-11-06）：验证「事件总线 + 单一延迟队列 + Pending 强制出口 +
-# 牌区唯一归属 + legal/execute 同源 + 派生视图」能否把 plan §8.5 的 6 类缺陷变成
-# 「写不出来 / 一定被测试抓到」。暂不注册进 game-engine-mcp（见迁移计划 O5）。
+# 内核 v2（P-C spike → M1 卡牌结算，2026-11-06）：验证「事件总线 + 单一延迟队列 +
+# Pending 强制出口 + 牌区唯一归属 + legal/execute 同源 + 派生视图」能否把 plan §8.5 的
+# 6 类缺陷变成「写不出来 / 一定被测试抓到」。M1 已接入真实牌堆（生成的 cards_generated.rs）
+# 与 resolve_use 结算流程；暂不注册进 game-engine-mcp（见迁移计划 O3）。
 [dependencies]
 game-engine-core = { path = "../../game-engine-core" }
 serde.workspace = true

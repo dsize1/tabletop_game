@@ -466,13 +466,9 @@ fn resolve_qice(g: &mut Game, actor: usize, name: &str, targets: Vec<usize>) -> 
     let Some(base) = origins.first().cloned() else {
         return Err("奇策：没有手牌".into());
     };
+    // M2：真实结算（承载牌 + 全部手牌 origins 在结算后一并进弃牌堆）。
     g.set_virtual(&base, name, origins.clone());
-    g.use_card(actor, &base, targets);
-    // v2 尚无锦囊结算：等价于「结算完成」，origin 整组进弃牌堆并清除虚拟定义。
-    for id in &origins {
-        g.to_discard(id, "qice")?;
-    }
-    g.clear_virtual(&base);
+    g.use_as(actor, &base, name, targets, true, None)?;
     g.bump("turn.qice_used");
     g.presentation.push(
         Presentation::new("qice", POutcome::Activated {

@@ -1,6 +1,6 @@
 # 任务：引擎 v2 卡牌结算 + 整体替换 v1（M1–M4）
 
-> 立项日期：2026-11-06。状态：**已裁定（2026-11-06），待新会话执行**。
+> 立项日期：2026-11-06。状态：**M1–M3 已完成；M4 对拍/门禁数据源/注册清单已完成；注册/网关/Web/删 v1 按 OQ3 后移**（见 §8–§11）。
 > 用户裁定：OQ1 暂停 B8–B20 对齐；OQ2 源 JSON + 生成 Rust 常量（见 §4.3）；OQ3 网关默认关且**重构前不开发**；OQ4 采用 v1 已知缺陷白名单；OQ5 仅 M2 / M4 各签一次。
 > 结论先说：历史上定的就是**整体替换**（不是只替换武将技能），证据见 §1。
 
@@ -23,17 +23,17 @@
 | 项 | 旧引擎 v1 | 新内核 v2 |
 |---|---|---|
 | 源码规模 | 55,176 行（`crates/engines/sanguosha/src`） | ~8.9k 行（含 220 条用例） |
-| 卡牌 | 160 张真实牌堆（`data.rs` 生成）+ 装备/锦囊/判定/无懈完整循环 | `cards.rs` 手写 20 张测试牌 + 属性表（**无真实牌堆**） |
-| 牌结算 | `play_card` / `start_sha_flags` / `start_trick_code`（逐牌型分支） | **无**：`use_card` 只发事件；`use_virtual` 无承载牌 |
+| 卡牌 | 160 张真实牌堆（`data.rs` 生成）+ 装备/锦囊/判定/无懈完整循环 | **M1 已补齐**：`cards_generated.rs` 160 张 + 44 条定义（生成物）；`cards.rs` 只读属性表 |
+| 牌结算 | `play_card` / `start_sha_flags` / `start_trick_code`（逐牌型分支） | **M1 已补齐**：`kernel/card_play.rs`（`resolve_use` + `FlowKind::Card`/`Judge`）；`use_card` 保留为打桩入口（M2 迁移） |
 | 伤害/濒死/判定 | 完整（但 6 条延迟队列 + 散装"禁止使用"） | `flow::damage*` / `dying` / `judge_*`（单一出口，已 220 用例覆盖） |
 | 技能 | 232 将 / 294 技能（含缺陷） | B0–B7 共 **76 技能** implemented |
-| 视图/AI | `view.rs` + `ai/` | 无（spike-report §4） |
-| 注册 | `game-engine-mcp` 已注册 | **未注册** |
-| 门禁 | `view-contract` / `sgs-ai` / `replay` 全部指向 v1 | `cargo test -p sanguosha2` + 5 条机制门禁 |
+| 视图/AI | `view.rs` + `ai/` | **M3 已补齐**：`view.rs`（三分区 9 类区投影）+ `turn.rs`（回合驱动）+ 手牌动作枚举 + `examples/sgs2-selfplay`（AI 最小接口） |
+| 注册 | `game-engine-mcp` 已注册 | **未注册**（M4，按 OQ3 后移） |
+| 门禁 | `view-contract` / `sgs-ai` / `replay` 全部指向 v1 | `cargo test -p sanguosha2` 297 条 + 卡牌门禁（禁 hp 直改 / 禁牌名判定 / 每牌型必须分派） |
 
 ## 3. 里程碑（每个都是可验收的切片）
 
-### M1 卡牌结算内核（最高风险，先做）
+### M1 卡牌结算内核（最高风险，先做）—— ✅ 已完成（2026-11-06，见 §8）
 1. **牌定义数据源**：用 `gen:sgs-engine-data` 从 v1 `data.rs` 生成 v2 的 160 张牌堆 + 装备/锦囊属性（单一 JSON，v2 只读它；以后 v1 删除也不丢数据）。
 2. **使用→目标→响应→结算 单一流程**：`use_card` 变成真实结算入口（`play_card` 等价物），保留 `use_virtual` 兼容已实现技能；牌进入 `processing` → 结算 → 弃置/装备/判定区。
 3. **基本牌**：杀（含火杀/雷杀属性）、闪、桃、酒（含酒加成标记）、濒死救援接入。
@@ -41,19 +41,19 @@
 5. **锦囊**：普通锦囊 + 延时锦囊（判定区 LIFO）+ 无懈链（`ResponseKind::Wuxie`）。
 6. **DoD**：新增 ≥60 条牌结算用例（每牌型 ≥1 正例 + ≥1 反例）；守恒 160 / 无帧遗留 / 单一延迟队列门禁全绿；单动作耗时基线（对比 v1 `--all` 66s 量级）。
 
-### M2 B0–B7 接线复查（把打桩换成真结算）
+### M2 B0–B7 接线复查（把打桩换成真结算）—— ✅ 已完成（2026-11-06，见 §9，待签字）
 1. 逐条消掉对齐单里的「v2 无结算引擎 → 打桩」收口项（B3 奇策、B4 忠勇/勇略/司敌/陷嗣、B5 谮毁、B6 战绝/勤王/怃戎、B7 滔乱/止戈/督粮…）。
 2. 每技能保留既有反例，并补「真实结算后仍不误触发」的断言。
 3. 回写对齐单第 2 段（现实现）为**新引擎**行为，`impl` 锚点更新。
 4. **DoD**：B0–B7 的 76 技能全部指向真实结算；`check:sgs-align` 无冲突。
 
-### M3 视图 / 协议 + AI 最小接口
+### M3 视图 / 协议 + AI 最小接口 —— ✅ 已完成（2026-11-06，见 §10）
 1. `public_state` / `player_view`：9 类区 + `revealed` / `private_reveals` 投影 + pending 结构（复用现有 `presentation`）。
 2. AI：legal 枚举（已有）+ 观测流最小版 + 决策日志（复用 `check:sgs-decision-log` 口径）。
 3. `check:sgs-view-contract` 改为可对 v2 运行。
 4. **DoD**：视图契约门禁对 v2 全绿；AI 能与自己打满 10 局无 illegal/loop（沿用 `check:sgs-ai` 口径）。
 
-### M4 对拍 / 门禁数据源 / 退役（注册/网关按 OQ3 后移，不在本轮）
+### M4 对拍 / 门禁数据源 / 退役（注册/网关按 OQ3 后移，不在本轮）—— ✅ 本轮范围完成（2026-11-06，见 §11）
 1. `game-engine-mcp` 注册 v2 与网关接入：**重构完成前不开发**（OQ3）；本轮只产出「注册所需接口清单」与 `sanguosha2` 的 `EnginePlugin` 完备性检查。
 2. 对拍工具：v1 replay → v2 逐动作摘要比对；**建立 v1 已知缺陷白名单**（否则把缺陷当回归）。
 3. `check:sgs-*` 数据源从 v1 `data.rs` 迁到新 JSON（否则删 v1 会断门禁）。
@@ -103,11 +103,14 @@
 
 | 门禁 | 现状 | 目标 |
 |---|---|---|
-| `cargo test -p sanguosha2` | 220 条 | M1 +60 条牌结算；M2 全批接线后不回退 |
+| `cargo test -p sanguosha2` | 297 条（M1 +75 牌结算） | M2 全批接线后不回退 |
 | `check:sgs2:metrics` | 技能 LOC 比值 | 增加「牌结算 LOC / 牌型数」 |
 | `check:sgs-counts` / `batch-consistency` | 解析 v1 `data.rs` | 改读 `data/*.json`（M4） |
-| `check:sgs-align` | 已覆盖 52 将 | 冲突 0；打桩清单销号 |
-| `check:sgs-view-contract` / `check:sgs-ai` | 只跑 v1 | 可对 v2 跑（M3） |
+| `check:sgs-align` | 已覆盖 52 将 | 冲突 0；打桩清单销号（13/14，谮毁见 §9.2） |
+| `check:sgs-parity` | — | v1↔v2 数据/属性/技能覆盖（白名单外 0 差异） |
+| `check:sgs2-plugin` | — | `EnginePlugin` 完备性 / 视图脱敏 / legal≡execute |
+| `check:sgs-engine-data --check` | 校验 v1 `data.rs` | 同时校验 v2 `cards_generated.rs` + `engine-catalog.json` |
+| `check:sgs-view-contract` / `check:sgs-ai` | v1 + v2 视图契约；v1 自对弈；`check:sgs2-ai` 跑 v2 自对弈 10 局 | M3 完成：`view-contract` 同时跑两引擎；`sgs2-ai` 纳入 `sgs:check:fast` |
 | `check:sgs-retire` | 提醒 | 删 v1 后 OK |
 
 ## 6. 建议的执行顺序（最小可回滚）
@@ -148,3 +151,217 @@ node apps/scripts/check-sgs2-metrics.mjs
 2. 牌名/技能名不得进入判定：属性读 `cards::def()`，响应场景读 `ResponseKind`，伤害属性读 `damage_kind`。
 3. 新增状态必须进「牌区不变量」与「状态不变量」测试（守恒 160、无帧遗留、无跨回合残留）。
 4. 每个打桩销号都要有对应用例；对齐单第 2 段必须同步回写。
+
+## 8. M1 执行记录（2026-11-06）
+
+**结论：M1 六步全部落地，`cargo test -p sanguosha2` 全绿（新增 75 条 `tests/cards.rs` 用例）。**
+
+| 步骤 | 落地内容 | 证据 |
+|---|---|---|
+| M1-1 牌表生成 | `gen-sanguosha-engine-data.mjs` 新增 `--out-v2`，产出 `sanguosha2/src/cards_generated.rs`（44 条定义 + 160 张物理牌）；`--check` 同时校验 v1/v2 | `npm run check:sgs-engine-data` |
+| M1-1 数据读取 | `cards.rs` 只读生成物（`def` / `weapon_range` / `horse_bonus` / `deck()`），新增 `ArmorKind` / `WeaponKind` / `Effect`；`Slot` 由定义给出 | `tests/cards.rs::every_deck_card_has_definition` |
+| M1-2 单一流程 | `kernel/card_play.rs`：`Game::resolve_use` + `FlowKind::Card`（使用→目标→响应→结算→弃置/装备/判定区）；`use_card` 保持兼容（R1） | `sha_*` / `wuzhong_*` / `guohe_*` |
+| M1-3 基本牌 | 杀（火/雷属性、酒加成、属性伤害连环传导）、闪（仅响应 + 八卦阵判定）、桃、酒（每回合一次 + 下一杀 +1） | `sha_*` / `jiu_*` / `bagua_*` / `thunder_sha_propagates_through_chain` |
+| M1-4 装备数值链 | 槽位替换、武器范围、坐骑距离（进攻 -1 / 防御 +1）、八卦/仁王盾/藤甲/白银狮子/青釭剑按 `ArmorKind`/`WeaponKind` 接入 `flow::damage_*`；顺序：技能加成 → 藤甲 → 白银狮子最后 | `baiyin_is_applied_after_skill_and_card_bonus` / `tengjia_fire_sha_against_tengjia_deals_two` |
+| M1-5 锦囊 | 决斗 / 过河 / 顺手 / 无中生有 / 南蛮 / 万箭 / 桃园 / 五谷 / 火攻 / 借刀 / 铁索（含重铸）+ 延时（乐/兵/闪电，判定区 LIFO）+ 无懈链（奇偶层） | `duel_*` / `nanman_*` / `wuxie_chain_even_layers_restores_effect` / `judge_lifo_resolves_later_placed_first` |
+| M1-6 用例/门禁 | 75 条牌结算用例（每牌型 ≥1 正例）；守恒/无帧不变量；单一延迟队列门禁更新（新增 `JudgePhase` 顺序位）；卡牌门禁（禁 hp 直改 / 禁牌名判定）；单动作耗时基线 | `tests/cards.rs::single_card_action_perf_baseline` |
+
+**新增/变更的内核结构**
+
+- `FlowKind::Card` / `FlowKind::Judge`（`resolve::advance` 分派），`Stage::CardAsk` / `CardPick` / `CardOpt` / `JudgeResolve`。
+- `DeferredKind::JudgePhase`（顺序：技能触发之后、死亡清理之前）。
+- `Game::wuxie_result`（内核子流程唯一结果通道）、`Game::judge_order`（判定区 LIFO）、
+  `Game::armor/weapon/horse_bonus_of/discard_equip_slot`、`flow::heal`。
+- 判定卡/装备牌不再直接改 `hp`；`flow::damage_typed` 内接入防具无效与数值链。
+
+**已知欠账（移入 M2/M3）**
+
+1. `use_card`（打桩）仍存在，B3–B7 的技能尚未改走 `resolve_use`（M2 逐条接线）。
+2. 武器特效未做（青龙追杀 / 贯石斧 / 寒冰剑 / 雌雄 / 方天 / 麒麟弓 / 古锭刀 / 朱雀羽扇 / 诸葛连弩连击）；
+   M1 只做「范围 + 青釭剑无视防具」。
+3. 视图/AI/注册仍未接 v2（M3/M4）；`lib.rs` 的 `legal_actions` 尚未枚举手牌动作。
+4. 对拍白名单（OQ4）尚未产出（M4-2）。
+
+## 9. M2 执行记录（2026-11-06）
+
+**结论：B0–B7 里所有「视为使用牌 / 转化牌」的技能已改走真实结算，技能层不再调用事件模拟入口
+`Game::use_card`；`cargo test -p sanguosha2` 309 条全绿（新增 `tests/m2_wiring.rs` 12 条）。**
+
+### 9.1 内核新增（M2）
+
+- `card_play::UseOpts { strict, damage_source }` + 三入口：
+  - `resolve_use`：普通使用（手牌 + 自己出牌阶段，严格校验）；
+  - `start_virtual` / `Game::use_virtual`：纯虚拟牌（无承载牌，如「视为使用【杀】」）；
+  - `start_carrier` / `Game::use_as`：转化牌（实体承载 + 生效牌名 + origins）。
+- 虚拟牌伤害：`flow::damage_def`（按 `cards::def` 走防具数值链；仁王盾对无色虚拟【杀】不生效）。
+- 纯虚拟【杀】计入本阶段次数（`sha_used` 兼容 `turn.sha_virtual:{seat}`）。
+- 伤害来源覆盖（勤王：代出的【杀】伤害来源视为刘谌）。
+- 转化牌收尾：`finish` 统一处理 origins（奇策/战绝的其余手牌一起进弃牌堆）并清虚拟定义。
+- `Stage::CardTarget`：技能声明的牌选目标（滔乱：借刀 2 个 / 铁索 1–2 个）。
+- `Game::use_card` 降级为**仅事件模拟**（技能门禁禁止调用）。
+
+### 9.2 打桩清单销号（D2）
+
+| # | 批 | 技能 | 原打桩 | 现实现 | 状态 |
+|---|---|---|---|---|---|
+| 1 | B3 | 奇策 | `use_card` + 手动弃 origins | `use_as`（承载 + origins） | ✅ |
+| 2 | B4 | 陷嗣 | `use_virtual(杀)` 只发事件 | 真实【杀】结算 | ✅ |
+| 3 | B4 | 司敌 | `use_virtual(杀)` 只发事件 | 真实【杀】结算 | ✅ |
+| 4 | B4 | 勇略 | `use_virtual(杀)` 只发事件 | 真实【杀】结算（命中/闪避驱动摸牌） | ✅ |
+| 5 | B4 | 忠勇 | `use_virtual(杀)` 只发事件 | 真实【杀】结算 | ✅ |
+| 6 | B4 | 慎断 | `use_card` + 「等价结算完成」 | `use_as`（弃牌堆承载，非严格/无距离）| ✅ |
+| 7 | B5 | 活墨 | `use_virtual(杀, vec![])` + 直接改 hp | 真实选目标 + `flow::heal` + `apply_jiu` | ✅ |
+| 8 | B5 | 谮毁 | 牌本体真实结算；「代用/额外目标」只记状态 | 需在**结算前**修改目标（当前事件在结算后路由） | ⚠️ 未销号 |
+| 9 | B6 | 战绝 | `use_card` + 手动弃 origins | `use_as`（先选目标再结算） | ✅ |
+| 10 | B6 | 勤王 | `use_virtual(杀, vec![])`（无目标） | 代出者选【杀】+目标；伤害来源=刘谌 | ✅ |
+| 11 | B6 | 怃戎 | 无打桩（reveal/flow/gain 已是真实入口） | 复查通过 | ✅ |
+| 12 | B7 | 滔乱 | `use_card` + 手动弃牌 | `use_as` + `CardTarget` 选目标 | ✅ |
+| 13 | B7 | 止戈 | `use_virtual(杀)` 只发事件 | 真实【杀】结算 | ✅ |
+| 14 | B7 | 督粮 | 无打桩（gain/draw/置顶已是真实入口） | 复查通过 | ✅ |
+
+**未销号 1 项：谮毁「代用 / 额外目标」**。原因：当前 `TargetChosen` 事件在牌结算**之后**才路由
+（`advance` 先清栈再派事件），无法在结算前改目标；需要「结算前钩子帧」或把目标修改做成
+`start_use` 的同步钩子。影响：牌本体已真实结算，但「额外目标」不会真的再吃一次牌效果。
+处置：M3/M4 前补内核时序（见 §9.4 遗留 1）。销号前该技能不得标记 fully-implemented。
+
+### 9.3 新增用例（每技能「真实结算后不误触发」）
+
+`crates/engines/sanguosha2/tests/m2_wiring.rs`（12 条）：
+
+- 奇策：无中生有真实摸 2；决斗真实造成 1 伤；被无懈抵消后不摸牌。
+- 慎断：距离 2 的目标也进判定区（无距离限制）。
+- 活墨：【杀】真实选目标并造成伤害；【酒】走统一加成（下一张杀 2 伤）。
+- 战绝：决斗被无懈抵消时不造成伤害、origins 仍进弃牌堆。
+- 勤王：代出【杀】命中，伤害来源日志为刘谌。
+- 滔乱：【杀】要求目标出【闪】；用过的牌名不再提供。
+- 门禁：`src/skills/**` 不得出现 `use_card(`；纯虚拟【杀】计入 `sha_used`。
+
+### 9.4 已知遗留（进入 M3/M4）
+
+1. **谮毁 代用/额外目标**（见 9.2）：需要结算前修改目标的内核钩子。
+2. 武器特效仍缺（青龙追杀/贯石斧/寒冰剑/雌雄/方天/麒麟弓/古锭刀/朱雀羽扇/诸葛连弩）——M1 已登记属性，M3/M4 补行为。
+3. 洛神/铁索等「无懈链与延时锦囊」的响应入口已有，但 `万箭/南蛮` 中滔乱的响应牌限制只做了「声明牌名」层（`response_context`），未覆盖全部响应窗口。
+4. `check:sgs-view-contract` / `check:sgs-ai` 仍只跑 v1（M3）。
+
+## 10. M3 执行记录（2026-11-06）
+
+**结论：v2 已具备「可玩的回合循环 + 三分区视图 + AI 最小接口」；视图契约与 AI 自对弈门禁对 v2 全绿。**
+
+| 交付 | 内容 | 证据 |
+|---|---|---|
+| 回合驱动 | `src/turn.rs`：`begin_game` / `tick`（准备→判定→摸牌→出牌→弃牌→结束）/ 弃牌阶段流程帧 / 胜负判定（主公 vs 反贼） | `tests/view_contract.rs`、`examples/sgs2-selfplay` |
+| 视图 | `src/view.rs`：`public_state` / `player_view`（`public_board` + `player_area` + `special_zones`） | `tests/view_contract.rs`（9 条） |
+| 9 类区投影 | Draw/Discard/Void/Processing 只给数量；Hand 只在 `player_area`；Equip/Judge/Mark 公共可见；Frame 只给数量 | `view_contract_nine_zones_are_projected` |
+| 隐藏信息 | 他人手牌明细、牌堆顺序、公共 pending 的 options/data、他人身份、私密展示 | `view_contract_hand_and_identity_hidden_from_public` / `view_contract_private_reveal_only_for_viewer` |
+| legal 枚举 | `card_play::legal_uses`：`use:{id}[:{t1,t2}]` + `recast:{id}`，与 `plan_use` 同源 | `legal_actions` 与 `execute_action` 共用 |
+| AI | `examples/sgs2-selfplay`：仅用 `EnginePlugin` + 原始 `Game` 决策；确定性（seed）；环/卡死/非法三类统计 | `npm run check:sgs2-ai` |
+| 门禁 | `check:sgs-view-contract` 改为 v1+v2；新增 `check:sgs2-ai` 并加入 `sgs:check:fast` | `sgs:check:fast` 21/21 |
+
+**关键口径**
+
+- 视图字段集由 `tests/view_contract.rs` 冻结（新增字段必须先改契约）。
+- `public_state` 的 `player_area` 恒为空（无任何私有信息）；`player_view` 只含本人私有信息。
+- 公共 `pending` 只给 `{kind, actor, skill}`；`options/data/escape` 只出现在**该行动者**的个人视图。
+- 判定区按 **LIFO** 投影（与判定阶段结算顺序一致）。
+- 回合驱动只在 `pending` 为空且结算栈为空时推进；弃牌阶段用内核流程帧询问（pending 必带出口）。
+- 胜负只由 `turn::check_finished` 判定（存在 `identity=lord` 时；单测夹具无主公 → 不判定）。
+
+**M3 度量**
+
+- `cargo test -p sanguosha2`：318 条（新增 `tests/view_contract.rs` 9 条）。
+- `npm run check:sgs2-ai`：10 局 × 5 人 / 终局 10 / illegal 0 / loops 0 / stalled 0 / pending kinds 11 / 约 4.5s。
+- `npm run sgs:check:fast`：21/21。
+
+**M3 遗留（进入 M4）**
+
+1. 注册 / 网关（OQ3：重构完成前不开发；M4 先产出接口清单与完备性检查）。
+2. 对拍 + v1 已知缺陷白名单（M4）。
+3. 门禁数据源从 v1 `data.rs` 迁到 JSON（M4）。
+4. 谮毁「代用/额外目标」的内核时序缺口（§9.2 未销号）。
+5. 视图字段目前只覆盖 v2 自有 schema；Web 工作台/群侧文案适配随注册一起做（M4）。
+
+## 11. M4 执行记录（2026-11-06，本轮范围）
+
+**范围裁定（OQ3）**：注册 / 网关 / Web 切换 / 删 v1 **不在本轮**；本轮只做
+「对拍 + 门禁数据源迁移 + 注册所需接口清单 + 删除清单」。
+
+| 交付 | 内容 | 证据 |
+|---|---|---|
+| 可注册性检查 | `tests/plugin_contract.rs`（6 条）：接口完备 / 视图脱敏 / legal≡execute / pending 出口 / 状态映射 / 摘要 | `npm run check:sgs2-plugin` |
+| 对拍工具 | `apps/scripts/check-sgs-parity.mjs`：160 张牌（名称/花色/点数/顺序）、牌定义（类别/槽位/范围/坐骑/延时）、目标模式（白名单）、技能覆盖（v2 ⊆ v1） | `npm run check:sgs-parity` |
+| 对拍白名单 | `docs/games/sanguosha/engine-replacement/parity-whitelist.json`：v1 已知缺陷（jiuchi/qiaomeng/AI is_sha 等）+ 预期差异（目标模式 12 项、木牛流马）+ 白名单有效性自检 | 同上 |
+| 门禁数据源迁移 | `docs/games/sanguosha/data/engine-catalog.json`（生成物：232 将 + 43 牌定义 + 2 牌堆）；`sgs-catalog` / `sgs-data-lib` / `general-names` / `skill-cases` / `skill-docs` / `gen-sgs-skill-text` / `pack-presets` / `align` 全部改读 JSON | `gen:sgs-engine-data --check`（v1+v2+catalog 三产物） |
+| 注册资料 | `docs/games/sanguosha/engine-replacement/registration.md`：接口清单 / 注册步骤 / 灰度方案 / **6 个阻塞项**（选将、B8–B20、谮毁、身份局、AI、validate_state） | 文档 |
+| 删除清单 | `engine-replacement/deletion-checklist.md`：前置条件 / 步骤 / 当前不满足项 | 文档 |
+| 门禁接线 | `sgs:check:fast` 新增 `sgs2-plugin`、`parity`（23 步）；`engine-data` 名称/说明更新 | 23/23 |
+
+**对拍结论（本轮）**
+
+- 物理牌堆：v1 160 张 ≡ v2 160 张（名称/花色/点数/**顺序**全一致）。
+- 牌定义：43 条（类别/槽位/武器范围/坐骑/延时）全一致；目标模式 12 项白名单差异
+  （杀/火杀/雷杀、无中生有、闪/桃/酒/无懈、铁索、乐/兵、闪电）。
+- 技能覆盖：v2 注册 97 个 ⊆ v1 implemented 301 个（无 v2 独有的「已实现」技能）。
+- 白名单有效性：3 组 v1 已知缺陷片段仍存在（白名单未腐烂）；v1 删除时归档。
+
+**DoD 对照**
+
+| 原 DoD | 状态 |
+|---|---|
+| 注册接口清单 + `EnginePlugin` 完备性 | ✅ |
+| 对拍 + v1 已知缺陷白名单 | ✅ |
+| `check:sgs-*` 数据源从 v1 `data.rs` 迁到 JSON | ✅（`skills.rs` 实现表留到删 v1 前，列入 deletion-checklist §1） |
+| Web 工作台切 v2（只读/沙盒） | ⏸ 按 OQ3 后移（依赖注册） |
+| 删旧 crate | ⏸ **未执行**；`deletion-checklist.md` 当前前置条件不满足，需用户二次确认 |
+| `npm run sgs:check` 全绿且全部指向 v2 | ⏸ 部分：可对 v2 跑的门禁（view-contract / ai / plugin / parity）全绿；`--fast` 23/23；全量 `sgs:check` 仍含 v1 Web/e2e（注册后切） |
+
+**注册前阻塞（详见 `registration.md` §3）**
+
+1. B1 选将/大厅未实现（固定 5 个 seat template）。
+2. B2 仅 B0–B7 的 97 技能（52/147 将）。
+3. B3 谮毁「代用/额外目标」时序缺口。
+4. B4 身份局最小口径（主公 vs 反贼）。
+5. B5 AI 仅最小策略。
+6. B6 `validate_state` 未实现。
+
+## 12. Harness 优化 loop（2026-11-06，B8–B20 开工前）
+
+**目标**：下一会话直接开始 B8 迁移，不再造脚手架；所有「防漏登记 / 防漏测 / 决策可排障」能力前置。
+
+### 12.1 新增工具
+
+| 工具 | 作用 | 入口 |
+|---|---|---|
+| `examples/sgs2-registry.rs` | 导出 `skills::SKILLS` 为稳定 JSON（code/name/triggers/window/hooks/transform） | `cargo run -q -p sanguosha2 --example sgs2-registry -- --json` |
+| `check-sgs2-registry.mjs` | 注册表唯一性 / 转换技清单 / **B0–B7 对齐单 ↔ 注册表精确一致（97=97）** / 每个 code 必须有 `#[test]` 覆盖（间接覆盖走白名单） | `npm run check:sgs2-registry` |
+| `check-sgs2-decision-log.mjs` | AI 决策日志 schema：必填字段、`chosen ∈ legal`、候选 ≤64、step 单调、覆盖局数 | `npm run check:sgs2-decision-log` |
+| `sgs2-selfplay --log` | 决策日志 JSONL（每步：actor/phase/pending/legal/chosen/hp/hands/deck） | `npm run check:sgs2-ai` / 直接跑 example |
+| `sgs2-batch-scaffold.mjs` | 读对齐单 + 注册表，输出「本批要做什么/缺哪些技能/文件在哪/下一步」 | `npm run sgs2:batch -- B8` |
+| `check:sgs2` 聚合命令 | 单 crate 全量门禁（tests + metrics + registry + decision-log + scenes + ai + parity） | `npm run check:sgs2` |
+
+### 12.2 门禁接线
+
+- `sgs:check:fast`：新增 `sgs2-registry`、`sgs2-decision-log` 两 step（现 **25 步**）。
+- `V2_BATCHES`（`check-sgs2-registry.mjs`）= B0–B7：**每迁一批就把批次号加进去**，gate 随之要求
+  「该批对齐单的 code 与 v2 注册表精确一致」→ 天然防止「文档写了、注册表漏了」。
+- 用例覆盖 gate：注册表每个 code 必须出现在某个 `#[test]` 函数体；间接覆盖需在 `ALLOW_INDIRECT` 注明原因
+  （当前 3 个：yongsi/huaiju/cunmu，由 B1 行为断言覆盖）。
+
+### 12.3 文档
+
+- `docs/games/sanguosha/batch-playbook.md` §9：v2 迁移批次开工命令 / v2 专有门禁 / 写法要点。
+- `AGENTS.md`：新增引擎替换、v2 门禁、B8+ 脚手架的按需加载入口。
+- `docs/games/sanguosha/engine-replacement/README.md`：M4 资料索引（已含）。
+
+### 12.4 验收
+
+- `npm run check:sgs2`：全绿（324 tests + metrics + registry 97 + decision-log 2 局 + scenes 12 + ai 10 局 + parity）。
+- `npm run sgs:check:fast`：**25/25** 全绿。
+- `npm run sgs2:batch -- B7`：输出「全部技能已注册」；`B8`（尚未建单）给出 `--new` 指引。
+
+### 12.5 下一会话（B8–B20）建议顺序
+
+1. `node apps/scripts/sgs-align-sheet.mjs --batch B8 --new` → 填第 1–5 段，第 6/7 段等用户确认。
+2. `npm run sgs2:batch -- B8` → 按清单实现/注册/用例。
+3. `V2_BATCHES` 加 8 → `npm run check:sgs2` → 回写对齐单第 2 段。
+4. 每批完成后 `npm run sgs:check:fast`；用户抽检后再进下一批。
+5. 全部 147 将迁移完成后，才回到注册/网关/Web/删 v1（`engine-replacement/registration.md`、`deletion-checklist.md`）。

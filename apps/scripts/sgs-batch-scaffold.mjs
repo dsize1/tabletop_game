@@ -68,11 +68,11 @@ if ((batch ?? "").startsWith("J")) {
   );
 }
 console.log("");
-console.log("## 1. 武将数据（data.rs）");
+console.log("## 1. 武将数据（engine-catalog.json）");
 for (const e of entries) {
   const g = generals.get(e.gid);
   if (!g) {
-    console.log(`- ${e.gid} ${e.name}：data.rs 未找到（检查生成器）`);
+    console.log(`- ${e.gid} ${e.name}：engine-catalog.json 未找到（检查生成器）`);
     continue;
   }
   const skills = g.skills.length ? g.skills.join(" / ") : "（无技能，检查数据）";

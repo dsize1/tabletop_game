@@ -16,7 +16,7 @@ import { resolve } from "node:path";
 
 const SRC_DIR = resolve("crates", "engines", "sanguosha", "src");
 const SKILLS_RS = resolve(SRC_DIR, "skills.rs");
-const DATA_RS = resolve(SRC_DIR, "data.rs");
+const CATALOG_JSON = resolve("docs", "games", "sanguosha", "data", "engine-catalog.json");
 const SKILLS_MD = resolve("docs", "games", "sanguosha", "skills.md");
 
 // 文档类型列 → 允许的代码 kind（「转换」= normal + 转换技标注；「主公/觉醒」= 双类型）。
@@ -158,24 +158,13 @@ async function loadGrantSites() {
  * 用于校验「文档技能名」与该武将的数据技能名一一对应（防 gid 错位/漏登记）。
  */
 async function loadDataSkillNames() {
-  const text = await readFile(DATA_RS, "utf8");
-  const map = new Map();
-  const re = /GeneralDef \{ code: "sgs_hero_\d+", gid: (\d+),[^}]*skills: &\[([^\]]*)\]/g;
-  for (const m of text.matchAll(re)) {
-    const gid = Number(m[1]);
-    const names = [...m[2].matchAll(/"([^"]+)"/g)].map((x) => x[1]);
-    map.set(gid, names);
-  }
-  return map;
+  const catalog = JSON.parse(await readFile(CATALOG_JSON, "utf8"));
+  return new Map(catalog.generals.map((g) => [g.gid, g.skills]));
 }
 
 async function loadGeneralNames() {
-  const text = await readFile(DATA_RS, "utf8");
-  const names = new Map();
-  for (const m of text.matchAll(/code: "sgs_hero_\d+", gid: (\d+), name: "([^"]+)"/g)) {
-    names.set(Number(m[1]), m[2]);
-  }
-  return names;
+  const catalog = JSON.parse(await readFile(CATALOG_JSON, "utf8"));
+  return new Map(catalog.generals.map((g) => [g.gid, g.name]));
 }
 
 const code = await loadCodeSkills();
@@ -234,17 +223,17 @@ for (const [gid, codeSkills] of code) {
   // 文档技能名 ↔ data.rs 该武将的技能名列表（防 gid 错位/漏登记）。
   const dataNames = dataSkills.get(gid);
   if (!dataNames) {
-    problems.push(`${label}：data.rs 缺少该武将的技能名列表`);
+    problems.push(`${label}：engine-catalog.json 缺少该武将的技能名列表`);
   } else {
     const docNames = new Set(docSkills.map((s) => s.name));
     for (const name of dataNames) {
       if (!docNames.has(name)) {
-        problems.push(`${label}：data.rs 技能「${name}」在 skills.md 未登记（可能 gid 错位）`);
+        problems.push(`${label}：catalog 技能「${name}」在 skills.md 未登记（可能 gid 错位）`);
       }
     }
     for (const name of docNames) {
       if (!dataNames.includes(name)) {
-        problems.push(`${label}：skills.md 技能「${name}」不在 data.rs 技能名列表（可能 gid 错位）`);
+        problems.push(`${label}：skills.md 技能「${name}」不在 engine-catalog.json 技能名列表（可能 gid 错位）`);
       }
     }
   }

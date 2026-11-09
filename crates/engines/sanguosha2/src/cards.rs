@@ -1,9 +1,17 @@
-//! 卡牌定义表（**唯一**的牌类/标签来源）。
+//! 卡牌属性表（**唯一**的牌类/标签/效果来源）。
+//!
+//! 数据来自生成物 [`crate::cards_generated`]：`npm run gen:sgs-engine-data` 把
+//! `docs/games/sanguosha/data/cards.json`（160 张）生成成 Rust 常量，本文件只做
+//! 「表 → `CardDef`」的索引，**不含任何牌名判定**。
 //!
 //! 规则（`docs/conventions/skill-spec-rules.md` §3）：技能的「基本牌/锦囊/是否伤害锦囊/
-//! 是否杀/闪/桃/酒/无懈」判定**只能**查这里的属性，禁止在技能里 `match` 牌名。
+//! 是否杀/闪/桃/酒/无懈」判定**只能**查这里的属性，禁止在技能/内核里 `match` 牌名。
 
 use serde::{Deserialize, Serialize};
+
+use crate::kernel::{Card, Slot};
+
+pub use crate::cards_generated::DECK_SIZE;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CardKind {
@@ -18,26 +26,8 @@ pub enum TargetMode {
     Chosen,
     /// 目标为全场存活角色（五谷丰登、桃园结义、万箭齐发、南蛮入侵）
     AllAlive,
-    /// 不指定其他目标（无中生有、闪电等）
+    /// 不指定其他目标（无中生有、闪电、装备、桃、酒）
     SelfOnly,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
-pub struct Tags {
-    pub sha: bool,
-    pub shan: bool,
-    pub tao: bool,
-    pub jiu: bool,
-    pub wuxie: bool,
-    /// 【决斗】（父荫等按此判定，不比较牌名）
-    pub duel: bool,
-    /// 延时锦囊（乐不思蜀/兵粮寸断/闪电）
-    pub delayed: bool,
-    /// 【铁索连环】
-    pub lianhuan: bool,
-    /// 目标模式（禁止再退化成「有/无目标」布尔）。
-    #[serde(default)]
-    pub target_mode: Option<TargetMode>,
 }
 
 /// 伤害属性（普通 / 火 / 雷）。技能判定只读该字段，禁止按牌名/技能名硬编码。
@@ -59,6 +49,87 @@ pub enum ResponseKind {
     Wuxie,
 }
 
+/// 防具类型（伤害数值链/响应窗口只读该字段，见 `docs/games/sanguosha/rules.md` §7）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum ArmorKind {
+    #[default]
+    None,
+    /// 八卦阵：需要【闪】时可判定，红色视为打出【闪】。
+    Bagua,
+    /// 仁王盾：黑色【杀】对你无效。
+    Renwang,
+    /// 藤甲：普通【杀】/【南蛮入侵】/【万箭齐发】对你无效；火焰伤害 +1。
+    Tengjia,
+    /// 白银狮子：受到伤害时，若伤害 > 1 则改为 1；失去时回复 1 点体力。
+    Baiyin,
+}
+
+/// 武器类型（只有需要内核介入的武器才登记；其余武器只提供攻击范围）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum WeaponKind {
+    #[default]
+    None,
+    /// 青釭剑：无视防具。
+    Qinggang,
+    Cixiong,
+    Hanbing,
+    Qinglong,
+    Guanshi,
+    Fangtian,
+    Qilin,
+    Zhugeliannu,
+    Gudingdao,
+    Zhangba,
+    Zhuque,
+}
+
+/// 牌的结算效果（**属性化**的唯一入口：内核按效果分派，不按牌名）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Effect {
+    /// 装备（按槽位处理）。
+    None,
+    Sha,
+    Shan,
+    Tao,
+    Jiu,
+    Wuxie,
+    Duel,
+    Dismantle,
+    Snatch,
+    ExNihilo,
+    SavageAssault,
+    ArcheryAttack,
+    PeachGarden,
+    Harvest,
+    FireAttack,
+    Collateral,
+    IronChain,
+    Indulgence,
+    SupplyShortage,
+    Lightning,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct Tags {
+    pub sha: bool,
+    pub shan: bool,
+    pub tao: bool,
+    pub jiu: bool,
+    pub wuxie: bool,
+    /// 【决斗】（父荫等按此判定，不比较牌名）
+    pub duel: bool,
+    /// 延时锦囊（乐不思蜀/兵粮寸断/闪电）
+    pub delayed: bool,
+    /// 【铁索连环】
+    pub lianhuan: bool,
+    /// 目标模式（禁止再退化成「有/无目标」布尔）。
+    #[serde(default)]
+    pub target_mode: Option<TargetMode>,
+    /// 该牌要求的响应（杀→闪 / 南蛮→杀 / 万箭→闪 / 决斗→杀）。
+    #[serde(default)]
+    pub respond: Option<ResponseKind>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CardDef {
     pub kind: CardKind,
@@ -67,54 +138,78 @@ pub struct CardDef {
     pub tags: Tags,
     /// 伤害属性（普通/火/雷）。
     pub damage_kind: DamageKind,
+    /// 结算效果（内核按此分派）。
+    pub effect: Effect,
+    pub armor: ArmorKind,
+    pub weapon: WeaponKind,
+    /// 装备槽位（非装备为 `None`）。
+    pub slot: Option<Slot>,
+    /// 武器攻击距离。
+    pub weapon_range: Option<usize>,
+    /// 坐骑距离修正（进攻马/防御马都是 1）。
+    pub horse: Option<usize>,
+    /// 是否在生成表中（未知牌 = false；门禁会断言所有实体牌都已知）。
+    pub known: bool,
 }
 
-const EQUIP_NAMES: &[&str] = &[
-    "青釭剑", "八卦阵", "赤兔", "的卢", "木牛流马", "寒冰剑", "麒麟弓", "贯石斧", "青龙偃月刀",
-    "雌雄双股剑", "方天画戟", "诸葛连弩", "仁王盾", "藤甲", "白银狮子", "爪黄飞电", "绝影",
-];
-const DAMAGE_TRICKS: &[&str] = &["决斗", "万箭齐发", "南蛮入侵", "火攻"];
-
-/// 牌名 → 定义。未收录的按锦囊处理（并在测试里报警）。
-pub fn def(name: &str) -> CardDef {
-    let equip = EQUIP_NAMES.contains(&name);
-    let damage_trick = DAMAGE_TRICKS.contains(&name);
-    let kind = if equip {
-        CardKind::Equip
-    } else if matches!(
-        name,
-        "杀" | "闪" | "桃" | "酒"
-    ) {
-        CardKind::Basic
-    } else {
-        CardKind::Trick
-    };
-    let damage_kind = match name {
-        "火杀" | "火攻" => DamageKind::Fire,
-        "雷杀" => DamageKind::Thunder,
-        _ => DamageKind::Normal,
-    };
-    let tags = Tags {
-        sha: matches!(name, "杀" | "火杀" | "雷杀"),
-        shan: name == "闪",
-        tao: name == "桃",
-        jiu: name == "酒",
-        wuxie: name == "无懈可击",
-        duel: name == "决斗",
-        delayed: matches!(name, "乐不思蜀" | "兵粮寸断" | "闪电"),
-        lianhuan: name == "铁索连环",
-        target_mode: Some(match name {
-            "五谷丰登" | "桃园结义" | "万箭齐发" | "南蛮入侵" => TargetMode::AllAlive,
-            "无中生有" | "闪电" => TargetMode::SelfOnly,
-            _ => TargetMode::Chosen,
-        }),
-    };
+fn from_row(r: &'static crate::cards_generated::Row) -> CardDef {
     CardDef {
-        kind,
-        damage_trick,
-        tags,
-        damage_kind,
+        kind: r.kind,
+        damage_trick: r.damage_trick,
+        tags: Tags {
+            sha: r.sha,
+            shan: r.shan,
+            tao: r.tao,
+            jiu: r.jiu,
+            wuxie: r.wuxie,
+            duel: r.duel,
+            delayed: r.delayed,
+            lianhuan: r.lianhuan,
+            target_mode: Some(r.target_mode),
+            respond: r.respond,
+        },
+        damage_kind: r.damage_kind,
+        effect: r.effect,
+        armor: r.armor,
+        weapon: r.weapon,
+        slot: r.slot,
+        weapon_range: r.weapon_range,
+        horse: r.horse,
+        known: true,
     }
+}
+
+/// 未登记的牌名：按「无效果锦囊」处理，并由门禁在测试里报警（不 panic，避免存档/沙盒崩）。
+fn unknown() -> CardDef {
+    CardDef {
+        kind: CardKind::Trick,
+        damage_trick: false,
+        tags: Tags {
+            target_mode: Some(TargetMode::SelfOnly),
+            ..Tags::default()
+        },
+        damage_kind: DamageKind::Normal,
+        effect: Effect::None,
+        armor: ArmorKind::None,
+        weapon: WeaponKind::None,
+        slot: None,
+        weapon_range: None,
+        horse: None,
+        known: false,
+    }
+}
+
+/// 牌名 → 定义（唯一定义查询入口）。
+pub fn def(name: &str) -> CardDef {
+    crate::cards_generated::DEFS
+        .iter()
+        .find(|r| r.name == name)
+        .map(from_row)
+        .unwrap_or_else(unknown)
+}
+
+pub fn is_known(name: &str) -> bool {
+    crate::cards_generated::DEFS.iter().any(|r| r.name == name)
 }
 
 /// 该牌能否作为某响应场景的响应牌（读属性，不按牌名枚举）。
@@ -128,29 +223,18 @@ pub fn responds_as(name: &str, kind: ResponseKind) -> bool {
 }
 
 /// 全部锦囊牌名（牌定义表 = 唯一来源；技能只能按属性过滤，不得各自列白名单）。
-pub const TRICK_NAMES: &[&str] = &[
-    "无懈可击",
-    "无中生有",
-    "过河拆桥",
-    "顺手牵羊",
-    "决斗",
-    "南蛮入侵",
-    "万箭齐发",
-    "桃园结义",
-    "五谷丰登",
-    "火攻",
-    "借刀杀人",
-    "铁索连环",
-    "乐不思蜀",
-    "兵粮寸断",
-    "闪电",
-];
+pub fn trick_names() -> Vec<&'static str> {
+    crate::cards_generated::DEFS
+        .iter()
+        .filter(|r| r.kind == CardKind::Trick)
+        .map(|r| r.name)
+        .collect()
+}
 
 /// 非延迟锦囊（奇策的候选项）：读 `tags.delayed` 属性，不按牌名写死。
 pub fn non_delayed_tricks() -> Vec<&'static str> {
-    TRICK_NAMES
-        .iter()
-        .copied()
+    trick_names()
+        .into_iter()
         .filter(|n| !tags(n).delayed)
         .collect()
 }
@@ -178,6 +262,37 @@ pub fn target_mode(name: &str) -> TargetMode {
 /// 是否需要玩家手动选目标（全场牌自动取全体，不手动选）。
 pub fn needs_choice(name: &str) -> bool {
     target_mode(name) == TargetMode::Chosen
+}
+
+/// 武器攻击范围（与旧引擎 `data.rs` 的 `range_value` 一致；来自生成表）。
+pub fn weapon_range(name: &str) -> Option<usize> {
+    def(name).weapon_range
+}
+
+/// 坐骑距离修正（进攻马/防御马都是 1；来自生成表）。
+pub fn horse_bonus(name: &str) -> Option<usize> {
+    def(name).horse
+}
+
+/// 完整牌堆（160 张，standard 108 + junzheng 52；id = `c1..c160`）。
+///
+/// 这是 M1 的「真实牌堆」入口：洗牌/发牌由调用方决定（确定性顺序便于测试）。
+pub fn deck() -> Vec<Card> {
+    crate::cards_generated::DECK
+        .iter()
+        .enumerate()
+        .map(|(i, p)| {
+            let d = def(p.name);
+            Card {
+                id: format!("c{}", i + 1),
+                name: p.name.to_string(),
+                suit: p.suit,
+                rank: p.rank,
+                slot: d.slot,
+                target_mode: d.tags.target_mode.unwrap_or(TargetMode::Chosen),
+            }
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -209,31 +324,52 @@ mod tests {
         assert_eq!(target_mode("桃园结义"), TargetMode::AllAlive);
         assert_eq!(target_mode("万箭齐发"), TargetMode::AllAlive);
         assert_eq!(target_mode("决斗"), TargetMode::Chosen);
+        assert_eq!(target_mode("铁索连环"), TargetMode::Chosen);
+        assert_eq!(target_mode("乐不思蜀"), TargetMode::Chosen);
         assert!(!needs_choice("五谷丰登") && needs_choice("杀"));
     }
-}
 
-/// 武器攻击范围（与旧引擎 data.rs 的 range_value 一致）。
-const WEAPON_RANGE: &[(&str, usize)] = &[
-    ("诸葛连弩", 1),
-    ("青釭剑", 2),
-    ("雌雄双股剑", 2),
-    ("寒冰剑", 2),
-    ("古锭刀", 2),
-    ("青龙偃月刀", 3),
-    ("丈八蛇矛", 3),
-    ("贯石斧", 3),
-    ("方天画戟", 4),
-    ("朱雀羽扇", 4),
-    ("麒麟弓", 5),
-];
+    #[test]
+    fn generated_deck_is_full_and_known() {
+        let deck = deck();
+        assert_eq!(deck.len(), DECK_SIZE);
+        assert_eq!(deck.len(), 160, "standard 108 + junzheng 52");
+        // 每张实体牌的牌名都必须在生成表里（未知牌 = 数据缺口）。
+        for c in &deck {
+            assert!(is_known(&c.name), "未知牌名：{}", c.name);
+        }
+        // 装备槽位由定义表给出（不再由 `Card::equip` 手工决定）。
+        let wuqi = deck.iter().find(|c| c.name == "青釭剑").expect("青釭剑");
+        assert_eq!(wuqi.slot, Some(Slot::Weapon));
+        let ma = deck.iter().find(|c| c.name == "的卢").expect("的卢");
+        assert_eq!(ma.slot, Some(Slot::HorseDefense));
+        // id 唯一。
+        let ids: std::collections::BTreeSet<_> = deck.iter().map(|c| c.id.clone()).collect();
+        assert_eq!(ids.len(), deck.len());
+    }
 
-pub fn weapon_range(name: &str) -> Option<usize> {
-    WEAPON_RANGE.iter().find(|(n, _)| *n == name).map(|(_, r)| *r)
-}
+    #[test]
+    fn effects_and_equip_attributes_are_data() {
+        assert_eq!(def("杀").effect, Effect::Sha);
+        assert_eq!(def("火杀").damage_kind, DamageKind::Fire);
+        assert_eq!(def("雷杀").damage_kind, DamageKind::Thunder);
+        assert_eq!(def("藤甲").armor, ArmorKind::Tengjia);
+        assert_eq!(def("白银狮子").armor, ArmorKind::Baiyin);
+        assert_eq!(def("青釭剑").weapon, WeaponKind::Qinggang);
+        assert_eq!(def("麒麟弓").weapon_range, Some(5));
+        assert_eq!(def("赤兔").horse, Some(1));
+        assert_eq!(def("顺手牵羊").weapon_range, None);
+        assert_eq!(def("南蛮入侵").tags.respond, Some(ResponseKind::Sha));
+        assert_eq!(def("万箭齐发").tags.respond, Some(ResponseKind::Shan));
+    }
 
-/// 坐骑距离修正（进攻马/防御马都是 1）。
-pub fn horse_bonus(name: &str) -> Option<usize> {
-    const HORSES: &[&str] = &["赤兔", "爪黄飞电", "绝影", "大宛", "紫骍", "的卢", "骅骝"];
-    if HORSES.contains(&name) { Some(1) } else { None }
+    #[test]
+    fn trick_names_cover_generated_table() {
+        let names = trick_names();
+        assert_eq!(names.len(), 15, "{names:?}");
+        assert!(names.contains(&"无懈可击") && names.contains(&"闪电"));
+        assert_eq!(non_delayed_tricks().len(), 12);
+        // 未知牌不会 panic（存档兼容），但 known=false。
+        assert!(!def("不存在的牌").known);
+    }
 }

@@ -236,3 +236,52 @@ fn demo_triggers_and_applies() {
    `npm run sgs:batch-status --check` 一致；单条 commit。
 
 > **已执行**：P4.4.3（2026-10-31）界限突破验收，见 `development-plan.md` P4.4.3 记录 / `milestones.md` M56。
+
+## 9. v2 迁移批次（B8+）开工命令
+
+> 适用：B8 起把剩余武将迁到新内核 `crates/engines/sanguosha2`（v1 继续保留到退役签字）。
+> 模板见 §3 的 v1 版本**不再适用**；v2 的写法是「声明 + handler + 真实结算入口」。
+
+### 9.1 一批的标准流程
+
+```bash
+# 1) 建对齐单骨架（B8 起；6 段由 agent 填，第 6/7 段用户确认）
+node apps/scripts/sgs-align-sheet.mjs --batch B8 --new
+
+# 2) 看本批要做什么（武将/技能/已注册状态/待建文件）
+npm run sgs2:batch -- B8
+
+# 3) 实现：src/skills/b8.rs + 注册到 src/skills/mod.rs 的 SKILLS
+#    牌结算/视为使用牌一律走：
+#      Game::resolve_use（真实手牌）/ Game::use_virtual（纯虚拟）/ Game::use_as（转化牌）
+#    禁止调用 Game::use_card（事件模拟入口；门禁 tests/m2_wiring.rs 会拦）
+
+# 4) 用例：tests/b8.rs（每技能 ≥1 正例 + ≥1 反例；真实结算后仍不误触发）
+
+# 5) 登记「本批已迁到 v2」：把 8 加入 apps/scripts/check-sgs2-registry.mjs 的 V2_BATCHES
+
+# 6) 回写对齐单第 2 段（现实现）= 新引擎行为 + impl 锚点
+
+# 7) 门禁
+npm run check:sgs2          # 单 crate 全量：tests + metrics + registry + decision-log + scenes + ai + parity
+npm run sgs:check:fast      # 全仓 23+ 步（含 v1 回归）
+```
+
+### 9.2 v2 专有门禁（B8+ 每批都会用到）
+
+| 门禁 | 作用 |
+|---|---|
+| `npm run check:sgs2-registry` | 注册表唯一性 / 转换技清单 / **对齐单（V2_BATCHES）↔ 注册表精确一致** / 每个 code 必须有 `#[test]` 覆盖 |
+| `npm run check:sgs2-decision-log` | AI 决策日志 schema（`legal` 必须包含 `chosen`、候选 ≤64、step 单调） |
+| `npm run check:sgs2-ai` | 10 局自对弈：终局率 / illegal / loop / stalled / pending 覆盖 |
+| `npm run check:sgs-parity` | v1↔v2 数据/属性/技能覆盖（迁移期；删 v1 时归档） |
+| `npm run check:sgs2-plugin` | `EnginePlugin` 完备性 / 视图脱敏 / legal≡execute |
+
+### 9.3 v2 写法要点（与 v1 最大的不同）
+
+- **技能状态只查 `skills::active`**；触发用 `SkillDef.triggers + Window`，不要在流程里写武将名分支。
+- **handler 只返回 `Step`**（不就地压/弹帧）；需要询问就 `Step::Need`（pending 必须带出口）。
+- **牌结算**：基本牌/锦囊/装备/判定区/无懈链已由 `kernel/card_play.rs` 统一；技能只判属性（`cards::def`）与发事件。
+- **伤害/回血**：`flow::damage*` / `flow::lose_hp` / `flow::heal`；禁止直接改 `hp`。
+- **新增状态**：必须进 `check_conservation` / `check_no_orphan_frames` 覆盖范围（必要时补不变量用例）。
+- 对齐单第 2 段写**新引擎行为**；旧引擎描述只保留在第 1 段原文与历史记录里。

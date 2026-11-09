@@ -20,11 +20,11 @@ const out = resolve(repo, "apps/web/src/view/sgs/skill-text.ts");
 const raw = JSON.parse(readFileSync(src, "utf8"));
 const allHeroes = Array.isArray(raw) ? raw : raw.heroes ?? [];
 
-// 只保留引擎已实装武将（data.rs 的 GeneralDef），避免把 695 位全量文本打进前端 bundle。
-const dataRs = readFileSync(resolve(repo, "crates/engines/sanguosha/src/data.rs"), "utf8");
-const implemented = new Set(
-  [...dataRs.matchAll(/GeneralDef \{ code: "[^"]+", gid: \d+, name: "([^"]+)"/g)].map((m) => m[1]),
+// 只保留引擎已实装武将（engine-catalog.json 的 GeneralDef），避免把 695 位全量文本打进前端 bundle。
+const catalog = JSON.parse(
+  readFileSync(resolve(repo, "docs/games/sanguosha/data/engine-catalog.json"), "utf8"),
 );
+const implemented = new Set(catalog.generals.map((g) => g.name));
 const heroes = allHeroes.filter((h) => h?.name && implemented.has(h.name));
 
 // 授予技（觉醒/破势等）不在 heroes.json 里，需在此补官方文本；键为技能名。
