@@ -85,8 +85,8 @@ const MECHANISM_SUPPORT = {
   },
   // B14 声明的机制缺口（ok: false = 本批必须先补内核）
   "virtual-equip": {
-    ok: false,
-    where: "待建：skills::virtual_armor + Game::armor 统一入口（B14·八阵）",
+    ok: true,
+    where: "skills::virtual_armor 到 Game::armor（B14·八阵）",
   },
   "hand-limit": {
     ok: true,
@@ -101,8 +101,8 @@ const MECHANISM_SUPPORT = {
     where: "角色 flags（如 niepan_used / wulie_used）+ 选项统一检查",
   },
   "equip-move": {
-    ok: false,
-    where: "待建：装备移动入口（离开装备区触发失去钩子；B14·设变）",
+    ok: true,
+    where: "Game::move_equip + skills::on_flip（B14·设变）",
   },
 };
 

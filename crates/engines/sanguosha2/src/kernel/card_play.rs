@@ -1482,7 +1482,21 @@ fn fire_attack(
         .ok_or_else(|| "【火攻】缺少目标".to_string())?;
     let step = data["step"].as_str().unwrap_or("start").to_string();
 
+    // 界火计：目标随机展示手牌，弃同**颜色**的牌（手牌或装备区）。
+    let color_mode = crate::skills::fire_attack_color_mode(g, source);
     if step != "discard" {
+        if color_mode && !data["asked"].as_bool().unwrap_or(false) {
+            let hand = g.hand(target);
+            if hand.is_empty() {
+                return advance_target(g, card, data);
+            }
+            let idx = g.rand_below(hand.len());
+            let id = hand[idx].clone();
+            g.reveal(&id, Some(target), "fire_attack");
+            data["shown"] = json!(id);
+            data["step"] = json!("discard");
+            return Ok(Step::Next(Stage::CardOpt, data.clone()));
+        }
         if data["asked"].as_bool().unwrap_or(false) {
             let ans = read_answer(g)?;
             data["asked"] = json!(false);
@@ -1533,7 +1547,15 @@ fn fire_attack(
             if !g.hand(source).contains(&id) {
                 return Err("火攻：弃置的牌不在手牌".into());
             }
-            if g.cards.get(&id).map(|c| c.suit) != g.cards.get(&shown).map(|c| c.suit) {
+            let same = if color_mode {
+                let base = crate::skills::effective_suit(g, source, &shown).map(|s| s.is_red());
+                let cur = crate::skills::effective_suit(g, source, &id).map(|s| s.is_red());
+                base.is_some() && base == cur
+            } else {
+                crate::skills::effective_suit(g, source, &id)
+                    == crate::skills::effective_suit(g, source, &shown)
+            };
+            if !same {
                 return Err("火攻：弃置的牌需与展示牌同花色".into());
             }
             g.to_discard(&id, "fire_attack")?;
@@ -1543,12 +1565,23 @@ fn fire_attack(
         return advance_target(g, card, data);
     }
 
-    let suit = g.cards.get(&shown).map(|c| c.suit);
-    let ids: Vec<CardId> = g
-        .hand(source)
-        .into_iter()
-        .filter(|id| g.cards.get(id).map(|c| Some(c.suit) == suit).unwrap_or(false))
-        .collect();
+    let ids: Vec<CardId> = if color_mode {
+        let base = crate::skills::effective_suit(g, source, &shown).map(|s| s.is_red());
+        let mut pool = g.hand(source);
+        pool.extend(g.ids_in(|z| matches!(z, crate::kernel::Zone::Equip(s, _) if *s == source)));
+        pool.into_iter()
+            .filter(|id| {
+                base.is_some()
+                    && crate::skills::effective_suit(g, source, id).map(|s| s.is_red()) == base
+            })
+            .collect()
+    } else {
+        let suit = crate::skills::effective_suit(g, source, &shown);
+        g.hand(source)
+            .into_iter()
+            .filter(|id| crate::skills::effective_suit(g, source, id) == suit)
+            .collect()
+    };
     if ids.is_empty() {
         g.conceal(&shown, "fire_attack");
         return advance_target(g, card, data);
@@ -2138,7 +2171,11 @@ fn finish(g: &mut Game, card: Option<&CardId>, cause: &str) -> Result<(), String
     };
     if !matches!(
         g.zone_of(card),
-        Some(Zone::Discard) | Some(Zone::Judge(_)) | Some(Zone::Equip(_, _))
+        Some(Zone::Discard)
+            | Some(Zone::Judge(_))
+            | Some(Zone::Equip(_, _))
+            // 鞬出（基本牌分支）：此【杀】被目标获得，仍留在其手牌。
+            | Some(Zone::Hand(_))
     ) {
         g.to_discard(card, cause)?;
     }

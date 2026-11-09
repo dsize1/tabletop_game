@@ -43,6 +43,13 @@ fn is_sha(g: &Game, id: &CardId) -> bool {
 fn play_phase(g: &Game, seat: usize) -> bool {
     g.turn == seat && g.phase == Phase::Play
 }
+/// 本阶段已放弃（防抖：不再重复提示同一主动技）。
+fn cancelled(g: &Game, code: &str) -> bool {
+    g.counter(&format!("phase.cancel_{code}")) > 0
+}
+fn mark_cancelled(g: &mut Game, code: &str) {
+    g.bump(&format!("phase.cancel_{code}"));
+}
 fn is_lord(g: &Game, seat: usize) -> bool {
     g.seats.get(seat).is_some_and(|s| s.flags.contains("lord"))
 }
@@ -226,6 +233,7 @@ fn wu_targets(g: &Game, owner: usize) -> Vec<usize> {
 
 fn can_zhiba(g: &Game, seat: usize) -> bool {
     play_phase(g, seat)
+        && !cancelled(g, "zhiba")
         && g.counter("turn.zhiba_used") == 0
         && !wu_targets(g, seat).is_empty()
 }
@@ -258,7 +266,10 @@ fn zhiba(g: &mut Game, a: &Ask) -> Result<Step, String> {
             }
             Ok(Step::Need(b.escape("取消制霸").build()))
         }
-        Some("pass") => Ok(Step::Done),
+        Some("pass") => {
+            mark_cancelled(g, "zhiba");
+            Ok(Step::Done)
+        }
         Some(act) => {
             let t = act
                 .strip_prefix("target:")
@@ -577,7 +588,10 @@ fn shensu(g: &mut Game, a: &Ask) -> Result<Step, String> {
                     g.bump("turn.shensu_skip_judge");
                     g.counters.insert("turn.skip_judge".to_string(), 1);
                     g.counters.insert("turn.skip_draw".to_string(), 1);
+                    // 先压「继续选择」帧，再压【杀】目标帧（LIFO：先结算【杀】）。
+                    push(g, "shensu", owner, json!({}));
                     shensu_sha(g, owner)?;
+                    return Ok(Step::Done);
                 }
                 "opt2" => {
                     g.bump("turn.shensu_skip_play");
@@ -588,7 +602,9 @@ fn shensu(g: &mut Game, a: &Ask) -> Result<Step, String> {
                     g.bump("turn.shensu_skip_discard");
                     g.counters.insert("turn.skip_discard".to_string(), 1);
                     g.flip(owner);
+                    push(g, "shensu", owner, json!({}));
                     shensu_sha(g, owner)?;
+                    return Ok(Step::Done);
                 }
             }
             // 继续询问（至多三项）。
@@ -888,6 +904,7 @@ pub const QIMOU: SkillDef = SkillDef {
 
 fn can_qimou(g: &Game, seat: usize) -> bool {
     play_phase(g, seat)
+        && !cancelled(g, "qimou")
         && !g.seats[seat].flags.contains("qimou_used")
         && g.seats[seat].hp > 0
 }
@@ -906,7 +923,10 @@ fn qimou(g: &mut Game, a: &Ask) -> Result<Step, String> {
             }
             Ok(Step::Need(b.escape("取消奇谋").build()))
         }
-        Some("pass") => Ok(Step::Done),
+        Some("pass") => {
+            mark_cancelled(g, "qimou");
+            Ok(Step::Done)
+        }
         Some(act) => {
             let x = act
                 .strip_prefix("x:")
@@ -964,10 +984,15 @@ fn piaoling(g: &mut Game, a: &Ask) -> Result<Step, String> {
     let stage = a.data["stage"].as_str().unwrap_or("ask").to_string();
     match stage.as_str() {
         "ask" => {
-            if g.phase != Phase::End || g.counter("phase.piaoling_asked") > 0 {
+            if g.phase != Phase::End {
                 return Ok(Step::Done);
             }
-            g.bump("phase.piaoling_asked");
+            if g.answer.is_none() {
+                if g.counter("phase.piaoling_asked") > 0 {
+                    return Ok(Step::Done);
+                }
+                g.bump("phase.piaoling_asked");
+            }
             match g.answer.take().as_deref() {
                 None => {
                     let mut b = builder(owner, "choice").skill("piaoling");
@@ -1418,5 +1443,456 @@ fn jiandu(g: &mut Game, a: &Ask) -> Result<Step, String> {
 
 pub const B14_SKILLS: &[SkillDef] = &[
     ZHIBA, JIANG, HUNZI, SHENSU, SHEBIAN, BAZHEN, CANGZHUO, HONGYAN, KUANGGU, QIMOU,
-    PIAOLING, YINGHUN, WULIE, JIANDU,
+    PIAOLING, YINGHUN, WULIE, JIANDU, HUOJI, KANPO, LIANHUAN, TIANXIANG, NIEPAN,
 ];
+
+/// 涅槃（限定）：濒死窗口选项（实现在 `dying_limited_options/use`）。
+pub const NIEPAN: SkillDef = SkillDef {
+    code: "niepan",
+    name: "涅槃",
+    triggers: &[],
+    window: Window::AnyTime,
+    priority: 0,
+    can_active: None,
+    handler: niepan_pick,
+    dying_hook: None,
+    flip_hook: None,
+    wuxie_opts: None,
+    wuxie_use: None,
+    target_blocker: None,
+    yang_window: None,
+    yin_window: None,
+};
+
+fn niepan_pick(g: &mut Game, a: &Ask) -> Result<Step, String> {
+    let owner = a.actor;
+    match g.answer.take().as_deref() {
+        None => {
+            let mut b = builder(owner, "choice").skill("niepan");
+            b = b.option("opt1", "获得「八阵」");
+            b = b.option("opt2", "获得「火计」");
+            b = b.option("opt3", "获得「看破」");
+            Ok(Step::Need(b.escape("暂不获得技能").build()))
+        }
+        Some("pass") => Ok(Step::Done),
+        Some(act) => {
+            let code = match act {
+                "opt1" => "bazhen",
+                "opt2" => "huoji",
+                _ => "kanpo",
+            };
+            grant_skill(g, owner, code);
+            g.push_log(format!(
+                "涅槃：{} 获得「{}」",
+                g.seats[owner].name,
+                crate::skills::def(code).map(|d| d.name).unwrap_or(code)
+            ));
+            Ok(Step::Done)
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 火计 / 看破 / 连环（界卧龙诸葛亮 / 界庞统）：转化技
+// ---------------------------------------------------------------------------
+
+pub const HUOJI: SkillDef = SkillDef {
+    code: "huoji",
+    name: "火计",
+    triggers: &[],
+    window: Window::AnyTime,
+    priority: 0,
+    can_active: None,
+    handler: noop,
+    dying_hook: None,
+    flip_hook: None,
+    wuxie_opts: None,
+    wuxie_use: None,
+    target_blocker: None,
+    yang_window: None,
+    yin_window: None,
+};
+
+pub const KANPO: SkillDef = SkillDef {
+    code: "kanpo",
+    name: "看破",
+    triggers: &[],
+    window: Window::AnyTime,
+    priority: 0,
+    can_active: None,
+    handler: noop,
+    dying_hook: None,
+    flip_hook: None,
+    wuxie_opts: None,
+    wuxie_use: None,
+    target_blocker: None,
+    yang_window: None,
+    yin_window: None,
+};
+
+pub const LIANHUAN: SkillDef = SkillDef {
+    code: "lianhuan",
+    name: "连环",
+    triggers: &[],
+    window: Window::OwnPhase(Phase::Play),
+    priority: 0,
+    can_active: Some(can_lianhuan),
+    handler: lianhuan,
+    dying_hook: None,
+    flip_hook: None,
+    wuxie_opts: None,
+    wuxie_use: None,
+    target_blocker: None,
+    yang_window: None,
+    yin_window: None,
+};
+
+/// 被动转化：火计（红色牌当【火攻】）、看破（黑色牌当【无懈可击】）、
+/// 连环（梅花牌当【铁索连环】）。承载牌 = 手牌 + 装备区。
+pub fn conversions(g: &Game, seat: usize) -> Vec<super::Conversion> {
+    let mut out = Vec::new();
+    let pool = hand_and_equip(g, seat);
+    if active(g, seat, "huoji") {
+        for id in &pool {
+            let red = effective_suit(g, seat, id)
+                .map(|s| s.is_red())
+                .unwrap_or(false);
+            if red {
+                out.push(super::Conversion {
+                    skill: "huoji",
+                    from: id.clone(),
+                    to: "火攻",
+                    usable: true,
+                    playable: false,
+                });
+            }
+        }
+    }
+    if active(g, seat, "kanpo") {
+        for id in &pool {
+            let black = !effective_suit(g, seat, id)
+                .map(|s| s.is_red())
+                .unwrap_or(true);
+            if black {
+                out.push(super::Conversion {
+                    skill: "kanpo",
+                    from: id.clone(),
+                    to: "无懈可击",
+                    usable: false,
+                    playable: true,
+                });
+            }
+        }
+    }
+    if active(g, seat, "lianhuan") {
+        for id in &pool {
+            if effective_suit(g, seat, id) == Some(crate::kernel::Suit::Club) {
+                out.push(super::Conversion {
+                    skill: "lianhuan",
+                    from: id.clone(),
+                    to: "铁索连环",
+                    usable: true,
+                    playable: false,
+                });
+            }
+        }
+    }
+    out
+}
+
+/// 界火计：内核【火攻】改为「随机展示 + 同颜色弃牌（手牌/装备区）」。
+pub fn fire_attack_color_mode(g: &Game, source: usize) -> bool {
+    active(g, source, "huoji")
+}
+
+/// 界看破：你的【无懈可击】不能被响应。
+pub fn wuxie_uncounterable(g: &Game, seat: usize) -> bool {
+    active(g, seat, "kanpo")
+}
+
+/// 连环：使用【铁索连环】（含转化）可多指定一个目标。
+pub fn extra_targets(g: &Game, seat: usize, card: Option<&CardId>) -> usize {
+    let Some(card) = card else { return 0 };
+    if !active(g, seat, "lianhuan") {
+        return 0;
+    }
+    if g.def_of(card).effect == Effect::IronChain {
+        1
+    } else {
+        0
+    }
+}
+
+fn can_lianhuan(g: &Game, seat: usize) -> bool {
+    play_phase(g, seat)
+        && !cancelled(g, "lianhuan")
+        && hand_and_equip(g, seat)
+            .into_iter()
+            .any(|id| effective_suit(g, seat, &id) == Some(crate::kernel::Suit::Club))
+}
+
+/// 连环的「重铸」入口（梅花牌：弃置并摸 1，算「使用牌」）。
+fn lianhuan(g: &mut Game, a: &Ask) -> Result<Step, String> {
+    let owner = a.actor;
+    let pool: Vec<CardId> = hand_and_equip(g, owner)
+        .into_iter()
+        .filter(|id| effective_suit(g, owner, id) == Some(crate::kernel::Suit::Club))
+        .collect();
+    match g.answer.take().as_deref() {
+        None => {
+            let mut b = builder(owner, "choice").skill("lianhuan");
+            for id in &pool {
+                b = b.option(format!("pick:{id}"), format!("重铸【{}】", label(g, id)));
+            }
+            Ok(Step::Need(b.escape("取消连环").build()))
+        }
+        Some("pass") => {
+            mark_cancelled(g, "lianhuan");
+            Ok(Step::Done)
+        }
+        Some(act) => {
+            let id = act
+                .strip_prefix("pick:")
+                .ok_or_else(|| format!("连环：未知选项 {act}"))?
+                .to_string();
+            if !pool.contains(&id) {
+                return Err("连环：只能重铸梅花牌".into());
+            }
+            g.to_discard(&id, "lianhuan")?;
+            // 重铸算「使用牌」（用户 2026-11-09 裁定）。
+            g.events.push(crate::kernel::event::Event::card(
+                EventKind::CardUsed,
+                Some(owner),
+                id.clone(),
+                Some("recast".to_string()),
+            ));
+            let n = g.draw(owner, 1).len();
+            g.push_log(format!("连环：重铸【{}】，摸 {n} 张", label(g, &id)));
+            Ok(Step::Done)
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 天香（界小乔）：受到伤害时弃红桃牌防止并转移
+// ---------------------------------------------------------------------------
+
+pub const TIANXIANG: SkillDef = SkillDef {
+    code: "tianxiang",
+    name: "天香",
+    triggers: &[],
+    window: Window::AnyTime,
+    priority: 0,
+    can_active: None,
+    handler: tianxiang,
+    dying_hook: None,
+    flip_hook: None,
+    wuxie_opts: None,
+    wuxie_use: None,
+    target_blocker: None,
+    yang_window: None,
+    yin_window: None,
+};
+
+fn hearts(g: &Game, seat: usize) -> Vec<CardId> {
+    hand_and_equip(g, seat)
+        .into_iter()
+        .filter(|id| effective_suit(g, seat, id) == Some(crate::kernel::Suit::Heart))
+        .collect()
+}
+
+/// 「受到伤害时」受害者侧拦截（返回 true = 已压帧，本次伤害由天香接管）。
+pub fn damage_before_victim(
+    g: &mut Game,
+    source: Option<usize>,
+    victim: usize,
+    amount: i32,
+    card: Option<&CardId>,
+) -> bool {
+    if !active(g, victim, "tianxiang") || hearts(g, victim).is_empty() {
+        return false;
+    }
+    push(
+        g,
+        "tianxiang",
+        victim,
+        json!({
+            "stage": "ask",
+            "victim": victim,
+            "src": source,
+            "amount": amount,
+            "card": card,
+        }),
+    );
+    true
+}
+
+fn take_damage(
+    g: &mut Game,
+    src: Option<usize>,
+    victim: usize,
+    amount: i32,
+    card: &Option<CardId>,
+) {
+    flow::damage_now_typed(
+        g,
+        src,
+        victim,
+        amount,
+        card.as_ref(),
+        crate::cards::DamageKind::Normal,
+        false,
+    );
+}
+
+fn tianxiang(g: &mut Game, a: &Ask) -> Result<Step, String> {
+    let victim = a.data["victim"].as_u64().unwrap_or(0) as usize;
+    let stage = a.data["stage"].as_str().unwrap_or("ask").to_string();
+    let src: Option<usize> = a.data["src"].as_u64().map(|n| n as usize);
+    let amount = a.data["amount"].as_i64().unwrap_or(1) as i32;
+    let card = a.data["card"].as_str().map(|s| s.to_string());
+    match stage.as_str() {
+        "ask" => match g.answer.take().as_deref() {
+            None => {
+                let mut b = builder(victim, "choice").skill("tianxiang");
+                b = b.option("opt1", "天香：弃置一张红桃牌，防止此伤害并转移");
+                Ok(Step::Need(b.escape("承受伤害").build()))
+            }
+            Some("pass") => {
+                take_damage(g, src, victim, amount, &card);
+                Ok(Step::Done)
+            }
+            Some(_) => {
+                push(
+                    g,
+                    "tianxiang",
+                    victim,
+                    json!({ "stage": "pick", "victim": victim, "src": src, "amount": amount, "card": card }),
+                );
+                Ok(Step::Done)
+            }
+        },
+        "pick" => {
+            let opts = hearts(g, victim);
+            match g.answer.take().as_deref() {
+                None => {
+                    let mut b = builder(victim, "choice").skill("tianxiang");
+                    for id in &opts {
+                        b = b.option(format!("pick:{id}"), format!("弃置【{}】", label(g, id)));
+                    }
+                    Ok(Step::Need(b.escape("承受伤害").build()))
+                }
+                Some("pass") => {
+                    take_damage(g, src, victim, amount, &card);
+                    Ok(Step::Done)
+                }
+                Some(act) => {
+                    let id = act
+                        .strip_prefix("pick:")
+                        .ok_or_else(|| format!("天香：未知选项 {act}"))?
+                        .to_string();
+                    if !opts.contains(&id) {
+                        return Err("天香：只能弃置红桃牌".into());
+                    }
+                    push(
+                        g,
+                        "tianxiang",
+                        victim,
+                        json!({ "stage": "target", "victim": victim, "src": src, "discarded": id }),
+                    );
+                    Ok(Step::Done)
+                }
+            }
+        }
+        "target" => {
+            let discarded = a.data["discarded"].as_str().unwrap_or_default().to_string();
+            let cands: Vec<usize> = (0..g.seats.len())
+                .filter(|i| *i != victim && g.seats[*i].hp > 0)
+                .collect();
+            match g.answer.take().as_deref() {
+                None => {
+                    let mut b = builder(victim, "target").skill("tianxiang");
+                    for t in &cands {
+                        b = b.option(format!("target:{t}"), format!("转移给 {}", g.seats[*t].name));
+                    }
+                    Ok(Step::Need(b.escape("承受伤害").build()))
+                }
+                Some("pass") => {
+                    take_damage(g, src, victim, amount, &card);
+                    Ok(Step::Done)
+                }
+                Some(act) => {
+                    let t = act
+                        .strip_prefix("target:")
+                        .and_then(|x| x.parse::<usize>().ok())
+                        .ok_or_else(|| format!("天香：未知选项 {act}"))?;
+                    if !cands.contains(&t) {
+                        return Err("天香：目标不合法".into());
+                    }
+                    push(
+                        g,
+                        "tianxiang",
+                        victim,
+                        json!({ "stage": "mode", "victim": victim, "src": src, "discarded": discarded, "target": t }),
+                    );
+                    Ok(Step::Done)
+                }
+            }
+        }
+        _ => {
+            let discarded = a.data["discarded"].as_str().unwrap_or_default().to_string();
+            let target = a.data["target"].as_u64().unwrap_or(0) as usize;
+            match g.answer.take().as_deref() {
+                None => {
+                    let mut b = builder(victim, "choice").skill("tianxiang");
+                    b = b.option("mode:damage", "令其受到伤害来源的 1 点伤害并摸牌");
+                    b = b.option("mode:lose", "令其失去 1 点体力并获得你弃置的牌");
+                    Ok(Step::Need(b.escape("承受伤害").build()))
+                }
+                Some("pass") => {
+                    take_damage(g, src, victim, amount, &card);
+                    Ok(Step::Done)
+                }
+                Some(act) => {
+                    if g.cards.contains_key(&discarded) {
+                        g.to_discard(&discarded, "tianxiang")?;
+                    }
+                    if act == "mode:damage" {
+                        flow::damage_now_typed(
+                            g,
+                            src,
+                            target,
+                            1,
+                            None,
+                            crate::cards::DamageKind::Normal,
+                            false,
+                        );
+                        let lost = (g.seats[target].max_hp - g.seats[target].hp)
+                            .max(0)
+                            .min(5) as usize;
+                        let n = if g.seats[target].hp > 0 {
+                            g.draw(target, lost).len()
+                        } else {
+                            0
+                        };
+                        g.push_log(format!(
+                            "天香：{} 受到 1 点伤害并摸 {n} 张",
+                            g.seats[target].name
+                        ));
+                    } else {
+                        flow::lose_hp(g, target, 1, "tianxiang");
+                        if matches!(g.zone_of(&discarded), Some(Zone::Discard)) {
+                            g.gain(&discarded, target)?;
+                        }
+                        g.push_log(format!(
+                            "天香：{} 失去 1 点体力并获得【{}】",
+                            g.seats[target].name,
+                            label(g, &discarded)
+                        ));
+                    }
+                    Ok(Step::Done)
+                }
+            }
+        }
+    }
+}

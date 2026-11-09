@@ -257,6 +257,26 @@ pub const SKILLS: &[SkillDef] = &[
     b13::FANGQUAN,
     b13::RUOYU,
     b13::SISHU,
+    // B14（界孙策 / 界夏侯渊 / 界卧龙诸葛亮 / 界庞统 / 界魏延 / 界小乔 / 界孙坚 / 界庞德）
+    b14::ZHIBA,
+    b14::JIANG,
+    b14::HUNZI,
+    b14::SHENSU,
+    b14::SHEBIAN,
+    b14::BAZHEN,
+    b14::CANGZHUO,
+    b14::HUOJI,
+    b14::KANPO,
+    b14::LIANHUAN,
+    b14::NIEPAN,
+    b14::KUANGGU,
+    b14::QIMOU,
+    b14::HONGYAN,
+    b14::TIANXIANG,
+    b14::PIAOLING,
+    b14::YINGHUN,
+    b14::WULIE,
+    b14::JIANDU,
 ];
 
 /// 转换技（阳/阴两面）：视图按此清单投影 `transforms`（与 handlers 的 `g.yang/toggle_yang` 对应）。
@@ -455,6 +475,37 @@ pub fn hand_limit_exempt(g: &Game, seat: usize) -> usize {
 /// 脱离濒死后的一次性结算（奇谋摸牌等）。
 pub fn on_dying_left(g: &mut Game, seat: usize) {
     b14::on_dying_left(g, seat);
+}
+
+/// 界火计（火攻改为随机展示 + 同颜色弃牌）。
+pub fn fire_attack_color_mode(g: &Game, source: usize) -> bool {
+    b14::fire_attack_color_mode(g, source)
+}
+
+/// 界看破：你的【无懈可击】不能被响应。
+pub fn wuxie_uncounterable(g: &Game, seat: usize) -> bool {
+    b14::wuxie_uncounterable(g, seat)
+}
+
+/// 无懈链收尾（不能被响应时直接结束）。
+pub fn wuxie_finish(g: &mut Game, _card: &crate::kernel::CardId, count: usize) {
+    let negated = count % 2 == 1;
+    g.wuxie_result = Some(negated);
+    g.push_log(format!(
+        "无懈结算（不能被响应）：共 {count} 张 → {}",
+        if negated { "锦囊被抵消" } else { "锦囊照常生效" }
+    ));
+}
+
+/// 「受到伤害时」受害者侧拦截（天香）。
+pub fn damage_before_victim(
+    g: &mut Game,
+    source: Option<usize>,
+    victim: usize,
+    amount: i32,
+    card: Option<&crate::kernel::CardId>,
+) -> bool {
+    b14::damage_before_victim(g, source, victim, amount, card)
 }
 
 /// 濒死窗口的额外选项（涅槃）。
@@ -808,7 +859,7 @@ pub fn self_use_blocked(g: &Game, seat: usize) -> bool {
 
 /// 目标数修正（福绵②）：返回可**额外**指定的目标数（0 = 不修正）。
 pub fn extra_targets(g: &Game, seat: usize, card: Option<&crate::kernel::CardId>) -> usize {
-    b8::extra_targets(g, seat, card)
+    b8::extra_targets(g, seat, card) + b14::extra_targets(g, seat, card)
 }
 
 /// 消费「本回合多指定目标」的一次性效果（福绵②）。
@@ -900,6 +951,7 @@ pub fn conversions(g: &Game, seat: usize) -> Vec<Conversion> {
     out.extend(b10::conversions(g, seat));
     out.extend(b11::conversions(g, seat));
     out.extend(b12::conversions(g, seat));
+    out.extend(b14::conversions(g, seat));
     out
 }
 

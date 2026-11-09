@@ -102,6 +102,10 @@ fn damage_impl(
         ));
         return;
     }
+    // 「受到伤害时」受害者侧拦截（天香）：由技能接管本次伤害。
+    if crate::skills::damage_before_victim(g, source, victim, amount, card) {
+        return;
+    }
     if crate::skills::damage_prevent(g, victim) {
         return;
     }
@@ -670,6 +674,16 @@ pub fn step_wuxie(g: &mut Game, a: &Ask) -> Result<Step, String> {
         has = true;
         b = b.option(id, label);
     }
+    // 转化【无懈可击】（看破）：黑色牌（手牌/装备区）。
+    for conv in skills::conversions(g, asker) {
+        if crate::cards::def(conv.to).tags.wuxie && conv.playable {
+            has = true;
+            b = b.option(
+                format!("vrespond:{}:{}", conv.skill, conv.from),
+                format!("【{}】当【无懈可击】打出", g.card_label(&conv.from)),
+            );
+        }
+    }
     if !has {
         cursor += 1;
         let mut next = a.data.clone();
@@ -684,7 +698,33 @@ pub fn step_wuxie(g: &mut Game, a: &Ask) -> Result<Step, String> {
             Ok(Step::Next(Stage::WuxieAsk, next))
         }
         Some(act) => {
-            if let Some(id) = act.strip_prefix("respond:") {
+            if let Some(rest) = act.strip_prefix("vrespond:") {
+                // 转化【无懈可击】（看破）。
+                let mut parts = rest.splitn(2, ':');
+                let skill = parts.next().unwrap_or_default().to_string();
+                let carrier = parts.next().unwrap_or_default().to_string();
+                let ok = skills::conversions(g, asker)
+                    .into_iter()
+                    .any(|c| {
+                        c.skill == skill
+                            && c.from == carrier
+                            && crate::cards::def(c.to).tags.wuxie
+                    });
+                if !ok {
+                    return Err("无懈：非法的转化牌".into());
+                }
+                g.to_discard(&carrier, "wuxie")?;
+                if skills::wuxie_uncounterable(g, asker) {
+                    skills::wuxie_finish(g, &card, 1);
+                    return Ok(Step::Done);
+                }
+                count += 1;
+                cursor = 0;
+                let mut next = a.data.clone();
+                next["cursor"] = json!(cursor);
+                next["count"] = json!(count);
+                return Ok(Step::Next(Stage::WuxieAsk, next));
+            } else if let Some(id) = act.strip_prefix("respond:") {
                 g.to_discard(&id.to_string(), "wuxie")?;
             } else if !skills::wuxie_use(g, asker, act)? {
                 // 技能提供的无懈替代选项（如解围：装备区牌当无懈）。
@@ -694,6 +734,10 @@ pub fn step_wuxie(g: &mut Game, a: &Ask) -> Result<Step, String> {
             if g.skill_deferred {
                 g.skill_deferred = false;
                 return Ok(Step::Next(Stage::WuxieAsk, a.data.clone()));
+            }
+            if skills::wuxie_uncounterable(g, asker) {
+                skills::wuxie_finish(g, &card, 1);
+                return Ok(Step::Done);
             }
             count += 1;
             cursor = 0; // 重新从使用者左手侧开始（嵌套）

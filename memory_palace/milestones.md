@@ -2,6 +2,18 @@
 
 > 记录项目关键节点与验证结果，按时间倒序。重大技术决策见 `decisions/`。
 
+## M86：B14 界标·J2 十六技能落地（v2 迁移批次第 7 批）✅
+
+- **日期**：2026-11-09
+- **对齐**：`align/B14.json` 58 条疑点裁定（激昂同牌只触发一次、藏拙「锦囊不计入手牌数」、涅槃复原清单+失去涅槃、
+  奇谋可扣到 0 濒死救起后摸牌、鞬出双分支、设变每次翻面、神速弃装备含装备区等）→ implemented。
+- **实现**：`skills/b14.rs` 16 技能（马术复用 B9）。
+- **内核增量**：`virtual-equip`（`virtual_armor`）、`equip-move`（`move_equip` + `on_flip`）、
+  `effective_suit`、`hand_limit_exempt`、`damage_before_victim`（天香）、`on_dying_left`（奇谋）、
+  无懈窗口的转化项与不可响应、火攻颜色模式、神速的跳过判定/弃牌。
+- **度量**：`cargo test -p sanguosha2` **516** 条全绿（新增 `tests/b14.rs` 30 条）；`check:sgs2` 全绿
+  （注册 209 / 对齐单 202 / B0–B14 精确一致）；`sgs:check:fast` 25/25。
+
 ## M85：B13 界标·J1 十六技能落地（v2 迁移批次第 6 批）✅
 
 - **日期**：2026-11-09
