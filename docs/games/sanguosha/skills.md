@@ -607,6 +607,14 @@
 | 界徐盛 `sgs_hero_587` | 破军 | `pojun` | 普通 | 【杀】指定目标后可移出其至多 X 张牌（X=目标体力值，同标准）；**新增：你的【杀】对手牌区与装备区牌数皆 ≤ 你的角色伤害 +1** |
 
 本批引入：`Frame::TiaoxinWait`（`resolve_jiexian4.rs`）；`hanzhan_forces_random` / `hanzhan_gain_sha`（酣战）、`changbiao_on_damage` + `changbiao_sha:<card>`、`jiu_unlimited`、`bengkuai_off`、`tiaoxin_hit`、`haoshi_back:<receiver>`、`qjb_end:<n>` + `mark_counts["bian"]`。见 `tests/p98.rs` 24 条用例。
+
+> **v2 迁移（2026-11-09，批次 B16）**：14 技能已在新内核实现（`crates/engines/sanguosha2/src/skills/b16.rs`），v1 上表仅作历史口径。
+> 与上表不同之处（用户 2026-11-09 裁定）见 `align/B16.md` 第 7 段与 `rules-rulings.md` §39：祸首自用南蛮不替换来源；
+> 再起红牌=任何方式进入弃牌堆（可重复选同一人、由被选者选摸/回复）；断粮转化含装备区；
+> 截辎为**完整额外摸牌阶段**（摸牌阶段结束时移除「辎」）；断肠含锁定/主公技且无来源不触发；
+> 悲歌弃牌含装备区且两项获得可叠加；驱虎伤害**不被防具减免**；节命补**死亡时**触发；
+> 狞恶弃置=装备区+随机手牌（不含判定区，由典韦选）；双雄弃牌含装备区；固政=**单次弃置 ≥2 张**（每角色每阶段限一次）；
+> 破军移出不含判定区、回合结束自动归还。用例：`tests/b16.rs` 29 条。
 ### 2.8.9 批次 J5：界限突破 8 将（14 技能，P4.4.2）
 
 | 武将 | 技能 | code | 类型 | 实现要点 |

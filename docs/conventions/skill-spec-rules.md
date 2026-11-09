@@ -230,3 +230,19 @@
 | 目标拦截带承载牌 | `SkillDef.target_blocker(g,target,source,牌名,carrier)` | 帷幕按**实体牌花色**拦黑色锦囊；AOE 目标枚举同样过滤。 |
 | 濒死锁定 | `skills::entering_dying/leaving_dying` + `nonlocked_lost` | 完杀：濒死期间除贾诩与濒死者外其他角色非锁定技失效（`skills::active` 统一判定）。 |
 | 额外回合即新回合 | `turn::tick` | 额外回合清 `turn.*` / `used_this_turn` / `uncounted`，递增 `turn_seq` 并发 `TurnStart`。 |
+
+## 19. B16 跨批机制（2026-11-09）
+
+| 机制 | 入口 | 说明 |
+|---|---|---|
+| 红牌进弃牌堆计数 | `Game::to_discard` → `turn.red_discarded` | 任何进入弃牌堆的红色实体牌都累计（再起的「每有一张红色牌」）。 |
+| 每回合受伤次数 | `flow::damage_now_impl` → `turn.damage_taken:<victim>` | 狞恶「每回合第二次受到伤害」。 |
+| 单次弃置批次 | `Game::begin_action` 清空 / `to_discard` 追加 → `Game.discard_batch` | 界固政「单次弃置动作 ≥2 张」。 |
+| 跳过摸牌钩子 | `Game::draw_phase` 跳过分支 → `skills::on_skip_draw` | 截辎：任意角色跳过摸牌阶段后询问。 |
+| 额外摸牌阶段 | `skills::after_draw_phase`（摸牌阶段结束） | 有「辎」者移除并再摸一次（2 + 摸牌加成）。 |
+| 死亡钩子 | `flow::die` → `skills::on_death(victim, source)` | 断肠（杀死者 `skills_lost`）/ 节命死亡触发；在死亡清理（延迟项）之前询问。 |
+| 永久失去技能 | `skills::active` 读 `Seat.flags["skills_lost"]` | 断肠：含锁定技/主公技。 |
+| AOE 伤害来源替换 | `skills::aoe_damage_source`（`card_play::aoe`） | 祸首：其他角色使用的【南蛮入侵】来源改为祸首持有者。 |
+| 兵粮距离 | `skills::supply_shortage_no_distance` | 【兵粮寸断】距离 1；奇才/慎断/界断粮（未造成伤害）例外。 |
+| 无视防具伤害 | `flow::damage_now_no_armor` | 驱虎：伤害不被防具减免/防止。 |
+| 回合末归还 | `Game.void_return` + `skills::return_void_cards` | 破军（`due = 当前 turn_seq`，回合切换即归还）；谦逊同口径。 |

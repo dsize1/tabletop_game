@@ -119,7 +119,7 @@ fn damage_impl(
     if source.is_none() && crate::skills::damage_before_sourceless(g, victim, amount, card) {
         return;
     }
-    damage_now_impl(g, source, victim, amount, card, dtype, def, chain_origin);
+    damage_now_impl(g, source, victim, amount, card, dtype, def, chain_origin, false);
 }
 
 /// 直接结算伤害（**不**再走「造成伤害时」拦截；技能自行补结算时用）。
@@ -134,7 +134,22 @@ pub fn damage_now(
         .map(|c| g.def_of(c).damage_kind)
         .unwrap_or(crate::cards::DamageKind::Normal);
     let def = card.map(|c| g.def_of(c));
-    damage_now_impl(g, source, victim, amount, card, dtype, def.as_ref(), false);
+    damage_now_impl(g, source, victim, amount, card, dtype, def.as_ref(), false, false);
+}
+
+/// 直接结算伤害且**不受防具影响**（驱虎：伤害不被防具减免/防止）。
+pub fn damage_now_no_armor(g: &mut Game, source: Option<usize>, victim: usize, amount: i32) {
+    damage_now_impl(
+        g,
+        source,
+        victim,
+        amount,
+        None,
+        crate::cards::DamageKind::Normal,
+        None,
+        false,
+        true,
+    );
 }
 
 pub fn damage_now_typed(
@@ -147,7 +162,17 @@ pub fn damage_now_typed(
     chain_origin: bool,
 ) {
     let def = card.map(|c| g.def_of(c));
-    damage_now_impl(g, source, victim, amount, card, dtype, def.as_ref(), chain_origin);
+    damage_now_impl(
+        g,
+        source,
+        victim,
+        amount,
+        card,
+        dtype,
+        def.as_ref(),
+        chain_origin,
+        false,
+    );
 }
 
 fn damage_now_impl(
@@ -159,11 +184,12 @@ fn damage_now_impl(
     dtype: crate::cards::DamageKind,
     def: Option<&crate::cards::CardDef>,
     chain_origin: bool,
+    ignore_armor: bool,
 ) {
     if g.seats[victim].hp <= 0 {
         return;
     }
-    if armor_prevents(g, source, victim, def, card, dtype) {
+    if !ignore_armor && armor_prevents(g, source, victim, def, card, dtype) {
         return;
     }
     // 「造成伤害时」的数值加成（暗箭/链祸等）：先加成，再做「受到的伤害改为 1」类终局修正。
@@ -174,18 +200,22 @@ fn damage_now_impl(
                 crate::skills::damage_bonus_sourceless(g, victim, dtype, chain_origin)
             });
     // 装备数值链（顺序固定）：技能加成 → 藤甲（火伤 +1）→ 白银狮子（最后，>1 改为 1）。
-    if !armor_ignored(g, source, def)
+    if !ignore_armor
+        && !armor_ignored(g, source, def)
         && g.armor(victim) == crate::cards::ArmorKind::Tengjia
         && dtype == crate::cards::DamageKind::Fire
     {
         amount += 1;
     }
-    if !armor_ignored(g, source, def)
+    if !ignore_armor
+        && !armor_ignored(g, source, def)
         && g.armor(victim) == crate::cards::ArmorKind::Baiyin
         && amount > 1
     {
         amount = 1;
     }
+    // 狞恶（界典韦）：「每回合第二次受到伤害」按受害者计数。
+    g.bump(&format!("turn.damage_taken:{victim}"));
     if let Some(s) = source {
         g.bump(&format!("turn.damage_by:{s}"));
         // 咆哮：本次【杀】已消费「下一次伤害 +1」。
@@ -232,7 +262,7 @@ fn damage_now_impl(
             .collect();
         for other in others {
             chain_leave(g, other);
-            damage_now_impl(g, source, other, amount, card, dtype, def, true);
+            damage_now_impl(g, source, other, amount, card, dtype, def, true, false);
         }
     }
     if g.seats[victim].hp <= 0 {
@@ -438,7 +468,8 @@ pub fn step_dying(g: &mut Game, a: &Ask) -> Result<Step, String> {
 
     let order = dying_order(g, victim);
     if cursor >= order.len() {
-        die(g, victim);
+        let source = a.data["source"].as_u64().map(|n| n as usize);
+        die(g, victim, source);
         return Ok(Step::Done);
     }
     let asker = order[cursor];
@@ -614,9 +645,11 @@ pub fn step_dying(g: &mut Game, a: &Ask) -> Result<Step, String> {
 }
 
 /// 死亡：发事件（行殇等订阅）+ 排一个「死亡清理」（在技能触发之后执行）。
-pub fn die(g: &mut Game, victim: usize) {
+pub fn die(g: &mut Game, victim: usize, source: Option<usize>) {
     // 完杀：濒死结算结束（死亡）。
     crate::skills::leaving_dying(g);
+    // 死亡钩子（断肠 / 节命「死亡时」）：在死亡清理（延迟项）之前询问。
+    crate::skills::on_death(g, victim, source);
     let name = g.seats[victim].name.clone();
     g.push_log(format!("{name} 死亡"));
     g.events

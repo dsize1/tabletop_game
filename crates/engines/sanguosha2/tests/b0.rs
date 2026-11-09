@@ -280,7 +280,7 @@ fn xingshang_excludes_judge_zone() {
     let hand_card = g.hand(1)[0].clone();
     g.to_judge(&"c20".to_string(), 1).unwrap();
     g.seats[1].hp = 0;
-    flow::die(&mut g, 1);
+    flow::die(&mut g, 1, None);
     advance(&mut g).unwrap();
     assert_eq!(pend(&g).skill(), Some("xingshang"));
     answer(&mut g, 2, "choose:xingshang");
@@ -304,7 +304,7 @@ fn xingshang_can_be_declined() {
     let mut g = b0_game();
     let hand_card = g.hand(1)[0].clone();
     g.seats[1].hp = 0;
-    flow::die(&mut g, 1);
+    flow::die(&mut g, 1, None);
     advance(&mut g).unwrap();
     answer(&mut g, 2, "pass");
     assert!(!g.hand(2).contains(&hand_card));

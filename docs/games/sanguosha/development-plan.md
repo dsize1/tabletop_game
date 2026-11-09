@@ -788,6 +788,15 @@ npm run gen:sgs-audit-matrix           # 生成矩阵骨架（已存在则拒绝
 
 **v2 迁移批次 B15（界标·J3，2026-11-09，已完成）**：
 
+**v2 迁移批次 B16（界标·J4，2026-11-09，已完成）**：
+
+- 对齐：`align/B16.json|md` 42 条疑点用户逐条裁定（含自定义选项）→ implemented。
+- 实现：`crates/engines/sanguosha2/src/skills/b16.rs`（14 技能：祸首/再起/断粮/截辎/断肠/悲歌/驱虎/节命/强袭/狞恶/双雄/直谏/固政/破军）。
+- 内核增量：红牌进弃牌堆计数、每回合受伤次数、单次弃置批次、跳过摸牌钩子、完整额外摸牌阶段、死亡钩子、
+  永久失去技能、AOE 伤害来源替换、兵粮距离规则、无视防具伤害入口、回合末归还（`void_return` 口径修正）。
+- 用例：`tests/b16.rs` 29 条；`cargo test -p sanguosha2` 585 全绿；`check:sgs2` 与 `sgs:check:fast` 全绿。
+
+
 - 对齐：`align/B15.json|md` 63 条疑点用户逐条裁定（含 13 条直接在 md 上改写）→ implemented。
 - 实现：`crates/engines/sanguosha2/src/skills/b15.rs`（19 技能：天义/酣战/肉林/崩坏/酒池/暴虐/屯田/凿险/巨象/烈刃/长标/挑衅/志继/帷幕/乱武/完杀/好施/缔盟/巧变）。
 - 内核增量：`EventKind::CardLost`、拼点 `pre/after` 钩子、`response_need` 相加、`jiu_take_bonus` 叠加、`before_phase` 阶段前询问、

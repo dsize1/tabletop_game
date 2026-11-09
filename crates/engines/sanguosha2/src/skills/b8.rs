@@ -2527,6 +2527,8 @@ pub fn sha_intercept_skills(
     out.extend(crate::skills::b13::sha_intercept(g, user, target, card));
     // B14：鞬出（弃目标一张牌）。
     out.extend(crate::skills::b14::sha_intercept(g, user, target, card));
+    // B16：破军（移出目标至多 X 张牌直到回合结束）。
+    out.extend(crate::skills::b16::sha_intercept(g, user, target, card));
     out
 }
 

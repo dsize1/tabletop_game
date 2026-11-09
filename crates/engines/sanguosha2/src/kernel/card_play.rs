@@ -445,6 +445,13 @@ fn planned_targets(
                     return Err("目标判定区已有同名延时锦囊".into());
                 }
             }
+            // 【兵粮寸断】距离 1（断粮：本回合未造成伤害 → 无距离；奇才同理）。
+            if def.effect == Effect::SupplyShortage
+                && !skills::supply_shortage_no_distance(g, seat)
+                && g.distance(seat, many[0]) > 1
+            {
+                return Err("【兵粮寸断】只能对距离 1 的角色使用".into());
+            }
             Ok(many)
         }
         Effect::Collateral => {
@@ -1104,7 +1111,11 @@ fn aoe(
     let targets = target_list(data);
     let mut cursor = num(data, "cursor");
     let targets = targets.to_vec();
-    let damage_source = damage_source_of(data, source);
+    let mut damage_source = damage_source_of(data, source);
+    // 祸首：其他角色使用【南蛮入侵】时伤害来源改为祸首持有者。
+    if let Some(owner) = crate::skills::aoe_damage_source(g, damage_source, card) {
+        damage_source = owner;
+    }
     let unresponsive = card.map(|c| g.is_unresponsive(c)).unwrap_or(false);
     while cursor < targets.len() {
         let t = targets[cursor];

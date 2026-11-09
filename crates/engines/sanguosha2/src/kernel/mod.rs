@@ -338,6 +338,9 @@ pub struct Game {
     /// 本动作内各座位「离开手牌的张数」（连营的 X）。
     #[serde(default)]
     pub hand_loss_batch: BTreeMap<usize, u32>,
+    /// 本动作内各座位「因弃置进入弃牌堆的牌」（界固政：单次弃置 ≥2 张）。
+    #[serde(default)]
+    pub discard_batch: BTreeMap<usize, Vec<CardId>>,
     /// 连营待询问：`(座位, X)`（栈空后消费）。
     #[serde(default)]
     pub lianying_pending: Option<(usize, usize)>,
@@ -415,6 +418,7 @@ impl Game {
             extra_turn_active: false,
             fenwei_void: BTreeSet::new(),
             hand_loss_batch: BTreeMap::new(),
+            discard_batch: BTreeMap::new(),
             lianying_pending: None,
             void_return: Vec::new(),
             judge_rewrite: None,
@@ -638,6 +642,7 @@ impl Game {
     /// 动作开始：重置「本动作内失去手牌数」的批次计数。
     pub fn begin_action(&mut self) {
         self.hand_loss_batch.clear();
+        self.discard_batch.clear();
     }
 
     /// 弃置：进入弃牌堆 + `CardDiscarded`（原因透传）。
@@ -669,6 +674,14 @@ impl Game {
         }
         if let Some(seat) = seat {
             self.bump(&format!("turn.discard_by:{seat}"));
+            self.discard_batch
+                .entry(seat)
+                .or_default()
+                .push(id.clone());
+        }
+        // 再起（界孟获）：「本回合红色牌进入弃牌堆」计数（任何进入弃牌堆的方式）。
+        if self.cards.get(id).map(|c| c.suit.is_red()).unwrap_or(false) {
+            self.bump("turn.red_discarded");
         }
         self.events.push(Event::card(
             event::EventKind::CardDiscarded,
@@ -855,6 +868,8 @@ impl Game {
     /// 摸牌阶段：基础 2 张 + 技能加成（庸肆/怀橘…），原因记 "draw_phase"（奋激不触发）。
     pub fn draw_phase(&mut self, seat: usize) -> Vec<CardId> {
         if self.counter("turn.skip_draw") > 0 {
+            // 截辎（界徐晃）：一名角色跳过摸牌阶段后。
+            crate::skills::on_skip_draw(self, seat);
             return Vec::new();
         }
         let n = 2 + crate::skills::draw_bonus(self, seat);

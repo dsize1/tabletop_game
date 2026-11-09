@@ -1,11 +1,11 @@
 {
   "batch": "B16",
   "source": "界限突破·J4",
-  "status": "draft",
+  "status": "implemented",
   "mechanics_version": 2,
-  "confirmed_by": null,
-  "confirmed_at": null,
-  "note": "机器文件（单一事实源）。人读请看同目录 <B>.md；改这里后运行 --sync 重生成 md。",
+  "confirmed_by": "用户",
+  "confirmed_at": "2026-11-09",
+  "note": "机器文件（单一事实源）。人读请看同目录 B16.md；改这里后运行 --sync 重生成 md。 2026-11-09：42 条疑点用户逐条裁定（含自定义：狞恶弃置=装备区+随机手牌、固政=单次弃置≥2 张、悲歌两获得可叠加、驱虎伤害不被防具减免、再起红牌=任何方式进弃牌堆、截辎=完整额外摸牌阶段）；同日实现 `crates/engines/sanguosha2/src/skills/b16.rs`（14 技能）+ `tests/b16.rs`（29 条），注册 SKILLS + V2_BATCHES=16，状态置 implemented。",
   "generals": [
     {
       "gid": 492,
@@ -16,15 +16,14 @@
           "code": "huoshou",
           "name": "祸首",
           "kind": "locked",
-          "status": "discussed",
+          "status": "implemented",
           "original": "锁定技，【南蛮入侵】对你无效。当其他角色使用【南蛮入侵】指定目标后，你代替其成为此牌的伤害来源。",
           "original_source": "heroes.json#gid=492",
           "mechanics_version": 2,
           "current": [
-            "v1 锁定技（纯钩子）：`skills::nanman_immune` 令【南蛮入侵】的目标枚举跳过持有者（与巨象共用）。",
-            "v1：`skills::huoshou_owner(user)` 找出**其他**持有祸首的存活角色，在南蛮响应结算时把它当作**伤害来源**（`resolve.rs` 南蛮分支 `source = huoshou_owner(...).unwrap_or(user)`）。",
-            "即界版「你代替其成为此牌的伤害来源」已按「全局替换为祸首持有者」实现（不区分是谁使用的南蛮）。",
-            "无懈/目标裁剪由南蛮结算统一处理；祸首本身不获得该牌（获得是巨象的事）。"
+            "v2 锁定技（纯钩子）：`target_blocker` 拦截牌名「南蛮入侵」（AOE 目标枚举处 `skills::can_target` 过滤）。",
+            "`skills::aoe_damage_source` → `b16::huoshou_source`：其他角色使用【南蛮入侵】时，伤害来源改为座位序最先的祸首持有者。",
+            "自己就是祸首持有者时**不替换**（用户裁定 Q3=B）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -43,7 +42,7 @@
               "lean": "A",
               "why": "与 B15 巨象（用户裁定 A）保持一致，v2 用 `target_blocker` 统一。",
               "impact": "AOE 目标裁剪 + 用例。",
-              "answer": null
+              "answer": "A（不能成为目标）"
             },
             {
               "id": "Q2",
@@ -55,7 +54,7 @@
               "lean": "A",
               "why": "v1 `find` 取座位序；与巨象的获得顺序一致。",
               "impact": "边界 + 用例。",
-              "answer": null
+              "answer": "A（座位序最先）——用户补充：重复武将不会再出现，这类并列边界不必过度设计"
             },
             {
               "id": "Q3",
@@ -67,7 +66,7 @@
               "lean": "B",
               "why": "文本「其他角色使用…你代替其成为伤害来源」，自己使用不应被他人顶替。",
               "impact": "伤害来源 + 用例。",
-              "answer": null
+              "answer": "B（自己使用的【南蛮入侵】来源就是自己）"
             }
           ],
           "mechanics": [
@@ -78,33 +77,41 @@
           ],
           "terms": {},
           "ui": {
-            "prompt": null,
-            "overlay": null,
-            "fx": null,
-            "reveal": null,
-            "qq": null
+            "prompt": "祸首：南蛮入侵对你无效；其他角色使用的南蛮伤害来源视为你",
+            "overlay": "无（自动结算）",
+            "fx": "来源替换提示",
+            "reveal": "无",
+            "qq": "播报伤害来源"
           },
-          "agreed": null,
+          "agreed": "锁定技，【南蛮入侵】对你无效（你**不能成为**其目标）；当**其他角色**使用【南蛮入侵】指定目标后，你代替其成为此牌的伤害来源（伤害来源=座位序最先的祸首持有者）。你自己使用的【南蛮入侵】伤害来源仍是你自己。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "祸首持有者不能被指定为【南蛮入侵】目标",
+              "其他角色使用的【南蛮入侵】伤害来源变为祸首持有者"
+            ],
+            "negative": [
+              "自己使用的【南蛮入侵】不替换来源",
+              "非【南蛮入侵】的伤害不替换来源"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b16::HUOSHOU + card_play::aoe（伤害来源）",
+          "tests": [
+            "b16::huoshou_immune_and_replaces_damage_source",
+            "b16::huoshou_own_nanman_keeps_source"
+          ]
         },
         {
           "code": "zaizhi",
           "name": "再起",
           "kind": "normal",
-          "status": "discussed",
+          "status": "implemented",
           "original": "结束阶段，本回合每有一张红色牌置入弃牌堆，你便可以令一名角色选择一项：\n 1.摸一张牌；\n 2.令你回复1点体力。",
           "original_source": "heroes.json#gid=492",
           "mechanics_version": 2,
           "current": [
-            "v1 界版：**结束阶段**触发（`turn.rs` 结束段），计数 `red_discarded`（`note_discard_suit` 累计的**本回合红色牌因弃置进入弃牌堆**张数）。",
-            "逐张结算（`Frame::ZaiQiJie`，`remaining` 递减）：每张可令**一名角色**（任意存活，可重复）选择：摸 1 / 令孟获回复 1 点。",
-            "每次都可放弃（pending 带 `pass`，放弃即结束整个再起）。",
-            "标准版再起（摸牌阶段亮 X 张）仅在非界版走；界版替换为上述结束阶段流程。"
+            "v2：`PhaseStart(End)` 触发（`Window::OwnTurn`），读 `turn.red_discarded`（`to_discard` 对红色实体牌累计，任何进入弃牌堆方式都算）。",
+            "逐张结算：令一名角色（可重复、可放弃）选择摸 1 / 令孟获回复 1；由被选者作答。",
+            "回复走 `flow::heal`（不超上限）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -124,7 +131,7 @@
               "lean": "A",
               "why": "v1 只在弃置路径计数；B 会让每张红色锦囊/杀都算一次，收益大幅提高。",
               "impact": "计数入口 + 用例。",
-              "answer": null
+              "answer": "B（任何方式进入弃牌堆的红色牌都计数）"
             },
             {
               "id": "Q2",
@@ -136,7 +143,7 @@
               "lean": "A",
               "why": "文本未限制。",
               "impact": "交互 + 用例。",
-              "answer": null
+              "answer": "A（可以重复选同一名角色）"
             },
             {
               "id": "Q3",
@@ -148,7 +155,7 @@
               "lean": "A",
               "why": "文本「令一名角色选择一项」。",
               "impact": "pending 归属 + 用例。",
-              "answer": null
+              "answer": "A（由被选中的角色选择）"
             }
           ],
           "mechanics": [
@@ -159,19 +166,28 @@
           ],
           "terms": {},
           "ui": {
-            "prompt": null,
-            "overlay": null,
-            "fx": null,
-            "reveal": null,
-            "qq": null
+            "prompt": "再起：本回合每有一张红色牌进入弃牌堆，可令一名角色摸 1 或令孟获回复 1",
+            "overlay": "逐次选目标 → 目标选择摸牌/回复",
+            "fx": "本期不做",
+            "reveal": "无",
+            "qq": "播报每次结算"
           },
-          "agreed": null,
+          "agreed": "结束阶段，本回合**每有一张红色牌置入弃牌堆**（任何方式进入弃牌堆的红色实体牌），你便可以令一名角色（可重复选择同一名）选择一项：1. 摸一张牌；2. 令你回复 1 点体力（不超过上限）。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "结束阶段按本回合红色牌进弃牌堆张数逐次结算",
+              "可重复选择同一名角色，目标自行选择摸牌或回复"
+            ],
+            "negative": [
+              "本回合没有红色牌进入弃牌堆 → 不触发",
+              "非结束阶段不触发"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b16::ZAIZHI + kernel::mod::to_discard（红牌计数）",
+          "tests": [
+            "b16::zaizhi_settles_per_red_card_in_discard",
+            "b16::zaizhi_needs_red_cards_in_discard"
+          ]
         }
       ]
     },
@@ -184,15 +200,14 @@
           "code": "duanliang",
           "name": "断粮",
           "kind": "normal",
-          "status": "discussed",
+          "status": "implemented",
           "original": "你可以将一张黑色基本牌或黑色装备牌当【兵粮寸断】使用。若你本回合未造成过伤害，你使用【兵粮寸断】无距离限制。",
           "original_source": "heroes.json#gid=496",
           "mechanics_version": 2,
           "current": [
-            "v1 转化：**黑色基本牌或黑色装备牌**当【兵粮寸断】使用（`skill:duanliang:<card>`；出牌阶段，`turn.rs` 与执行处同源校验）。",
-            "界版距离规则：若本回合**未造成过伤害**（`damage_dealt == 0`），使用【兵粮寸断】无距离限制；否则按普通延时锦囊距离（1）。",
-            "目标过滤：不能指定判定区已有【兵粮寸断】的角色，且受谦节等目标拦截影响。",
-            "转化保留实体牌的花色/点数（虚拟定义只在结算期生效，牌名按声明）。"
+            "v2 转化：黑色基本牌/黑色装备牌（**手牌 + 装备区**）当【兵粮寸断】（`skills::conversions` → `convert:` 动作）。",
+            "`skills::supply_shortage_no_distance` 含「本回合未造成伤害」（`turn.damage_by:<seat>` == 0，实时读取）→ 不受距离 1 限制。",
+            "已造成伤害时恢复【兵粮寸断】距离 1（`card_play` 新增距离校验）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -211,7 +226,7 @@
               "lean": "A",
               "why": "原文写「一张黑色基本牌或黑色装备牌」，v1 取手牌；B14/B15 的装备区放开各有明写。",
               "impact": "转化候选 + 用例。",
-              "answer": null
+              "answer": "B（手牌 + 装备区）"
             },
             {
               "id": "Q2",
@@ -223,7 +238,7 @@
               "lean": "A",
               "why": "文本是状态条件，实时读取即可；锁定会引入额外状态。",
               "impact": "距离判定 + 用例。",
-              "answer": null
+              "answer": "A（使用时实时读取）"
             },
             {
               "id": "Q3",
@@ -235,7 +250,7 @@
               "lean": "A",
               "why": "界版文本就是「无距离限制」。",
               "impact": "目标枚举 + 用例。",
-              "answer": null
+              "answer": "A（无距离限制 = 任意距离）"
             }
           ],
           "mechanics": [
@@ -247,33 +262,41 @@
           ],
           "terms": {},
           "ui": {
-            "prompt": null,
-            "overlay": null,
-            "fx": null,
-            "reveal": null,
-            "qq": null
+            "prompt": "断粮：黑色基本牌/装备牌当【兵粮寸断】；本回合未造成伤害则无距离限制",
+            "overlay": "选牌 → 选目标",
+            "fx": "本期不做",
+            "reveal": "无",
+            "qq": "播报使用"
           },
-          "agreed": null,
+          "agreed": "你可以将一张**黑色基本牌或黑色装备牌**（手牌或装备区）当【兵粮寸断】使用。若你本回合**未造成过伤害**（使用时实时判定），你使用【兵粮寸断】无距离限制。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "黑色基本牌/装备牌（含装备区）可当【兵粮寸断】使用",
+              "本回合未造成伤害时无视距离"
+            ],
+            "negative": [
+              "红色牌不能转化",
+              "本回合已造成伤害且目标距离 >1 时不可指定（沿用现有【兵粮寸断】距离口径）"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b16::DUANLIANG + skills::supply_shortage_no_distance",
+          "tests": [
+            "b16::duanliang_converts_black_cards_and_ignores_distance",
+            "b16::duanliang_loses_no_distance_after_damage"
+          ]
         },
         {
           "code": "jiezi",
           "name": "截辎",
           "kind": "normal",
-          "status": "discussed",
+          "status": "implemented",
           "original": "当一名角色跳过摸牌阶段后，你可以选择一名角色，若其手牌数全场最少且没有“辎”，其获得“辎”标记，否则其摸一张牌。\n有“辎”的角色于其摸牌阶段结束时移除“辎”，然后执行一个额外的摸牌阶段。",
           "original_source": "heroes.json#gid=496",
           "mechanics_version": 2,
           "current": [
-            "v1 触发：**任意**角色跳过摸牌阶段后（`turn.rs` 跳过摸牌分支 → `skills::jiezi_on_skip_draw`），界徐晃（`is_jiexian`）改为压入 `Frame::JieZiJie` 询问。",
-            "界版：选择一名角色；若其手牌数为**全场最少**且**没有「辎」**→ 获得「辎」标记（`mark_counts[\"zai\"]`）；否则其摸 1 张。",
-            "有「辎」的角色进入摸牌阶段时移除「辎」，并在本摸牌阶段**多摸 2 张**（v1 简化，不是完整额外摸牌阶段）。",
-            "标准版截辎（非界）仍是「其他角色跳过摸牌阶段后，徐晃摸 1 张」（自动）。"
+            "v2：`Game::draw_phase` 跳过分支调用 `skills::on_skip_draw`（任何角色，含徐晃自己）。",
+            "界版选择一名角色：手牌数全场最少（并列均算）且无「辎」（`seat.counters[\"zai\"]`）→ 获得「辎」，否则摸 1。",
+            "`skills::after_draw_phase` → 摸牌阶段**结束**时移除「辎」并立刻执行**额外摸牌阶段**（`draw_with_cause(2 + draw_bonus)`）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -292,7 +315,7 @@
               "lean": "A",
               "why": "文本明确是「额外的摸牌阶段」；但 v2 需要驱动器支持额外阶段（与额外回合不同）。",
               "impact": "回合驱动 + 用例（新机制）。",
-              "answer": null
+              "answer": "A（完整额外摸牌阶段：本摸牌阶段结束后再执行一次摸牌）"
             },
             {
               "id": "Q2",
@@ -304,7 +327,7 @@
               "lean": "A",
               "why": "文本是「手牌数全场最少」，并列均满足；v1 用 `== min_hand`。",
               "impact": "条件 + 用例。",
-              "answer": null
+              "answer": "A（并列最少都算）"
             },
             {
               "id": "Q3",
@@ -316,7 +339,7 @@
               "lean": "A",
               "why": "文本「当一名角色跳过摸牌阶段后」。",
               "impact": "触发范围 + 用例。",
-              "answer": null
+              "answer": "A（含徐晃自己）"
             }
           ],
           "mechanics": [
@@ -327,19 +350,28 @@
           ],
           "terms": {},
           "ui": {
-            "prompt": null,
-            "overlay": null,
-            "fx": null,
-            "reveal": null,
-            "qq": null
+            "prompt": "截辎：一名角色跳过摸牌阶段后，选一名角色：手牌最少且无「辎」→ 得「辎」，否则摸 1",
+            "overlay": "选目标角色；有「辎」者摸牌阶段结束移除并执行额外摸牌阶段",
+            "fx": "「辎」标记提示",
+            "reveal": "无",
+            "qq": "播报获得/额外摸牌"
           },
-          "agreed": null,
+          "agreed": "当一名角色（含徐晃自己）跳过摸牌阶段后，你可以选择一名角色：若其手牌数全场最少（并列均算）且没有「辎」，其获得「辎」标记；否则其摸一张牌。有「辎」的角色于**其摸牌阶段结束时**移除「辎」，然后执行一个**额外的摸牌阶段**（再摸一次，含摸牌加成）。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "跳过摸牌阶段后可选目标给「辎」或令其摸 1",
+              "有「辎」者摸牌阶段结束移除并执行额外摸牌阶段"
+            ],
+            "negative": [
+              "目标手牌非最少 → 改为摸 1",
+              "已有「辎」→ 改为摸 1"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b16::JIEZI + kernel::mod::draw_phase（跳过钩子）",
+          "tests": [
+            "b16::jiezi_gives_mark_then_extra_draw_phase",
+            "b16::jiezi_non_min_hand_draws_one"
+          ]
         }
       ]
     },
@@ -352,15 +384,14 @@
           "code": "duanchang",
           "name": "断肠",
           "kind": "locked",
-          "status": "discussed",
+          "status": "implemented",
           "original": "锁定技，当你死亡时，杀死你的角色失去所有技能。",
           "original_source": "heroes.json#gid=505",
           "mechanics_version": 2,
           "current": [
-            "v1 锁定技：死亡结算（`resolve.rs::death`）时，若死者有断肠且**有伤害来源**且来源 ≠ 死者 → 给来源置 `skills_lost` 标记（失去所有技能）。",
-            "`skills_lost` 在 v1 由 `skills::has` 统一判定 → 该角色所有技能（含锁定技）失效。",
-            "非伤害来源的死亡（流失体力/失去体力致死）→ 不触发（`source` 为 None）。",
-            "失去技能是永久（本局）。"
+            "v2 锁定技：`flow::die` 调 `skills::on_death(g, victim, source)`（死亡清理之前）。",
+            "有伤害来源且来源不是自己 → 给来源置 `skills_lost` 标记；`skills::active` 统一返回 false（含锁定技/主公技）。",
+            "无来源死亡不触发；杀死者是另一名断肠持有者时不再互相触发（用户裁定 Q3=B）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -379,7 +410,7 @@
               "lean": "A",
               "why": "「杀死你的角色」需要一个来源。",
               "impact": "死亡结算 + 反例。",
-              "answer": null
+              "answer": "A（无来源死亡不触发）"
             },
             {
               "id": "Q2",
@@ -391,7 +422,7 @@
               "lean": "A",
               "why": "文本「失去所有技能」。",
               "impact": "技能状态入口 + 用例。",
-              "answer": null
+              "answer": "A（失去所有技能，含锁定技/主公技）"
             },
             {
               "id": "Q3",
@@ -403,7 +434,7 @@
               "lean": "A",
               "why": "两名蔡文姬同时失去技能，不会循环。",
               "impact": "边界 + 用例。",
-              "answer": null
+              "answer": "B（双蔡文姬互相断肠不再触发）"
             }
           ],
           "mechanics": [
@@ -413,33 +444,41 @@
           ],
           "terms": {},
           "ui": {
-            "prompt": null,
-            "overlay": null,
-            "fx": null,
-            "reveal": null,
-            "qq": null
+            "prompt": "断肠：你死亡时，杀死你的角色失去所有技能",
+            "overlay": "无（自动结算）",
+            "fx": "技能失效提示",
+            "reveal": "无",
+            "qq": "播报"
           },
-          "agreed": null,
+          "agreed": "锁定技，当你死亡时，**杀死你的角色**（有伤害来源且不是你自己）失去**所有技能**（含锁定技/主公技，本局永久）。无伤害来源的死亡不触发。若杀死者是另一名蔡文姬，双方各自失去技能、不再互相触发。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "被伤害致死的蔡文姬令来源失去所有技能",
+              "失去技能后锁定技也失效"
+            ],
+            "negative": [
+              "失去体力致死（无来源）不触发",
+              "杀死者不是伤害来源时不触发"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b16::DUANCHANG + skills::active（skills_lost）",
+          "tests": [
+            "b16::duanchang_killer_loses_all_skills",
+            "b16::duanchang_no_source_no_trigger"
+          ]
         },
         {
           "code": "beige",
           "name": "悲歌",
           "kind": "normal",
-          "status": "discussed",
+          "status": "implemented",
           "original": "当一名角色受到【杀】的伤害后，若你有牌，你可以令其判定，然后你可以弃置一张牌，根据判定结果执行：\n•红桃，其回复1点体力；\n•方片，其摸两张牌；\n•梅花，伤害来源弃置两张牌；\n•黑桃，伤害来源翻面。\n若判定牌与你弃置的牌：\n•花色相同，你获得判定牌；\n•点数相同，你获得你弃置的牌。",
           "original_source": "heroes.json#gid=505",
           "mechanics_version": 2,
           "current": [
-            "v1 触发：**任意角色受到【杀】的伤害后**（`apply_damage_inner`，来源牌为实体【杀】），若场上有「有手牌的悲歌持有者」→ 压 `Frame::Beige`。",
-            "v1 流程：文姬先**弃一张手牌**（可在弃牌前放弃整个技能），然后令受伤者判定（`QuickJudge`，可被改判）。",
-            "判定结果：红桃 → 其回复 1；方片 → 其摸 2；梅花 → 伤害来源弃 2；黑桃 → 伤害来源翻面（翻面走统一翻面钩子）。",
-            "界版追加：判定牌与**弃置牌花色相同** → 文姬获得判定牌；**点数相同** → 文姬获得弃置的牌（两者互斥，先判花色）。"
+            "v2：`DamageAfter` 触发（来源牌为实体【杀】），持有者**有牌**（手牌或装备区）才询问。",
+            "弃一张牌 → `start_quick_judge`（可改判）→ 按花色结算：红桃回复 1 / 方片摸 2 / 梅花来源弃 2（来源逐张自选）/ 黑桃来源翻面。",
+            "界版：判定牌与弃置牌**花色相同** → 获得判定牌；**点数相同** → 获得弃置牌（两张可同时获得，用户裁定 Q3=B）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -459,7 +498,7 @@
               "lean": "A",
               "why": "v1 取手牌；文本只写「一张牌」。",
               "impact": "候选集合 + 用例。",
-              "answer": null
+              "answer": "B（手牌 + 装备区）"
             },
             {
               "id": "Q2",
@@ -471,7 +510,7 @@
               "lean": "A",
               "why": "v1 `beige_owner` 要求手牌非空。",
               "impact": "触发判定 + 反例。",
-              "answer": null
+              "answer": "A（受伤时检查有牌才询问）"
             },
             {
               "id": "Q3",
@@ -483,7 +522,7 @@
               "lean": "A",
               "why": "同一张牌不可能同时是两张不同牌；若同花色同点数则是同一张，无意义。",
               "impact": "边界 + 用例。",
-              "answer": null
+              "answer": "B（两张都获得）——用户补充：160 张牌中存在同花色同点数的牌"
             }
           ],
           "mechanics": [
@@ -495,19 +534,28 @@
           ],
           "terms": {},
           "ui": {
-            "prompt": null,
-            "overlay": null,
-            "fx": null,
-            "reveal": null,
-            "qq": null
+            "prompt": "悲歌：一名角色受到【杀】伤害后，可弃一张牌令其判定",
+            "overlay": "弃牌（手牌/装备区）→ 判定 → 按花色结算；界版同花色/同点数获得牌",
+            "fx": "判定结果动效",
+            "reveal": "判定牌公开",
+            "qq": "播报判定与结算"
           },
-          "agreed": null,
+          "agreed": "当一名角色受到【杀】的伤害后，若**你有牌**（受伤时检查），你可以弃置一张牌（手牌或装备区），令其判定，然后根据判定结果执行：红桃 → 其回复 1 点体力；方片 → 其摸两张牌；梅花 → 伤害来源弃置两张牌；黑桃 → 伤害来源翻面。界版追加：若判定牌与你弃置的牌**花色相同** → 你获得判定牌；**点数相同** → 你获得你弃置的牌（两者可叠加、各获得一张）。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "受到【杀】伤害后弃牌令其判定并按花色结算",
+              "界版花色相同获得判定牌、点数相同获得弃置牌"
+            ],
+            "negative": [
+              "没有手牌/装备牌时不询问",
+              "非【杀】伤害不触发"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b16::BEIGE + card_play::start_quick_judge",
+          "tests": [
+            "b16::beige_discard_judge_and_gain_same_suit",
+            "b16::beige_needs_cards_to_trigger"
+          ]
         }
       ]
     },
@@ -520,15 +568,14 @@
           "code": "quhu",
           "name": "驱虎",
           "kind": "normal",
-          "status": "discussed",
+          "status": "implemented",
           "original": "出牌阶段限一次，你可以与体力值大于你的一名角色拼点：\n•若你赢，其对其攻击范围内一名由你选择的角色造成1点伤害；\n•若你没赢，其对你造成1点伤害。",
           "original_source": "heroes.json#gid=515",
           "mechanics_version": 2,
           "current": [
-            "v1 主动技：出牌阶段限一次（`turn.rs` 与执行处同源）；目标须**体力值大于你**且**手牌非空**。",
-            "拼点（`kernel::pindian`）：赢 → 你选择其攻击范围内的一名角色（不含其自己），令其对该角色造成 1 点伤害；没赢 → 其对你造成 1 点伤害。",
-            "伤害来源为拼点目标（不是荀彧）；走 `make_damage`/`flow::damage`。",
-            "拼点可取消 → 视为没赢（v1 拼点取消口径）。"
+            "v2 主动技：出牌阶段限一次（放弃后本阶段不再提示 `phase.cancel_quhu`）；目标须体力大于你**且手牌非空**。",
+            "拼点（`kernel::pindian`）：赢 → 选其攻击范围内的一名角色（可含荀彧自己）造成 1 点伤害；没赢 → 其对你造成 1 点伤害。",
+            "伤害走 `flow::damage_now_no_armor`（可触发受伤类技能，但**不被防具减免/防止**，用户裁定 Q21 补充）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -547,7 +594,7 @@
               "lean": "A",
               "why": "避免出现「可发动但必然取消」的入口。",
               "impact": "目标枚举 + 用例。",
-              "answer": null
+              "answer": "A（目标须手牌非空）"
             },
             {
               "id": "Q2",
@@ -559,7 +606,7 @@
               "lean": "A",
               "why": "v1 过滤只排除拼点目标本身。",
               "impact": "边界 + 用例。",
-              "answer": null
+              "answer": "A（可以选荀彧自己）"
             },
             {
               "id": "Q3",
@@ -571,7 +618,7 @@
               "lean": "A",
               "why": "文本是「造成伤害」。",
               "impact": "伤害/濒死 + 用例。",
-              "answer": null
+              "answer": "A（走伤害入口，可触发受伤类技能）——用户补充：但不会被防具减免"
             }
           ],
           "mechanics": [
@@ -582,33 +629,41 @@
           ],
           "terms": {},
           "ui": {
-            "prompt": null,
-            "overlay": null,
-            "fx": null,
-            "reveal": null,
-            "qq": null
+            "prompt": "驱虎：与体力大于你且手牌非空的角色拼点",
+            "overlay": "选目标 → 拼点 → 赢则选受伤角色 / 没赢则你受伤",
+            "fx": "本期不做",
+            "reveal": "拼点牌公开",
+            "qq": "播报伤害"
           },
-          "agreed": null,
+          "agreed": "出牌阶段限一次，你可以与一名**体力值大于你且手牌非空**的角色拼点：若你赢，其对其攻击范围内一名由你选择的角色（可以是荀彧自己）造成 1 点伤害；若你没赢，其对你造成 1 点伤害。伤害走伤害入口（可触发受伤类技能），但**不会被防具减免**。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "拼点赢 → 目标对其攻击范围内角色造成 1 点伤害",
+              "没赢 → 目标对荀彧造成 1 点伤害"
+            ],
+            "negative": [
+              "体力不大于荀彧的角色不可选",
+              "手牌为空不可选"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b16::QUHU + flow::damage_now_no_armor",
+          "tests": [
+            "b16::quhu_win_lets_target_damage_chosen_role",
+            "b16::quhu_requires_higher_hp_and_hand"
+          ]
         },
         {
           "code": "jieming",
           "name": "节命",
           "kind": "normal",
-          "status": "discussed",
+          "status": "implemented",
           "original": "当你受到1点伤害后或死亡时，你可以令一名角色摸X张牌，然后将手牌弃至X张（X为其体力上限且至多为5）。",
           "original_source": "heroes.json#gid=515",
           "mechanics_version": 2,
           "current": [
-            "v1 界版：**受到 1 点伤害后**（且存活）`Frame::Jieming`，令一名角色**摸 X 张**（X = 其体力上限且至多 5），然后将手牌弃至 X 张（reason=`jieming`）。",
-            "界版目标不要求「手牌不足 X」，任何存活角色都可选（含自己）。",
-            "**死亡时触发未实现**（`rules-rulings` §33 已登记边界）。",
-            "标准版节命（非界）：摸至上限（只补差），弃牌按持有上限。"
+            "v2：`DamageAfter` 触发（受伤后；濒死救起后也能走这里）+ 死亡钩子 `skills::on_death`。",
+            "令一名角色摸 X 张（X=当前体力上限，≤5），然后由该角色逐张弃至 X 张（reason=`jieming`）。",
+            "死亡时在死亡清理之前询问（`flow::die` → `on_death`）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -627,7 +682,7 @@
               "lean": "A",
               "why": "文本明写「或死亡时」，B 会让界版少一条收益。",
               "impact": "死亡结算钩子 + 用例（新机制）。",
-              "answer": null
+              "answer": "A（实现「死亡时」触发）"
             },
             {
               "id": "Q2",
@@ -639,7 +694,7 @@
               "lean": "A",
               "why": "上限变化后按当前上限；与 v1 一致。",
               "impact": "数值 + 用例。",
-              "answer": null
+              "answer": "A（读当前体力上限）"
             },
             {
               "id": "Q3",
@@ -651,7 +706,7 @@
               "lean": "A",
               "why": "v1 `hp > 0` 判断；濒死另有死亡触发。",
               "impact": "触发条件 + 用例。",
-              "answer": null
+              "answer": "B（濒死也能发动）"
             }
           ],
           "mechanics": [
@@ -662,19 +717,28 @@
           ],
           "terms": {},
           "ui": {
-            "prompt": null,
-            "overlay": null,
-            "fx": null,
-            "reveal": null,
-            "qq": null
+            "prompt": "节命：受到伤害后或死亡时，令一名角色摸 X 张并弃至 X 张（X=体力上限，至多 5）",
+            "overlay": "选目标 → 摸 X → 弃至 X",
+            "fx": "本期不做",
+            "reveal": "无",
+            "qq": "播报摸/弃"
           },
-          "agreed": null,
+          "agreed": "当你受到 1 点伤害后（**濒死时也可发动**）**或死亡时**，你可以令一名角色摸 X 张牌，然后将手牌弃至 X 张（X = 其**当前**体力上限且至多为 5）。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "受伤后可令目标摸 X 并弃至 X",
+              "死亡时同样可以发动"
+            ],
+            "negative": [
+              "未受伤/未死亡时不触发",
+              "目标弃牌后手牌不超过 X 时不再弃"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b16::JIEMING + flow::die（死亡触发）",
+          "tests": [
+            "b16::jieming_draws_x_then_discards_to_x",
+            "b16::jieming_triggers_on_death"
+          ]
         }
       ]
     },
@@ -687,15 +751,14 @@
           "code": "qiangxi",
           "name": "强袭",
           "kind": "normal",
-          "status": "discussed",
+          "status": "implemented",
           "original": "出牌阶段限两次，你可以受到1点伤害或弃置一张武器牌，对一名本回合内未以此法指定过的其他角色造成1点伤害。",
           "original_source": "heroes.json#gid=526",
           "mechanics_version": 2,
           "current": [
-            "v1 主动技：出牌阶段限**两次**（`qiangxi_used`）；每名角色本回合未被此法指定过（`qiangxi_targets` 位掩码）。",
-            "代价二选一：**受到 1 点伤害**（界版；无可避免的来源，`apply_damage_now`）或**弃置武器牌**。",
-            "目标：任意其他存活角色（无距离限制），造成 1 点伤害（来源=典韦）。",
-            "代价支付后若进入濒死，救起后仍继续选择目标（v1 帧设计）。"
+            "v2 主动技：出牌阶段限两次（`turn.qiangxi_used`），每名角色本回合只能被指定一次（位掩码 `turn.qiangxi_mask`）。",
+            "代价：受到 1 点伤害（`flow::damage(g, None, owner, 1)`，无来源）或弃置武器牌（触发失去装备钩子）。",
+            "对目标造成 1 点伤害（来源=典韦）；代价濒死后救起仍继续选目标。"
           ],
           "confidence": "verified",
           "diff": [
@@ -714,7 +777,7 @@
               "lean": "A",
               "why": "v1 `apply_damage_now(..., None)`；自己打自己会让部分技能误触发。",
               "impact": "伤害来源 + 用例。",
-              "answer": null
+              "answer": "A（代价伤害无来源）"
             },
             {
               "id": "Q2",
@@ -726,7 +789,7 @@
               "lean": "A",
               "why": "文本「本回合内」；v1 计数随回合清空。",
               "impact": "计数 + 用例。",
-              "answer": null
+              "answer": "A（整回合计数，含出牌阶段多次发动）"
             },
             {
               "id": "Q3",
@@ -738,7 +801,7 @@
               "lean": "A",
               "why": "v1 帧在濒死之后恢复；作废会白付代价。",
               "impact": "濒死交互 + 用例。",
-              "answer": null
+              "answer": "A（救起后继续选目标）"
             }
           ],
           "mechanics": [
@@ -749,33 +812,41 @@
           ],
           "terms": {},
           "ui": {
-            "prompt": null,
-            "overlay": null,
-            "fx": null,
-            "reveal": null,
-            "qq": null
+            "prompt": "强袭：受到 1 点伤害或弃武器，对一名本回合未指定过的角色造成 1 点伤害（限两次）",
+            "overlay": "选代价 → 选目标",
+            "fx": "本期不做",
+            "reveal": "无",
+            "qq": "播报伤害"
           },
-          "agreed": null,
+          "agreed": "出牌阶段限两次，你可以**受到 1 点伤害**（无伤害来源）或弃置一张武器牌，对一名本回合内未以此法指定过的其他角色造成 1 点伤害（无距离限制）。若代价伤害使你进入濒死，救起后仍可继续选择目标。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "受到 1 点伤害或弃武器后对未指定过的角色造成 1 点伤害",
+              "每回合最多两次，同一角色只能被指定一次"
+            ],
+            "negative": [
+              "本回合已指定过的角色不可再选",
+              "第三次发动被拒绝"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b16::QIANGXI",
+          "tests": [
+            "b16::qiangxi_cost_hp_then_damage_once_per_target",
+            "b16::qiangxi_discards_weapon_as_cost"
+          ]
         },
         {
           "code": "ninge",
           "name": "狞恶",
           "kind": "locked",
-          "status": "discussed",
+          "status": "implemented",
           "original": "锁定技，当一名角色每回合第二次受到伤害后，若其为你或伤害来源为你，你摸一张牌并弃置其场上一张牌。",
           "original_source": "heroes.json#gid=526",
           "mechanics_version": 2,
           "current": [
-            "v1 锁定技：`Frame::DamageAfter` 后计数 `dmg_count:<victim>`（每回合每人受伤次数），当某角色**本回合第 2 次**受伤后，若典韦是该**受害者**或**伤害来源** → 典韦摸 1 张并弃置该角色一张牌（`discard_one_from`：判定区 → 装备区 → 手牌随机）。",
-            "自动、不询问（锁定技）。",
-            "同一角色第 3 次及以后受伤不再触发。",
-            "弃置来源可为判定区牌（v1 `discard_one_from` 优先判定区）。"
+            "v2 锁定技：`turn.damage_taken:<victim>`（内核伤害出口累计）== 2 且（其为你或来源为你）→ 摸 1 并弃置其一张牌。",
+            "弃置候选＝装备区具体牌 + 随机手牌（**不含判定区**），由典韦选择。",
+            "每名角色各自第 2 次受伤都触发；第 1/3 次不触发。"
           ],
           "confidence": "verified",
           "diff": [
@@ -794,7 +865,7 @@
               "lean": "A",
               "why": "文本「场上一张牌」在既有口径里指装备/判定区（参照巧变/解围的「场上牌」）。",
               "impact": "弃置候选 + 用例。",
-              "answer": null
+              "answer": "C（装备区 + 手牌随机；不含判定区）"
             },
             {
               "id": "Q2",
@@ -806,7 +877,7 @@
               "lean": "A",
               "why": "文本是「一名角色每回合第二次受到伤害后」，按角色计数。",
               "impact": "计数 + 用例。",
-              "answer": null
+              "answer": "A（每名角色各自第 2 次都触发）"
             },
             {
               "id": "Q3",
@@ -818,7 +889,7 @@
               "lean": "A",
               "why": "锁定技、自动口径；改由玩家选会新增交互。",
               "impact": "交互 + 用例。",
-              "answer": null
+              "answer": "B（由典韦选择弃置哪张）"
             }
           ],
           "mechanics": [
@@ -829,19 +900,29 @@
           ],
           "terms": {},
           "ui": {
-            "prompt": null,
-            "overlay": null,
-            "fx": null,
-            "reveal": null,
-            "qq": null
+            "prompt": "狞恶：一名角色每回合第二次受到伤害后，若其为你或来源为你，你摸 1 并弃其一张牌",
+            "overlay": "典韦选择弃置其装备区一张或随机手牌",
+            "fx": "本期不做",
+            "reveal": "无",
+            "qq": "播报"
           },
-          "agreed": null,
+          "agreed": "锁定技，当一名角色**每回合第二次**受到伤害后，若其为你或伤害来源为你，你摸一张牌，然后弃置其一张牌（装备区牌可选、手牌随机一张；**不含判定区**）。由典韦选择弃置哪一张。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "受害者/来源为典韦时，第 2 次受伤后摸 1 并弃其一张牌",
+              "每名角色各自第 2 次受伤都触发"
+            ],
+            "negative": [
+              "第 1/第 3 次受伤不触发",
+              "与典韦无关的受伤不触发",
+              "不可弃置判定区牌"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b16::NINGE + flow::damage_now_impl（受伤计数）",
+          "tests": [
+            "b16::ninge_second_damage_draws_and_discards",
+            "b16::ninge_ignores_unrelated_damage"
+          ]
         }
       ]
     },
@@ -854,15 +935,14 @@
           "code": "shuangxiong",
           "name": "双雄",
           "kind": "normal",
-          "status": "discussed",
+          "status": "implemented",
           "original": "摸牌阶段结束时，你可以弃置一张牌，然后你本回合可以将一张与之颜色不同的牌当【决斗】使用。结束阶段，你获得本回合对你造成过伤害的牌。",
           "original_source": "heroes.json#gid=550",
           "mechanics_version": 2,
           "current": [
-            "v1 界版：**摸牌阶段结束时**可选弃 1 张牌（`MultiSelect`，`sx_jie_offered` 每回合一次），记录该牌颜色（`shuangxiong_color`）。",
-            "本回合内，手牌中**与该牌颜色不同**的牌可当【决斗】使用（`shuangxiong_conversion`，`convert:` 动作）。",
-            "**结束阶段**获得「本回合对你造成过伤害的牌」（`sx_dmg:<card>` 标记，从弃牌堆/处理区取回手牌）。",
-            "标准版双雄（非界）：摸牌阶段改为判定并获得判定牌（`skip_draw` + `QuickJudge`）。"
+            "v2：`after_draw_phase` 时可选弃一张牌（手牌或装备区，每回合一次），记录颜色 `turn.sx_color`。",
+            "本回合与该牌**颜色不同**（实体牌花色）的手牌/装备牌可当【决斗】使用（`skills::conversions`）。",
+            "`DamageAfter` 记录 `sx_dmg:<card>`；`PhaseStart(End)` 从弃牌堆/处理区取回（含自己发起的转化【决斗】）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -882,7 +962,7 @@
               "lean": "A",
               "why": "v1 用 `MultiSelect` 手牌。",
               "impact": "候选集合 + 用例。",
-              "answer": null
+              "answer": "B（手牌 + 装备区）"
             },
             {
               "id": "Q2",
@@ -894,7 +974,7 @@
               "lean": "A",
               "why": "v1 读 `is_red(suit)`。",
               "impact": "转化候选 + 用例。",
-              "answer": null
+              "answer": "A（按实体牌花色）"
             },
             {
               "id": "Q3",
@@ -906,7 +986,7 @@
               "lean": "A",
               "why": "v1 只从两个区域取回；B 需要追踪所有区域且与「牌区唯一」冲突。",
               "impact": "取回范围 + 用例。",
-              "answer": null
+              "answer": "A（只从弃牌堆/处理区取回）——用户补充：自己发起【决斗】的那张（与弃牌颜色不同的）牌也可获得"
             }
           ],
           "mechanics": [
@@ -918,19 +998,29 @@
           ],
           "terms": {},
           "ui": {
-            "prompt": null,
-            "overlay": null,
-            "fx": null,
-            "reveal": null,
-            "qq": null
+            "prompt": "双雄：摸牌阶段结束可弃一张牌（手牌/装备区），本回合异色牌当【决斗】；结束阶段获得本回合伤你的牌",
+            "overlay": "选弃牌 → 颜色记录 → 转化【决斗】 → 结束阶段选牌取回",
+            "fx": "本期不做",
+            "reveal": "无",
+            "qq": "播报"
           },
-          "agreed": null,
+          "agreed": "摸牌阶段结束时，你可以弃置一张牌（手牌或装备区），然后本回合你可以将一张与之**颜色不同**（按实体牌花色）的牌当【决斗】使用。结束阶段，你获得本回合对你造成过伤害的牌（只从弃牌堆/处理区取回；**自己发起【决斗】的那张转化牌**也在其中）。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "摸牌阶段结束弃牌后，本回合异色牌可当【决斗】使用",
+              "结束阶段取回本回合伤你的牌（含自己发起的转化【决斗】）"
+            ],
+            "negative": [
+              "同色牌不能转化",
+              "未弃牌则不获得转化能力",
+              "已不在弃牌堆/处理区的牌不取回"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b16::SHUANGXIONG + skills::after_draw_phase",
+          "tests": [
+            "b16::shuangxiong_discards_color_then_converts_opposite",
+            "b16::shuangxiong_gains_damage_cards_at_end"
+          ]
         }
       ]
     },
@@ -943,15 +1033,14 @@
           "code": "zhijian",
           "name": "直谏",
           "kind": "normal",
-          "status": "discussed",
+          "status": "implemented",
           "original": "出牌阶段，你可以将一张装备牌置于其他角色的装备区（替换原装备），然后摸一张牌。",
           "original_source": "heroes.json#gid=563",
           "mechanics_version": 2,
           "current": [
-            "v1 主动技：出牌阶段（**无次数限制**），将一张**手牌装备牌**置入一名其他角色的装备区（替换原装备），然后摸 1 张。",
-            "替换掉的旧装备进弃牌堆并触发失去装备钩子（枭姬等）。",
-            "目标可以是任何其他存活角色（不要求其装备区为空）。",
-            "只允许手牌装备，不读取装备区的牌。"
+            "v2 主动技（无次数限制，放弃后本阶段不再提示）：选一张手牌装备 → 选一名其他角色 → 置入其装备区。",
+            "同槽位旧装备进弃牌堆并触发失去装备钩子（枭姬等）。",
+            "完成后摸 1 张（走 `draw_with_cause`，弃牌阶段处理上限）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -970,7 +1059,7 @@
               "lean": "A",
               "why": "文本没写次数限制；v1 也未加。",
               "impact": "主动技入口 + 用例。",
-              "answer": null
+              "answer": "A（无次数限制）"
             },
             {
               "id": "Q2",
@@ -982,7 +1071,7 @@
               "lean": "A",
               "why": "v1 走 `to_discard_card` + `xiaoji_on_lose_equip`。",
               "impact": "事件链 + 用例。",
-              "answer": null
+              "answer": "A（旧装备视为弃置并触发失去装备钩子）"
             },
             {
               "id": "Q3",
@@ -994,7 +1083,7 @@
               "lean": "A",
               "why": "v2 统一摸牌入口 + 弃牌阶段；`draw_capped` 是 v1 遗留。",
               "impact": "摸牌 + 用例。",
-              "answer": null
+              "answer": "A（正常摸 1，弃牌阶段处理）"
             }
           ],
           "mechanics": [
@@ -1005,33 +1094,41 @@
           ],
           "terms": {},
           "ui": {
-            "prompt": null,
-            "overlay": null,
-            "fx": null,
-            "reveal": null,
-            "qq": null
+            "prompt": "直谏：将一张装备牌置入其他角色装备区（替换原装备），然后摸一张",
+            "overlay": "选装备牌 → 选目标角色",
+            "fx": "本期不做",
+            "reveal": "无",
+            "qq": "播报置入/替换"
           },
-          "agreed": null,
+          "agreed": "出牌阶段，你可以将一张手牌装备牌置入一名其他角色的装备区（替换原装备，旧装备进弃牌堆并触发失去装备钩子），然后摸一张牌。无次数限制。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "手牌装备牌置入其他角色装备区并摸 1",
+              "替换下的旧装备触发失去装备钩子"
+            ],
+            "negative": [
+              "非装备牌不能直谏",
+              "不能对自己使用"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b16::ZHIJIAN",
+          "tests": [
+            "b16::zhijian_moves_equip_and_draws",
+            "b16::zhijian_needs_equip_in_hand"
+          ]
         },
         {
           "code": "guzheng",
           "name": "固政",
           "kind": "normal",
-          "status": "discussed",
+          "status": "implemented",
           "original": "每阶段限一次，当其他角色的至少两张牌因弃置置入弃牌堆后，你可以令其获得其中一张牌，然后你可以获得剩余牌。",
           "original_source": "heroes.json#gid=563",
           "mechanics_version": 2,
           "current": [
-            "v1 **标准版**：其他角色**弃牌阶段结束**时，若其弃置的牌 ≥1 张 → 张昭张纮可令其获得其中一张，然后自己获得其余（`Frame::Guzheng`，`Pick` 阶段由固政持有者选「交给弃牌者」的那张）。",
-            "v1 **界版**：其他角色**本阶段**至少**两张**牌因弃置进入弃牌堆后立即触发（每阶段限一次，`guzheng_jie_used`），分配方式相同。",
-            "「因弃置」不含判定区移出（mechanics `discard-contract`）。",
-            "v1 界版采集的候选是「弃牌者本阶段被弃置的牌」（`gz_jie:<seat>:<card>` 标记）。"
+            "v2：订阅 `CardDiscarded`；用内核 `Game.discard_batch`（每次动作清空）判定「**单次弃置动作 ≥2 张**」。",
+            "每角色每阶段限一次（`phase.guzheng_used:<owner>`）；由固政持有者选择交给弃牌者的那一张，其余归自己（`Game::gain`）。",
+            "判定区移出不产生 `CardDiscarded`，天然不计入。"
           ],
           "confidence": "verified",
           "diff": [
@@ -1050,7 +1147,7 @@
               "lean": "A",
               "why": "文本是「每阶段限一次」；v2 用 `phase.` 前缀自动清空。",
               "impact": "计数 + 用例。",
-              "answer": null
+              "answer": "A（每个角色的每个阶段限一次）"
             },
             {
               "id": "Q2",
@@ -1062,7 +1159,7 @@
               "lean": "A",
               "why": "v1 `discarded_by:<seat>` 累计。",
               "impact": "触发条件 + 用例。",
-              "answer": null
+              "answer": "B（按**单次弃置动作** ≥2 张）"
             },
             {
               "id": "Q3",
@@ -1074,7 +1171,7 @@
               "lean": "A",
               "why": "v1 `Pick` 阶段由 owner 选。",
               "impact": "交互 + 用例。",
-              "answer": null
+              "answer": "A（由固政持有者选交给弃牌者的那张）"
             }
           ],
           "mechanics": [
@@ -1085,19 +1182,28 @@
           ],
           "terms": {},
           "ui": {
-            "prompt": null,
-            "overlay": null,
-            "fx": null,
-            "reveal": null,
-            "qq": null
+            "prompt": "固政：其他角色单次弃置 ≥2 张牌后，令其获得一张，你获得其余（每阶段限一次）",
+            "overlay": "选交给弃牌者的那张",
+            "fx": "本期不做",
+            "reveal": "无",
+            "qq": "播报分配"
           },
-          "agreed": null,
+          "agreed": "每阶段限一次，当其他角色**单次弃置至少两张牌**置入弃牌堆后，你可以令其获得其中一张牌，然后你获得其余牌（不含判定区移出）。交给弃牌者的那一张由你选择。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "单次弃置 ≥2 张后，弃牌者获得 1 张、张昭张纮获得其余",
+              "每阶段限一次"
+            ],
+            "negative": [
+              "单次只弃 1 张不触发",
+              "同一阶段第二次不触发"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b16::GUZHENG + kernel::mod::discard_batch",
+          "tests": [
+            "b16::guzheng_single_action_two_discards",
+            "b16::guzheng_single_card_does_not_trigger"
+          ]
         }
       ]
     },
@@ -1110,15 +1216,14 @@
           "code": "pojun",
           "name": "破军",
           "kind": "normal",
-          "status": "discussed",
+          "status": "implemented",
           "original": "当你使用【杀】指定目标后，你可以将其至多X张牌移出游戏直到回合结束（X为其体力值）。你使用的【杀】对手牌区与装备区内牌数皆小于等于你的角色造成的伤害+1。",
           "original_source": "heroes.json#gid=587",
           "mechanics_version": 2,
           "current": [
-            "v1：**使用【杀】指定目标后**（`push_pojun`），可将目标至多 X 张牌移出游戏直到回合结束（X = 目标当前体力值）；逐张选择（手牌随机 / 装备区指定 / 可随时停止）。",
-            "移出的牌进 `void` 并记录 `void_return`（到期 = 本回合），回合切换时归还。",
-            "界版追加：你使用的【杀】对**手牌区与装备区牌数皆小于等于你**的角色伤害 +1（`pojun_damage_bonus`）。",
-            "v1 移出范围：手牌 + 装备区（不含判定区）。"
+            "v2：登记为【杀】指定目标后的介入技能（`skills::b16::sha_intercept` → `b8::sha_intercept_skills`）。",
+            "逐张移出目标手牌（随机）/装备区牌，最多 X 张（X=目标当前体力值），`to_void` + `void_return`（due=当前 `turn_seq`）。",
+            "`skills::damage_bonus_typed` 加 `b16::pojun_bonus`：目标手牌数与装备区牌数皆 ≤ 你 → 【杀】伤害 +1（结算时实时比较）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -1137,7 +1242,7 @@
               "lean": "A",
               "why": "v1 只列手牌/装备；「至多 X 张牌」在既有口径指手牌/装备区。",
               "impact": "候选集合 + 用例。",
-              "answer": null
+              "answer": "A（不含判定区）"
             },
             {
               "id": "Q2",
@@ -1149,7 +1254,7 @@
               "lean": "A",
               "why": "v1 在 `resolve_skill` 加伤时实时比较。",
               "impact": "数值 + 用例。",
-              "answer": null
+              "answer": "A（伤害结算时实时比较）"
             },
             {
               "id": "Q3",
@@ -1161,7 +1266,7 @@
               "lean": "A",
               "why": "文本「移出游戏直到回合结束」→ 归还。",
               "impact": "牌区/归还 + 用例。",
-              "answer": null
+              "answer": "A（本回合结束自动归还原所有者）"
             }
           ],
           "mechanics": [
@@ -1172,19 +1277,28 @@
           ],
           "terms": {},
           "ui": {
-            "prompt": null,
-            "overlay": null,
-            "fx": null,
-            "reveal": null,
-            "qq": null
+            "prompt": "破军：使用【杀】指定目标后，可将其至多 X 张牌移出游戏直到回合结束；界版满足条件伤害 +1",
+            "overlay": "选手牌（随机）/装备牌 → 可停止",
+            "fx": "移出/归还提示",
+            "reveal": "无",
+            "qq": "播报移出与归还"
           },
-          "agreed": null,
+          "agreed": "当你使用【杀】指定目标后，你可以将其至多 X 张牌（手牌随机/装备区指定，不含判定区）移出游戏直到回合结束（X = 其体力值）。你使用的【杀】对**手牌数与装备区牌数皆小于等于你**的角色造成的伤害 +1（伤害结算时实时比较）。移出的牌于本回合结束时自动归还原所有者。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "指定目标后可移出至多 X 张牌，回合结束归还",
+              "牌数不多于你时【杀】伤害 +1"
+            ],
+            "negative": [
+              "目标无手牌且无装备 → 不询问",
+              "判定区牌不能移出"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b16::POJUN + b8::sha_intercept_skills",
+          "tests": [
+            "b16::pojun_voids_cards_until_turn_end",
+            "b16::pojun_bonus_when_card_counts_not_higher"
+          ]
         }
       ]
     }

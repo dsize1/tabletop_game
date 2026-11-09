@@ -1065,13 +1065,13 @@ pub fn return_void_cards(g: &mut Game, turn_seq: u32) {
     let due: Vec<(usize, CardId, u32)> = g
         .void_return
         .iter()
-        .filter(|(_, _, d)| *d < turn_seq)
+        .filter(|(_, _, d)| *d <= turn_seq)
         .cloned()
         .collect();
     if due.is_empty() {
         return;
     }
-    g.void_return.retain(|(_, _, d)| *d >= turn_seq);
+    g.void_return.retain(|(_, _, d)| *d > turn_seq);
     for (seat, id, _) in due {
         let _ = g.from_void(&id, Zone::Hand(seat));
     }

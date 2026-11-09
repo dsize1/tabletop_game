@@ -21,6 +21,7 @@ pub mod b12;
 pub mod b13;
 pub mod b14;
 pub mod b15;
+pub mod b16;
 pub mod mingren;
 pub mod kongsheng;
 pub mod liangyin;
@@ -300,6 +301,21 @@ pub const SKILLS: &[SkillDef] = &[
     b15::HAOSHI,
     b15::DIMENG,
     b15::QIAOBIAN,
+    // B16（界孟获 / 界徐晃 / 界蔡文姬 / 界荀彧 / 界典韦 / 界颜良文丑 / 界张昭张纮 / 界徐盛）
+    b16::HUOSHOU,
+    b16::ZAIZHI,
+    b16::DUANLIANG,
+    b16::JIEZI,
+    b16::DUANCHANG,
+    b16::BEIGE,
+    b16::QUHU,
+    b16::JIEMING,
+    b16::QIANGXI,
+    b16::NINGE,
+    b16::SHUANGXIONG,
+    b16::ZHIJIAN,
+    b16::GUZHENG,
+    b16::POJUN,
 ];
 
 /// 转换技（阳/阴两面）：视图按此清单投影 `transforms`（与 handlers 的 `g.yang/toggle_yang` 对应）。
@@ -325,6 +341,10 @@ pub fn active(g: &Game, seat: usize, code: &str) -> bool {
         return false;
     }
     let Some(s) = g.seats.get(seat) else { return false };
+    // 断肠（界蔡文姬）：被杀死者**永久失去所有技能**（含锁定技/主公技）。
+    if s.flags.contains("skills_lost") {
+        return false;
+    }
     if s.skills.iter().any(|x| x == code) || s.granted.iter().any(|x| x == code) {
         return true;
     }
@@ -788,7 +808,8 @@ pub fn damage_bonus_typed(
 ) -> i32 {
     let b9_extra = b9::paoxiao_bonus(g, source, card)
         + b9::yijue_heart_bonus(g, source, victim, card)
-        + b13::liegong_bonus(g, source, victim, card);
+        + b13::liegong_bonus(g, source, victim, card)
+        + b16::pojun_bonus(g, source, victim, card);
     if b9_extra > 0 {
         return b4::anjian_bonus(g, source, victim, card) + b9_extra;
     }
@@ -1006,6 +1027,7 @@ pub fn conversions(g: &Game, seat: usize) -> Vec<Conversion> {
     out.extend(b12::conversions(g, seat));
     out.extend(b14::conversions(g, seat));
     out.extend(b15::conversions(g, seat));
+    out.extend(b16::conversions(g, seat));
     out
 }
 
@@ -1376,6 +1398,30 @@ pub fn before_phase(g: &mut Game, seat: usize, phase: Phase) -> bool {
 /// 摸牌阶段结束后（好施：手牌 >5 交一半）。
 pub fn after_draw_phase(g: &mut Game, seat: usize) {
     b15::after_draw_phase(g, seat);
+    b16::after_draw_phase(g, seat);
+}
+
+/// 跳过摸牌阶段（截辎：一名角色跳过摸牌阶段后）。
+pub fn on_skip_draw(g: &mut Game, skipper: usize) {
+    b16::on_skip_draw(g, skipper);
+}
+
+/// 死亡钩子（断肠 / 节命「死亡时」）。
+pub fn on_death(g: &mut Game, victim: usize, source: Option<usize>) {
+    b16::on_death(g, victim, source);
+}
+
+/// 【南蛮入侵】的伤害来源替换（祸首）。
+pub fn aoe_damage_source(g: &Game, user: usize, card: Option<&crate::kernel::CardId>) -> Option<usize> {
+    b16::huoshou_source(g, user, card)
+}
+
+/// 【兵粮寸断】是否无距离限制（断粮：本回合未造成伤害）。
+pub fn supply_shortage_no_distance(g: &Game, seat: usize) -> bool {
+    // 奇才 / 慎断（黑色基本牌转化视为无距离）/ 界断粮（本回合未造成伤害）。
+    b9::trick_no_distance(g, seat)
+        || active(g, seat, "shenduan")
+        || b16::duanliang_no_distance(g, seat)
 }
 
 /// 一张牌结算结束（巨象：其他角色的【南蛮入侵】结算结束后获得之）。
