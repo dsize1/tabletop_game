@@ -964,6 +964,21 @@ pub fn start_rewrite_for(
     false
 }
 
+/// 濒死窗口的额外选项（蛊惑：扣置一张手牌当【桃】）。
+pub fn dying_extra_options(g: &Game, seat: usize) -> Vec<(String, String)> {
+    b13::guhuo_dying_options(g, seat)
+}
+
+/// 濒死窗口的额外选项执行（返回 true = 已启动延后流程）。
+pub fn dying_extra_use(
+    g: &mut Game,
+    seat: usize,
+    victim: usize,
+    act: &str,
+) -> Result<bool, String> {
+    b13::guhuo_dying_use(g, seat, victim, act)
+}
+
 /// 蛊惑是否可用（每回合限一次 + 有手牌）。
 pub fn guhuo_available(g: &Game, seat: usize) -> bool {
     b13::guhuo_available(g, seat)

@@ -1,7 +1,7 @@
 //! B13 用例（16 技能 + 2 授予技）。
 use sanguosha2::kernel::event::{Event, EventKind};
 use sanguosha2::kernel::resolve::{advance, begin_phase, submit};
-use sanguosha2::kernel::{Card, Game, Phase, Seat, Slot, Suit, Zone};
+use sanguosha2::kernel::{flow, Card, Game, Phase, Seat, Slot, Suit, Zone};
 use sanguosha2::skills;
 
 fn deck() -> Vec<Card> {
@@ -20,6 +20,7 @@ fn deck() -> Vec<Card> {
         ("j1", "决斗", Suit::Club, 4),
         ("w1", "青釭剑", Suit::Spade, 6),
         ("wj1", "万箭齐发", Suit::Heart, 9),
+        ("wux1", "无懈可击", Suit::Spade, 11),
     ];
     let mut cards: Vec<Card> = spec
         .iter()
@@ -61,6 +62,10 @@ fn options(g: &Game) -> Vec<String> {
         .as_ref()
         .map(|p| p.options().iter().map(|o| o.id.clone()).collect())
         .unwrap_or_default()
+}
+fn answer_cur(g: &mut Game, action: &str) {
+    let actor = g.pending.as_ref().map(|p| p.actor()).expect("没有待办");
+    answer(g, actor, action);
 }
 fn answer(g: &mut Game, actor: usize, action: &str) {
     submit(g, actor, action).unwrap_or_else(|e| panic!("提交 {action} 失败：{e}"));
@@ -655,4 +660,55 @@ fn sishu_toggles_indulgence_judgement() {
         answer(&mut g, 0, "target:1");
         assert!(!skills::sishu_reversed(&g, 1), "再次选择 → 恢复常规");
     }
+}
+
+// ---------------------------------------------------------------- 蛊惑（无懈 / 濒死入口）
+#[test]
+fn guhuo_works_in_wuxie_window() {
+    let mut g = game(&[
+        ("yu", &["guhuo"], 3, "qun"),
+        ("p1", &[], 4, "wei"),
+        ("p2", &[], 4, "wu"),
+    ]);
+    play_phase(&mut g, 1);
+    give(&mut g, 1, &["wj1"]);
+    give(&mut g, 0, &["wux1"]);
+    g.resolve_use(1, &"wj1".to_string(), Vec::new()).unwrap();
+    assert_eq!(pend_skill(&g).as_deref(), Some("wuxie"));
+    assert!(options(&g).iter().any(|o| o == "guhuo"), "无懈窗口出现蛊惑");
+    answer(&mut g, 0, "guhuo");
+    answer(&mut g, 0, "pick:wux1");
+    // 质疑阶段：其余角色都选择不质疑（按座位号顺序）
+    answer(&mut g, 1, "pass");
+    answer(&mut g, 2, "pass");
+    // 真 → 计一张无懈，最终万箭被抵消
+    assert_eq!(g.seats[0].hp, 3);
+    assert_eq!(g.seats[1].hp, 4);
+    assert_eq!(g.seats[2].hp, 4);
+    assert!(
+        g.log.iter().any(|l| l.text.contains("锦囊被抵消")),
+        "蛊惑当【无懈可击】生效"
+    );
+}
+
+#[test]
+fn guhuo_works_in_dying_window() {
+    let mut g = game(&[
+        ("yu", &["guhuo"], 3, "qun"),
+        ("victim", &[], 1, "wei"),
+        ("p2", &[], 4, "wu"),
+    ]);
+    g.turn = 2; // 于吉回合外
+    give(&mut g, 0, &["t1"]); // 真实的【桃】
+    // victim 濒死
+    flow::damage(&mut g, Some(2), 1, 1);
+    advance(&mut g).unwrap();
+    // 先问 victim 自己（无手牌）→ 于吉
+    assert_eq!(pend_skill(&g).as_deref(), Some("dying"));
+    assert!(options(&g).iter().any(|o| o == "guhuo"), "濒死窗口出现蛊惑");
+    answer(&mut g, 0, "guhuo");
+    answer(&mut g, 0, "pick:t1");
+    // 质疑阶段：仅存活的其他角色（濒死者 hp=0 不参与）逐个询问
+    answer_cur(&mut g, "pass");
+    assert_eq!(g.seats[1].hp, 1, "蛊惑当【桃】救起");
 }

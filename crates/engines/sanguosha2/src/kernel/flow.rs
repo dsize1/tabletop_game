@@ -432,6 +432,26 @@ pub fn step_dying(g: &mut Game, a: &Ask) -> Result<Step, String> {
         return Ok(Step::Done);
     }
     let asker = order[cursor];
+    // 延后技能（蛊惑）结束后的结果消费。
+    if let Some(res) = g.guhuo_result.take() {
+        let mut next = a.data.clone();
+        if let Some(_card) = res {
+            g.seats[victim].hp += 1;
+            g.presentation.push(
+                Presentation::new("dying", POutcome::Heal { amount: 1 })
+                    .actor(asker)
+                    .target(victim)
+                    .fx("dying_heal"),
+            );
+            g.push_log(format!(
+                "{} 蛊惑救援 {}（体力 {}）",
+                g.seats[asker].name, g.seats[victim].name, g.seats[victim].hp
+            ));
+            return Ok(Step::Done);
+        }
+        next["cursor"] = json!(cursor + 1);
+        return Ok(Step::Next(Stage::DyingAsk, next));
+    }
     let mut b = skills::builder(asker, "dying").skill("dying");
     let mut has = false;
     // 求到自己时，若可发动兴衰，提供「发动兴衰」选项（自桃/自酒/兴衰三选一）。
@@ -462,6 +482,11 @@ pub fn step_dying(g: &mut Game, a: &Ask) -> Result<Step, String> {
             ),
         );
     }
+    // 蛊惑（于吉）：扣置一张手牌当【桃】（延后结算：质疑链后再回传结果）。
+    for (id, label) in crate::skills::dying_extra_options(g, asker) {
+        has = true;
+        b = b.option(id, label);
+    }
     if !has {
         let mut next = a.data.clone();
         next["cursor"] = json!(cursor + 1);
@@ -480,6 +505,10 @@ pub fn step_dying(g: &mut Game, a: &Ask) -> Result<Step, String> {
             Ok(Step::Next(Stage::DyingAsk, a.data.clone()))
         }
         Some(act) => {
+            // 延后型技能选项（蛊惑）：启动质疑链，结束后由上面的结果通道重入。
+            if crate::skills::dying_extra_use(g, asker, victim, act)? {
+                return Ok(Step::Next(Stage::DyingAsk, a.data.clone()));
+            }
             // 转化牌救援（急救）：承载牌进弃牌堆，体力 +1（与【桃】同一结算点）。
             if let Some(rest) = act.strip_prefix("vrespond:") {
                 let mut parts = rest.splitn(2, ':');
@@ -611,6 +640,19 @@ pub fn step_wuxie(g: &mut Game, a: &Ask) -> Result<Step, String> {
         return Ok(Step::Done);
     }
     let asker = order[cursor];
+    // 延后技能（蛊惑）结束后的结果消费：真 → 计一张并重开询问；假 → 该角色不响应。
+    if let Some(res) = g.guhuo_result.take() {
+        let mut next = a.data.clone();
+        if res.is_some() {
+            count += 1;
+            cursor = 0;
+        } else {
+            cursor += 1;
+        }
+        next["cursor"] = json!(cursor);
+        next["count"] = json!(count);
+        return Ok(Step::Next(Stage::WuxieAsk, next));
+    }
     let mut b = skills::builder(asker, "wuxie").skill("wuxie");
     let mut has = false;
     for id in g.hand(asker) {
@@ -645,6 +687,11 @@ pub fn step_wuxie(g: &mut Game, a: &Ask) -> Result<Step, String> {
             } else if !skills::wuxie_use(g, asker, act)? {
                 // 技能提供的无懈替代选项（如解围：装备区牌当无懈）。
                 return Err(format!("无懈：未知选项 {act}"));
+            }
+            // 技能声明「延后」（蛊惑：质疑链结束后重入本帧再计数）。
+            if g.skill_deferred {
+                g.skill_deferred = false;
+                return Ok(Step::Next(Stage::WuxieAsk, a.data.clone()));
             }
             count += 1;
             cursor = 0; // 重新从使用者左手侧开始（嵌套）

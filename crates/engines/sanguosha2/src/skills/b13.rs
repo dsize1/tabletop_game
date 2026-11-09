@@ -1954,8 +1954,8 @@ pub const GUHUO: SkillDef = SkillDef {
     handler: guhuo,
     dying_hook: None,
     flip_hook: None,
-    wuxie_opts: None,
-    wuxie_use: None,
+    wuxie_opts: Some(guhuo_wuxie_opts),
+    wuxie_use: Some(guhuo_wuxie_use),
     target_blocker: None,
     yang_window: None,
     yin_window: None,
@@ -2037,6 +2037,65 @@ fn guhuo_questions(g: &Game, owner: usize) -> Vec<usize> {
         .collect()
 }
 
+/// 濒死窗口的额外选项（蛊惑）。
+pub fn guhuo_dying_options(g: &Game, seat: usize) -> Vec<(String, String)> {
+    if !guhuo_available(g, seat) {
+        return Vec::new();
+    }
+    vec![("guhuo".to_string(), "蛊惑：扣置一张手牌当【桃】".to_string())]
+}
+
+/// 濒死窗口的蛊惑入口（启动质疑链，结果经 `Game.guhuo_result` 回传）。
+pub fn guhuo_dying_use(
+    g: &mut Game,
+    seat: usize,
+    victim: usize,
+    act: &str,
+) -> Result<bool, String> {
+    if act != "guhuo" {
+        return Ok(false);
+    }
+    if !guhuo_available(g, seat) {
+        return Err("蛊惑：本回合已使用过或没有手牌".into());
+    }
+    g.bump(&format!("turn.guhuo_used:{seat}"));
+    g.counters
+        .insert("guhuo_dying_victim".to_string(), victim as u32 + 1);
+    push(
+        g,
+        "guhuo",
+        seat,
+        json!({
+            "stage": "card",
+            "owner": seat,
+            "purpose": "dying",
+            "declared": "桃",
+        }),
+    );
+    g.skill_deferred = true;
+    Ok(true)
+}
+
+/// 无懈窗口的额外选项（蛊惑）。
+fn guhuo_wuxie_opts(g: &Game, seat: usize) -> Vec<(String, String)> {
+    if !guhuo_available(g, seat) {
+        return Vec::new();
+    }
+    vec![(
+        "guhuo".to_string(),
+        "蛊惑：扣置一张手牌当【无懈可击】".to_string(),
+    )]
+}
+
+fn guhuo_wuxie_use(g: &mut Game, seat: usize, act: &str) -> Result<bool, String> {
+    if act != "guhuo" {
+        return Ok(false);
+    }
+    start_guhuo_response(g, seat, ResponseKind::Wuxie)?;
+    g.skill_deferred = true;
+    Ok(true)
+}
+
 fn guhuo(g: &mut Game, a: &Ask) -> Result<Step, String> {
     let owner = a
         .data["owner"]
@@ -2066,9 +2125,10 @@ fn guhuo(g: &mut Game, a: &Ask) -> Result<Step, String> {
                 if !g.hand(owner).contains(&carrier) {
                     return Err("蛊惑：只能扣置手牌".into());
                 }
-                if purpose == "respond" {
+                if purpose == "respond" || purpose == "dying" {
                     g.bump(&format!("turn.guhuo_used:{owner}"));
-                    let declared = a.data["declared"].as_str().unwrap_or("闪").to_string();
+                    let fallback = if purpose == "dying" { "桃" } else { "闪" };
+                    let declared = a.data["declared"].as_str().unwrap_or(fallback).to_string();
                     push(
                         g,
                         "guhuo",
@@ -2379,7 +2439,7 @@ fn guhuo_resolve(
             "蛊惑：{} 的扣置牌为假，此牌作废",
             g.seats[owner].name
         ));
-        if purpose == "respond" {
+        if purpose == "respond" || purpose == "dying" {
             g.guhuo_result = Some(None);
         }
         return Ok(Step::Done);
@@ -2412,6 +2472,19 @@ fn guhuo_effect(
     targets: &[usize],
     purpose: &str,
 ) -> Result<Step, String> {
+    if purpose == "dying" {
+        if !g.cards.contains_key(carrier) {
+            g.guhuo_result = Some(None);
+            return Ok(Step::Done);
+        }
+        g.to_discard(carrier, "guhuo")?;
+        g.push_log(format!(
+            "蛊惑：将【{}】当【桃】自救/救援",
+            label(g, carrier)
+        ));
+        g.guhuo_result = Some(Some(carrier.clone()));
+        return Ok(Step::Done);
+    }
     if purpose == "respond" {
         if !g.cards.contains_key(carrier) {
             g.guhuo_result = Some(None);

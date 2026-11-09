@@ -954,15 +954,15 @@
           "mechanics_version": 2,
           "current": [
             "v2：每回合限一次（`turn.guhuo_used:{seat}`，任一玩家回合内限一次，含自己回合）。",
-            "出牌阶段：选一张手牌扣置 → 声明任意基本牌/普通锦囊（按 `cards::generated::DEFS` 属性筛选；排除延时锦囊/【无懈可击】/借刀/铁索）→ 选目标（按牌定义 target_mode）→ **逐个询问其他角色是否质疑（收集全部选择后再公开翻开）**。",
+            "出牌阶段：选一张手牌扣置 → 声明任意基本牌/普通锦囊（按 `cards_generated::DEFS` 属性筛选；排除延时锦囊/【无懈可击】/借刀/铁索）→ 选目标（按牌定义 target_mode）→ **逐个询问其他角色是否质疑（收集全部选择后再公开翻开）**。",
             "为假：此牌作废进弃牌堆、质疑者各摸一张；为真：质疑者获得「缠怨」，并由**质疑者自己**选择弃置一张牌或失去 1 点体力。之后按声明牌结算（`set_virtual` + `use_as` 或作为响应）。",
-            "响应窗口（【闪】/【杀】）接入 `response_options` 的 `guhuo` 选项：流程结束后经 `Game.guhuo_result` 延后回传「视为已响应 / 假牌作废」，内核 3 处响应调用点重入消费。",
+            "响应窗口（【闪】/【杀】）接入 `response_options` 的 `guhuo` 选项；**无懈窗口**经 `wuxie_opts`/`wuxie_use` 钩子；**濒死救援**经 `skills::dying_extra_options`/`dying_extra_use`。三处都经 `Game.guhuo_result` 延后回传结果，内核在重入时消费（`skill_deferred` 标记）。",
             "「缠怨」：拥有者不能质疑蛊惑；其体力值为 1 时所有技能失效（`skills::active` 闸门）。"
           ],
           "confidence": "verified",
           "diff": [
             "v1 固定白名单声明 + 顺序询问取第一个质疑者 + 质疑者惩罚自动；本批按裁定改为「任意基本/普通锦囊 + 同时收集质疑 + 质疑者自选」。",
-            "本期边界：【无懈可击】窗口与濒死自救入口尚未接入蛊惑（出牌阶段与【闪】/【杀】响应已接入）。"
+            "声明范围暂排除借刀/铁索（目标结构特殊，需两目标选择；后续如需再补）。"
           ],
           "questions": [
             {
@@ -1069,7 +1069,9 @@
           "impl": "sanguosha2::skills::b13::GUHUO + Game.guhuo_result / skills::guhuo_available / start_guhuo_response",
           "tests": [
             "b13::guhuo_fake_is_void_and_questioner_draws",
-            "b13::guhuo_real_causes_chanyuan_and_penalty_choice"
+            "b13::guhuo_real_causes_chanyuan_and_penalty_choice",
+            "b13::guhuo_works_in_wuxie_window",
+            "b13::guhuo_works_in_dying_window"
           ]
         }
       ]

@@ -13,7 +13,9 @@
   `hidden-declaration`（蛊惑：`Game.guhuo_result` 延后通道 + 同时质疑链）、
   `aoe-target-trim`（乱击）、`sha-intercept`（烈弓/享乐）、`judge-reversal`（思蜀）、
   `range-override`（烈弓）；改判改为「一轮询问」且覆盖延时锦囊判定。
-- **度量**：`cargo test -p sanguosha2` **482** 条全绿（新增 `tests/b13.rs` 34 条）；`check:sgs2` 全绿
+- **补充（同日）**：蛊惑补齐【无懈可击】窗口与濒死自救入口（`wuxie_opts/wuxie_use` + `Game.skill_deferred`、
+  `skills::dying_extra_options/dying_extra_use`），四处入口统一走 `Game.guhuo_result` 延后通道。
+- **度量**：`cargo test -p sanguosha2` **484** 条全绿（新增 `tests/b13.rs` 36 条）；`check:sgs2` 全绿
   （注册 190 / 对齐单 183 / B0–B13 精确一致）；`sgs:check:fast` 全绿。
 
 ## M84：B12 界标·群 八技能落地（v2 迁移批次第 5 批）✅

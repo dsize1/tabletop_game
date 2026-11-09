@@ -356,6 +356,9 @@ pub struct Game {
     /// 蛊惑的响应结果（延后通道）：`Some(Some(承载牌))` = 视为已响应；`Some(None)` = 假牌作废。
     #[serde(default)]
     pub guhuo_result: Option<Option<CardId>>,
+    /// 技能把当前流程延后一次（如蛊惑：质疑链结束后重入）。
+    #[serde(default)]
+    pub skill_deferred: bool,
     /// 本阶段弃置的牌（瑰藻等「本阶段弃置」判定用）。
     #[serde(default)]
     pub phase_discard_cards: Vec<CardId>,
@@ -418,6 +421,7 @@ impl Game {
             judge_result: None,
             huashen: BTreeMap::new(),
             guhuo_result: None,
+            skill_deferred: false,
             phase_discard_cards: Vec::new(),
             suppress_gain_count: false,
             subs: Vec::new(),
