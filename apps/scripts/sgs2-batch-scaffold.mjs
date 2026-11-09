@@ -83,6 +83,27 @@ const MECHANISM_SUPPORT = {
     ok: true,
     where: "`UseOpts.no_wuxie` → 使用帧 `data[\"no_wuxie\"]`（B12·离间）",
   },
+  // B14 声明的机制缺口（ok: false = 本批必须先补内核）
+  "virtual-equip": {
+    ok: false,
+    where: "待建：skills::virtual_armor + Game::armor 统一入口（B14·八阵）",
+  },
+  "hand-limit": {
+    ok: true,
+    where: "Game::hand_limit + skills::hand_limit_delta / hand_limit_override（B10/B13 已有）",
+  },
+  "sha-limit": {
+    ok: true,
+    where: "Game::sha_limit + skills::sha_limit_override / sha_limit_bonus（B9/B10 已有）",
+  },
+  "limit-skill": {
+    ok: true,
+    where: "角色 flags（如 niepan_used / wulie_used）+ 选项统一检查",
+  },
+  "equip-move": {
+    ok: false,
+    where: "待建：装备移动入口（离开装备区触发失去钩子；B14·设变）",
+  },
 };
 
 const args = process.argv.slice(2);
