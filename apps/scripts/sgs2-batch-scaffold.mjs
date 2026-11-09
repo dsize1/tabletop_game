@@ -49,6 +49,15 @@ const MECHANISM_SUPPORT = {
   "response-cards": { ok: true, where: "`cards::ResponseKind` + `Game.response_context`" },
   "dying-aftermath": { ok: true, where: "`Game::after_dying_damage` + `skills::settle_after_dying`" },
   "discard-contract": { ok: true, where: "`Game::to_discard`（判定区不算弃置）" },
+  // B12 声明的机制缺口（`ok: false` = 本批必须先补内核）
+  "multi-response": {
+    ok: false,
+    where: "待建：`skills::response_need` + `card_play` 响应窗口连续 N 张计数（B12·无双）",
+  },
+  "no-wuxie": {
+    ok: false,
+    where: "待建：`Game.no_wuxie` 标记 + `card_play` 无懈窗口条件（B12·离间）",
+  },
 };
 
 const args = process.argv.slice(2);
