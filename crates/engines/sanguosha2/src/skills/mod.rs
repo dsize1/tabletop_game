@@ -196,6 +196,7 @@ pub const SKILLS: &[SkillDef] = &[
     b10::FENWEI,
     b10::KEJI,
     b10::QINXUE,
+    b10::GONGXIN,
     b10::BOTU,
     b10::KUROU,
     b10::ZHAXIANG,

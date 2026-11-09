@@ -369,6 +369,64 @@ fn jieyin_equip_from_own_zone_triggers_xiaoji() {
 }
 
 #[test]
+fn qinxue_grants_gongxin_and_gongxin_handles_heart_cards() {
+    let mut g = game(&[("lumeng", &["qinxue"], 3), ("p1", &[], 4)]);
+    give(&mut g, 0, &["c1", "c2", "c3", "c4", "c5"]); // 5 张 ≥ 3+2
+    start_phase(&mut g, 0, Phase::Prepare);
+    answer(&mut g, 0, "opt1");
+    assert!(skills::active(&g, 0, "gongxin"), "觉醒后获得【攻心】");
+
+    // 攻心：观看 → 弃置其红桃手牌
+    give(&mut g, 1, &["c2", "c1"]); // 红桃闪 + 黑桃杀
+    play(&mut g, 0);
+    skills::execute_active(&mut g, 0, "skill:gongxin").unwrap();
+    answer(&mut g, 0, "target:1");
+    assert!(g.is_privately_revealed(0, &"c2".to_string()), "观看 = 私密展示");
+    let opts = options(&g);
+    assert!(opts.iter().any(|o| o == "discard:c2"), "{opts:?}");
+    assert!(opts.iter().any(|o| o == "top:c2"), "{opts:?}");
+    assert!(!opts.iter().any(|o| o.ends_with("c1")), "非红桃牌不可选");
+    answer(&mut g, 0, "discard:c2");
+    assert!(!g.hand(1).contains(&"c2".to_string()));
+    assert_eq!(g.counter("turn.gongxin_used"), 1, "出牌阶段限一次");
+    g.check_conservation().expect("守恒");
+}
+
+#[test]
+fn gongxin_can_put_heart_on_top_and_not_offered_without_heart() {
+    let mut g = game(&[("lumeng", &["gongxin"], 3), ("p1", &[], 4)]);
+    give(&mut g, 1, &["c2"]);
+    play(&mut g, 0);
+    skills::execute_active(&mut g, 0, "skill:gongxin").unwrap();
+    answer(&mut g, 0, "target:1");
+    answer(&mut g, 0, "top:c2");
+    assert_eq!(g.ids_in(|z| *z == Zone::Draw).first().cloned(), Some("c2".to_string()));
+
+    // 目标只有黑色牌：没有可选红桃 → 只能放弃（选项只有 pass 之外的逃生口）
+    let mut g2 = game(&[("lumeng", &["gongxin"], 3), ("p1", &[], 4)]);
+    give(&mut g2, 1, &["c1"]);
+    play(&mut g2, 0);
+    skills::execute_active(&mut g2, 0, "skill:gongxin").unwrap();
+    answer(&mut g2, 0, "target:1");
+    let opts = options(&g2);
+    assert!(opts.iter().all(|o| !o.starts_with("discard:") && !o.starts_with("top:")), "{opts:?}");
+    answer(&mut g2, 0, "pass");
+}
+
+#[test]
+fn delayed_trick_conversion_supports_duanliang_style_bingliang() {
+    // 界徐晃·断粮的机制预演：黑色牌（手牌）当【兵粮寸断】使用走同一转化入口。
+    let mut g = game(&[("xuhuang", &[], 4), ("p1", &[], 4)]);
+    give(&mut g, 0, &["c1"]); // 黑桃杀（黑色）
+    play(&mut g, 0);
+    g.use_as(0, &"c1".to_string(), "兵粮寸断", vec![1], true, None)
+        .expect("黑色牌当【兵粮寸断】（延时锦囊转化）");
+    advance(&mut g).unwrap();
+    assert!(!g.judge_zone(1).is_empty(), "进入目标判定区");
+    g.check_conservation().expect("守恒");
+}
+
+#[test]
 fn b10_none_of_the_skills_use_event_only_use_card() {
     let src = std::fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),

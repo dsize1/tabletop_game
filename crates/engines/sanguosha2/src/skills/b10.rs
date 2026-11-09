@@ -272,6 +272,8 @@ fn qinxue(g: &mut Game, a: &Ask) -> Result<Step, String> {
             } else {
                 g.draw(seat, 2);
             }
+            // 觉醒后获得授予型技能【攻心】。
+            crate::skills::grant_skill(g, seat, "gongxin");
             g.push_log(format!(
                 "勤学：觉醒（体力上限 {}，{}）",
                 g.seats[seat].max_hp,
@@ -279,6 +281,137 @@ fn qinxue(g: &mut Game, a: &Ask) -> Result<Step, String> {
             ));
             Ok(Step::Done)
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 攻心（界吕蒙，勤学觉醒后**授予**；授予型技能，对齐单不设技能行）
+// ---------------------------------------------------------------------------
+
+pub const GONGXIN: SkillDef = SkillDef {
+    code: "gongxin",
+    name: "攻心",
+    triggers: &[],
+    window: Window::OwnPhase(Phase::Play),
+    priority: 0,
+    can_active: Some(can_gongxin),
+    handler: gongxin,
+    dying_hook: None,
+    flip_hook: None,
+    wuxie_opts: None,
+    wuxie_use: None,
+    target_blocker: None,
+    yang_window: None,
+    yin_window: None,
+};
+
+fn can_gongxin(g: &Game, seat: usize) -> bool {
+    active(g, seat, "gongxin")
+        && play_phase(g, seat)
+        && g.counter("turn.gongxin_used") == 0
+        && other_alive(g, seat).into_iter().any(|i| !g.hand(i).is_empty())
+}
+
+fn gongxin(g: &mut Game, a: &Ask) -> Result<Step, String> {
+    let step = a.data["step"].as_str().unwrap_or("target").to_string();
+    match step.as_str() {
+        "target" => match g.answer.take().as_deref() {
+            None => {
+                let mut b = builder(a.actor, "target").skill("gongxin");
+                for i in other_alive(g, a.actor) {
+                    if !g.hand(i).is_empty() {
+                        b = b.option(
+                            format!("target:{i}"),
+                            format!("观看 {} 的手牌", g.seats[i].name),
+                        );
+                    }
+                }
+                Ok(Step::Need(b.escape("不发动攻心").build()))
+            }
+            Some("pass") => Ok(Step::Done),
+            Some(act) => {
+                let t: usize = act
+                    .strip_prefix("target:")
+                    .and_then(|s| s.parse().ok())
+                    .ok_or_else(|| format!("攻心：目标不合法 {act}"))?;
+                if t == a.actor || g.seats[t].hp <= 0 || g.hand(t).is_empty() {
+                    return Err("攻心：目标不合法".into());
+                }
+                g.bump("turn.gongxin_used");
+                // 「观看」= 私密展示给使用者（不进公共区）。
+                for id in g.hand(t) {
+                    g.reveal_private(a.actor, &id, "gongxin");
+                }
+                g.push_log(format!("攻心：观看 {} 的手牌", g.seats[t].name));
+                Ok(Step::Next(
+                    Stage::PickOther,
+                    json!({ "step": "card", "target": t }),
+                ))
+            }
+        },
+        "card" => {
+            let target = a.data["target"].as_u64().unwrap_or(0) as usize;
+            let hearts: Vec<CardId> = g
+                .hand(target)
+                .into_iter()
+                .filter(|id| {
+                    g.cards
+                        .get(id)
+                        .is_some_and(|c| c.suit == crate::kernel::Suit::Heart)
+                })
+                .collect();
+            match g.answer.take().as_deref() {
+                None => {
+                    let mut b = builder(a.actor, "choice").skill("gongxin");
+                    for id in &hearts {
+                        b = b.option(
+                            format!("discard:{id}"),
+                            format!("弃置【{}】", label(g, id)),
+                        );
+                        b = b.option(
+                            format!("top:{id}"),
+                            format!("置于牌堆顶【{}】", label(g, id)),
+                        );
+                    }
+                    Ok(Step::Need(b.escape("不处理红桃牌").build()))
+                }
+                Some("pass") => {
+                    g.clear_private_reveals(a.actor);
+                    Ok(Step::Done)
+                }
+                Some(act) => {
+                    g.clear_private_reveals(a.actor);
+                    if let Some(id) = act.strip_prefix("discard:") {
+                        let id = id.to_string();
+                        if !hearts.contains(&id) {
+                            return Err("攻心：只能选择其红桃手牌".into());
+                        }
+                        g.to_discard(&id, "gongxin")?;
+                        g.push_log(format!(
+                            "攻心：弃置 {} 的【{}】",
+                            g.seats[target].name,
+                            label(g, &id)
+                        ));
+                        return Ok(Step::Done);
+                    }
+                    if let Some(id) = act.strip_prefix("top:") {
+                        let id = id.to_string();
+                        if !hearts.contains(&id) {
+                            return Err("攻心：只能选择其红桃手牌".into());
+                        }
+                        g.put_on_top(&id)?;
+                        g.push_log(format!(
+                            "攻心：将 {} 的【{}】置于牌堆顶",
+                            g.seats[target].name,
+                            label(g, &id)
+                        ));
+                        return Ok(Step::Done);
+                    }
+                    Err(format!("攻心：未知选项 {act}"))
+                }
+            }
+        }
+        other => Err(format!("攻心：未知步骤 {other}")),
     }
 }
 
@@ -1412,6 +1545,7 @@ pub const B10_SKILLS: &[SkillDef] = &[
     FENWEI,
     KEJI,
     QINXUE,
+    GONGXIN,
     BOTU,
     KUROU,
     ZHAXIANG,

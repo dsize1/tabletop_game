@@ -28,7 +28,7 @@ const V2_BATCHES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
  * 授予型子技能：**只**能通过技能授予获得（不在 heroes.json 的技能表里），因此对齐单没有独立技能行。
  * 权威文本写在授予者技能的「对齐后描述」里（B8 绝响 → 和弦/柔弦/烈弦/激弦）。
  */
-const GRANT_ONLY = new Set(["hexian", "rouxian", "liexian", "jixian"]);
+const GRANT_ONLY = new Set(["hexian", "rouxian", "liexian", "jixian", "gongxin"]);
 
 /**
  * 机制 → 内核用例锚点：迁移批次里声明过的机制，必须在 tests/*.rs 的某个 `#[test]` 里
