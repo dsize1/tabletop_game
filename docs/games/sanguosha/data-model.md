@@ -308,7 +308,7 @@ CREATE INDEX IF NOT EXISTS idx_prop_status_log_entity
 - 默认生成 **232 将**（标准 25 + 风林火山 48 + 一将成名 72 + 界限突破 87，`DEFAULT_GENERAL_PACKS`）；`--general-packs` 可裁剪（新增包需在脚本 `GENERAL_PACKS` 登记 gids 与性别表）。
 - 选将池：`Config.general_packs`（**默认全将**：`standard+wind_fire_forest_mountain+yijiang+jiexian`，2026-11-02 用户裁定；缺字段的旧快照按此默认补齐）→ 包过滤 → `skills::general_ready`（技能全部 implemented）→ 同名去重（`lib.rs::prefer_jiexian`，界优先）。当前 232 位技能全部实现，只有同名去重会缩池。
 - 牌堆口径：默认 `["standard","junzheng"]` = **160 张**，可在 lobby 切到 `standard` = 108 张（`lobby:set_packs`）。
-- 武将包口径：默认 = **全部已实现武将**（去重 148 位，界优先；2026-11-05 名称勘误后；2026-11-02 起为默认全将）。`#中断` 后新开一局沿用本群上次选择（网关 Redis `sgs:general_packs:<group_id>`，默认全将）。lobby 预设为**全量组合**（`lib.rs::general_pack_presets`，标准 + 其余包全部子集 = 8 个，按包数升序），可一键切换：
+- 武将包口径：默认 = **全部已实现武将**（去重 147 位，界/将 前缀同名优先取界版；2026-11-06 「将华雄」并入界华雄后；2026-11-02 起为默认全将）。`#中断` 后新开一局沿用本群上次选择（网关 Redis `sgs:general_packs:<group_id>`，默认全将）。lobby 预设为**全量组合**（`lib.rs::general_pack_presets`，标准 + 其余包全部子集 = 8 个，按包数升序），可一键切换：
 
 | 预设（`lobby:set_general_packs:<mode>`） | 标签 | 可用武将（去重后） |
 |---|---|---|

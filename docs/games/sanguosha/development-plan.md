@@ -764,7 +764,7 @@
 **命令**：
 
 ```bash
-npm run audit:sgs-generals:list        # 名录 + 批次表自检（232 将 / 149 审计 / 83 排除 / 295 技能）
+npm run audit:sgs-generals:list        # 名录 + 批次表自检（232 将 / 147 审计 / 85 排除 / 294 技能）
 npm run audit:sgs-generals -- B0 --repeat 2   # 跑一批 → data/audit/B0.json + evidence md
 npm run check:sgs-generals             # 门禁：矩阵一致性 + 抽样 8 将
 npm run gen:sgs-audit-matrix           # 生成矩阵骨架（已存在则拒绝覆写，除非 --force）

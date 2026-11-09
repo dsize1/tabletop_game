@@ -1,8 +1,8 @@
-# 技能对齐单（148 将 / B0–B20）
+# 技能对齐单（147 将 / B0–B20）
 
 > 目的：把「官网技能文本的歧义」在**实现之前**变成**你确认过的可执行描述**，避免「实现与期望不一致」反复返工。
 > 机器文件 = `align/<B>.json`（单一事实源）；人读文件 = `align/<B>.md`（由脚本生成，**勿手改**）。
-> 门禁：`npm run check:sgs-align`（一致性 / 必填 / 正反例 / 机制引用 / 冲突阻断 / 覆盖 148 将）。
+> 门禁：`npm run check:sgs-align`（一致性 / 必填 / 正反例 / 机制引用 / 冲突阻断 / 覆盖 147 将）。
 
 ## 1. 每技能 7 段
 
@@ -69,16 +69,20 @@ node apps/scripts/check-sgs-align.mjs                       # 全局门禁（含
 | B0（3 将 / 7 技能） | **7/7 implemented** | 据守/解围/不屈/奋激/行殇/放逐/颂威 |
 | B1（8 将 / 18 技能） | **18/18 implemented** | 含庸肆/奇制/进趋/怀橘/寸目/伪帝/拒战/飞军/兵略/遗礼/整论/溃诛/掣政/立军/荐降/审时/成略/恃才 |
 | B2（8 将 / 15 技能） | **15/15 implemented** | 明任/贞良/镇骨/往烈/罪论/父荫/良姻/箜声/征荣/鸿举/谦节/决堰/破势/雄乱/从谏 |
-| B3（6 将） | 待出对齐单 | 马谡/荀攸/将华雄/钟会/满宠/关平 |
+| B3（5 将 / 9 技能） | **9/9 implemented（待抽检）** | 马谡/荀攸/钟会/满宠/关平；26 疑点裁定 + 实现（`sanguosha2/src/skills/b3.rs`，25 用例）。（原成员「将华雄」按用户裁定移除：与界华雄重复） |
+| B4（8 将 / 11 技能） | **11/11 implemented（待抽检）** | 刘封/潘璋马忠/朱然/曹真/韩浩史涣/陈群/吴懿/周仓；30 疑点裁定 + 实现（`sanguosha2/src/skills/b4.rs`，30 用例）；新增 `chained_enter` 事件 / 阶段级手牌冻结 |
+| B5（6 将 / 13 技能） | **13/13 implemented（待抽检）** | 孙鲁班/朱桓/顾雍/曹叡/曹休/钟繇；30 疑点裁定 + 实现（`sanguosha2/src/skills/b5.rs`，30 用例）；新增兴衰式濒死流程 / 「造成伤害时」钩子链 |
+| B6（7 将 / 12 技能） | **12/12 implemented（待抽检）** | 刘谌/张嶷/孙休/朱治/全琮/公孙渊/郭图逢纪；28 疑点裁定 + 实现（`sanguosha2/src/skills/b6.rs`，26 用例）；新增 `reveal`（立即公共可见）/ 统一攻击范围入口 |
+| B7（7 将 / 12 技能） | **12/12 implemented（待抽检）** | 李严/孙登/刘虞/岑昏/孙资刘放/黄皓/张让；28 疑点裁定 + 实现（`sanguosha2/src/skills/b7.rs`，17 用例）；新增**伤害属性字段** / **响应牌机制** / 私密展示 |
 
 **新会话直接照做：**
 
 ```bash
-# 1) 出 B3 骨架（自动带官方原文，已清洗重复拼接噪声）
-node apps/scripts/sgs-align-sheet.mjs --batch B3 --new
+# 1) 出下一批骨架（自动带官方原文，已清洗重复拼接噪声）
+node apps/scripts/sgs-align-sheet.mjs --batch B7 --new
 # 2) 填「现实现/差异/疑点」（agent 干活；每条技能 ≥3 条陈述；疑点给候选+倾向+影响）
 # 3) 渲染 + 自检
-node apps/scripts/sgs-align-sheet.mjs --batch B3 --check
+node apps/scripts/sgs-align-sheet.mjs --batch B7 --check
 # 4) 交用户裁定 → 落「对齐后描述」→ confirmed → 实现
 ```
 
@@ -93,4 +97,5 @@ node apps/scripts/sgs-align-sheet.mjs --batch B3 --check
 
 - `use_card` 已消费冻结/目标合法性，但**Web 工作台跑的是旧引擎**（`sanguosha`），新 crate 未注册 → 工作台验证要等引擎重构（注册 + 视图适配）。
 - 距离系统只做了「基础 1 + 往烈首张无距离」，武器范围未接。
+- **卡牌结算引擎未做**（B0–B7 用 `use_virtual`/打桩）；整体替换 v1 的计划与风险见 `memory_palace/plan/next-engine-replacement.md`。
 - 罪论 `order:` 两选项在 Web 上需要视图层支持该前缀（与 8 类 pending 一致）。

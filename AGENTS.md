@@ -37,7 +37,7 @@
 | 三国杀技能注册表 / 触发钩子 / 实现进度 | `docs/games/sanguosha/skills.md` |
 | 三国杀 AI（分层 / 打分 / 威胁模型 / 自对弈门禁 / 已知缺陷） | `docs/games/sanguosha/ai.md` |
 | 三国杀规则裁定 / 特殊交互区 | `docs/games/sanguosha/rules-rulings.md`、`docs/games/sanguosha/special-zones.md` |
-| 三国杀技能对齐单（148 将 / 7 段 / 疑点裁定） | `docs/games/sanguosha/align/README.md`、`align/B0.md`、`align/mechanics.json` |
+| 三国杀技能对齐单（147 将 / 7 段 / 疑点裁定） | `docs/games/sanguosha/align/README.md`、`align/B0.md`、`align/mechanics.json` |
 | 内核 v2 spike 结论（6 类缺陷对策 / 度量 / 迁移条件） | `docs/games/sanguosha/spike-report.md`、ADR-0038 |
 | 三国杀武将抓取数据（696 位） | `docs/games/sanguosha/data/README.md`、`docs/games/sanguosha/data/heroes.json` |
 | 三国杀武将表（自动生成） | `docs/games/sanguosha/generals.md` |
@@ -52,8 +52,9 @@
 | 版图页 / 素材流水线 | `docs/modules/board-view.md`、`docs/games/las-vegas/props/asset-mapping.md`、`board-layout.md` |
 | 长期记忆 / 计划 / 决策 | `memory_palace/README.md` |
 | 当前计划与验收清单 | `memory_palace/plan/` |
-| **下一任务：全武将批量验证（149 将 / B0–B20）** | `memory_palace/plan/next-general-audit.md` |
+| **下一任务：全武将批量验证（147 将 / B0–B20）** | `memory_palace/plan/next-general-audit.md` |
 | **下一任务：技能/标记/虚拟牌 抽象与解耦评估（B2 前置）** | `memory_palace/plan/next-skill-abstraction-audit.md`（含「技能文本歧义」台账与实现契约） |
+| **下一任务：引擎 v2 卡牌结算 + 整体替换 v1（M1–M4，含风险/干扰项）** | `memory_palace/plan/next-engine-replacement.md` |
 | 全武将验证矩阵（人工列）/ 机器证据 / 批次表 / 批次走查单 | `docs/games/sanguosha/general-audit.md`、`general-audit-evidence.md`、`apps/scripts/lib/sgs-batches.mjs`、`docs/games/sanguosha/audit-sheets/<BATCH>.md`（`npm run sheet:sgs-audit B0`） |
 | 开发进度 / 里程碑 | `memory_palace/milestones.md` |
 | 工作区规则（rules） | `.pi/prompts/`（用 `/` 命令加载） |

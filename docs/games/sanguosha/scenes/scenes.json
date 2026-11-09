@@ -757,6 +757,1143 @@
           }
         }
       ]
+    },
+    {
+      "checks": [
+        {
+          "desc": "散谣应询问",
+          "ok": true
+        },
+        {
+          "desc": "造成伤害前先问制蛮",
+          "ok": true
+        },
+        {
+          "desc": "伤害被防止（p1 仍 4 血）",
+          "ok": true
+        },
+        {
+          "desc": "获得的牌进入马谡手牌",
+          "ok": true
+        }
+      ],
+      "id": "sanyao-zhiman-chain",
+      "name": "散谣 → 制蛮：结算伤害前防止并获得牌",
+      "ok": true,
+      "steps": [
+        {
+          "action": null,
+          "actor": null,
+          "error": null,
+          "label": "散谣询问（两模式各限一次）",
+          "log": [],
+          "pending_after": {
+            "actor": 0,
+            "escape": "pass",
+            "options": [
+              "choose:hp",
+              "choose:hand",
+              "pass"
+            ],
+            "skill": "sanyao"
+          },
+          "pending_before": {
+            "actor": 0,
+            "options": [
+              "choose:hp",
+              "choose:hand",
+              "pass"
+            ],
+            "skill": "sanyao"
+          },
+          "presentation": [],
+          "state": {
+            "discard": 0,
+            "hands": [
+              3,
+              3
+            ],
+            "hp": [
+              3,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Play",
+            "turn": 0,
+            "void": 0
+          }
+        },
+        {
+          "action": "choose:hp",
+          "actor": 0,
+          "error": null,
+          "label": "选择「体力值最大」模式",
+          "log": [],
+          "pending_after": {
+            "actor": 0,
+            "escape": "pass",
+            "options": [
+              "choose:c1",
+              "choose:c2",
+              "choose:c3",
+              "pass"
+            ],
+            "skill": "sanyao"
+          },
+          "pending_before": {
+            "actor": 0,
+            "options": [
+              "choose:hp",
+              "choose:hand",
+              "pass"
+            ],
+            "skill": "sanyao"
+          },
+          "presentation": [],
+          "state": {
+            "discard": 0,
+            "hands": [
+              3,
+              3
+            ],
+            "hp": [
+              3,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Play",
+            "turn": 0,
+            "void": 0
+          }
+        },
+        {
+          "action": "choose:c1",
+          "actor": 0,
+          "error": null,
+          "label": "弃置成本",
+          "log": [],
+          "pending_after": {
+            "actor": 0,
+            "escape": "pass",
+            "options": [
+              "target:1",
+              "pass"
+            ],
+            "skill": "sanyao"
+          },
+          "pending_before": {
+            "actor": 0,
+            "options": [
+              "choose:c1",
+              "choose:c2",
+              "choose:c3",
+              "pass"
+            ],
+            "skill": "sanyao"
+          },
+          "presentation": [],
+          "state": {
+            "discard": 1,
+            "hands": [
+              2,
+              3
+            ],
+            "hp": [
+              3,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Play",
+            "turn": 0,
+            "void": 0
+          }
+        },
+        {
+          "action": "target:1",
+          "actor": 0,
+          "error": null,
+          "label": "选定目标（p1 体力最大）",
+          "log": [
+            "散谣（体力值最大）：对 p1 造成 1 点伤害"
+          ],
+          "pending_after": {
+            "actor": 0,
+            "escape": "pass",
+            "options": [
+              "choose:zhiman",
+              "pass"
+            ],
+            "skill": "zhiman"
+          },
+          "pending_before": {
+            "actor": 0,
+            "options": [
+              "target:1",
+              "pass"
+            ],
+            "skill": "sanyao"
+          },
+          "presentation": [
+            "造成 1 点伤害"
+          ],
+          "state": {
+            "discard": 1,
+            "hands": [
+              2,
+              3
+            ],
+            "hp": [
+              3,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Play",
+            "turn": 0,
+            "void": 0
+          }
+        },
+        {
+          "action": "choose:zhiman",
+          "actor": 0,
+          "error": null,
+          "label": "发动制蛮（防止伤害）",
+          "log": [
+            "散谣（体力值最大）：对 p1 造成 1 点伤害"
+          ],
+          "pending_after": {
+            "actor": 0,
+            "escape": "pass",
+            "options": [
+              "choose:c4",
+              "choose:c5",
+              "choose:c6",
+              "pass"
+            ],
+            "skill": "zhiman"
+          },
+          "pending_before": {
+            "actor": 0,
+            "options": [
+              "choose:zhiman",
+              "pass"
+            ],
+            "skill": "zhiman"
+          },
+          "presentation": [
+            "造成 1 点伤害"
+          ],
+          "state": {
+            "discard": 1,
+            "hands": [
+              2,
+              3
+            ],
+            "hp": [
+              3,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Play",
+            "turn": 0,
+            "void": 0
+          }
+        },
+        {
+          "action": "choose:c4",
+          "actor": 0,
+          "error": null,
+          "label": "获得其区域里一张牌",
+          "log": [
+            "制蛮：防止伤害并获得 p1 一张牌（伤害不再发生）",
+            "散谣（体力值最大）：对 p1 造成 1 点伤害"
+          ],
+          "pending_after": null,
+          "pending_before": {
+            "actor": 0,
+            "options": [
+              "choose:c4",
+              "choose:c5",
+              "choose:c6",
+              "pass"
+            ],
+            "skill": "zhiman"
+          },
+          "presentation": [
+            "【制蛮】发动",
+            "造成 1 点伤害"
+          ],
+          "state": {
+            "discard": 1,
+            "hands": [
+              3,
+              2
+            ],
+            "hp": [
+              3,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Play",
+            "turn": 0,
+            "void": 0
+          }
+        }
+      ]
+    },
+    {
+      "checks": [
+        {
+          "desc": "目标不要求有手牌（可选 p1）",
+          "ok": true
+        },
+        {
+          "desc": "只能翻面（没有类型不同的手牌可弃）",
+          "ok": true
+        },
+        {
+          "desc": "目标已翻面",
+          "ok": true
+        },
+        {
+          "desc": "摸与弃置数相同（1 张）",
+          "ok": true
+        }
+      ],
+      "id": "junxing-no-hand-target",
+      "name": "峻刑：无手牌目标只能翻面摸牌",
+      "ok": true,
+      "steps": [
+        {
+          "action": null,
+          "actor": null,
+          "error": null,
+          "label": "峻刑：选择成本",
+          "log": [],
+          "pending_after": {
+            "actor": 0,
+            "escape": "pass",
+            "options": [
+              "choose:c1",
+              "choose:c2",
+              "choose:c3",
+              "pass"
+            ],
+            "skill": "junxing"
+          },
+          "pending_before": {
+            "actor": 0,
+            "options": [
+              "choose:c1",
+              "choose:c2",
+              "choose:c3",
+              "pass"
+            ],
+            "skill": "junxing"
+          },
+          "presentation": [],
+          "state": {
+            "discard": 3,
+            "hands": [
+              3,
+              0
+            ],
+            "hp": [
+              4,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Play",
+            "turn": 0,
+            "void": 0
+          }
+        },
+        {
+          "action": "choose:c1",
+          "actor": 0,
+          "error": null,
+          "label": "弃置 1 张手牌",
+          "log": [],
+          "pending_after": {
+            "actor": 0,
+            "escape": "pass",
+            "options": [
+              "choose:c1",
+              "choose:c2",
+              "choose:c3",
+              "confirm",
+              "pass"
+            ],
+            "skill": "junxing"
+          },
+          "pending_before": {
+            "actor": 0,
+            "options": [
+              "choose:c1",
+              "choose:c2",
+              "choose:c3",
+              "pass"
+            ],
+            "skill": "junxing"
+          },
+          "presentation": [],
+          "state": {
+            "discard": 3,
+            "hands": [
+              3,
+              0
+            ],
+            "hp": [
+              4,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Play",
+            "turn": 0,
+            "void": 0
+          }
+        },
+        {
+          "action": "confirm",
+          "actor": 0,
+          "error": null,
+          "label": "确认弃置",
+          "log": [
+            "峻刑：弃置 1 张手牌"
+          ],
+          "pending_after": {
+            "actor": 0,
+            "escape": "pass",
+            "options": [
+              "target:1",
+              "pass"
+            ],
+            "skill": "junxing"
+          },
+          "pending_before": {
+            "actor": 0,
+            "options": [
+              "choose:c1",
+              "choose:c2",
+              "choose:c3",
+              "confirm",
+              "pass"
+            ],
+            "skill": "junxing"
+          },
+          "presentation": [
+            "弃置 1 张牌"
+          ],
+          "state": {
+            "discard": 4,
+            "hands": [
+              2,
+              0
+            ],
+            "hp": [
+              4,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Play",
+            "turn": 0,
+            "void": 0
+          }
+        },
+        {
+          "action": "target:1",
+          "actor": 0,
+          "error": null,
+          "label": "选定无手牌目标",
+          "log": [
+            "峻刑：弃置 1 张手牌"
+          ],
+          "pending_after": {
+            "actor": 1,
+            "escape": "opt2",
+            "options": [
+              "opt2"
+            ],
+            "skill": "junxing"
+          },
+          "pending_before": {
+            "actor": 0,
+            "options": [
+              "target:1",
+              "pass"
+            ],
+            "skill": "junxing"
+          },
+          "presentation": [
+            "弃置 1 张牌"
+          ],
+          "state": {
+            "discard": 4,
+            "hands": [
+              2,
+              0
+            ],
+            "hp": [
+              4,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Play",
+            "turn": 0,
+            "void": 0
+          }
+        },
+        {
+          "action": "opt2",
+          "actor": 1,
+          "error": null,
+          "label": "翻面并摸 1 张",
+          "log": [
+            "峻刑：p1 翻面并摸 1 张牌",
+            "峻刑：弃置 1 张手牌"
+          ],
+          "pending_after": null,
+          "pending_before": {
+            "actor": 1,
+            "options": [
+              "opt2"
+            ],
+            "skill": "junxing"
+          },
+          "presentation": [
+            "摸 1 张牌",
+            "弃置 1 张牌"
+          ],
+          "state": {
+            "discard": 4,
+            "hands": [
+              2,
+              1
+            ],
+            "hp": [
+              4,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Play",
+            "turn": 0,
+            "void": 0
+          }
+        }
+      ]
+    },
+    {
+      "checks": [
+        {
+          "desc": "装备区牌本身即可作为费用（可发动）",
+          "ok": true
+        },
+        {
+          "desc": "红色手牌被冻结",
+          "ok": true
+        },
+        {
+          "desc": "黑色手牌不受影响",
+          "ok": true
+        }
+      ],
+      "id": "sidi-freeze-color",
+      "name": "司敌：手牌冻结（阶段级）",
+      "ok": true,
+      "steps": [
+        {
+          "action": null,
+          "actor": null,
+          "error": null,
+          "label": "司敌：其他角色出牌阶段开始",
+          "log": [],
+          "pending_after": {
+            "actor": 0,
+            "escape": "pass",
+            "options": [
+              "choose:c19x",
+              "pass"
+            ],
+            "skill": "sidi"
+          },
+          "pending_before": {
+            "actor": 0,
+            "options": [
+              "choose:c19x",
+              "pass"
+            ],
+            "skill": "sidi"
+          },
+          "presentation": [],
+          "state": {
+            "discard": 0,
+            "hands": [
+              0,
+              4
+            ],
+            "hp": [
+              4,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Play",
+            "turn": 1,
+            "void": 0
+          }
+        },
+        {
+          "action": "choose:c19x",
+          "actor": 0,
+          "error": null,
+          "label": "弃置装备区红色牌（封锁红色）",
+          "log": [
+            "司敌：弃置【红桃2八卦阵】，p1 本阶段不能使用/打出红色牌（冻结 2 张手牌）"
+          ],
+          "pending_after": null,
+          "pending_before": {
+            "actor": 0,
+            "options": [
+              "choose:c19x",
+              "pass"
+            ],
+            "skill": "sidi"
+          },
+          "presentation": [
+            "【司敌】发动"
+          ],
+          "state": {
+            "discard": 1,
+            "hands": [
+              0,
+              4
+            ],
+            "hp": [
+              4,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Play",
+            "turn": 1,
+            "void": 0
+          }
+        }
+      ]
+    },
+    {
+      "checks": [
+        {
+          "desc": "陷嗣应询问",
+          "ok": true
+        },
+        {
+          "desc": "「逆」计数 = 1",
+          "ok": true
+        },
+        {
+          "desc": "「逆」按移出游戏处理（void 区有牌）",
+          "ok": true
+        }
+      ],
+      "id": "xiansi-ni-void",
+      "name": "陷嗣：「逆」移出游戏",
+      "ok": true,
+      "steps": [
+        {
+          "action": null,
+          "actor": null,
+          "error": null,
+          "label": "准备阶段：陷嗣询问",
+          "log": [],
+          "pending_after": {
+            "actor": 0,
+            "escape": "pass",
+            "options": [
+              "target:1",
+              "pass"
+            ],
+            "skill": "xiansi"
+          },
+          "pending_before": {
+            "actor": 0,
+            "options": [
+              "target:1",
+              "pass"
+            ],
+            "skill": "xiansi"
+          },
+          "presentation": [],
+          "state": {
+            "discard": 0,
+            "hands": [
+              3,
+              3
+            ],
+            "hp": [
+              4,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Prepare",
+            "turn": 0,
+            "void": 0
+          }
+        },
+        {
+          "action": "target:1",
+          "actor": 0,
+          "error": null,
+          "label": "选择一名角色",
+          "log": [],
+          "pending_after": {
+            "actor": 0,
+            "escape": "pass",
+            "options": [
+              "target:1",
+              "confirm",
+              "pass"
+            ],
+            "skill": "xiansi"
+          },
+          "pending_before": {
+            "actor": 0,
+            "options": [
+              "target:1",
+              "pass"
+            ],
+            "skill": "xiansi"
+          },
+          "presentation": [],
+          "state": {
+            "discard": 0,
+            "hands": [
+              3,
+              3
+            ],
+            "hp": [
+              4,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Prepare",
+            "turn": 0,
+            "void": 0
+          }
+        },
+        {
+          "action": "confirm",
+          "actor": 0,
+          "error": null,
+          "label": "确认",
+          "log": [],
+          "pending_after": {
+            "actor": 0,
+            "escape": "pass",
+            "options": [
+              "choose:c4",
+              "choose:c5",
+              "choose:c6",
+              "pass"
+            ],
+            "skill": "xiansi"
+          },
+          "pending_before": {
+            "actor": 0,
+            "options": [
+              "target:1",
+              "confirm",
+              "pass"
+            ],
+            "skill": "xiansi"
+          },
+          "presentation": [],
+          "state": {
+            "discard": 0,
+            "hands": [
+              3,
+              3
+            ],
+            "hp": [
+              4,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Prepare",
+            "turn": 0,
+            "void": 0
+          }
+        },
+        {
+          "action": "choose:c4",
+          "actor": 0,
+          "error": null,
+          "label": "取走其一张牌为「逆」",
+          "log": [
+            "陷嗣：将 p1 的【红桃4杀】置于武将牌上为「逆」（共 1 张，移出游戏）"
+          ],
+          "pending_after": null,
+          "pending_before": {
+            "actor": 0,
+            "options": [
+              "choose:c4",
+              "choose:c5",
+              "choose:c6",
+              "pass"
+            ],
+            "skill": "xiansi"
+          },
+          "presentation": [
+            "置于武将牌上 1 张"
+          ],
+          "state": {
+            "discard": 0,
+            "hands": [
+              3,
+              2
+            ],
+            "hp": [
+              4,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Prepare",
+            "turn": 0,
+            "void": 1
+          }
+        }
+      ]
+    },
+    {
+      "checks": [
+        {
+          "desc": "求到自己时可选择发动兴衰",
+          "ok": true
+        },
+        {
+          "desc": "先逐个询问魏势力角色",
+          "ok": true
+        },
+        {
+          "desc": "曹叡脱离濒死（0 → 1）",
+          "ok": true
+        },
+        {
+          "desc": "支援者在濒死结算后受到 1 点伤害",
+          "ok": true
+        }
+      ],
+      "id": "xingshuai-lord-dying",
+      "name": "兴衰：魏势力施救 → 脱困后支援者受伤",
+      "ok": true,
+      "steps": [
+        {
+          "action": null,
+          "actor": null,
+          "error": null,
+          "label": "曹叡濒死（求桃从左手方开始）",
+          "log": [
+            "p2 对 p0 造成 1 点伤害（0）"
+          ],
+          "pending_after": {
+            "actor": 2,
+            "escape": "pass",
+            "options": [
+              "respond:c8",
+              "pass"
+            ],
+            "skill": "dying"
+          },
+          "pending_before": null,
+          "presentation": [
+            "造成 1 点伤害"
+          ],
+          "state": {
+            "discard": 0,
+            "hands": [
+              3,
+              3,
+              3
+            ],
+            "hp": [
+              0,
+              4,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Prepare",
+            "turn": 0,
+            "void": 0
+          }
+        },
+        {
+          "action": "pass",
+          "actor": 2,
+          "error": null,
+          "label": "其他角色放弃救援",
+          "log": [
+            "p2 对 p0 造成 1 点伤害（0）"
+          ],
+          "pending_after": {
+            "actor": 0,
+            "escape": "pass",
+            "options": [
+              "xingshuai",
+              "respond:c3",
+              "pass"
+            ],
+            "skill": "dying"
+          },
+          "pending_before": {
+            "actor": 2,
+            "options": [
+              "respond:c8",
+              "pass"
+            ],
+            "skill": "dying"
+          },
+          "presentation": [
+            "【dying】未发动",
+            "造成 1 点伤害"
+          ],
+          "state": {
+            "discard": 0,
+            "hands": [
+              3,
+              3,
+              3
+            ],
+            "hp": [
+              0,
+              4,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Prepare",
+            "turn": 0,
+            "void": 0
+          }
+        },
+        {
+          "action": "xingshuai",
+          "actor": 0,
+          "error": null,
+          "label": "发动兴衰",
+          "log": [
+            "p2 对 p0 造成 1 点伤害（0）"
+          ],
+          "pending_after": {
+            "actor": 1,
+            "escape": "pass",
+            "options": [
+              "opt1",
+              "pass"
+            ],
+            "skill": "xingshuai"
+          },
+          "pending_before": {
+            "actor": 0,
+            "options": [
+              "xingshuai",
+              "respond:c3",
+              "pass"
+            ],
+            "skill": "dying"
+          },
+          "presentation": [
+            "【dying】未发动",
+            "造成 1 点伤害"
+          ],
+          "state": {
+            "discard": 0,
+            "hands": [
+              3,
+              3,
+              3
+            ],
+            "hp": [
+              0,
+              4,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Prepare",
+            "turn": 0,
+            "void": 0
+          }
+        },
+        {
+          "action": "opt1",
+          "actor": 1,
+          "error": null,
+          "label": "魏势力角色支援（回复 1 点）",
+          "log": [
+            " 对 p1 造成 1 点伤害（3）",
+            "兴衰：p1 受到 1 点伤害"
+          ],
+          "pending_after": null,
+          "pending_before": {
+            "actor": 1,
+            "options": [
+              "opt1",
+              "pass"
+            ],
+            "skill": "xingshuai"
+          },
+          "presentation": [
+            "造成 1 点伤害",
+            "【dying】未发动"
+          ],
+          "state": {
+            "discard": 0,
+            "hands": [
+              3,
+              3,
+              3
+            ],
+            "hp": [
+              1,
+              3,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Prepare",
+            "turn": 0,
+            "void": 0
+          }
+        }
+      ]
+    },
+    {
+      "checks": [
+        {
+          "desc": "谮毁应询问",
+          "ok": true
+        },
+        {
+          "desc": "由协助者二选一",
+          "ok": true
+        },
+        {
+          "desc": "追加额外目标已记录",
+          "ok": true
+        }
+      ],
+      "id": "zanhui-unique-target",
+      "name": "谮毁：唯一目标 → 协助者成为额外目标",
+      "ok": true,
+      "steps": [
+        {
+          "action": null,
+          "actor": null,
+          "error": null,
+          "label": "使用【杀】指定唯一目标 → 谮毁询问",
+          "log": [],
+          "pending_after": {
+            "actor": 0,
+            "escape": "pass",
+            "options": [
+              "target:2",
+              "pass"
+            ],
+            "skill": "zanhui"
+          },
+          "pending_before": null,
+          "presentation": [],
+          "state": {
+            "discard": 0,
+            "hands": [
+              3,
+              3,
+              3
+            ],
+            "hp": [
+              4,
+              4,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Play",
+            "turn": 0,
+            "void": 0
+          }
+        },
+        {
+          "action": "target:2",
+          "actor": 0,
+          "error": null,
+          "label": "选择协助者",
+          "log": [],
+          "pending_after": {
+            "actor": 2,
+            "escape": "opt2",
+            "options": [
+              "opt1",
+              "opt2"
+            ],
+            "skill": "zanhui"
+          },
+          "pending_before": {
+            "actor": 0,
+            "options": [
+              "target:2",
+              "pass"
+            ],
+            "skill": "zanhui"
+          },
+          "presentation": [],
+          "state": {
+            "discard": 0,
+            "hands": [
+              3,
+              3,
+              3
+            ],
+            "hp": [
+              4,
+              4,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Play",
+            "turn": 0,
+            "void": 0
+          }
+        },
+        {
+          "action": "opt2",
+          "actor": 2,
+          "error": null,
+          "label": "成为额外目标",
+          "log": [
+            "谮毁：p2 成为【杀】的额外目标"
+          ],
+          "pending_after": null,
+          "pending_before": {
+            "actor": 2,
+            "options": [
+              "opt1",
+              "opt2"
+            ],
+            "skill": "zanhui"
+          },
+          "presentation": [],
+          "state": {
+            "discard": 0,
+            "hands": [
+              3,
+              3,
+              3
+            ],
+            "hp": [
+              4,
+              4,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Play",
+            "turn": 0,
+            "void": 0
+          }
+        }
+      ]
     }
   ]
 }

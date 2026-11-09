@@ -1,8 +1,8 @@
-# 三国杀 · 全武将验证矩阵（148 将 / 人工验收台账）
+# 三国杀 · 全武将验证矩阵（147 将 / 人工验收台账）
 
-> 口径：有界版同名的原版不进批次（用户 2026-11-05 裁定，方案 A）；148 位 = 默认选将池（232 − 84）。
-> **计数口径（2026-11-06 修正）**：此前标题与排除人数分别是 149 与 83，系「张昭张纮」与界版同名勘误前的旧数字（勘误后 148 / 84）；`npm run check:sgs-counts` 校验本文与 catalog 一致，禁止手写。
-> **对齐流程（2026-11-06 起）**：148 将按 B0→B20 重新对齐原文（`docs/games/sanguosha/align/`），旧签字全部撤回，人工列重置。
+> 口径：有界版同名的原版不进批次（用户 2026-11-05 裁定，方案 A）；147 位 = 默认选将池（232 − 85）。
+> **计数口径（2026-11-06 修正两轮）**：最早 149 / 83（「张昭张纮」同名勘误前）→ 148 / 84 → 现 147 / 85（用户 2026-11-06 裁定「将华雄」与「界华雄」重复，去重口径扩为剔除前缀「界」「将」后同名）；`npm run check:sgs-counts` 校验本文与 catalog 一致，禁止手写。
+> **对齐流程（2026-11-06 起）**：147 将按 B0→B20 重新对齐原文（`docs/games/sanguosha/align/`），旧签字全部撤回，人工列重置。
 > 批次表单一事实源：`apps/scripts/lib/sgs-batches.mjs`（B0–B20）。
 > 机器证据：`docs/games/sanguosha/general-audit-evidence.md`（生成，勿手改）+ `data/audit/<batch>.json`。
 > **人工列（原文/歧义、人工结果、确认人、备注）只能由人工填写**；agent 不得自行标「人工通过」。
@@ -48,7 +48,6 @@
 | B2 | wind_fire_forest_mountain | 张绣 | `sgs_hero_415` | 雄乱(`xiongluan`/limited)、从谏(`congjian`/normal) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B2 --seed 20261105` | |
 | B3 | yijiang | 马谡 | `sgs_hero_156` | 散谣(`sanyao`/normal)、制蛮(`zhiman`/normal) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B3 --seed 20261105` | |
 | B3 | yijiang | 荀攸 | `sgs_hero_164` | 奇策(`qice`/normal)、智愚(`zhiyu`/normal) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B3 --seed 20261105` | |
-| B3 | yijiang | 将华雄 | `sgs_hero_171` | 恃勇(`shiyong`/locked) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B3 --seed 20261105` | |
 | B3 | yijiang | 钟会 | `sgs_hero_173` | 权计(`quanji`/normal)、自立(`zili`/awaken) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B3 --seed 20261105` | |
 | B3 | yijiang | 满宠 | `sgs_hero_176` | 峻刑(`junxing`/normal)、御策(`yuce`/normal) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B3 --seed 20261105` | |
 | B3 | yijiang | 关平 | `sgs_hero_177` | 龙吟(`longyin`/normal) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B3 --seed 20261105` | |
@@ -176,11 +175,11 @@
 | B20 | jiexian | 界于禁 | `sgs_hero_756` | 镇军(`zhenjun`/normal)、毅重(`yizhong`/locked) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B20 --seed 20261105` | |
 | B20 | jiexian | 界步练师 | `sgs_hero_775` | 安恤(`anxu`/normal)、追忆(`zhuixi`/limited) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B20 --seed 20261105` | |
 
-## 4. 未纳入批次的武将（84 位，有界版同名）
+## 4. 未纳入批次的武将（85 位，有界版同名 / 前缀去重）
 
 按口径 A 排除，验证由界版覆盖同名技能（如 `界刘备` 覆盖 `刘备`）：
 
 - **standard**（25）：刘备→sgs_hero_299、关羽→sgs_hero_300、张飞→sgs_hero_301、诸葛亮→sgs_hero_440、赵云→sgs_hero_302、马超→sgs_hero_303、黄月英→sgs_hero_441、孙权→sgs_hero_442、甘宁→sgs_hero_305、吕蒙→sgs_hero_306、黄盖→sgs_hero_307、周瑜→sgs_hero_308、大乔→sgs_hero_309、陆逊→sgs_hero_310、曹操→sgs_hero_311、司马懿→sgs_hero_312、夏侯惇→sgs_hero_313、张辽→sgs_hero_314、许褚→sgs_hero_315、郭嘉→sgs_hero_316、甄姬→sgs_hero_444、华佗→sgs_hero_318、吕布→sgs_hero_319、貂蝉→sgs_hero_445、孙尚香→sgs_hero_443
 - **wind_fire_forest_mountain**（29）：魏延→sgs_hero_456、夏侯渊→sgs_hero_453、小乔→sgs_hero_457、典韦→sgs_hero_526、荀彧→sgs_hero_515、庞统→sgs_hero_455、卧龙诸葛亮→sgs_hero_454、太史慈→sgs_hero_463、庞德→sgs_hero_462、颜良文丑→sgs_hero_550、袁绍→sgs_hero_450、徐晃→sgs_hero_496、孙坚→sgs_hero_458、董卓→sgs_hero_470、祝融→sgs_hero_479、孟获→sgs_hero_492、贾诩→sgs_hero_484、鲁肃→sgs_hero_485、张郃→sgs_hero_486、邓艾→sgs_hero_471、姜维→sgs_hero_480、刘禅→sgs_hero_451、孙策→sgs_hero_452、张昭张纮→sgs_hero_563、左慈→sgs_hero_447、蔡文姬→sgs_hero_505、黄忠→sgs_hero_26、于吉→sgs_hero_449、张角→sgs_hero_448
-- **yijiang**（30）：曹植→sgs_hero_629、高顺→sgs_hero_604、陈宫→sgs_hero_597、凌统→sgs_hero_588、吴国太→sgs_hero_640、徐盛→sgs_hero_587、于禁→sgs_hero_756、张春华→sgs_hero_625、曹彰→sgs_hero_599、廖化→sgs_hero_641、马岱→sgs_hero_696、步练师→sgs_hero_775、程普→sgs_hero_620、韩当→sgs_hero_676、刘表→sgs_hero_626、曹冲→sgs_hero_628、郭淮→sgs_hero_658、简雍→sgs_hero_600、虞翻→sgs_hero_603、伏皇后→sgs_hero_671、李儒→sgs_hero_642、法正→sgs_hero_610、徐庶→sgs_hero_304、王异→sgs_hero_621、关兴张苞→sgs_hero_690、张松→sgs_hero_753、沮授→sgs_hero_749、蔡夫人→sgs_hero_627、夏侯氏→sgs_hero_752、郭皇后→sgs_hero_726
+- **yijiang**（31）：曹植→sgs_hero_629、高顺→sgs_hero_604、陈宫→sgs_hero_597、凌统→sgs_hero_588、吴国太→sgs_hero_640、徐盛→sgs_hero_587、于禁→sgs_hero_756、张春华→sgs_hero_625、曹彰→sgs_hero_599、廖化→sgs_hero_641、马岱→sgs_hero_696、步练师→sgs_hero_775、程普→sgs_hero_620、韩当→sgs_hero_676、刘表→sgs_hero_626、曹冲→sgs_hero_628、郭淮→sgs_hero_658、简雍→sgs_hero_600、虞翻→sgs_hero_603、伏皇后→sgs_hero_671、李儒→sgs_hero_642、法正→sgs_hero_610、徐庶→sgs_hero_304、王异→sgs_hero_621、关兴张苞→sgs_hero_690、张松→sgs_hero_753、沮授→sgs_hero_749、蔡夫人→sgs_hero_627、夏侯氏→sgs_hero_752、郭皇后→sgs_hero_726、将华雄→sgs_hero_446
 
