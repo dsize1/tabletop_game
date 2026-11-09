@@ -1797,7 +1797,10 @@ fn apply_response(
         let Some(judge) = flow::judge_card(g, actor) else {
             return Ok(Some(false));
         };
-        let red = g.is_red(&judge);
+        // 花色读取单入口（红颜：小乔的黑桃判定牌视为红桃）。
+        let red = crate::skills::effective_suit(g, actor, &judge)
+            .map(|s| s.is_red())
+            .unwrap_or(false);
         let label = g.card_label(&judge);
         flow::judge_to_discard(g, &judge)?;
         g.presentation.push(
@@ -2020,7 +2023,8 @@ pub fn step_judge(g: &mut Game, a: &Ask) -> Result<Step, String> {
     // 3) 生效。
     flow::judge_effective(g, seat, &judge);
     let def = g.def_of(&card);
-    let suit = g.cards.get(&judge).map(|c| c.suit);
+    // 花色读取单入口（红颜：黑桃 → 红桃）。
+    let suit = crate::skills::effective_suit(g, seat, &judge);
     let rank = g.cards.get(&judge).map(|c| c.rank).unwrap_or(0);
     let mut move_to_next = false;
     match def.effect {

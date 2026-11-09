@@ -524,9 +524,11 @@ impl Game {
 
     /// 防具类型（读装备区牌的 `def.armor`，不比较牌名）。
     pub fn armor(&self, seat: usize) -> crate::cards::ArmorKind {
-        self.equip_in(seat, Slot::Armor)
-            .map(|id| self.def_of(&id).armor)
-            .unwrap_or_default()
+        match self.equip_in(seat, Slot::Armor) {
+            Some(id) => self.def_of(&id).armor,
+            // 虚拟装备（八阵）：装备区无防具时读技能提供的虚拟防具。
+            None => crate::skills::virtual_armor(self, seat),
+        }
     }
 
     /// 武器类型（读装备区牌的 `def.weapon`，不比较牌名）。
@@ -1437,5 +1439,16 @@ impl Game {
         if !now {
             crate::skills::on_flip_to_face_up(self, seat);
         }
+        // 统一翻面钩子（设变等：任何方向翻面都触发）。
+        crate::skills::on_flip(self, seat, !now);
+    }
+
+    /// 移动一件场上装备到另一名角色的同槽位（设变）。目标槽位必须为空。
+    pub fn move_equip(&mut self, id: &CardId, to: usize, slot: Slot) -> Result<(), String> {
+        if self.equip_in(to, slot).is_some() {
+            return Err("目标槽位已有装备".to_string());
+        }
+        self.move_card(id, Zone::Equip(to, slot))?;
+        Ok(())
     }
 }

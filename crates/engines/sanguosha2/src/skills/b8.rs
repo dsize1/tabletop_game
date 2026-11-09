@@ -2519,6 +2519,8 @@ pub fn sha_intercept_skills(
     }
     // B13：烈弓（不能【闪】/ +1）、享乐（弃基本牌否则无效）。
     out.extend(crate::skills::b13::sha_intercept(g, user, target, card));
+    // B14：鞬出（弃目标一张牌）。
+    out.extend(crate::skills::b14::sha_intercept(g, user, target, card));
     out
 }
 

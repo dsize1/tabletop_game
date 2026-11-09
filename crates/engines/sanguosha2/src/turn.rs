@@ -54,6 +54,17 @@ pub fn tick(g: &mut Game) -> Result<(), String> {
                 resolve::begin_phase(g, seat, Phase::Judge)?;
             }
             Phase::Judge => {
+                // 神速①：跳过判定阶段（同时取消已排入延迟队列的判定）。
+                if g.counter("turn.skip_judge") > 0 {
+                    g.counters.insert("turn.skip_judge".to_string(), 0);
+                    g.deferred.retain(|d| {
+                        !matches!(
+                            &d.payload,
+                            crate::kernel::deferred::Payload::JudgePhase { seat: s } if *s == seat
+                        )
+                    });
+                    g.push_log(format!("{} 跳过判定阶段", g.seats[seat].name));
+                }
                 resolve::begin_phase(g, seat, Phase::Draw)?;
             }
             Phase::Draw => {
@@ -63,7 +74,7 @@ pub fn tick(g: &mut Game) -> Result<(), String> {
             Phase::Play => return Ok(()),
             Phase::Discard => {
                 if crate::skills::skip_discard_phase(g, seat) {
-                    g.push_log(format!("克己：{} 跳过弃牌阶段", g.seats[seat].name));
+                    g.push_log(format!("{} 跳过弃牌阶段", g.seats[seat].name));
                     g.events.push(Event::simple(
                         EventKind::PhaseEnd,
                         Some(seat),
@@ -104,7 +115,9 @@ pub fn tick(g: &mut Game) -> Result<(), String> {
 }
 
 fn over_hand_limit(g: &Game, seat: usize) -> bool {
-    g.hand(seat).len() > g.hand_limit(seat)
+    // 藏拙等：部分牌不计入手牌数（不是提高上限）。
+    let exempt = crate::skills::hand_limit_exempt(g, seat);
+    g.hand(seat).len().saturating_sub(exempt) > g.hand_limit(seat)
 }
 
 fn next_alive(g: &Game, from: usize) -> Option<usize> {

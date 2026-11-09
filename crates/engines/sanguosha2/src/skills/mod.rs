@@ -19,6 +19,7 @@ pub mod b10;
 pub mod b11;
 pub mod b12;
 pub mod b13;
+pub mod b14;
 pub mod mingren;
 pub mod kongsheng;
 pub mod liangyin;
@@ -431,6 +432,36 @@ pub fn dying_hooks(g: &mut Game, seat: usize) -> bool {
 }
 
 /// 翻至正面：调用所有拥有者的 flip 钩子（解围②）+ 法恩（任意角色翻至正面 → 陈群可令其摸 1）。
+/// 虚拟防具（八阵：装备区无防具时视为装备【八卦阵】）。
+pub fn virtual_armor(g: &Game, seat: usize) -> crate::cards::ArmorKind {
+    b14::virtual_armor(g, seat)
+}
+
+/// 统一翻面钩子（任何方向翻面；设变）。
+pub fn on_flip(g: &mut Game, seat: usize, face_up: bool) {
+    b14::on_flip(g, seat, face_up);
+}
+
+/// 花色读取单入口（红颜：黑桃 → 红桃）。
+pub fn effective_suit(g: &Game, seat: usize, card: &crate::kernel::CardId) -> Option<crate::kernel::Suit> {
+    b14::effective_suit(g, seat, card)
+}
+
+/// 弃牌阶段「不计入手牌数」的牌数（藏拙）。
+pub fn hand_limit_exempt(g: &Game, seat: usize) -> usize {
+    b14::hand_limit_exempt(g, seat)
+}
+
+/// 脱离濒死后的一次性结算（奇谋摸牌等）。
+pub fn on_dying_left(g: &mut Game, seat: usize) {
+    b14::on_dying_left(g, seat);
+}
+
+/// 濒死窗口的额外选项（涅槃）。
+pub fn dying_limited_options(g: &Game, seat: usize) -> Vec<(String, String)> {
+    b14::dying_limited_options(g, seat)
+}
+
 pub fn on_flip_to_face_up(g: &mut Game, seat: usize) {
     for d in SKILLS {
         if !active(g, seat, d.code) {
@@ -586,6 +617,10 @@ pub fn discard_extra(g: &Game, seat: usize) -> usize {
 
 /// 伤害防止（怀橘）：返回 true = 本次伤害被防止。
 pub fn damage_prevent(g: &mut Game, victim: usize) -> bool {
+    // 武烈「烈」：抵消该次全部伤害（无论点数）。
+    if b14::lie_prevent(g, victim) {
+        return true;
+    }
     if active(g, victim, "huaiju") && ju(g, victim) > 0 {
         remove_ju(g, victim, 1);
         g.presentation.push(
@@ -914,7 +949,9 @@ pub fn sha_limit_override(g: &Game, seat: usize) -> Option<usize> {
 
 /// 距离修正（马术 -1 / 义从 -1）。
 pub fn distance_delta(g: &Game, seat: usize) -> i32 {
+    // 奇谋：本回合距离 -X（X = 以此法失去的体力值）。
     b9::distance_delta(g, seat) + b12::distance_delta(g, seat)
+        - g.counter("turn.qimou") as i32
 }
 
 /// 【杀】的可达性覆盖（烈弓：距离 ≤ 此【杀】点数）。
@@ -966,7 +1003,9 @@ pub fn start_rewrite_for(
 
 /// 濒死窗口的额外选项（蛊惑：扣置一张手牌当【桃】）。
 pub fn dying_extra_options(g: &Game, seat: usize) -> Vec<(String, String)> {
-    b13::guhuo_dying_options(g, seat)
+    let mut out = b13::guhuo_dying_options(g, seat);
+    out.extend(b14::dying_limited_options(g, seat));
+    out
 }
 
 /// 濒死窗口的额外选项执行（返回 true = 已启动延后流程）。
@@ -976,7 +1015,10 @@ pub fn dying_extra_use(
     victim: usize,
     act: &str,
 ) -> Result<bool, String> {
-    b13::guhuo_dying_use(g, seat, victim, act)
+    if b13::guhuo_dying_use(g, seat, victim, act)? {
+        return Ok(true);
+    }
+    b14::dying_limited_use(g, seat, victim, act)
 }
 
 /// 蛊惑是否可用（每回合限一次 + 有手牌）。
@@ -1041,15 +1083,23 @@ pub fn prevent_equip_discard(
 // ---------------------------------------------------------------------------
 
 pub fn skip_discard_phase(g: &Game, seat: usize) -> bool {
-    b10::skip_discard_phase(g, seat)
+    // 神速③等：本回合跳过弃牌阶段（计数由技能写入，回合结束清除）。
+    g.counter("turn.skip_discard") > 0 || b10::skip_discard_phase(g, seat)
 }
 
 pub fn hand_limit_override(g: &Game, seat: usize) -> Option<usize> {
-    b10::hand_limit_override(g, seat)
+    b14::hand_limit_override(g, seat).or_else(|| b10::hand_limit_override(g, seat))
 }
 
 pub fn sha_limit_bonus(g: &Game, seat: usize) -> usize {
+    // 奇谋：本回合【杀】次数 +X；鞬出：非基本牌分支每回合 +1。
     b10::sha_limit_bonus(g, seat)
+        + g.counter("turn.qimou") as usize
+        + if g.counter("turn.jiandu_bonus") > 0 && active(g, seat, "jiandu") {
+            1
+        } else {
+            0
+        }
 }
 
 pub fn block_real_shan(g: &Game, seat: usize) -> bool {

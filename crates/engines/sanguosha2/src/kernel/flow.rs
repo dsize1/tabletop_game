@@ -414,6 +414,8 @@ pub fn step_dying(g: &mut Game, a: &Ask) -> Result<Step, String> {
     if g.seats[victim].hp > 0 {
         // 兴衰：脱离濒死**之后**，支援者各受到 1 点伤害（用户 2026-11-06 裁定）。
         crate::skills::settle_after_dying(g, victim);
+        // 奇谋：救起后再摸牌。
+        crate::skills::on_dying_left(g, victim);
         return Ok(Step::Done);
     }
     let tried = a.data["tried"].as_bool().unwrap_or(false);
