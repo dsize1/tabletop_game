@@ -556,8 +556,9 @@ node apps/scripts/check-sgs2-metrics.mjs
 ### 18.2 已知边界（下一轮补）
 
 - **蛊惑**：四处入口（出牌阶段 / 【闪】【杀】响应 / 无懈窗口 / 濒死救援）已全部接入，
-  统一经 `Game.guhuo_result` 延后通道；声明范围暂排除借刀/铁索（目标结构特殊，需两目标选择）。
-- **化身**：武将牌池依赖生成物；换入/换出只维护 `Game.huashen`，不含 Web 侧化身 UI。
+  统一经 `Game.guhuo_result` 延后通道；声明范围已放开到全部基本牌与普通锦囊（借刀/铁索两段目标）。
+- **化身**：引擎侧完成（武将牌池生成物 + `Game.huashen`）；**Web 侧化身 UI 记为 W2**，
+  与 W1（v1→v2 注册/视图迁移）一起补，台账见 `docs/games/sanguosha/align/README.md`「WEB 债务台账」。
 
 ### 18.3 下轮（B14 界标·J2）开工顺序
 

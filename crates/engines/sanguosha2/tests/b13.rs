@@ -21,6 +21,8 @@ fn deck() -> Vec<Card> {
         ("w1", "青釭剑", Suit::Spade, 6),
         ("wj1", "万箭齐发", Suit::Heart, 9),
         ("wux1", "无懈可击", Suit::Spade, 11),
+        ("jd1", "借刀杀人", Suit::Club, 3),
+        ("ts1", "铁索连环", Suit::Club, 10),
     ];
     let mut cards: Vec<Card> = spec
         .iter()
@@ -711,4 +713,53 @@ fn guhuo_works_in_dying_window() {
     // 质疑阶段：仅存活的其他角色（濒死者 hp=0 不参与）逐个询问
     answer_cur(&mut g, "pass");
     assert_eq!(g.seats[1].hp, 1, "蛊惑当【桃】救起");
+}
+
+#[test]
+fn guhuo_can_declare_collateral() {
+    let mut g = game(&[
+        ("yu", &["guhuo"], 2, "qun"),
+        ("p1", &[], 4, "wei"),
+        ("p2", &[], 4, "wu"),
+    ]);
+    g.seats[0].max_hp = 3;
+    play_phase(&mut g, 0);
+    equip(&mut g, 1, "e1", Slot::HorseOffense); // 坐骑不影响武器判定
+    equip(&mut g, 1, "w1", Slot::Weapon);
+    give(&mut g, 0, &["jd1"]); // 真实的【借刀杀人】
+    skills::execute_active(&mut g, 0, "skill:guhuo").unwrap();
+    answer(&mut g, 0, "pick:jd1");
+    let opts = options(&g);
+    assert!(opts.iter().any(|o| o == "declare:借刀杀人"), "可声明借刀杀人：{opts:?}");
+    answer(&mut g, 0, "declare:借刀杀人");
+    // 首位目标必须有武器
+    let opts = options(&g);
+    assert!(opts.contains(&"target:1".to_string()));
+    assert!(!opts.contains(&"target:2".to_string()), "无武器者不可作首位目标");
+    answer(&mut g, 0, "target:1");
+    answer(&mut g, 0, "target:2"); // 第二目标
+    answer_cur(&mut g, "pass"); // 质疑：p1
+    answer_cur(&mut g, "pass"); // 质疑：p2
+    // 真 → 借刀结算：p1 需对 p2 使用【杀】或交出武器
+    assert_eq!(pend_skill(&g).as_deref(), Some("__card"));
+}
+
+#[test]
+fn guhuo_can_declare_iron_chain_with_two_targets() {
+    let mut g = game(&[
+        ("yu", &["guhuo"], 2, "qun"),
+        ("p1", &[], 4, "wei"),
+        ("p2", &[], 4, "wu"),
+    ]);
+    g.seats[0].max_hp = 3;
+    play_phase(&mut g, 0);
+    give(&mut g, 0, &["ts1"]); // 真实的【铁索连环】
+    skills::execute_active(&mut g, 0, "skill:guhuo").unwrap();
+    answer(&mut g, 0, "pick:ts1");
+    answer(&mut g, 0, "declare:铁索连环");
+    answer(&mut g, 0, "target:1");
+    answer(&mut g, 0, "target:2");
+    answer_cur(&mut g, "pass");
+    answer_cur(&mut g, "pass");
+    assert!(g.seats[1].chained && g.seats[2].chained, "两名目标被横置");
 }

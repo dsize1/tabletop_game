@@ -182,7 +182,8 @@
   全部「质疑/不质疑」再公开翻开；结果（真/假）与惩罚（质疑者自选弃牌或失去体力）逐层结算。
   响应窗口的**延后结果**走 `Game.guhuo_result`（`Some(Some(牌))` = 已响应 / `Some(None)` = 假牌作废），
   由 `apply_response` 返回 `None` 触发重入——这是既有「激将接力」模式的最小扩展，不是新子系统。
-  入口共四处：出牌阶段（主动技）、【闪】/【杀】响应（`response_options`）、**无懈窗口**
+  声明覆盖**任意基本牌与普通锦囊**（含借刀/铁索：多目标走两段选择）；入口共四处：出牌阶段（主动技）、
+  【闪】/【杀】响应（`response_options`）、**无懈窗口**
   （`wuxie_opts`/`wuxie_use` + `Game.skill_deferred`），以及**濒死救援**
   （`skills::dying_extra_options`/`dying_extra_use`，与急救的 `dying_conversions` 同构）。
 - **群体锦囊少选目标**（`aoe-target-trim`，乱击）：`skills::aoe_trim_target` 在 `planned_targets` 的

@@ -113,3 +113,12 @@ node apps/scripts/sgs-align-sheet.mjs --batch B7 --check
   （`npm run gen:sgs-engine-data` 生成并 `--check`）；脚本不再解析 v1 `data.rs`。
   注册前置清单与删除清单见 `docs/games/sanguosha/engine-replacement/`。
 - 罪论 `order:` 两选项在 Web 上需要视图层支持该前缀（与 8 类 pending 一致）。
+
+**WEB 债务台账（统一一起补，勿零散处理）**
+
+| # | 债务 | 来源批次 | 现状 | 补齐时的落点 |
+|---|---|---|---|---|
+| W1 | Web 工作台仍跑 v1 引擎；v2 注册/视图适配未做 | M4 / OQ3 | v2 内核 + 视图契约已就绪，注册未开 | 注册前置清单见 `engine-replacement/registration.md` |
+| W2 | **化身（界左慈）Web 侧 UI**：化身牌列表 / 当前展示 / 替换与「移去至多两张换一张」的交互与视图 | B13 | 引擎侧已完成（`Game.huashen` + 生成物池），Web 无入口 | 工作台「技能详情/状态栏」+ 新的 pending 面板；与 W1 的注册一起做 |
+| W3 | 蛊惑「扣置」视图：质疑阶段前后只对持有者可见、翻开后公开 | B13 | 引擎侧已按不公开实现（reveal 时点正确），Web 展示未接 | 视图契约新增「扣置牌」可见性；follow W1 |
+| W4 | 荐言/思蜀等授予技的技能详情文案 | B13 | 引擎已实现，`skills.md` 未补授予技行 | `check:sgs-skill-docs` 扩展或手补 §4.1 |

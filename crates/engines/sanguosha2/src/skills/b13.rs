@@ -2012,11 +2012,7 @@ fn declare_options(g: &Game, seat: usize) -> Vec<&'static str> {
         if !usable {
             continue;
         }
-        // 目标结构过于特殊的两张（借刀/铁索）不在本期声明范围（对齐单第 2 段边界）。
-        if matches!(
-            row.effect,
-            Effect::Collateral | Effect::IronChain | Effect::None
-        ) {
+        if row.effect == Effect::None {
             continue;
         }
         if row.tao && g.seats[seat].hp >= g.seats[seat].max_hp {
@@ -2227,8 +2223,14 @@ fn guhuo(g: &mut Game, a: &Ask) -> Result<Step, String> {
         "target" => {
             let declared = a.data["declared"].as_str().unwrap_or_default().to_string();
             let carrier = a.data["carrier"].as_str().unwrap_or_default().to_string();
+            let def = crate::cards::def(&declared);
             let cands: Vec<usize> = (0..g.seats.len())
                 .filter(|i| *i != owner && g.seats[*i].hp > 0)
+                // 借刀杀人的首位目标必须装备武器。
+                .filter(|i| {
+                    def.effect != Effect::Collateral
+                        || g.equip_in(*i, crate::kernel::Slot::Weapon).is_some()
+                })
                 .collect();
             match g.answer.take().as_deref() {
                 None => {
@@ -2250,6 +2252,23 @@ fn guhuo(g: &mut Game, a: &Ask) -> Result<Step, String> {
                     if !cands.contains(&t) {
                         return Err("蛊惑：目标不合法".into());
                     }
+                    let def = crate::cards::def(&declared);
+                    if matches!(def.effect, Effect::Collateral | Effect::IronChain) {
+                        push(
+                            g,
+                            "guhuo",
+                            owner,
+                            json!({
+                                "stage": "target2",
+                                "owner": owner,
+                                "purpose": purpose,
+                                "declared": declared,
+                                "carrier": carrier,
+                                "targets": vec![t],
+                            }),
+                        );
+                        return Ok(Step::Done);
+                    }
                     push(
                         g,
                         "guhuo",
@@ -2261,6 +2280,83 @@ fn guhuo(g: &mut Game, a: &Ask) -> Result<Step, String> {
                             "declared": declared,
                             "carrier": carrier,
                             "targets": vec![t],
+                            "questions": [],
+                            "index": 0,
+                        }),
+                    );
+                    Ok(Step::Done)
+                }
+            }
+        }
+        "target2" => {
+            let declared = a.data["declared"].as_str().unwrap_or_default().to_string();
+            let carrier = a.data["carrier"].as_str().unwrap_or_default().to_string();
+            let first: Vec<usize> = a.data["targets"]
+                .as_array()
+                .map(|v| v.iter().filter_map(|x| x.as_u64().map(|n| n as usize)).collect())
+                .unwrap_or_default();
+            let def = crate::cards::def(&declared);
+            let cands: Vec<usize> = (0..g.seats.len())
+                .filter(|i| *i != owner && g.seats[*i].hp > 0 && !first.contains(i))
+                .collect();
+            let mut targets = first.clone();
+            match g.answer.take().as_deref() {
+                None => {
+                    let mut b = builder(owner, "target").skill("guhuo");
+                    for t in &cands {
+                        b = b.option(
+                            format!("target:{t}"),
+                            format!("第二目标：{}", g.seats[*t].name),
+                        );
+                    }
+                    // 铁索连环允许只指定 1 个目标；借刀杀人必须 2 个。
+                    if def.effect == Effect::IronChain {
+                        Ok(Step::Need(b.escape("只指定一个目标").build()))
+                    } else {
+                        Ok(Step::Need(
+                            b.escape_with("cancel", "取消蛊惑").build(),
+                        ))
+                    }
+                }
+                Some("pass") => {
+                    push(
+                        g,
+                        "guhuo",
+                        owner,
+                        json!({
+                            "stage": "question",
+                            "owner": owner,
+                            "purpose": purpose,
+                            "declared": declared,
+                            "carrier": carrier,
+                            "targets": targets,
+                            "questions": [],
+                            "index": 0,
+                        }),
+                    );
+                    Ok(Step::Done)
+                }
+                Some("cancel") => Ok(Step::Done),
+                Some(act) => {
+                    let t = act
+                        .strip_prefix("target:")
+                        .and_then(|x| x.parse::<usize>().ok())
+                        .ok_or_else(|| format!("蛊惑：未知选项 {act}"))?;
+                    if !cands.contains(&t) {
+                        return Err("蛊惑：第二目标不合法".into());
+                    }
+                    targets.push(t);
+                    push(
+                        g,
+                        "guhuo",
+                        owner,
+                        json!({
+                            "stage": "question",
+                            "owner": owner,
+                            "purpose": purpose,
+                            "declared": declared,
+                            "carrier": carrier,
+                            "targets": targets,
                             "questions": [],
                             "index": 0,
                         }),

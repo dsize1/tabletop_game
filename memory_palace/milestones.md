@@ -15,7 +15,9 @@
   `range-override`（烈弓）；改判改为「一轮询问」且覆盖延时锦囊判定。
 - **补充（同日）**：蛊惑补齐【无懈可击】窗口与濒死自救入口（`wuxie_opts/wuxie_use` + `Game.skill_deferred`、
   `skills::dying_extra_options/dying_extra_use`），四处入口统一走 `Game.guhuo_result` 延后通道。
-- **度量**：`cargo test -p sanguosha2` **484** 条全绿（新增 `tests/b13.rs` 36 条）；`check:sgs2` 全绿
+- **再补（同日）**：蛊惑声明范围放开到**全部基本牌与普通锦囊**（借刀杀人两目标、铁索连环 1–2 目标），
+  多目标走两段选择；Web 侧债务（化身 UI / 蛊惑扣置视图）已登记到 `align/README.md` 的 WEB 债务台账。
+- **度量**：`cargo test -p sanguosha2` **486** 条全绿（新增 `tests/b13.rs` 38 条）；`check:sgs2` 全绿
   （注册 190 / 对齐单 183 / B0–B13 精确一致）；`sgs:check:fast` 全绿。
 
 ## M84：B12 界标·群 八技能落地（v2 迁移批次第 5 批）✅
