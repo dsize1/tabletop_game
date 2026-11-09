@@ -54,6 +54,31 @@ const MECHANISM_SUPPORT = {
     ok: true,
     where: "`skills::response_need` + `card_play` 响应窗口连续 N 张计数（B12·无双）",
   },
+  // B13 声明的机制缺口（ok: false = 本批必须先补内核）
+  "general-pool": {
+    ok: false,
+    where: "待建：生成物 generals_generated.rs（武将牌池）+ 化身状态（B13·化身/新生）",
+  },
+  "hidden-declaration": {
+    ok: false,
+    where: "待建：扣置声明 + 同时质疑链 + 缠怨（B13·蛊惑）",
+  },
+  "aoe-target-trim": {
+    ok: false,
+    where: "待建：目标确定阶段裁剪界面（B13·乱击：万箭少选一个目标）",
+  },
+  "sha-intercept": {
+    ok: false,
+    where: "待建：结算前【杀】介入（锁定/可选，结果 Immune 等；B13·享乐）",
+  },
+  "judge-reversal": {
+    ok: false,
+    where: "待建：判定效果反转（本局、按角色；B13·思蜀）",
+  },
+  "range-override": {
+    ok: false,
+    where: "待建：按牌属性覆盖可达性（B13·烈弓：距离 ≤ 杀点数）",
+  },
   "no-wuxie": {
     ok: true,
     where: "`UseOpts.no_wuxie` → 使用帧 `data[\"no_wuxie\"]`（B12·离间）",
