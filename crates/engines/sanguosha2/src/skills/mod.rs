@@ -8,6 +8,11 @@ pub mod b0;
 pub mod b1;
 pub mod b1b;
 pub mod b2;
+pub mod b3;
+pub mod b4;
+pub mod b5;
+pub mod b6;
+pub mod b7;
 pub mod mingren;
 pub mod kongsheng;
 pub mod liangyin;
@@ -84,6 +89,68 @@ pub const SKILLS: &[SkillDef] = &[
     liangyin::DEF,
     kongsheng::DEF,
     zhenliang::DEF,
+    // B3（马谡 / 荀攸 / 钟会 / 满宠 / 关平）
+    b3::SANYAO,
+    b3::ZHIMAN,
+    b3::QICE,
+    b3::ZHIYU,
+    b3::QUANJI,
+    b3::ZILI,
+    b3::JUNXING,
+    b3::YUCE,
+    b3::LONGYIN,
+    // B4（刘封 / 潘璋马忠 / 朱然 / 曹真 / 韩浩史涣 / 陈群 / 吴懿 / 周仓）
+    b4::XIANSI,
+    b4::DUODAO,
+    b4::ANJIAN,
+    b4::DANSHOU,
+    b4::SIDI,
+    b4::SHENDUAN,
+    b4::YONGLUE,
+    b4::PINDI,
+    b4::FAEN,
+    b4::BENXI,
+    b4::ZHONGYONG,
+    // B5（孙鲁班 / 朱桓 / 顾雍 / 曹叡 / 曹休 / 钟繇）
+    b5::ZANHUI,
+    b5::JIAOJIN,
+    b5::FENLI,
+    b5::PINGKOU,
+    b5::SHENXING,
+    b5::BINGYI,
+    b5::HUITUO,
+    b5::MINGJIAN,
+    b5::XINGSHUAI,
+    b5::QIANJU,
+    b5::QINGXI,
+    b5::HUOMO,
+    b5::ZUODING,
+    // B6（刘谌 / 张嶷 / 孙休 / 朱治 / 全琮 / 公孙渊 / 郭图逢纪）
+    b6::ZHANJUE,
+    b6::QINWANG,
+    b6::WURONG,
+    b6::SHIZHI,
+    b6::YANZHU,
+    b6::XINGXUE,
+    b6::ZHAOFU,
+    b6::ANGUO,
+    b6::YAOMING,
+    b6::HUAIYI,
+    b6::JIGONG,
+    b6::SHIFEI,
+    // B7（李严 / 孙登 / 刘虞 / 岑昏 / 孙资刘放 / 黄皓 / 张让）
+    b7::DULIANG,
+    b7::FULIN,
+    b7::KUANGBI,
+    b7::ZHIGE,
+    b7::ZONGZUO,
+    b7::JISHE,
+    b7::LIANHUO,
+    b7::GUIZAO,
+    b7::JIYU,
+    b7::QINQING,
+    b7::HUISHENG,
+    b7::TAOLUAN,
 ];
 
 pub fn def(code: &str) -> Option<&'static SkillDef> {
@@ -188,7 +255,12 @@ pub fn execute_active(g: &mut Game, seat: usize, action: &str) -> Result<String,
         "zhengu" => resolve::push_ask(g, "zhengu", Stage::Choose, seat, serde_json::json!({})),
         "xiongluan" => resolve::push_ask(g, "xiongluan", Stage::Choose, seat, serde_json::json!({})),
         "jueyan" => resolve::push_ask(g, "jueyan", Stage::Choose, seat, serde_json::json!({})),
-        _ => {}
+        // 陷嗣（刘封）的主动部分是**其他角色**「移去两张『逆』」，用 mode 区分触发/主动两条入口。
+        "xiansi" => {
+            resolve::push_ask(g, "xiansi", Stage::Choose, seat, serde_json::json!({ "mode": "use" }))
+        }
+        // 其余主动技（sanyao / qice / junxing …）统一从 Choose 开始，由 handler 分流阶段。
+        code => resolve::push_ask(g, code, Stage::Choose, seat, serde_json::json!({})),
     }
     resolve::advance(g)?;
     Ok(g.presentation.last().map(|p| p.text()).unwrap_or_default())
@@ -229,7 +301,7 @@ pub fn dying_hooks(g: &mut Game, seat: usize) -> bool {
     false
 }
 
-/// 翻至正面：调用所有拥有者的 flip 钩子（解围②）。
+/// 翻至正面：调用所有拥有者的 flip 钩子（解围②）+ 法恩（任意角色翻至正面 → 陈群可令其摸 1）。
 pub fn on_flip_to_face_up(g: &mut Game, seat: usize) {
     for d in SKILLS {
         if !active(g, seat, d.code) {
@@ -238,6 +310,26 @@ pub fn on_flip_to_face_up(g: &mut Game, seat: usize) {
         if let Some(h) = d.flip_hook {
             h(g, seat);
         }
+    }
+    ask_faen(g, seat);
+}
+
+/// 法恩：受益者（翻至正面 / 进入连环的角色）→ 拥有者可令其摸 1（受益者可以是别人）。
+pub fn ask_faen(g: &mut Game, beneficiary: usize) {
+    if g.seats.get(beneficiary).map(|s| s.hp <= 0).unwrap_or(true) {
+        return;
+    }
+    let owners: Vec<usize> = (0..g.seats.len())
+        .filter(|i| active(g, *i, "faen"))
+        .collect();
+    for owner in owners {
+        resolve::push_ask(
+            g,
+            "faen",
+            Stage::Choose,
+            owner,
+            serde_json::json!({ "beneficiary": beneficiary }),
+        );
     }
 }
 
@@ -373,6 +465,216 @@ pub fn damage_prevent(g: &mut Game, victim: usize) -> bool {
     false
 }
 
+/// 「造成伤害时」钩子链：返回 true = 已压帧并拦下本次伤害（由技能决定是否补结算）。
+///
+/// 顺序：制蛮（来源侧）→ 骄矜（受害者侧）→ 倾袭（来源侧）；各钩子内部用 `hook_suppressed`
+/// 自抑制，保证「改完数值后仍继续走剩余钩子」而不递归。
+pub fn damage_before(
+    g: &mut Game,
+    source: usize,
+    victim: usize,
+    amount: i32,
+    card: Option<&crate::kernel::CardId>,
+) -> bool {
+    if b3::zhiman_before(g, source, victim, amount) {
+        return true;
+    }
+    if b5::jiaojin_before(g, Some(source), victim, amount, card) {
+        return true;
+    }
+    if b7::huisheng_before(g, Some(source), victim, amount, card) {
+        return true;
+    }
+    b5::qingxi_before(g, Some(source), victim, amount, card)
+}
+
+/// 带伤害属性/传导起点标记的「造成伤害时」钩子链（链祸等按属性判定）。
+pub fn damage_before_typed(
+    g: &mut Game,
+    source: usize,
+    victim: usize,
+    amount: i32,
+    card: Option<&crate::kernel::CardId>,
+    dtype: crate::cards::DamageKind,
+    chain_origin: bool,
+) -> bool {
+    if damage_before(g, source, victim, amount, card) {
+        return true;
+    }
+    // 链祸是数值加成（无询问），不需要拦下伤害。
+    let _ = (dtype, chain_origin);
+    false
+}
+
+/// 伤害数值加成（带属性/传导起点）：暗箭 + 链祸。
+pub fn damage_bonus_typed(
+    g: &Game,
+    source: usize,
+    victim: usize,
+    card: Option<&crate::kernel::CardId>,
+    dtype: crate::cards::DamageKind,
+    chain_origin: bool,
+) -> i32 {
+    damage_bonus(g, source, victim, card) + b7::lianhuo_bonus(g, victim, dtype, chain_origin)
+}
+
+/// 无来源伤害的属性加成（链祸可被无来源火伤触发）。
+pub fn damage_bonus_sourceless(
+    g: &Game,
+    victim: usize,
+    dtype: crate::cards::DamageKind,
+    chain_origin: bool,
+) -> i32 {
+    b7::lianhuo_bonus(g, victim, dtype, chain_origin)
+}
+
+/// 无来源伤害的「造成伤害时」钩子（骄矜需要男性来源，通常不触发）。
+pub fn damage_before_sourceless(
+    g: &mut Game,
+    victim: usize,
+    amount: i32,
+    card: Option<&crate::kernel::CardId>,
+) -> bool {
+    b5::jiaojin_before(g, None, victim, amount, card)
+}
+
+/// 「需要使用/打出【闪】」时的替代选项（饰非；使用与打出共用）。
+pub fn dodge_options(g: &Game, seat: usize) -> Vec<(String, String)> {
+    b6::shifei_options(g, seat)
+}
+
+/// 执行「需要【闪】」的替代选项（返回 true = 已处理）。
+pub fn dodge_use(g: &mut Game, seat: usize, action: &str) -> Result<bool, String> {
+    b6::shifei_use(g, seat, action)
+}
+
+/// 矢志：该牌是否已不能当【闪】使用/打出（替代用法）。
+pub fn shan_blocked_by_shizhi(g: &Game, seat: usize, id: &crate::kernel::CardId) -> bool {
+    b6::shizhi_blocks_shan(g, seat, id)
+}
+
+/// 战绝：该【决斗】造成伤害后的摸牌（由【决斗】结算引擎调用）。
+pub fn zhanjue_on_damage(g: &mut Game, owner: usize, victim: usize) {
+    b6::zhanjue_on_damage(g, owner, victim);
+}
+
+/// 兴衰是否可用（濒死流程用）。
+pub fn xingshuai_available(g: &Game, seat: usize) -> bool {
+    b5::xingshuai_available(g, seat)
+}
+
+/// 濒死流程：用户选择「发动兴衰」后压入逐个询问。
+pub fn start_xingshuai(g: &mut Game, victim: usize) {
+    b5::start_xingshuai(g, victim);
+}
+
+/// 脱离濒死后结算「支援者受到 1 点伤害」。
+pub fn settle_after_dying(g: &mut Game, victim: usize) {
+    b5::settle_after_dying(g, victim);
+}
+
+/// 移出游戏的牌打归属标记（「逆」等：既要按技能取回，又不能被常规选牌命中）。
+pub fn tag_void(g: &mut Game, card: &crate::kernel::CardId, seat: usize, code: &str) {
+    g.void_tags.insert(card.clone(), (seat, code.to_string()));
+}
+
+/// 「逆」数量（陷嗣）。
+pub fn ni(g: &Game, seat: usize) -> u32 {
+    g.void_tags
+        .values()
+        .filter(|(s, code)| *s == seat && code == "ni")
+        .count() as u32
+}
+
+/// 把指定归属的移出游戏牌移去（进弃牌堆），返回实际移去的牌。
+pub fn take_void_marked(
+    g: &mut Game,
+    seat: usize,
+    code: &str,
+    n: usize,
+) -> Result<Vec<crate::kernel::CardId>, String> {
+    let cards: Vec<crate::kernel::CardId> = g
+        .ids_in(|z| *z == crate::kernel::Zone::Void)
+        .into_iter()
+        .filter(|id| {
+            g.void_tags
+                .get(id)
+                .is_some_and(|(s, c)| *s == seat && c == code)
+        })
+        .take(n)
+        .collect();
+    for id in &cards {
+        g.void_tags.remove(id);
+        g.to_discard(id, code)?;
+    }
+    Ok(cards)
+}
+
+/// 伤害数值加成钩子（暗箭；`flow::damage_now` 在扣血前调用）。
+pub fn damage_bonus(
+    g: &Game,
+    source: usize,
+    victim: usize,
+    card: Option<&crate::kernel::CardId>,
+) -> i32 {
+    b4::anjian_bonus(g, source, victim, card)
+}
+
+/// 【杀】结算完毕的统一接入点（忠勇「使用【杀】后」/ 勇略「未造成伤害则摸 1」/ 奔袭「伤害后摸 1」）。
+/// v2 的【杀】结算引擎（未来）与用例都从这里进入。
+pub fn on_sha_finished(
+    g: &mut Game,
+    user: usize,
+    target: Option<usize>,
+    card: Option<&crate::kernel::CardId>,
+    respond: Option<&crate::kernel::CardId>,
+    damaged: bool,
+) {
+    // 奔袭：造成伤害后摸一张（强化项 4）
+    if damaged && g.counter("turn.benxi_draw") > 0 {
+        g.counters.insert("turn.benxi_draw".to_string(), 0);
+        let n = g.draw(user, 1).len();
+        g.push_log(format!("奔袭：造成伤害后摸 {n} 张"));
+    }
+    // 勇略：未造成伤害（读伤害事件，裁定 Q1=A）→ 摸 1
+    if let Some(t) = target {
+        let key = format!("turn.yonglue_pending:{t}");
+        if g.counter(&key) > 0 {
+            g.counters.insert(key, 0);
+            let owner = g
+                .counter("turn.yonglue_owner")
+                .checked_sub(1)
+                .map(|n| n as usize);
+            if let Some(owner) = owner {
+                if !damaged && g.seats[owner].hp > 0 {
+                    let n = g.draw(owner, 1).len();
+                    g.push_log(format!("勇略：此【杀】未造成伤害，摸 {n} 张"));
+                }
+            }
+        }
+    }
+    // 忠勇：使用【杀】后（可交牌）
+    b4::zhongyong_after_sha(g, user, target, card, respond);
+}
+
+/// 「权」数量（钟会·权计；移出游戏的牌，用手牌上限 +1 的计数表达）。
+pub fn quan(g: &Game, seat: usize) -> u32 {
+    g.seats
+        .get(seat)
+        .and_then(|s| s.counters.get(&"quan".to_string()).copied())
+        .unwrap_or(0)
+}
+
+pub fn add_quan(g: &mut Game, seat: usize, n: u32) {
+    *g.seats[seat].counters.entry("quan".to_string()).or_insert(0) += n;
+}
+
+/// 记录勇略拥有者（`on_sha_finished` 未造成伤害时给他摸 1）。
+pub fn set_yonglue_owner(g: &mut Game, seat: usize) {
+    g.counters
+        .insert("turn.yonglue_owner".to_string(), seat as u32 + 1);
+}
+
 /// 开局钩子（怀橘获得 3 枚「橘」等）。
 pub fn on_game_start(g: &mut Game) {
     for seat in 0..g.seats.len() {
@@ -380,6 +682,8 @@ pub fn on_game_start(g: &mut Game) {
             add_ju(g, seat, 3);
         }
     }
+    // 宗祚：开局按势力数增加体力上限并回复 1 点。
+    b7::init_zongzuo(g);
     // 明任：开局摸 1 张并必选一张作为「任」（压入 Ask 帧，由调用方 advance 驱动）
     for seat in 0..g.seats.len() {
         if active(g, seat, "mingren") {

@@ -19,6 +19,23 @@ pub enum EventKind {
     TargetChosen,
     CardPlayed,
     DamageAfter,
+    /// 失去（流失）体力：**不是**伤害（mechanics `damage-vs-hp-loss`）。
+    HpLost,
+    /// 体力上限变化（自立觉醒 / 减上限类效果）。
+    MaxHpChanged,
+    /// 进入连环状态（`chained_enter`）：**所有**进入连环状态的对象都发（用户 2026-11-06 裁定）。
+    ChainedEnter,
+    /// 手牌冻结 / 解冻（mechanics `hand-freeze`；cause 带到期窗口）。
+    HandFrozen,
+    HandUnfrozen,
+    /// 牌被公开（展示）：**立即**进入公共可见区（mechanics `reveal`）。
+    CardRevealed,
+    /// 牌结束公开。
+    CardConcealed,
+    /// 进入判定区（mechanics `judge-zone`）。
+    JudgeZoneEntered,
+    /// 离开判定区（**不算弃置**；用户 2026-11-06 裁定）。
+    JudgeZoneLeft,
     Death,
     JudgeRevealed,
     JudgeEffective,
@@ -36,6 +53,9 @@ pub struct Event {
     pub card: Option<CardId>,
     /// 附加说明（弃置原因、阶段名等）。
     pub cause: Option<String>,
+    /// 数值（伤害点数 / 失去体力数 / 上限变化量）。
+    #[serde(default)]
+    pub amount: Option<i32>,
 }
 
 impl Event {
@@ -50,6 +70,7 @@ impl Event {
             seat,
             card: Some(card),
             cause,
+            amount: None,
         }
     }
 
@@ -59,7 +80,14 @@ impl Event {
             seat,
             card: None,
             cause: cause.map(|s| s.to_string()),
+            amount: None,
         }
+    }
+
+    pub fn with_amount(kind: EventKind, seat: Option<usize>, cause: Option<&str>, amount: i32) -> Self {
+        let mut ev = Self::simple(kind, seat, cause);
+        ev.amount = Some(amount);
+        ev
     }
 }
 

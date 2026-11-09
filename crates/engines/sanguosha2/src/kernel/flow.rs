@@ -21,16 +21,98 @@ use crate::skills;
 
 /// 统一伤害出口：扣血 → 展示 → 濒死。
 pub fn damage(g: &mut Game, source: Option<usize>, victim: usize, amount: i32) {
+    damage_with(g, source, victim, amount, None);
+}
+
+/// 带伤害牌属性的伤害入口（属性/牌名只用于展示与「受到伤害」判定，见 `damage-vs-hp-loss`）。
+///
+/// 「造成伤害时」的拦截（如制蛮）在**扣血之前**询问：技能压入 Ask 帧并返回 true，
+/// 本次伤害由技能决定是否补结算（`damage_now` 绕过所有前置钩子，避免递归）。
+pub fn damage_with(
+    g: &mut Game,
+    source: Option<usize>,
+    victim: usize,
+    amount: i32,
+    card: Option<&CardId>,
+) {
+    let dtype = card
+        .map(|c| g.def_of(c).damage_kind)
+        .unwrap_or(crate::cards::DamageKind::Normal);
+    damage_typed(g, source, victim, amount, dtype, card, false);
+}
+
+/// 带**伤害属性**与**连环传导起点**标记的伤害入口（链祸等按属性判定的技能用）。
+pub fn damage_typed(
+    g: &mut Game,
+    source: Option<usize>,
+    victim: usize,
+    amount: i32,
+    dtype: crate::cards::DamageKind,
+    card: Option<&CardId>,
+    chain_origin: bool,
+) {
     if g.seats[victim].hp <= 0 {
         return;
     }
     if crate::skills::damage_prevent(g, victim) {
         return;
     }
+    if let Some(src) = source {
+        if src != victim
+            && crate::skills::damage_before_typed(g, src, victim, amount, card, dtype, chain_origin)
+        {
+            return;
+        }
+    }
+    if source.is_none() && crate::skills::damage_before_sourceless(g, victim, amount, card) {
+        return;
+    }
+    damage_now_typed(g, source, victim, amount, card, dtype, chain_origin);
+}
+
+/// 直接结算伤害（**不**再走「造成伤害时」拦截；技能自行补结算时用）。
+pub fn damage_now(
+    g: &mut Game,
+    source: Option<usize>,
+    victim: usize,
+    amount: i32,
+    card: Option<&CardId>,
+) {
+    let dtype = card
+        .map(|c| g.def_of(c).damage_kind)
+        .unwrap_or(crate::cards::DamageKind::Normal);
+    damage_now_typed(g, source, victim, amount, card, dtype, false);
+}
+
+pub fn damage_now_typed(
+    g: &mut Game,
+    source: Option<usize>,
+    victim: usize,
+    amount: i32,
+    card: Option<&CardId>,
+    dtype: crate::cards::DamageKind,
+    chain_origin: bool,
+) {
+    if g.seats[victim].hp <= 0 {
+        return;
+    }
+    // 「造成伤害时」的数值加成（暗箭/链祸等）：先加成，再做「受到的伤害改为 1」类终局修正。
+    let amount = amount
+        + source
+            .map(|s| crate::skills::damage_bonus_typed(g, s, victim, card, dtype, chain_origin))
+            .unwrap_or_else(|| {
+                crate::skills::damage_bonus_sourceless(g, victim, dtype, chain_origin)
+            });
     if let Some(s) = source {
         g.bump(&format!("turn.damage_by:{s}"));
     }
     g.seats[victim].hp -= amount;
+    // 「本阶段是否有人受到过伤害」（佐定等）。
+    g.bump("phase.damage");
+    // 「本阶段造成的伤害值」（急攻等）：只统计有来源的伤害。
+    if source.is_some() {
+        g.bump("phase.damage_dealt");
+    }
     g.presentation.push(
         Presentation::new(
             "damage",
@@ -46,15 +128,85 @@ pub fn damage(g: &mut Game, source: Option<usize>, victim: usize, amount: i32) {
         "{src} 对 {} 造成 {amount} 点伤害（{}）",
         g.seats[victim].name, g.seats[victim].hp
     ));
-    // 「受到伤害后」事件（放逐/反馈/遗计…由此订阅）。
-    g.events.push(Event::simple(
+    // 「受到伤害后」事件（放逐/反馈/遗计…由此订阅）；`amount` = 本次伤害点数（权计按点触发）。
+    let mut ev = Event::with_amount(
         EventKind::DamageAfter,
         Some(victim),
         source.map(|s| s.to_string()).as_deref(),
-    ));
+        amount,
+    );
+    ev.card = card.cloned();
+    g.events.push(ev);
     if g.seats[victim].hp <= 0 {
         start_dying(g, victim, source);
     }
+}
+
+/// 失去（流失）体力：**不产生伤害事件**（mechanics `damage-vs-hp-loss`，2026-11-06 用户裁定）。
+/// 「受到伤害后」类技能（反馈/权计/刚烈/智愚/御策…）**不得**由此触发。
+pub fn lose_hp(g: &mut Game, seat: usize, n: i32, cause: &str) {
+    if g.seats[seat].hp <= 0 || n <= 0 {
+        return;
+    }
+    g.seats[seat].hp -= n;
+    g.events.push(Event::with_amount(
+        EventKind::HpLost,
+        Some(seat),
+        Some(cause),
+        n,
+    ));
+    g.push_log(format!(
+        "{} 失去 {n} 点体力（体力 {}，原因：{cause}）",
+        g.seats[seat].name, g.seats[seat].hp
+    ));
+    if g.seats[seat].hp <= 0 {
+        start_dying(g, seat, None);
+    }
+}
+
+/// 进入连环状态（铁索）：**所有**进入者都发 `ChainedEnter`（用户 2026-11-06 裁定）。
+pub fn chain_enter(g: &mut Game, seat: usize) {
+    if g.seats[seat].chained {
+        return;
+    }
+    g.seats[seat].chained = true;
+    g.events.push(Event::simple(
+        EventKind::ChainedEnter,
+        Some(seat),
+        Some("chain"),
+    ));
+    g.push_log(format!("{} 进入连环状态", g.seats[seat].name));
+}
+
+/// 离开连环状态。
+pub fn chain_leave(g: &mut Game, seat: usize) {
+    if !g.seats[seat].chained {
+        return;
+    }
+    g.seats[seat].chained = false;
+    g.push_log(format!("{} 离开连环状态", g.seats[seat].name));
+}
+
+/// 体力上限变化（减上限；自立觉醒 / 恃勇 等共用同一事件与日志口径）。
+pub fn lose_max_hp(g: &mut Game, seat: usize, n: i32, cause: &str) {
+    if n <= 0 {
+        return;
+    }
+    let max_hp = (g.seats[seat].max_hp - n).max(1);
+    g.seats[seat].max_hp = max_hp;
+    if g.seats[seat].hp > max_hp {
+        g.seats[seat].hp = max_hp;
+    }
+    g.events.push(Event::with_amount(
+        EventKind::MaxHpChanged,
+        Some(seat),
+        Some(cause),
+        -n,
+    ));
+    g.push_log(format!(
+        "{} 减少 {n} 点体力上限（上限 {}，体力 {}，原因：{cause}）",
+        g.seats[seat].name, g.seats[seat].max_hp, g.seats[seat].hp
+    ));
 }
 
 pub fn start_dying(g: &mut Game, victim: usize, source: Option<usize>) {
@@ -67,10 +219,19 @@ pub fn start_dying(g: &mut Game, victim: usize, source: Option<usize>) {
     }));
 }
 
-/// 濒死询问顺序：自己 → 自己左手侧依次。
+/// 濒死询问顺序。
+/// 默认：自己 → 自己左手侧依次；**拥有可用兴衰时**：从自己左手方开始先求桃，自己最后（用户 2026-11-06 裁定）。
 fn dying_order(g: &Game, victim: usize) -> Vec<usize> {
-    let mut v = vec![victim];
-    v.extend(g.seats_from_left_of(victim));
+    let xingshuai = crate::skills::xingshuai_available(g, victim);
+    let mut v = if xingshuai {
+        let mut order: Vec<usize> = g.seats_from_left_of(victim);
+        order.push(victim);
+        order
+    } else {
+        let mut order = vec![victim];
+        order.extend(g.seats_from_left_of(victim));
+        order
+    };
     v.retain(|i| g.seats[*i].hp > 0 || *i == victim);
     v
 }
@@ -78,6 +239,8 @@ fn dying_order(g: &Game, victim: usize) -> Vec<usize> {
 pub fn step_dying(g: &mut Game, a: &Ask) -> Result<Step, String> {
     let victim = a.data["victim"].as_u64().unwrap_or(0) as usize;
     if g.seats[victim].hp > 0 {
+        // 兴衰：脱离濒死**之后**，支援者各受到 1 点伤害（用户 2026-11-06 裁定）。
+        crate::skills::settle_after_dying(g, victim);
         return Ok(Step::Done);
     }
     let tried = a.data["tried"].as_bool().unwrap_or(false);
@@ -98,9 +261,13 @@ pub fn step_dying(g: &mut Game, a: &Ask) -> Result<Step, String> {
     let asker = order[cursor];
     let mut b = skills::builder(asker, "dying").skill("dying");
     let mut has = false;
+    // 求到自己时，若可发动兴衰，提供「发动兴衰」选项（自桃/自酒/兴衰三选一）。
+    if asker == victim && skills::xingshuai_available(g, victim) {
+        has = true;
+        b = b.option("xingshuai", "发动兴衰（其他魏势力角色施救）");
+    }
     for id in g.hand(asker) {
-        let name = g.cards.get(&id).map(|c| c.name.clone()).unwrap_or_default();
-        let tags = crate::cards::tags(&name);
+        let tags = g.def_of(&id).tags;
         let usable = tags.tao || (tags.jiu && asker == victim);
         if usable {
             has = true;
@@ -121,6 +288,11 @@ pub fn step_dying(g: &mut Game, a: &Ask) -> Result<Step, String> {
             let mut next = a.data.clone();
             next["cursor"] = json!(cursor + 1);
             Ok(Step::Next(Stage::DyingAsk, next))
+        }
+        Some("xingshuai") => {
+            crate::skills::start_xingshuai(g, victim);
+            // 兴衰结算后重新检查体力（仍 <=0 则继续求桃）。
+            Ok(Step::Next(Stage::DyingAsk, a.data.clone()))
         }
         Some(act) => {
             let id = act
@@ -229,7 +401,7 @@ pub fn step_wuxie(g: &mut Game, a: &Ask) -> Result<Step, String> {
     let mut b = skills::builder(asker, "wuxie").skill("wuxie");
     let mut has = false;
     for id in g.hand(asker) {
-        if g.cards.get(&id).map(|c| crate::cards::tags(&c.name).wuxie).unwrap_or(false) {
+        if g.def_of(&id).tags.wuxie {
             has = true;
             b = b.option(
                 format!("respond:{id}"),

@@ -17,6 +17,11 @@ const FILES: &[&str] = &[
     "src/skills/liangyin.rs",
     "src/skills/kongsheng.rs",
     "src/skills/zhenliang.rs",
+    "src/skills/b3.rs",
+    "src/skills/b4.rs",
+    "src/skills/b5.rs",
+    "src/skills/b6.rs",
+    "src/skills/b7.rs",
     "src/kernel/flow.rs",
 ];
 

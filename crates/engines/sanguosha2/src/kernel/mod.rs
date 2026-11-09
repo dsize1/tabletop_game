@@ -120,6 +120,9 @@ pub struct Seat {
     pub general: String,
     /// 势力（wei/shu/wu/qun），主公技判定用。
     pub kingdom: String,
+    /// 性别（骄矜等技能的判定用；默认男）。
+    #[serde(default = "default_true")]
+    pub male: bool,
     /// 武将牌是否背面朝上。
     pub flipped: bool,
     pub hp: i32,
@@ -133,6 +136,12 @@ pub struct Seat {
     /// 手牌冻结（本回合不能主动使用/打出；回合结束自动清空）。
     #[serde(default)]
     pub frozen: BTreeSet<CardId>,
+    /// 阶段级手牌冻结（本阶段不能主动使用/打出；阶段切换自动清空；司敌）。
+    #[serde(default)]
+    pub frozen_phase: BTreeSet<CardId>,
+    /// 连环状态（铁索连环；进入时发 `ChainedEnter`）。
+    #[serde(default)]
+    pub chained: bool,
     /// 已废除的装备栏（决堰/破势/雄乱）。
     #[serde(default)]
     pub abolished_slots: BTreeSet<Slot>,
@@ -141,12 +150,22 @@ pub struct Seat {
     pub judge_abolished: bool,
 }
 
+/// serde 默认值：老存档没有性别字段时按男处理。
+fn default_true() -> bool {
+    true
+}
+
 impl Seat {
+    pub fn is_male(&self) -> bool {
+        self.male
+    }
+
     pub fn new(name: &str, general: &str, skills: &[&str], hp: i32) -> Self {
         Self {
             name: name.to_string(),
             general: general.to_string(),
             kingdom: "qun".to_string(),
+            male: true,
             flipped: false,
             hp,
             max_hp: hp,
@@ -155,6 +174,8 @@ impl Seat {
             flags: BTreeSet::new(),
             counters: BTreeMap::new(),
             frozen: BTreeSet::new(),
+            frozen_phase: BTreeSet::new(),
+            chained: false,
             abolished_slots: BTreeSet::new(),
             judge_abolished: false,
         }
@@ -223,6 +244,42 @@ pub struct Game {
     /// 已声明「不能被响应」的牌（往烈）。
     #[serde(default)]
     pub unresponsive: BTreeSet<CardId>,
+    /// 已声明「不计入本阶段使用次数」的牌（龙吟）。
+    #[serde(default)]
+    pub uncounted: BTreeSet<CardId>,
+    /// 本回合已使用的牌（`(seat, card)`；`sha_used` 由它派生，不另存计数）。
+    #[serde(default)]
+    pub used_this_turn: Vec<(usize, CardId)>,
+    /// 虚拟牌：承载牌 → 生效牌名（奇策等）。颜色/点数仍读物理牌。
+    #[serde(default)]
+    pub virtual_defs: BTreeMap<CardId, String>,
+    /// 虚拟牌的 origin cards（承载牌 → 参与本次使用的全部物理牌，可追溯）。
+    #[serde(default)]
+    pub origins: BTreeMap<CardId, Vec<CardId>>,
+    /// 移出游戏的牌归属标记（`card → (seat, code)`），用于「逆」等置牌类技能的取回。
+    #[serde(default)]
+    pub void_tags: BTreeMap<CardId, (usize, String)>,
+    /// 兴衰：濒死脱离后再结算的支援者（`(victim, helpers)`）。
+    #[serde(default)]
+    pub after_dying_damage: Vec<(usize, Vec<usize>)>,
+    /// 「造成伤害时」钩子的自抑制标记（技能改完数值后继续走剩余钩子，避免自我递归）。
+    #[serde(default)]
+    pub hook_suppressed: BTreeSet<String>,
+    /// 当前公开可见（展示中）的牌（mechanics `reveal`）。
+    #[serde(default)]
+    pub revealed: BTreeSet<CardId>,
+    /// 私密展示：`viewer → cards`（只对该玩家可见，不进公共区）。
+    #[serde(default)]
+    pub private_reveals: BTreeMap<usize, BTreeSet<CardId>>,
+    /// 当前响应场景（无懈链 / 万箭 / 南蛮…）：由响应引擎设置，技能按「响应牌」提供选项。
+    #[serde(default)]
+    pub response_context: Option<crate::cards::ResponseKind>,
+    /// 本阶段弃置的牌（瑰藻等「本阶段弃置」判定用）。
+    #[serde(default)]
+    pub phase_discard_cards: Vec<CardId>,
+    /// 摸牌获得的牌不计入「本回合获得的牌」（腹鳞）。
+    #[serde(skip)]
+    pub suppress_gain_count: bool,
     pub subs: Vec<Sub>,
     pub finished: bool,
 }
@@ -250,6 +307,18 @@ impl Game {
             transform: BTreeMap::new(),
             scheduled: Vec::new(),
             unresponsive: BTreeSet::new(),
+            uncounted: BTreeSet::new(),
+            used_this_turn: Vec::new(),
+            virtual_defs: BTreeMap::new(),
+            origins: BTreeMap::new(),
+            void_tags: BTreeMap::new(),
+            after_dying_damage: Vec::new(),
+            hook_suppressed: BTreeSet::new(),
+            revealed: BTreeSet::new(),
+            private_reveals: BTreeMap::new(),
+            response_context: None,
+            phase_discard_cards: Vec::new(),
+            suppress_gain_count: false,
             subs: Vec::new(),
             finished: false,
         };
@@ -296,9 +365,42 @@ impl Game {
 
     pub fn card_label(&self, id: &CardId) -> String {
         match self.cards.get(id) {
-            Some(c) => format!("{}{}{}", c.suit.label(), c.rank, c.name),
+            Some(c) => format!("{}{}{}", c.suit.label(), c.rank, self.name_of(id)),
             None => id.clone(),
         }
+    }
+
+    /// 生效牌名（虚拟牌读 `virtual_defs`，否则读物理牌名）。
+    pub fn name_of(&self, id: &CardId) -> String {
+        if let Some(name) = self.virtual_defs.get(id) {
+            return name.clone();
+        }
+        self.cards
+            .get(id)
+            .map(|c| c.name.clone())
+            .unwrap_or_default()
+    }
+
+    /// 该牌定义（虚拟牌按生效牌名解析）。
+    pub fn def_of(&self, id: &CardId) -> crate::cards::CardDef {
+        crate::cards::def(&self.name_of(id))
+    }
+
+    /// 是否为红色（颜色/点数读物理牌，符合 `card-attributes` 的转化牌口径）。
+    pub fn is_red(&self, id: &CardId) -> bool {
+        self.cards.get(id).map(|c| c.suit.is_red()).unwrap_or(false)
+    }
+
+    /// 设为虚拟牌：承载牌 → 生效牌名 + origin cards。
+    pub fn set_virtual(&mut self, base: &CardId, name: &str, origins: Vec<CardId>) {
+        self.virtual_defs.insert(base.clone(), name.to_string());
+        self.origins.insert(base.clone(), origins);
+    }
+
+    /// 清除虚拟牌（结算完成后调用；origin 已落盘）。
+    pub fn clear_virtual(&mut self, base: &CardId) {
+        self.virtual_defs.remove(base);
+        self.origins.remove(base);
     }
 
     pub fn is_equip(&self, id: &CardId) -> bool {
@@ -323,14 +425,28 @@ impl Game {
     }
 
     /// 弃置：进入弃牌堆 + `CardDiscarded`（原因透传）。
+    ///
+    /// **判定区的牌不算弃置**（用户 2026-11-06 裁定）：从判定区移出只发 `JudgeZoneLeft`，
+    /// 不产生 `CardDiscarded`、不计入本阶段弃牌数、不触发「你的牌因弃置」类技能（秉壹等）。
     pub fn to_discard(&mut self, id: &CardId, cause: &str) -> Result<(), String> {
+        if let Some(Zone::Judge(seat)) = self.zone.get(id).cloned() {
+            self.move_card(id, Zone::Discard)?;
+            self.events.push(Event::card(
+                event::EventKind::JudgeZoneLeft,
+                Some(seat),
+                id.clone(),
+                Some(cause.to_string()),
+            ));
+            return Ok(());
+        }
         let seat = match self.zone.get(id) {
-            Some(Zone::Hand(s)) | Some(Zone::Equip(s, _)) | Some(Zone::Judge(s)) => Some(*s),
+            Some(Zone::Hand(s)) | Some(Zone::Equip(s, _)) => Some(*s),
             _ => None,
         };
         self.move_card(id, Zone::Discard)?;
         if self.phase == Phase::Discard {
             self.phase_discarded += 1;
+            self.phase_discard_cards.push(id.clone());
         }
         if let Some(seat) = seat {
             self.bump(&format!("turn.discard_by:{seat}"));
@@ -374,6 +490,10 @@ impl Game {
     /// 获得：进入某座位手牌 + `CardGained`。
     pub fn gain(&mut self, id: &CardId, seat: usize) -> Result<(), String> {
         self.move_card(id, Zone::Hand(seat))?;
+        // 「本回合获得的牌」（腹鳞）：摸牌阶段的摸牌不算。
+        if !self.suppress_gain_count {
+            self.bump(&format!("turn.gained:{seat}"));
+        }
         self.events.push(Event::card(
             event::EventKind::CardGained,
             Some(seat),
@@ -396,7 +516,10 @@ impl Game {
             } else {
                 self.draw_top()
             }) else { break };
-            if !self.gain(&id, seat).is_ok() {
+            self.suppress_gain_count = true;
+            let gained = self.gain(&id, seat).is_ok();
+            self.suppress_gain_count = false;
+            if !gained {
                 continue;
             }
             if let Some(c) = cause {
@@ -439,6 +562,12 @@ impl Game {
             return Err("判定区已废除".to_string());
         }
         self.move_card(id, Zone::Judge(seat))?;
+        self.events.push(Event::card(
+            event::EventKind::JudgeZoneEntered,
+            Some(seat),
+            id.clone(),
+            None,
+        ));
         Ok(())
     }
 
@@ -489,6 +618,7 @@ impl Game {
             card.clone(),
             None,
         ));
+        self.used_this_turn.push((seat, card.clone()));
         if !targets.is_empty() {
             self.events.push(Event::card(
                 event::EventKind::TargetChosen,
@@ -610,6 +740,70 @@ impl Game {
     }
 
     /// 翻面（取反）；翻至正面时触发注册表里的「翻回」钩子（解围②等）。
+    /// 冻结指定手牌直到**本阶段**结束（司敌）；到期由阶段切换清空。
+    pub fn freeze_cards_for_phase(&mut self, seat: usize, cards: &[CardId]) {
+        for id in cards {
+            self.seats[seat].frozen_phase.insert(id.clone());
+        }
+        self.events.push(Event::simple(
+            event::EventKind::HandFrozen,
+            Some(seat),
+            Some("until_phase_end"),
+        ));
+    }
+
+    /// 解冻阶段级冻结（阶段切换时统一调用）。
+    pub fn unfreeze_phase(&mut self, seat: usize) {
+        if self.seats[seat].frozen_phase.is_empty() {
+            return;
+        }
+        self.seats[seat].frozen_phase.clear();
+        self.events.push(Event::simple(
+            event::EventKind::HandUnfrozen,
+            Some(seat),
+            Some("phase_end"),
+        ));
+    }
+
+    /// 该牌是否被阶段级冻结（司敌）。
+    pub fn is_phase_frozen(&self, seat: usize, id: &CardId) -> bool {
+        self.seats[seat].frozen_phase.contains(id)
+    }
+
+    /// 视为使用一张牌（无承载牌，如司敌/勇略/陷嗣的虚拟【杀】）。
+    /// 只发 `CardUsed` / `TargetChosen` 事件并计本回合使用数；牌实例与花色无关（裁定 Q18=B）。
+    pub fn use_virtual(&mut self, seat: usize, name: &str, targets: Vec<usize>) {
+        self.bump("turn.cards_used");
+        self.events.push(Event::simple(
+            event::EventKind::CardUsed,
+            Some(seat),
+            Some(name),
+        ));
+        if !targets.is_empty() {
+            self.events.push(Event::simple(
+                event::EventKind::TargetChosen,
+                Some(seat),
+                Some(&targets.iter().map(|t| t.to_string()).collect::<Vec<_>>().join(",")),
+            ));
+        }
+        self.push_log(format!(
+            "{} 视为使用【{name}】{}",
+            self.seats[seat].name,
+            if targets.is_empty() {
+                String::new()
+            } else {
+                format!(
+                    "（目标：{}）",
+                    targets
+                        .iter()
+                        .map(|t| self.seats[*t].name.clone())
+                        .collect::<Vec<_>>()
+                        .join("、")
+                )
+            }
+        ));
+    }
+
     /// 冻结该角色全部手牌（本回合不能主动使用/打出）。
     /// 废除一个装备栏（栏内装备进弃牌堆）。
     pub fn abolish_slot(&mut self, seat: usize, slot: Slot) -> Result<(), String> {
@@ -645,6 +839,15 @@ impl Game {
         if crate::skills::active(self, a, "mashu") {
             base = base.saturating_sub(1);
         }
+        // 奔袭（吴懿）第一段：回合内计算与其他角色的距离 -1（等价自带进攻马，可与进攻马叠加）。
+        if a != b && self.turn == a && crate::skills::active(self, a, "benxi") {
+            base = base.saturating_sub(1);
+        }
+        // 千驹（曹休，锁定）：每损失 1 点体力，距离 -1（与进攻马叠加；统一距离入口）。
+        if a != b && crate::skills::active(self, a, "qianju") {
+            let lost = (self.seats[a].max_hp - self.seats[a].hp).max(0) as usize;
+            base = base.saturating_sub(lost);
+        }
         base.max(1)
     }
 
@@ -675,13 +878,37 @@ impl Game {
         }
         n += self.counter("turn.jueyan_sha_bonus") as usize;
         n += self.counter("turn.lijun_sha_bonus") as usize;
+        if self.counter(&format!("mingjian:{seat}")) >= 2 {
+            n += 1;
+        }
         n
     }
 
-    /// 手牌上限（体力值 + 决堰防具栏…）。
+    /// 手牌上限（体力值 + 决堰防具栏… + 「权」）。
     pub fn hand_limit(&self, seat: usize) -> usize {
+        // 急攻：发动后本**出牌阶段**的手牌上限**等于**造成的伤害值（赋值，覆盖其它修正）。
+        if self.seats[seat].flags.contains("jigong") {
+            return self.counter("phase.damage_dealt") as usize;
+        }
+        // 腹鳞（李严，锁定）：本回合获得的牌不计入手牌上限（按张数加回）。
+        let gained = if crate::skills::active(self, seat, "fulin") {
+            self.counter(&format!("turn.gained:{seat}")) as usize
+        } else {
+            0
+        };
+        // 极奢（岑昏）：每次发动本回合手牌上限 -1。
+        if crate::skills::active(self, seat, "jishe") {
+            let used = self.counter("turn.jishe_used") as usize;
+            let base = (self.seats[seat].hp.max(0) as usize).saturating_sub(used);
+            return base + gained;
+        }
         let hp = self.seats[seat].hp.max(0) as usize;
+        // 明鉴：1 = 已交牌待生效，2 = 其下个回合生效中。
+        let mingjian = if self.counter(&format!("mingjian:{seat}")) >= 2 { 1 } else { 0 };
         hp + self.counter("turn.jueyan_hand_limit") as usize
+            + crate::skills::quan(self, seat) as usize
+            + mingjian
+            + gained
     }
 
     /// 声明某张牌「不能被响应」。
@@ -691,6 +918,110 @@ impl Game {
 
     pub fn is_unresponsive(&self, id: &CardId) -> bool {
         self.unresponsive.contains(id)
+    }
+
+    /// 展示（公开）：**立即**进入公共可见区 + 事件 + 历史记录。
+    pub fn reveal(&mut self, id: &CardId, owner: Option<usize>, cause: &str) {
+        if !self.revealed.insert(id.clone()) {
+            return;
+        }
+        let mut ev = Event::card(
+            event::EventKind::CardRevealed,
+            owner,
+            id.clone(),
+            Some(cause.to_string()),
+        );
+        ev.amount = None;
+        self.events.push(ev);
+        self.push_log(format!("展示：{}（{cause}）", self.card_label(id)));
+    }
+
+    /// 私密展示：只对 `viewer` 可见（不进公共区）。
+    pub fn reveal_private(&mut self, viewer: usize, id: &CardId, cause: &str) {
+        self.private_reveals
+            .entry(viewer)
+            .or_default()
+            .insert(id.clone());
+        self.events.push(Event::card(
+            event::EventKind::CardRevealed,
+            Some(viewer),
+            id.clone(),
+            Some(format!("private:{cause}")),
+        ));
+    }
+
+    pub fn is_privately_revealed(&self, viewer: usize, id: &CardId) -> bool {
+        self.private_reveals
+            .get(&viewer)
+            .is_some_and(|s| s.contains(id))
+    }
+
+    pub fn clear_private_reveals(&mut self, viewer: usize) {
+        self.private_reveals.remove(&viewer);
+    }
+
+    /// 结束展示（牌离开公共可见区）。
+    pub fn conceal(&mut self, id: &CardId, cause: &str) {
+        if !self.revealed.remove(id) {
+            return;
+        }
+        self.events.push(Event::card(
+            event::EventKind::CardConcealed,
+            None,
+            id.clone(),
+            Some(cause.to_string()),
+        ));
+    }
+
+    pub fn is_revealed(&self, id: &CardId) -> bool {
+        self.revealed.contains(id)
+    }
+
+    /// 「能否打到」的唯一判定（含诏缚：被指定角色视为在所有吴势力攻击范围内）。
+    pub fn in_attack_range(&self, from: usize, to: usize) -> bool {
+        if from == to {
+            return false;
+        }
+        if self
+            .seats
+            .get(to)
+            .is_some_and(|s| s.flags.contains("zhaofu"))
+            && self.seats.get(from).is_some_and(|s| s.kingdom == "wu")
+        {
+            return true;
+        }
+        self.distance(from, to) <= self.attack_range(from)
+    }
+
+    /// 抑制某个「造成伤害时」钩子一次（技能改完数值后继续走剩余钩子）。
+    pub fn suppress_hook(&mut self, key: &str) {
+        self.hook_suppressed.insert(key.to_string());
+    }
+
+    pub fn hook_suppressed(&self, key: &str) -> bool {
+        self.hook_suppressed.contains(key)
+    }
+
+    pub fn release_hook(&mut self, key: &str) {
+        self.hook_suppressed.remove(key);
+    }
+
+    /// 标记「此牌不计入本阶段使用次数」（龙吟）：**不改**任何全局计数（用户 2026-11-06 裁定）。
+    pub fn mark_uncounted(&mut self, id: &CardId) {
+        self.uncounted.insert(id.clone());
+    }
+
+    pub fn is_uncounted(&self, id: &CardId) -> bool {
+        self.uncounted.contains(id)
+    }
+
+    /// 本回合某角色已使用的【杀】数（属性判定；`uncounted` 的牌不计）。
+    pub fn sha_used(&self, seat: usize) -> usize {
+        self.used_this_turn
+            .iter()
+            .filter(|(s, c)| *s == seat && !self.is_uncounted(c))
+            .filter(|(_, c)| self.def_of(c).tags.sha)
+            .count()
     }
 
     /// 出牌阶段首张牌是否无视距离（往烈锁定部分）——距离系统尚未落地，先提供判定入口。
@@ -705,20 +1036,28 @@ impl Game {
             self.seats[seat].frozen.insert(id);
         }
         self.events.push(Event::simple(
-            event::EventKind::TurnEnd,
+            event::EventKind::HandFrozen,
             Some(seat),
-            Some("hand_frozen"),
+            Some("until_turn_end"),
         ));
     }
 
     /// 解冻（回合结束自动调用）。
     pub fn unfreeze_hand(&mut self, seat: usize) {
+        if self.seats[seat].frozen.is_empty() {
+            return;
+        }
         self.seats[seat].frozen.clear();
+        self.events.push(Event::simple(
+            event::EventKind::HandUnfrozen,
+            Some(seat),
+            Some("turn_end"),
+        ));
     }
 
-    /// 该牌当前能否被主动使用/打出（冻结机制的唯一判定入口）。
+    /// 该牌当前能否被主动使用/打出（冻结机制的唯一判定入口：回合级 + 阶段级）。
     pub fn can_use_card(&self, seat: usize, id: &CardId) -> bool {
-        !self.seats[seat].frozen.contains(id)
+        !self.seats[seat].frozen.contains(id) && !self.seats[seat].frozen_phase.contains(id)
     }
 
     pub fn flip(&mut self, seat: usize) {

@@ -77,19 +77,21 @@ export function loadSkills() {
 }
 
 /**
- * 完整名录：232 将 + 技能 + 148 审计范围 + 84 排除清单（232 − 84 = 148）。
+ * 完整名录：232 将 + 技能 + 147 审计范围 + 85 排除清单（232 − 85 = 147）。
  *
  * `audited` = 有界版同名的原版被剔除后的武将（顺序同 data.rs：standard → wind… → yijiang → jiexian）。
+ * 同名判定剔除前缀「界」「将」（2026-11-06 裁定：「将华雄」与「界华雄」重复，剔除前缀后同名即视为重复）。
  */
 export function loadCatalog() {
   const generals = loadGenerals();
   const { byGid, extras } = loadSkills();
 
   const jieBase = new Map();
+  // 去重口径：剔除名字前缀「界」「将」后同名 → 视为重复（方案 A，2026-11-06 起含「将X」）。
+  const dedupeName = (name) => name.replace(/^(?:界|将)/, "");
   for (const g of generals) {
     if (g.pack !== "jiexian") continue;
-    const base = g.name.replace(/^界/, "");
-    jieBase.set(base, g);
+    jieBase.set(dedupeName(g.name), g);
   }
 
   const excluded = [];
@@ -102,8 +104,8 @@ export function loadCatalog() {
       skills,
       implemented: skills.length > 0 && skills.every((s) => s.implemented),
     };
-    if (g.pack !== "jiexian" && jieBase.has(g.name)) {
-      excluded.push({ ...entry, excludedBy: jieBase.get(g.name).code });
+    if (g.pack !== "jiexian" && jieBase.has(dedupeName(g.name))) {
+      excluded.push({ ...entry, excludedBy: jieBase.get(dedupeName(g.name)).code });
     } else {
       audited.push(entry);
     }

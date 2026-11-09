@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 // 验证批次 ↔ 开发批次 / 去重池 一致性门禁。
 //
-// 背景：验证批次（148 将，`lib/sgs-batches.mjs`）与开发批次（232 将，docs 批次表 /
+// 背景：验证批次（147 将，`lib/sgs-batches.mjs`）与开发批次（232 将，docs 批次表 /
 // `sgs-batch-status`）是两套口径。名称勘误（张昭张弘→张昭张纮）曾导致「界优先去重」失效、
 // 原版错误进入验证批次。本门禁把「名录/去重池/验证批次/开发批次」四方对齐，防再次漂移。
 //
 // 断言：
-// 1) 232 将 = 审计范围(148) + 排除(84)，且每个排除项都有同名界版（`excludedBy` 指向界版 code）；
+// 1) 232 将 = 审计范围(147) + 排除(85)，且每个排除项都有同名界版（`excludedBy` 指向界版 code）；
 // 2) 验证批次展开成功（无重/无漏/每批 ≤8），总数 == 审计范围；
 // 3) 审计范围 == 全量包组合经 `prefer_jiexian` 去重后的池（按名字去重，界版优先）；
 // 4) 审计范围内每个武将都出现在开发批次表里（验证批次 ⊆ 开发批次覆盖）；
@@ -23,6 +23,8 @@ const tag = "[check:sgs-batch-consistency]";
 const problems = [];
 
 const catalog = loadCatalog();
+/** 去重口径：剔除名字前缀「界」「将」后同名即视为重复（与 lib/sgs-catalog.mjs 一致）。 */
+const dedupeName = (name) => name.replace(/^(?:界|将)/, "");
 const batches = expandBatches(catalog); // 内部已校验重/漏/超限
 const auditCodes = new Set(catalog.audited.map((g) => g.code));
 const allGens = new Map([...loadGenerals().values()].map((g) => [g.code, g]));
@@ -38,7 +40,7 @@ for (const ex of catalog.excluded) {
   const jie = allGens.get(ex.excludedBy);
   if (!jie) problems.push(`排除项指向的界版不存在：${ex.name} → ${ex.excludedBy}`);
   else if (jie.pack !== "jiexian") problems.push(`排除项 excludedBy 不是界版：${ex.name} → ${ex.excludedBy}`);
-  else if (jie.name.replace(/^界/, "") !== ex.name) {
+  else if (dedupeName(jie.name) !== dedupeName(ex.name)) {
     problems.push(`排除项与界版名字不匹配：${ex.name} ↔ ${jie.name}`);
   }
 }
@@ -63,9 +65,9 @@ if (total !== catalog.audited.length) {
 const packs = ["standard", "wind_fire_forest_mountain", "yijiang", "jiexian"];
 const inPacks = [...allGens.values()].filter((g) => packs.includes(g.pack));
 const jieNames = new Set(
-  inPacks.filter((g) => g.pack === "jiexian").map((g) => g.name.replace(/^界/, "")),
+  inPacks.filter((g) => g.pack === "jiexian").map((g) => dedupeName(g.name)),
 );
-const pool = inPacks.filter((g) => g.pack === "jiexian" || !jieNames.has(g.name));
+const pool = inPacks.filter((g) => g.pack === "jiexian" || !jieNames.has(dedupeName(g.name)));
 const poolCodes = new Set(pool.map((g) => g.code));
 if (pool.length !== catalog.audited.length) {
   problems.push(`去重池 ${pool.length} ≠ 审计范围 ${catalog.audited.length}`);

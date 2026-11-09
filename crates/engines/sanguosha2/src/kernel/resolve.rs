@@ -37,6 +37,12 @@ pub enum Stage {
     YangTarget,
     /// 贞良（阳）·弃同色牌。
     YangCard,
+    /// 通用：从自己的手牌选一张（不弃置，交由技能处理；御策展示 / 权计置「权」）。
+    PickOwn,
+    /// 通用：由非发动者选择一项（御策来源二选一 / 峻刑目标二选一）。
+    PickOther,
+    /// 通用：发动者二选一（品第：摸 / 弃）。
+    Mode,
     /// 濒死流程（内核）。
     DyingAsk,
     /// 无懈窗口（内核）。
@@ -234,10 +240,14 @@ fn run_deferred(g: &mut Game, d: Deferred) -> Result<(), String> {
             seat,
             card,
             cause,
+            amount,
         } => {
             let mut data = json!({ "cause": cause, "event": event, "seat": seat });
             if let Some(card) = card {
                 data["card"] = json!(card);
+            }
+            if let Some(amount) = amount {
+                data["amount"] = json!(amount);
             }
             push_ask(g, skill, Stage::Choose, owner, data);
             Ok(())
@@ -294,6 +304,7 @@ fn route_one_event(g: &mut Game) {
                 seat: ev.seat,
                 card: ev.card.clone(),
                 cause: ev.cause.clone(),
+                amount: ev.amount,
             },
         });
     }
@@ -312,7 +323,8 @@ pub fn submit(g: &mut Game, actor: usize, action: &str) -> Result<String, String
     }
     g.pending = None;
     g.answer = Some(action.to_string());
-    if p.escape_id() == action {
+    // 「未发动」只用于真正的放弃出口（`pass` / `cancel`）：觉醒技等把真实收益当出口时不算放弃。
+    if p.escape_id() == action && matches!(action, "pass" | "cancel") {
         let sk = p.skill().unwrap_or("pending").to_string();
         g.presentation.push(
             Presentation::new(sk.clone(), POutcome::Declined { skill: sk }).fx("pending_cancel"),
@@ -329,6 +341,15 @@ pub fn begin_phase(g: &mut Game, seat: usize, phase: Phase) -> Result<(), String
             g.unfreeze_hand(i);
         }
         g.clear_prefix("turn.");
+        // 本回合的「已使用牌 / 不计次数标记」随回合结束清空（派生计数 sha_used 依赖它）。
+        g.used_this_turn.clear();
+        g.uncounted.clear();
+        // 明鉴：交牌时置 1（待生效）→ 其下个回合开始时置 2（本回合生效）→ 再下一回合清零。
+        let key = format!("mingjian:{seat}");
+        let cur = g.counters.get(&key).copied().unwrap_or(0);
+        if cur >= 1 {
+            g.counters.insert(key, if cur == 1 { 2 } else { 0 });
+        }
         g.turn = seat;
         g.events.push(super::event::Event::simple(
             EventKind::TurnStart,
@@ -339,6 +360,11 @@ pub fn begin_phase(g: &mut Game, seat: usize, phase: Phase) -> Result<(), String
     if g.phase != phase {
         g.phase = phase;
         g.clear_prefix("phase.");
+        g.phase_discard_cards.clear();
+        // 阶段级手牌冻结到期（司敌：只在被封锁角色的出牌阶段内有效）。
+        for i in 0..g.seats.len() {
+            g.unfreeze_phase(i);
+        }
         g.events.push(super::event::Event::simple(
             EventKind::PhaseStart,
             Some(seat),

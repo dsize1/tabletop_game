@@ -38,6 +38,9 @@ pub enum Payload {
         seat: Option<usize>,
         card: Option<CardId>,
         cause: Option<String>,
+        /// 事件数值（伤害点数 / 失去体力数 / 上限变化量）。
+        #[serde(default)]
+        amount: Option<i32>,
     },
     /// 通用「待栈空后询问」：技能名/阶段/数据均由调用方给定，内核不认识具体技能。
     Ask {

@@ -28,6 +28,11 @@ fn gate_no_card_name_comparison() {
         ("skills/b0.rs", include_str!("../src/skills/b0.rs")),
         ("skills/b1.rs", include_str!("../src/skills/b1.rs")),
         ("skills/b1b.rs", include_str!("../src/skills/b1b.rs")),
+        ("skills/b3.rs", include_str!("../src/skills/b3.rs")),
+        ("skills/b4.rs", include_str!("../src/skills/b4.rs")),
+        ("skills/b5.rs", include_str!("../src/skills/b5.rs")),
+        ("skills/b6.rs", include_str!("../src/skills/b6.rs")),
+        ("skills/b7.rs", include_str!("../src/skills/b7.rs")),
         ("kernel/flow.rs", include_str!("../src/kernel/flow.rs")),
     ] {
         for pat in ["name == \"", "name != \"", "matches!(name"] {
@@ -196,4 +201,51 @@ fn attack_range_reads_weapon_and_horses() {
     g.to_equip(&"c2".to_string(), 0, Slot::HorseOffense).unwrap();
     assert_eq!(g.distance(0, 2), 1, "进攻马使距离 -1");
     assert!(g.can_reach(0, 2, &"c1".to_string()), "范围 5 应能打到距离 1");
+}
+
+// 弃置契约（mechanics `discard-contract`，用户 2026-11-06 裁定）：
+// 1) 判定区移出**不算弃置**（只发 JudgeZoneLeft，不发 CardDiscarded）；
+// 2) 弃置 ≠ 使用（CardDiscarded / CardUsed 互斥）；
+// 3) 进/出判定区都有统一事件。
+#[test]
+fn discard_contract_judge_zone_is_not_discard() {
+    use sanguosha2::kernel::event::EventKind;
+    let mut g = g();
+    g.to_judge(&"c3".to_string(), 0).unwrap();
+    assert!(
+        g.events.iter().any(|e| e.kind == EventKind::JudgeZoneEntered),
+        "进入判定区要发 JudgeZoneEntered"
+    );
+    g.events.clear();
+    g.to_discard(&"c3".to_string(), "yonglue").unwrap();
+    assert!(
+        g.events.iter().any(|e| e.kind == EventKind::JudgeZoneLeft),
+        "离开判定区要发 JudgeZoneLeft"
+    );
+    assert!(
+        !g.events.iter().any(|e| e.kind == EventKind::CardDiscarded),
+        "判定区的牌不算弃置（不发 CardDiscarded）"
+    );
+    assert_eq!(g.phase_discarded, 0, "不计入本阶段弃牌数");
+}
+
+#[test]
+fn discard_contract_discard_is_not_use() {
+    use sanguosha2::kernel::event::EventKind;
+    let mut g = g();
+    let card = "c1".to_string();
+    g.to_discard(&card, "hand_cap").unwrap();
+    assert!(g.events.iter().any(|e| e.kind == EventKind::CardDiscarded));
+    assert!(
+        !g.events.iter().any(|e| e.kind == EventKind::CardUsed),
+        "弃置不是使用"
+    );
+    g.events.clear();
+    let card2 = "c2".to_string();
+    g.use_card(0, &card2, vec![]);
+    assert!(g.events.iter().any(|e| e.kind == EventKind::CardUsed));
+    assert!(
+        !g.events.iter().any(|e| e.kind == EventKind::CardDiscarded),
+        "使用不是弃置"
+    );
 }

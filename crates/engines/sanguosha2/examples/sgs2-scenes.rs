@@ -290,6 +290,238 @@ fn scenario_lijun() -> (String, String, Rec) {
     )
 }
 
+fn scenario_sanyao_zhiman() -> (String, String, Rec) {
+    let mut g = mk(vec![
+        seat("p0", "masu", &["sanyao", "zhiman"], "shu", 3),
+        seat("p1", "other", &[], "qun", 4),
+    ]);
+    let mut r = Rec::new();
+    begin_phase(&mut g, 0, Phase::Play).unwrap();
+    skills::execute_active(&mut g, 0, "skill:sanyao").unwrap();
+    r.act(&mut g, "散谣询问（两模式各限一次）", None, None);
+    r.check(
+        "散谣应询问",
+        g.pending.as_ref().and_then(|p| p.skill()) == Some("sanyao"),
+    );
+    let cost = g.hand(0)[0].clone();
+    let victim_card = g.hand(1)[0].clone();
+    r.act(&mut g, "选择「体力值最大」模式", Some(0), Some("choose:hp"));
+    r.act(&mut g, "弃置成本", Some(0), Some(&format!("choose:{cost}")));
+    r.act(&mut g, "选定目标（p1 体力最大）", Some(0), Some("target:1"));
+    r.check(
+        "造成伤害前先问制蛮",
+        g.pending.as_ref().and_then(|p| p.skill()) == Some("zhiman"),
+    );
+    r.act(&mut g, "发动制蛮（防止伤害）", Some(0), Some("choose:zhiman"));
+    r.act(
+        &mut g,
+        "获得其区域里一张牌",
+        Some(0),
+        Some(&format!("choose:{victim_card}")),
+    );
+    r.check("伤害被防止（p1 仍 4 血）", g.seats[1].hp == 4);
+    r.check("获得的牌进入马谡手牌", g.hand(0).contains(&victim_card));
+    (
+        "sanyao-zhiman-chain".into(),
+        "散谣 → 制蛮：结算伤害前防止并获得牌".into(),
+        r,
+    )
+}
+
+fn scenario_junxing_no_hand_target() -> (String, String, Rec) {
+    let mut g = mk(vec![
+        seat("p0", "manchong", &["junxing"], "wei", 4),
+        seat("p1", "other", &[], "qun", 4),
+    ]);
+    // 目标没有手牌
+    while let Some(id) = g.hand(1).first().cloned() {
+        g.to_discard(&id, "scene").unwrap();
+    }
+    let mut r = Rec::new();
+    begin_phase(&mut g, 0, Phase::Play).unwrap();
+    skills::execute_active(&mut g, 0, "skill:junxing").unwrap();
+    let cost = g.hand(0)[0].clone();
+    r.act(&mut g, "峻刑：选择成本", None, None);
+    r.act(&mut g, "弃置 1 张手牌", Some(0), Some(&format!("choose:{cost}")));
+    r.act(&mut g, "确认弃置", Some(0), Some("confirm"));
+    r.check(
+        "目标不要求有手牌（可选 p1）",
+        g.pending
+            .as_ref()
+            .map(|p| p.options().iter().any(|o| o.id == "target:1"))
+            .unwrap_or(false),
+    );
+    r.act(&mut g, "选定无手牌目标", Some(0), Some("target:1"));
+    r.check(
+        "只能翻面（没有类型不同的手牌可弃）",
+        g.pending
+            .as_ref()
+            .map(|p| p.options().iter().all(|o| o.id != "opt1"))
+            .unwrap_or(false),
+    );
+    r.act(&mut g, "翻面并摸 1 张", Some(1), Some("opt2"));
+    r.check("目标已翻面", g.seats[1].flipped);
+    r.check("摸与弃置数相同（1 张）", g.hand(1).len() == 1);
+    (
+        "junxing-no-hand-target".into(),
+        "峻刑：无手牌目标只能翻面摸牌".into(),
+        r,
+    )
+}
+
+fn scenario_sidi_freeze() -> (String, String, Rec) {
+    // 曹真装备区有红装备（即为费用）；p1 有红/黑各一张手牌
+    let base = mk(vec![
+        seat("p0", "caozhen", &["sidi"], "wei", 4),
+        seat("p1", "other", &[], "qun", 4),
+    ]);
+    let mut cards: Vec<Card> = base.cards.values().cloned().collect();
+    for i in 19..=30 {
+        cards.push(Card::new(format!("c{i}"), "闪", Suit::Heart, 2));
+    }
+    cards.push(Card::equip(
+        "c19x",
+        "八卦阵",
+        Suit::Heart,
+        2,
+        sanguosha2::kernel::Slot::Armor,
+    ));
+    cards.push(Card::new("c21", "闪", Suit::Heart, 3));
+    cards.push(Card::new("c22", "杀", Suit::Spade, 4));
+    let mut g = Game::new(base.seats.clone(), cards);
+    g.to_equip(&"c19x".to_string(), 0, sanguosha2::kernel::Slot::Armor)
+        .unwrap();
+    g.to_hand(&"c21".to_string(), 1).unwrap();
+    g.to_hand(&"c22".to_string(), 1).unwrap();
+    let mut r = Rec::new();
+    begin_phase(&mut g, 1, Phase::Play).unwrap();
+    r.act(&mut g, "司敌：其他角色出牌阶段开始", None, None);
+    r.check(
+        "装备区牌本身即可作为费用（可发动）",
+        g.pending.as_ref().and_then(|p| p.skill()) == Some("sidi"),
+    );
+    r.act(
+        &mut g,
+        "弃置装备区红色牌（封锁红色）",
+        Some(0),
+        Some("choose:c19x"),
+    );
+    r.check("红色手牌被冻结", !g.can_use_card(1, &"c21".to_string()));
+    r.check("黑色手牌不受影响", g.can_use_card(1, &"c22".to_string()));
+    (
+        "sidi-freeze-color".into(),
+        "司敌：手牌冻结（阶段级）".into(),
+        r,
+    )
+}
+
+fn scenario_xiansi() -> (String, String, Rec) {
+    let mut g = mk(vec![
+        seat("p0", "liufeng", &["xiansi"], "shu", 4),
+        seat("p1", "other", &[], "qun", 4),
+    ]);
+    let mut r = Rec::new();
+    begin_phase(&mut g, 0, Phase::Play).unwrap();
+    begin_phase(&mut g, 0, Phase::Prepare).unwrap();
+    r.act(&mut g, "准备阶段：陷嗣询问", None, None);
+    r.check(
+        "陷嗣应询问",
+        g.pending.as_ref().and_then(|p| p.skill()) == Some("xiansi"),
+    );
+    r.act(&mut g, "选择一名角色", Some(0), Some("target:1"));
+    r.act(&mut g, "确认", Some(0), Some("confirm"));
+    let card = g
+        .pending
+        .as_ref()
+        .and_then(|p| p.options().first().map(|o| o.id.clone()))
+        .unwrap_or_default();
+    r.act(&mut g, "取走其一张牌为「逆」", Some(0), Some(&card));
+    r.check("「逆」计数 = 1", skills::ni(&g, 0) == 1);
+    r.check(
+        "「逆」按移出游戏处理（void 区有牌）",
+        g.ids_in(|z| *z == Zone::Void).len() == 1,
+    );
+    (
+        "xiansi-ni-void".into(),
+        "陷嗣：「逆」移出游戏".into(),
+        r,
+    )
+}
+
+fn scenario_xingshuai() -> (String, String, Rec) {
+    let mut g = mk(vec![
+        seat("p0", "caorui", &["xingshuai"], "wei", 3),
+        seat("p1", "weially", &[], "wei", 4),
+        seat("p2", "qun", &[], "qun", 4),
+    ]);
+    g.seats[0].flags.insert("lord".to_string());
+    g.seats[0].hp = 1;
+    let mut r = Rec::new();
+    flow::damage(&mut g, Some(2), 0, 1); // 1 → 0 濒死
+    r.act(&mut g, "曹叡濒死（求桃从左手方开始）", None, None);
+    // 其他角色（有【桃】但不救）放弃 → 轮到曹叡自己，此时可选 自桃/自酒/兴衰
+    let actor = g.pending.as_ref().map(|p| p.actor()).unwrap_or(0);
+    if actor != 0 {
+        r.act(&mut g, "其他角色放弃救援", Some(actor), Some("pass"));
+    }
+    r.check(
+        "求到自己时可选择发动兴衰",
+        g.pending
+            .as_ref()
+            .map(|p| p.actor() == 0 && p.options().iter().any(|o| o.id == "xingshuai"))
+            .unwrap_or(false),
+    );
+    let wei_hp = g.seats[1].hp;
+    r.act(&mut g, "发动兴衰", Some(0), Some("xingshuai"));
+    r.check(
+        "先逐个询问魏势力角色",
+        g.pending.as_ref().map(|p| p.actor()) == Some(1),
+    );
+    r.act(&mut g, "魏势力角色支援（回复 1 点）", Some(1), Some("opt1"));
+    r.check("曹叡脱离濒死（0 → 1）", g.seats[0].hp == 1);
+    r.check(
+        "支援者在濒死结算后受到 1 点伤害",
+        g.seats[1].hp == wei_hp - 1,
+    );
+    (
+        "xingshuai-lord-dying".into(),
+        "兴衰：魏势力施救 → 脱困后支援者受伤".into(),
+        r,
+    )
+}
+
+fn scenario_zanhui() -> (String, String, Rec) {
+    let mut g = mk(vec![
+        seat("p0", "sunluban", &["zanhui"], "wu", 4),
+        seat("p1", "target", &[], "qun", 4),
+        seat("p2", "helper", &[], "qun", 4),
+    ]);
+    let mut r = Rec::new();
+    begin_phase(&mut g, 0, Phase::Play).unwrap();
+    // 用【杀】指定唯一目标
+    g.use_card(0, &"c1".to_string(), vec![1]);
+    r.act(&mut g, "使用【杀】指定唯一目标 → 谮毁询问", None, None);
+    r.check(
+        "谮毁应询问",
+        g.pending.as_ref().and_then(|p| p.skill()) == Some("zanhui"),
+    );
+    r.act(&mut g, "选择协助者", Some(0), Some("target:2"));
+    r.check(
+        "由协助者二选一",
+        g.pending.as_ref().map(|p| p.actor()) == Some(2),
+    );
+    r.act(&mut g, "成为额外目标", Some(2), Some("opt2"));
+    r.check(
+        "追加额外目标已记录",
+        g.counter("turn.zanhui_extra_target") == 1,
+    );
+    (
+        "zanhui-unique-target".into(),
+        "谮毁：唯一目标 → 协助者成为额外目标".into(),
+        r,
+    )
+}
+
 fn main() {
     let scenes = vec![
         scenario_jushou(),
@@ -298,6 +530,12 @@ fn main() {
         scenario_juzhan(),
         scenario_yili(),
         scenario_lijun(),
+        scenario_sanyao_zhiman(),
+        scenario_junxing_no_hand_target(),
+        scenario_sidi_freeze(),
+        scenario_xiansi(),
+        scenario_xingshuai(),
+        scenario_zanhui(),
     ];
     let mut out = Vec::new();
     for (id, name, rec) in scenes {

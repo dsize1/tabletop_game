@@ -40,12 +40,33 @@ pub struct Tags {
     pub target_mode: Option<TargetMode>,
 }
 
+/// 伤害属性（普通 / 火 / 雷）。技能判定只读该字段，禁止按牌名/技能名硬编码。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DamageKind {
+    Normal,
+    Fire,
+    Thunder,
+}
+
+/// 响应场景（由「该环节的响应牌」驱动，禁止按技能名硬编码）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ResponseKind {
+    /// 需要【杀】（南蛮入侵 / 决斗 / 借刀）
+    Sha,
+    /// 需要【闪】（杀 / 万箭齐发）
+    Shan,
+    /// 需要【无懈可击】（无懈链）
+    Wuxie,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CardDef {
     pub kind: CardKind,
     /// 伤害锦囊（决斗/万箭/南蛮/火攻）——征荣、往烈等按此判定。
     pub damage_trick: bool,
     pub tags: Tags,
+    /// 伤害属性（普通/火/雷）。
+    pub damage_kind: DamageKind,
 }
 
 const EQUIP_NAMES: &[&str] = &[
@@ -68,8 +89,13 @@ pub fn def(name: &str) -> CardDef {
     } else {
         CardKind::Trick
     };
+    let damage_kind = match name {
+        "火杀" | "火攻" => DamageKind::Fire,
+        "雷杀" => DamageKind::Thunder,
+        _ => DamageKind::Normal,
+    };
     let tags = Tags {
-        sha: name == "杀",
+        sha: matches!(name, "杀" | "火杀" | "雷杀"),
         shan: name == "闪",
         tao: name == "桃",
         jiu: name == "酒",
@@ -87,7 +113,46 @@ pub fn def(name: &str) -> CardDef {
         kind,
         damage_trick,
         tags,
+        damage_kind,
     }
+}
+
+/// 该牌能否作为某响应场景的响应牌（读属性，不按牌名枚举）。
+pub fn responds_as(name: &str, kind: ResponseKind) -> bool {
+    let t = tags(name);
+    match kind {
+        ResponseKind::Sha => t.sha,
+        ResponseKind::Shan => t.shan,
+        ResponseKind::Wuxie => t.wuxie,
+    }
+}
+
+/// 全部锦囊牌名（牌定义表 = 唯一来源；技能只能按属性过滤，不得各自列白名单）。
+pub const TRICK_NAMES: &[&str] = &[
+    "无懈可击",
+    "无中生有",
+    "过河拆桥",
+    "顺手牵羊",
+    "决斗",
+    "南蛮入侵",
+    "万箭齐发",
+    "桃园结义",
+    "五谷丰登",
+    "火攻",
+    "借刀杀人",
+    "铁索连环",
+    "乐不思蜀",
+    "兵粮寸断",
+    "闪电",
+];
+
+/// 非延迟锦囊（奇策的候选项）：读 `tags.delayed` 属性，不按牌名写死。
+pub fn non_delayed_tricks() -> Vec<&'static str> {
+    TRICK_NAMES
+        .iter()
+        .copied()
+        .filter(|n| !tags(n).delayed)
+        .collect()
 }
 
 pub fn is_basic(name: &str) -> bool {
