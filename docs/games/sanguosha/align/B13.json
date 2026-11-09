@@ -1,10 +1,10 @@
 {
   "batch": "B13",
   "source": "界限突破·J1",
-  "status": "draft",
+  "status": "confirmed",
   "mechanics_version": 2,
-  "confirmed_by": null,
-  "confirmed_at": null,
+  "confirmed_by": "用户",
+  "confirmed_at": "2026-11-09",
   "note": "机器文件（单一事实源）。人读请看同目录 <B>.md；改这里后运行 --sync 重生成 md。",
   "generals": [
     {
@@ -16,7 +16,7 @@
           "code": "liegong",
           "name": "烈弓",
           "kind": "normal",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "你【杀】的攻击范围为此【杀】点数。当你使用【杀】指定目标后，你可以执行以下效果：\n•若其手牌数小于等于你，其不能抵消此【杀】；\n•若其体力值大于等于你，此【杀】伤害值+1。",
           "original_source": "heroes.json#gid=26",
           "mechanics_version": 2,
@@ -43,7 +43,7 @@
               "lean": "A",
               "why": "A 不改变全局攻击范围，只影响本张【杀】的可达性，语义最贴近文本且实现面最小。",
               "impact": "距离/范围入口 + 用例。",
-              "answer": null
+              "answer": "A（逐目标：距离 ≤ 此【杀】点数即可达）"
             },
             {
               "id": "Q2",
@@ -55,7 +55,7 @@
               "lean": "B",
               "why": "文本写「你可以执行以下效果」；给一次询问更贴合「可以」，且便于玩家在不想加伤/不想封闪时放弃。",
               "impact": "pending 出口 + 用例。",
-              "answer": null
+              "answer": "B（询问一次「是否发动烈弓」，发动后按条件分别生效）"
             },
             {
               "id": "Q3",
@@ -67,7 +67,7 @@
               "lean": "A",
               "why": "保持 v2 既有数值链（机制 `damage-attributes`），不新增特例。",
               "impact": "数值链 + 用例。",
-              "answer": null
+              "answer": "A（与其他加成累加，白银狮子最后压回 1）"
             }
           ],
           "mechanics": [
@@ -79,16 +79,22 @@
           ],
           "terms": {},
           "ui": {
-            "prompt": null,
-            "overlay": null,
-            "fx": null,
-            "reveal": null,
-            "qq": null
+            "prompt": "烈弓：此【杀】范围＝点数；手牌数≥其→不能【闪】；体力≤其→伤害+1",
+            "overlay": "询问一次（发动 / 不发动）",
+            "fx": "本期不做",
+            "reveal": "本期不做",
+            "qq": "本期不做"
           },
-          "agreed": null,
+          "agreed": "你使用的【杀】对每个目标按「距离 ≤ 此【杀】点数」判定可达（逐目标，不改写全局攻击范围）。当你使用【杀】指定目标后，你可以发动烈弓：若其手牌数小于等于你，其不能使用【闪】抵消此【杀】；若其体力值大于等于你，此【杀】对其伤害 +1（与其他伤害加成累加，白银狮子最后仍压回 1）。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "距离≤此【杀】点数即可达（逐目标）",
+              "手牌数≥目标→其不能【闪】；体力≤目标→伤害+1"
+            ],
+            "negative": [
+              "未发动时不封【闪】、不加伤",
+              "距离>点数时该目标不可达"
+            ]
           },
           "impl": null,
           "tests": []
@@ -104,7 +110,7 @@
           "code": "zhuhai",
           "name": "诛害",
           "kind": "normal",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "其他角色的结束阶段，若其本回合造成过伤害，你可以对其使用一张【杀】。",
           "original_source": "heroes.json#gid=304",
           "mechanics_version": 2,
@@ -131,7 +137,7 @@
               "lean": "B",
               "why": "文本与界徐庶官方口径都是「使用一张【杀】」，属于真实使用；虚拟杀会让「没有【杀】也能发动」偏离技能成本。",
               "impact": "候选集合 + 反例（无【杀】不可发动）。",
-              "answer": null
+              "answer": "B（必须真实使用一张手牌【杀】；没有【杀】不能发动）"
             },
             {
               "id": "Q2",
@@ -143,7 +149,7 @@
               "lean": "A",
               "why": "原文没有任何「无距离限制」字样；真实使用【杀】本就要判距离。",
               "impact": "候选集合 + 反例。",
-              "answer": null
+              "answer": "B（**无距离限制**）"
             },
             {
               "id": "Q3",
@@ -155,7 +161,7 @@
               "lean": "A",
               "why": "结算点是「其他角色的结束阶段」，每个结束阶段独立结算；同一回合内只有一个结束阶段，A 与 B 在单挑/多回合外等价，但多回合（放权/博图）下 A 更一致。",
               "impact": "计数 + 用例（额外回合）。",
-              "answer": null
+              "answer": "A（每个结束阶段各一次）"
             }
           ],
           "mechanics": [
@@ -167,16 +173,21 @@
           ],
           "terms": {},
           "ui": {
-            "prompt": null,
-            "overlay": null,
-            "fx": null,
-            "reveal": null,
-            "qq": null
+            "prompt": "诛害：是否对其使用一张【杀】（无距离限制）",
+            "overlay": "二选一 → 选手牌【杀】→ 目标",
+            "fx": "本期不做",
+            "reveal": "使用的【杀】公开",
+            "qq": "本期不做"
           },
-          "agreed": null,
+          "agreed": "其他角色的结束阶段，若其本回合造成过伤害，你可以**使用一张手牌【杀】**（**无距离限制**）对其结算；没有手牌【杀】时不能发动；每个结束阶段各限一次（每个持有者）。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "他人结束阶段且本回合造成过伤害→可对其使用手牌【杀】（无距离限制）"
+            ],
+            "negative": [
+              "没有手牌【杀】不能发动",
+              "目标本回合未造成伤害不触发"
+            ]
           },
           "impl": null,
           "tests": []
@@ -185,7 +196,7 @@
           "code": "qianxin",
           "name": "潜心",
           "kind": "awaken",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "觉醒技，当你造成伤害后，若你已受伤，你减少1点体力上限并获得“荐言”。",
           "original_source": "heroes.json#gid=304",
           "mechanics_version": 2,
@@ -212,7 +223,7 @@
               "lean": "A",
               "why": "觉醒技按触发时机立即结算；v1 同口径。",
               "impact": "触发钩子 + 用例。",
-              "answer": null
+              "answer": "A（造成伤害后立即觉醒，终身一次）"
             },
             {
               "id": "Q2",
@@ -224,7 +235,7 @@
               "lean": "A",
               "why": "体力值不能超过上限（内核既有不变量），压到上限是唯一自洽口径。",
               "impact": "体力/上限 + 用例。",
-              "answer": null
+              "answer": "A（上限 -1；体力高于新上限则压到新上限）"
             },
             {
               "id": "Q3",
@@ -236,7 +247,7 @@
               "lean": "A",
               "why": "沿 v1 已落地的行为，且与「牌堆承载/展示」机制一致。",
               "impact": "新增授予技实现 + 用例；注册表需登记 GRANT_ONLY。",
-              "answer": null
+              "answer": "B（其余按 A 的流程，但**没有存活男性角色时不能发动荐言**）；备注：用户补充：无存活男性角色时不能发动「荐言」（不是亮牌后弃置）。"
             }
           ],
           "mechanics": [
@@ -248,16 +259,22 @@
           ],
           "terms": {},
           "ui": {
-            "prompt": null,
-            "overlay": null,
-            "fx": null,
-            "reveal": null,
-            "qq": null
+            "prompt": "潜心：觉醒（上限 -1，获得「荐言」）；荐言：声明类别/颜色→亮牌→交给男性角色",
+            "overlay": "觉醒播报；荐言：单选类别/颜色 → 选男性角色",
+            "fx": "本期不做",
+            "reveal": "荐言亮出的牌公开",
+            "qq": "本期不做"
           },
-          "agreed": null,
+          "agreed": "觉醒技。当你造成伤害后，若你已受伤，你减少 1 点体力上限（体力高于新上限则压到新上限）并获得授予技「荐言」（终身一次）。「荐言」：出牌阶段限一次，声明「基本牌 / 锦囊牌 / 装备牌 / 红色牌 / 黑色牌」之一 → 亮出牌堆中第一张符合的牌 → 交给一名男性角色；**没有存活男性角色时不能发动**。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "造成伤害后已受伤→觉醒：上限-1 并获得「荐言」",
+              "荐言：声明类别→亮牌→交给男性角色"
+            ],
+            "negative": [
+              "未受伤不触发",
+              "没有存活男性角色时不能发动荐言"
+            ]
           },
           "impl": null,
           "tests": []
@@ -273,7 +290,7 @@
           "code": "yaowu",
           "name": "耀武",
           "kind": "locked",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "锁定技，当你受到伤害时，若造成伤害的牌：\n•为红色，伤害来源摸一张牌；\n•不为红色，你摸一张牌。",
           "original_source": "heroes.json#gid=446",
           "mechanics_version": 2,
@@ -301,7 +318,7 @@
               "lean": "A",
               "why": "文本是二分（红色 / 不为红色），无花色自然落入「不为红色」。",
               "impact": "用例（虚拟牌伤害）。",
-              "answer": null
+              "answer": "A（虚拟牌/无花色视为「不为红色」→ 华雄摸 1）"
             },
             {
               "id": "Q2",
@@ -313,7 +330,7 @@
               "lean": "A",
               "why": "保持「有收益不落空」的既有实现，避免自伤/无来源伤害让锁定技变负收益。",
               "impact": "用例（自伤/无来源）。",
-              "answer": null
+              "answer": "B（红色牌但来源为自己/无来源时**不摸牌**）"
             },
             {
               "id": "Q3",
@@ -325,7 +342,7 @@
               "lean": "A",
               "why": "文本主语是「受到伤害时」这一次事件，未写「每 1 点」（对比反馈/遗计明确写「1 点伤害后」）。",
               "impact": "触发计数 + 用例。",
-              "answer": null
+              "answer": "A（每次伤害事件结算一次）"
             }
           ],
           "mechanics": [
@@ -336,16 +353,22 @@
           ],
           "terms": {},
           "ui": {
-            "prompt": null,
-            "overlay": null,
-            "fx": null,
-            "reveal": null,
-            "qq": null
+            "prompt": "耀武：伤害牌为红→来源摸 1；否则你摸 1（锁定，自动）",
+            "overlay": "无（锁定技）",
+            "fx": "本期不做",
+            "reveal": "摸牌数公示",
+            "qq": "本期不做"
           },
-          "agreed": null,
+          "agreed": "锁定技。当你受到伤害时（每次伤害事件结算一次）：若造成伤害的牌为**红色**，伤害来源摸一张牌；若**不为红色**（含虚拟牌/无实体牌），你摸一张牌。红色牌但无有效来源（来源为自己或无来源）时不摸牌。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "红色伤害牌→来源摸 1",
+              "非红/虚拟牌→华雄摸 1"
+            ],
+            "negative": [
+              "红色牌但来源为自己/无来源→不摸牌",
+              "多点伤害只结算一次"
+            ]
           },
           "impl": null,
           "tests": []
@@ -354,7 +377,7 @@
           "code": "shizhan",
           "name": "势斩",
           "kind": "normal",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "出牌阶段限两次，你可以令一名其他角色视为对你使用一张【决斗】。",
           "original_source": "heroes.json#gid=446",
           "mechanics_version": 2,
@@ -381,7 +404,7 @@
               "lean": "A",
               "why": "标准决斗规则：目标先响应；v1 同口径。",
               "impact": "用例。",
-              "answer": null
+              "answer": "A（华雄先出【杀】）"
             },
             {
               "id": "Q2",
@@ -393,7 +416,7 @@
               "lean": "A",
               "why": "原文没有「不能被无懈可击抵消」（对比离间明确写了），按普通锦囊处理。",
               "impact": "无懈链 + 用例。",
-              "answer": null
+              "answer": "A（可被【无懈可击】抵消）"
             },
             {
               "id": "Q3",
@@ -405,7 +428,7 @@
               "lean": "A",
               "why": "文本写「出牌阶段限两次」。",
               "impact": "计数 + 用例。",
-              "answer": null
+              "answer": "A（每个出牌阶段限两次）"
             }
           ],
           "mechanics": [
@@ -416,16 +439,22 @@
           ],
           "terms": {},
           "ui": {
-            "prompt": null,
-            "overlay": null,
-            "fx": null,
-            "reveal": null,
-            "qq": null
+            "prompt": "势斩：令一名其他角色视为对你使用【决斗】（本阶段限两次）",
+            "overlay": "选目标 → 你作为目标先出【杀】",
+            "fx": "本期不做",
+            "reveal": "决斗双方公示",
+            "qq": "本期不做"
           },
-          "agreed": null,
+          "agreed": "出牌阶段限两次，你可以令一名其他角色视为对你使用一张【决斗】（你作为目标**先出【杀】**）；该【决斗】可被【无懈可击】抵消。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "限两次：令他人视为对华雄使用【决斗】，华雄先出【杀】",
+              "可被【无懈可击】抵消"
+            ],
+            "negative": [
+              "第三次发动被拒绝",
+              "不能选择自己"
+            ]
           },
           "impl": null,
           "tests": []
@@ -441,7 +470,7 @@
           "code": "huashen",
           "name": "化身",
           "kind": "normal",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "游戏开始时，你随机获得三张武将牌作为“化身”牌，然后展示其中一张，获得此“化身”牌上的一个技能，且性别和势力视为与之相同。回合开始时和回合结束后，你可以选择一项：\n 1.替换展示的“化身”牌及因此获得的技能；\n 2.移去至多两张“化身”牌并获得等量新的“化身”牌。",
           "original_source": "heroes.json#gid=447",
           "mechanics_version": 2,
@@ -469,7 +498,7 @@
               "lean": "A",
               "why": "化身/新生/选将都需要武将名录；生成物与 `cards_generated.rs` 同源同风格，也是注册前置（阻塞 B1 选将）的一部分。",
               "impact": "新增生成物 + 门禁 `engine-data` + 用例。",
-              "answer": null
+              "answer": "C（用中台武将列表的 status：仅「上线」武将入池；见 Q16 的实施口径）；备注：用户补充：中台武将列表带 status；仅 status=live 的武将入化身池。实施口径：`import_engine` 不再一律写 live —— 147 审计池写 live、去重被排除的同名原版写 offline、技能未完成（不在 标准/风林火山/一将成名/界限突破 四包内）写 review（待审批）。生成物 `engine-catalog.json` 与 `generals_generated.rs` 带同一状态，v2 池只取 live。"
             },
             {
               "id": "Q2",
@@ -481,7 +510,7 @@
               "lean": "A",
               "why": "文本是「一个技能」（选择权在左慈）；只有单技能武将时不询问。",
               "impact": "交互 + 用例。",
-              "answer": null
+              "answer": "A（由左慈选择该化身牌上的一个已注册技能）"
             },
             {
               "id": "Q3",
@@ -493,7 +522,7 @@
               "lean": "A",
               "why": "内核大量位置直接读 `Seat.kingdom/male`；只读钩子需要改所有读取点，成本更高且易漏。",
               "impact": "状态一致性 + 用例（势力技/性别技）。",
-              "answer": null
+              "answer": "A（切换时改写 Seat.kingdom/male 并保存原值）"
             },
             {
               "id": "Q4",
@@ -505,7 +534,7 @@
               "lean": "A",
               "why": "原文「回合开始时和回合结束后，你可以选择一项」= 两个时机各一次。",
               "impact": "触发窗口 + 用例。",
-              "answer": null
+              "answer": "A（回合开始、结束各一次，各可放弃）"
             },
             {
               "id": "Q5",
@@ -517,7 +546,7 @@
               "lean": "A",
               "why": "v1 口径；B 会在同一时机引入「展示为空」的中间态，收益低。",
               "impact": "交互 + 用例。",
-              "answer": null
+              "answer": "A（只能移去非展示的化身牌，至多两张）；备注：用户补充：第 ② 项是 **2 换 1**（移去至多两张 → 获得**一张**新化身牌），不是等量交换。"
             },
             {
               "id": "Q6",
@@ -529,7 +558,7 @@
               "lean": "A",
               "why": "未注册技能无法授予（`skills::active` 查注册表），B 会产生「有化身无技能」的坏状态。",
               "impact": "池过滤 + 反例。",
-              "answer": null
+              "answer": "C（同 Q16：以中台武将列表 status=live 为准）"
             }
           ],
           "mechanics": [
@@ -542,16 +571,22 @@
           ],
           "terms": {},
           "ui": {
-            "prompt": null,
-            "overlay": null,
-            "fx": null,
-            "reveal": null,
-            "qq": null
+            "prompt": "化身：替换展示化身 / 移去至多两张换一张新化身牌",
+            "overlay": "回合开始/结束各询问一次（二选一 + 技能选择）",
+            "fx": "本期不做",
+            "reveal": "当前展示的化身牌与技能公开",
+            "qq": "本期不做"
           },
-          "agreed": null,
+          "agreed": "游戏开始时，你随机获得三张武将牌作为「化身」牌（池 = 中台武将列表中状态为**上线**的武将；至少有一个技能已注册、排除自己与已有化身），然后展示其中一张并**选择一个**该化身牌上的已注册技能，且性别和势力视为与之相同（切换时改写并保存原值）。回合开始时和回合结束后，你可以选择一项：①替换展示的化身牌及因此获得的技能；②移去至多两张**非展示**的化身牌并获得**一张**新的化身牌（2 换 1）。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "开局 3 张化身牌并展示 1 张、获得其一个技能",
+              "回合开始/结束可替换展示或移去非展示牌换 1 张新牌"
+            ],
+            "negative": [
+              "不能移去当前展示的化身牌",
+              "池里排除自己与已有化身（不会重复）"
+            ]
           },
           "impl": null,
           "tests": []
@@ -560,7 +595,7 @@
           "code": "xinsheng",
           "name": "新生",
           "kind": "normal",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "当你受到1点伤害后，你可以获得一张新的“化身”牌。",
           "original_source": "heroes.json#gid=447",
           "mechanics_version": 2,
@@ -586,7 +621,7 @@
               "lean": "A",
               "why": "文本明确「1 点伤害后」（与反馈/遗计同口径）。",
               "impact": "触发计数 + 用例。",
-              "answer": null
+              "answer": "A（每 1 点伤害各获得 1 张）"
             },
             {
               "id": "Q2",
@@ -598,7 +633,7 @@
               "lean": "A",
               "why": "机制 `wording-can`：「可以」必须给放弃出口。",
               "impact": "pending 出口 + 用例。",
-              "answer": null
+              "answer": "A（询问可放弃）"
             },
             {
               "id": "Q3",
@@ -610,7 +645,7 @@
               "lean": "A",
               "why": "化身牌按「不重复」管理（v1 一致）。",
               "impact": "反例。",
-              "answer": null
+              "answer": "A（池空不触发）"
             }
           ],
           "mechanics": [
@@ -621,16 +656,21 @@
           ],
           "terms": {},
           "ui": {
-            "prompt": null,
-            "overlay": null,
-            "fx": null,
-            "reveal": null,
-            "qq": null
+            "prompt": "新生：是否获得一张新的化身牌（每 1 点伤害一次）",
+            "overlay": "二选一（获得 / 放弃）",
+            "fx": "本期不做",
+            "reveal": "新化身牌对持有者可见",
+            "qq": "本期不做"
           },
-          "agreed": null,
+          "agreed": "当你受到 1 点伤害后（按点数逐点触发），你可以获得一张新的「化身」牌（池内不重复；池空时不触发）。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "每 1 点伤害获得 1 张新化身牌"
+            ],
+            "negative": [
+              "池空时不获得",
+              "放弃时不获得"
+            ]
           },
           "impl": null,
           "tests": []
@@ -646,7 +686,7 @@
           "code": "leiji",
           "name": "雷击",
           "kind": "normal",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "当你使用或打出【闪】或使用【闪电】时，你可以判定。当你判定后，若结果为：\n•黑桃，你可以对一名角色造成2点雷电伤害；\n•梅花，你回复1点体力并可以对一名角色造成1点雷电伤害。",
           "original_source": "heroes.json#gid=448",
           "mechanics_version": 2,
@@ -674,7 +714,7 @@
               "lean": "A",
               "why": "文本「你可以判定」；机制 `wording-can`。",
               "impact": "pending 出口 + 用例。",
-              "answer": null
+              "answer": "A（询问可放弃判定）"
             },
             {
               "id": "Q2",
@@ -686,7 +726,7 @@
               "lean": "A",
               "why": "文本「一名角色」不排除自己；v1 同口径。",
               "impact": "候选集合 + 用例。",
-              "answer": null
+              "answer": "A（任意一名角色，可含张角自己）"
             },
             {
               "id": "Q3",
@@ -698,7 +738,7 @@
               "lean": "A",
               "why": "文本是「你回复1点体力并可以…造成1点伤害」；回复不是可选项。",
               "impact": "结算顺序 + 用例。",
-              "answer": null
+              "answer": "A（先强制回复 1，再可选 1 点雷电伤害）"
             }
           ],
           "mechanics": [
@@ -710,16 +750,21 @@
           ],
           "terms": {},
           "ui": {
-            "prompt": null,
-            "overlay": null,
-            "fx": null,
-            "reveal": null,
-            "qq": null
+            "prompt": "雷击：是否判定（黑桃→2 点雷伤；梅花→回复 1 并可选 1 点雷伤）",
+            "overlay": "二选一（判定/放弃）→ 判定亮牌 → 选目标",
+            "fx": "本期不做",
+            "reveal": "判定牌公开",
+            "qq": "本期不做"
           },
-          "agreed": null,
+          "agreed": "当你使用或打出【闪】或使用【闪电】时，你可以判定（判定可被改判）。判定后：**黑桃** → 你可以对一名角色（可含自己）造成 2 点雷电伤害；**梅花** → 你先回复 1 点体力（强制，不超过上限），然后可以对一名角色（可含自己）造成 1 点雷电伤害；其他花色无事。若界鬼道改判的是张角自己的判定，判定生效后同样可以发动上述「判定后」效果。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "使用/打出【闪】后判定：黑桃→2 点雷伤；梅花→回复 1 并可选 1 点雷伤"
+            ],
+            "negative": [
+              "判定为红桃/方块无事",
+              "放弃判定不结算"
+            ]
           },
           "impl": null,
           "tests": []
@@ -728,7 +773,7 @@
           "code": "guidao",
           "name": "鬼道",
           "kind": "normal",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "当一张判定牌生效前，你可以用一张黑色牌替换之，若此黑色牌为黑桃2~9，你摸一张牌。",
           "original_source": "heroes.json#gid=448",
           "mechanics_version": 2,
@@ -755,7 +800,7 @@
               "lean": "B",
               "why": "文本未限定区域，且 B11 已把界鬼才的承载范围定为手牌 + 装备区；同为改判技能应同口径。",
               "impact": "候选集合 + 用例。",
-              "answer": null
+              "answer": "B（黑色手牌 + 装备区）"
             },
             {
               "id": "Q2",
@@ -767,7 +812,7 @@
               "lean": "A",
               "why": "文本是「若此黑色牌为黑桃2~9，你摸一张牌」，与替换同时结算；A 也避免与天妒等后续窗口争牌。",
               "impact": "结算顺序 + 用例。",
-              "answer": null
+              "answer": "A（替换后立即摸 1）；备注：用户补充：鬼道与雷击有互动——若鬼道改判的是**张角自己的判定**（如自己判定区的【乐不思蜀】），改判牌生效后可以发动界雷击的「判定后」效果：黑桃→可对一名角色造成 2 点雷电伤害；梅花→回复 1 点体力并可对一名角色造成 1 点雷电伤害。示例：张角判定区有乐，判定阶段用手中黑桃 2 改判 → 先按鬼道摸一张牌 → 若无人再改判，则判定生效后可发动雷击造成 2 点雷电伤害。"
             },
             {
               "id": "Q3",
@@ -779,7 +824,7 @@
               "lean": "A",
               "why": "机制 `trigger-order`；v1 同口径。",
               "impact": "顺序 + 用例。",
-              "answer": null
+              "answer": "A（按座位链式改判）"
             }
           ],
           "mechanics": [
@@ -790,16 +835,20 @@
           ],
           "terms": {},
           "ui": {
-            "prompt": null,
-            "overlay": null,
-            "fx": null,
-            "reveal": null,
-            "qq": null
+            "prompt": "鬼道：用一张黑色牌改判（黑桃 2~9 摸 1）",
+            "overlay": "改判窗口选牌（手牌/装备区）或放弃",
+            "fx": "本期不做",
+            "reveal": "改判牌公开",
+            "qq": "本期不做"
           },
-          "agreed": null,
+          "agreed": "当一张判定牌生效前，你可以用一张黑色牌（手牌或装备区）替换之；若此黑色牌为**黑桃 2~9**，你摸一张牌（替换后立即结算）。改判按座位顺序链式询问（判定者左手侧起、判定者最后）。若该判定属于张角自己，判定生效后可以发动界雷击的「判定后」效果。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "用黑色牌（手牌/装备区）改判；黑桃 2~9 摸 1"
+            ],
+            "negative": [
+              "红色牌不能改判"
+            ]
           },
           "impl": null,
           "tests": []
@@ -808,7 +857,7 @@
           "code": "huangtian",
           "name": "黄天",
           "kind": "lord",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "主公技，其他群势力角色的出牌阶段限一次，其可以交给你一张【闪】或黑桃手牌。",
           "original_source": "heroes.json#gid=448",
           "mechanics_version": 2,
@@ -835,7 +884,7 @@
               "lean": "A",
               "why": "文本限定「手牌」。",
               "impact": "候选集合 + 反例。",
-              "answer": null
+              "answer": "A（仅黑桃手牌）"
             },
             {
               "id": "Q2",
@@ -847,7 +896,7 @@
               "lean": "A",
               "why": "文本「其他群势力角色的出牌阶段限一次」指各自。",
               "impact": "计数 + 用例。",
-              "answer": null
+              "answer": "A（每名给牌者各自每出牌阶段限一次）"
             },
             {
               "id": "Q3",
@@ -859,7 +908,7 @@
               "lean": "A",
               "why": "机制 `card-gained`：获得是事件链，禁止静默移动。",
               "impact": "事件 + 用例。",
-              "answer": null
+              "answer": "A（走统一「获得」事件）"
             }
           ],
           "mechanics": [
@@ -870,16 +919,21 @@
           ],
           "terms": {},
           "ui": {
-            "prompt": null,
-            "overlay": null,
-            "fx": null,
-            "reveal": null,
-            "qq": null
+            "prompt": "黄天：将一张【闪】或黑桃手牌交给张角（出牌阶段限一次）",
+            "overlay": "出牌阶段行动项 → 选牌",
+            "fx": "本期不做",
+            "reveal": "交出的牌公示",
+            "qq": "本期不做"
           },
-          "agreed": null,
+          "agreed": "主公技。张角为主公时，其他群势力角色的出牌阶段限一次，其可以交给张角一张【闪】或一张黑桃**手牌**；交给的牌走统一「获得」事件（触发获得类技能）。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "群势力角色出牌阶段可交【闪】或黑桃手牌给主公张角（各自每阶段一次）"
+            ],
+            "negative": [
+              "非群势力/张角非主公时不可用",
+              "非黑桃非【闪】的牌不能交"
+            ]
           },
           "impl": null,
           "tests": []
@@ -895,7 +949,7 @@
           "code": "guhuo",
           "name": "蛊惑",
           "kind": "normal",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "每回合限一次，你可以扣置一张手牌当任意基本牌或普通锦囊牌使用或打出。其他角色可以同时质疑并翻开此牌：\n•若为假，此牌作废，质疑者摸一张牌；\n•若为真，质疑者获得“缠怨”，然后弃置一张牌或失去1点体力。",
           "original_source": "heroes.json#gid=449",
           "mechanics_version": 2,
@@ -926,7 +980,7 @@
               "lean": "A",
               "why": "原文「任意基本牌或普通锦囊牌」；v2 牌定义是生成物，可以按属性枚举，不需要白名单。",
               "impact": "声明候选 + 反例（延时锦囊不可）。",
-              "answer": null
+              "answer": "A（任意基本牌 + 任意普通锦囊，按牌属性筛选）"
             },
             {
               "id": "Q2",
@@ -938,7 +992,7 @@
               "lean": "A",
               "why": "原文「其他角色可以同时质疑并翻开此牌」；同时口径也避免「谁先被问谁吃亏」。",
               "impact": "新增质疑链流程 + 用例（多人质疑）。",
-              "answer": null
+              "answer": "A（同时质疑：一次性收集所有选择，多名质疑者都参与结算）"
             },
             {
               "id": "Q3",
@@ -950,7 +1004,7 @@
               "lean": "A",
               "why": "文本是「然后弃置一张牌或失去1点体力」，选择权在质疑者。",
               "impact": "新增 pending（质疑者）+ 用例。",
-              "answer": null
+              "answer": "A（由质疑者自己选择弃一张牌或失去 1 点体力）"
             },
             {
               "id": "Q4",
@@ -962,7 +1016,7 @@
               "lean": "A",
               "why": "v1 已按此实现，且与官方「缠怨」描述一致。",
               "impact": "技能失效闸门 + 用例。",
-              "answer": null
+              "answer": "A（不能质疑 + 体力为 1 时技能失效）"
             },
             {
               "id": "Q5",
@@ -974,7 +1028,7 @@
               "lean": "A",
               "why": "原文写「使用或**打出**」，打出即响应；v1 也支持濒死自救。",
               "impact": "触发窗口 + 用例。",
-              "answer": null
+              "answer": "A（每回合限一次；出牌阶段/响应/濒死自救均可）；备注：用户补充：每回合限一次是「任一玩家的回合内限一次，包含自己的回合」。"
             },
             {
               "id": "Q6",
@@ -986,7 +1040,7 @@
               "lean": "A",
               "why": "原文「扣置一张手牌」；公开会破坏质疑机制的意义。",
               "impact": "视图脱敏 + 用例。",
-              "answer": null
+              "answer": "B（**先收集质疑/不质疑的选择，之后公开翻开**）；备注：用户补充：扣置期间不公开；先收集所有角色的「质疑/不质疑」选择，**之后**公开翻开并统一结算。"
             }
           ],
           "mechanics": [
@@ -999,16 +1053,23 @@
           ],
           "terms": {},
           "ui": {
-            "prompt": null,
-            "overlay": null,
-            "fx": null,
-            "reveal": null,
-            "qq": null
+            "prompt": "蛊惑：扣置一张手牌当任意基本牌/普通锦囊使用或打出",
+            "overlay": "选牌 → 声明牌名 → 其他角色同时选择质疑/不质疑 → 公开翻开结算",
+            "fx": "本期不做",
+            "reveal": "质疑阶段结束后公开翻开承载牌",
+            "qq": "本期不做"
           },
-          "agreed": null,
+          "agreed": "每回合限一次（任一玩家的回合内，含自己的回合；可用于出牌阶段、响应窗口、濒死自救），你可以扣置一张手牌当**任意基本牌或普通锦囊牌**使用或打出。其他角色**同时**决定是否质疑（先收集全部选择，之后公开翻开）：若为假，此牌作废、质疑者摸一张牌；若为真，质疑者获得「缠怨」，然后由质疑者选择弃置一张牌或失去 1 点体力（无牌则只能失去体力）。「缠怨」：拥有者不能质疑蛊惑；其体力值为 1 时，其所有技能失效。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "扣置一张手牌当任意基本牌/普通锦囊使用；质疑为假→作废且质疑者摸 1",
+              "为真→质疑者获缠怨并自选弃牌或失去 1 体力"
+            ],
+            "negative": [
+              "延时锦囊不能声明",
+              "每回合限一次",
+              "缠怨者不能质疑；体力为 1 时技能失效"
+            ]
           },
           "impl": null,
           "tests": []
@@ -1024,7 +1085,7 @@
           "code": "luanji",
           "name": "乱击",
           "kind": "normal",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "你可以将两张花色相同的手牌当【万箭齐发】使用。你使用【万箭齐发】可以少选一个目标。",
           "original_source": "heroes.json#gid=450",
           "mechanics_version": 2,
@@ -1051,7 +1112,7 @@
               "lean": "A",
               "why": "统一走 `set_virtual/use_as`，避免「一张在手、一张在弃牌堆」的双口径；对结果无影响。",
               "impact": "牌区守恒 + 用例。",
-              "answer": null
+              "answer": "A（两张都作承载牌，结算后一并进弃牌堆）"
             },
             {
               "id": "Q2",
@@ -1063,7 +1124,7 @@
               "lean": "A",
               "why": "少选目标属于「指定目标」阶段的事实，应在无懈/响应前确定（否则无懈与响应次数会不一致）。",
               "impact": "目标列表 + 用例。",
-              "answer": null
+              "answer": "A（目标确定阶段、无懈/响应之前裁剪一个）"
             },
             {
               "id": "Q3",
@@ -1075,7 +1136,7 @@
               "lean": "A",
               "why": "原文无「不能被无懈」字样。",
               "impact": "无懈链 + 用例。",
-              "answer": null
+              "answer": "A（可被无懈可击抵消）"
             }
           ],
           "mechanics": [
@@ -1087,16 +1148,21 @@
           ],
           "terms": {},
           "ui": {
-            "prompt": null,
-            "overlay": null,
-            "fx": null,
-            "reveal": null,
-            "qq": null
+            "prompt": "乱击：两张同花色手牌当【万箭齐发】（可少选一个目标）",
+            "overlay": "选两张同花色手牌 → 少选一个目标（可选）",
+            "fx": "本期不做",
+            "reveal": "两张承载牌与目标公示",
+            "qq": "本期不做"
           },
-          "agreed": null,
+          "agreed": "你可以将两张花色相同的手牌当【万箭齐发】使用（两张都是承载牌，结算后一并进弃牌堆）；你使用【万箭齐发】（含转化）时可以少选一个目标（在目标确定阶段、无懈与响应之前裁剪）。可被【无懈可击】抵消。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "两张同花色手牌当【万箭齐发】，可少选一个目标"
+            ],
+            "negative": [
+              "花色不同不能转化",
+              "少选发生在响应之前（目标列表已裁剪）"
+            ]
           },
           "impl": null,
           "tests": []
@@ -1105,7 +1171,7 @@
           "code": "xueyi",
           "name": "血裔",
           "kind": "lord",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "主公技，游戏开始时，全场每有一名群势力角色，你便获得2枚“裔”标记。出牌阶段开始时，你可以移除1枚“裔”并摸一张牌。你每有1枚“裔”，手牌上限便+1。",
           "original_source": "heroes.json#gid=450",
           "mechanics_version": 2,
@@ -1133,7 +1199,7 @@
               "lean": "A",
               "why": "文本「全场每有一名群势力角色」；v1 含自己。",
               "impact": "开局初始化 + 用例。",
-              "answer": null
+              "answer": "A（含袁绍自己）× 2"
             },
             {
               "id": "Q2",
@@ -1145,7 +1211,7 @@
               "lean": "A",
               "why": "文本是阶段时机；额外回合也有出牌阶段。",
               "impact": "触发窗口 + 用例。",
-              "answer": null
+              "answer": "A（每个出牌阶段开始各一次）"
             },
             {
               "id": "Q3",
@@ -1157,7 +1223,7 @@
               "lean": "A",
               "why": "与 v2 既有手牌上限钩子（叠加）一致。",
               "impact": "手牌上限 + 用例。",
-              "answer": null
+              "answer": "A（与其他加成叠加）"
             }
           ],
           "mechanics": [
@@ -1167,16 +1233,20 @@
           ],
           "terms": {},
           "ui": {
-            "prompt": null,
-            "overlay": null,
-            "fx": null,
-            "reveal": null,
-            "qq": null
+            "prompt": "血裔：移去 1 枚「裔」摸 1 张（每枚裔＝手牌上限 +1）",
+            "overlay": "出牌阶段开始时二选一（发动/放弃）",
+            "fx": "本期不做",
+            "reveal": "「裔」数量在状态栏展示",
+            "qq": "本期不做"
           },
-          "agreed": null,
+          "agreed": "主公技。游戏开始时，全场每有一名群势力角色（含袁绍自己），你获得 2 枚「裔」；出牌阶段开始时（每个出牌阶段各一次），你可以移去 1 枚「裔」并摸一张牌；你每有 1 枚「裔」，手牌上限 +1（与其他加成叠加）。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "开局按群势力数（含自己）×2 获得「裔」；出牌阶段开始可移 1 摸 1；手牌上限 +裔数"
+            ],
+            "negative": [
+              "「裔」为 0 时不询问"
+            ]
           },
           "impl": null,
           "tests": []
@@ -1192,7 +1262,7 @@
           "code": "xiangle",
           "name": "享乐",
           "kind": "locked",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "锁定技，当你成为一名角色使用【杀】的目标后，除非其弃置一张基本牌，否则令此【杀】对你无效。",
           "original_source": "heroes.json#gid=451",
           "mechanics_version": 2,
@@ -1220,7 +1290,7 @@
               "lean": "A",
               "why": "文本「其弃置一张基本牌」= 使用者自选。",
               "impact": "交互 + 用例。",
-              "answer": null
+              "answer": "A（由使用者自选一张基本牌弃置）"
             },
             {
               "id": "Q2",
@@ -1232,7 +1302,7 @@
               "lean": "A",
               "why": "没有可选项时不产生空 pending（v1 同口径）。",
               "impact": "反例 + 用例。",
-              "answer": null
+              "answer": "A（没有基本牌 → 直接无效，不发 pending）"
             },
             {
               "id": "Q3",
@@ -1244,7 +1314,7 @@
               "lean": "A",
               "why": "「成为目标后」先于响应窗口；v1 同口径。",
               "impact": "结算顺序 + 用例。",
-              "answer": null
+              "answer": "A（先享乐（可能无效），再进【闪】响应计数）"
             }
           ],
           "mechanics": [
@@ -1255,16 +1325,21 @@
           ],
           "terms": {},
           "ui": {
-            "prompt": null,
-            "overlay": null,
-            "fx": null,
-            "reveal": null,
-            "qq": null
+            "prompt": "享乐：除非使用者弃一张基本牌，否则此【杀】对你无效",
+            "overlay": "使用者二选一（弃基本牌 / 不弃）→ 选牌",
+            "fx": "本期不做",
+            "reveal": "弃置的基本牌公开",
+            "qq": "本期不做"
           },
-          "agreed": null,
+          "agreed": "锁定技。当你成为一名角色使用【杀】的目标后，该使用者需弃置一张基本牌（从手牌自选），否则此【杀】对你无效；其没有基本牌时直接无效。该介入先于【闪】响应（先判无效，再进响应计数）。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "使用者弃基本牌→【杀】正常结算",
+              "不弃→【杀】无效"
+            ],
+            "negative": [
+              "使用者没有基本牌→直接无效，不产生 pending"
+            ]
           },
           "impl": null,
           "tests": []
@@ -1273,7 +1348,7 @@
           "code": "fangquan",
           "name": "放权",
           "kind": "normal",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "你可以跳过出牌阶段，然后弃牌阶段开始时，你可以弃置一张手牌并令一名其他角色执行一个额外的回合。",
           "original_source": "heroes.json#gid=451",
           "mechanics_version": 2,
@@ -1301,7 +1376,7 @@
               "lean": "A",
               "why": "文本「弃置一张手牌」；选择权应在发动者。",
               "impact": "交互 + 用例。",
-              "answer": null
+              "answer": "A（由刘禅选择一张手牌弃置）"
             },
             {
               "id": "Q2",
@@ -1313,7 +1388,7 @@
               "lean": "A",
               "why": "文本要求「弃置一张手牌并令…」；无手牌则后半句不成立。",
               "impact": "边界 + 用例。",
-              "answer": null
+              "answer": "A（没有手牌 → 不能授予额外回合）"
             },
             {
               "id": "Q3",
@@ -1325,7 +1400,7 @@
               "lean": "A",
               "why": "机制 `deferred-timing`/B10 已定「单一队列」；不新增 per-skill 队列。",
               "impact": "额外回合 + 用例（与博图叠加顺序）。",
-              "answer": null
+              "answer": "A（复用 B10 的 Game.extra_turn）"
             }
           ],
           "mechanics": [
@@ -1336,16 +1411,20 @@
           ],
           "terms": {},
           "ui": {
-            "prompt": null,
-            "overlay": null,
-            "fx": null,
-            "reveal": null,
-            "qq": null
+            "prompt": "放权：跳过出牌阶段；弃牌阶段开始时弃一张手牌令他人执行额外回合",
+            "overlay": "出牌阶段行动项 → 弃牌阶段开始时选弃牌与目标",
+            "fx": "本期不做",
+            "reveal": "额外回合目标公示",
+            "qq": "本期不做"
           },
-          "agreed": null,
+          "agreed": "你可以跳过出牌阶段；然后在弃牌阶段开始时，你可以弃置一张手牌（由你选择）并令一名其他角色执行一个额外的回合；此时若你没有手牌，则不能授予额外回合。额外回合复用 `Game.extra_turn`。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "跳过出牌阶段；弃牌阶段开始时弃一张手牌令他人额外回合"
+            ],
+            "negative": [
+              "没有手牌时不能授予额外回合"
+            ]
           },
           "impl": null,
           "tests": []
@@ -1354,7 +1433,7 @@
           "code": "ruoyu",
           "name": "若愚",
           "kind": "lord",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "主公技，觉醒技，准备阶段，若你是全场体力值最小的角色，你增加1点体力上限，回复至3点体力，然后获得“激将”“思蜀”。",
           "original_source": "heroes.json#gid=451",
           "mechanics_version": 2,
@@ -1381,7 +1460,7 @@
               "lean": "A",
               "why": "文本「若你是全场体力值最小的角色」，并列时仍是「最小」。",
               "impact": "条件 + 用例（并列）。",
-              "answer": null
+              "answer": "B（必须**严格小于**全场其他角色；并列最小不算）；备注：用户裁定：并列最小不算，必须严格小于全场。"
             },
             {
               "id": "Q2",
@@ -1393,7 +1472,7 @@
               "lean": "A",
               "why": "体力不能超过上限（内核不变量）。",
               "impact": "体力/上限 + 用例。",
-              "answer": null
+              "answer": "A（min(3, 上限)）；备注：用户补充：若当前体力 < 3 → 体力直接设为 3；若体力 ≥ 3 → 体力不变；两种情况下都只增加 1 点体力上限并获得「激将」「思蜀」。"
             },
             {
               "id": "Q3",
@@ -1405,7 +1484,7 @@
               "lean": "A",
               "why": "沿 v1 已落地行为；覆盖口径避免出现多名角色同时反转。",
               "impact": "新增授予技 + 判定反转机制 + 用例。",
-              "answer": null
+              "answer": "B（见下方第 7 段与说明：toggle 口径）；备注：用户补充：思蜀＝出牌阶段开始时（每回合限一次）选择一名角色：若其未反转 → 反转（红桃→跳过出牌阶段，非红桃→不跳过）；若已反转 → 恢复常规（红桃→不跳过，非红桃→跳过）；可以改指不同角色，切换时旧目标恢复常规。"
             }
           ],
           "mechanics": [
@@ -1416,16 +1495,22 @@
           ],
           "terms": {},
           "ui": {
-            "prompt": null,
-            "overlay": null,
-            "fx": null,
-            "reveal": null,
-            "qq": null
+            "prompt": "若愚：觉醒（上限 +1、体力到 3、获得「激将」「思蜀」）；思蜀：反转/恢复【乐不思蜀】",
+            "overlay": "觉醒播报；思蜀：出牌阶段开始时选目标（再次选择同一角色=恢复）",
+            "fx": "本期不做",
+            "reveal": "反转目标在状态栏展示",
+            "qq": "本期不做"
           },
-          "agreed": null,
+          "agreed": "主公技 + 觉醒技。准备阶段，若你是主公且体力值**严格小于**全场其他角色（并列最小不算），你增加 1 点体力上限：若当前体力小于 3 点则把体力设为 3，否则体力不变；然后获得「激将」「思蜀」。「思蜀」（授予技）：出牌阶段开始时（每回合限一次），你可以选择一名角色：若其本局尚未反转，则令其本局【乐不思蜀】判定效果反转（红桃→跳过出牌阶段，非红桃→不跳过）；若已反转，则恢复常规效果（红桃→不跳过，非红桃→跳过）；可以改指不同角色（切换时旧目标恢复常规）。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "体力严格最小且为主公→觉醒：上限+1、体力到 3、获得激将/思蜀",
+              "思蜀：反转/恢复目标【乐不思蜀】判定"
+            ],
+            "negative": [
+              "并列最小不触发",
+              "未当主公不触发"
+            ]
           },
           "impl": null,
           "tests": []
