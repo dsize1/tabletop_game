@@ -62,6 +62,16 @@ pub fn tick(g: &mut Game) -> Result<(), String> {
             }
             Phase::Play => return Ok(()),
             Phase::Discard => {
+                if crate::skills::skip_discard_phase(g, seat) {
+                    g.push_log(format!("克己：{} 跳过弃牌阶段", g.seats[seat].name));
+                    g.events.push(Event::simple(
+                        EventKind::PhaseEnd,
+                        Some(seat),
+                        Some("skip_discard_keji"),
+                    ));
+                    resolve::begin_phase(g, seat, Phase::End)?;
+                    continue;
+                }
                 if over_hand_limit(g, seat) {
                     start_discard(g, seat);
                     resolve::advance(g)?;
@@ -70,6 +80,16 @@ pub fn tick(g: &mut Game) -> Result<(), String> {
                 resolve::begin_phase(g, seat, Phase::End)?;
             }
             Phase::End => {
+                // 博图：本回合弃牌含四花色 → 追加一个额外回合。
+                crate::skills::botu_maybe(g, seat);
+                if g.extra_turn == Some(seat) && !g.extra_turn_active {
+                    g.extra_turn = None;
+                    g.extra_turn_active = true;
+                    g.push_log(format!("博图：{} 执行额外回合", g.seats[seat].name));
+                    resolve::begin_phase(g, seat, Phase::Prepare)?;
+                    continue;
+                }
+                g.extra_turn_active = false;
                 let Some(next) = next_alive(g, seat) else {
                     g.finished = true;
                     return Ok(());

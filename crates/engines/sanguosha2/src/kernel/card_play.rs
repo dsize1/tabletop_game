@@ -122,6 +122,8 @@ fn plan_use(
             // 牌堆里的承载牌（伏诛「使用牌堆中的【杀】」，mechanics deck-carrier）：
             // 合法性（张数上限/目标）由技能负责，内核只按真实牌结算。
             Some(Zone::Draw) => {}
+            // 自己装备区的牌作为承载牌（界奇袭：黑色装备当过河拆桥）。
+            Some(Zone::Equip(s, _)) if *s == seat => {}
             _ => return Err("转化牌不在可用区域".into()),
         }
     }
@@ -565,6 +567,7 @@ pub fn start_use(
             g.bump(&format!("turn.sha_virtual:{seat}"));
         }
     }
+    g.begin_action();
     // 福绵②：本回合「可以多指定目标」的机会用掉一次（即便只指定了 1 个目标）。
     if crate::skills::extra_targets(g, seat, carrier) > 0 {
         crate::skills::consume_extra_targets(g, seat);
@@ -700,6 +703,22 @@ pub fn step_card(g: &mut Game, a: &Ask) -> Result<Step, String> {
     let mut data = a.data.clone();
     let stage = a.stage;
 
+    // 奋威：任何「目标列表为多人」的牌，指定目标后可令任意个目标无效。
+    if !data["fenwei_done"].as_bool().unwrap_or(false) {
+        data["fenwei_done"] = json!(true);
+        let planned = target_list(&data);
+        if planned.len() >= 2 && crate::skills::start_fenwei(g, &planned, source) {
+            return Ok(Step::Next(stage, data));
+        }
+    }
+    // 谦逊：普通锦囊仅以持有者为唯一目标时，可将其所有手牌移出游戏。
+    if !data["qianxun_done"].as_bool().unwrap_or(false) {
+        data["qianxun_done"] = json!(true);
+        let planned = target_list(&data);
+        if crate::skills::start_qianxun(g, source, &planned, &name) {
+            return Ok(Step::Next(stage, data));
+        }
+    }
     // 无懈链：普通锦囊（无懈本身与延时锦囊不问）。
     if def.kind == CardKind::Trick && !def.tags.wuxie && !def.tags.delayed {
         let unresponsive = card_ref.map(|c| g.is_unresponsive(c)).unwrap_or(false);
@@ -881,7 +900,7 @@ fn sha_loop(
     let unresponsive = card.map(|c| g.is_unresponsive(c)).unwrap_or(false);
     while cursor < targets.len() {
         let t = targets[cursor];
-        if g.seats.get(t).map(|s| s.hp <= 0).unwrap_or(true) {
+        if g.seats.get(t).map(|s| s.hp <= 0).unwrap_or(true) || g.fenwei_void.contains(&t) {
             cursor += 1;
             data["cursor"] = json!(cursor);
             continue;
@@ -1002,7 +1021,7 @@ fn aoe(
     let unresponsive = card.map(|c| g.is_unresponsive(c)).unwrap_or(false);
     while cursor < targets.len() {
         let t = targets[cursor];
-        if g.seats.get(t).map(|s| s.hp <= 0).unwrap_or(true) {
+        if g.seats.get(t).map(|s| s.hp <= 0).unwrap_or(true) || g.fenwei_void.contains(&t) {
             cursor += 1;
             data["cursor"] = json!(cursor);
             continue;
@@ -1591,7 +1610,10 @@ fn response_pending(
     target: usize,
     kind: ResponseKind,
 ) -> Option<super::pending::Pending> {
-    let options = response_options(g, target, kind);
+    let mut options = response_options(g, target, kind);
+    if kind == ResponseKind::Shan && crate::skills::block_real_shan(g, target) {
+        options.retain(|(id, _)| !id.starts_with("respond:"));
+    }
     if options.is_empty() {
         return None;
     }
@@ -1881,6 +1903,7 @@ fn jiu_take_bonus(g: &mut Game) -> i32 {
 /// 转化牌（奇策/战绝/滔乱/慎断）：承载牌按落位规则处理；其余 origins（如奇策的全部手牌）
 /// 一并进弃牌堆，并清除虚拟定义。
 fn finish(g: &mut Game, card: Option<&CardId>, cause: &str) -> Result<(), String> {
+    g.fenwei_void.clear();
     g.response_context = None;
     let Some(card) = card else {
         return Ok(());

@@ -264,6 +264,12 @@ pub fn advance(g: &mut Game) -> Result<(), String> {
             run_deferred(g, d)?;
             continue;
         }
+        // 连营：手牌归零后（栈空、事件清空）询问至多 X 名角色各摸 1。
+        if let Some((seat, x)) = g.lianying_pending.take() {
+            if crate::skills::start_lianying(g, seat, x) {
+                continue;
+            }
+        }
         break;
     }
     Ok(())
@@ -371,6 +377,7 @@ pub fn submit(g: &mut Game, actor: usize, action: &str) -> Result<String, String
     if !p.has_option(action) {
         return Err(format!("非法选项：{action}"));
     }
+    g.begin_action();
     g.pending = None;
     g.answer = Some(action.to_string());
     // 「未发动」只用于真正的放弃出口（`pass` / `cancel`）：觉醒技等把真实收益当出口时不算放弃。
@@ -398,6 +405,8 @@ pub fn begin_phase(g: &mut Game, seat: usize, phase: Phase) -> Result<(), String
             // 义绝·黑的手牌封印只持续到本回合结束。
             g.seats[i].flags.remove("hand_sealed");
         }
+        // 谦逊：回合结束时把移出游戏的手牌归还。
+        crate::skills::return_void_cards(g, g.turn_seq);
         g.clear_prefix("turn.");
         // 本回合的「已使用牌 / 不计次数标记」随回合结束清空（派生计数 sha_used 依赖它）。
         g.used_this_turn.clear();

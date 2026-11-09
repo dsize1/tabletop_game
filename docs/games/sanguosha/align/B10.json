@@ -1,11 +1,11 @@
 {
   "batch": "B10",
   "source": "界限突破·界标·吴",
-  "status": "confirmed",
+  "status": "implemented",
   "mechanics_version": 2,
   "confirmed_by": "用户",
   "confirmed_at": "2026-11-09",
-  "note": "机器文件（单一事实源）。人读请看同目录 B10.md；改这里后运行 --sync 重生成 md。 2026-11-09 填第 2–5 段（agent）。**用户口径（延续 B9）**：标将已基本废弃，界将技能按 v1 实现即可；B10 只做界将技能（不迁标版，不为标/界共存做分支）。 备注：勤学授予的【攻心】是授予型技能（不在 heroes.json），拟按 B8 四弦技口径走 GRANT_ONLY。 2026-11-09 用户逐条裁定 25 条疑点（其中「连营 X 场景」另作补充说明）并确认第 6/7 段。 非 A 裁定：奇袭含装备区；奋威只看「目标列表是否多人」（不限牌型）；克己显式跳过弃牌阶段并播报；勤学加结束阶段但不实现【攻心】；苦肉含装备区；诈降只挡真实【闪】；国色仅选项 1 摸牌；制衡含装备区且「弃置后手牌为空」即算弃光；救援改为可选；结姻相等时双方都摸 1 且回 1、装备可来自自己装备区（触发枭姬）。",
+  "note": "机器文件（单一事实源）。人读请看同目录 B10.md；改这里后运行 --sync 重生成 md。 2026-11-09 填第 2–5 段（agent）。**用户口径（延续 B9）**：标将已基本废弃，界将技能按 v1 实现即可；B10 只做界将技能（不迁标版，不为标/界共存做分支）。 备注：勤学授予的【攻心】是授予型技能（不在 heroes.json），拟按 B8 四弦技口径走 GRANT_ONLY。 2026-11-09 用户逐条裁定 25 条疑点（其中「连营 X 场景」另作补充说明）并确认第 6/7 段。 非 A 裁定：奇袭含装备区；奋威只看「目标列表是否多人」（不限牌型）；克己显式跳过弃牌阶段并播报；勤学加结束阶段但不实现【攻心】；苦肉含装备区；诈降只挡真实【闪】；国色仅选项 1 摸牌；制衡含装备区且「弃置后手牌为空」即算弃光；救援改为可选；结姻相等时双方都摸 1 且回 1、装备可来自自己装备区（触发枭姬）。 2026-11-09 实现完成：`src/skills/b10.rs`（17 技能）+ `tests/b10.rs`（19 条）。 新增跨批能力：额外回合（Game.extra_turn）、跳过弃牌阶段（显式播报）、赋值型手牌上限（界英姿）、多目标无效（Game.fenwei_void）、结算前手牌移出与回合末归还（Game.void_return）、手牌归零批次 X（hand_loss_batch/lianying_pending）、回复前改向（救援）、装备流失钩子（枭姬）。 已知差异：勤学的【攻心】本批未实现（授予型技能，按用户裁定 B 延后）。",
   "generals": [
     {
       "gid": 305,
@@ -16,7 +16,7 @@
           "code": "qixi",
           "name": "奇袭",
           "kind": "normal",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "你可以将一张黑色牌当【过河拆桥】使用。",
           "original_source": "heroes.json#gid=305",
           "mechanics_version": 2,
@@ -59,17 +59,23 @@
           },
           "agreed": "你可以将一张**黑色牌**（手牌或装备区）当【过河拆桥】使用（目标与结算沿用【过河拆桥】：无距离限制，目标须有牌）。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "黑色牌（手牌或装备区）当【过河拆桥】使用（真实结算）"
+            ],
+            "negative": [
+              "红色牌不能奇袭"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b10::QIXI + card_play 被动转化（convert:，装备区承载）",
+          "tests": [
+            "b10::qixi_converts_black_cards_including_equip_zone"
+          ]
         },
         {
           "code": "fenwei",
           "name": "奋威",
           "kind": "limited",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "限定技，当一张锦囊牌指定多个目标后，你可以令此牌对任意个目标无效。",
           "original_source": "heroes.json#gid=305",
           "mechanics_version": 2,
@@ -113,11 +119,17 @@
           },
           "agreed": "限定技。当一张牌（**任意类型，只看目标列表**）指定了**多个目标**后，你可以令此牌对**任意个**目标无效（可多选，含 0 个 = 不发动）；发动后本局不可再用。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "多目标牌 → 可令任意个目标无效（限定技）"
+            ],
+            "negative": [
+              "已发动过（限定技）不再询问；未被选中的目标照常结算"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b10::FENWEI + Game.fenwei_void（逐目标跳过）",
+          "tests": [
+            "b10::fenwei_nullifies_chosen_targets_of_multi_target_card"
+          ]
         }
       ]
     },
@@ -130,7 +142,7 @@
           "code": "keji",
           "name": "克己",
           "kind": "normal",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "若你未于本回合出牌阶段使用或打出过【杀】，你可以跳过弃牌阶段。",
           "original_source": "heroes.json#gid=306",
           "mechanics_version": 2,
@@ -185,17 +197,23 @@
           },
           "agreed": "若你未于本回合出牌阶段**使用过**【杀】（打出不计），你可以**跳过弃牌阶段**（显式跳过并播报，不是仅把上限设为无限）。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "本回合未使用【杀】→ 跳过弃牌阶段（显式播报）"
+            ],
+            "negative": [
+              "使用过【杀】后不再跳过弃牌阶段"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b10::KEJI + turn::tick 跳过弃牌阶段",
+          "tests": [
+            "b10::keji_skips_discard_phase_without_sha"
+          ]
         },
         {
           "code": "qinxue",
           "name": "勤学",
           "kind": "awaken",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "觉醒技，准备阶段或结束阶段，若你的手牌数比体力值多2或更多，你减少1点体力上限，回复1点体力或摸两张牌，然后获得“攻心”。",
           "original_source": "heroes.json#gid=306",
           "mechanics_version": 2,
@@ -252,17 +270,23 @@
           },
           "agreed": "觉醒技，**准备阶段或结束阶段**，若你的手牌数比体力值多 2 或更多，你减 1 点体力上限，然后回复 1 点体力**或**摸两张牌。（本批不实现【攻心】：攻心为授予型技能，留待后续批次；本条登记为已知差异。）",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "准备/结束阶段手牌≥体力+2 → 减 1 上限并回复 1 或摸 2"
+            ],
+            "negative": [
+              "手牌不足体力+2 时不询问；觉醒后不再触发"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b10::QINXUE",
+          "tests": [
+            "b10::qinxue_awakens_on_prepare_and_end"
+          ]
         },
         {
           "code": "botu",
           "name": "博图",
           "kind": "normal",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "每轮限X次（X为存活角色数且至多为3），回合结束后，若本回合置入弃牌堆的牌包含四种花色，你可以执行一个额外回合。",
           "original_source": "heroes.json#gid=306",
           "mechanics_version": 2,
@@ -318,11 +342,17 @@
           },
           "agreed": "每轮限 X 次（X = 存活角色数且至多 3），回合结束后，若**本回合内**（不限来源）置入弃牌堆的牌包含四种花色，你可以执行一个**额外回合**（额外回合内不再触发博图）。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "本回合弃牌含四花色 → 额外回合（每轮 min(存活,3) 次）"
+            ],
+            "negative": [
+              "本轮已达上限或额外回合内不再触发"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b10::BOTU + Game.extra_turn（回合驱动器）",
+          "tests": [
+            "b10::botu_grants_extra_turn_after_four_suits"
+          ]
         }
       ]
     },
@@ -335,7 +365,7 @@
           "code": "kurou",
           "name": "苦肉",
           "kind": "normal",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "出牌阶段限一次，你可以弃置一张牌，然后失去1点体力。",
           "original_source": "heroes.json#gid=307",
           "mechanics_version": 2,
@@ -378,17 +408,23 @@
           },
           "agreed": "出牌阶段限一次，你可以弃置**一张牌（手牌或装备区）**，然后失去 1 点体力（走统一失去体力入口）。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "弃一张牌（手牌/装备区）后失去 1 点体力"
+            ],
+            "negative": [
+              "无可弃的牌时不可发动"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b10::KUROU",
+          "tests": [
+            "b10::kurou_discards_card_then_loses_hp"
+          ]
         },
         {
           "code": "zhaxiang",
           "name": "诈降",
           "kind": "locked",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "锁定技，当你失去1点体力后，你摸三张牌，若在你的出牌阶段，你本回合使用【杀】的限制次数+1、使用红色【杀】无距离限制且不能被抵消。",
           "original_source": "heroes.json#gid=307",
           "mechanics_version": 2,
@@ -444,11 +480,17 @@
           },
           "agreed": "锁定技。当你失去 1 点体力后，你摸三张牌；若在你的出牌阶段，你本回合使用【杀】的限制次数 +1（**叠加**）、且使用**红色【杀】无距离限制**、且该【杀】**不能被真实打出的【闪】抵消**（八卦阵/技能视为出【闪】仍可抵消）。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "失去 1 点体力后摸 3；出牌阶段杀次数 +1 且红【杀】无距离"
+            ],
+            "negative": [
+              "不在出牌阶段时不加次数（只摸牌）"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b10::ZHAXIANG + sha_limit_bonus",
+          "tests": [
+            "b10::zhaxiang_draws_three_and_boosts_sha_limit_in_play_phase"
+          ]
         }
       ]
     },
@@ -461,7 +503,7 @@
           "code": "yingzi",
           "name": "英姿",
           "kind": "locked",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "锁定技，摸牌阶段，你多摸一张牌。你的手牌上限为你的体力上限。",
           "original_source": "heroes.json#gid=308",
           "mechanics_version": 2,
@@ -490,17 +532,23 @@
           },
           "agreed": "锁定技。摸牌阶段你多摸一张牌；你的**手牌上限等于你的体力上限**（赋值，覆盖其他加减）。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "摸牌 +1；手牌上限 = 体力上限"
+            ],
+            "negative": [
+              "手牌上限取体力上限（不叠加其他加减）"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b10::YINGZI + skills::hand_limit_override",
+          "tests": [
+            "b10::yingzi_hand_limit_equals_max_hp_and_draws_one_more"
+          ]
         },
         {
           "code": "fanjian",
           "name": "反间",
           "kind": "normal",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "出牌阶段限一次，你可以展示并交给一名其他角色一张手牌，其选择一项：\n 1.展示所有手牌，弃置与此牌相同花色的牌；\n 2.失去1点体力。",
           "original_source": "heroes.json#gid=308",
           "mechanics_version": 2,
@@ -545,11 +593,17 @@
           },
           "agreed": "出牌阶段限一次，你可以展示并交给一名其他角色一张手牌，其选择一项：1.展示所有手牌，**自动弃置**其中与此牌相同花色的牌；2.失去 1 点体力。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "交给目标一张手牌，目标二选一（弃同花色 / 失去 1 点体力）"
+            ],
+            "negative": [
+              "目标选择弃同花色时不再失去体力"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b10::FANJIAN",
+          "tests": [
+            "b10::fanjian_lets_target_choose_lose_hp_or_discard_same_suit"
+          ]
         }
       ]
     },
@@ -562,7 +616,7 @@
           "code": "liuli",
           "name": "流离",
           "kind": "normal",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "当你成为【杀】的目标时，你可以弃置一张牌并将此【杀】转移给你攻击范围内的一名其他角色。",
           "original_source": "heroes.json#gid=309",
           "mechanics_version": 2,
@@ -619,17 +673,23 @@
           },
           "agreed": "当你成为【杀】的目标时，你可以弃置**一张牌（手牌或装备区）**，将此【杀】转移给你攻击范围内的一名**其他角色**（不可转移给使用者或自己）。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "成为【杀】目标时弃一张牌并把【杀】转移给攻击范围内其他角色"
+            ],
+            "negative": [
+              "没有可转移目标时不可发动；不可转移给使用者"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b10::LIULI",
+          "tests": [
+            "b10::liuli_discards_and_transfers_sha"
+          ]
         },
         {
           "code": "guose",
           "name": "国色",
           "kind": "normal",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "出牌阶段限一次，你可以选择一项，然后摸一张牌：\n 1.将一张方片牌当【乐不思蜀】使用；\n 2.弃置一张方片牌和场上一张【乐不思蜀】。",
           "original_source": "heroes.json#gid=309",
           "mechanics_version": 2,
@@ -685,11 +745,17 @@
           },
           "agreed": "出牌阶段限一次，你可以选择一项：1.将一张**方片牌（手牌或装备区）**当【乐不思蜀】使用，然后摸一张牌；2.**弃置**一张方片牌（手牌或装备区），再弃置场上一张【乐不思蜀】（自动取座位序/判定区序的第一张；场上没有【乐不思蜀】时本项不可选）；本项**不摸牌**。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "方片当【乐不思蜀】并摸 1；或弃方片并弃场上一张乐（不摸）"
+            ],
+            "negative": [
+              "场上没有【乐不思蜀】时选项 2 不可选；选项 2 不摸牌"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b10::GUOSE",
+          "tests": [
+            "b10::guose_diamond_as_indulgence_draws_one_and_opt2_needs_full_field"
+          ]
         }
       ]
     },
@@ -702,7 +768,7 @@
           "code": "qianxun",
           "name": "谦逊",
           "kind": "normal",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "当一张延时锦囊牌或其他角色使用的普通锦囊牌对你生效时，若你为唯一目标，你可以将所有手牌移出游戏直到回合结束。",
           "original_source": "heroes.json#gid=310",
           "mechanics_version": 2,
@@ -759,17 +825,23 @@
           },
           "agreed": "当一张**延时锦囊**牌或其他角色使用的**普通锦囊**牌对你生效时（延时锦囊指其判定生效时；自己使用的【闪电】于**下回合判定生效时**才算），若你为唯一目标，你**可以**将所有手牌移出游戏直到回合结束（**回合结束时回到手牌**）。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "唯一目标 → 可将所有手牌移出游戏直到回合结束（回合末归还）"
+            ],
+            "negative": [
+              "不是唯一目标时不触发；选择不移出则手牌不动"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b10::QIANXUN + Game.void_return（回合末归还）",
+          "tests": [
+            "b10::qianxun_moves_all_hand_out_for_single_target_trick"
+          ]
         },
         {
           "code": "lianying",
           "name": "连营",
           "kind": "normal",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "当你失去所有手牌后，你可以令至多X名角色各摸一张牌（X为你失去的手牌数）。",
           "original_source": "heroes.json#gid=310",
           "mechanics_version": 2,
@@ -811,11 +883,17 @@
           },
           "agreed": "当你失去所有手牌后，你可以令**至多 X 名**角色各摸一张牌（X = 本次失去的手牌数：谦逊移出全部手牌时 X = 移出张数；使用/打出最后一张手牌时 X = 1；弃牌阶段弃到 0 张时 X = 本次弃置张数；其他场景如出现再接线）。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "失去所有手牌 → 至多 X 名角色各摸 1"
+            ],
+            "negative": [
+              "未失去全部手牌时不触发"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b10::LIANYING + Game.hand_loss_batch / lianying_pending",
+          "tests": [
+            "b10::lianying_lets_up_to_x_characters_draw"
+          ]
         }
       ]
     },
@@ -828,7 +906,7 @@
           "code": "zhiheng",
           "name": "制衡",
           "kind": "normal",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "出牌阶段限一次，你可以弃置任意张牌，然后摸等量张牌，若你以此法弃置了所有手牌，你额外摸一张牌。",
           "original_source": "heroes.json#gid=442",
           "mechanics_version": 2,
@@ -882,17 +960,23 @@
           },
           "agreed": "出牌阶段限一次，你可以弃置**任意张牌（手牌或装备区）**，然后摸等量张牌；若你以此法弃置后**手牌为空**，你额外摸一张牌。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "弃任意张（手牌/装备区）摸等量；手牌空时额外摸 1"
+            ],
+            "negative": [
+              "未弃光手牌时没有额外摸牌"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b10::ZHIHENG",
+          "tests": [
+            "b10::zhiheng_discards_hand_and_equip_then_extra_draw_when_hand_empty"
+          ]
         },
         {
           "code": "jiuyuan",
           "name": "救援",
           "kind": "lord",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "主公技，其他吴势力角色于其回合内回复体力时，若其体力值大于等于你，则其可以改为令你回复1点体力，然后其摸一张牌。",
           "original_source": "heroes.json#gid=442",
           "mechanics_version": 2,
@@ -935,11 +1019,17 @@
           },
           "agreed": "主公技。其他吴势力角色于其回合内回复体力时，若其体力值大于等于你，其**可以选择**改为令你回复 1 点体力，然后其摸一张牌（也可以照常自己回复）。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "吴势力回合内回复时可改为令主公回复 1 并摸 1"
+            ],
+            "negative": [
+              "体力低于主公或主公满血时不触发"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b10::JIUYUAN + flow::heal 前置钩子",
+          "tests": [
+            "b10::jiuyuan_asks_wu_ally_to_redirect_heal_to_lord"
+          ]
         }
       ]
     },
@@ -952,7 +1042,7 @@
           "code": "xiaoji",
           "name": "枭姬",
           "kind": "normal",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "当你失去装备区里的一张牌后，你可以摸两张牌。",
           "original_source": "heroes.json#gid=443",
           "mechanics_version": 2,
@@ -995,17 +1085,23 @@
           },
           "agreed": "当你**失去装备区里的一张牌**后，你可以摸两张牌（每失去一张触发一次，含弃置/替换/交出/移出）。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "失去装备区的牌 → 摸 2"
+            ],
+            "negative": [
+              "失去非装备区的牌不触发"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b10::XIAOJI + move_card 装备流失钩子",
+          "tests": [
+            "b10::xiaoji_draws_two_when_losing_equip"
+          ]
         },
         {
           "code": "jieyin",
           "name": "结姻",
           "kind": "normal",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "出牌阶段限一次，你可以选择一名男性角色，弃置一张手牌或将一张装备牌置入其装备区，然后你与其中体力值较大的角色摸一张牌，体力值较小的角色回复1点体力。",
           "original_source": "heroes.json#gid=443",
           "mechanics_version": 2,
@@ -1062,11 +1158,18 @@
           },
           "agreed": "出牌阶段限一次，你可以选择一名男性角色，弃置一张手牌**或**将一张装备牌（**手牌或你自己的装备区**）置入其装备区，然后比较你与他的体力值：较大者摸一张，较小者回复 1 点体力，**相等时双方都摸一张并各回复 1 点体力**。（用自己装备区的装备会触发【枭姬】。）",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "弃手牌或置入装备 → 较大者摸 1、较小者回 1、相等双方都摸 1 且回 1"
+            ],
+            "negative": [
+              "非男性角色不可选；体力不等时不双向结算"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b10::JIEYIN",
+          "tests": [
+            "b10::jieyin_equal_hp_draws_and_heals_both",
+            "b10::jieyin_equip_from_own_zone_triggers_xiaoji"
+          ]
         }
       ]
     }

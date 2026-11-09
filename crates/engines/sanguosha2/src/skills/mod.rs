@@ -15,6 +15,7 @@ pub mod b6;
 pub mod b7;
 pub mod b8;
 pub mod b9;
+pub mod b10;
 pub mod mingren;
 pub mod kongsheng;
 pub mod liangyin;
@@ -190,6 +191,24 @@ pub const SKILLS: &[SkillDef] = &[
     b9::GUANXING,
     b9::JIZHI,
     b9::QICAI,
+    // B10（界甘宁 / 界吕蒙 / 界黄盖 / 界周瑜 / 界大乔 / 界陆逊 / 界孙权 / 界孙尚香）
+    b10::QIXI,
+    b10::FENWEI,
+    b10::KEJI,
+    b10::QINXUE,
+    b10::BOTU,
+    b10::KUROU,
+    b10::ZHAXIANG,
+    b10::YINGZI,
+    b10::FANJIAN,
+    b10::LIULI,
+    b10::GUOSE,
+    b10::QIANXUN,
+    b10::LIANYING,
+    b10::ZHIHENG,
+    b10::JIUYUAN,
+    b10::XIAOJI,
+    b10::JIEYIN,
 ];
 
 /// 转换技（阳/阴两面）：视图按此清单投影 `transforms`（与 handlers 的 `g.yang/toggle_yang` 对应）。
@@ -226,7 +245,7 @@ pub fn active(g: &Game, seat: usize, code: &str) -> bool {
 /// 明确的**锁定技**（义绝/铁骑的「非锁定技失效」不作用于这些）。
 pub const LOCKED_SKILLS: &[&str] = &[
     "jueyan", "jishe", "lianhuo", "zongzuo", "shushen", "weimu", "wushuang", "tieqi_locked",
-    "kongcheng", "mashu", "paoxiao", "qicai", "fulin",
+    "kongcheng", "mashu", "paoxiao", "qicai", "fulin", "yingzi", "zhaxiang",
 ];
 
 /// 「本回合非锁定技失效」（义绝·黑 / 铁骑）。
@@ -485,6 +504,10 @@ pub fn draw_bonus(g: &Game, seat: usize) -> usize {
         n += kingdom_count(g);
     }
     if active(g, seat, "huaiju") && ju(g, seat) > 0 {
+        n += 1;
+    }
+    // 英姿（界周瑜，锁定）：摸牌阶段多摸 1 张。
+    if active(g, seat, "yingzi") {
         n += 1;
     }
     // 福绵①（吴苋）：准备阶段选择后，本回合摸牌阶段多摸 N 张。
@@ -767,7 +790,9 @@ pub struct Conversion {
 }
 
 pub fn conversions(g: &Game, seat: usize) -> Vec<Conversion> {
-    b9::conversions(g, seat)
+    let mut out = b9::conversions(g, seat);
+    out.extend(b10::conversions(g, seat));
+    out
 }
 
 /// 响应窗口的额外选项（主公技接力「激将」）。
@@ -823,6 +848,54 @@ pub fn prevent_equip_discard(
     by: Option<usize>,
 ) -> bool {
     b9::prevent_equip_discard(g, owner, card, by)
+}
+
+// ---------------------------------------------------------------------------
+// B10 钩子（跳过阶段 / 赋值型上限 / 次数 / 响应过滤 / 结算前询问）
+// ---------------------------------------------------------------------------
+
+pub fn skip_discard_phase(g: &Game, seat: usize) -> bool {
+    b10::skip_discard_phase(g, seat)
+}
+
+pub fn hand_limit_override(g: &Game, seat: usize) -> Option<usize> {
+    b10::hand_limit_override(g, seat)
+}
+
+pub fn sha_limit_bonus(g: &Game, seat: usize) -> usize {
+    b10::sha_limit_bonus(g, seat)
+}
+
+pub fn block_real_shan(g: &Game, seat: usize) -> bool {
+    b10::block_real_shan(g, seat)
+}
+
+pub fn botu_maybe(g: &mut Game, seat: usize) {
+    b10::botu_maybe(g, seat)
+}
+
+pub fn start_fenwei(g: &mut Game, targets: &[usize], user: usize) -> bool {
+    b10::start_fenwei(g, targets, user)
+}
+
+pub fn start_qianxun(g: &mut Game, user: usize, targets: &[usize], name: &str) -> bool {
+    b10::start_qianxun(g, user, targets, name)
+}
+
+pub fn start_lianying(g: &mut Game, seat: usize, x: usize) -> bool {
+    b10::start_lianying(g, seat, x)
+}
+
+pub fn on_equip_lost(g: &mut Game, seat: usize) {
+    b10::xiaoji_on_lose_equip(g, seat);
+}
+
+pub fn start_jiuyuan(g: &mut Game, seat: usize, n: i32, cause: &str) -> bool {
+    b10::start_jiuyuan(g, seat, n, cause)
+}
+
+pub fn return_void_cards(g: &mut Game, turn_seq: u32) {
+    b10::return_void_cards(g, turn_seq);
 }
 
 /// 伤害数值加成钩子（暗箭；`flow::damage_now` 在扣血前调用）。

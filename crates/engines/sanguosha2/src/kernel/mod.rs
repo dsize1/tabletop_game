@@ -313,6 +313,24 @@ pub struct Game {
     /// 主公技接力：所有同势力角色都放弃（响应流程消费后清空）。
     #[serde(default)]
     pub relay_none: bool,
+    /// 额外回合（博图）：本回合结束后由该角色再执行一个回合。
+    #[serde(default)]
+    pub extra_turn: Option<usize>,
+    /// 当前回合是否为「额外回合」（额外回合内不再触发博图）。
+    #[serde(default)]
+    pub extra_turn_active: bool,
+    /// 奋威：本张牌被令无效的目标（牌结算逐目标跳过）。
+    #[serde(default)]
+    pub fenwei_void: BTreeSet<usize>,
+    /// 本动作内各座位「离开手牌的张数」（连营的 X）。
+    #[serde(default)]
+    pub hand_loss_batch: BTreeMap<usize, u32>,
+    /// 连营待询问：`(座位, X)`（栈空后消费）。
+    #[serde(default)]
+    pub lianying_pending: Option<(usize, usize)>,
+    /// 谦逊：移出游戏的手牌 `(座位, 牌, 到期回合序号)`，回合切换时归还。
+    #[serde(default)]
+    pub void_return: Vec<(usize, CardId, u32)>,
     /// 本阶段弃置的牌（瑰藻等「本阶段弃置」判定用）。
     #[serde(default)]
     pub phase_discard_cards: Vec<CardId>,
@@ -365,6 +383,12 @@ impl Game {
             rand_state: 0x5EED_2026_1109_0001,
             relay_played: None,
             relay_none: false,
+            extra_turn: None,
+            extra_turn_active: false,
+            fenwei_void: BTreeSet::new(),
+            hand_loss_batch: BTreeMap::new(),
+            lianying_pending: None,
+            void_return: Vec::new(),
             phase_discard_cards: Vec::new(),
             suppress_gain_count: false,
             subs: Vec::new(),
@@ -537,11 +561,34 @@ impl Game {
 
     /// **唯一**改归属的地方。不发事件、不做语义。
     fn move_card(&mut self, id: &CardId, to: Zone) -> Result<Zone, String> {
+        let to_probe = to.clone();
         let from = self
             .zone
             .insert(id.clone(), to)
             .ok_or_else(|| format!("牌 {id} 不存在于任何区域"))?;
+        if let Zone::Hand(s) = from {
+            if let Zone::Hand(s2) = to_probe {
+                if s == s2 {
+                    return Ok(from);
+                }
+            }
+            *self.hand_loss_batch.entry(s).or_insert(0) += 1;
+            if self.hand(s).is_empty() {
+                let x = self.hand_loss_batch.get(&s).copied().unwrap_or(1) as usize;
+                self.lianying_pending = Some((s, x.max(1)));
+            }
+        } else if let Zone::Equip(s, _) = from {
+            // 枭姬：失去装备区的牌（每张一次）。
+            if self.seats.get(s).is_some_and(|x| x.hp > 0) {
+                crate::skills::on_equip_lost(self, s);
+            }
+        }
         Ok(from)
+    }
+
+    /// 动作开始：重置「本动作内失去手牌数」的批次计数。
+    pub fn begin_action(&mut self) {
+        self.hand_loss_batch.clear();
     }
 
     /// 弃置：进入弃牌堆 + `CardDiscarded`（原因透传）。
@@ -1129,6 +1176,7 @@ impl Game {
         if crate::skills::active(self, seat, "paoxiao") {
             return usize::MAX;
         }
+        n += crate::skills::sha_limit_bonus(self, seat);
         n += self.counter("turn.jueyan_sha_bonus") as usize;
         n += self.counter("turn.lijun_sha_bonus") as usize;
         if self.counter(&format!("mingjian:{seat}")) >= 2 {
@@ -1139,6 +1187,9 @@ impl Game {
 
     /// 手牌上限（体力值 + 决堰防具栏… + 「权」）。
     pub fn hand_limit(&self, seat: usize) -> usize {
+        if let Some(n) = crate::skills::hand_limit_override(self, seat) {
+            return n;
+        }
         let base = self.hand_limit_base(seat) as i64;
         let delta = crate::skills::hand_limit_delta(self, seat) as i64;
         base.saturating_add(delta).max(0) as usize

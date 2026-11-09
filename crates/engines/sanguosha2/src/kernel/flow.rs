@@ -288,6 +288,10 @@ pub fn heal(g: &mut Game, seat: usize, n: i32, cause: &str) {
     if n <= 0 || g.seats[seat].hp <= 0 {
         return;
     }
+    // 救援（主公技）：其他吴势力角色于其回合内回复体力时，可改为令主公回复。
+    if crate::skills::start_jiuyuan(g, seat, n, cause) {
+        return;
+    }
     let before = g.seats[seat].hp;
     g.seats[seat].hp = (before + n).min(g.seats[seat].max_hp);
     let healed = g.seats[seat].hp - before;

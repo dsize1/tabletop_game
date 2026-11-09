@@ -111,7 +111,21 @@
   `prevent_equip_discard`（奇才防弃置）、`paoxiao_bonus`/`yijue_heart_bonus`（加伤，
   在 `damage_bonus_typed` 内叠加，白银狮子仍在最后压回 1）。
 
-## 12. 牌结算（M1）的单一出口
+## 12. B10 跨批机制（2026-11-09）
+
+- **额外回合**（博图）：`Game.extra_turn` + 驱动器在 End 阶段后插入一个 Prepare 起的额外回合
+  （`extra_turn_active` 防递归）；上限按轮计数（座位 counters `botu:<round>`）。
+- **跳过弃牌阶段**（克己）：`skills::skip_discard_phase` → 驱动器显式跳过并播报（不是把上限设为无限）。
+- **赋值型手牌上限**（界英姿）：`skills::hand_limit_override`（覆盖而非叠加）。
+- **多目标无效**（奋威）：任意「目标列表为多人」的牌在结算前询问；被选目标进 `Game.fenwei_void`，
+  `sha_loop` / `aoe` 等逐目标循环跳过，`finish` 清空。
+- **结算前手牌移出**（谦逊）：普通锦囊唯一目标时询问；移出的牌进 `Game.void_return`，回合切换归还。
+- **手牌归零批次 X**（连营）：`Game.hand_loss_batch`（每动作一档，`begin_action` 重置）→ 手牌归零时
+  写 `lianying_pending`，栈空后由 `advance` 询问「至多 X 名各摸 1」。
+- **回复前改向**（救援）：`flow::heal` 前置 `skills::start_jiuyuan`（可选询问；拒绝时按正常回复落盘）。
+- **装备流失钩子**（枭姬）：`move_card` 在离开 `Zone::Equip` 时调 `skills::on_equip_lost`。
+
+## 13. 牌结算（M1）的单一出口
 
 - 牌定义是**生成物**：`docs/games/sanguosha/data/cards.json` → `npm run gen:sgs-engine-data`
   → `crates/engines/sanguosha2/src/cards_generated.rs`（160 张 + 属性/效果表）。

@@ -2491,6 +2491,21 @@ pub fn sha_intercept_skills(
             out.push((seat, "jianzheng"));
         }
     }
+    // 流离（界大乔）：成为【杀】目标时可弃一张牌转移（目标视角，需有可转移对象）。
+    if target != user
+        && crate::skills::active(g, target, "liuli")
+        && (!g.hand(target).is_empty()
+            || g.ids_in(|z| matches!(z, crate::kernel::Zone::Equip(s, _) if *s == target))
+                .len()
+                > 0)
+    {
+        let has_dest = (0..g.seats.len()).any(|i| {
+            i != target && i != user && g.seats[i].hp > 0 && g.in_attack_range(target, i)
+        });
+        if has_dest {
+            out.push((target, "liuli"));
+        }
+    }
     // 铁骑（界马超）：使用者视角，令目标本回合非锁定技失效并判定。
     if target != user && crate::skills::active(g, user, "tieqi") {
         out.push((user, "tieqi"));
