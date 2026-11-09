@@ -466,3 +466,44 @@ node apps/scripts/check-sgs2-metrics.mjs
 应把 `UseOpts` 升级为显式的「来源区」参数；③攻心的「观看」目前用私密展示实现，
 若未来需要「观看后可展示其中一张给对方看」，需补一个公开展示步骤。
 
+## 16. B11 实施受阻记录（2026-11-09，未收口；代码已回滚）
+
+**结论：B11 未能整批收口。** 对齐单已 confirmed 并提交（`08f8a0a`），但技能实现连续两轮未通过用例，
+按「不提交半成品」的批纪律**回滚代码**，仅保留下面的缺陷定位结论（下轮可直接照做，不需要再裁定）。
+
+### 16.1 已建立的内核窗口（本轮验证可行、随下轮一起落地）
+
+| 窗口 | 设计 | 状态 |
+|---|---|---|
+| 技能判定子流程 | `FlowKind::QuickJudge`：亮判定牌 → 鬼才改判 → 生效 → 天妒；结果写 `Game.judge_result` | 结构可行；收尾易错（见 16.2-A） |
+| 改判 | `Game.judge_rewrite: Option<CardId>` + `skills::start_judge_rewrite`（手牌/装备区牌均可） | 可行 |
+| 天妒 | `skills::start_tiandu`（判定生效后询问获得） | 可行 |
+| 【闪】接力 | `relay_options(kind=Shan)` → 护驾（魏势力代出） | 可行（用例已过） |
+| 倾国装备区 | `apply_response` 的 `vrespond` 允许「自己装备区」承载 | 可行（用例已过） |
+| 清俭/洛神上限 | `hand_limit_delta` 增加 `turn.qingjian_limit:{seat}` / `turn.luoshen_free:{seat}` | 可行 |
+
+### 16.2 两条真实缺陷（下轮先修这两条）
+
+- **A. 判定牌收尾的牌区判断**：`flow::judge_card` 把判定牌放进 **`Zone::Frame(..)`**（不是 Processing）。
+  QuickJudge 收尾必须 `matches!(zone, Some(Zone::Frame(_)) | Some(Zone::Draw) | Some(Zone::Processing))` 才弃置，
+  否则会把**天妒已经获得**的牌再弃掉（天妒用例失败的直接原因）。
+- **B. `Step::Next` 会**替换**触发帧的 `data`**：事件触发（`DamageAfter` / `CardGained` / `PhaseStart`）的技能
+  一旦跨步，`a.data["seat"/"cause"/"card"]` 全部丢失 → 后续分支读到 None 直接 `Done`（表现为「提交后续动作时没有待办」）。
+  **约定**：事件触发技能的第一步就把需要的上下文写进**持久计数**（`turn.<skill>_*`），跨步只读计数。
+  本轮已按此改造的有 fankui（left/src）、tuxi（left）、luoshen（judged）、ganglie（src）——仍有个别分支遗漏。
+
+### 16.3 本轮实测结论（11/15 用例曾通过）
+
+- 通过：奸雄（解耦摸 1）、护驾（【闪】接力选项）、反馈（每点伤害一次）、鬼才（改判）、突袭（X/N）、
+  裸衣（放弃摸 2）、恂恂（分区）、倾国（装备区）、洛神（黑→获得/红→停止）、清俭（类型计数路径）、
+  忘隙（摸 2 交 1）。
+- 未通过（4 条）：天妒（缺陷 A）、刚烈（缺陷 B 的 src 分支）、清俭多步（缺陷 B）、忘隙 give 分支（缺陷 B）。
+
+### 16.4 下轮开工顺序（机械执行）
+
+1. 先修 A（一行）+ 给 QuickJudge 补 2 条内核用例（天妒获得后不进弃牌堆 / 鬼才改判后原牌进弃牌堆）。
+2. 再修 B：把 qingjian/wangxi/ganglie/yiji 的所有跨步上下文搬到 `turn.*` 计数，并加 1 条回归
+   「事件触发帧跨步后 data 丢失不影响语义」。
+3. 再按 `align/B11.json` 第 7 段实现 14 技能（文件已写过两版，可复用结构）+ `tests/b11.rs` 15 条。
+4. `V2_BATCHES` 加 11 → `check:sgs2` → `sgs:check:fast` → 回写 impl/tests → M83 → 单条 commit。
+
