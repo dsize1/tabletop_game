@@ -95,7 +95,23 @@
 - **手牌上限**：`skills::hand_limit_delta`（才识 +1 / 忠鉴 -1 / 辟撰「书」数），内核 `Game::hand_limit` 统一叠加。
 - 「随机」一律走 `Game::rand_below`（确定性、可序列化，回放一致）；`Game::shuffle_draw` 同源。
 
-## 11. 牌结算（M1）的单一出口
+## 11. B9 跨批机制（2026-11-09）
+
+- **被动转化技**（武圣/龙胆）：`skills::conversions` 返回「承载牌 → 生效牌名」列表；
+  `legal_uses` 追加 `convert:<skill>:<承载牌>:<生效牌名>[:目标]`（主动使用，走 `use_as` 严格校验），
+  响应窗口追加 `vrespond:<skill>:<承载牌>`（打出）。内核不含技能名。
+- **主公技接力**（激将）：响应窗口 `jijiang` → 按座位顺序询问同势力角色代出【杀】；
+  结果经 `Game.relay_played`（(牌, 代出者)）/ `Game.relay_none` 回传响应流程
+  （`card_play` 的 `relay_wait` 循环：发起 → 挂起 → 重入消费）。
+- **非锁定技失效**（义绝·黑 / 铁骑）：唯一闸门在 `skills::active`（`turn.nonlocked_lost:<seat>` +
+  `LOCKED_SKILLS` 清单）；「不能使用或打出手牌」用 `flags["hand_sealed"]` + `Game::can_use_card`，
+  回合切换自动清除。禁止各技能自行检查计数。
+- **数值钩子**：`skills::distance_delta`（马术）、`sha_limit_override`（咆哮）、
+  `sha_no_distance`（界武圣·方片【杀】）、`trick_no_distance`（奇才）、
+  `prevent_equip_discard`（奇才防弃置）、`paoxiao_bonus`/`yijue_heart_bonus`（加伤，
+  在 `damage_bonus_typed` 内叠加，白银狮子仍在最后压回 1）。
+
+## 12. 牌结算（M1）的单一出口
 
 - 牌定义是**生成物**：`docs/games/sanguosha/data/cards.json` → `npm run gen:sgs-engine-data`
   → `crates/engines/sanguosha2/src/cards_generated.rs`（160 张 + 属性/效果表）。

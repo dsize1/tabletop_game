@@ -2491,6 +2491,10 @@ pub fn sha_intercept_skills(
             out.push((seat, "jianzheng"));
         }
     }
+    // 铁骑（界马超）：使用者视角，令目标本回合非锁定技失效并判定。
+    if target != user && crate::skills::active(g, user, "tieqi") {
+        out.push((user, "tieqi"));
+    }
     // 专对（秦宓）：使用者视角 / 目标视角。
     if target != user && active(g, target, "zhuandui") && !g.hand(target).is_empty() && !g.hand(user).is_empty() {
         out.push((target, "zhuandui"));

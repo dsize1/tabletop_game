@@ -424,3 +424,24 @@ node apps/scripts/check-sgs2-metrics.mjs
 **结论**：B9 起的固定顺序变为 `sgs2:batch -- B9`（看是否 🟢 可开工）→ `--v1-anchors` 填 §2 →
 裁定 → 实现 → `check:sgs2` → `sgs:check:fast`。
 
+## 14. B9 执行记录（2026-11-09，界标·蜀）
+
+**口径**（用户裁定）：标将已基本废弃 → 界将技能**按 v1 实现**；v2 不保留 `is_jiexian` 分支，
+同一 code 只实现界版语义（将来迁标将若需差异，用角色属性参数化）。
+
+| 交付 | 内容 |
+|---|---|
+| 对齐单 | `align/B9.json` 14 技能 / 17 疑点（5 处非 A：仁德候选含火杀/雷杀、【闪】不列出；激将摸牌扩到其自己回合外使用/打出并让其选择；义绝由目标自选展示且目标须有牌；铁骑弃牌含装备区；集智改可选），第 7 段确认 → implemented |
+| 技能 | `src/skills/b9.rs`：仁德/激将、义绝/武圣、替身/咆哮、涯角/龙胆、马术/铁骑、空城/观星、集智/奇才 |
+| 用例 | `tests/b9.rs` 27 条（每技能正例 + 反例，含转化牌/接力/观星双窗口/铁骑判定/白银狮子压制） |
+| 内核 | 被动转化技（`convert:` / `vrespond:`）、主公技接力（`relay_played`/`relay_none` + `relay_wait`）、非锁定技失效闸门（`skills::active` + `LOCKED_SKILLS`）、手牌封印（`hand_sealed`）、数值钩子（`distance_delta` / `sha_limit_override` / `sha_no_distance` / `trick_no_distance` / `prevent_equip_discard`）、伤害加成（咆哮/义绝接入 `damage_bonus_typed`） |
+| 门禁 | `cargo test -p sanguosha2` 391 全绿；`check:sgs2` 全绿（注册 132 / 对齐单 128 / 机制锚点）；`sgs:check:fast` 25/25 |
+
+**已知遗留**
+
+1. 激将「替主公**使用**【杀】」（出牌阶段代用）未做——v1 亦只做响应接力；已在对齐单第 3/7 段登记。
+2. `LOCKED_SKILLS` 目前是手写清单（B0–B9 范围内的锁定技）；后续批次新增锁定技时必须同步登记，
+   （建议后续 harness 化：注册表导出 `kind` 后改为派生）。
+3. 奇才的「防止弃置」只接在过河拆桥（与技能侧的 `prevent_equip_discard` 助手）；其余弃置入口
+   （顺手牵羊的获得、忠鉴/诫训弃牌）按裁定「只拦弃置」处理，忠鉴/诫训已可用该助手扩展到防弃置。
+

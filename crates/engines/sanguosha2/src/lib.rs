@@ -234,6 +234,31 @@ impl EnginePlugin for Sanguosha2Engine {
             g.resolve_use(seat, &id, targets)
                 .map_err(EngineError::IllegalAction)?;
             format!("使用【{}】", g.name_of(&id))
+        } else if let Some(rest) = action.strip_prefix("convert:") {
+            // 被动转化技：`convert:<skill>:<承载牌>:<生效牌名>[:目标]`
+            let mut parts = rest.split(':');
+            let _skill = parts.next().unwrap_or_default();
+            let id = parts
+                .next()
+                .filter(|s| !s.is_empty())
+                .ok_or_else(|| EngineError::IllegalAction("缺少承载牌".into()))?
+                .to_string();
+            let name = parts
+                .next()
+                .filter(|s| !s.is_empty())
+                .ok_or_else(|| EngineError::IllegalAction("缺少生效牌名".into()))?
+                .to_string();
+            let targets: Vec<usize> = parts
+                .next()
+                .map(|s| {
+                    s.split(',')
+                        .filter_map(|t| t.parse::<usize>().ok())
+                        .collect()
+                })
+                .unwrap_or_default();
+            g.use_as(seat, &id, &name, targets, true, None)
+                .map_err(EngineError::IllegalAction)?;
+            format!("【{}】当【{}】使用", g.name_of(&id), name)
         } else if let Some(id) = action.strip_prefix("recast:") {
             let id = id.to_string();
             card_play::resolve_recast(&mut g, seat, &id).map_err(EngineError::IllegalAction)?;

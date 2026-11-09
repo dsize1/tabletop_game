@@ -22,7 +22,7 @@ const problems = [];
 const fail = (m) => problems.push(m);
 
 /** 已迁移到 v2 的批次（B8 起每迁一批就追加；gate 随之要求注册表与对齐单精确一致）。 */
-const V2_BATCHES = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+const V2_BATCHES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 /**
  * 授予型子技能：**只**能通过技能授予获得（不在 heroes.json 的技能表里），因此对齐单没有独立技能行。
@@ -44,6 +44,7 @@ const MECHANISM_ANCHORS = new Map([
   ["judge-zone", ["to_judge("]],
   ["dying-resolution", ["flow::damage"]],
   ["damage-vs-hp-loss", ["flow::lose_hp"]],
+  ["damage-attributes", ["DamageKind", "damage_kind", "normal:"]],
   ["card-out-in-game", ["to_void("]],
   ["lose-vs-discard", ["to_discard("]],
   ["chained-state", ["chain_enter("]],

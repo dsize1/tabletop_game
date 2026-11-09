@@ -29,7 +29,7 @@
 
 | 依赖 | 说明 | 处理时机 |
 |---|---|---|
-| `crates/engines/sanguosha/src/skills.rs` | 技能实现表（`implemented` 标记）仍是 v1 事实源；v2 注册表已有 B0–B8 的 114 个 code（+ 绝响授予的 4 条子技能） | v1 删除前把「已实现技能清单」迁到 v2 注册表或 JSON |
+| `crates/engines/sanguosha/src/skills.rs` | 技能实现表（`implemented` 标记）仍是 v1 事实源；v2 注册表已有 B0–B9 的 128 个 code（+ 绝响授予的 4 条子技能） | v1 删除前把「已实现技能清单」迁到 v2 注册表或 JSON |
 | `check-sgs-pack-presets` 的 `lib.rs`/`state.rs` 断言 | v1 大厅预设/默认包实现事实 | 随注册/大厅迁移到 v2 |
 | `sgs-general-audit` / `sgs-batch-*` 的 `p67.rs` / 场景 | v1 走查基线 | 随 v1 退役归档（对拍语料保留） |
 | `check-sgs-parity` 本身 | 对拍只在迁移期有意义 | 删除 v1 时删除该脚本（白名单归档） |

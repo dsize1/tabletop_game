@@ -184,6 +184,10 @@ fn damage_now_impl(
     }
     if let Some(s) = source {
         g.bump(&format!("turn.damage_by:{s}"));
+        // 咆哮：本次【杀】已消费「下一次伤害 +1」。
+        if card.map(|c| g.def_of(c).tags.sha).unwrap_or(false) {
+            g.counters.insert("turn.paoxiao_bonus".to_string(), 0);
+        }
     }
     g.seats[victim].hp -= amount;
     // 「本阶段是否有人受到过伤害」（佐定等）。

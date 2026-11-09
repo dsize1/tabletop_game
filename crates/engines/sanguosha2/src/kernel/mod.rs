@@ -307,6 +307,12 @@ pub struct Game {
     /// 技能随机源状态（splitmix64；确定性、可序列化，回放一致）。
     #[serde(default)]
     pub rand_state: u64,
+    /// 主公技接力结果：代出的牌与代出者（响应流程消费后清空）。
+    #[serde(default)]
+    pub relay_played: Option<(CardId, usize)>,
+    /// 主公技接力：所有同势力角色都放弃（响应流程消费后清空）。
+    #[serde(default)]
+    pub relay_none: bool,
     /// 本阶段弃置的牌（瑰藻等「本阶段弃置」判定用）。
     #[serde(default)]
     pub phase_discard_cards: Vec<CardId>,
@@ -357,6 +363,8 @@ impl Game {
             sha_intercept: None,
             turn_seq: 0,
             rand_state: 0x5EED_2026_1109_0001,
+            relay_played: None,
+            relay_none: false,
             phase_discard_cards: Vec::new(),
             suppress_gain_count: false,
             subs: Vec::new(),
@@ -1056,6 +1064,12 @@ impl Game {
 
     /// 座位距离（按座位环，取顺/逆较小值；马匹等修正在此扩展）。
     pub fn distance(&self, a: usize, b: usize) -> usize {
+        let base = self.distance_raw(a, b) as i32;
+        let delta = crate::skills::distance_delta(self, a);
+        (base + delta).max(1) as usize
+    }
+
+    fn distance_raw(&self, a: usize, b: usize) -> usize {
         let n = self.seats.len();
         if n < 2 || a == b {
             return 0;
@@ -1108,6 +1122,9 @@ impl Game {
 
     /// 本回合【杀】可用次数（基础 1 + 决堰 + 立军 等）。
     pub fn sha_limit(&self, seat: usize) -> usize {
+        if let Some(n) = crate::skills::sha_limit_override(self, seat) {
+            return n;
+        }
         let mut n = 1usize;
         if crate::skills::active(self, seat, "paoxiao") {
             return usize::MAX;
@@ -1301,6 +1318,12 @@ impl Game {
 
     /// 该牌当前能否被主动使用/打出（冻结机制的唯一判定入口：回合级 + 阶段级）。
     pub fn can_use_card(&self, seat: usize, id: &CardId) -> bool {
+        // 手牌封印（义绝·黑）：本回合不能使用或打出手牌。
+        if self.seats[seat].flags.contains("hand_sealed")
+            && matches!(self.zone_of(id), Some(Zone::Hand(s)) if *s == seat)
+        {
+            return false;
+        }
         !self.seats[seat].frozen.contains(id) && !self.seats[seat].frozen_phase.contains(id)
     }
 

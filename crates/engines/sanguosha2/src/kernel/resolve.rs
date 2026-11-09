@@ -395,6 +395,8 @@ pub fn begin_phase(g: &mut Game, seat: usize, phase: Phase) -> Result<(), String
     if g.turn != seat {
         for i in 0..g.seats.len() {
             g.unfreeze_hand(i);
+            // 义绝·黑的手牌封印只持续到本回合结束。
+            g.seats[i].flags.remove("hand_sealed");
         }
         g.clear_prefix("turn.");
         // 本回合的「已使用牌 / 不计次数标记」随回合结束清空（派生计数 sha_used 依赖它）。

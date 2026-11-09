@@ -14,6 +14,7 @@ pub mod b5;
 pub mod b6;
 pub mod b7;
 pub mod b8;
+pub mod b9;
 pub mod mingren;
 pub mod kongsheng;
 pub mod liangyin;
@@ -174,6 +175,21 @@ pub const SKILLS: &[SkillDef] = &[
     b8::ROUXIAN,
     b8::LIEXIAN,
     b8::HEXIAN,
+    // B9（界刘备 / 界关羽 / 界张飞 / 界赵云 / 界马超 / 界诸葛亮 / 界黄月英）
+    b9::RENDE,
+    b9::JIJIANG,
+    b9::YIJUE,
+    b9::WUSHENG,
+    b9::TISHEN,
+    b9::PAOXIAO,
+    b9::YAJIAO,
+    b9::LONGDAN,
+    b9::MASHU,
+    b9::TIEQI,
+    b9::KONGCHENG,
+    b9::GUANXING,
+    b9::JIZHI,
+    b9::QICAI,
 ];
 
 /// 转换技（阳/阴两面）：视图按此清单投影 `transforms`（与 handlers 的 `g.yang/toggle_yang` 对应）。
@@ -189,6 +205,10 @@ pub fn handler(code: &str) -> Option<fn(&mut Game, &Ask) -> Result<Step, String>
 
 /// **唯一**技能状态查询入口。
 pub fn active(g: &Game, seat: usize, code: &str) -> bool {
+    // 非锁定技失效：本回合该角色的非锁定技视为不存在（义绝·黑 / 铁骑）。
+    if nonlocked_lost(g, seat) && !LOCKED_SKILLS.contains(&code) {
+        return false;
+    }
     let Some(s) = g.seats.get(seat) else { return false };
     if s.skills.iter().any(|x| x == code) || s.granted.iter().any(|x| x == code) {
         return true;
@@ -201,6 +221,17 @@ pub fn active(g: &Game, seat: usize, code: &str) -> bool {
         }
     }
     false
+}
+
+/// 明确的**锁定技**（义绝/铁骑的「非锁定技失效」不作用于这些）。
+pub const LOCKED_SKILLS: &[&str] = &[
+    "jueyan", "jishe", "lianhuo", "zongzuo", "shushen", "weimu", "wushuang", "tieqi_locked",
+    "kongcheng", "mashu", "paoxiao", "qicai", "fulin",
+];
+
+/// 「本回合非锁定技失效」（义绝·黑 / 铁骑）。
+pub fn nonlocked_lost(g: &Game, seat: usize) -> bool {
+    g.counter(&format!("turn.nonlocked_lost:{seat}")) > 0
 }
 
 /// 注册表里已知的主公技（伪帝借用范围）。
@@ -545,6 +576,11 @@ pub fn damage_bonus_typed(
     dtype: crate::cards::DamageKind,
     chain_origin: bool,
 ) -> i32 {
+    let b9_extra =
+        b9::paoxiao_bonus(g, source, card) + b9::yijue_heart_bonus(g, source, victim, card);
+    if b9_extra > 0 {
+        return b4::anjian_bonus(g, source, victim, card) + b9_extra;
+    }
     damage_bonus(g, source, victim, card) + b7::lianhuo_bonus(g, victim, dtype, chain_origin)
 }
 
@@ -646,7 +682,7 @@ pub fn take_void_marked(
 
 /// 手牌上限修正（才识 +1 / 忠鉴 -1 / 辟撰「书」数）。
 pub fn hand_limit_delta(g: &Game, seat: usize) -> i32 {
-    b8::hand_limit_delta(g, seat)
+    b8::hand_limit_delta(g, seat) + g.counter("turn.jizhi_hand_limit") as i32
 }
 
 /// 「本回合不能对自己使用牌」（才识②）：含装备牌。
@@ -711,6 +747,82 @@ pub fn sha_intercept_per_card(code: &str) -> bool {
 /// 「随机使用一张装备牌」（清弦/四弦）：牌堆顶向下第一张装备，无则遍历弃牌堆。
 pub fn take_equip_from_piles(g: &mut Game, cause: &str) -> Option<crate::kernel::CardId> {
     b8::take_equip_from_piles(g, cause)
+}
+
+// ---------------------------------------------------------------------------
+// B9 钩子（转化牌 / 主公技接力 / 数值开关）
+// ---------------------------------------------------------------------------
+
+/// 被动转化技（武圣/龙胆）可用的一次性视图。
+pub struct Conversion {
+    pub skill: &'static str,
+    /// 承载牌。
+    pub from: crate::kernel::CardId,
+    /// 生效牌名（如 "杀"）。
+    pub to: &'static str,
+    /// 可主动使用。
+    pub usable: bool,
+    /// 可作为响应牌打出。
+    pub playable: bool,
+}
+
+pub fn conversions(g: &Game, seat: usize) -> Vec<Conversion> {
+    b9::conversions(g, seat)
+}
+
+/// 响应窗口的额外选项（主公技接力「激将」）。
+pub fn relay_options(g: &Game, seat: usize, kind: crate::cards::ResponseKind) -> Vec<(String, String)> {
+    b9::relay_options(g, seat, kind)
+}
+
+/// 是否可以在该响应窗口发起主公技接力（激将：替主公打出【杀】）。
+pub fn relay_before(
+    g: &mut Game,
+    responder: usize,
+    kind: crate::cards::ResponseKind,
+    used: Option<&crate::kernel::CardId>,
+) -> bool {
+    b9::relay_before(g, responder, kind, used)
+}
+
+/// 发起主公技接力（激将：替主公打出【杀】）。
+pub fn start_relay(
+    g: &mut Game,
+    lord: usize,
+    kind: crate::cards::ResponseKind,
+    used: Option<&crate::kernel::CardId>,
+) {
+    b9::start_relay(g, lord, kind, used);
+}
+
+/// 【杀】次数覆盖（咆哮）。
+pub fn sha_limit_override(g: &Game, seat: usize) -> Option<usize> {
+    b9::sha_limit_override(g, seat)
+}
+
+/// 距离修正（马术 -1）。
+pub fn distance_delta(g: &Game, seat: usize) -> i32 {
+    b9::distance_delta(g, seat)
+}
+
+/// 【杀】无距离限制（界武圣·方片【杀】）。
+pub fn sha_no_distance(g: &Game, seat: usize, card: &crate::kernel::CardId) -> bool {
+    b9::sha_no_distance(g, seat, card)
+}
+
+/// 锦囊无距离限制（奇才）。
+pub fn trick_no_distance(g: &Game, seat: usize) -> bool {
+    b9::trick_no_distance(g, seat)
+}
+
+/// 防止弃置（奇才：其他角色弃置你装备区的防具/宝物）。
+pub fn prevent_equip_discard(
+    g: &Game,
+    owner: usize,
+    card: &crate::kernel::CardId,
+    by: Option<usize>,
+) -> bool {
+    b9::prevent_equip_discard(g, owner, card, by)
 }
 
 /// 伤害数值加成钩子（暗箭；`flow::damage_now` 在扣血前调用）。

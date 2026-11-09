@@ -212,7 +212,76 @@ pub fn legal_uses(g: &Game, seat: usize) -> Vec<(String, String)> {
             }
         }
     }
+    // 被动转化技（武圣/龙胆）：`convert:<skill>:<承载牌>:<生效牌名>[:目标]`
+    for conv in skills::conversions(g, seat) {
+        if !conv.usable {
+            continue;
+        }
+        let def = cards::def(conv.to);
+        for targets in target_sets_for(g, seat, &def) {
+            if plan_use(g, seat, Some(&conv.from), conv.to, &targets, UseOpts::skill()).is_ok() {
+                let suffix = if targets.is_empty() {
+                    String::new()
+                } else {
+                    format!(
+                        ":{}",
+                        targets
+                            .iter()
+                            .map(|t| t.to_string())
+                            .collect::<Vec<_>>()
+                            .join(",")
+                    )
+                };
+                out.push((
+                    format!("convert:{}:{}:{}{suffix}", conv.skill, conv.from, conv.to),
+                    format!("【{}】当【{}】", g.card_label(&conv.from), conv.to),
+                ));
+            }
+        }
+    }
     out
+}
+
+/// 某个牌定义的目标候选集（legal 枚举与转化牌共用）。
+fn target_sets_for(g: &Game, seat: usize, def: &cards::CardDef) -> Vec<Vec<usize>> {
+    let alive: Vec<usize> = (0..g.seats.len())
+        .filter(|i| g.seats[*i].hp > 0)
+        .collect();
+    match def.effect {
+        Effect::Sha
+        | Effect::Duel
+        | Effect::Dismantle
+        | Effect::Snatch
+        | Effect::FireAttack
+        | Effect::Indulgence
+        | Effect::SupplyShortage => alive
+            .iter()
+            .filter(|t| **t != seat)
+            .map(|t| vec![*t])
+            .collect(),
+        Effect::Collateral => {
+            let mut sets = Vec::new();
+            for a in alive.iter().filter(|t| **t != seat) {
+                if g.equip_in(*a, Slot::Weapon).is_none() {
+                    continue;
+                }
+                for b in alive.iter().filter(|t| *t != a) {
+                    sets.push(vec![*a, *b]);
+                }
+            }
+            sets
+        }
+        Effect::IronChain => {
+            let mut sets: Vec<Vec<usize>> = alive.iter().map(|t| vec![*t]).collect();
+            for (i, a) in alive.iter().enumerate() {
+                for b in alive.iter().skip(i + 1) {
+                    sets.push(vec![*a, *b]);
+                }
+            }
+            sets
+        }
+        _ => vec![Vec::new()],
+    }
 }
 
 pub fn can_use(g: &Game, seat: usize, card: &CardId, targets: &[usize]) -> Result<(), String> {
@@ -316,8 +385,9 @@ fn planned_targets(
                 let Some(card) = carrier else {
                     return Err("【杀】需要实体牌承载".into());
                 };
-                // 多指定目标时「无距离限制」（福绵②）。
-                if extra == 0 && !g.can_reach(seat, many[0], card) {
+                // 多指定目标时「无距离限制」（福绵②）；界武圣的方片【杀】也无距离。
+                let no_dist = extra > 0 || crate::skills::sha_no_distance(g, seat, card);
+                if !no_dist && !g.can_reach(seat, many[0], card) {
                     return Err("目标不在攻击范围内".into());
                 }
                 if g.sha_used(seat) >= g.sha_limit(seat) {
@@ -334,7 +404,11 @@ fn planned_targets(
                 }
             }
             // 多指定目标时「无距离限制」；否则按牌自身距离规则。
-            if def.effect == Effect::Snatch && extra == 0 && g.distance(seat, many[0]) > 1 {
+            if def.effect == Effect::Snatch
+                && extra == 0
+                && !crate::skills::trick_no_distance(g, seat)
+                && g.distance(seat, many[0]) > 1
+            {
                 return Err("【顺手牵羊】只能对距离 1 的角色使用".into());
             }
             Ok(many)
@@ -878,7 +952,13 @@ fn sha_loop(
         if data["asked"].as_bool().unwrap_or(false) {
             let responded = apply_response(g, t, ResponseKind::Shan, card)?;
             data["asked"] = json!(false);
-            if !responded {
+            if responded {
+                // 界咆哮：【杀】被抵消后，本回合下一次【杀】伤害 +1。
+                if crate::skills::active(g, damage_source, "paoxiao") {
+                    g.counters.insert("turn.paoxiao_bonus".to_string(), 1);
+                    g.push_log("咆哮：【杀】被抵消，本回合下一次【杀】伤害 +1".to_string());
+                }
+            } else {
                 let bonus = jiu_take_bonus(g);
                 deal_damage(g, damage_source, t, 1 + bonus, def, card);
             }
@@ -927,6 +1007,16 @@ fn aoe(
             data["cursor"] = json!(cursor);
             continue;
         }
+        if data["relay_wait"].as_bool().unwrap_or(false) {
+            data["relay_wait"] = json!(false);
+            let relayed = g.relay_played.take().is_some();
+            g.relay_none = false;
+            if relayed {
+                cursor += 1;
+                data["cursor"] = json!(cursor);
+                continue;
+            }
+        }
         if data["asked"].as_bool().unwrap_or(false) {
             let responded = apply_response(g, t, kind, card)?;
             data["asked"] = json!(false);
@@ -938,6 +1028,11 @@ fn aoe(
             continue;
         }
         if !unresponsive {
+            if crate::skills::relay_before(g, t, kind, card) {
+                data["relay_wait"] = json!(true);
+                data["cursor"] = json!(cursor);
+                return Ok(Step::Next(Stage::CardOpt, data.clone()));
+            }
             if let Some(p) = response_pending(g, t, kind) {
                 data["asked"] = json!(true);
                 return need_at(g, Stage::CardAsk, data.clone(), p);
@@ -978,6 +1073,15 @@ fn duel(
         return advance_target(g, card, data);
     }
 
+    if data["relay_wait"].as_bool().unwrap_or(false) {
+        data["relay_wait"] = json!(false);
+        let relayed = g.relay_played.take().is_some();
+        g.relay_none = false;
+        if relayed {
+            data["responder"] = json!(opponent);
+            return Ok(Step::Next(Stage::CardOpt, data.clone()));
+        }
+    }
     if data["asked"].as_bool().unwrap_or(false) {
         let responded = apply_response(g, responder, ResponseKind::Sha, card)?;
         data["asked"] = json!(false);
@@ -997,6 +1101,11 @@ fn duel(
     }
 
     if !unresponsive {
+        if crate::skills::relay_before(g, responder, ResponseKind::Sha, card) {
+            data["responder"] = json!(responder);
+            data["relay_wait"] = json!(true);
+            return Ok(Step::Next(Stage::CardOpt, data.clone()));
+        }
         if let Some(p) = response_pending(g, responder, ResponseKind::Sha) {
             data["responder"] = json!(responder);
             data["asked"] = json!(true);
@@ -1099,6 +1208,16 @@ fn pick_card(
             ans.strip_prefix("pick:").map(|s| s.to_string())
         };
         let picked = picked.ok_or_else(|| format!("未知选项：{ans}"))?;
+        if def.effect == Effect::Dismantle
+            && crate::skills::prevent_equip_discard(g, target, &picked, Some(source))
+        {
+            g.push_log(format!(
+                "奇才：防止 {} 弃置其防具/宝物【{}】",
+                g.seats[target].name,
+                g.card_label(&picked)
+            ));
+            return advance_target(g, card, data);
+        }
         if def.effect == Effect::Snatch {
             g.gain(&picked, source)?;
             g.push_log(format!(
@@ -1442,6 +1561,20 @@ fn response_options(g: &Game, target: usize, kind: ResponseKind) -> Vec<(String,
             out.push((id, label));
         }
     }
+    // 被动转化技（龙胆：杀→闪 / 闪→杀）
+    for conv in skills::conversions(g, target) {
+        if !conv.playable || !cards::responds_as(conv.to, kind) {
+            continue;
+        }
+        out.push((
+            format!("vrespond:{}:{}", conv.skill, conv.from),
+            format!("【{}】当【{}】打出", g.card_label(&conv.from), conv.to),
+        ));
+    }
+    // 主公技接力（激将：蜀势力替主公打出【杀】）
+    for (id, label) in skills::relay_options(g, target, kind) {
+        out.push((id, label));
+    }
     out
 }
 
@@ -1545,6 +1678,44 @@ fn apply_response(
             if red { "视为打出【闪】" } else { "判定失败" }
         ));
         return Ok(red);
+    }
+    if let Some(rest) = ans.strip_prefix("vrespond:") {
+        // 被动转化技打出：`vrespond:<skill>:<承载牌>`
+        let mut parts = rest.splitn(2, ':');
+        let _skill = parts.next().unwrap_or_default();
+        let carrier = parts.next().unwrap_or_default().to_string();
+        if !g.hand(actor).contains(&carrier) {
+            return Err("响应：该牌不在手牌".into());
+        }
+        if !g.can_use_card(actor, &carrier) {
+            return Err("响应：该牌已被冻结".into());
+        }
+        let label = g.name_of(&carrier);
+        g.to_discard(&carrier, "respond")?;
+        g.events.push(Event::card(
+            EventKind::CardPlayed,
+            Some(actor),
+            carrier.clone(),
+            Some("response".to_string()),
+        ));
+        g.presentation.push(
+            Presentation::new("respond", POutcome::Played { label })
+                .actor(actor)
+                .cards(vec![carrier.clone()])
+                .fx("respond"),
+        );
+        g.push_log(format!(
+            "{} 以【{}】转化打出响应",
+            g.seats[actor].name,
+            g.card_label(&carrier)
+        ));
+        crate::skills::on_response_played(g, used, actor, &carrier);
+        return Ok(true);
+    }
+    if ans == "jijiang" {
+        // 主公技接力：压入激将帧（响应流程在下一轮读取 `relay_played` / `relay_none`）。
+        crate::skills::start_relay(g, actor, kind, used);
+        return Ok(false);
     }
     if kind == ResponseKind::Shan && skills::dodge_use(g, actor, &ans)? {
         return Ok(true);
