@@ -457,7 +457,8 @@ pub fn step_dying(g: &mut Game, a: &Ask) -> Result<Step, String> {
                 "{} 蛊惑救援 {}（体力 {}）",
                 g.seats[asker].name, g.seats[victim].name, g.seats[victim].hp
             ));
-            return Ok(Step::Done);
+            // 回到顶部：统一处理濒死锁定清理 + 兴衰/奇谋等离场结算。
+            return Ok(Step::Next(Stage::DyingAsk, a.data.clone()));
         }
         next["cursor"] = json!(cursor + 1);
         return Ok(Step::Next(Stage::DyingAsk, next));
@@ -566,7 +567,7 @@ pub fn step_dying(g: &mut Game, a: &Ask) -> Result<Step, String> {
                     "{} 急救救援 {}（体力 {}）",
                     g.seats[asker].name, g.seats[victim].name, g.seats[victim].hp
                 ));
-                return Ok(Step::Done);
+                return Ok(Step::Next(Stage::DyingAsk, a.data.clone()));
             }
             if let Some(card) = act.strip_prefix("jiuchi:") {
                 let card = card.to_string();
@@ -587,7 +588,7 @@ pub fn step_dying(g: &mut Game, a: &Ask) -> Result<Step, String> {
                     "{} 以酒池自救 {}（体力 {}）",
                     g.seats[asker].name, g.seats[victim].name, g.seats[victim].hp
                 ));
-                return Ok(Step::Done);
+                return Ok(Step::Next(Stage::DyingAsk, a.data.clone()));
             }
             let id = act
                 .strip_prefix("respond:")
@@ -606,8 +607,8 @@ pub fn step_dying(g: &mut Game, a: &Ask) -> Result<Step, String> {
                 "{} 救援 {}（体力 {}）",
                 g.seats[asker].name, g.seats[victim].name, g.seats[victim].hp
             ));
-            // 离开濒死；剩余结算点由栈恢复。
-            Ok(Step::Done)
+            // 回到顶部：统一处理濒死锁定清理 + 兴衰/奇谋等离场结算。
+            Ok(Step::Next(Stage::DyingAsk, a.data.clone()))
         }
     }
 }

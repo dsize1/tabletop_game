@@ -1602,9 +1602,14 @@ pub fn leaving_dying(g: &mut Game) {
     g.counters.remove("dying.active");
 }
 
-/// 完杀：只有濒死角色本人可以使用【桃】（用户裁定 Q2=B）。
+/// 完杀：只有贾诩与濒死角色本人可以使用【桃】（用户裁定 Q2=A）。
 pub fn dying_peach_blocked(g: &Game, asker: usize, victim: usize) -> bool {
-    g.counter("dying.wansha_owner") > 0 && asker != victim
+    let owner = g.counter("dying.wansha_owner");
+    if owner == 0 {
+        return false;
+    }
+    let owner = owner as usize - 1;
+    asker != victim && asker != owner
 }
 
 // ---------------------------------------------------------------------------

@@ -585,7 +585,8 @@ fn wansha_blocks_others_tao_and_nonlocked_skills() {
     ]);
     g.turn = 0;
     give(&mut g, 1, &["j2"]); // 濒死者可用【酒】自救 → 会停在濒死询问
-    give(&mut g, 2, &["t1", "h1"]);
+    give(&mut g, 2, &["t1"]); // 其他角色（被完杀封锁）
+    give(&mut g, 0, &["t2"]); // 贾诩本人可以救
     flow::damage(&mut g, Some(0), 1, 1);
     advance(&mut g).unwrap();
     assert!(g.pending.is_some(), "濒死询问");
@@ -594,7 +595,18 @@ fn wansha_blocks_others_tao_and_nonlocked_skills() {
     // 濒死者本人可用【酒】自救。
     let opts = options(&g);
     assert!(opts.iter().any(|o| o.starts_with("respond:j2")));
+    // 放弃自救 → 其他角色被封锁 → 轮到贾诩（可用【桃】）。
     answer_cur(&mut g, "pass");
+    assert_eq!(pend_actor(&g), 0, "完杀：其他角色被跳过，轮到贾诩");
+    let opts = options(&g);
+    assert!(
+        opts.iter().any(|o| o.starts_with("respond:t2")),
+        "贾诩本人可用【桃】救"
+    );
+    // 贾诩救起 → 濒死结束，非锁定技恢复。
+    answer(&mut g, 0, "respond:t2");
+    assert_eq!(g.seats[1].hp, 1);
+    assert!(skills::active(&g, 2, "jijiu"), "濒死结束后恢复");
 }
 
 #[test]
@@ -732,6 +744,38 @@ fn qiaobian_no_ask_without_payment() {
     g.seats[0].counters.remove("bian"); // 无牌、无装备、无「变」
     begin_phase(&mut g, 0, Phase::Play).unwrap();
     assert_ne!(pend_skill(&g).as_deref(), Some("qiaobian"), "无牌无「变」不询问");
+}
+
+#[test]
+fn qiaobian_skip_judge_keeps_judge_zone() {
+    let mut g = game(&[("zhanghe", &["qiaobian"], 4, "wei"), ("p1", &[], 4, "wei")]);
+    g.turn = 0;
+    g.phase = Phase::Prepare;
+    g.to_judge(&"le1".to_string(), 0).unwrap();
+    give(&mut g, 0, &["d1"]);
+    begin_phase(&mut g, 0, Phase::Judge).unwrap();
+    assert_eq!(pend_skill(&g).as_deref(), Some("qiaobian"));
+    answer(&mut g, 0, "opt1");
+    let opt = options(&g)
+        .into_iter()
+        .find(|o| o.starts_with("pick:d1"))
+        .expect("支付选项");
+    answer(&mut g, 0, &opt);
+    assert_eq!(g.counter("turn.skip_judge"), 1, "跳过判定阶段");
+    sanguosha2::turn::tick(&mut g).unwrap();
+    assert!(
+        g.judge_zone(0).iter().any(|c| c == "le1"),
+        "跳过判定：判定区的牌保留（不结算、不弃置）"
+    );
+    // 判定阶段被跳过 → 立刻进入摸牌阶段的询问（可再放弃跳摸牌）。
+    assert_eq!(pend_skill(&g).as_deref(), Some("qiaobian"));
+    answer(&mut g, 0, "pass");
+    sanguosha2::turn::tick(&mut g).unwrap();
+    assert_ne!(g.phase, Phase::Judge, "跳过判定后进入摸牌阶段");
+    assert!(
+        g.judge_zone(0).iter().any(|c| c == "le1"),
+        "摸牌阶段时判定区的牌仍在"
+    );
 }
 
 // ---------------------------------------------------------------- 机制锚点

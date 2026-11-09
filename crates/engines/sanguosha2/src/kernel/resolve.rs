@@ -461,6 +461,7 @@ pub fn begin_phase(g: &mut Game, seat: usize, phase: Phase) -> Result<(), String
         ));
         // 判定阶段：排一个「延时锦囊 LIFO 结算」（在阶段开始技能触发之后）。
         if phase == Phase::Judge
+            && g.counter("turn.skip_judge") == 0
             && g.judge_zone(seat)
                 .iter()
                 .any(|id| g.def_of(id).tags.delayed)
