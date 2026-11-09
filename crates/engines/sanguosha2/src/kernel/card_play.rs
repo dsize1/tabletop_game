@@ -388,7 +388,14 @@ fn planned_targets(
             v.extend(left_alive);
             Ok(v)
         }
-        Effect::SavageAssault | Effect::ArcheryAttack => Ok(left_alive),
+        Effect::SavageAssault | Effect::ArcheryAttack => {
+            let mut v = left_alive;
+            // 乱击（aoe-target-trim）：少选一个目标。
+            if let Some(t) = skills::aoe_trim_target(g, seat) {
+                v.retain(|x| *x != t);
+            }
+            Ok(v)
+        }
         Effect::Sha => {
             if given.len() != 1 && given.len() > 1 + extra {
                 return Err("【杀】目标数不合法".into());
@@ -1984,11 +1991,23 @@ pub fn step_judge(g: &mut Game, a: &Ask) -> Result<Step, String> {
     let mut move_to_next = false;
     match def.effect {
         Effect::Indulgence => {
-            if suit != Some(Suit::Heart) {
+            // 思蜀（judge-reversal）：该角色本局【乐不思蜀】判定效果反转（红桃 ↔ 非红桃）。
+            let reversed = crate::skills::sishu_reversed(g, seat);
+            let skip = if reversed {
+                suit == Some(Suit::Heart)
+            } else {
+                suit != Some(Suit::Heart)
+            };
+            if skip {
                 g.counters.insert("turn.skip_play".to_string(), 1);
                 g.push_log(format!(
-                    "{} 判定非红桃 → 本回合跳过出牌阶段",
-                    g.seats[seat].name
+                    "{} 判定{} → 本回合跳过出牌阶段",
+                    g.seats[seat].name,
+                    if reversed {
+                        "红桃（思蜀反转）"
+                    } else {
+                        "非红桃"
+                    }
                 ));
             }
         }
@@ -2072,6 +2091,8 @@ fn jiu_take_bonus(g: &mut Game) -> i32 {
 /// 转化牌（奇策/战绝/滔乱/慎断）：承载牌按落位规则处理；其余 origins（如奇策的全部手牌）
 /// 一并进弃牌堆，并清除虚拟定义。
 fn finish(g: &mut Game, card: Option<&CardId>, cause: &str) -> Result<(), String> {
+    // 乱击的「少选一个目标」只对本次使用生效。
+    g.counters.remove("turn.aoe_trim");
     g.fenwei_void.clear();
     g.response_context = None;
     let Some(card) = card else {

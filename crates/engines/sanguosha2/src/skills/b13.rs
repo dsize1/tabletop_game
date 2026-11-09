@@ -92,10 +92,17 @@ pub fn sha_intercept(
     let Some(card) = card else {
         return Vec::new();
     };
-    if user == target || !active(g, user, "liegong") || !is_sha(g, card) {
-        return Vec::new();
+    let mut out = Vec::new();
+    if user != target && is_sha(g, card) {
+        if active(g, user, "liegong") {
+            out.push((user, "liegong"));
+        }
+        // 享乐（界刘禅，锁定）：目标视角介入。
+        if active(g, target, "xiangle") {
+            out.push((target, "xiangle"));
+        }
     }
-    vec![(user, "liegong")]
+    out
 }
 
 fn liegong(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -935,11 +942,951 @@ fn huangtian(g: &mut Game, a: &Ask) -> Result<Step, String> {
 }
 
 // ---------------------------------------------------------------------------
+// 享乐（界刘禅，锁定）：使用者需弃基本牌，否则此【杀】对其无效
+// ---------------------------------------------------------------------------
+
+pub const XIANGLE: SkillDef = SkillDef {
+    code: "xiangle",
+    name: "享乐",
+    triggers: &[],
+    window: Window::AnyTime,
+    priority: 0,
+    can_active: None,
+    handler: xiangle,
+    dying_hook: None,
+    flip_hook: None,
+    wuxie_opts: None,
+    wuxie_use: None,
+    target_blocker: None,
+    yang_window: None,
+    yin_window: None,
+};
+
+fn basic_hand(g: &Game, seat: usize) -> Vec<CardId> {
+    g.hand(seat)
+        .into_iter()
+        .filter(|id| g.def_of(id).kind == crate::cards::CardKind::Basic)
+        .collect()
+}
+
+fn xiangle(g: &mut Game, a: &Ask) -> Result<Step, String> {
+    let holder = a.data["target"].as_u64().unwrap_or(0) as usize;
+    let user = a.actor;
+    if a.data["stage"].as_str() == Some("pick") {
+        let cards = basic_hand(g, user);
+        return match g.answer.take().as_deref() {
+            None => {
+                let mut b = builder(user, "choice").skill("xiangle");
+                for id in &cards {
+                    b = b.option(format!("pick:{id}"), format!("弃置【{}】", label(g, id)));
+                }
+                Ok(Step::Need(b.escape("不弃牌（此【杀】无效）").build()))
+            }
+            Some("pass") => {
+                g.sha_intercept = Some(ShaIntercept::Immune(holder));
+                Ok(Step::Done)
+            }
+            Some(act) => {
+                let id = act
+                    .strip_prefix("pick:")
+                    .ok_or_else(|| format!("享乐：未知选项 {act}"))?
+                    .to_string();
+                if !cards.contains(&id) {
+                    return Err("享乐：只能弃置基本牌".into());
+                }
+                g.to_discard(&id, "xiangle")?;
+                g.push_log(format!(
+                    "享乐：{} 弃置【{}】，此【杀】正常结算",
+                    g.seats[user].name,
+                    label(g, &id)
+                ));
+                Ok(Step::Done)
+            }
+        };
+    }
+    if basic_hand(g, user).is_empty() {
+        // 没有基本牌 → 此【杀】对享乐持有者无效（不产生 pending）。
+        g.sha_intercept = Some(ShaIntercept::Immune(holder));
+        g.push_log(format!(
+            "享乐：{} 没有基本牌，此【杀】对 {} 无效",
+            g.seats[user].name, g.seats[holder].name
+        ));
+        return Ok(Step::Done);
+    }
+    match g.answer.take().as_deref() {
+        None => {
+            let mut b = builder(user, "choice").skill("xiangle");
+            b = b.option(
+                "opt1",
+                format!(
+                    "享乐：弃置一张基本牌（否则此【杀】对 {} 无效）",
+                    g.seats[holder].name
+                ),
+            );
+            Ok(Step::Need(b.escape("不弃牌（此【杀】无效）").build()))
+        }
+        Some("pass") => {
+            g.sha_intercept = Some(ShaIntercept::Immune(holder));
+            g.push_log(format!(
+                "享乐：{} 不弃牌，此【杀】对 {} 无效",
+                g.seats[user].name, g.seats[holder].name
+            ));
+            Ok(Step::Done)
+        }
+        Some(_) => {
+            push(
+                g,
+                "xiangle",
+                user,
+                json!({ "stage": "pick", "target": holder }),
+            );
+            Ok(Step::Done)
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 乱击（界袁绍）：两张同花色手牌当【万箭齐发】；可少选一个目标
+// ---------------------------------------------------------------------------
+
+pub const LUANJI: SkillDef = SkillDef {
+    code: "luanji",
+    name: "乱击",
+    triggers: &[],
+    window: Window::OwnPhase(Phase::Play),
+    priority: 0,
+    can_active: Some(can_luanji),
+    handler: luanji,
+    dying_hook: None,
+    flip_hook: None,
+    wuxie_opts: None,
+    wuxie_use: None,
+    target_blocker: None,
+    yang_window: None,
+    yin_window: None,
+};
+
+fn luanji_pairs(g: &Game, seat: usize) -> Vec<(CardId, CardId)> {
+    let hand = g.hand(seat);
+    let mut out = Vec::new();
+    for i in 0..hand.len() {
+        for j in (i + 1)..hand.len() {
+            let (a, b) = (&hand[i], &hand[j]);
+            if g.cards.get(a).map(|c| c.suit) == g.cards.get(b).map(|c| c.suit) {
+                out.push((a.clone(), b.clone()));
+            }
+        }
+    }
+    out
+}
+
+fn can_luanji(g: &Game, seat: usize) -> bool {
+    play_phase(g, seat) && !other_alive(g, seat).is_empty() && !luanji_pairs(g, seat).is_empty()
+}
+
+fn luanji(g: &mut Game, a: &Ask) -> Result<Step, String> {
+    let owner = a.actor;
+    if a.data["stage"].as_str() == Some("trim") {
+        let c1 = a.data["card"].as_str().unwrap_or_default().to_string();
+        let cands = other_alive(g, owner);
+        return match g.answer.take().as_deref() {
+            None => {
+                let mut b = builder(owner, "choice").skill("luanji");
+                for t in &cands {
+                    b = b.option(format!("drop:{t}"), format!("少选 {}", g.seats[*t].name));
+                }
+                Ok(Step::Need(b.escape("不减少目标").build()))
+            }
+            Some("pass") => {
+                luanji_use(g, owner, &c1)?;
+                Ok(Step::Done)
+            }
+            Some(act) => {
+                let t = act
+                    .strip_prefix("drop:")
+                    .and_then(|x| x.parse::<usize>().ok())
+                    .ok_or_else(|| format!("乱击：未知选项 {act}"))?;
+                if !cands.contains(&t) {
+                    return Err("乱击：目标不合法".into());
+                }
+                g.counters
+                    .insert("turn.aoe_trim".to_string(), t as u32 + 1);
+                luanji_use(g, owner, &c1)?;
+                Ok(Step::Done)
+            }
+        };
+    }
+    let pairs = luanji_pairs(g, owner);
+    match g.answer.take().as_deref() {
+        None => {
+            let mut b = builder(owner, "choice").skill("luanji");
+            for (a1, a2) in &pairs {
+                b = b.option(
+                    format!("pair:{a1},{a2}"),
+                    format!("【{}】【{}】当【万箭齐发】", label(g, a1), label(g, a2)),
+                );
+            }
+            Ok(Step::Need(b.escape("取消乱击").build()))
+        }
+        Some("pass") => Ok(Step::Done),
+        Some(act) => {
+            let pair = act
+                .strip_prefix("pair:")
+                .ok_or_else(|| format!("乱击：未知选项 {act}"))?;
+            let (c1, c2) = pair
+                .split_once(',')
+                .ok_or_else(|| "乱击：需要两张手牌".to_string())?;
+            let (c1, c2) = (c1.to_string(), c2.to_string());
+            if !pairs.contains(&(c1.clone(), c2.clone())) {
+                return Err("乱击：需要两张花色相同的手牌".into());
+            }
+            g.set_virtual(&c1, "万箭齐发", vec![c1.clone(), c2.clone()]);
+            g.push_log(format!(
+                "乱击：将【{}】【{}】当【万箭齐发】",
+                label(g, &c1),
+                label(g, &c2)
+            ));
+            if other_alive(g, owner).len() >= 2 {
+                push(
+                    g,
+                    "luanji",
+                    owner,
+                    json!({ "stage": "trim", "card": c1 }),
+                );
+                Ok(Step::Done)
+            } else {
+                luanji_use(g, owner, &c1)?;
+                Ok(Step::Done)
+            }
+        }
+    }
+}
+
+fn luanji_use(g: &mut Game, owner: usize, card: &CardId) -> Result<(), String> {
+    g.use_as(owner, card, "万箭齐发", Vec::new(), true, None)?;
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// 血裔（界袁绍，主公技）：「裔」标记 / 出牌阶段开始摸 1 / 手牌上限 +1
+// ---------------------------------------------------------------------------
+
+pub const XUEYI: SkillDef = SkillDef {
+    code: "xueyi",
+    name: "血裔",
+    triggers: &[EventKind::PhaseStart],
+    window: Window::OwnPhase(Phase::Play),
+    priority: 0,
+    can_active: None,
+    handler: xueyi,
+    dying_hook: None,
+    flip_hook: None,
+    wuxie_opts: None,
+    wuxie_use: None,
+    target_blocker: None,
+    yang_window: None,
+    yin_window: None,
+};
+
+pub fn xueyi_marks(g: &Game, seat: usize) -> u32 {
+    g.seats
+        .get(seat)
+        .and_then(|s| s.counters.get("yi"))
+        .copied()
+        .unwrap_or(0)
+}
+
+pub fn init_xueyi(g: &mut Game) {
+    for seat in 0..g.seats.len() {
+        if !active(g, seat, "xueyi") || !g.seats[seat].flags.contains("lord") {
+            continue;
+        }
+        let qun = (0..g.seats.len())
+            .filter(|i| g.seats[*i].hp > 0 && g.seats[*i].kingdom == "qun")
+            .count() as u32;
+        if qun == 0 {
+            continue;
+        }
+        g.seats[seat].counters.insert("yi".to_string(), qun * 2);
+        g.push_log(format!(
+            "血裔：全场 {qun} 名群势力角色，{} 获得 {} 枚「裔」",
+            g.seats[seat].name,
+            qun * 2
+        ));
+    }
+}
+
+pub fn hand_limit_delta(g: &Game, seat: usize) -> i32 {
+    if active(g, seat, "xueyi") && g.seats[seat].flags.contains("lord") {
+        xueyi_marks(g, seat) as i32
+    } else {
+        0
+    }
+}
+
+fn xueyi(g: &mut Game, a: &Ask) -> Result<Step, String> {
+    let owner = a.actor;
+    if g.phase != Phase::Play || g.counter("phase.xueyi_asked") > 0 {
+        return Ok(Step::Done);
+    }
+    if !g.seats[owner].flags.contains("lord") || xueyi_marks(g, owner) == 0 {
+        return Ok(Step::Done);
+    }
+    g.bump("phase.xueyi_asked");
+    match g.answer.take().as_deref() {
+        None => {
+            let mut b = builder(owner, "choice").skill("xueyi");
+            b = b.option(
+                "opt1",
+                format!(
+                    "移去 1 枚「裔」（剩 {}）并摸一张牌",
+                    xueyi_marks(g, owner) - 1
+                ),
+            );
+            Ok(Step::Need(b.escape("不发动血裔").build()))
+        }
+        Some("pass") => Ok(Step::Done),
+        Some(_) => {
+            let cur = xueyi_marks(g, owner);
+            g.seats[owner].counters.insert("yi".to_string(), cur - 1);
+            let n = g.draw(owner, 1).len();
+            g.push_log(format!("血裔：移去 1 枚「裔」，摸 {n} 张"));
+            Ok(Step::Done)
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 放权（界刘禅）：跳过出牌阶段；弃牌阶段开始时弃一张手牌令他人额外回合
+// ---------------------------------------------------------------------------
+
+pub const FANGQUAN: SkillDef = SkillDef {
+    code: "fangquan",
+    name: "放权",
+    triggers: &[EventKind::PhaseStart],
+    window: Window::OwnTurn,
+    priority: 0,
+    can_active: Some(can_fangquan),
+    handler: fangquan,
+    dying_hook: None,
+    flip_hook: None,
+    wuxie_opts: None,
+    wuxie_use: None,
+    target_blocker: None,
+    yang_window: None,
+    yin_window: None,
+};
+
+fn can_fangquan(g: &Game, seat: usize) -> bool {
+    play_phase(g, seat) && g.counter("turn.fangquan_used") == 0 && !other_alive(g, seat).is_empty()
+}
+
+fn fangquan(g: &mut Game, a: &Ask) -> Result<Step, String> {
+    let owner = a.actor;
+    match a.data["stage"].as_str() {
+        None => {
+            if !play_phase(g, owner) {
+                return Ok(Step::Done);
+            }
+            // 主动发动：跳过出牌阶段
+            g.bump("turn.fangquan_used");
+            g.counters.insert("turn.skip_play".to_string(), 1);
+            g.seats[owner]
+                .flags
+                .insert("fangquan_pending".to_string());
+            g.presentation.push(
+                Presentation::new(
+                    "fangquan",
+                    POutcome::Activated {
+                        skill: "放权".to_string(),
+                    },
+                )
+                .actor(owner)
+                .fx("fangquan"),
+            );
+            g.push_log(format!("放权：{} 跳过出牌阶段", g.seats[owner].name));
+            Ok(Step::Done)
+        }
+        Some("discard") => match g.answer.take().as_deref() {
+            None => {
+                let mut b = builder(owner, "choice").skill("fangquan");
+                for id in g.hand(owner) {
+                    b = b.option(format!("pick:{id}"), format!("弃置【{}】", label(g, &id)));
+                }
+                Ok(Step::Need(b.escape("放弃放权（不授予额外回合）").build()))
+            }
+            Some("pass") => {
+                g.seats[owner].flags.remove("fangquan_pending");
+                Ok(Step::Done)
+            }
+            Some(act) => {
+                let id = act
+                    .strip_prefix("pick:")
+                    .ok_or_else(|| format!("放权：未知选项 {act}"))?
+                    .to_string();
+                if !g.hand(owner).contains(&id) {
+                    return Err("放权：该牌不在手牌".into());
+                }
+                g.to_discard(&id, "fangquan")?;
+                push(g, "fangquan", owner, json!({ "stage": "target" }));
+                Ok(Step::Done)
+            }
+        },
+        Some("target") => {
+            let cands = other_alive(g, owner);
+            match g.answer.take().as_deref() {
+                None => {
+                    let mut b = builder(owner, "target").skill("fangquan");
+                    for t in &cands {
+                        b = b.option(
+                            format!("target:{t}"),
+                            format!("令 {} 执行额外回合", g.seats[*t].name),
+                        );
+                    }
+                    Ok(Step::Need(b.escape("放弃放权").build()))
+                }
+                Some("pass") => {
+                    g.seats[owner].flags.remove("fangquan_pending");
+                    Ok(Step::Done)
+                }
+                Some(act) => {
+                    let t = act
+                        .strip_prefix("target:")
+                        .and_then(|x| x.parse::<usize>().ok())
+                        .ok_or_else(|| format!("放权：未知选项 {act}"))?;
+                    if !cands.contains(&t) {
+                        return Err("放权：目标不合法".into());
+                    }
+                    g.seats[owner].flags.remove("fangquan_pending");
+                    g.extra_turn = Some(t);
+                    g.push_log(format!(
+                        "放权：{} 令 {} 执行额外回合",
+                        g.seats[owner].name, g.seats[t].name
+                    ));
+                    Ok(Step::Done)
+                }
+            }
+        }
+        _ => Ok(Step::Done),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 若愚（界刘禅，主公技+觉醒）+ 授予技「思蜀」
+// ---------------------------------------------------------------------------
+
+pub const RUOYU: SkillDef = SkillDef {
+    code: "ruoyu",
+    name: "若愚",
+    triggers: &[EventKind::PhaseStart],
+    window: Window::OwnPhase(Phase::Prepare),
+    priority: 0,
+    can_active: None,
+    handler: ruoyu,
+    dying_hook: None,
+    flip_hook: None,
+    wuxie_opts: None,
+    wuxie_use: None,
+    target_blocker: None,
+    yang_window: None,
+    yin_window: None,
+};
+
+fn ruoyu(g: &mut Game, a: &Ask) -> Result<Step, String> {
+    let owner = a.actor;
+    if g.phase != Phase::Prepare || !g.seats[owner].flags.contains("lord") {
+        return Ok(Step::Done);
+    }
+    if g.seats[owner].flags.contains("awaken_ruoyu") {
+        return Ok(Step::Done);
+    }
+    // 必须**严格小于**全场其他角色（并列最小不算）。
+    let strictly_min = (0..g.seats.len())
+        .filter(|i| *i != owner && g.seats[*i].hp > 0)
+        .all(|i| g.seats[i].hp > g.seats[owner].hp);
+    if !strictly_min {
+        return Ok(Step::Done);
+    }
+    g.seats[owner].flags.insert("awaken_ruoyu".to_string());
+    g.seats[owner].max_hp += 1;
+    if g.seats[owner].hp < 3 {
+        g.seats[owner].hp = 3.min(g.seats[owner].max_hp);
+    }
+    grant_skill(g, owner, "jijiang");
+    grant_skill(g, owner, "sishu");
+    g.presentation.push(
+        Presentation::new(
+            "ruoyu",
+            POutcome::Activated {
+                skill: "若愚".to_string(),
+            },
+        )
+        .actor(owner)
+        .fx("ruoyu"),
+    );
+    g.push_log(format!(
+        "若愚：{} 觉醒，体力上限 +1（{}），获得「激将」「思蜀」",
+        g.seats[owner].name, g.seats[owner].max_hp
+    ));
+    Ok(Step::Done)
+}
+
+pub const SISHU: SkillDef = SkillDef {
+    code: "sishu",
+    name: "思蜀",
+    triggers: &[EventKind::PhaseStart],
+    window: Window::OwnPhase(Phase::Play),
+    priority: 0,
+    can_active: None,
+    handler: sishu,
+    dying_hook: None,
+    flip_hook: None,
+    wuxie_opts: None,
+    wuxie_use: None,
+    target_blocker: None,
+    yang_window: None,
+    yin_window: None,
+};
+
+/// 当前反转目标（`g.counters["sishu_target"]` 存 target+1，0 = 无）。
+pub fn sishu_target(g: &Game) -> Option<usize> {
+    g.counter("sishu_target")
+        .checked_sub(1)
+        .map(|n| n as usize)
+}
+
+pub fn sishu_reversed(g: &Game, seat: usize) -> bool {
+    g.seats
+        .get(seat)
+        .is_some_and(|s| s.flags.contains("sishu_reverse"))
+}
+
+fn sishu(g: &mut Game, a: &Ask) -> Result<Step, String> {
+    let owner = a.actor;
+    if g.phase != Phase::Play || g.counter("phase.sishu_asked") > 0 {
+        return Ok(Step::Done);
+    }
+    g.bump("phase.sishu_asked");
+    let cands: Vec<usize> = (0..g.seats.len()).filter(|i| g.seats[*i].hp > 0).collect();
+    match g.answer.take().as_deref() {
+        None => {
+            let mut b = builder(owner, "target").skill("sishu");
+            for t in &cands {
+                let act = if sishu_reversed(g, *t) {
+                    "恢复"
+                } else {
+                    "反转"
+                };
+                b = b.option(
+                    format!("target:{t}"),
+                    format!("{act} {} 的【乐不思蜀】判定", g.seats[*t].name),
+                );
+            }
+            Ok(Step::Need(b.escape("不发动思蜀").build()))
+        }
+        Some("pass") => Ok(Step::Done),
+        Some(act) => {
+            let t = act
+                .strip_prefix("target:")
+                .and_then(|x| x.parse::<usize>().ok())
+                .ok_or_else(|| format!("思蜀：未知选项 {act}"))?;
+            if !cands.contains(&t) {
+                return Err("思蜀：目标不合法".into());
+            }
+            if let Some(prev) = sishu_target(g) {
+                g.seats[prev].flags.remove("sishu_reverse");
+            }
+            if sishu_reversed(g, t) {
+                // toggle off：恢复常规效果
+                g.seats[t].flags.remove("sishu_reverse");
+                g.counters.remove("sishu_target");
+                g.push_log(format!(
+                    "思蜀：{} 的【乐不思蜀】判定恢复常规",
+                    g.seats[t].name
+                ));
+            } else {
+                g.seats[t].flags.insert("sishu_reverse".to_string());
+                g.counters.insert("sishu_target".to_string(), t as u32 + 1);
+                g.push_log(format!(
+                    "思蜀：{} 的【乐不思蜀】判定效果反转（红桃→跳过）",
+                    g.seats[t].name
+                ));
+            }
+            Ok(Step::Done)
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 化身（界左慈）+ 新生
+// ---------------------------------------------------------------------------
+
+pub const HUASHEN: SkillDef = SkillDef {
+    code: "huashen",
+    name: "化身",
+    triggers: &[EventKind::TurnStart, EventKind::PhaseEnd],
+    window: Window::AnyTime,
+    priority: 0,
+    can_active: None,
+    handler: huashen,
+    dying_hook: None,
+    flip_hook: None,
+    wuxie_opts: None,
+    wuxie_use: None,
+    target_blocker: None,
+    yang_window: None,
+    yin_window: None,
+};
+
+fn huashen_state(g: &Game, seat: usize) -> crate::kernel::HuashenState {
+    g.huashen.get(&seat).cloned().unwrap_or_default()
+}
+
+/// 某武将可授予的技能 code（按 heroes.json 的技能名映射注册表；只保留已注册的）。
+pub fn huashen_skill_codes(general_code: &str) -> Vec<&'static str> {
+    let Some(def) = crate::generals::by_code(general_code) else {
+        return Vec::new();
+    };
+    let mut out: Vec<&'static str> = Vec::new();
+    for name in def.skills {
+        if let Some(code) = crate::skills::code_by_name(name) {
+            if !out.contains(&code) {
+                out.push(code);
+            }
+        }
+    }
+    out
+}
+
+/// 从上线池里抽一张不在 `owned` 中的化身牌。
+fn huashen_draw_card(g: &mut Game, own_general: &str, owned: &[String]) -> Option<String> {
+    let pool: Vec<String> = crate::generals::live()
+        .filter(|d| d.code != own_general && !owned.iter().any(|c| c == d.code))
+        .map(|d| d.code.to_string())
+        .collect();
+    if pool.is_empty() {
+        return None;
+    }
+    let idx = g.rand_below(pool.len());
+    Some(pool[idx].clone())
+}
+
+/// 展示某张化身牌：撤旧技能 → 授予新技能（多技能时询问）→ 覆盖势力/性别。
+fn huashen_activate(g: &mut Game, seat: usize, code: &str) -> Result<Step, String> {
+    let mut st = huashen_state(g, seat);
+    if let Some(old) = st.active_skill.clone() {
+        g.seats[seat].granted.retain(|x| x != &old);
+    }
+    if let (Some(def), true) = (crate::generals::by_code(code), true) {
+        g.seats[seat].kingdom = def.kingdom.to_string();
+        g.seats[seat].male = def.male;
+    }
+    st.active = Some(code.to_string());
+    st.active_skill = None;
+    g.huashen.insert(seat, st.clone());
+    let codes = huashen_skill_codes(code);
+    let name = crate::generals::by_code(code).map(|d| d.name).unwrap_or(code);
+    match codes.len() {
+        0 => {
+            g.push_log(format!("化身：展示「{name}」（该武将无已注册技能）"));
+            crate::skills::rebuild_subs(g);
+            Ok(Step::Done)
+        }
+        1 => {
+            crate::skills::grant_skill(g, seat, codes[0]);
+            let mut st = huashen_state(g, seat);
+            st.active_skill = Some(codes[0].to_string());
+            g.huashen.insert(seat, st);
+            g.push_log(format!(
+                "化身：展示「{name}」，获得技能「{}」",
+                crate::skills::def(codes[0]).map(|d| d.name).unwrap_or(codes[0])
+            ));
+            Ok(Step::Done)
+        }
+        _ => {
+            push(
+                g,
+                "huashen",
+                seat,
+                json!({ "stage": "skill", "card": code }),
+            );
+            Ok(Step::Done)
+        }
+    }
+}
+
+pub fn init_huashen(g: &mut Game) {
+    for seat in 0..g.seats.len() {
+        if !active(g, seat, "huashen") {
+            continue;
+        }
+        if g.huashen.get(&seat).is_some_and(|s| !s.cards.is_empty()) {
+            continue;
+        }
+        let own = g.seats[seat].general.clone();
+        let mut cards: Vec<String> = Vec::new();
+        for _ in 0..3 {
+            let Some(c) = huashen_draw_card(g, &own, &cards) else {
+                break;
+            };
+            cards.push(c);
+        }
+        if cards.is_empty() {
+            continue;
+        }
+        g.huashen.insert(
+            seat,
+            crate::kernel::HuashenState {
+                cards: cards.clone(),
+                active: None,
+                active_skill: None,
+                orig_kingdom: g.seats[seat].kingdom.clone(),
+                orig_male: g.seats[seat].male,
+            },
+        );
+        g.push_log(format!(
+            "化身：{} 获得 {} 张化身牌",
+            g.seats[seat].name,
+            cards.len()
+        ));
+        let first = cards[0].clone();
+        let _ = huashen_activate(g, seat, &first);
+    }
+}
+
+fn huashen(g: &mut Game, a: &Ask) -> Result<Step, String> {
+    let owner = a.actor;
+    let stage = a.data["stage"].as_str().unwrap_or("ask").to_string();
+    let ev = a.data["event"].as_str().unwrap_or_default().to_string();
+    let mut st = huashen_state(g, owner);
+    match stage.as_str() {
+        "skill" => {
+            let code = a.data["card"].as_str().unwrap_or_default().to_string();
+            let codes = huashen_skill_codes(&code);
+            match g.answer.take().as_deref() {
+                None => {
+                    let mut b = builder(owner, "choice").skill("huashen");
+                    for c in &codes {
+                        b = b.option(
+                            format!("skill:{c}"),
+                            format!(
+                                "获得技能「{}」",
+                                crate::skills::def(c).map(|d| d.name).unwrap_or(c)
+                            ),
+                        );
+                    }
+                    Ok(Step::Need(b.escape("不获得技能").build()))
+                }
+                Some("pass") => {
+                    crate::skills::rebuild_subs(g);
+                    Ok(Step::Done)
+                }
+                Some(act) => {
+                    let pick = act
+                        .strip_prefix("skill:")
+                        .ok_or_else(|| format!("化身：未知选项 {act}"))?;
+                    if !codes.contains(&pick) {
+                        return Err("化身：技能不合法".into());
+                    }
+                    crate::skills::grant_skill(g, owner, pick);
+                    let mut st = huashen_state(g, owner);
+                    st.active_skill = Some(pick.to_string());
+                    g.huashen.insert(owner, st);
+                    g.push_log(format!(
+                        "化身：获得技能「{}」",
+                        crate::skills::def(pick).map(|d| d.name).unwrap_or(pick)
+                    ));
+                    Ok(Step::Done)
+                }
+            }
+        }
+        "pick" => match g.answer.take().as_deref() {
+            None => {
+                let mut b = builder(owner, "choice").skill("huashen");
+                for c in st.cards.iter().filter(|c| Some(*c) != st.active.as_ref()) {
+                    let name = crate::generals::by_code(c).map(|d| d.name).unwrap_or(c);
+                    b = b.option(format!("pick:{c}"), format!("替换为「{name}」"));
+                }
+                Ok(Step::Need(b.escape("保持当前化身").build()))
+            }
+            Some("pass") => Ok(Step::Done),
+            Some(act) => {
+                let code = act
+                    .strip_prefix("pick:")
+                    .ok_or_else(|| format!("化身：未知选项 {act}"))?
+                    .to_string();
+                if !st.cards.iter().any(|c| c == &code) || Some(&code) == st.active.as_ref() {
+                    return Err("化身：只能替换为其他化身牌".into());
+                }
+                huashen_activate(g, owner, &code)
+            }
+        },
+        _ => {
+            // 触发：回合开始（TurnStart）/ 回合结束（PhaseEnd, cause=End）
+            let is_start = ev.starts_with("TurnStart");
+            let is_end = ev.starts_with("PhaseEnd") && a.data["cause"].as_str() == Some("End");
+            if !is_start && !is_end {
+                return Ok(Step::Done);
+            }
+            if st.cards.is_empty() {
+                return Ok(Step::Done);
+            }
+            let key = if is_start { "turn.huashen_start" } else { "turn.huashen_end" };
+            if g.counter(key) > 0 {
+                return Ok(Step::Done);
+            }
+            g.bump(key);
+            st = huashen_state(g, owner);
+            let others = st
+                .cards
+                .iter()
+                .filter(|c| Some(*c) != st.active.as_ref())
+                .count();
+            if others == 0 {
+                return Ok(Step::Done);
+            }
+            match g.answer.take().as_deref() {
+                None => {
+                    let mut b = builder(owner, "choice").skill("huashen");
+                    b = b.option("opt1", "替换展示的化身牌及技能");
+                    if others > 0 {
+                        b = b.option("opt2", "移去至多两张化身牌，换一张新的化身牌");
+                    }
+                    Ok(Step::Need(b.escape("保持当前化身").build()))
+                }
+                Some("pass") => Ok(Step::Done),
+                Some("opt1") => {
+                    push(g, "huashen", owner, json!({ "stage": "pick" }));
+                    Ok(Step::Done)
+                }
+                Some(_) => {
+                    // 2 换 1：移去至多两张非展示化身牌，获得一张新的化身牌。
+                    let active = st.active.clone();
+                    let mut removed = 0;
+                    st.cards.retain(|c| {
+                        if Some(c) == active.as_ref() || removed >= 2 {
+                            true
+                        } else {
+                            removed += 1;
+                            false
+                        }
+                    });
+                    if removed == 0 {
+                        return Ok(Step::Done);
+                    }
+                    let own = g.seats[owner].general.clone();
+                    let owned = st.cards.clone();
+                    let gained = huashen_draw_card(g, &own, &owned);
+                    if let Some(card) = gained {
+                        st.cards.push(card.clone());
+                        let name = crate::generals::by_code(&card)
+                            .map(|d| d.name)
+                            .unwrap_or(card.as_str());
+                        g.push_log(format!(
+                            "化身：移去 {removed} 张化身牌，获得「{name}」"
+                        ));
+                    } else {
+                        g.push_log(format!("化身：移去 {removed} 张化身牌（池空，未补牌）"));
+                    }
+                    g.huashen.insert(owner, st);
+                    Ok(Step::Done)
+                }
+            }
+        }
+    }
+}
+
+pub const XINSHENG: SkillDef = SkillDef {
+    code: "xinsheng",
+    name: "新生",
+    triggers: &[EventKind::DamageAfter],
+    window: Window::AnyTime,
+    priority: 0,
+    can_active: None,
+    handler: xinsheng,
+    dying_hook: None,
+    flip_hook: None,
+    wuxie_opts: None,
+    wuxie_use: None,
+    target_blocker: None,
+    yang_window: None,
+    yin_window: None,
+};
+
+fn xinsheng(g: &mut Game, a: &Ask) -> Result<Step, String> {
+    let owner = a.actor;
+    let remaining = a
+        .data["remaining"]
+        .as_u64()
+        .unwrap_or_else(|| a.data["amount"].as_u64().unwrap_or(0));
+    if a.data["stage"].as_str() != Some("ask") {
+        if a.data["seat"].as_u64().map(|n| n as usize) != Some(owner) {
+            return Ok(Step::Done);
+        }
+        if remaining == 0 {
+            return Ok(Step::Done);
+        }
+        push(
+            g,
+            "xinsheng",
+            owner,
+            json!({ "stage": "ask", "remaining": remaining }),
+        );
+        return Ok(Step::Done);
+    }
+    if remaining == 0 {
+        return Ok(Step::Done);
+    }
+    match g.answer.take().as_deref() {
+        None => {
+            let mut b = builder(owner, "choice").skill("xinsheng");
+            b = b.option("opt1", "新生：获得一张新的化身牌");
+            Ok(Step::Need(b.escape("不获得").build()))
+        }
+        Some("pass") => {
+            if remaining > 1 {
+                push(
+                    g,
+                    "xinsheng",
+                    owner,
+                    json!({ "stage": "ask", "remaining": remaining - 1 }),
+                );
+            }
+            Ok(Step::Done)
+        }
+        Some(_) => {
+            let st = huashen_state(g, owner);
+            let own = g.seats[owner].general.clone();
+            let owned = st.cards.clone();
+            if let Some(card) = huashen_draw_card(g, &own, &owned) {
+                let mut st = st;
+                st.cards.push(card.clone());
+                g.huashen.insert(owner, st);
+                let name = crate::generals::by_code(&card)
+                    .map(|d| d.name)
+                    .unwrap_or(card.as_str());
+                g.push_log(format!("新生：获得化身牌「{name}」"));
+            }
+            if remaining > 1 {
+                push(
+                    g,
+                    "xinsheng",
+                    owner,
+                    json!({ "stage": "ask", "remaining": remaining - 1 }),
+                );
+            }
+            Ok(Step::Done)
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // 注册表（本批已完成部分；其余技能在后续提交补齐）
 // ---------------------------------------------------------------------------
 
 pub const B13_SKILLS: &[SkillDef] = &[
-    LIEGONG, ZHUHAI, QIANXIN, JIANYAN, YAOWU, SHIZHAN, LEIJI, GUIDAO, HUANGTIAN,
+    LIEGONG, ZHUHAI, QIANXIN, JIANYAN, YAOWU, SHIZHAN, LEIJI, GUIDAO, HUANGTIAN, HUASHEN,
+    XINSHENG, XIANGLE, LUANJI, XUEYI, FANGQUAN, RUOYU, SISHU,
 ];
 
 /// 占位：让 `mod.rs` 的注册区在本批补齐前保持可编译（未注册）。

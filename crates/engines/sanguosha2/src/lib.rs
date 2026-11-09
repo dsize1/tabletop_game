@@ -20,6 +20,8 @@
 
 pub mod cards;
 pub mod cards_generated;
+#[path = "generals_generated.rs"]
+pub mod generals;
 pub mod kernel;
 pub mod presentation;
 pub mod skills;

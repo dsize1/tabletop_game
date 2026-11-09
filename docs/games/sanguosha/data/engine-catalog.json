@@ -1678,7 +1678,8 @@
       "skills": [
         "仁德",
         "激将"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_2",
@@ -1691,7 +1692,8 @@
       "is_lord": false,
       "skills": [
         "武圣"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_3",
@@ -1704,7 +1706,8 @@
       "is_lord": false,
       "skills": [
         "咆哮"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_4",
@@ -1718,7 +1721,8 @@
       "skills": [
         "观星",
         "空城"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_5",
@@ -1731,7 +1735,8 @@
       "is_lord": false,
       "skills": [
         "龙胆"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_6",
@@ -1745,7 +1750,8 @@
       "skills": [
         "铁骑",
         "马术"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_7",
@@ -1759,7 +1765,8 @@
       "skills": [
         "集智",
         "奇才"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_8",
@@ -1773,7 +1780,8 @@
       "skills": [
         "制衡",
         "救援"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_9",
@@ -1786,7 +1794,8 @@
       "is_lord": false,
       "skills": [
         "奇袭"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_10",
@@ -1799,7 +1808,8 @@
       "is_lord": false,
       "skills": [
         "克己"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_11",
@@ -1812,7 +1822,8 @@
       "is_lord": false,
       "skills": [
         "苦肉"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_12",
@@ -1826,7 +1837,8 @@
       "skills": [
         "英姿",
         "反间"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_13",
@@ -1840,7 +1852,8 @@
       "skills": [
         "国色",
         "流离"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_14",
@@ -1854,7 +1867,8 @@
       "skills": [
         "谦逊",
         "连营"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_15",
@@ -1868,7 +1882,8 @@
       "skills": [
         "奸雄",
         "护驾"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_16",
@@ -1882,7 +1897,8 @@
       "skills": [
         "反馈",
         "鬼才"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_17",
@@ -1895,7 +1911,8 @@
       "is_lord": false,
       "skills": [
         "刚烈"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_18",
@@ -1908,7 +1925,8 @@
       "is_lord": false,
       "skills": [
         "突袭"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_19",
@@ -1921,7 +1939,8 @@
       "is_lord": false,
       "skills": [
         "裸衣"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_20",
@@ -1935,7 +1954,8 @@
       "skills": [
         "天妒",
         "遗计"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_21",
@@ -1949,7 +1969,8 @@
       "skills": [
         "洛神",
         "倾国"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_22",
@@ -1963,7 +1984,8 @@
       "skills": [
         "急救",
         "青囊"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_23",
@@ -1976,7 +1998,8 @@
       "is_lord": false,
       "skills": [
         "无双"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_24",
@@ -1990,7 +2013,8 @@
       "skills": [
         "闭月",
         "离间"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_25",
@@ -2004,7 +2028,8 @@
       "skills": [
         "枭姬",
         "结姻"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_27",
@@ -2018,7 +2043,8 @@
       "skills": [
         "狂骨",
         "奇谋"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_28",
@@ -2031,7 +2057,8 @@
       "is_lord": false,
       "skills": [
         "神速"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_29",
@@ -2045,7 +2072,8 @@
       "skills": [
         "据守",
         "解围"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_30",
@@ -2059,7 +2087,8 @@
       "skills": [
         "红颜",
         "天香"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_34",
@@ -2072,7 +2101,8 @@
       "is_lord": false,
       "skills": [
         "强袭"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_35",
@@ -2086,7 +2116,8 @@
       "skills": [
         "驱虎",
         "节命"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_36",
@@ -2100,7 +2131,8 @@
       "skills": [
         "连环",
         "涅槃"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_37",
@@ -2115,7 +2147,8 @@
         "八阵",
         "火计",
         "看破"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_38",
@@ -2128,7 +2161,8 @@
       "is_lord": false,
       "skills": [
         "天义"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_39",
@@ -2142,7 +2176,8 @@
       "skills": [
         "马术",
         "鞬出"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_40",
@@ -2155,7 +2190,8 @@
       "is_lord": false,
       "skills": [
         "双雄"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_41",
@@ -2169,7 +2205,8 @@
       "skills": [
         "乱击",
         "血裔"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_42",
@@ -2183,7 +2220,8 @@
       "skills": [
         "断粮",
         "截辎"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_43",
@@ -2198,7 +2236,8 @@
         "行殇",
         "放逐",
         "颂威"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_44",
@@ -2211,7 +2250,8 @@
       "is_lord": false,
       "skills": [
         "英魂"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_45",
@@ -2227,7 +2267,8 @@
         "肉林",
         "崩坏",
         "暴虐"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_46",
@@ -2241,7 +2282,8 @@
       "skills": [
         "巨象",
         "烈刃"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_47",
@@ -2255,7 +2297,8 @@
       "skills": [
         "祸首",
         "再起"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_48",
@@ -2270,7 +2313,8 @@
         "完杀",
         "乱武",
         "帷幕"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_49",
@@ -2284,7 +2328,8 @@
       "skills": [
         "好施",
         "缔盟"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_50",
@@ -2297,7 +2342,8 @@
       "is_lord": false,
       "skills": [
         "巧变"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_51",
@@ -2311,7 +2357,8 @@
       "skills": [
         "屯田",
         "凿险"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_52",
@@ -2325,7 +2372,8 @@
       "skills": [
         "挑衅",
         "志继"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_53",
@@ -2340,7 +2388,8 @@
         "享乐",
         "放权",
         "若愚"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_54",
@@ -2355,7 +2404,8 @@
         "激昂",
         "魂姿",
         "制霸"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_55",
@@ -2369,7 +2419,8 @@
       "skills": [
         "直谏",
         "固政"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_56",
@@ -2383,7 +2434,8 @@
       "skills": [
         "化身",
         "新生"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_57",
@@ -2397,7 +2449,8 @@
       "skills": [
         "悲歌",
         "断肠"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_61",
@@ -2410,7 +2463,8 @@
       "is_lord": false,
       "skills": [
         "烈弓"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_100",
@@ -2424,7 +2478,8 @@
       "skills": [
         "庸肆",
         "伪帝"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_210",
@@ -2438,7 +2493,8 @@
       "skills": [
         "不屈",
         "奋激"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_211",
@@ -2451,7 +2507,8 @@
       "is_lord": false,
       "skills": [
         "蛊惑"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_212",
@@ -2466,7 +2523,8 @@
         "鬼道",
         "黄天",
         "雷击"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_362",
@@ -2480,7 +2538,8 @@
       "skills": [
         "奇制",
         "进趋"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_400",
@@ -2493,7 +2552,8 @@
       "is_lord": false,
       "skills": [
         "拒战"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_401",
@@ -2507,7 +2567,8 @@
       "skills": [
         "飞军",
         "兵略"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_402",
@@ -2522,7 +2583,8 @@
         "怀橘",
         "遗礼",
         "整论"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_403",
@@ -2537,7 +2599,8 @@
         "溃诛",
         "掣政",
         "立军"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_404",
@@ -2551,7 +2614,8 @@
       "skills": [
         "荐降",
         "审时"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_406",
@@ -2566,7 +2630,8 @@
         "成略",
         "恃才",
         "寸目"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_407",
@@ -2580,7 +2645,8 @@
       "skills": [
         "明任",
         "贞良"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_408",
@@ -2593,7 +2659,8 @@
       "is_lord": false,
       "skills": [
         "镇骨"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_409",
@@ -2606,7 +2673,8 @@
       "is_lord": false,
       "skills": [
         "往烈"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_410",
@@ -2620,7 +2688,8 @@
       "skills": [
         "罪论",
         "父荫"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_411",
@@ -2634,7 +2703,8 @@
       "skills": [
         "良姻",
         "箜声"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_413",
@@ -2648,7 +2718,8 @@
       "skills": [
         "征荣",
         "鸿举"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_414",
@@ -2663,7 +2734,8 @@
         "谦节",
         "决堰",
         "破势"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_415",
@@ -2677,7 +2749,8 @@
       "skills": [
         "雄乱",
         "从谏"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_151",
@@ -2691,7 +2764,8 @@
       "skills": [
         "落英",
         "酒诗"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_152",
@@ -2705,7 +2779,8 @@
       "skills": [
         "陷阵",
         "禁酒"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_153",
@@ -2719,7 +2794,8 @@
       "skills": [
         "明策",
         "智迟"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_155",
@@ -2732,7 +2808,8 @@
       "is_lord": false,
       "skills": [
         "旋风"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_156",
@@ -2746,7 +2823,8 @@
       "skills": [
         "散谣",
         "制蛮"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_157",
@@ -2760,7 +2838,8 @@
       "skills": [
         "甘露",
         "补益"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_158",
@@ -2773,7 +2852,8 @@
       "is_lord": false,
       "skills": [
         "破军"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_160",
@@ -2786,7 +2866,8 @@
       "is_lord": false,
       "skills": [
         "镇军"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_161",
@@ -2800,7 +2881,8 @@
       "skills": [
         "绝情",
         "伤逝"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_162",
@@ -2813,7 +2895,8 @@
       "is_lord": false,
       "skills": [
         "将驰"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_164",
@@ -2827,7 +2910,8 @@
       "skills": [
         "奇策",
         "智愚"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_166",
@@ -2841,7 +2925,8 @@
       "skills": [
         "当先",
         "伏枥"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_167",
@@ -2855,7 +2940,8 @@
       "skills": [
         "马术",
         "潜袭"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_168",
@@ -2869,7 +2955,8 @@
       "skills": [
         "安恤",
         "追忆"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_169",
@@ -2883,7 +2970,8 @@
       "skills": [
         "疠火",
         "醇醪"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_170",
@@ -2897,7 +2985,8 @@
       "skills": [
         "弓骑",
         "解烦"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_171",
@@ -2910,7 +2999,8 @@
       "is_lord": false,
       "skills": [
         "恃勇"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_172",
@@ -2924,7 +3014,8 @@
       "skills": [
         "自守",
         "宗室"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_173",
@@ -2938,7 +3029,8 @@
       "skills": [
         "权计",
         "自立"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_174",
@@ -2952,7 +3044,8 @@
       "skills": [
         "称象",
         "仁心"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_175",
@@ -2965,7 +3058,8 @@
       "is_lord": false,
       "skills": [
         "精策"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_176",
@@ -2979,7 +3073,8 @@
       "skills": [
         "峻刑",
         "御策"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_177",
@@ -2992,7 +3087,8 @@
       "is_lord": false,
       "skills": [
         "龙吟"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_178",
@@ -3006,7 +3102,8 @@
       "skills": [
         "巧说",
         "纵适"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_179",
@@ -3019,7 +3116,8 @@
       "is_lord": false,
       "skills": [
         "陷嗣"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_180",
@@ -3033,7 +3131,8 @@
       "skills": [
         "夺刀",
         "暗箭"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_181",
@@ -3047,7 +3146,8 @@
       "skills": [
         "纵玄",
         "直言"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_182",
@@ -3060,7 +3160,8 @@
       "is_lord": false,
       "skills": [
         "胆守"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_183",
@@ -3074,7 +3175,8 @@
       "skills": [
         "惴恐",
         "求援"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_184",
@@ -3089,7 +3191,8 @@
         "灭计",
         "绝策",
         "焚城"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_185",
@@ -3103,7 +3206,8 @@
       "skills": [
         "恩怨",
         "眩惑"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_186",
@@ -3117,7 +3221,8 @@
       "skills": [
         "无言",
         "举荐"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_187",
@@ -3131,7 +3236,8 @@
       "skills": [
         "贞烈",
         "秘计"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_188",
@@ -3144,7 +3250,8 @@
       "is_lord": false,
       "skills": [
         "父魂"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_321",
@@ -3157,7 +3264,8 @@
       "is_lord": false,
       "skills": [
         "司敌"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_322",
@@ -3171,7 +3279,8 @@
       "skills": [
         "慎断",
         "勇略"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_323",
@@ -3185,7 +3294,8 @@
       "skills": [
         "品第",
         "法恩"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_324",
@@ -3198,7 +3308,8 @@
       "is_lord": false,
       "skills": [
         "奔袭"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_325",
@@ -3211,7 +3322,8 @@
       "is_lord": false,
       "skills": [
         "忠勇"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_326",
@@ -3225,7 +3337,8 @@
       "skills": [
         "强识",
         "献图"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_327",
@@ -3239,7 +3352,8 @@
       "skills": [
         "谮毁",
         "骄矜"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_328",
@@ -3253,7 +3367,8 @@
       "skills": [
         "奋励",
         "平寇"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_329",
@@ -3267,7 +3382,8 @@
       "skills": [
         "慎行",
         "秉壹"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_330",
@@ -3281,7 +3397,8 @@
       "skills": [
         "渐营",
         "矢北"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_331",
@@ -3295,7 +3412,8 @@
       "skills": [
         "窃听",
         "献州"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_332",
@@ -3310,7 +3428,8 @@
         "恢拓",
         "明鉴",
         "兴衰"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_333",
@@ -3324,7 +3443,8 @@
       "skills": [
         "千驹",
         "倾袭"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_334",
@@ -3338,7 +3458,8 @@
       "skills": [
         "活墨",
         "佐定"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_335",
@@ -3352,7 +3473,8 @@
       "skills": [
         "战绝",
         "勤王"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_336",
@@ -3366,7 +3488,8 @@
       "skills": [
         "樵拾",
         "燕语"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_337",
@@ -3380,7 +3503,8 @@
       "skills": [
         "怃戎",
         "矢志"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_338",
@@ -3395,7 +3519,8 @@
         "宴诛",
         "兴学",
         "诏缚"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_339",
@@ -3408,7 +3533,8 @@
       "is_lord": false,
       "skills": [
         "安国"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_340",
@@ -3421,7 +3547,8 @@
       "is_lord": false,
       "skills": [
         "邀名"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_341",
@@ -3434,7 +3561,8 @@
       "is_lord": false,
       "skills": [
         "怀异"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_342",
@@ -3448,7 +3576,8 @@
       "skills": [
         "急攻",
         "饰非"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_380",
@@ -3462,7 +3591,8 @@
       "skills": [
         "矫诏",
         "殚心"
-      ]
+      ],
+      "status": "offline"
     },
     {
       "code": "sgs_hero_381",
@@ -3476,7 +3606,8 @@
       "skills": [
         "督粮",
         "腹鳞"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_382",
@@ -3489,7 +3620,8 @@
       "is_lord": false,
       "skills": [
         "匡弼"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_383",
@@ -3503,7 +3635,8 @@
       "skills": [
         "止戈",
         "宗祚"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_384",
@@ -3517,7 +3650,8 @@
       "skills": [
         "极奢",
         "链祸"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_385",
@@ -3531,7 +3665,8 @@
       "skills": [
         "瑰藻",
         "讥谀"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_386",
@@ -3545,7 +3680,8 @@
       "skills": [
         "寝情",
         "贿生"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_387",
@@ -3558,7 +3694,8 @@
       "is_lord": false,
       "skills": [
         "滔乱"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_388",
@@ -3572,7 +3709,8 @@
       "skills": [
         "忠鉴",
         "才识"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_389",
@@ -3586,7 +3724,8 @@
       "skills": [
         "福绵",
         "怠宴"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_390",
@@ -3600,7 +3739,8 @@
       "skills": [
         "问卦",
         "伏诛"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_391",
@@ -3614,7 +3754,8 @@
       "skills": [
         "守玺",
         "惠民"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_392",
@@ -3628,7 +3769,8 @@
       "skills": [
         "清弦",
         "绝响"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_393",
@@ -3643,7 +3785,8 @@
         "谏征",
         "专对",
         "天辩"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_394",
@@ -3657,7 +3800,8 @@
       "skills": [
         "复难",
         "诫训"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_395",
@@ -3671,7 +3815,8 @@
       "skills": [
         "辟撰",
         "通博"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_26",
@@ -3684,7 +3829,8 @@
       "is_lord": false,
       "skills": [
         "烈弓"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_299",
@@ -3698,7 +3844,8 @@
       "skills": [
         "仁德",
         "激将"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_300",
@@ -3712,7 +3859,8 @@
       "skills": [
         "义绝",
         "武圣"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_301",
@@ -3726,7 +3874,8 @@
       "skills": [
         "替身",
         "咆哮"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_302",
@@ -3740,7 +3889,8 @@
       "skills": [
         "涯角",
         "龙胆"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_303",
@@ -3754,7 +3904,8 @@
       "skills": [
         "马术",
         "铁骑"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_304",
@@ -3768,7 +3919,8 @@
       "skills": [
         "诛害",
         "潜心"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_305",
@@ -3782,7 +3934,8 @@
       "skills": [
         "奇袭",
         "奋威"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_306",
@@ -3797,7 +3950,8 @@
         "克己",
         "勤学",
         "博图"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_307",
@@ -3811,7 +3965,8 @@
       "skills": [
         "苦肉",
         "诈降"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_308",
@@ -3825,7 +3980,8 @@
       "skills": [
         "英姿",
         "反间"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_309",
@@ -3839,7 +3995,8 @@
       "skills": [
         "流离",
         "国色"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_310",
@@ -3853,7 +4010,8 @@
       "skills": [
         "谦逊",
         "连营"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_311",
@@ -3867,7 +4025,8 @@
       "skills": [
         "奸雄",
         "护驾"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_312",
@@ -3881,7 +4040,8 @@
       "skills": [
         "反馈",
         "鬼才"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_313",
@@ -3895,7 +4055,8 @@
       "skills": [
         "刚烈",
         "清俭"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_314",
@@ -3908,7 +4069,8 @@
       "is_lord": false,
       "skills": [
         "突袭"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_315",
@@ -3921,7 +4083,8 @@
       "is_lord": false,
       "skills": [
         "裸衣"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_316",
@@ -3935,7 +4098,8 @@
       "skills": [
         "天妒",
         "遗计"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_317",
@@ -3949,7 +4113,8 @@
       "skills": [
         "恂恂",
         "忘隙"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_318",
@@ -3963,7 +4128,8 @@
       "skills": [
         "急救",
         "除疠"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_319",
@@ -3977,7 +4143,8 @@
       "skills": [
         "无双",
         "利驭"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_320",
@@ -3991,7 +4158,8 @@
       "skills": [
         "义从",
         "趫猛"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_440",
@@ -4005,7 +4173,8 @@
       "skills": [
         "空城",
         "观星"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_441",
@@ -4019,7 +4188,8 @@
       "skills": [
         "集智",
         "奇才"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_442",
@@ -4033,7 +4203,8 @@
       "skills": [
         "制衡",
         "救援"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_443",
@@ -4047,7 +4218,8 @@
       "skills": [
         "枭姬",
         "结姻"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_444",
@@ -4061,7 +4233,8 @@
       "skills": [
         "倾国",
         "洛神"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_445",
@@ -4075,7 +4248,8 @@
       "skills": [
         "离间",
         "闭月"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_446",
@@ -4089,7 +4263,8 @@
       "skills": [
         "耀武",
         "势斩"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_447",
@@ -4103,7 +4278,8 @@
       "skills": [
         "化身",
         "新生"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_448",
@@ -4118,7 +4294,8 @@
         "雷击",
         "鬼道",
         "黄天"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_449",
@@ -4131,7 +4308,8 @@
       "is_lord": false,
       "skills": [
         "蛊惑"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_450",
@@ -4145,7 +4323,8 @@
       "skills": [
         "乱击",
         "血裔"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_451",
@@ -4160,7 +4339,8 @@
         "享乐",
         "放权",
         "若愚"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_452",
@@ -4175,7 +4355,8 @@
         "制霸",
         "激昂",
         "魂姿"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_453",
@@ -4189,7 +4370,8 @@
       "skills": [
         "神速",
         "设变"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_454",
@@ -4205,7 +4387,8 @@
         "藏拙",
         "火计",
         "看破"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_455",
@@ -4219,7 +4402,8 @@
       "skills": [
         "连环",
         "涅槃"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_456",
@@ -4233,7 +4417,8 @@
       "skills": [
         "狂骨",
         "奇谋"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_457",
@@ -4248,7 +4433,8 @@
         "红颜",
         "天香",
         "飘零"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_458",
@@ -4262,7 +4448,8 @@
       "skills": [
         "英魂",
         "武烈"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_462",
@@ -4276,7 +4463,8 @@
       "skills": [
         "马术",
         "鞬出"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_463",
@@ -4290,7 +4478,8 @@
       "skills": [
         "天义",
         "酣战"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_470",
@@ -4306,7 +4495,8 @@
         "崩坏",
         "酒池",
         "暴虐"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_471",
@@ -4320,7 +4510,8 @@
       "skills": [
         "屯田",
         "凿险"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_479",
@@ -4335,7 +4526,8 @@
         "巨象",
         "烈刃",
         "长标"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_480",
@@ -4349,7 +4541,8 @@
       "skills": [
         "挑衅",
         "志继"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_484",
@@ -4364,7 +4557,8 @@
         "帷幕",
         "乱武",
         "完杀"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_485",
@@ -4378,7 +4572,8 @@
       "skills": [
         "好施",
         "缔盟"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_486",
@@ -4391,7 +4586,8 @@
       "is_lord": false,
       "skills": [
         "巧变"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_492",
@@ -4405,7 +4601,8 @@
       "skills": [
         "祸首",
         "再起"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_496",
@@ -4419,7 +4616,8 @@
       "skills": [
         "断粮",
         "截辎"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_505",
@@ -4433,7 +4631,8 @@
       "skills": [
         "断肠",
         "悲歌"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_515",
@@ -4447,7 +4646,8 @@
       "skills": [
         "驱虎",
         "节命"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_526",
@@ -4461,7 +4661,8 @@
       "skills": [
         "强袭",
         "狞恶"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_550",
@@ -4474,7 +4675,8 @@
       "is_lord": false,
       "skills": [
         "双雄"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_563",
@@ -4488,7 +4690,8 @@
       "skills": [
         "直谏",
         "固政"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_587",
@@ -4501,7 +4704,8 @@
       "is_lord": false,
       "skills": [
         "破军"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_588",
@@ -4514,7 +4718,8 @@
       "is_lord": false,
       "skills": [
         "旋风"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_597",
@@ -4528,7 +4733,8 @@
       "skills": [
         "智迟",
         "明策"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_599",
@@ -4541,7 +4747,8 @@
       "is_lord": false,
       "skills": [
         "将驰"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_600",
@@ -4555,7 +4762,8 @@
       "skills": [
         "纵适",
         "巧说"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_603",
@@ -4569,7 +4777,8 @@
       "skills": [
         "纵玄",
         "直言"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_604",
@@ -4583,7 +4792,8 @@
       "skills": [
         "陷阵",
         "禁酒"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_610",
@@ -4597,7 +4807,8 @@
       "skills": [
         "眩惑",
         "恩怨"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_620",
@@ -4611,7 +4822,8 @@
       "skills": [
         "疠火",
         "醇醪"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_621",
@@ -4625,7 +4837,8 @@
       "skills": [
         "贞烈",
         "秘计"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_625",
@@ -4640,7 +4853,8 @@
         "绝情",
         "伤逝",
         "翦灭"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_626",
@@ -4654,7 +4868,8 @@
       "skills": [
         "自守",
         "宗室"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_627",
@@ -4668,7 +4883,8 @@
       "skills": [
         "献州",
         "窃听"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_628",
@@ -4682,7 +4898,8 @@
       "skills": [
         "称象",
         "仁心"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_629",
@@ -4696,7 +4913,8 @@
       "skills": [
         "落英",
         "酒诗"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_640",
@@ -4710,7 +4928,8 @@
       "skills": [
         "甘露",
         "补益"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_641",
@@ -4724,7 +4943,8 @@
       "skills": [
         "当先",
         "伏枥"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_642",
@@ -4739,7 +4959,8 @@
         "灭计",
         "焚城",
         "绝策"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_658",
@@ -4752,7 +4973,8 @@
       "is_lord": false,
       "skills": [
         "精策"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_671",
@@ -4766,7 +4988,8 @@
       "skills": [
         "惴恐",
         "求援"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_676",
@@ -4780,7 +5003,8 @@
       "skills": [
         "弓骑",
         "解烦"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_690",
@@ -4793,7 +5017,8 @@
       "is_lord": false,
       "skills": [
         "父魂"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_696",
@@ -4807,7 +5032,8 @@
       "skills": [
         "马术",
         "潜袭"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_726",
@@ -4821,7 +5047,8 @@
       "skills": [
         "矫诏",
         "殚心"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_749",
@@ -4835,7 +5062,8 @@
       "skills": [
         "矢北",
         "渐营"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_752",
@@ -4849,7 +5077,8 @@
       "skills": [
         "樵拾",
         "燕语"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_753",
@@ -4863,7 +5092,8 @@
       "skills": [
         "强识",
         "献图"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_756",
@@ -4877,7 +5107,8 @@
       "skills": [
         "镇军",
         "毅重"
-      ]
+      ],
+      "status": "live"
     },
     {
       "code": "sgs_hero_775",
@@ -4891,7 +5122,8 @@
       "skills": [
         "安恤",
         "追忆"
-      ]
+      ],
+      "status": "live"
     }
   ]
 }

@@ -24,6 +24,13 @@ const DEFAULT_HEROES = resolve("docs", "games", "sanguosha", "data", "heroes.jso
 const DEFAULT_OUT = resolve("crates", "engines", "sanguosha", "src", "data.rs");
 /// 内核 v2（`sanguosha2`）的牌表产物：只含牌定义 + 160 张物理牌（不含武将）。
 const DEFAULT_OUT_V2 = resolve("crates", "engines", "sanguosha2", "src", "cards_generated.rs");
+const DEFAULT_OUT_V2_GENERALS = resolve(
+  "crates",
+  "engines",
+  "sanguosha2",
+  "src",
+  "generals_generated.rs",
+);
 /// 门禁/脚本的机器可读名录（v1 `data.rs` 退役后，这是武将/牌数据的唯一来源）。
 const DEFAULT_CATALOG = resolve("docs", "games", "sanguosha", "data", "engine-catalog.json");
 
@@ -265,6 +272,7 @@ function parseArgs(argv) {
     heroes: DEFAULT_HEROES,
     out: DEFAULT_OUT,
     outV2: DEFAULT_OUT_V2,
+    outV2Generals: DEFAULT_OUT_V2_GENERALS,
     catalog: DEFAULT_CATALOG,
     generalPacks: DEFAULT_GENERAL_PACKS,
     check: false,
@@ -274,6 +282,7 @@ function parseArgs(argv) {
     else if (argv[i] === "--heroes") opts.heroes = resolve(argv[++i]);
     else if (argv[i] === "--out") opts.out = resolve(argv[++i]);
     else if (argv[i] === "--out-v2") opts.outV2 = resolve(argv[++i]);
+    else if (argv[i] === "--out-v2-generals") opts.outV2Generals = resolve(argv[++i]);
     else if (argv[i] === "--catalog") opts.catalog = resolve(argv[++i]);
     else if (argv[i] === "--general-packs") {
       opts.generalPacks = String(argv[++i] ?? "")
@@ -465,6 +474,84 @@ function buildV2(built, payload) {
     }
   }
   return { rows, deckRows };
+}
+
+/** 四个「技能已全部实现」的包 key（其余包的武将标记为待审批 review）。 */
+const COMPLETE_PACKS = new Set(["standard", "wind_fire_forest_mountain", "yijiang", "jiexian"]);
+
+/**
+ * 武将状态（与中台 sgs_generals.status 同口径）：
+ *  - review：技能未完成（不在四包内）
+ *  - offline：被「界/将」同名去重排除的原版
+ *  - live：可选将池（147）
+ */
+function assignGeneralStatus(generals) {
+  const norm = (name) => name.replace(/^(界|将)/, "");
+  const jieNames = new Set(
+    generals.filter((g) => g.pack === "jiexian").map((g) => norm(g.name)),
+  );
+  return generals.map((g) => {
+    let status = "live";
+    if (!COMPLETE_PACKS.has(g.pack)) status = "review";
+    else if (g.pack !== "jiexian" && jieNames.has(norm(g.name))) status = "offline";
+    return { ...g, status };
+  });
+}
+
+function renderV2Generals(generals) {
+  const L = [];
+  L.push("//! 生成的武将名录（化身池 / 中台状态）。**勿手改**：由 gen:sgs-engine-data 生成。");
+  L.push("");
+  L.push("#[derive(Debug, Clone, Copy, PartialEq, Eq)]");
+  L.push("pub enum Status {");
+  L.push("    /// 上线（进选将池 / 化身池）。");
+  L.push("    Live,");
+  L.push("    /// 下线（被「界/将」同名去重排除的原版）。");
+  L.push("    Offline,");
+  L.push("    /// 待审批（技能未完成）。");
+  L.push("    Review,");
+  L.push("}");
+  L.push("");
+  L.push("#[derive(Debug, Clone, Copy)]");
+  L.push("pub struct GeneralDef {");
+  L.push("    pub code: &'static str,");
+  L.push("    pub name: &'static str,");
+  L.push("    pub kingdom: &'static str,");
+  L.push("    pub male: bool,");
+  L.push("    pub max_hp: i32,");
+  L.push("    pub lord: bool,");
+  L.push("    pub skills: &'static [&'static str],");
+  L.push("    pub status: Status,");
+  L.push("}");
+  L.push("");
+  L.push("pub const GENERALS: &[GeneralDef] = &[");
+  for (const g of generals) {
+    const status = g.status === "live" ? "Live" : g.status === "offline" ? "Offline" : "Review";
+    const skills = (g.skills ?? []).map((x) => JSON.stringify(x)).join(", ");
+    L.push("    GeneralDef {");
+    L.push("        code: " + JSON.stringify(g.code) + ",");
+    L.push("        name: " + JSON.stringify(g.name) + ",");
+    L.push("        kingdom: " + JSON.stringify(g.kingdom) + ",");
+    L.push("        male: " + (g.gender === "male" ? "true" : "false") + ",");
+    L.push("        max_hp: " + g.max_hp + ",");
+    L.push("        lord: " + (g.is_lord ? "true" : "false") + ",");
+    L.push("        skills: &[" + skills + "],");
+    L.push("        status: Status::" + status + ",");
+    L.push("    },");
+  }
+  L.push("];");
+  L.push("");
+  L.push("/// 按 code 查武将。");
+  L.push("pub fn by_code(code: &str) -> Option<&'static GeneralDef> {");
+  L.push("    GENERALS.iter().find(|g| g.code == code)");
+  L.push("}");
+  L.push("");
+  L.push("/// 上线池（化身牌池 / 选将池）。");
+  L.push("pub fn live() -> impl Iterator<Item = &'static GeneralDef> {");
+  L.push("    GENERALS.iter().filter(|g| g.status == Status::Live)");
+  L.push("}");
+  L.push("");
+  return L.join("\n");
 }
 
 function renderV2({ rows, deckRows }) {
@@ -868,7 +955,9 @@ async function main() {
   const v2 = buildV2(built, cards);
   const textV2 = renderV2(v2);
   const catalog = buildCatalog(built, gens, cards);
+  catalog.generals = assignGeneralStatus(catalog.generals);
   const textCatalog = renderCatalog(catalog);
+  const textV2Generals = renderV2Generals(catalog.generals);
 
   const deckSummary = built.decks
     .map((d) => `${d.label} ${d.physical.length}`)
@@ -882,6 +971,7 @@ async function main() {
       { out: opts.out, text, label: "v1 data.rs" },
       { out: opts.outV2, text: textV2, label: "v2 cards_generated.rs" },
       { out: opts.catalog, text: textCatalog, label: "engine-catalog.json" },
+      { out: opts.outV2Generals, text: textV2Generals, label: "v2 generals_generated.rs" },
     ];
     for (const t of targets) {
       let current = "";
@@ -908,11 +998,16 @@ async function main() {
   await writeFile(opts.outV2, textV2, "utf8");
   await mkdir(dirname(opts.catalog), { recursive: true });
   await writeFile(opts.catalog, textCatalog, "utf8");
+  await mkdir(dirname(opts.outV2Generals), { recursive: true });
+  await writeFile(opts.outV2Generals, textV2Generals, "utf8");
   console.log(
     `[gen] ${built.defs.size} 个牌定义 / ${built.total} 张物理牌（${deckSummary}）/ ${gens.total} 位武将（${generalSummary}）→ ${opts.out}`,
   );
   console.log(
     `[gen] v2：${v2.rows.length} 条牌定义 / ${v2.deckRows.length} 张物理牌 → ${opts.outV2}`,
+  );
+  console.log(
+    `[gen] v2 generals：${catalog.generals.filter((g) => g.status === "live").length} 上线 / ${catalog.generals.filter((g) => g.status === "offline").length} 下线 / ${catalog.generals.filter((g) => g.status === "review").length} 待审批 → ${opts.outV2Generals}`,
   );
   console.log(
     `[gen] catalog：${catalog.generals.length} 将 / ${catalog.card_defs.length} 牌定义 / ${catalog.decks.length} 牌堆 → ${opts.catalog}`,

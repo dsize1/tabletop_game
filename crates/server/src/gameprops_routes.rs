@@ -423,7 +423,11 @@ pub async fn import_engine(
             row.insert("initial_hp".into(), json!(0));
             row.insert("description".into(), json!(""));
             row.insert("biography".into(), json!(""));
-            row.insert("status".into(), json!("live"));
+            // 中台状态：live（147 审计池）/ offline（去重原版）/ review（技能未完成）。
+            row.insert(
+                "status".into(),
+                json!(sanguosha::catalog::general_status(g.code)),
+            );
             upsert(&state, "sgs_generals", row)?;
             generals += 1;
 

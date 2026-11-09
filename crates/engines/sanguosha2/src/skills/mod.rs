@@ -242,6 +242,11 @@ pub const SKILLS: &[SkillDef] = &[
 /// 转换技（阳/阴两面）：视图按此清单投影 `transforms`（与 handlers 的 `g.yang/toggle_yang` 对应）。
 pub const TRANSFORM_SKILLS: &[&str] = &["zhenliang", "juzhan", "shenshi", "chenglue"];
 
+/// 按技能名查注册 code（化身：武将在 heroes.json 里只有技能名）。
+pub fn code_by_name(name: &str) -> Option<&'static str> {
+    SKILLS.iter().find(|d| d.name == name).map(|d| d.code)
+}
+
 pub fn def(code: &str) -> Option<&'static SkillDef> {
     SKILLS.iter().find(|s| s.code == code)
 }
@@ -735,7 +740,8 @@ pub fn take_void_marked(
 
 /// 手牌上限修正（才识 +1 / 忠鉴 -1 / 辟撰「书」数）。
 pub fn hand_limit_delta(g: &Game, seat: usize) -> i32 {
-    b8::hand_limit_delta(g, seat)
+    b13::hand_limit_delta(g, seat)
+        + b8::hand_limit_delta(g, seat)
         + g.counter("turn.jizhi_hand_limit") as i32
         + g.counter(&format!("turn.qingjian_limit:{seat}")) as i32
         + g.counter(&format!("turn.luoshen_free:{seat}")) as i32
@@ -939,6 +945,18 @@ pub fn start_rewrite_for(
     false
 }
 
+/// 思蜀：该角色的【乐不思蜀】判定效果是否被反转。
+pub fn sishu_reversed(g: &Game, seat: usize) -> bool {
+    b13::sishu_reversed(g, seat)
+}
+
+/// 群体锦囊少选目标（乱击）：返回本次要裁掉的目标。
+pub fn aoe_trim_target(g: &Game, _seat: usize) -> Option<usize> {
+    g.counter("turn.aoe_trim")
+        .checked_sub(1)
+        .map(|n| n as usize)
+}
+
 /// 同一响应窗口需连续打出的响应牌张数（multi-response；无双）。
 pub fn response_need(
     g: &Game,
@@ -1101,6 +1119,10 @@ pub fn on_game_start(g: &mut Game) {
     }
     // 宗祚：开局按势力数增加体力上限并回复 1 点。
     b7::init_zongzuo(g);
+    // 血裔：开局按群势力角色数获得「裔」。
+    b13::init_xueyi(g);
+    // 化身：开局获得 3 张化身牌并展示第一张。
+    b13::init_huashen(g);
     // 明任：开局摸 1 张并必选一张作为「任」（压入 Ask 帧，由调用方 advance 驱动）
     for seat in 0..g.seats.len() {
         if active(g, seat, "mingren") {

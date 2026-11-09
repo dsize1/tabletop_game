@@ -114,6 +114,19 @@ impl Card {
     }
 }
 
+/// 化身状态（左慈）：化身牌（武将 code）与当前展示的化身牌。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct HuashenState {
+    pub cards: Vec<String>,
+    pub active: Option<String>,
+    /// 原势力 / 原性别（切换化身时覆盖，移去全部化身后恢复）。
+    pub orig_kingdom: String,
+    pub orig_male: bool,
+    /// 当前由化身授予的技能 code（切换时撤销）。
+    #[serde(default)]
+    pub active_skill: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Seat {
     pub name: String,
@@ -337,6 +350,9 @@ pub struct Game {
     /// 判定子流程结果（生效的判定牌）。
     #[serde(default)]
     pub judge_result: Option<CardId>,
+    /// 化身（左慈）：座位 → 化身牌与展示状态。
+    #[serde(default)]
+    pub huashen: BTreeMap<usize, HuashenState>,
     /// 本阶段弃置的牌（瑰藻等「本阶段弃置」判定用）。
     #[serde(default)]
     pub phase_discard_cards: Vec<CardId>,
@@ -397,6 +413,7 @@ impl Game {
             void_return: Vec::new(),
             judge_rewrite: None,
             judge_result: None,
+            huashen: BTreeMap::new(),
             phase_discard_cards: Vec::new(),
             suppress_gain_count: false,
             subs: Vec::new(),

@@ -1116,6 +1116,34 @@ pub mod catalog {
     pub use crate::skills::{general_ready, skills_of, SkillDef, SkillType};
     pub use crate::state::{Category, EquipSlot, RangeType, Suit, TargetMode};
 
+    /// 武将状态（与 v2 `generals_generated.rs` / 中台 `sgs_generals.status` 同口径）：
+    /// - `review`：技能未完成（不在 标准/风林火山/一将成名/界限突破 四包内）
+    /// - `offline`：被「界/将」同名去重排除的原版
+    /// - `live`：可选将池（147）
+    pub fn general_status(code: &str) -> &'static str {
+        let Some(g) = crate::data::general(code) else {
+            return "review";
+        };
+        if !general_ready(code) {
+            return "review";
+        }
+        let norm = |name: &str| {
+            name.trim_start_matches('界')
+                .trim_start_matches('将')
+                .to_string()
+        };
+        let n = norm(g.name);
+        let has_jiexian = GENERAL_PACKS
+            .iter()
+            .flat_map(|pack| pack.iter())
+            .any(|x| x.pack == "jiexian" && norm(x.name) == n);
+        if g.pack != "jiexian" && has_jiexian {
+            "offline"
+        } else {
+            "live"
+        }
+    }
+
     /// 默认选将池（全部已启用武将包 + 技能已实装 + 同名去重「界优先」）。
     /// 工作台沙盒表单与随机器都使用这一份池子（与正常开局一致）。
     pub fn default_general_pool() -> Vec<&'static GeneralDef> {
