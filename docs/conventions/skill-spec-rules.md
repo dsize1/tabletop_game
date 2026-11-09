@@ -78,7 +78,24 @@
 - 已知违反项：**已清零**（M1，2026-11-06）：`kernel/flow.rs` 的桃/酒/无懈判定已改读 `cards::def().tags`；
   `skills/b1b.rs` 已改用 `cards::is_basic` / `tags().sha`。
 
-## 10. 牌结算（M1）的单一出口
+## 10. B8 跨批机制（2026-11-09）
+
+- **拼点**（`pindian`）：`kernel/pindian.rs`（`FlowKind::Pindian`）——双方**暗选**（选择期不公开，同怃戎）→
+  同时亮牌 → 比**有效点数** → 拼点牌进弃牌堆；平局 = 无赢家。技能只能通过通用钩子接入：
+  `skills::pindian_options` / `pindian_take`（附加选项，如天辩「牌堆顶」）、`skills::pindian_rank`
+  （有效点数，如红桃视为 K）。内核**不得**出现技能名。
+- **目标数修正**（`target-extra`）：`skills::extra_targets`（红色基本牌/红色普通锦囊 +N 目标、无距离）；
+  在 `card_play::planned_targets` 统一生效，单目标锦囊由 `card_play::advance_target` 逐目标循环结算；
+  延时锦囊不参与（一张物理牌只能进一个判定区）。
+- **牌堆承载使用**（`deck-carrier`）：`start_carrier` 允许承载牌来自 `Zone::Draw`（伏诛「使用牌堆中的【杀】」），
+  结算后进弃牌堆；张数上限与洗牌由技能声明。
+- **结算前【杀】介入窗口**：`skills::sha_intercept_skills`（守玺/谏征/专对）。**不要**用 `TargetChosen`
+  事件做「指定目标后」——事件在牌结算**之后**才路由（谮毁遗留同因）。
+  结果通道 `Game.sha_intercept`（Continue / Immune / Unresponsive / Replace）。
+- **手牌上限**：`skills::hand_limit_delta`（才识 +1 / 忠鉴 -1 / 辟撰「书」数），内核 `Game::hand_limit` 统一叠加。
+- 「随机」一律走 `Game::rand_below`（确定性、可序列化，回放一致）；`Game::shuffle_draw` 同源。
+
+## 11. 牌结算（M1）的单一出口
 
 - 牌定义是**生成物**：`docs/games/sanguosha/data/cards.json` → `npm run gen:sgs-engine-data`
   → `crates/engines/sanguosha2/src/cards_generated.rs`（160 张 + 属性/效果表）。

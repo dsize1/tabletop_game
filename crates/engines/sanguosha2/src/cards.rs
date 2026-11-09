@@ -239,6 +239,23 @@ pub fn non_delayed_tricks() -> Vec<&'static str> {
         .collect()
 }
 
+/// 牌名的中文标签（守玺/督粮等「声明牌名」类技能的展示用）。
+pub fn label_of(name: &str) -> String {
+    // 生成表的 `name` 就是中文牌名（如「杀」「无中生有」）。
+    name.to_string()
+}
+
+/// 牌名的中文标签（守玺/督粮等「声明牌名」类技能的展示用）。
+/// 牌名的中文标签（守玺/督粮等「声明牌名」类技能的展示用）。
+/// 全部**非装备**牌名（守玺的声明候选：读类别属性，不枚举牌名）。
+pub fn non_equip_names() -> Vec<&'static str> {
+    crate::cards_generated::DEFS
+        .iter()
+        .filter(|r| r.kind != CardKind::Equip)
+        .map(|r| r.name)
+        .collect()
+}
+
 pub fn is_basic(name: &str) -> bool {
     def(name).kind == CardKind::Basic
 }

@@ -13,6 +13,7 @@ pub mod b4;
 pub mod b5;
 pub mod b6;
 pub mod b7;
+pub mod b8;
 pub mod mingren;
 pub mod kongsheng;
 pub mod liangyin;
@@ -151,6 +152,28 @@ pub const SKILLS: &[SkillDef] = &[
     b7::QINQING,
     b7::HUISHENG,
     b7::TAOLUAN,
+    // B8（辛宪英 / 吴苋 / 徐氏 / 曹节 / 嵇康 / 秦宓 / 薛综 / 蔡邕）+ 绝响授予的四条子技能
+    b8::ZHONGJIAN,
+    b8::CAISHI,
+    b8::FUMIAN,
+    b8::DAIYAN,
+    b8::WENGUA,
+    b8::FUZHU,
+    b8::SHOUXI,
+    b8::HUIMIN,
+    b8::QINGXIAN,
+    b8::JUEXIANG,
+    b8::JIANZHENG,
+    b8::ZHUANDUI,
+    b8::TIANBIAN,
+    b8::FUNAN,
+    b8::JIEXUN,
+    b8::BIZHUAN,
+    b8::TONGBO,
+    b8::JIXIAN,
+    b8::ROUXIAN,
+    b8::LIEXIAN,
+    b8::HEXIAN,
 ];
 
 /// 转换技（阳/阴两面）：视图按此清单投影 `transforms`（与 handlers 的 `g.yang/toggle_yang` 对应）。
@@ -433,6 +456,10 @@ pub fn draw_bonus(g: &Game, seat: usize) -> usize {
     if active(g, seat, "huaiju") && ju(g, seat) > 0 {
         n += 1;
     }
+    // 福绵①（吴苋）：准备阶段选择后，本回合摸牌阶段多摸 N 张。
+    if active(g, seat, "fumian") {
+        n += b8::fumian_draw_bonus(g);
+    }
     n
 }
 
@@ -613,6 +640,79 @@ pub fn take_void_marked(
     Ok(cards)
 }
 
+// ---------------------------------------------------------------------------
+// B8 跨批机制钩子（内核只读这些函数，不认识具体技能）
+// ---------------------------------------------------------------------------
+
+/// 手牌上限修正（才识 +1 / 忠鉴 -1 / 辟撰「书」数）。
+pub fn hand_limit_delta(g: &Game, seat: usize) -> i32 {
+    b8::hand_limit_delta(g, seat)
+}
+
+/// 「本回合不能对自己使用牌」（才识②）：含装备牌。
+pub fn self_use_blocked(g: &Game, seat: usize) -> bool {
+    b8::self_use_blocked(g, seat)
+}
+
+/// 目标数修正（福绵②）：返回可**额外**指定的目标数（0 = 不修正）。
+pub fn extra_targets(g: &Game, seat: usize, card: Option<&crate::kernel::CardId>) -> usize {
+    b8::extra_targets(g, seat, card)
+}
+
+/// 消费「本回合多指定目标」的一次性效果（福绵②）。
+pub fn consume_extra_targets(g: &mut Game, seat: usize) {
+    b8::consume_extra_targets(g, seat);
+}
+
+/// 响应牌打出后的统一接入点（复难：「其他角色响应你使用的牌」）。
+pub fn on_response_played(
+    g: &mut Game,
+    used: Option<&crate::kernel::CardId>,
+    responder: usize,
+    response: &crate::kernel::CardId,
+) {
+    b8::on_response_played(g, used, responder, response);
+}
+
+/// 拼点选牌的附加选项（天辩：牌堆顶的牌）。
+pub fn pindian_options(g: &Game, seat: usize) -> Vec<(String, String)> {
+    b8::pindian_options(g, seat)
+}
+
+/// 拼点选牌附加选项的执行（返回取到的牌 id）。
+pub fn pindian_take(
+    g: &mut Game,
+    seat: usize,
+    option: &str,
+) -> Result<Option<crate::kernel::CardId>, String> {
+    b8::pindian_take(g, seat, option)
+}
+
+/// 拼点牌的有效点数（天辩：红桃视为 K）。
+pub fn pindian_rank(g: &Game, seat: usize, card: &crate::kernel::CardId) -> u8 {
+    b8::pindian_rank(g, seat, card)
+}
+
+/// 「【杀】指定目标后 / 成为【杀】目标后」可介入的技能（按注册顺序）。
+pub fn sha_intercept_skills(
+    g: &Game,
+    user: usize,
+    target: usize,
+    card: Option<&crate::kernel::CardId>,
+) -> Vec<(usize, &'static str)> {
+    b8::sha_intercept_skills(g, user, target, card)
+}
+
+/// 该介入技能是否「每张牌只问一次」（否则每个目标各问一次）。
+pub fn sha_intercept_per_card(code: &str) -> bool {
+    b8::sha_intercept_per_card(code)
+}
+
+/// 「随机使用一张装备牌」（清弦/四弦）：牌堆顶向下第一张装备，无则遍历弃牌堆。
+pub fn take_equip_from_piles(g: &mut Game, cause: &str) -> Option<crate::kernel::CardId> {
+    b8::take_equip_from_piles(g, cause)
+}
+
 /// 伤害数值加成钩子（暗箭；`flow::damage_now` 在扣血前调用）。
 pub fn damage_bonus(
     g: &Game,
@@ -661,6 +761,14 @@ pub fn on_sha_finished(
 }
 
 /// 「权」数量（钟会·权计；移出游戏的牌，用手牌上限 +1 的计数表达）。
+/// 授予技能（绝响：随机获得「和弦/柔弦/烈弦/激弦」之一）。
+pub fn grant_skill(g: &mut Game, seat: usize, code: &str) {
+    if !g.seats[seat].granted.iter().any(|x| x == code) {
+        g.seats[seat].granted.push(code.to_string());
+    }
+    rebuild_subs(g);
+}
+
 pub fn quan(g: &Game, seat: usize) -> u32 {
     g.seats
         .get(seat)

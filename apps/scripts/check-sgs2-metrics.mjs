@@ -111,6 +111,68 @@ console.log(`  AI 示例   ${String(aiLoc).padStart(5)} 行（examples/sgs2-self
 console.log("== 旧引擎（sanguosha）同技能专属代码 ==");
 for (const c of codes) console.log(`  ${c.padEnd(12)} ${String(old[c].loc).padStart(4)} 行`);
 console.log(`  合计        ${oldTotal} 行 / ${skillUnits} 技能 = ${(oldTotal / skillUnits).toFixed(0)} 行/技能`);
+// ---------------------------------------------------------------------------
+// 迁移趋势（B8 起）：注册技能数 / v1 已实现数 / 覆盖率 / 对齐单未答疑点
+// ---------------------------------------------------------------------------
+const registrySrc = path.join(NEW_SRC, "skills/mod.rs");
+const registeredCount = (
+  readFileSync(registrySrc, "utf8").match(/^\s+b[0-9a-z]+::[A-Z0-9_]+,$/gm) ?? []
+).length;
+const catalogPath = path.join(projectRoot, "docs/games/sanguosha/data/engine-catalog.json");
+let v1Implemented = 0;
+let v1Skills = 0;
+if (existsSync(catalogPath)) {
+  const catalog = JSON.parse(readFileSync(catalogPath, "utf8"));
+  const names = new Set();
+  for (const g of catalog.generals ?? []) {
+    for (const sk of g.skills ?? []) names.add(typeof sk === "string" ? sk : sk.name);
+  }
+  v1Skills = names.size;
+  // v1 的「已实现」事实源是 skills.rs 的 `SkillDef { … implemented: true }` 块（与 check:sgs-parity 同口径）。
+  const v1SkillsSrc = path.join(OLD_SRC, "skills.rs");
+  if (existsSync(v1SkillsSrc)) {
+    const text = readFileSync(v1SkillsSrc, "utf8");
+    const all = new Set();
+    const done = new Set();
+    for (const chunk of text.split("SkillDef {").slice(1)) {
+      const code = /code:\s*"([a-z0-9_]+)"/.exec(chunk)?.[1];
+      if (!code) continue;
+      all.add(code);
+      if (/implemented:\s*true/.test(chunk)) done.add(code);
+    }
+    v1Skills = all.size;
+    v1Implemented = done.size;
+  }
+}
+const alignDir = path.join(projectRoot, "docs/games/sanguosha/align");
+const alignFiles = readdirSync(alignDir).filter((f) => /^B\d+\.json$/.test(f));
+let alignQuestions = 0;
+let alignUnanswered = 0;
+const batchStats = [];
+for (const f of alignFiles) {
+  const spec = JSON.parse(readFileSync(path.join(alignDir, f), "utf8"));
+  const qs = (spec.generals ?? []).flatMap((g) => (g.skills ?? []).flatMap((k) => k.questions ?? []));
+  alignQuestions += qs.length;
+  alignUnanswered += qs.filter((q) => !q.answer).length;
+  const skills = (spec.generals ?? []).flatMap((g) => g.skills ?? []);
+  const impl = skills.filter((k) => k.status === "implemented" || k.status === "verified").length;
+  batchStats.push(`${spec.batch}=${impl}/${skills.length}`);
+}
+const skillLocByBatch = [
+  "b0", "b1", "b1b", "b2", "b3", "b4", "b5", "b6", "b7", "b8",
+].map((b) => {
+  const f = path.join(NEW_SRC, "skills", `${b}.rs`);
+  return existsSync(f) ? `${b}:${readFileSync(f, "utf8").split("\n").length}` : null;
+}).filter(Boolean);
+
+console.log("== 迁移进度（v1 → v2） ==");
+console.log(`  v2 注册技能 ${String(registeredCount).padStart(4)} / v1 已实现 ${v1Implemented}（v1 技能总数 ${v1Skills}）`);
+console.log(
+  `  对齐单      ${String(alignFiles.length).padStart(4)} 批 / 疑点 ${alignQuestions} 条（未答 ${alignUnanswered}）`,
+);
+console.log(`  已实现分布  ${batchStats.join("  ")}`);
+console.log(`  技能文件行数 ${skillLocByBatch.join("  ")}`);
+
 console.log("== 结论 ==");
 const ratio = (newSkills / skillUnits) / (oldTotal / skillUnits);
 console.log(`  每技能专属 LOC 比值：${(ratio * 100).toFixed(0)}%（目标曾为 ≤50%）`);

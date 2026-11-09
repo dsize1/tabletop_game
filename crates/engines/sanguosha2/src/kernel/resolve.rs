@@ -55,6 +55,10 @@ pub enum Stage {
     CardOpt,
     /// 技能声明的牌需要选目标（滔乱：按声明牌名的目标规则）。
     CardTarget,
+    /// 拼点：发起方暗选拼点牌。
+    PindianInit,
+    /// 拼点：目标方暗选拼点牌。
+    PindianResp,
     /// 判定阶段（内核）：逐张结算判定区延时锦囊。
     JudgeResolve,
     /// 翻面结算完（解围②等子流程返回后继续）。
@@ -69,6 +73,8 @@ pub enum FlowKind {
     Wuxie,
     /// 牌结算（使用→目标→响应→结算→弃牌/装备/判定区）。
     Card,
+    /// 拼点子流程（双方暗选 → 亮牌比点数 → 双方拼点牌进弃牌堆）。
+    Pindian,
     /// 判定阶段：延时锦囊 LIFO 结算。
     Judge,
     /// 弃牌阶段：逐张弃置直到手牌上限。
@@ -174,6 +180,12 @@ pub fn advance(g: &mut Game) -> Result<(), String> {
                         data: f.data.clone(),
                     })?,
                     FlowKind::Discard => crate::turn::step_discard(g, &Ask {
+                        skill: f.skill.clone(),
+                        stage: f.stage,
+                        actor: f.actor,
+                        data: f.data.clone(),
+                    })?,
+                    FlowKind::Pindian => super::pindian::step_pindian(g, &Ask {
                         skill: f.skill.clone(),
                         stage: f.stage,
                         actor: f.actor,
@@ -395,6 +407,7 @@ pub fn begin_phase(g: &mut Game, seat: usize, phase: Phase) -> Result<(), String
             g.counters.insert(key, if cur == 1 { 2 } else { 0 });
         }
         g.turn = seat;
+        g.turn_seq += 1;
         g.events.push(super::event::Event::simple(
             EventKind::TurnStart,
             Some(seat),

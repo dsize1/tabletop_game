@@ -12,7 +12,7 @@
 //
 // 用法：node apps/scripts/check-sgs2-registry.mjs [--verbose]
 
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { projectRoot } from "./lib/sgs-catalog.mjs";
@@ -22,7 +22,58 @@ const problems = [];
 const fail = (m) => problems.push(m);
 
 /** 已迁移到 v2 的批次（B8 起每迁一批就追加；gate 随之要求注册表与对齐单精确一致）。 */
-const V2_BATCHES = [0, 1, 2, 3, 4, 5, 6, 7];
+const V2_BATCHES = [0, 1, 2, 3, 4, 5, 6, 7, 8];
+
+/**
+ * 授予型子技能：**只**能通过技能授予获得（不在 heroes.json 的技能表里），因此对齐单没有独立技能行。
+ * 权威文本写在授予者技能的「对齐后描述」里（B8 绝响 → 和弦/柔弦/烈弦/激弦）。
+ */
+const GRANT_ONLY = new Set(["hexian", "rouxian", "liexian", "jixian"]);
+
+/**
+ * 机制 → 内核用例锚点：迁移批次里声明过的机制，必须在 tests/*.rs 的某个 `#[test]` 里
+ * 出现对应锚点（防「机制只在单个技能的用例里间接覆盖」，与 `ALLOW_INDIRECT` 互补）。
+ */
+const MECHANISM_ANCHORS = new Map([
+  ["pindian", ["kernel::pindian::start"]],
+  ["target-extra", ["extra_target"]],
+  ["deck-carrier", ["use_as"]],
+  ["card-gained", ["gain(&"]],
+  ["reveal", ["reveal("]],
+  ["hand-freeze", ["frozen"]],
+  ["judge-zone", ["to_judge("]],
+  ["dying-resolution", ["flow::damage"]],
+  ["damage-vs-hp-loss", ["flow::lose_hp"]],
+  ["card-out-in-game", ["to_void("]],
+  ["lose-vs-discard", ["to_discard("]],
+  ["chained-state", ["chain_enter("]],
+  ["skill-card-zone", ["to_mark("]],
+  ["transform-skill-windows", ["yang("]],
+  ["virtual-card", ["use_virtual("]],
+  ["deferred-timing", ["deferred"]],
+  ["distance-modifier", ["distance("]],
+  ["response-cards", ["responds_as"]],
+  ["use-vs-play", ["respond:"]],
+  ["card-attributes", ["cards::def"]],
+  ["card-target-attribute", ["can_target"]],
+  ["target-list", ["vec![1, 3]", "vec![1, 2]"]],
+  ["trigger-order", ["PhaseStart"]],
+  ["turn-window", ["Phase::"]],
+  ["skill-status", ["skills::active("]],
+  ["zone-ownership", ["check_conservation"]],
+  ["discard-contract", ["to_discard("]],
+  ["wording-can", ["\"pass\"", "\"cancel\""]],
+  ["wording-then", ["Step::Next"]],
+]);
+
+/**
+ * 机制锚点豁免（必须有理由）：措辞约定类没有独立的内核用例，由对齐单门禁
+ * （原文限定语复述）+ 实现评审保证，不重复造假用例。
+ */
+const MECHANISM_ANCHOR_WAIVED = new Map([
+  ["wording-can", "「可以」是可发动/放弃出口的措辞约定，由对齐单第 7 段 + pending 出口门禁覆盖"],
+  ["wording-then", "「然后」是时序措辞约定，由对齐单第 7 段 + Step 阶段推进评审覆盖"],
+]);
 
 /** 间接覆盖：这些 code 由同一批用例的行为断言覆盖（用例里不出现字符串字面量）。 */
 const ALLOW_INDIRECT = new Map([
@@ -114,7 +165,9 @@ for (const code of alignCodes) {
   if (!seen.has(code)) fail(`对齐单（B${V2_BATCHES.join("/")}）的 ${code} 未在 v2 注册`);
 }
 for (const code of seen) {
-  if (!alignCodes.has(code)) fail(`v2 注册了 ${code}，但对齐单（已迁移批次）没有该技能`);
+  if (!alignCodes.has(code) && !GRANT_ONLY.has(code)) {
+    fail(`v2 注册了 ${code}，但对齐单（已迁移批次）没有该技能`);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -143,6 +196,32 @@ for (const file of readdirSync(testsDir)) {
     i = k + 1;
   }
 }
+// 3.5) 机制用例锚点：迁移批次声明过的机制必须有内核级用例锚点
+const usedMechanics = new Set();
+for (const b of V2_BATCHES) {
+  const specFile = path.join(projectRoot, "docs/games/sanguosha/align", `B${b}.json`);
+  if (!existsSync(specFile)) continue;
+  const spec = JSON.parse(readFileSync(specFile, "utf8"));
+  for (const gen of spec.generals ?? []) {
+    for (const sk of gen.skills ?? []) {
+      for (const m of sk.mechanics ?? []) usedMechanics.add(m);
+    }
+  }
+}
+for (const m of usedMechanics) {
+  if (MECHANISM_ANCHOR_WAIVED.has(m)) {
+    if (verbose) console.log(`  · 机制 ${m} 豁免锚点：${MECHANISM_ANCHOR_WAIVED.get(m)}`);
+    continue;
+  }
+  const anchors = MECHANISM_ANCHORS.get(m);
+  if (!anchors) {
+    fail(`机制 ${m} 已被迁移批次引用，但 check-sgs2-registry 未登记用例锚点（MECHANISM_ANCHORS）`);
+    continue;
+  }
+  const hit = testBlocks.some((b) => anchors.some((a) => b.includes(a)));
+  if (!hit) fail(`机制 ${m} 缺少内核用例锚点（期望 tests/*.rs 出现 ${anchors.join(" / ")}）`);
+}
+
 for (const s of reg.skills) {
   const hit = testBlocks.some((b) => b.includes(`"${s.code}"`));
   if (!hit && !ALLOW_INDIRECT.has(s.code)) {

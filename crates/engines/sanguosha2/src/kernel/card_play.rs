@@ -119,10 +119,19 @@ fn plan_use(
             }
             // 弃牌堆里的承载牌（慎断）：技能负责合法性，这里只要求牌存在且未失效。
             Some(Zone::Discard) => {}
+            // 牌堆里的承载牌（伏诛「使用牌堆中的【杀】」，mechanics deck-carrier）：
+            // 合法性（张数上限/目标）由技能负责，内核只按真实牌结算。
+            Some(Zone::Draw) => {}
             _ => return Err("转化牌不在可用区域".into()),
         }
     }
     let planned = planned_targets(g, seat, &def, name, targets, opts.strict, carrier)?;
+    // 「本回合不能对自己使用牌」（才识②）：含装备牌（用户 2026-11-09 裁定）。
+    if skills::self_use_blocked(g, seat)
+        && (def.kind == CardKind::Equip || planned.contains(&seat))
+    {
+        return Err("本回合不能对自己使用牌".into());
+    }
     Ok((planned, def))
 }
 
@@ -228,6 +237,12 @@ fn planned_targets(
     strict: bool,
     carrier: Option<&CardId>,
 ) -> Result<Vec<usize>, String> {
+    // 目标数修正（福绵②）：只有红色基本牌/红色普通锦囊且是「自己使用」时生效。
+    let extra = if g.turn == seat && g.phase == Phase::Play {
+        skills::extra_targets(g, seat, carrier.filter(|c| g.is_red(c)))
+    } else {
+        0
+    };
     let alive = |i: usize| g.seats.get(i).is_some_and(|s| s.hp > 0);
     // 注意：`seats_from_left_of` 末尾包含自己，这里要排除（目标列表不得重复）。
     let left_alive: Vec<usize> = g
@@ -235,21 +250,27 @@ fn planned_targets(
         .into_iter()
         .filter(|i| *i != seat && alive(*i))
         .collect();
-    let one_other = |given: &[usize], what: &str| -> Result<usize, String> {
-        if given.len() != 1 {
-            return Err(format!("{what}需要且只能指定 1 个目标"));
+    let many_others = |given: &[usize], extra: usize, what: &str| -> Result<Vec<usize>, String> {
+        if given.is_empty() || given.len() > 1 + extra {
+            return Err(format!("{what}目标数不合法"));
         }
-        let t = given[0];
-        if t == seat {
-            return Err(format!("{what}不能以自己为目标"));
+        let mut out: Vec<usize> = Vec::new();
+        for t in given {
+            if *t == seat {
+                return Err(format!("{what}不能以自己为目标"));
+            }
+            if !alive(*t) {
+                return Err("目标已死亡".into());
+            }
+            if out.contains(t) {
+                return Err("目标不能重复".into());
+            }
+            if !skills::can_target(g, seat, name, *t) {
+                return Err("目标不能成为此牌目标".into());
+            }
+            out.push(*t);
         }
-        if !alive(t) {
-            return Err("目标已死亡".into());
-        }
-        if !skills::can_target(g, seat, name, t) {
-            return Err("目标不能成为此牌目标".into());
-        }
-        Ok(t)
+        Ok(out)
     };
 
     if def.kind == CardKind::Equip {
@@ -287,36 +308,46 @@ fn planned_targets(
         }
         Effect::SavageAssault | Effect::ArcheryAttack => Ok(left_alive),
         Effect::Sha => {
-            let t = one_other(given, "【杀】")?;
+            if given.len() != 1 && given.len() > 1 + extra {
+                return Err("【杀】目标数不合法".into());
+            }
+            let many = many_others(given, extra, "【杀】")?;
             if strict {
                 let Some(card) = carrier else {
                     return Err("【杀】需要实体牌承载".into());
                 };
-                if !g.can_reach(seat, t, card) {
+                // 多指定目标时「无距离限制」（福绵②）。
+                if extra == 0 && !g.can_reach(seat, many[0], card) {
                     return Err("目标不在攻击范围内".into());
                 }
                 if g.sha_used(seat) >= g.sha_limit(seat) {
                     return Err("本阶段【杀】使用次数已用完".into());
                 }
             }
-            Ok(vec![t])
+            Ok(many)
         }
         Effect::Duel | Effect::Dismantle | Effect::Snatch | Effect::FireAttack => {
-            let t = one_other(given, "该牌")?;
-            if matches!(def.effect, Effect::Dismantle | Effect::Snatch) && !has_cards(g, t) {
-                return Err("目标没有可操作的牌".into());
+            let many = many_others(given, extra, "该牌")?;
+            for t in &many {
+                if matches!(def.effect, Effect::Dismantle | Effect::Snatch) && !has_cards(g, *t) {
+                    return Err("目标没有可操作的牌".into());
+                }
             }
-            if def.effect == Effect::Snatch && g.distance(seat, t) > 1 {
+            // 多指定目标时「无距离限制」；否则按牌自身距离规则。
+            if def.effect == Effect::Snatch && extra == 0 && g.distance(seat, many[0]) > 1 {
                 return Err("【顺手牵羊】只能对距离 1 的角色使用".into());
             }
-            Ok(vec![t])
+            Ok(many)
         }
         Effect::Indulgence | Effect::SupplyShortage => {
-            let t = one_other(given, "该牌")?;
-            if same_effect_in_judge(g, t, def.effect) {
-                return Err("目标判定区已有同名延时锦囊".into());
+            // 延时锦囊不参与「多指定目标」：一张物理牌只能进一个判定区。
+            let many = many_others(given, 0, "该牌")?;
+            for t in &many {
+                if same_effect_in_judge(g, *t, def.effect) {
+                    return Err("目标判定区已有同名延时锦囊".into());
+                }
             }
-            Ok(vec![t])
+            Ok(many)
         }
         Effect::Collateral => {
             if given.len() != 2 {
@@ -459,6 +490,10 @@ pub fn start_use(
         if def.tags.sha {
             g.bump(&format!("turn.sha_virtual:{seat}"));
         }
+    }
+    // 福绵②：本回合「可以多指定目标」的机会用掉一次（即便只指定了 1 个目标）。
+    if crate::skills::extra_targets(g, seat, carrier) > 0 {
+        crate::skills::consume_extra_targets(g, seat);
     }
     if !planned.is_empty() {
         let targets_str = planned
@@ -702,6 +737,22 @@ pub fn step_card(g: &mut Game, a: &Ask) -> Result<Step, String> {
     }
 }
 
+/// 「【杀】指定目标后 / 成为【杀】目标后」的介入结果（技能写、牌结算读后清空）。
+///
+/// 这三个时机（守玺 / 谏征 / 专对）在**结算之前**发生，因此不能走 `TargetChosen`
+/// 事件（事件在牌结算完成后才路由，见 `next-engine-replacement.md` §9.2 谮毁遗留）。
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum ShaIntercept {
+    /// 继续正常结算（技能未改变任何东西）。
+    Continue,
+    /// 该目标不再结算（此【杀】对其无效）。
+    Immune(usize),
+    /// 该目标不能响应（伤害照常结算）。
+    Unresponsive(usize),
+    /// 目标列表被替换（谏征：原目标全部取消，秦宓成为唯一目标）。
+    Replace(Vec<usize>),
+}
+
 // ---------------------------------------------------------------------------
 // 基本牌 / 杀的响应循环
 // ---------------------------------------------------------------------------
@@ -751,6 +802,7 @@ fn sha_loop(
     data: &mut Value,
 ) -> Result<Option<Step>, String> {
     let mut cursor = num(data, "cursor");
+    let mut targets = targets.to_vec();
     let damage_source = damage_source_of(data, source);
     let unresponsive = card.map(|c| g.is_unresponsive(c)).unwrap_or(false);
     while cursor < targets.len() {
@@ -760,8 +812,71 @@ fn sha_loop(
             data["cursor"] = json!(cursor);
             continue;
         }
+        // ① 读取介入技能的结果（技能帧在上方执行完毕后回到本帧）。
+        if data["intercept_wait"].as_bool().unwrap_or(false) {
+            let r = g
+                .sha_intercept
+                .take()
+                .unwrap_or(ShaIntercept::Continue);
+            data["intercept_wait"] = json!(false);
+            match r {
+                ShaIntercept::Continue => {}
+                ShaIntercept::Immune(_) => {
+                    g.push_log(format!("【杀】对 {} 无效", g.seats[t].name));
+                    cursor += 1;
+                    data["cursor"] = json!(cursor);
+                    continue;
+                }
+                ShaIntercept::Unresponsive(_) => {
+                    let bonus = jiu_take_bonus(g);
+                    deal_damage(g, damage_source, t, 1 + bonus, def, card);
+                    skills::on_sha_finished(g, source, Some(t), card, None, true);
+                    cursor += 1;
+                    data["cursor"] = json!(cursor);
+                    continue;
+                }
+                ShaIntercept::Replace(list) => {
+                    let mut list = list;
+                    list.retain(|x| g.seats.get(*x).is_some_and(|s| s.hp > 0));
+                    data["targets"] = json!(list);
+                    data["asked"] = json!(false);
+                    data["cursor"] = json!(0);
+                    targets = list;
+                    cursor = 0;
+                    continue;
+                }
+            }
+        }
+        // ② 询问介入技能（按注册顺序，逐个；per-card / per-target 两种去重口径）。
+        for (owner, code) in skills::sha_intercept_skills(g, source, t, card) {
+            let key = if skills::sha_intercept_per_card(code) {
+                "__card".to_string()
+            } else {
+                t.to_string()
+            };
+            let already = data["intercept_asked"]
+                .get(code)
+                .and_then(|v| v.as_str())
+                .map(|v| v == key)
+                .unwrap_or(false);
+            if already {
+                continue;
+            }
+            data["intercept_asked"][code] = json!(key);
+            data["intercept_wait"] = json!(true);
+            data["intercept_target"] = json!(t);
+            crate::kernel::resolve::push_ask(
+                g,
+                code,
+                Stage::Choose,
+                owner,
+                json!({ "intercept": true, "user": source, "target": t, "card": card }),
+            );
+            data["cursor"] = json!(cursor);
+            return Ok(Some(Step::Next(Stage::CardOpt, data.clone())));
+        }
         if data["asked"].as_bool().unwrap_or(false) {
-            let responded = apply_response(g, t, ResponseKind::Shan)?;
+            let responded = apply_response(g, t, ResponseKind::Shan, card)?;
             data["asked"] = json!(false);
             if !responded {
                 let bonus = jiu_take_bonus(g);
@@ -802,6 +917,7 @@ fn aoe(
         .ok_or_else(|| "群体锦囊缺少响应牌属性".to_string())?;
     let targets = target_list(data);
     let mut cursor = num(data, "cursor");
+    let mut targets = targets.to_vec();
     let damage_source = damage_source_of(data, source);
     let unresponsive = card.map(|c| g.is_unresponsive(c)).unwrap_or(false);
     while cursor < targets.len() {
@@ -812,7 +928,7 @@ fn aoe(
             continue;
         }
         if data["asked"].as_bool().unwrap_or(false) {
-            let responded = apply_response(g, t, kind)?;
+            let responded = apply_response(g, t, kind, card)?;
             data["asked"] = json!(false);
             if !responded {
                 deal_damage(g, damage_source, t, 1, def, card);
@@ -847,7 +963,9 @@ fn duel(
     data: &mut Value,
 ) -> Result<Step, String> {
     let targets = target_list(data);
-    let initial = *targets.first().ok_or_else(|| "【决斗】缺少目标".to_string())?;
+    let tcursor = num(data, "tcursor").min(targets.len().saturating_sub(1));
+    let initial = *targets.get(tcursor).ok_or_else(|| "【决斗】缺少目标".to_string())?;
+    data["source_seat"] = json!(source);
     let responder = data["responder"]
         .as_u64()
         .map(|n| n as usize)
@@ -857,12 +975,11 @@ fn duel(
     let unresponsive = card.map(|c| g.is_unresponsive(c)).unwrap_or(false);
 
     if g.seats.get(responder).map(|s| s.hp <= 0).unwrap_or(true) {
-        finish(g, card, "use")?;
-        return Ok(Step::Done);
+        return advance_target(g, card, data);
     }
 
     if data["asked"].as_bool().unwrap_or(false) {
-        let responded = apply_response(g, responder, ResponseKind::Sha)?;
+        let responded = apply_response(g, responder, ResponseKind::Sha, card)?;
         data["asked"] = json!(false);
         if responded {
             // 轮换：由对方继续出【杀】。
@@ -876,8 +993,7 @@ fn duel(
         };
         deal_damage(g, source_of_damage, responder, 1, def, card);
         skills::zhanjue_on_damage(g, source, responder);
-        finish(g, card, "use")?;
-        return Ok(Step::Done);
+        return advance_target(g, card, data);
     }
 
     if !unresponsive {
@@ -894,8 +1010,34 @@ fn duel(
     };
     deal_damage(g, source_of_damage, responder, 1, def, card);
     skills::zhanjue_on_damage(g, source, responder);
-    finish(g, card, "use")?;
-    Ok(Step::Done)
+    advance_target(g, card, data)
+}
+
+/// 多目标单目标效果：当前目标结算完 → 还有下一个目标则重置询问状态继续，否则结束。
+///
+/// 用于福绵②（mechanics `target-extra`）：一张红色普通锦囊/【杀】可以多指定目标。
+fn advance_target(
+    g: &mut Game,
+    card: Option<&CardId>,
+    data: &mut Value,
+) -> Result<Step, String> {
+    let targets = target_list(data);
+    let mut tc = num(data, "tcursor") + 1;
+    while tc < targets.len() && g.seats.get(targets[tc]).map(|s| s.hp <= 0).unwrap_or(true) {
+        tc += 1;
+    }
+    data["tcursor"] = json!(tc);
+    if tc < targets.len() {
+        data["asked"] = json!(false);
+        data["step"] = json!("start");
+        data["responder"] = json!(targets[tc]);
+        data["opponent"] = data["source_seat"].clone();
+        data["shown"] = json!(null);
+        Ok(Step::Next(Stage::CardOpt, data.clone()))
+    } else {
+        finish(g, card, "use")?;
+        Ok(Step::Done)
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -910,7 +1052,8 @@ fn pick_card(
     data: &mut Value,
 ) -> Result<Step, String> {
     let targets = target_list(data);
-    let target = *targets.first().ok_or_else(|| "缺少目标".to_string())?;
+    let tcursor = num(data, "tcursor").min(targets.len().saturating_sub(1));
+    let target = *targets.get(tcursor).ok_or_else(|| "缺少目标".to_string())?;
 
     // 候选：判定区 / 装备区（可见）+ 手牌（不可见，随机取第一张）。
     let mut options: Vec<(String, String)> = Vec::new();
@@ -938,16 +1081,14 @@ fn pick_card(
         options.push(("pick:hand".to_string(), "随机一张手牌".to_string()));
     }
     if options.is_empty() {
-        finish(g, card, "use")?;
-        return Ok(Step::Done);
+        return advance_target(g, card, data);
     }
 
     if data["asked"].as_bool().unwrap_or(false) {
         let ans = read_answer(g)?;
         data["asked"] = json!(false);
         if ans == "pass" {
-            finish(g, card, "use")?;
-            return Ok(Step::Done);
+            return advance_target(g, card, data);
         }
         if !options.iter().any(|(id, _)| *id == ans) {
             return Err(format!("非法选牌：{ans}"));
@@ -975,8 +1116,7 @@ fn pick_card(
                 g.card_label(&picked)
             ));
         }
-        finish(g, card, "use")?;
-        return Ok(Step::Done);
+        return advance_target(g, card, data);
     }
 
     let mut b = skills::builder(source, "card_pick").skill("__card");
@@ -1090,8 +1230,10 @@ fn fire_attack(
     def: &cards::CardDef,
     data: &mut Value,
 ) -> Result<Step, String> {
-    let target = *target_list(data)
-        .first()
+    let fw_targets = target_list(data);
+    let tcursor = num(data, "tcursor").min(fw_targets.len().saturating_sub(1));
+    let target = *fw_targets
+        .get(tcursor)
         .ok_or_else(|| "【火攻】缺少目标".to_string())?;
     let step = data["step"].as_str().unwrap_or("start").to_string();
 
@@ -1100,8 +1242,7 @@ fn fire_attack(
             let ans = read_answer(g)?;
             data["asked"] = json!(false);
             if ans == "pass" {
-                finish(g, card, "use")?;
-                return Ok(Step::Done);
+                return advance_target(g, card, data);
             }
             let id = ans
                 .strip_prefix("reveal:")
@@ -1117,8 +1258,7 @@ fn fire_attack(
         }
         let hand = g.hand(target);
         if hand.is_empty() {
-            finish(g, card, "use")?;
-            return Ok(Step::Done);
+            return advance_target(g, card, data);
         }
         let mut b = skills::builder(target, "fire_attack").skill("__card");
         for id in &hand {
@@ -1155,8 +1295,7 @@ fn fire_attack(
             deal_damage(g, damage_source_of(data, source), target, 1, def, card);
         }
         g.conceal(&shown, "fire_attack");
-        finish(g, card, "use")?;
-        return Ok(Step::Done);
+        return advance_target(g, card, data);
     }
 
     let suit = g.cards.get(&shown).map(|c| c.suit);
@@ -1167,8 +1306,7 @@ fn fire_attack(
         .collect();
     if ids.is_empty() {
         g.conceal(&shown, "fire_attack");
-        finish(g, card, "use")?;
-        return Ok(Step::Done);
+        return advance_target(g, card, data);
     }
     let mut b = skills::builder(source, "fire_attack").skill("__card");
     for id in &ids {
@@ -1334,7 +1472,12 @@ fn response_pending(
 }
 
 /// 处理一次响应回答，返回 `true` = 已响应（抵消/免疫）。
-fn apply_response(g: &mut Game, actor: usize, kind: ResponseKind) -> Result<bool, String> {
+fn apply_response(
+    g: &mut Game,
+    actor: usize,
+    kind: ResponseKind,
+    used: Option<&CardId>,
+) -> Result<bool, String> {
     let ans = read_answer(g)?;
     g.response_context = None;
     if ans == "pass" {
@@ -1366,6 +1509,8 @@ fn apply_response(g: &mut Game, actor: usize, kind: ResponseKind) -> Result<bool
                 .fx("respond"),
         );
         g.push_log(format!("{} 打出【{}】响应", g.seats[actor].name, g.card_label(&id)));
+        // 「其他角色响应你使用的牌」统一接入点（复难）。
+        crate::skills::on_response_played(g, used, actor, &id);
         return Ok(true);
     }
     if ans == "armor:bagua" {

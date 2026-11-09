@@ -13,7 +13,9 @@
 //
 // 约定：`--new` 只建骨架；6 段内容由 agent 填，第 6/7 段由用户确认后填。
 
-import { writeFileSync, existsSync } from "node:fs";
+import { writeFileSync, existsSync, readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
+import { projectRoot } from "./lib/sgs-catalog.mjs";
 import { loadCatalog } from "./lib/sgs-catalog.mjs";
 import { expandBatches, BATCHES } from "./lib/sgs-batches.mjs";
 import {
@@ -37,6 +39,36 @@ const val = (f, d = null) => {
 const catalog = loadCatalog();
 const batches = expandBatches(catalog);
 const mechanics = loadMechanics();
+
+// `--v1-anchors`：给「第 2 段（现实现）」提供 v1 代码锚点（不写文件，避免伪造 prose）
+if (has("--v1-anchors")) {
+  const id = (val("--batch") || "").toUpperCase();
+  if (!id) {
+    console.error("用法：--batch B8 --v1-anchors");
+    process.exit(2);
+  }
+  const spec = loadSpec(id);
+  const v1Dir = path.join(projectRoot, "crates/engines/sanguosha/src");
+  const files = readdirSync(v1Dir).filter((f) => f.endsWith(".rs"));
+  const sources = files.map((f) => ({ f, lines: readFileSync(path.join(v1Dir, f), "utf8").split("\n") }));
+  for (const g of spec.generals) {
+    console.log(`\n# ${g.name} ${g.code}`);
+    for (const sk of g.skills) {
+      const hits = [];
+      for (const { f, lines } of sources) {
+        lines.forEach((line, i) => {
+          const isDef = new RegExp(`fn (act|step)_${sk.code}\\b`).test(line);
+          const isHook = line.includes(`"${sk.code}"`);
+          if (isDef || isHook) hits.push(`${f}:${i + 1}  ${line.trim().slice(0, 90)}`);
+        });
+      }
+      console.log(`  ## ${sk.name}（${sk.code}）锚点 ${hits.length} 处`);
+      for (const h of hits.slice(0, 12)) console.log(`     ${h}`);
+      if (hits.length > 12) console.log(`     … 其余 ${hits.length - 12} 处省略`);
+    }
+  }
+  process.exit(0);
+}
 
 if (has("--list") || argv.length === 0) {
   console.log(`[align] 对齐单目录：docs/games/sanguosha/align/（机制词表 v${mechanics.version}）`);

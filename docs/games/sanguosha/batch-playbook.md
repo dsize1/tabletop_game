@@ -249,6 +249,7 @@ fn demo_triggers_and_applies() {
 node apps/scripts/sgs-align-sheet.mjs --batch B8 --new
 
 # 2) 看本批要做什么（武将/技能/已注册状态/待建文件）
+#    同时输出「对齐单 status / 疑点未答数 / 机制缺口（MECHANISM_SUPPORT）→ 是否可开工」
 npm run sgs2:batch -- B8
 
 # 3) 实现：src/skills/b8.rs + 注册到 src/skills/mod.rs 的 SKILLS
@@ -271,11 +272,18 @@ npm run sgs:check:fast      # 全仓 23+ 步（含 v1 回归）
 
 | 门禁 | 作用 |
 |---|---|
-| `npm run check:sgs2-registry` | 注册表唯一性 / 转换技清单 / **对齐单（V2_BATCHES）↔ 注册表精确一致** / 每个 code 必须有 `#[test]` 覆盖 |
+| `npm run check:sgs2-registry` | 注册表唯一性 / 转换技清单 / **对齐单（V2_BATCHES）↔ 注册表精确一致** / 每个 code 必须有 `#[test]` 覆盖 / **机制用例锚点**（对齐单声明的机制必须在 `tests/*.rs` 有内核级锚点；措辞类机制走 `MECHANISM_ANCHOR_WAIVED` 且有理由） / 授予型子技能走 `GRANT_ONLY` 白名单 |
 | `npm run check:sgs2-decision-log` | AI 决策日志 schema（`legal` 必须包含 `chosen`、候选 ≤64、step 单调） |
 | `npm run check:sgs2-ai` | 10 局自对弈：终局率 / illegal / loop / stalled / pending 覆盖 |
 | `npm run check:sgs-parity` | v1↔v2 数据/属性/技能覆盖（迁移期；删 v1 时归档） |
 | `npm run check:sgs2-plugin` | `EnginePlugin` 完备性 / 视图脱敏 / legal≡execute |
+
+### 9.2.1 填第 2 段（现实现）的辅助
+
+```bash
+# 列 v1 实现锚点（act_/step_ 函数 + 技能 code 出现处），填第 2 段时先看这些文件:行
+node apps/scripts/sgs-align-sheet.mjs --batch B9 --v1-anchors
+```
 
 ### 9.3 v2 写法要点（与 v1 最大的不同）
 

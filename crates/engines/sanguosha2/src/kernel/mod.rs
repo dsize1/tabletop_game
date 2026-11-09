@@ -211,6 +211,7 @@ pub mod deferred;
 pub mod event;
 pub mod card_play;
 pub mod pending;
+pub mod pindian;
 pub mod resolve;
 pub mod flow;
 
@@ -294,6 +295,18 @@ pub struct Game {
     /// 判定区入区顺序（LIFO 判定：后置先判）。`to_judge` 追加，离开判定区时移除。
     #[serde(default)]
     pub judge_order: Vec<(usize, CardId)>,
+    /// 拼点子流程结果通道（内核 `pindian` 写、发起技能读后清空）。
+    #[serde(default)]
+    pub pindian_result: Option<crate::kernel::pindian::PindianResult>,
+    /// 「【杀】指定目标后」钩子的结果通道（技能写、牌结算读后清空）。
+    #[serde(default)]
+    pub sha_intercept: Option<crate::kernel::card_play::ShaIntercept>,
+    /// 回合序号（每进入一个新回合 +1；跨回合记忆类技能用）。
+    #[serde(default)]
+    pub turn_seq: u32,
+    /// 技能随机源状态（splitmix64；确定性、可序列化，回放一致）。
+    #[serde(default)]
+    pub rand_state: u64,
     /// 本阶段弃置的牌（瑰藻等「本阶段弃置」判定用）。
     #[serde(default)]
     pub phase_discard_cards: Vec<CardId>,
@@ -340,6 +353,10 @@ impl Game {
             response_context: None,
             wuxie_result: None,
             judge_order: Vec::new(),
+            pindian_result: None,
+            sha_intercept: None,
+            turn_seq: 0,
+            rand_state: 0x5EED_2026_1109_0001,
             phase_discard_cards: Vec::new(),
             suppress_gain_count: false,
             subs: Vec::new(),
@@ -740,6 +757,65 @@ impl Game {
         self.draw_with_cause(seat, n, Some("draw_phase"))
     }
 
+    /// 确定性随机数（skill 随机：绝响随机技能 / 怠宴随机取牌 / 清弦随机装备）。
+    pub fn rand_below(&mut self, n: usize) -> usize {
+        if n == 0 {
+            return 0;
+        }
+        let mut x = self.rand_state;
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        self.rand_state = x;
+        (x.wrapping_mul(0x2545_F491_4F6C_DD1D) % n as u64) as usize
+    }
+
+    /// 洗牌（伏诛「然后洗牌」）：把 Draw 区的 `order` 顺序确定性重排。
+    pub fn shuffle_draw(&mut self) {
+        let ids: Vec<CardId> = self.ids_in(|z| *z == Zone::Draw);
+        let n = ids.len();
+        if n < 2 {
+            return;
+        }
+        let mut pool = ids;
+        let mut shuffled = Vec::with_capacity(n);
+        while !pool.is_empty() {
+            let idx = self.rand_below(pool.len());
+            shuffled.push(pool.remove(idx));
+        }
+        // 重排 order：非牌堆牌保持相对位置，牌堆牌按洗后顺序插回原来占用的槽位。
+        let mut it = shuffled.into_iter();
+        for id in self.order.iter_mut() {
+            if *self.zone.get(id).unwrap_or(&Zone::Void) == Zone::Draw {
+                if let Some(next) = it.next() {
+                    *id = next;
+                }
+            }
+        }
+    }
+
+    /// 置于牌堆底：移到 Draw 区并把 order 移到最末（= 最后才被摸到）。
+    pub fn put_on_bottom(&mut self, id: &CardId) -> Result<(), String> {
+        self.move_card(id, Zone::Draw)?;
+        self.order.retain(|x| x != id);
+        self.order.push(id.clone());
+        Ok(())
+    }
+
+    /// 从牌堆底摸 `n` 张（问卦：置于牌堆顶时双方从另一端摸）。
+    pub fn draw_bottom(&mut self, seat: usize, n: usize) -> Vec<CardId> {
+        let mut out = Vec::new();
+        for _ in 0..n {
+            let Some(id) = self.ids_in(|z| *z == Zone::Draw).last().cloned() else {
+                break;
+            };
+            if self.to_hand(&id, seat).is_ok() {
+                out.push(id);
+            }
+        }
+        out
+    }
+
     /// 置于牌堆顶（恃才）：移到 Draw 区并把 order 提到最前（= 下一个被摸到）。
     pub fn put_on_top(&mut self, id: &CardId) -> Result<(), String> {
         self.move_card(id, Zone::Draw)?;
@@ -1046,6 +1122,12 @@ impl Game {
 
     /// 手牌上限（体力值 + 决堰防具栏… + 「权」）。
     pub fn hand_limit(&self, seat: usize) -> usize {
+        let base = self.hand_limit_base(seat) as i64;
+        let delta = crate::skills::hand_limit_delta(self, seat) as i64;
+        base.saturating_add(delta).max(0) as usize
+    }
+
+    fn hand_limit_base(&self, seat: usize) -> usize {
         // 急攻：发动后本**出牌阶段**的手牌上限**等于**造成的伤害值（赋值，覆盖其它修正）。
         if self.seats[seat].flags.contains("jigong") {
             return self.counter("phase.damage_dealt") as usize;
