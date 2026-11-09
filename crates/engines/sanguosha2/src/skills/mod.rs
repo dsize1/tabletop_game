@@ -20,6 +20,7 @@ pub mod b11;
 pub mod b12;
 pub mod b13;
 pub mod b14;
+pub mod b15;
 pub mod mingren;
 pub mod kongsheng;
 pub mod liangyin;
@@ -47,8 +48,10 @@ pub struct SkillDef {
     pub wuxie_opts: Option<fn(&Game, usize) -> Vec<(String, String)>>,
     /// 无懈窗口选项的执行（返回 true = 已处理该选项）。
     pub wuxie_use: Option<fn(&mut Game, usize, &str) -> Result<bool, String>>,
-    /// 「不能成为目标」拦截（谦节等）：返回 true = 该角色不能成为此牌目标。
-    pub target_blocker: Option<fn(&Game, usize, usize, &str) -> bool>,
+    /// 「不能成为目标」拦截（谦节/帷幕等）：返回 true = 该角色不能成为此牌目标。
+    /// 参数：`(g, target, source, 牌名, 承载牌)`；承载牌用于按实体牌花色判定（帷幕）。
+    pub target_blocker:
+        Option<fn(&Game, usize, usize, &str, Option<&crate::kernel::CardId>) -> bool>,
     /// 转换技：阳面窗口（Some 表示这是一面转换技）。
     pub yang_window: Option<Window>,
     /// 转换技：阴面窗口。
@@ -277,6 +280,26 @@ pub const SKILLS: &[SkillDef] = &[
     b14::YINGHUN,
     b14::WULIE,
     b14::JIANDU,
+    // B15（界太史慈 / 界董卓 / 界邓艾 / 界祝融 / 界姜维 / 界贾诩 / 界鲁肃 / 界张郃）
+    b15::TIANYI,
+    b15::HANZHAN,
+    b15::ROULIN,
+    b15::BENGKUAI,
+    b15::JIUCHI,
+    b15::BAONUE,
+    b15::TUOTIAN,
+    b15::ZAOXIAN,
+    b15::JUXIANG,
+    b15::LIERENG,
+    b15::CHANGBIAO,
+    b15::TIAOXIN,
+    b15::ZHIJI,
+    b15::WEIMU,
+    b15::LUANWU,
+    b15::WANSHA,
+    b15::HAOSHI,
+    b15::DIMENG,
+    b15::QIAOBIAN,
 ];
 
 /// 转换技（阳/阴两面）：视图按此清单投影 `transforms`（与 handlers 的 `g.yang/toggle_yang` 对应）。
@@ -320,11 +343,25 @@ pub const LOCKED_SKILLS: &[&str] = &[
     "jueyan", "jishe", "lianhuo", "zongzuo", "shushen", "weimu", "wushuang", "tieqi_locked",
     "kongcheng", "mashu", "paoxiao", "qicai", "fulin", "yingzi", "zhaxiang", "yicong",
     "yaowu", "liegong", "xiangle",
+    // B15 锁定技（完杀/崩坏/肉林/屯田/巨象/帷幕）
+    "wansha", "bengkuai", "roulin", "tuotian", "juxiang",
 ];
 
 /// 「本回合非锁定技失效」（义绝·黑 / 铁骑）。
 pub fn nonlocked_lost(g: &Game, seat: usize) -> bool {
-    g.counter(&format!("turn.nonlocked_lost:{seat}")) > 0
+    if g.counter(&format!("turn.nonlocked_lost:{seat}")) > 0 {
+        return true;
+    }
+    // 完杀（界贾诩）：任意角色的濒死结算中，除贾诩与濒死角色外的其他角色非锁定技失效。
+    let owner = g.counter("dying.wansha_owner");
+    if owner > 0 {
+        let owner = owner as usize - 1;
+        let victim = g.counter("dying.victim").saturating_sub(1) as usize;
+        if seat != owner && seat != victim && g.counter("dying.victim") > 0 {
+            return true;
+        }
+    }
+    false
 }
 
 /// 注册表里已知的主公技（伪帝借用范围）。
@@ -505,6 +542,9 @@ pub fn damage_before_victim(
     amount: i32,
     card: Option<&crate::kernel::CardId>,
 ) -> bool {
+    if b15::weimu_prevent(g, source, victim, amount) {
+        return true;
+    }
     b14::damage_before_victim(g, source, victim, amount, card)
 }
 
@@ -560,13 +600,19 @@ pub fn wuxie_use(g: &mut Game, seat: usize, action: &str) -> Result<bool, String
 }
 
 /// 目标合法性：该角色能否成为此牌的目标（谦节等 target_blocker）。
-pub fn can_target(g: &Game, source: usize, card: &str, target: usize) -> bool {
+pub fn can_target(
+    g: &Game,
+    source: usize,
+    card: &str,
+    target: usize,
+    carrier: Option<&crate::kernel::CardId>,
+) -> bool {
     for d in SKILLS {
         if !active(g, target, d.code) {
             continue;
         }
         if let Some(f) = d.target_blocker {
-            if f(g, target, source, card) {
+            if f(g, target, source, card, carrier) {
                 return false;
             }
         }
@@ -649,6 +695,8 @@ pub fn draw_bonus(g: &Game, seat: usize) -> usize {
     if active(g, seat, "fumian") {
         n += b8::fumian_draw_bonus(g);
     }
+    // 好施（界鲁肃）：摸牌阶段多摸 2 张（可选，已询问）。
+    n += b15::draw_bonus(g, seat);
     n
 }
 
@@ -858,8 +906,13 @@ pub fn self_use_blocked(g: &Game, seat: usize) -> bool {
 }
 
 /// 目标数修正（福绵②）：返回可**额外**指定的目标数（0 = 不修正）。
-pub fn extra_targets(g: &Game, seat: usize, card: Option<&crate::kernel::CardId>) -> usize {
-    b8::extra_targets(g, seat, card) + b14::extra_targets(g, seat, card)
+pub fn extra_targets(
+    g: &Game,
+    seat: usize,
+    card: Option<&crate::kernel::CardId>,
+    name: &str,
+) -> usize {
+    b8::extra_targets(g, seat, card) + b14::extra_targets(g, seat, card) + b15::extra_targets(g, seat, name)
 }
 
 /// 消费「本回合多指定目标」的一次性效果（福绵②）。
@@ -952,10 +1005,21 @@ pub fn conversions(g: &Game, seat: usize) -> Vec<Conversion> {
     out.extend(b11::conversions(g, seat));
     out.extend(b12::conversions(g, seat));
     out.extend(b14::conversions(g, seat));
+    out.extend(b15::conversions(g, seat));
     out
 }
 
 /// 濒死救援可用的转化【桃】（急救）：`legal` 与 `execute` 共用同一份候选。
+/// 濒死自救可用【酒】（界酒池：黑桃手牌当【酒】自救）。
+pub fn dying_self_jiu(g: &Game, seat: usize) -> Vec<crate::kernel::CardId> {
+    b15::dying_self_jiu(g, seat)
+}
+
+/// 界酒池：使用【酒】无次数限制（legal 与 execute 同源检查）。
+pub fn jiu_unlimited(g: &Game, seat: usize) -> bool {
+    b15::jiu_unlimited(g, seat)
+}
+
 pub fn dying_conversions(g: &Game, seat: usize) -> Vec<Conversion> {
     conversions(g, seat)
         .into_iter()
@@ -996,7 +1060,7 @@ pub fn start_relay(
 
 /// 【杀】次数覆盖（咆哮）。
 pub fn sha_limit_override(g: &Game, seat: usize) -> Option<usize> {
-    b9::sha_limit_override(g, seat)
+    b15::sha_limit_override(g, seat).or_else(|| b9::sha_limit_override(g, seat))
 }
 
 /// 距离修正（马术 -1 / 义从 -1）。
@@ -1004,6 +1068,7 @@ pub fn distance_delta(g: &Game, seat: usize) -> i32 {
     // 奇谋：本回合距离 -X（X = 以此法失去的体力值）。
     b9::distance_delta(g, seat) + b12::distance_delta(g, seat)
         - g.counter("turn.qimou") as i32
+        + b15::distance_delta(g, seat)
 }
 
 /// 【杀】的可达性覆盖（烈弓：距离 ≤ 此【杀】点数）。
@@ -1107,12 +1172,14 @@ pub fn response_need(
     kind: crate::cards::ResponseKind,
     effect: crate::cards::Effect,
 ) -> usize {
+    // 肉林与无双相加（用户裁定 Q1=B）。
     b12::response_need(g, responder, opponent, kind, effect)
+        + b15::response_need_bonus(g, responder, opponent, kind, effect)
 }
 
 /// 【杀】无距离限制（界武圣·方片【杀】）。
 pub fn sha_no_distance(g: &Game, seat: usize, card: &crate::kernel::CardId) -> bool {
-    b9::sha_no_distance(g, seat, card)
+    b9::sha_no_distance(g, seat, card) || b15::sha_no_distance(g, seat, card)
 }
 
 /// 锦囊无距离限制（奇才）。
@@ -1146,6 +1213,7 @@ pub fn hand_limit_override(g: &Game, seat: usize) -> Option<usize> {
 pub fn sha_limit_bonus(g: &Game, seat: usize) -> usize {
     // 奇谋：本回合【杀】次数 +X；鞬出：非基本牌分支每回合 +1。
     b10::sha_limit_bonus(g, seat)
+        + b15::sha_limit_bonus(g, seat)
         + g.counter("turn.qimou") as usize
         + if g.counter("turn.jiandu_bonus") > 0 && active(g, seat, "jiandu") {
             1
@@ -1273,6 +1341,8 @@ pub fn on_game_start(g: &mut Game) {
     b13::init_xueyi(g);
     // 化身：开局获得 3 张化身牌并展示第一张。
     b13::init_huashen(g);
+    // 巧变（界张郃）：开局 2 枚「变」。
+    b15::on_game_start(g);
     // 明任：开局摸 1 张并必选一张作为「任」（压入 Ask 帧，由调用方 advance 驱动）
     for seat in 0..g.seats.len() {
         if active(g, seat, "mingren") {
@@ -1292,4 +1362,64 @@ pub fn on_turn_end_for_scheduled(g: &mut Game, ended: usize) {
     for owner in owners {
         b2::zhengu_end(g, owner, ended);
     }
+}
+
+// ---------------------------------------------------------------------------
+// B15 钩子（阶段前询问 / 摸牌阶段结束 / 牌结算结束）
+// ---------------------------------------------------------------------------
+
+/// 阶段开始前的技能询问（巧变）：返回 true = 已压入询问，调用方应暂停阶段切换。
+pub fn before_phase(g: &mut Game, seat: usize, phase: Phase) -> bool {
+    b15::before_phase(g, seat, phase)
+}
+
+/// 摸牌阶段结束后（好施：手牌 >5 交一半）。
+pub fn after_draw_phase(g: &mut Game, seat: usize) {
+    b15::after_draw_phase(g, seat);
+}
+
+/// 一张牌结算结束（巨象：其他角色的【南蛮入侵】结算结束后获得之）。
+pub fn on_card_finished(g: &mut Game, source: usize, card: &crate::kernel::CardId) {
+    b15::on_card_finished(g, source, card);
+}
+
+/// 拼点前询问（酣战）：返回需要询问的 (持有者, 对手) 列表。
+pub fn pindian_pre_owners(g: &Game, initiator: usize, target: usize) -> Vec<(usize, usize)> {
+    b15::pindian_pre_owners(g, initiator, target)
+}
+
+/// 拼点前询问的技能 code（用于 pending 标签）。
+pub fn pindian_pre_skill(owner: usize, _g: &Game) -> &'static str {
+    let _ = owner;
+    "hanzhan"
+}
+
+/// 拼点前「发动」：令对手的拼点牌改为随机手牌。
+pub fn pindian_pre_apply(g: &mut Game, owner: usize, other: usize) {
+    b15::pindian_pre_apply(g, owner, other);
+}
+
+/// 该方拼点牌是否被强制随机（酣战）。
+pub fn pindian_random_forced(g: &mut Game, seat: usize) -> bool {
+    b15::pindian_random_forced(g, seat)
+}
+
+/// 拼点结算后：给持有「拼点后」技能的参与者压入询问（酣战）。
+pub fn pindian_after(g: &mut Game, initiator: usize, target: usize, a: &str, b: &str, winner: Option<usize>) {
+    b15::pindian_after(g, initiator, target, a, b, winner);
+}
+
+/// 濒死开始（完杀：记录锁定状态）。
+pub fn entering_dying(g: &mut Game, victim: usize) {
+    b15::entering_dying(g, victim);
+}
+
+/// 濒死结束（救起/死亡）：清理锁定状态。
+pub fn leaving_dying(g: &mut Game) {
+    b15::leaving_dying(g);
+}
+
+/// 完杀：只有濒死角色本人可以使用【桃】。
+pub fn dying_peach_blocked(g: &Game, asker: usize, victim: usize) -> bool {
+    b15::dying_peach_blocked(g, asker, victim)
 }

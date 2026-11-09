@@ -618,6 +618,20 @@ impl Game {
                 crate::skills::on_equip_lost(self, s);
             }
         }
+        // 失去牌（手牌/装备区）→ `CardLost`（屯田等「失去牌后」技能的单一事实源）。
+        // 判定区移出不算失去（`to_discard` 对判定区另发 `JudgeZoneLeft`）。
+        if matches!(from, Zone::Hand(_) | Zone::Equip(_, _)) {
+            let owner = match from {
+                Zone::Hand(s) | Zone::Equip(s, _) => s,
+                _ => 0,
+            };
+            self.events.push(Event::card(
+                event::EventKind::CardLost,
+                Some(owner),
+                id.clone(),
+                Some(format!("to:{}", zone_kind_label(&to_probe))),
+            ));
+        }
         Ok(from)
     }
 
@@ -927,7 +941,7 @@ impl Game {
         // 消费点②：目标合法性（谦节等 target_blocker）
         let targets: Vec<usize> = targets
             .into_iter()
-            .filter(|t| crate::skills::can_target(self, seat, card, *t))
+            .filter(|t| crate::skills::can_target(self, seat, &self.name_of(card), *t, Some(card)))
             .collect();
         self.bump("turn.cards_used");
         // 消费点：雄乱生效期间，张绣的牌不能被响应
@@ -1450,5 +1464,20 @@ impl Game {
         }
         self.move_card(id, Zone::Equip(to, slot))?;
         Ok(())
+    }
+}
+
+/// 区域名（`CardLost` 的 cause：`to:<区域>`；技能据此区分弃置/使用/移出）。
+fn zone_kind_label(z: &Zone) -> &'static str {
+    match z {
+        Zone::Draw => "Draw",
+        Zone::Discard => "Discard",
+        Zone::Void => "Void",
+        Zone::Processing => "Processing",
+        Zone::Hand(_) => "Hand",
+        Zone::Equip(_, _) => "Equip",
+        Zone::Judge(_) => "Judge",
+        Zone::Mark(_, _) => "Mark",
+        Zone::Frame(_) => "Frame",
     }
 }

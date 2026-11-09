@@ -538,12 +538,12 @@ fn tieqi_target_may_discard_same_suit_to_keep_shan() {
 #[test]
 fn kongcheng_blocks_sha_and_duel_when_handless() {
     let mut g = game(&[("zhugeliang", &["kongcheng"], 3), ("p1", &[], 4)]);
-    assert!(!skills::can_target(&g, 1, "杀", 0), "空手牌不能成为【杀】目标");
-    assert!(!skills::can_target(&g, 1, "决斗", 0), "空手牌不能成为【决斗】目标");
-    assert!(skills::can_target(&g, 1, "顺手牵羊", 0), "其他牌不受限");
+    assert!(!skills::can_target(&g, 1, "杀", 0, None), "空手牌不能成为【杀】目标");
+    assert!(!skills::can_target(&g, 1, "决斗", 0, None), "空手牌不能成为【决斗】目标");
+    assert!(skills::can_target(&g, 1, "顺手牵羊", 0, None), "其他牌不受限");
     // 有手牌后恢复
     give(&mut g, 0, &["c2"]);
-    assert!(skills::can_target(&g, 1, "杀", 0));
+    assert!(skills::can_target(&g, 1, "杀", 0, None));
 }
 
 #[test]

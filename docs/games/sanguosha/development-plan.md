@@ -786,6 +786,15 @@ npm run gen:sgs-audit-matrix           # 生成矩阵骨架（已存在则拒绝
 
 **门禁**：`check:sgs-generals`（矩阵一致性 + 抽样 8 将）已并入 `sgs:check`（非 fast）与 fast 的 `generals-matrix` 步骤。
 
+**v2 迁移批次 B15（界标·J3，2026-11-09，已完成）**：
+
+- 对齐：`align/B15.json|md` 63 条疑点用户逐条裁定（含 13 条直接在 md 上改写）→ implemented。
+- 实现：`crates/engines/sanguosha2/src/skills/b15.rs`（19 技能：天义/酣战/肉林/崩坏/酒池/暴虐/屯田/凿险/巨象/烈刃/长标/挑衅/志继/帷幕/乱武/完杀/好施/缔盟/巧变）。
+- 内核增量：`EventKind::CardLost`、拼点 `pre/after` 钩子、`response_need` 相加、`jiu_take_bonus` 叠加、`before_phase` 阶段前询问、
+  `after_draw_phase`、`on_card_finished`、`target_blocker` 带承载牌、濒死锁定（完杀/非锁定技失效）、额外回合按新回合清状态。
+- 用例：`tests/b15.rs` 39 条；`cargo test -p sanguosha2` 全绿；`check:sgs2` 与 `sgs:check:fast` 全绿。
+
+
 ### P5 武将流程设计工作台 + 预览（L）
 
 **目标**：用有向图设计武将回合内/外流程，并在 Web 预览页跑通一轮 5 人局。

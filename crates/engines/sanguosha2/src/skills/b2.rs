@@ -336,14 +336,22 @@ pub const QIANJIE: SkillDef = SkillDef {
 };
 
 /// 谦节：不能成为 ①延时锦囊 ②铁索连环 的目标（拼点由 `skills::blocks_pindian` 拦截）。
-fn qianjie_blocker(g: &Game, _seat: usize, _source: usize, card: &str) -> bool {
-    g.cards
-        .get(card)
-        .map(|c| {
-            let tags = cards::tags(&c.name);
-            tags.delayed || tags.lianhuan
-        })
-        .unwrap_or(false)
+fn qianjie_blocker(
+    g: &Game,
+    _seat: usize,
+    _source: usize,
+    card: &str,
+    carrier: Option<&crate::kernel::CardId>,
+) -> bool {
+    // `card` 一般是牌名；兼容旧调用（传牌 id）时按 id 查实体牌名。
+    let name = if g.cards.contains_key(card) && !cards::def(card).known {
+        g.name_of(&card.to_string())
+    } else {
+        card.to_string()
+    };
+    let _ = carrier;
+    let tags = cards::tags(&name);
+    tags.delayed || tags.lianhuan
 }
 
 pub const ZHENGU: SkillDef = SkillDef {

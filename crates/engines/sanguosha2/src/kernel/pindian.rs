@@ -36,6 +36,13 @@ impl PindianResult {
 /// 发起拼点：压入拼点流程帧（不推进，由外层 `advance` 驱动）。
 pub fn start(g: &mut Game, initiator: usize, target: usize, cause: &str) {
     debug_assert!(initiator != target, "拼点双方不能是同一角色");
+    // 拼点前窗口（酣战：询问是否令对方随机手牌拼点）。
+    let pre = skills::pindian_pre_owners(g, initiator, target);
+    let step = if pre.is_empty() { "init" } else { "pre" };
+    let pairs: Vec<serde_json::Value> = pre
+        .iter()
+        .map(|(o, other)| json!({ "owner": o, "other": other }))
+        .collect();
     g.stack.push(Frame::Flow(FlowFrame {
         kind: FlowKind::Pindian,
         skill: cause.to_string(),
@@ -46,7 +53,9 @@ pub fn start(g: &mut Game, initiator: usize, target: usize, cause: &str) {
             "target": target,
             "a": null,
             "b": null,
-            "step": "init",
+            "step": step,
+            "pre": pairs,
+            "pre_cursor": 0,
         }),
     }));
 }
@@ -83,6 +92,16 @@ fn ask_card(g: &mut Game, actor: usize, stage: Stage, data: serde_json::Value) -
     Ok(Step::Need(b.escape("取消拼点（视为未赢）").build()))
 }
 
+/// 酣战：随机取一张手牌（不询问）。
+fn random_choice(g: &mut Game, seat: usize) -> Option<CardId> {
+    let n = g.hand(seat).len();
+    if n == 0 {
+        return None;
+    }
+    let idx = g.rand_below(n);
+    Some(g.hand(seat)[idx].clone())
+}
+
 pub fn step_pindian(g: &mut Game, a: &Ask) -> Result<Step, String> {
     let initiator = seat_of(&a.data, "initiator");
     let target = seat_of(&a.data, "target");
@@ -90,26 +109,95 @@ pub fn step_pindian(g: &mut Game, a: &Ask) -> Result<Step, String> {
     let step = data["step"].as_str().unwrap_or("init").to_string();
 
     match step.as_str() {
-        "init" => match g.answer.take() {
-            None => ask_card(g, initiator, Stage::PindianInit, data),
-            Some(ans) if ans == "pass" => cancel(g, initiator, target),
-            Some(ans) => {
-                let card = resolve_choice(g, initiator, &ans)?;
-                data["a"] = json!(card);
-                data["step"] = json!("resp");
-                Ok(Step::Next(Stage::PindianResp, data))
+        // 拼点前：逐个询问拥有「拼点前」技能的参与者（酣战）。
+        "pre" => {
+            let list = data["pre"].as_array().cloned().unwrap_or_default();
+            let mut cursor = data["pre_cursor"].as_u64().unwrap_or(0) as usize;
+            if cursor >= list.len() {
+                data["step"] = json!("init");
+                return Ok(Step::Next(Stage::PindianInit, data));
             }
-        },
-        "resp" => match g.answer.take() {
-            None => ask_card(g, target, Stage::PindianResp, data),
-            Some(ans) if ans == "pass" => cancel(g, initiator, target),
-            Some(ans) => {
-                let card = resolve_choice(g, target, &ans)?;
-                data["b"] = json!(card);
-                settle(g, initiator, target, data)?;
-                Ok(Step::Done)
+            let owner = list[cursor]["owner"].as_u64().unwrap_or(0) as usize;
+            let other = list[cursor]["other"].as_u64().unwrap_or(0) as usize;
+            let skill = skills::pindian_pre_skill(owner, g);
+            let _ = skill;
+            match g.answer.take().as_deref() {
+                None => {
+                    let mut b = skills::builder(owner, "choice").skill("hanzhan");
+                    b = b.option(
+                        "opt1",
+                        format!("酣战：令 {} 用随机手牌拼点", g.seats[other].name),
+                    );
+                    Ok(Step::Need(b.escape("不发动酣战").build()))
+                }
+                Some("pass") => {
+                    cursor += 1;
+                    data["pre_cursor"] = json!(cursor);
+                    Ok(Step::Next(Stage::PindianInit, data))
+                }
+                Some(_) => {
+                    skills::pindian_pre_apply(g, owner, other);
+                    cursor += 1;
+                    data["pre_cursor"] = json!(cursor);
+                    Ok(Step::Next(Stage::PindianInit, data))
+                }
             }
-        },
+        }
+        "init" => {
+            // 酣战：被强制随机的一方不能自选拼点牌。
+            if g.answer.is_none() && skills::pindian_random_forced(g, initiator) {
+                match random_choice(g, initiator) {
+                    Some(card) => {
+                        g.push_log(format!(
+                            "酣战：{} 只能随机用手牌【{}】拼点",
+                            g.seats[initiator].name,
+                            g.card_label(&card)
+                        ));
+                        data["a"] = json!(card);
+                        data["step"] = json!("resp");
+                        return Ok(Step::Next(Stage::PindianResp, data));
+                    }
+                    None => return cancel(g, initiator, target),
+                }
+            }
+            match g.answer.take() {
+                None => ask_card(g, initiator, Stage::PindianInit, data),
+                Some(ans) if ans == "pass" => cancel(g, initiator, target),
+                Some(ans) => {
+                    let card = resolve_choice(g, initiator, &ans)?;
+                    data["a"] = json!(card);
+                    data["step"] = json!("resp");
+                    Ok(Step::Next(Stage::PindianResp, data))
+                }
+            }
+        }
+        "resp" => {
+            if g.answer.is_none() && skills::pindian_random_forced(g, target) {
+                match random_choice(g, target) {
+                    Some(card) => {
+                        g.push_log(format!(
+                            "酣战：{} 只能随机用手牌【{}】拼点",
+                            g.seats[target].name,
+                            g.card_label(&card)
+                        ));
+                        data["b"] = json!(card);
+                        settle(g, initiator, target, data)?;
+                        return Ok(Step::Done);
+                    }
+                    None => return cancel(g, initiator, target),
+                }
+            }
+            match g.answer.take() {
+                None => ask_card(g, target, Stage::PindianResp, data),
+                Some(ans) if ans == "pass" => cancel(g, initiator, target),
+                Some(ans) => {
+                    let card = resolve_choice(g, target, &ans)?;
+                    data["b"] = json!(card);
+                    settle(g, initiator, target, data)?;
+                    Ok(Step::Done)
+                }
+            }
+        }
         other => Err(format!("拼点：未知步骤 {other}")),
     }
 }
@@ -194,11 +282,13 @@ fn settle(
     g.pindian_result = Some(PindianResult {
         initiator,
         target,
-        a,
-        b,
+        a: a.clone(),
+        b: b.clone(),
         rank_a,
         rank_b,
         winner,
     });
+    // 「拼点后」技能（酣战）：给持有者压入询问（读 data 而非结果通道，避免与发起技能抢 take）。
+    skills::pindian_after(g, initiator, target, &a, &b, winner);
     Ok(())
 }

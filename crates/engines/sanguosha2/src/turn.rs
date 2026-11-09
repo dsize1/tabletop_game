@@ -48,6 +48,20 @@ pub fn tick(g: &mut Game) -> Result<(), String> {
         if g.finished {
             return Ok(());
         }
+        // 当前回合角色已死亡（例：自己的出牌阶段被【决斗】/【乱武】击杀）：
+        // 不能让他继续行动，直接跳到下一名存活角色的准备阶段。
+        if g.seats.get(g.turn).map(|s| s.hp <= 0).unwrap_or(true) {
+            let dead = g.turn;
+            let Some(next) = next_alive(g, dead) else {
+                g.finished = true;
+                return Ok(());
+            };
+            if next <= dead {
+                g.round += 1;
+            }
+            resolve::begin_phase(g, next, Phase::Prepare)?;
+            continue;
+        }
         let seat = g.turn;
         match g.phase {
             Phase::Prepare => {
@@ -70,6 +84,9 @@ pub fn tick(g: &mut Game) -> Result<(), String> {
             Phase::Draw => {
                 g.draw_phase(seat);
                 resolve::begin_phase(g, seat, Phase::Play)?;
+                // 好施（界鲁肃）：摸牌阶段结束后手牌 >5 交一半（询问帧由 advance 呈现）。
+                crate::skills::after_draw_phase(g, seat);
+                resolve::advance(g)?;
             }
             Phase::Play => return Ok(()),
             Phase::Discard => {
@@ -96,7 +113,22 @@ pub fn tick(g: &mut Game) -> Result<(), String> {
                 if g.extra_turn == Some(seat) && !g.extra_turn_active {
                     g.extra_turn = None;
                     g.extra_turn_active = true;
-                    g.push_log(format!("博图：{} 执行额外回合", g.seats[seat].name));
+                    // 额外回合是**新回合**（用户 2026-11-09 裁定：凿险额外回合正常清「本回合」加成）。
+                    for i in 0..g.seats.len() {
+                        g.unfreeze_hand(i);
+                        g.seats[i].flags.remove("hand_sealed");
+                    }
+                    crate::skills::return_void_cards(g, g.turn_seq);
+                    g.clear_prefix("turn.");
+                    g.used_this_turn.clear();
+                    g.uncounted.clear();
+                    g.turn_seq += 1;
+                    g.events.push(Event::simple(
+                        EventKind::TurnStart,
+                        Some(seat),
+                        Some("extra_turn"),
+                    ));
+                    g.push_log(format!("{} 执行额外回合", g.seats[seat].name));
                     resolve::begin_phase(g, seat, Phase::Prepare)?;
                     continue;
                 }

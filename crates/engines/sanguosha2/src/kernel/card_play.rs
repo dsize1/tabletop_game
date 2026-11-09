@@ -321,7 +321,7 @@ fn planned_targets(
 ) -> Result<Vec<usize>, String> {
     // 目标数修正（福绵②）：只有红色基本牌/红色普通锦囊且是「自己使用」时生效。
     let extra = if g.turn == seat && g.phase == Phase::Play {
-        skills::extra_targets(g, seat, carrier.filter(|c| g.is_red(c)))
+        skills::extra_targets(g, seat, carrier.filter(|c| g.is_red(c)), name)
     } else {
         0
     };
@@ -347,7 +347,7 @@ fn planned_targets(
             if out.contains(t) {
                 return Err("目标不能重复".into());
             }
-            if !skills::can_target(g, seat, name, *t) {
+            if !skills::can_target(g, seat, name, *t, carrier) {
                 return Err("目标不能成为此牌目标".into());
             }
             out.push(*t);
@@ -369,7 +369,9 @@ fn planned_targets(
             Ok(vec![seat])
         }
         Effect::Jiu => {
-            if g.counter(&format!("turn.jiu_used:{seat}")) > 0 {
+            if g.counter(&format!("turn.jiu_used:{seat}")) > 0
+                && !crate::skills::jiu_unlimited(g, seat)
+            {
                 return Err("本回合已使用过【酒】".into());
             }
             if !given.is_empty() && (given.len() != 1 || given[0] != seat) {
@@ -394,6 +396,8 @@ fn planned_targets(
             if let Some(t) = skills::aoe_trim_target(g, seat) {
                 v.retain(|x| *x != t);
             }
+            // 巨象：不能成为【南蛮入侵】的目标（target_blocker）。
+            v.retain(|t| skills::can_target(g, seat, name, *t, carrier));
             Ok(v)
         }
         Effect::Sha => {
@@ -456,6 +460,11 @@ fn planned_targets(
             }
             if g.equip_in(a, Slot::Weapon).is_none() {
                 return Err("第一名目标需装备武器".into());
+            }
+            if !skills::can_target(g, seat, name, a, carrier)
+                || !skills::can_target(g, seat, name, b, carrier)
+            {
+                return Err("目标不能成为此牌目标".into());
             }
             Ok(vec![a, b])
         }
@@ -598,7 +607,7 @@ pub fn start_use(
     }
     g.begin_action();
     // 福绵②：本回合「可以多指定目标」的机会用掉一次（即便只指定了 1 个目标）。
-    if crate::skills::extra_targets(g, seat, carrier) > 0 {
+    if crate::skills::extra_targets(g, seat, carrier, name) > 0 {
         crate::skills::consume_extra_targets(g, seat);
     }
     if !planned.is_empty() {
@@ -954,6 +963,10 @@ fn sha_loop(
                 }
                 ShaIntercept::Unresponsive(_) => {
                     let bonus = jiu_take_bonus(g);
+                    if bonus > 0 {
+                        g.counters
+                            .insert(format!("turn.jiu_boost:{t}"), bonus as u32);
+                    }
                     deal_damage(g, damage_source, t, 1 + bonus, def, card);
                     skills::on_sha_finished(g, source, Some(t), card, None, true);
                     cursor += 1;
@@ -1034,6 +1047,10 @@ fn sha_loop(
                 data["need"] = json!(0);
                 data["got"] = json!(0);
                 let bonus = jiu_take_bonus(g);
+                if bonus > 0 {
+                    g.counters
+                        .insert(format!("turn.jiu_boost:{t}"), bonus as u32);
+                }
                 deal_damage(g, damage_source, t, 1 + bonus, def, card);
                 skills::on_sha_finished(g, source, Some(t), card, None, true);
                 cursor += 1;
@@ -1060,6 +1077,10 @@ fn sha_loop(
             }
         }
         let bonus = jiu_take_bonus(g);
+        if bonus > 0 {
+            g.counters
+                .insert(format!("turn.jiu_boost:{t}"), bonus as u32);
+        }
         deal_damage(g, damage_source, t, 1 + bonus, def, card);
         skills::on_sha_finished(g, source, Some(t), card, None, true);
         cursor += 1;
@@ -1082,7 +1103,7 @@ fn aoe(
         .ok_or_else(|| "群体锦囊缺少响应牌属性".to_string())?;
     let targets = target_list(data);
     let mut cursor = num(data, "cursor");
-    let mut targets = targets.to_vec();
+    let targets = targets.to_vec();
     let damage_source = damage_source_of(data, source);
     let unresponsive = card.map(|c| g.is_unresponsive(c)).unwrap_or(false);
     while cursor < targets.len() {
@@ -1134,6 +1155,10 @@ fn aoe(
         data["cursor"] = json!(cursor);
     }
     finish(g, card, "use")?;
+    // 牌结算结束后（巨象：其他角色的【南蛮入侵】结算结束后获得之）。
+    if let Some(card) = card {
+        crate::skills::on_card_finished(g, source, card);
+    }
     Ok(Step::Done)
 }
 
@@ -2149,12 +2174,12 @@ fn equip(g: &mut Game, seat: usize, card: &CardId, slot: Slot) -> Result<(), Str
 
 /// 取走【酒】加成（每张【杀】最多消耗 1 层）。
 fn jiu_take_bonus(g: &mut Game) -> i32 {
-    if g.counter("turn.jiu_bonus") > 0 {
+    // 界酒池（用户裁定 Q1=B）：同回合连喝多杯**叠加**，一次取走全部层数。
+    let n = g.counter("turn.jiu_bonus") as i32;
+    if n > 0 {
         g.counters.insert("turn.jiu_bonus".to_string(), 0);
-        1
-    } else {
-        0
     }
+    n
 }
 
 /// 牌结算收尾：从处理区进弃牌堆（装备/延时锦囊在效果里已落位）。

@@ -214,3 +214,19 @@
   `skills::wuxie_uncounterable` 为真时打出后直接 `wuxie_finish`，不再询问后续无懈。
 - **火攻的颜色模式**（界火计）：`skills::fire_attack_color_mode` 让内核改为随机展示 + 同颜色弃牌。
 - **主动技放弃防抖**：本阶段放弃后写 `phase.cancel_<code>`，同阶段不再提示（防 AI/端侧死循环）。
+
+## 18. B15 跨批机制（2026-11-09）
+
+| 机制 | 入口 | 说明 |
+|---|---|---|
+| 失去牌事件 | `EventKind::CardLost` | 牌离开**手牌/装备区**时由 `Game::move_card` 上报，`cause = to:<区域>`；判定区移出不算失去（仍只发 `JudgeZoneLeft`）。屯田等「失去牌后」技能订阅它。 |
+| 拼点前窗口 | `kernel::pindian` 的 `pre` 阶段 + `skills::pindian_pre_owners/pre_apply` | 逐个询问拥有「拼点前」技能的参与者（酣战）；发动后该对手的拼点牌改随机（`pindian_random_forced`，读后清除）。 |
+| 拼点后窗口 | `skills::pindian_after` | 拼点结算后给持有者压入询问；结果通过 `Ask.data` 传递（不抢 `Game.pindian_result`，发起技能仍可 `take`）。 |
+| 多张响应相加 | `skills::response_need` = 无双 + 肉林 | 两个来源**相加**而非取 max（无双+肉林=3）。 |
+| 【酒】叠加与不限次数 | `card_play::apply_jiu` / `jiu_take_bonus` / `skills::jiu_unlimited` | `ju_take_bonus` 返回并清零全部层数；界酒池放行 `Effect::Jiu` 的次数校验。 |
+| 牌结算结束钩子 | `skills::on_card_finished` | `card_play::aoe` 收尾调用（巨象：其他角色的【南蛮入侵】结算结束后获得之，被无懈也获得）。 |
+| 阶段前询问 | `kernel::resolve::begin_phase` → `skills::before_phase` | 返回 true 时暂停阶段切换并呈现询问；驱动器下次重试同一目标阶段（`turn.qiaobian_asked:<phase>` 防抖）。 |
+| 摸牌阶段结束 | `turn::tick` → `skills::after_draw_phase` | 好施：摸牌后手牌 >5 交一半。 |
+| 目标拦截带承载牌 | `SkillDef.target_blocker(g,target,source,牌名,carrier)` | 帷幕按**实体牌花色**拦黑色锦囊；AOE 目标枚举同样过滤。 |
+| 濒死锁定 | `skills::entering_dying/leaving_dying` + `nonlocked_lost` | 完杀：濒死期间除贾诩与濒死者外其他角色非锁定技失效（`skills::active` 统一判定）。 |
+| 额外回合即新回合 | `turn::tick` | 额外回合清 `turn.*` / `used_this_turn` / `uncounted`，递增 `turn_seq` 并发 `TurnStart`。 |

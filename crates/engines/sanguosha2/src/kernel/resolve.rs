@@ -441,6 +441,11 @@ pub fn begin_phase(g: &mut Game, seat: usize, phase: Phase) -> Result<(), String
         g.push_log(format!("{} 跳过出牌阶段", g.seats[seat].name));
         phase = Phase::Discard;
     }
+    // 阶段开始前的技能询问（巧变）：可暂停切换（返回后由驱动器重试同一目标阶段）。
+    if phase != g.phase && crate::skills::before_phase(g, seat, phase) {
+        advance(g)?;
+        return Ok(());
+    }
     if g.phase != phase {
         g.phase = phase;
         g.clear_prefix("phase.");

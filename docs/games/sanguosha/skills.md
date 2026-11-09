@@ -585,6 +585,8 @@
 | 界张郃 `sgs_hero_486` | 巧变 | `qiaobian` | 普通 | 开局 **2 枚「变」**；弃一张牌**或移除 1 枚「变」**跳过阶段（摸牌→获得至多两名角色各一张手牌；出牌→移动场上的一张牌）；**结束阶段手牌数为新值则 +1「变」** |
 
 本批引入：`Frame::JiangJie` / `HunziEnd` / `ZhiBaJie` / `SheBian` / `PiaoLingPlace` / `WuLie` / `NiePanSkill` / `LianHuanPick`（`resolve_jiexian3.rs`）；`trick_used` 计数（藏拙）；`jiandu_sha_bonus`（界鞬出）；`mark_counts["lie"]`（武烈）；界天香/界火计/界看破/界连环的装备区转化（`equip_card_ids` / `take_equip_card`）；界看破无懈封锁（`WuxieFrame.passed` 直接收束）。见 `tests/p97.rs` 25 条用例。
+
+> **v2 迁移（2026-11-09，批次 B15）**：19 技能已在新内核实现（`crates/engines/sanguosha2/src/skills/b15.rs`），v1 上表仅作历史口径。与上表不同之处（用户 2026-11-09 裁定）见 `align/B15.md` 第 7 段与 `rules-rulings.md` §38：酣战改为「拼点牌亮出前询问是否发动」、肉林与无双**相加**（3 张【闪】）、酒池连喝**叠加**、崩坏**并列最小也触发**、烈刃保留独立 code 并改为「随机手牌/装备区（不含判定区）」、长标虚拟【杀】**无花色无点数**且摸牌数=使用的牌数、挑衅两种失败分支统一由姜维选（不含判定区）、缔盟改为**出牌阶段结束时弃 X**、巧变在**每个阶段开始时**分别询问。用例：`tests/b15.rs` 39 条。
 ### 2.8.8 批次 J4：界限突破 8 将（14 技能，P4.4.2）
 
 | 武将 | 技能 | code | 类型 | 实现要点 |

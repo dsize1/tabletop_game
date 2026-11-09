@@ -531,7 +531,7 @@ fn juexiang_grants_one_of_four_sub_skills_and_blocks_club_targets() {
         .expect("随机授予一条子技能");
     assert!(g.seats[1].flags.contains("juexiang_guard"));
     // 梅花牌不能指定该角色为目标
-    assert!(!skills::can_target(&g, 0, "杀", 1) || g.seats[1].flags.contains("juexiang_guard"));
+    assert!(!skills::can_target(&g, 0, "杀", 1, None) || g.seats[1].flags.contains("juexiang_guard"));
     let _ = granted;
     g.check_conservation().expect("守恒");
 }

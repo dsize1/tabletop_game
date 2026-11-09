@@ -14,6 +14,11 @@ pub enum EventKind {
     CardIntoGame,
     CardGained,
     CardDiscarded,
+    /// 失去牌：牌离开**手牌或装备区**（含被获得/被弃置/使用/打出）。
+    ///
+    /// 与 `CardDiscarded` 的区别：弃置只是失去的一种原因；与 `CardGained` 的区别：
+    /// 获得只说明「谁拿到了」，不说明「谁失去了」（屯田需要后者）。
+    CardLost,
     CardUsed,
     /// 指定目标（source=使用者，card，targets 见 cause 或 seat 列表）。
     TargetChosen,

@@ -387,6 +387,8 @@ pub fn lose_max_hp(g: &mut Game, seat: usize, n: i32, cause: &str) {
 }
 
 pub fn start_dying(g: &mut Game, victim: usize, source: Option<usize>) {
+    // 完杀（界贾诩）：濒死锁定状态（其他角色非锁定技失效）。
+    crate::skills::entering_dying(g, victim);
     g.stack.push(Frame::Flow(super::resolve::FlowFrame {
         kind: super::resolve::FlowKind::Dying,
         skill: "__dying".to_string(),
@@ -416,6 +418,8 @@ fn dying_order(g: &Game, victim: usize) -> Vec<usize> {
 pub fn step_dying(g: &mut Game, a: &Ask) -> Result<Step, String> {
     let victim = a.data["victim"].as_u64().unwrap_or(0) as usize;
     if g.seats[victim].hp > 0 {
+        // 完杀：濒死结算结束（救起）。
+        crate::skills::leaving_dying(g);
         // 兴衰：脱离濒死**之后**，支援者各受到 1 点伤害（用户 2026-11-06 裁定）。
         crate::skills::settle_after_dying(g, victim);
         // 奇谋：救起后再摸牌。
@@ -465,9 +469,10 @@ pub fn step_dying(g: &mut Game, a: &Ask) -> Result<Step, String> {
         has = true;
         b = b.option("xingshuai", "发动兴衰（其他魏势力角色施救）");
     }
+    let peach_blocked = crate::skills::dying_peach_blocked(g, asker, victim);
     for id in g.hand(asker) {
         let tags = g.def_of(&id).tags;
-        let usable = tags.tao || (tags.jiu && asker == victim);
+        let usable = (tags.tao && !peach_blocked) || (tags.jiu && asker == victim);
         if usable {
             has = true;
             b = b.option(
@@ -476,8 +481,25 @@ pub fn step_dying(g: &mut Game, a: &Ask) -> Result<Step, String> {
             );
         }
     }
+    // 界酒池（界董卓）：黑桃手牌当【酒】自救（仅濒死者本人）。
+    if asker == victim {
+        for id in crate::skills::dying_self_jiu(g, asker) {
+            if g.def_of(&id).tags.jiu || g.def_of(&id).tags.tao {
+                continue;
+            }
+            has = true;
+            b = b.option(
+                format!("jiuchi:{id}"),
+                format!("酒池：将【{}】当【酒】自救", g.card_label(&id)),
+            );
+        }
+    }
     // 被动转化【桃】（急救：回合外红色牌当【桃】；候选与 execute 共用 `dying_conversions`）。
-    for conv in crate::skills::dying_conversions(g, asker) {
+    for conv in if peach_blocked {
+        Vec::new()
+    } else {
+        crate::skills::dying_conversions(g, asker)
+    } {
         has = true;
         b = b.option(
             format!("vrespond:{}:{}", conv.skill, conv.from),
@@ -489,7 +511,12 @@ pub fn step_dying(g: &mut Game, a: &Ask) -> Result<Step, String> {
         );
     }
     // 蛊惑（于吉）：扣置一张手牌当【桃】（延后结算：质疑链后再回传结果）。
-    for (id, label) in crate::skills::dying_extra_options(g, asker) {
+    // 完杀：使用【桃】受限时蛊惑当【桃】同样不可用。
+    for (id, label) in if peach_blocked {
+        Vec::new()
+    } else {
+        crate::skills::dying_extra_options(g, asker)
+    } {
         has = true;
         b = b.option(id, label);
     }
@@ -541,6 +568,27 @@ pub fn step_dying(g: &mut Game, a: &Ask) -> Result<Step, String> {
                 ));
                 return Ok(Step::Done);
             }
+            if let Some(card) = act.strip_prefix("jiuchi:") {
+                let card = card.to_string();
+                let ok = crate::skills::dying_self_jiu(g, asker).contains(&card);
+                if !ok {
+                    return Err("濒死：非法的酒池转化".into());
+                }
+                g.to_discard(&card, "dying_jiu")?;
+                g.seats[victim].hp += 1;
+                g.presentation.push(
+                    Presentation::new("dying", POutcome::Heal { amount: 1 })
+                        .actor(asker)
+                        .target(victim)
+                        .cards(vec![card.clone()])
+                        .fx("dying_heal"),
+                );
+                g.push_log(format!(
+                    "{} 以酒池自救 {}（体力 {}）",
+                    g.seats[asker].name, g.seats[victim].name, g.seats[victim].hp
+                ));
+                return Ok(Step::Done);
+            }
             let id = act
                 .strip_prefix("respond:")
                 .ok_or_else(|| format!("濒死：未知选项 {act}"))?
@@ -566,6 +614,8 @@ pub fn step_dying(g: &mut Game, a: &Ask) -> Result<Step, String> {
 
 /// 死亡：发事件（行殇等订阅）+ 排一个「死亡清理」（在技能触发之后执行）。
 pub fn die(g: &mut Game, victim: usize) {
+    // 完杀：濒死结算结束（死亡）。
+    crate::skills::leaving_dying(g);
     let name = g.seats[victim].name.clone();
     g.push_log(format!("{name} 死亡"));
     g.events

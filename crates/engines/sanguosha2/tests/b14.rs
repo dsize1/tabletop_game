@@ -318,7 +318,7 @@ fn lianhuan_converts_plum_and_extra_target() {
         ("p1", &[], 4, "wei"),
     ]);
     give(&mut g, 0, &["ts1"]);
-    assert!(skills::extra_targets(&g, 0, Some(&"ts1".to_string())) == 1);
+    assert!(skills::extra_targets(&g, 0, Some(&"ts1".to_string()), "铁索连环") == 1);
     let conv = skills::conversions(&g, 0);
     assert!(conv.iter().any(|c| c.to == "铁索连环"));
 }

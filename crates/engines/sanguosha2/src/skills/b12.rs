@@ -742,7 +742,7 @@ fn can_lijian(g: &Game, seat: usize) -> bool {
     let males = male_others(g, seat);
     males.iter().any(|a| {
         males.iter().any(|b| {
-            a != b && crate::skills::can_target(g, *a, "决斗", *b)
+            a != b && crate::skills::can_target(g, *a, "决斗", *b, None)
         })
     })
 }
@@ -817,7 +817,7 @@ fn lijian(g: &mut Game, a: &Ask) -> Result<Step, String> {
             };
             let cands: Vec<usize> = male_others(g, owner)
                 .into_iter()
-                .filter(|i| *i != attacker && crate::skills::can_target(g, attacker, "决斗", *i))
+                .filter(|i| *i != attacker && crate::skills::can_target(g, attacker, "决斗", *i, None))
                 .collect();
             match g.answer.take().as_deref() {
                 None => {

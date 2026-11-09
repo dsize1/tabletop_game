@@ -1239,7 +1239,13 @@ pub const KONGCHENG: SkillDef = SkillDef {
     yin_window: None,
 };
 
-fn kongcheng_block(g: &Game, target: usize, _source: usize, card: &str) -> bool {
+fn kongcheng_block(
+    g: &Game,
+    target: usize,
+    _source: usize,
+    card: &str,
+    _carrier: Option<&crate::kernel::CardId>,
+) -> bool {
     if !active(g, target, "kongcheng") || !g.hand(target).is_empty() {
         return false;
     }

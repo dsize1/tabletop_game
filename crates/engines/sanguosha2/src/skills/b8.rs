@@ -1622,7 +1622,13 @@ fn juexiang(g: &mut Game, a: &Ask) -> Result<Step, String> {
 }
 
 /// 梅花牌目标拦截（绝响保护）。
-fn juexiang_block(g: &Game, target: usize, _source: usize, card: &str) -> bool {
+fn juexiang_block(
+    g: &Game,
+    target: usize,
+    _source: usize,
+    card: &str,
+    _carrier: Option<&crate::kernel::CardId>,
+) -> bool {
     if !g.seats[target].flags.contains("juexiang_guard") {
         return false;
     }

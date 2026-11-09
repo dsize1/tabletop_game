@@ -289,15 +289,15 @@ fn qianjie_blocks_delayed_tricks_and_chains() {
         Card::new("suo", "铁索连环", Suit::Club, 10),
     );
     assert!(
-        !sanguosha2::skills::can_target(&g, 1, "le", 0),
+        !sanguosha2::skills::can_target(&g, 1, "le", 0, None),
         "不能成为延时锦囊目标"
     );
     assert!(
-        !sanguosha2::skills::can_target(&g, 1, "suo", 0),
+        !sanguosha2::skills::can_target(&g, 1, "suo", 0, None),
         "不能成为铁索连环目标"
     );
     assert!(
-        sanguosha2::skills::can_target(&g, 1, "c1", 0),
+        sanguosha2::skills::can_target(&g, 1, "c1", 0, None),
         "普通杀仍可指定"
     );
     assert!(sanguosha2::skills::blocks_pindian(&g, 0), "不能成为拼点目标");
