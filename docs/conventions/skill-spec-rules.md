@@ -125,7 +125,21 @@
 - **回复前改向**（救援）：`flow::heal` 前置 `skills::start_jiuyuan`（可选询问；拒绝时按正常回复落盘）。
 - **装备流失钩子**（枭姬）：`move_card` 在离开 `Zone::Equip` 时调 `skills::on_equip_lost`。
 
-## 13. 牌结算（M1）的单一出口
+## 13. B11 跨批机制（2026-11-09）
+
+- **技能判定子流程**（洛神/刚烈等）：`card_play::start_quick_judge` → `FlowKind::QuickJudge`：
+  亮判定牌（落在 `Zone::Frame(..)`）→ 鬼才改判 → 生效 → 天妒；结果写 `Game.judge_result`。
+  收尾**必须按牌区判断**（只在 Frame/Draw/Processing 时进弃牌堆），否则会把天妒获得的牌再弃掉。
+- **改判**（鬼才）：`Game.judge_rewrite` + `skills::start_judge_rewrite`；改判牌可来自手牌或装备区
+  （装备区会触发失去装备钩子），原判定牌进弃牌堆。
+- **判定生效后**（天妒）：`skills::start_tiandu`，取得**改判后生效**的那张。
+- **【闪】的主公技接力**（护驾）：`relay_options(kind=Shan)` → `b11::start_relay`（魏势力代出【闪】）；
+  与 B9 激将（【杀】）共用 `relay_played`/`relay_none` 通道。
+- **倾国**：`vrespond` 允许「自己装备区」的黑色牌作为【闪】打出。
+- **多步技能实现约定**（本批教训）：`Step::Next` 会**替换**触发帧的 `data`——事件触发的技能跨步后会丢
+  `seat/cause/card` 上下文。**一律「答完即压新帧」**（`resolve::push_ask` 带上下文）或把状态存进 `turn.*` 计数。
+
+## 14. 牌结算（M1）的单一出口
 
 - 牌定义是**生成物**：`docs/games/sanguosha/data/cards.json` → `npm run gen:sgs-engine-data`
   → `crates/engines/sanguosha2/src/cards_generated.rs`（160 张 + 属性/效果表）。

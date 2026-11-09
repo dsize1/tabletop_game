@@ -61,6 +61,8 @@ pub enum Stage {
     PindianResp,
     /// 判定阶段（内核）：逐张结算判定区延时锦囊。
     JudgeResolve,
+    /// 技能判定子流程（亮牌 → 改判 → 生效 → 天妒）。
+    QuickJudge,
     /// 翻面结算完（解围②等子流程返回后继续）。
     AfterFlip,
     /// 濒死结算完（奋激：脱困后才摸牌）。
@@ -77,6 +79,8 @@ pub enum FlowKind {
     Pindian,
     /// 判定阶段：延时锦囊 LIFO 结算。
     Judge,
+    /// 技能判定子流程。
+    QuickJudge,
     /// 弃牌阶段：逐张弃置直到手牌上限。
     Discard,
 }
@@ -180,6 +184,12 @@ pub fn advance(g: &mut Game) -> Result<(), String> {
                         data: f.data.clone(),
                     })?,
                     FlowKind::Discard => crate::turn::step_discard(g, &Ask {
+                        skill: f.skill.clone(),
+                        stage: f.stage,
+                        actor: f.actor,
+                        data: f.data.clone(),
+                    })?,
+                    FlowKind::QuickJudge => super::card_play::step_quick_judge(g, &Ask {
                         skill: f.skill.clone(),
                         stage: f.stage,
                         actor: f.actor,

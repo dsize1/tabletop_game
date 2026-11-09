@@ -16,6 +16,7 @@ pub mod b7;
 pub mod b8;
 pub mod b9;
 pub mod b10;
+pub mod b11;
 pub mod mingren;
 pub mod kongsheng;
 pub mod liangyin;
@@ -210,6 +211,21 @@ pub const SKILLS: &[SkillDef] = &[
     b10::JIUYUAN,
     b10::XIAOJI,
     b10::JIEYIN,
+    // B11
+    b11::JIANXIONG,
+    b11::HUJIA,
+    b11::FANKUI,
+    b11::GUICAI,
+    b11::GANGLIE,
+    b11::QINGJIAN,
+    b11::TUXI,
+    b11::LUOYI,
+    b11::TIANDU,
+    b11::YIJI,
+    b11::XUNXUN,
+    b11::WANGXI,
+    b11::QINGGUO,
+    b11::LUOSHEN,
 ];
 
 /// 转换技（阳/阴两面）：视图按此清单投影 `transforms`（与 handlers 的 `g.yang/toggle_yang` 对应）。
@@ -706,7 +722,10 @@ pub fn take_void_marked(
 
 /// 手牌上限修正（才识 +1 / 忠鉴 -1 / 辟撰「书」数）。
 pub fn hand_limit_delta(g: &Game, seat: usize) -> i32 {
-    b8::hand_limit_delta(g, seat) + g.counter("turn.jizhi_hand_limit") as i32
+    b8::hand_limit_delta(g, seat)
+        + g.counter("turn.jizhi_hand_limit") as i32
+        + g.counter(&format!("turn.qingjian_limit:{seat}")) as i32
+        + g.counter(&format!("turn.luoshen_free:{seat}")) as i32
 }
 
 /// 「本回合不能对自己使用牌」（才识②）：含装备牌。
@@ -732,6 +751,16 @@ pub fn on_response_played(
     response: &crate::kernel::CardId,
 ) {
     b8::on_response_played(g, used, responder, response);
+}
+
+/// 判定改判窗口（鬼才）。
+pub fn start_judge_rewrite(g: &mut Game, owner: usize, card: &crate::kernel::CardId) -> bool {
+    b11::start_judge_rewrite(g, owner, card)
+}
+
+/// 天妒：判定生效后询问是否获得判定牌。
+pub fn start_tiandu(g: &mut Game, owner: usize, card: &crate::kernel::CardId) -> bool {
+    b11::start_tiandu(g, owner, card)
 }
 
 /// 拼点选牌的附加选项（天辩：牌堆顶的牌）。
@@ -793,12 +822,15 @@ pub struct Conversion {
 pub fn conversions(g: &Game, seat: usize) -> Vec<Conversion> {
     let mut out = b9::conversions(g, seat);
     out.extend(b10::conversions(g, seat));
+    out.extend(b11::conversions(g, seat));
     out
 }
 
 /// 响应窗口的额外选项（主公技接力「激将」）。
 pub fn relay_options(g: &Game, seat: usize, kind: crate::cards::ResponseKind) -> Vec<(String, String)> {
-    b9::relay_options(g, seat, kind)
+    let mut out = b9::relay_options(g, seat, kind);
+    out.extend(b11::relay_options(g, seat, kind));
+    out
 }
 
 /// 是否可以在该响应窗口发起主公技接力（激将：替主公打出【杀】）。
@@ -818,7 +850,11 @@ pub fn start_relay(
     kind: crate::cards::ResponseKind,
     used: Option<&crate::kernel::CardId>,
 ) {
-    b9::start_relay(g, lord, kind, used);
+    if kind == crate::cards::ResponseKind::Shan {
+        b11::start_relay(g, lord, kind, used);
+    } else {
+        b9::start_relay(g, lord, kind, used);
+    }
 }
 
 /// 【杀】次数覆盖（咆哮）。

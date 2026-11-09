@@ -1,11 +1,11 @@
 {
   "batch": "B11",
   "source": "界限突破·界标·魏",
-  "status": "confirmed",
+  "status": "implemented",
   "mechanics_version": 2,
   "confirmed_by": "用户",
   "confirmed_at": "2026-11-09",
-  "note": "机器文件（单一事实源）。人读请看同目录 B11.md；改这里后运行 --sync 重生成 md。 2026-11-09 填第 2–5 段（agent）。**用户口径（延续 B9/B10）**：标将已基本废弃，界将技能按 v1 实现即可；B11 只做界将技能。已识别两处 v1 仍是**标版逻辑**的缺口：刚烈（标版来源二选一）、清俭（固定交 1 张），以及突袭（固定少摸 2 张）需按界版扩展。 2026-11-09 用户逐条裁定 21 条疑点并确认第 6/7 段。 非 A 裁定：反馈按每 1 点伤害触发一次；清俭含装备区且牌需公示；突袭按「摸 X 张 + 向 N−X 名角色各拿一张」交互；裸衣亮牌后可放弃（放弃则展示牌进弃牌堆并正常摸 2）；忘隙对方死亡仍可发动（两张都归李典）；倾国含装备区。",
+  "note": "机器文件（单一事实源）。人读请看同目录 B11.md；改这里后运行 --sync 重生成 md。 2026-11-09 填第 2–5 段（agent）。**用户口径（延续 B9/B10）**：标将已基本废弃，界将技能按 v1 实现即可；B11 只做界将技能。已识别两处 v1 仍是**标版逻辑**的缺口：刚烈（标版来源二选一）、清俭（固定交 1 张），以及突袭（固定少摸 2 张）需按界版扩展。 2026-11-09 用户逐条裁定 21 条疑点并确认第 6/7 段。 非 A 裁定：反馈按每 1 点伤害触发一次；清俭含装备区且牌需公示；突袭按「摸 X 张 + 向 N−X 名角色各拿一张」交互；裸衣亮牌后可放弃（放弃则展示牌进弃牌堆并正常摸 2）；忘隙对方死亡仍可发动（两张都归李典）；倾国含装备区。 2026-11-09 实现完成：`src/skills/b11.rs`（14 技能）+ `tests/b11.rs`（14 条）。 内核增量：技能判定子流程 `FlowKind::QuickJudge`（亮牌→鬼才改判→生效→天妒）、改判通道 `Game.judge_rewrite`、判定结果 `Game.judge_result`、`relay(kind=Shan)`（护驾）、`vrespond` 装备区承载（倾国）、清俭/洛神的 `hand_limit_delta` 计数。实现约定：多步技能「答完即压新帧」，不用 `Step::Next` 传状态。",
   "generals": [
     {
       "gid": 311,
@@ -16,7 +16,7 @@
           "code": "jianxiong",
           "name": "奸雄",
           "kind": "normal",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "当你受到伤害后，你可以摸一张牌，并获得造成此伤害的牌。",
           "original_source": "heroes.json#gid=311",
           "mechanics_version": 2,
@@ -59,17 +59,23 @@
           },
           "agreed": "当你受到伤害后，你可以摸一张牌，并获得造成此伤害的牌（两件事**解耦**：即使伤害牌已不在处理区/为虚拟牌，你仍可摸一张；获得伤害牌是独立的可选动作）。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "受到伤害即摸 1（解耦），并可获得造成伤害的牌"
+            ],
+            "negative": [
+              "虚拟牌/牌已离场时只摸 1 不获得牌"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b11::JIANXIONG",
+          "tests": [
+            "b11::jianxiong_draws_one_and_can_gain_damage_card"
+          ]
         },
         {
           "code": "hujia",
           "name": "护驾",
           "kind": "lord",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "主公技，其他魏势力角色可以在你需要时代替你使用或打出【闪】（然后视为由你使用或打出）。每回合限一次，当其他魏势力角色于其回合外使用或打出【闪】时，其可以令你摸一张牌。",
           "original_source": "heroes.json#gid=311",
           "mechanics_version": 2,
@@ -113,11 +119,17 @@
           },
           "agreed": "主公技。其他魏势力角色可以在你需要时代替你**使用或打出**【闪】（视为由你使用或打出；响应窗口内的接力，按座位顺序询问有手牌的同势力角色），**然后**其可以令你摸一张牌。每回合限一次，其他魏势力角色于其回合外**使用、打出、或替你使用或打出【闪】**时，其可以选择令你摸一张牌。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "主公需要【闪】时可由魏势力角色代出；其回合外使用/打出【闪】可令主公摸 1（每回合限一次，由其选择）"
+            ],
+            "negative": [
+              "非魏势力、或其自己回合内使用【闪】不触发摸牌"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b11::HUJIA + relay(kind=Shan)",
+          "tests": [
+            "b11::hujia_offers_relay_for_shan_only"
+          ]
         }
       ]
     },
@@ -130,7 +142,7 @@
           "code": "fankui",
           "name": "反馈",
           "kind": "normal",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "当你受到1点伤害后，你可以获得伤害来源的一张牌。",
           "original_source": "heroes.json#gid=312",
           "mechanics_version": 2,
@@ -185,17 +197,23 @@
           },
           "agreed": "当你**每受到 1 点伤害**后（多点伤害分别触发），你可以获得伤害来源的一张牌：手牌随机取一张，装备区由你选择（来源没有牌则不触发）。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "每 1 点伤害获得来源一张牌（2 点伤害可抢 2 张）"
+            ],
+            "negative": [
+              "来源没有牌时不触发；多点伤害超过可用牌数时停止"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b11::FANKUI",
+          "tests": [
+            "b11::fankui_takes_one_per_damage_point"
+          ]
         },
         {
           "code": "guicai",
           "name": "鬼才",
           "kind": "normal",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "当一张判定牌生效前，你可以用一张牌代替之。",
           "original_source": "heroes.json#gid=312",
           "mechanics_version": 2,
@@ -250,11 +268,17 @@
           },
           "agreed": "当一张判定牌生效前，你可以用一张牌（**手牌或装备区**）代替之；原判定牌进弃牌堆，改判牌作为新判定牌生效后进弃牌堆。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "判定牌生效前可用手牌/装备区的牌代替（改判）"
+            ],
+            "negative": [
+              "无牌可换时不询问；放弃改判则原判定牌生效"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b11::GUICAI + skills::start_judge_rewrite",
+          "tests": [
+            "b11::guicai_rewrites_judge"
+          ]
         }
       ]
     },
@@ -267,7 +291,7 @@
           "code": "ganglie",
           "name": "刚烈",
           "kind": "normal",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "当一名角色对你造成1点伤害后，你可以判定，若结果为：\n•红色，你对其造成1点伤害；\n•黑色，你弃置其一张牌。",
           "original_source": "heroes.json#gid=313",
           "mechanics_version": 2,
@@ -310,17 +334,23 @@
           },
           "agreed": "当一名角色对你造成 1 点伤害后，你可以判定：若结果为**红色**，你对其造成 1 点伤害；若为**黑色**，你弃置其一张牌（手牌随机 / 装备区可选）。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "受到伤害后可判定：红→对来源造成 1 点伤害；黑→弃置来源一张牌"
+            ],
+            "negative": [
+              "来源已死亡/伤害来自自己时不触发；黑色分支不再造成伤害"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b11::GANGLIE + kernel QuickJudge",
+          "tests": [
+            "b11::ganglie_black_judge_discards_source_card"
+          ]
         },
         {
           "code": "qingjian",
           "name": "清俭",
           "kind": "normal",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "每回合限一次，当你在摸牌阶段外获得牌后，你可以展示并交给一名其他角色任意张牌，你每给出一种类型的牌，当前回合角色本回合手牌上限便+1。",
           "original_source": "heroes.json#gid=313",
           "mechanics_version": 2,
@@ -376,11 +406,17 @@
           },
           "agreed": "每回合限一次，当你在摸牌阶段外获得牌后，你可以展示并交给一名其他角色**任意张牌（手牌或装备区，需公示）**；你每给出**一种类型**（基本/锦囊/装备）的牌，**当前回合角色**本回合手牌上限便 +1（可叠加，最多 +3）。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "摸牌阶段外获得牌后可展示并交给任意张（含装备区，公示），每给出一种类型给当前回合角色 +1 手牌上限"
+            ],
+            "negative": [
+              "摸牌阶段内获得牌不触发；每回合限一次"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b11::QINGJIAN",
+          "tests": [
+            "b11::qingjian_counts_card_kinds"
+          ]
         }
       ]
     },
@@ -393,7 +429,7 @@
           "code": "tuxi",
           "name": "突袭",
           "kind": "normal",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "摸牌阶段，你可以少摸任意张牌并获得等量其他角色的各一张手牌。",
           "original_source": "heroes.json#gid=314",
           "mechanics_version": 2,
@@ -448,11 +484,17 @@
           },
           "agreed": "摸牌阶段，你可以少摸任意张牌并获得等量其他角色的各一张手牌。**交互**：设本阶段正常摸牌数为 N（含其他加成），先选择摸 X 张（0 ≤ X ≤ N）；摸 X 张后，可向 N−X 名非自己的任意角色各获得其一张手牌（随机取一张）。X = N 即正常摸牌（不拿牌）；X = 0 则可拿 N 名角色的各一张手牌。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "摸牌阶段选摸 X 张（0≤X≤N），再向 N−X 名角色各拿一张手牌"
+            ],
+            "negative": [
+              "X=N 时整轮不拿牌；无其他角色有手牌时不询问"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b11::TUXI",
+          "tests": [
+            "b11::tuxi_draws_x_and_takes_from_rest"
+          ]
         }
       ]
     },
@@ -465,7 +507,7 @@
           "code": "luoyi",
           "name": "裸衣",
           "kind": "normal",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "摸牌阶段开始前，你可以亮出牌堆顶的三张牌，然后你可以跳过摸牌阶段并获得其中所有基本牌、武器牌和【决斗】，且直到你的下回合开始，你为伤害来源的【杀】和【决斗】对目标角色造成的伤害+1。",
           "original_source": "heroes.json#gid=315",
           "mechanics_version": 2,
@@ -521,11 +563,17 @@
           },
           "agreed": "摸牌阶段开始前，你可以亮出牌堆顶的三张牌，然后你可以选择跳过摸牌阶段：若跳过，你获得其中所有**基本牌、武器牌和【决斗】**，其余进弃牌堆，且直到你的下回合开始，你为伤害来源的【杀】和【决斗】对目标角色造成的伤害 +1；**若放弃**，3 张展示牌进弃牌堆，随后正常摸 2 张（不获得其中任何牌、不加伤害）。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "亮出牌堆顶 3 张：跳过摸牌则获得基本/武器/【决斗】且伤害 +1 到下回合；放弃则展示牌进弃牌堆并正常摸 2"
+            ],
+            "negative": [
+              "放弃后不获得展示牌、也不加伤害"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b11::LUOYI",
+          "tests": [
+            "b11::luoyi_may_give_up_and_draw_two"
+          ]
         }
       ]
     },
@@ -538,7 +586,7 @@
           "code": "tiandu",
           "name": "天妒",
           "kind": "normal",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "当你的判定牌生效后，你可以获得此牌。",
           "original_source": "heroes.json#gid=316",
           "mechanics_version": 2,
@@ -581,17 +629,23 @@
           },
           "agreed": "当你的判定牌生效后，你可以获得**生效的那张**判定牌（若曾被鬼才改判，则获得改判后的牌）。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "判定生效后获得该判定牌（改判则取改判后的牌）"
+            ],
+            "negative": [
+              "未装备天妒/判定牌已被取走时不触发"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b11::TIANDU + skills::start_tiandu",
+          "tests": [
+            "b11::tiandu_gains_judge_card"
+          ]
         },
         {
           "code": "yiji",
           "name": "遗计",
           "kind": "normal",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "当你受到1点伤害后，你可以摸两张牌，然后你可以交给至多两名其他角色共计至多两张手牌。",
           "original_source": "heroes.json#gid=316",
           "mechanics_version": 2,
@@ -633,11 +687,17 @@
           },
           "agreed": "当你受到 1 点伤害后，你可以摸两张牌，然后你可以将手牌交给**至多两名其他角色、共计至多两张**。**交互**：①选是否发动 ②摸 2 张 ③按这 2 张在牌堆顶的原始顺序逐张选择交给场上任意其他角色（可选「不交出」自己保留；同一角色最多两张）。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "受到 1 点伤害后摸 2，并按顺序交给至多两名其他角色（合计至多两张）"
+            ],
+            "negative": [
+              "其他角色至多两名、合计至多两张；同一角色不能收第三张"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b11::YIJI",
+          "tests": [
+            "b11::yiji_gives_cards_to_others"
+          ]
         }
       ]
     },
@@ -650,7 +710,7 @@
           "code": "xunxun",
           "name": "恂恂",
           "kind": "normal",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "摸牌阶段开始时，你可以观看牌堆顶的四张牌，然后将其中两张牌置于牌堆顶，将剩余牌置于牌堆底。",
           "original_source": "heroes.json#gid=317",
           "mechanics_version": 2,
@@ -692,17 +752,23 @@
           },
           "agreed": "摸牌阶段开始时，你可以观看牌堆顶的四张牌，然后将其中两张牌以**可调顺序**置于牌堆顶，剩余两张置于牌堆底（本质是「小观星」）。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "摸牌阶段开始前看 4 张，选 2 张置顶（顺序可调）、其余置底"
+            ],
+            "negative": [
+              "牌堆不足 2 张时不询问"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b11::XUNXUN",
+          "tests": [
+            "b11::xunxun_places_top_and_bottom"
+          ]
         },
         {
           "code": "wangxi",
           "name": "忘隙",
           "kind": "normal",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "当你对其他角色造成1点伤害后，或受到其他角色的1点伤害后，你可以摸两张牌并交给该角色其中一张牌。",
           "original_source": "heroes.json#gid=317",
           "mechanics_version": 2,
@@ -757,11 +823,17 @@
           },
           "agreed": "当你对其他角色造成 1 点伤害后，或受到其他角色的 1 点伤害后，你可以摸两张牌并交给该角色其中一张（由你选）。若该角色已死亡/离场，你仍可发动（只摸两张、不交牌；若对方因此进入濒死并死亡，两张牌都归你）。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "造成/受到 1 点伤害后可摸 2 并交给该角色其中一张（对方已死亡则两张都归李典）"
+            ],
+            "negative": [
+              "非「造成/受到 1 点伤害」不触发；对方死亡时不交牌"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b11::WANGXI",
+          "tests": [
+            "b11::wangxi_draws_two_and_gives_one"
+          ]
         }
       ]
     },
@@ -774,7 +846,7 @@
           "code": "qingguo",
           "name": "倾国",
           "kind": "normal",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "你可以将一张黑色手牌当【闪】使用或打出。",
           "original_source": "heroes.json#gid=444",
           "mechanics_version": 2,
@@ -817,17 +889,23 @@
           },
           "agreed": "你可以将一张**黑色牌（手牌或装备区）**当【闪】使用或打出。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "黑色牌（手牌或装备区）当【闪】使用或打出"
+            ],
+            "negative": [
+              "红色牌不能倾国；【闪】无主动使用场景（仅响应）"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b11::QINGGUO + conversions（装备区承载）",
+          "tests": [
+            "b11::qingguo_converts_black_cards_including_equip"
+          ]
         },
         {
           "code": "luoshen",
           "name": "洛神",
           "kind": "normal",
-          "status": "confirmed",
+          "status": "implemented",
           "original": "准备阶段，你可以判定，若结果为黑色，你获得此牌，然后你可以重复此流程。以此法获得的牌本回合不计入手牌上限。",
           "original_source": "heroes.json#gid=444",
           "mechanics_version": 2,
@@ -883,11 +961,17 @@
           },
           "agreed": "准备阶段，你可以判定：若结果为黑色，你获得此牌，然后你可以重复此流程（**无次数上限**，直到你停止或判定为红色）；以此法获得的牌本回合不计入手牌上限。红色判定牌进弃牌堆并结束本次洛神。",
           "assertions": {
-            "positive": [],
-            "negative": []
+            "positive": [
+              "准备阶段判定，黑色则获得并可重复（无上限）；以此法获得的牌本回合不计入手牌上限"
+            ],
+            "negative": [
+              "红色判定牌进弃牌堆并结束洛神（不获得、不再重复）"
+            ]
           },
-          "impl": null,
-          "tests": []
+          "impl": "sanguosha2::skills::b11::LUOSHEN + kernel QuickJudge",
+          "tests": [
+            "b11::luoshen_gains_black_and_stops_on_red"
+          ]
         }
       ]
     }

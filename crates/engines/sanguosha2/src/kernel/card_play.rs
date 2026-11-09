@@ -1706,8 +1706,9 @@ fn apply_response(
         let mut parts = rest.splitn(2, ':');
         let _skill = parts.next().unwrap_or_default();
         let carrier = parts.next().unwrap_or_default().to_string();
-        if !g.hand(actor).contains(&carrier) {
-            return Err("响应：该牌不在手牌".into());
+        let from_equip = matches!(g.zone_of(&carrier), Some(Zone::Equip(s, _)) if *s == actor);
+        if !g.hand(actor).contains(&carrier) && !from_equip {
+            return Err("响应：该牌不在手牌/装备区".into());
         }
         if !g.can_use_card(actor, &carrier) {
             return Err("响应：该牌已被冻结".into());
@@ -1748,6 +1749,63 @@ fn apply_response(
 // ---------------------------------------------------------------------------
 // 判定阶段：延时锦囊 LIFO
 // ---------------------------------------------------------------------------
+
+/// 技能判定子流程：亮判定牌 → 鬼才改判 → 生效 → 天妒（判定牌在 Frame 区）。
+pub fn start_quick_judge(g: &mut Game, owner: usize, reason: &str) {
+    g.stack.push(Frame::Flow(FlowFrame {
+        kind: FlowKind::QuickJudge,
+        skill: reason.to_string(),
+        actor: owner,
+        stage: Stage::QuickJudge,
+        data: json!({ "owner": owner, "step": "reveal" }),
+    }));
+}
+
+pub fn step_quick_judge(g: &mut Game, a: &Ask) -> Result<Step, String> {
+    let owner = a.data["owner"].as_u64().unwrap_or(0) as usize;
+    let mut data = a.data.clone();
+    let step = data["step"].as_str().unwrap_or("reveal").to_string();
+    if step == "reveal" {
+        let Some(card) = flow::judge_card(g, owner) else {
+            g.judge_result = None;
+            return Ok(Step::Done);
+        };
+        data["card"] = json!(card);
+        data["step"] = json!("rewrite");
+        return Ok(Step::Next(Stage::QuickJudge, data));
+    }
+    if step == "rewrite" {
+        if !data["rewrite_asked"].as_bool().unwrap_or(false) {
+            data["rewrite_asked"] = json!(true);
+            let card = data["card"].as_str().unwrap_or_default().to_string();
+            if crate::skills::start_judge_rewrite(g, owner, &card) {
+                return Ok(Step::Next(Stage::QuickJudge, data));
+            }
+        }
+        if let Some(new_card) = g.judge_rewrite.take() {
+            let old = data["card"].as_str().unwrap_or_default().to_string();
+            if !old.is_empty() && old != new_card && g.cards.contains_key(&old) {
+                g.to_discard(&old, "judge_rewrite")?;
+            }
+            data["card"] = json!(new_card);
+        }
+        data["step"] = json!("effective");
+        return Ok(Step::Next(Stage::QuickJudge, data));
+    }
+    let card = data["card"].as_str().unwrap_or_default().to_string();
+    flow::judge_effective(g, owner, &card);
+    g.judge_result = Some(card.clone());
+    if !data["tiandu_asked"].as_bool().unwrap_or(false) {
+        data["tiandu_asked"] = json!(true);
+        if crate::skills::start_tiandu(g, owner, &card) {
+            return Ok(Step::Next(Stage::QuickJudge, data));
+        }
+    }
+    if matches!(g.zone_of(&card), Some(Zone::Frame(_)) | Some(Zone::Draw) | Some(Zone::Processing)) {
+        g.to_discard(&card, "judge")?;
+    }
+    Ok(Step::Done)
+}
 
 pub fn start_judge(g: &mut Game, seat: usize) {
     g.stack.push(Frame::Flow(FlowFrame {

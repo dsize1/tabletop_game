@@ -331,6 +331,12 @@ pub struct Game {
     /// 谦逊：移出游戏的手牌 `(座位, 牌, 到期回合序号)`，回合切换时归还。
     #[serde(default)]
     pub void_return: Vec<(usize, CardId, u32)>,
+    /// 改判结果通道（鬼才）。
+    #[serde(default)]
+    pub judge_rewrite: Option<CardId>,
+    /// 判定子流程结果（生效的判定牌）。
+    #[serde(default)]
+    pub judge_result: Option<CardId>,
     /// 本阶段弃置的牌（瑰藻等「本阶段弃置」判定用）。
     #[serde(default)]
     pub phase_discard_cards: Vec<CardId>,
@@ -389,6 +395,8 @@ impl Game {
             hand_loss_batch: BTreeMap::new(),
             lianying_pending: None,
             void_return: Vec::new(),
+            judge_rewrite: None,
+            judge_result: None,
             phase_discard_cards: Vec::new(),
             suppress_gain_count: false,
             subs: Vec::new(),
