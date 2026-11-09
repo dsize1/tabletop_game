@@ -223,14 +223,12 @@ pub const GUICAI: SkillDef = SkillDef {
     wuxie_opts: None, wuxie_use: None, target_blocker: None, yang_window: None, yin_window: None,
 };
 
-pub fn start_judge_rewrite(g: &mut Game, _owner: usize, _card: &CardId) -> bool {
-    let Some(seat) = (0..g.seats.len()).find(|i| {
-        g.seats[*i].hp > 0 && active(g, *i, "guicai") && !hand_and_equip(g, *i).is_empty()
-    }) else {
-        return false;
-    };
+pub fn active_guicai(g: &Game, seat: usize) -> bool {
+    active(g, seat, "guicai")
+}
+
+pub fn start_guicai(g: &mut Game, seat: usize) {
     push(g, "guicai", seat, json!({}));
-    true
 }
 
 fn guicai(g: &mut Game, a: &Ask) -> Result<Step, String> {

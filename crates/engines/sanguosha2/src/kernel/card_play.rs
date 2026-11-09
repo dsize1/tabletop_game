@@ -1856,19 +1856,25 @@ pub fn step_quick_judge(g: &mut Game, a: &Ask) -> Result<Step, String> {
         return Ok(Step::Next(Stage::QuickJudge, data));
     }
     if step == "rewrite" {
-        if !data["rewrite_asked"].as_bool().unwrap_or(false) {
-            data["rewrite_asked"] = json!(true);
-            let card = data["card"].as_str().unwrap_or_default().to_string();
-            if crate::skills::start_judge_rewrite(g, owner, &card) {
-                return Ok(Step::Next(Stage::QuickJudge, data));
-            }
-        }
+        // 应用上一次改判（原判定牌进弃牌堆）。
         if let Some(new_card) = g.judge_rewrite.take() {
             let old = data["card"].as_str().unwrap_or_default().to_string();
             if !old.is_empty() && old != new_card && g.cards.contains_key(&old) {
                 g.to_discard(&old, "judge_rewrite")?;
             }
             data["card"] = json!(new_card);
+        }
+        // 链式询问：判定者左手侧起、判定者最后（mechanics trigger-order）。
+        let card = data["card"].as_str().unwrap_or_default().to_string();
+        let order = crate::skills::judge_rewrite_holders(g, owner);
+        let mut cursor = data["rewrite_cursor"].as_u64().unwrap_or(0) as usize;
+        while cursor < order.len() {
+            let seat = order[cursor];
+            cursor += 1;
+            data["rewrite_cursor"] = json!(cursor);
+            if crate::skills::start_rewrite_for(g, owner, seat, &card) {
+                return Ok(Step::Next(Stage::QuickJudge, data));
+            }
         }
         data["step"] = json!("effective");
         return Ok(Step::Next(Stage::QuickJudge, data));
@@ -1944,6 +1950,30 @@ pub fn step_judge(g: &mut Game, a: &Ask) -> Result<Step, String> {
             }
             return Ok(Step::Next(Stage::JudgeResolve, json!({ "seat": seat })));
         }
+    }
+
+    // 2.5) 改判窗口（判定牌生效前；与技能判定同口径，链式询问）。
+    if !data["rewrite_done"].as_bool().unwrap_or(false) {
+        let mut judge = judge;
+        if let Some(new_card) = g.judge_rewrite.take() {
+            if !judge.is_empty() && judge != new_card && g.cards.contains_key(&judge) {
+                g.to_discard(&judge, "judge_rewrite")?;
+            }
+            judge = new_card;
+        }
+        let order = crate::skills::judge_rewrite_holders(g, seat);
+        let mut cursor = data["rewrite_cursor"].as_u64().unwrap_or(0) as usize;
+        while cursor < order.len() {
+            let who = order[cursor];
+            cursor += 1;
+            data["rewrite_cursor"] = json!(cursor);
+            if crate::skills::start_rewrite_for(g, seat, who, &judge) {
+                return Ok(Step::Next(Stage::JudgeResolve, data));
+            }
+        }
+        data["rewrite_done"] = json!(true);
+        data["judge_card"] = json!(judge);
+        return Ok(Step::Next(Stage::JudgeResolve, data));
     }
 
     // 3) 生效。

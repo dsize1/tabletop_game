@@ -18,6 +18,7 @@ pub mod b9;
 pub mod b10;
 pub mod b11;
 pub mod b12;
+pub mod b13;
 pub mod mingren;
 pub mod kongsheng;
 pub mod liangyin;
@@ -273,6 +274,7 @@ pub fn active(g: &Game, seat: usize, code: &str) -> bool {
 pub const LOCKED_SKILLS: &[&str] = &[
     "jueyan", "jishe", "lianhuo", "zongzuo", "shushen", "weimu", "wushuang", "tieqi_locked",
     "kongcheng", "mashu", "paoxiao", "qicai", "fulin", "yingzi", "zhaxiang", "yicong",
+    "yaowu", "liegong", "xiangle",
 ];
 
 /// 「本回合非锁定技失效」（义绝·黑 / 铁骑）。
@@ -626,8 +628,9 @@ pub fn damage_bonus_typed(
     dtype: crate::cards::DamageKind,
     chain_origin: bool,
 ) -> i32 {
-    let b9_extra =
-        b9::paoxiao_bonus(g, source, card) + b9::yijue_heart_bonus(g, source, victim, card);
+    let b9_extra = b9::paoxiao_bonus(g, source, card)
+        + b9::yijue_heart_bonus(g, source, victim, card)
+        + b13::liegong_bonus(g, source, victim, card);
     if b9_extra > 0 {
         return b4::anjian_bonus(g, source, victim, card) + b9_extra;
     }
@@ -765,7 +768,10 @@ pub fn on_response_played(
 
 /// 判定改判窗口（鬼才）。
 pub fn start_judge_rewrite(g: &mut Game, owner: usize, card: &crate::kernel::CardId) -> bool {
-    b11::start_judge_rewrite(g, owner, card)
+    match judge_rewrite_holders(g, owner).first() {
+        Some(seat) => start_rewrite_for(g, owner, *seat, card),
+        None => false,
+    }
 }
 
 /// 天妒：判定生效后询问是否获得判定牌。
@@ -886,9 +892,51 @@ pub fn distance_delta(g: &Game, seat: usize) -> i32 {
     b9::distance_delta(g, seat) + b12::distance_delta(g, seat)
 }
 
+/// 【杀】的可达性覆盖（烈弓：距离 ≤ 此【杀】点数）。
+pub fn range_override_reach(
+    g: &Game,
+    from: usize,
+    to: usize,
+    card: &crate::kernel::CardId,
+) -> bool {
+    b13::range_override_reach(g, from, to, card)
+}
+
 /// 「他人 → 我」的距离修正（义从：体力 ≤2 时 +1）。
 pub fn distance_to_delta(g: &Game, seat: usize) -> i32 {
     b12::distance_to_delta(g, seat)
+}
+
+/// 改判候选顺序（判定者左手侧起、判定者最后）：持有鬼才/鬼道且仍有可用牌的座位。
+pub fn judge_rewrite_holders(g: &Game, owner: usize) -> Vec<usize> {
+    let mut order = g.seats_from_left_of(owner);
+    order.push(owner);
+    order
+        .into_iter()
+        .filter(|i| {
+            g.seats.get(*i).is_some_and(|s| s.hp > 0)
+                && !b13::rewrite_cards(g, *i).is_empty()
+        })
+        .collect()
+}
+
+/// 让指定座位进入改判询问（返回 true = 已压入询问帧）。
+pub fn start_rewrite_for(
+    g: &mut Game,
+    judge_owner: usize,
+    seat: usize,
+    card: &crate::kernel::CardId,
+) -> bool {
+    if b13::active_guidao(g, seat) {
+        b13::start_guidao(g, seat, judge_owner);
+        return true;
+    }
+    if b11::active_guicai(g, seat) {
+        b11::start_guicai(g, seat);
+        return true;
+    }
+    let _ = card;
+    false
 }
 
 /// 同一响应窗口需连续打出的响应牌张数（multi-response；无双）。
@@ -990,6 +1038,7 @@ pub fn on_sha_finished(
     respond: Option<&crate::kernel::CardId>,
     damaged: bool,
 ) {
+    b13::on_sha_finished(g, user, target);
     // 奔袭：造成伤害后摸一张（强化项 4）
     if damaged && g.counter("turn.benxi_draw") > 0 {
         g.counters.insert("turn.benxi_draw".to_string(), 0);
