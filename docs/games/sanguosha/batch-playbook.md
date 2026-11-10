@@ -311,7 +311,7 @@ node apps/scripts/sgs-align-sheet.mjs --batch B9 --v1-anchors
 
 ### 9.5 B19 开工交接（2026-11-10，B18 收口后）
 
-> 基线：B0–B18 全部 implemented；`cargo test -p sanguosha2` 644 全绿。
+> 基线：B0–B18 全部 implemented；`cargo test -p sanguosha2` **645** 全绿；`check:sgs2` / `sgs:check` 全绿。
 
 - **批次**：B19 界限突破·J7（8 将 / 15 技能）
   | 武将 | gid | 技能（code） |
@@ -325,19 +325,29 @@ node apps/scripts/sgs-align-sheet.mjs --batch B9 --v1-anchors
   | 界郭皇后 | 726 | 矫诏（`jiazhao`）、殚心（`danxin`） |
   | 界沮授 | 749 | 矢北（`shibei`）、渐营（`jianying`） |
 - **命令序列**
-  1. `node apps/scripts/sgs-align-sheet.mjs --batch B18 --new` → `--sync`
-  2. 填第 2–5 段（`--v1-anchors` 找 v1 锚点）→ `npm run sgs2:batch -- B18`
+  1. `node apps/scripts/sgs-align-sheet.mjs --batch B19 --new` → `--sync`
+  2. 填第 2–5 段（`--v1-anchors` 找 v1 锚点）→ `npm run sgs2:batch -- B19`
   3. 交用户逐条裁定 → 回写第 6/7 段 → `status=confirmed`
-  4. 实现 `crates/engines/sanguosha2/src/skills/b18.rs` + `tests/b18.rs`（每技能 ≥1 正例 + ≥1 反例）
-  5. 注册 `SKILLS` + `V2_BATCHES` 加 18
+  4. 实现 `crates/engines/sanguosha2/src/skills/b19.rs` + `tests/b19.rs`（每技能 ≥1 正例 + ≥1 反例）
+  5. 注册 `SKILLS` + `V2_BATCHES` 加 19
   6. 回写对齐单第 2 段/impl/tests → 文档（skills/rules-rulings/skill-spec-rules/development-plan/milestones）
   7. `npm run check:sgs2` + `npm run sgs:check:fast` 全绿，一条 commit 一批
 - **可复用钩子（勿重写）**：`skills::extra_targets` / `consume_extra_targets` / `extra_targets_no_distance`、`target_no_distance`、
   `sha_limit_exempt` / `sha_blocked_for`、`sha_limit_bonus` / `sha_limit_penalty`、`jiu_blocked`、`effective_rank`、
   `on_card_use`（每张牌使用钩子）、`on_card_finished`（此牌结算后）、`on_equip_lost`、`dying_extra_options/use`、
-  `pindian_after`、`after_draw_phase`、`gain_batch`/`lost_batch`/`equip_lost_batch`/`action_seen`、`turn.damage_card:<card>`、`trim:` 动作入口。
-- **pitfalls（B17 新增）**
+  `on_dying_enter`（濒死时第三方/自救）、`flow::revive_to` / `revive_add`、`damage_to_hp_loss`（伤害转失去体力）、
+  `trick_intercept_owner`（普通锦囊目标拦截）、`on_turn_end`（回合结束）、`start_extra_play_phase` / `on_end_play`（额外阶段）、
+  `card_no_distance` / `no_distance_cards`、`luoying_cards`（+ 视图 `card.marks`）、`pindian_after`、`after_draw_phase`、
+  `gain_batch`/`lost_batch`/`equip_lost_batch`/`action_seen`、`turn.damage_card:<card>`、`total.damage_dealt:<seat>`、`trim:` 动作入口。
+- **pitfalls（B17/B18 新增）**
   * `can_active` 必须与 handler 的 `active(g, seat, code)` 同源；否则 AI 会在「可发动 → 立即 Done」上空转（`check:sgs2-ai` 判 loop）。
-  * 新增纯计数标记（如「巧」）要同时：`turn.*` 计数（回合清空）+ `view::marks_count_view` 投影 + 对齐单 UI 段。
-  * 修改技能 code（撞车改名）要同步 5 处：v1 `skills.rs`、对齐单 `code`、`V2_BATCHES`/注册表、`general-audit.md` 矩阵、skills.md 表；改完跑 `check:sgs-align` + `check:sgs2-registry`（锚点校验）+ `sgs:check`。
+  * 技能询问 handler 若在「触发入口」检查计数器并在同一分支 `anchor`，必须拆 stage（触发 → `Next(stage)` → 询问），
+    否则回答时会再次被触发守卫挡住（秘计/自守都踩过）。
+  * 新增纯计数标记（如「巧」）要同时：`turn.*` 计数（回合清空）+ `view::marks_count_view` 投影 + 对齐单 UI 段；
+    手牌级标记（如落英）走 `Game.<set>` + 视图 `card.marks`，并在 `move_card` 离开手牌时清除。
+  * 修改技能 code（撞车改名）要同步 5 处：v1 `skills.rs`、对齐单 `code`、`V2_BATCHES`/注册表、`general-audit.md` 矩阵、skills.md 表；
+    改完跑 `check:sgs-align` + `check:sgs2-registry`（锚点校验）+ `sgs:check`。
   * 「延时锦囊额外目标」不要实现虚拟判定牌（用户 2026-11-10 裁定）；延时锦囊一律不参与 ±1。
+  * 濒死相关（补益/仁心/伏枥）统一用 `on_dying_enter`（在求桃之前压询问）；救援走 `revive_to` / `revive_add`，
+    不要直接改 `hp`（门禁会拦）。
+  * 「回合结束后」类技能用 `skills::on_turn_end`（清空 `turn.*` 之前）；不要依赖 `PhaseEnd` 事件（普通阶段切换不发）。
