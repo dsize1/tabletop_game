@@ -259,6 +259,7 @@
 | 少指定目标（-1） | `legal_uses` 产出 `trim:<牌>:<目标>` → `lib.rs` 设 `turn.aoe_trim` → `planned_targets` 裁剪 | 巧说：群体锦囊（南蛮/万箭/桃园/五谷）少指定一个目标。 |
 | 额外目标的距离语义 | `skills::extra_targets_no_distance` | 福绵②/天义的多目标含「无距离」；巧说/陷阵/疠火的多目标**不**自动获得无距离。 |
 | 额外目标不覆盖延时锦囊 | `b17::qiaoshuo_extra_targets` 对 `def.tags.delayed` 直接返回 0 | 用户 2026-11-10 裁定：废除延时锦囊的额外目标支持（不引入虚拟判定牌）；延时锦囊不适用 ±1、也不消耗巧说的「下一张牌」效果。 |
+| 回合内计数标记（巧） | `skills::qiao`（`turn.qiao:<seat>` 计数）/ `skills::on_card_use`（`start_use` 调用）/ `view::marks_count_view` | 用户 2026-11-10 裁定：巧说每赢一次 +1 枚「巧」，每出一张符合条件手牌（杀/决斗/拆/顺/火攻/群体锦囊；借刀/铁索等固定目标结构不参与）消耗 1 枚，拼点失败或回合结束清空；视图投影为 `marks_count.qiao`。 |
 | 目标级距离/次数/禁用 | `skills::target_no_distance`（`Game::distance`）/ `sha_limit_exempt` / `sha_blocked_for`（`planned_targets`） | 陷阵：赢 → 对目标无距离、【杀】不受次数；没赢 → 只对该角色禁用【杀】。 |
 | 次数修正双向 | `skills::sha_limit_bonus` / `sha_limit_penalty`（`Game::sha_limit`） | 将驰：②+1；①-1（与其它加成同层，可为 0）。 |
 | 无效=不能成为目标 | `target_blocker` + `skills::trick_blocked` | 智迟；巧说没赢的锦囊封锁（`plan_use` 拦截）。 |

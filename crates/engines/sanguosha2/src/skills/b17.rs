@@ -863,9 +863,10 @@ fn qiaoshuo(g: &mut Game, a: &Ask) -> Result<Step, String> {
             return Ok(Step::Done);
         }
         if res.winner == Some(owner) {
-            g.counters.insert("turn.qiaoshuo_win".to_string(), 1);
+            g.bump(&format!("turn.qiao:{owner}"));
+            let n = qiao(g, owner);
             g.push_log(format!(
-                "巧说：{} 拼点赢，本回合下一张牌可 +1/-1 目标",
+                "巧说：{} 拼点赢，获得 1 枚「巧」（共 {n}），下一张牌可 +1/-1 目标",
                 g.seats[owner].name
             ));
         } else {
@@ -873,8 +874,9 @@ fn qiaoshuo(g: &mut Game, a: &Ask) -> Result<Step, String> {
             g.counters.insert("turn.qiaoshuo_fail".to_string(), 1);
             g.counters
                 .insert("turn.qiaoshuo_fail_owner".to_string(), (owner + 1) as u32);
+            g.counters.insert(format!("turn.qiao:{owner}"), 0);
             g.push_log(format!(
-                "巧说：{} 拼点没赢（对 {}），本回合不能使用锦囊且巧说失效",
+                "巧说：{} 拼点没赢（对 {}），本回合不能使用锦囊、巧说失效、「巧」清空",
                 g.seats[owner].name, g.seats[target].name
             ));
         }
@@ -926,9 +928,14 @@ fn qiaoshuo(g: &mut Game, a: &Ask) -> Result<Step, String> {
     }
 }
 
-/// 巧说：本回合下一张有目标牌可多指定 1 个目标（+1）。
+/// 「巧」标记数量（回合内累计；回合切换由 `turn.` 前缀清空）。
+pub fn qiao(g: &Game, seat: usize) -> u32 {
+    g.counter(&format!("turn.qiao:{seat}"))
+}
+
+/// 巧说：本回合下一张有目标牌可多指定 1 个目标（+1；每张牌消耗 1 枚「巧」）。
 pub fn qiaoshuo_extra_targets(g: &Game, seat: usize, name: &str) -> usize {
-    if !play_phase(g, seat) || g.counter("turn.qiaoshuo_win") == 0 {
+    if !play_phase(g, seat) || qiao(g, seat) == 0 {
         return 0;
     }
     let def = crate::cards::def(name);
@@ -937,30 +944,56 @@ pub fn qiaoshuo_extra_targets(g: &Game, seat: usize, name: &str) -> usize {
     if def.tags.delayed {
         return 0;
     }
-    let eligible = def.tags.sha
+    // 仅「目标数可被 +1」的牌：单目标【杀】/普通锦囊。
+    // 借刀（固定 2 目标）与铁索（1–2 目标，另走自定义流程）不参与 +1。
+    usize::from(
+        def.tags.sha
+            || matches!(
+                def.effect,
+                Effect::Duel | Effect::Dismantle | Effect::Snatch | Effect::FireAttack
+            ),
+    )
+}
+
+/// 巧说：该牌是否属于「巧」可修正目标的牌（非延时）。
+///
+/// +1：单目标【杀】/普通锦囊（决斗/拆/顺/火攻）；-1：群体锦囊（南蛮/万箭/桃园/五谷）。
+/// 借刀（固定 2 目标）与铁索（1–2 目标，另走自定义流程）不参与，因此**不消耗**「巧」。
+fn qiaoshuo_eligible(name: &str) -> bool {
+    let def = crate::cards::def(name);
+    def.tags.sha
         || matches!(
             def.effect,
             Effect::Duel
                 | Effect::Dismantle
                 | Effect::Snatch
                 | Effect::FireAttack
-                | Effect::Collateral
-                | Effect::IronChain
-        );
-    usize::from(eligible)
+                | Effect::SavageAssault
+                | Effect::ArcheryAttack
+                | Effect::PeachGarden
+                | Effect::Harvest
+        )
 }
 
-/// 巧说：消费「+1 目标」机会（使用下一张有目标牌后）。
-pub fn consume_extra_targets(g: &mut Game, seat: usize) {
-    if active(g, seat, "qiaoshuo") && g.counter("turn.qiaoshuo_win") > 0 {
-        g.counters.insert("turn.qiaoshuo_win".to_string(), 0);
-        g.push_log("巧说：下一张牌的目标数修正已用".to_string());
+/// 一张牌被使用（内核 `start_use` 调用）：每出一张符合条件的**手牌**消耗 1 枚「巧」。
+pub fn on_card_use(g: &mut Game, seat: usize, name: &str, has_carrier: bool) {
+    if !has_carrier || !active(g, seat, "qiaoshuo") {
+        return;
     }
+    let n = qiao(g, seat);
+    if n == 0 || !qiaoshuo_eligible(name) {
+        return;
+    }
+    g.counters.insert(format!("turn.qiao:{seat}"), n - 1);
+    g.push_log(format!(
+        "巧说：消耗 1 枚「巧」（剩 {}）",
+        n.saturating_sub(1)
+    ));
 }
 
 /// 巧说：能否对群体锦囊「少指定一个目标」（-1）。
 pub fn can_trim_targets(g: &Game, seat: usize) -> bool {
-    play_phase(g, seat) && active(g, seat, "qiaoshuo") && g.counter("turn.qiaoshuo_win") > 0
+    play_phase(g, seat) && active(g, seat, "qiaoshuo") && qiao(g, seat) > 0
 }
 
 /// 巧说没赢：本回合不能使用锦囊牌（含延时锦囊）。

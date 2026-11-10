@@ -279,7 +279,6 @@ impl EnginePlugin for Sanguosha2Engine {
             }
             g.counters
                 .insert("turn.aoe_trim".to_string(), (excluded + 1) as u32);
-            crate::skills::consume_extra_targets(&mut g, seat);
             g.resolve_use(seat, &id, Vec::new())
                 .map_err(EngineError::IllegalAction)?;
             format!("使用【{}】（少指定一个目标）", g.name_of(&id))

@@ -135,6 +135,11 @@ fn marks_count_view(g: &Game, seat: usize) -> Value {
             out.insert(code.clone(), json!(n));
         }
     }
+    // 巧（界简雍）：回合内累计、回合切换清空（`turn.` 前缀计数），单独投影为标记。
+    let qiao = g.counter(&format!("turn.qiao:{seat}"));
+    if qiao > 0 {
+        out.insert("qiao".to_string(), json!(qiao));
+    }
     Value::Object(out)
 }
 

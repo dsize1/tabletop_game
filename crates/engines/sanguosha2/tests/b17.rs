@@ -31,6 +31,7 @@ fn deck() -> Vec<Card> {
         ("bl1", "兵粮寸断", Suit::Spade, 5),
         ("jd1", "决斗", Suit::Club, 4),
         ("jd2", "决斗", Suit::Diamond, 6),
+        ("tl1", "铁索连环", Suit::Club, 10),
     ];
     let mut cards: Vec<Card> = spec
         .iter()
@@ -338,11 +339,15 @@ fn qiaoshuo_win_allows_extra_target_then_consumes() {
     answer(&mut g, 0, "choose:sp1");
     answer(&mut g, 1, "choose:d1");
     advance(&mut g).unwrap();
-    assert_eq!(g.counter("turn.qiaoshuo_win"), 1);
+    assert_eq!(skills::qiao(&g, 0), 1, "每赢一次 +1 枚「巧」");
     assert_eq!(skills::extra_targets(&g, 0, None, "杀"), 1);
     // 多指定一个目标使用【杀】。
     g.resolve_use(0, &"sp2".to_string(), vec![1, 2]).unwrap();
-    assert_eq!(g.counter("turn.qiaoshuo_win"), 0, "使用下一张牌后已消费");
+    assert_eq!(
+        skills::qiao(&g, 0),
+        0,
+        "使用一张符合条件手牌消耗 1 枚「巧」"
+    );
 }
 
 #[test]
@@ -371,37 +376,64 @@ fn qiaoshuo_lose_blocks_tricks_and_invalidates_skill() {
 }
 
 #[test]
-fn qiaoshuo_consecutive_wins_do_not_stack() {
+fn qiaoshuo_consecutive_wins_stack_marks_one_per_card() {
     let mut g = game(&[
         ("jianyong", &["qiaoshuo"], 3, "shu"),
         ("p1", &[], 4, "wei"),
         ("p2", &[], 4, "wei"),
     ]);
     play_phase(&mut g, 0);
-    give(&mut g, 0, &["sp1", "h1", "sp2"]);
+    give(&mut g, 0, &["sp1", "h1", "sp2", "jd1", "c2"]);
     give(&mut g, 1, &["d1", "c1"]);
-    // 第一次拼点：赢。
+    // 第一次拼点：赢（巧 1）。
     skills::execute_active(&mut g, 0, "skill:qiaoshuo").unwrap();
     answer(&mut g, 0, "target:1");
     answer(&mut g, 0, "choose:sp1");
     answer(&mut g, 1, "choose:d1");
     advance(&mut g).unwrap();
-    assert_eq!(g.counter("turn.qiaoshuo_win"), 1);
-    // 第二次拼点（未使用牌前）：仍赢。
+    assert_eq!(skills::qiao(&g, 0), 1);
+    // 第二次拼点（未使用牌前）：再赢（巧 2）。
     skills::execute_active(&mut g, 0, "skill:qiaoshuo").unwrap();
     answer(&mut g, 0, "target:1");
     answer(&mut g, 0, "choose:h1");
     answer(&mut g, 1, "choose:c1");
     advance(&mut g).unwrap();
-    assert_eq!(
-        g.counter("turn.qiaoshuo_win"),
-        1,
-        "连续赢不叠加（「下一张牌」是一次性效果）"
-    );
-    assert_eq!(skills::extra_targets(&g, 0, None, "杀"), 1, "上限仍为 +1");
-    // 使用下一张牌后消费；再赢可重新获得一次。
+    assert_eq!(skills::qiao(&g, 0), 2, "连续赢 → 巧叠加");
+    // 每出一张符合条件手牌只消耗 1 枚，且该张牌可 +1 目标。
     g.resolve_use(0, &"sp2".to_string(), vec![1, 2]).unwrap();
-    assert_eq!(g.counter("turn.qiaoshuo_win"), 0);
+    assert_eq!(skills::qiao(&g, 0), 1, "一张牌消耗 1 枚「巧」");
+    assert_eq!(skills::extra_targets(&g, 0, None, "杀"), 1, "仍有 1 枚可用");
+    g.resolve_use(0, &"jd1".to_string(), vec![1]).unwrap();
+    assert_eq!(skills::qiao(&g, 0), 0, "第二张符合条件手牌再消耗 1 枚");
+}
+
+#[test]
+fn qiaoshuo_marks_exposed_in_view_and_cleared_on_loss() {
+    let mut g = game(&[("jianyong", &["qiaoshuo"], 3, "shu"), ("p1", &[], 4, "wei")]);
+    play_phase(&mut g, 0);
+    give(&mut g, 0, &["sp1", "d2", "d3"]);
+    give(&mut g, 1, &["d1", "sp2"]);
+    // 赢 → 「巧」=1，并在视图 marks_count 中可见。
+    skills::execute_active(&mut g, 0, "skill:qiaoshuo").unwrap();
+    answer(&mut g, 0, "target:1");
+    answer(&mut g, 0, "choose:sp1");
+    answer(&mut g, 1, "choose:d1");
+    advance(&mut g).unwrap();
+    assert_eq!(skills::qiao(&g, 0), 1);
+    let view = sanguosha2::view::public_state(&g);
+    assert_eq!(
+        view["public_board"]["seats"][0]["marks_count"]["qiao"],
+        serde_json::json!(1),
+        "界面标记：巧"
+    );
+    // 再拼点没赢 → 「巧」清空、技能失效。
+    skills::execute_active(&mut g, 0, "skill:qiaoshuo").unwrap();
+    answer(&mut g, 0, "target:1");
+    answer(&mut g, 0, "choose:d2");
+    answer(&mut g, 1, "choose:sp2");
+    advance(&mut g).unwrap();
+    assert_eq!(skills::qiao(&g, 0), 0, "拼点失败 → 巧清空");
+    assert!(skills::trick_blocked(&g, 0));
 }
 
 #[test]
@@ -414,7 +446,7 @@ fn qiaoshuo_delayed_trick_gets_no_extra_target() {
     play_phase(&mut g, 0);
     give(&mut g, 0, &["le1", "sp2"]);
     // 相当于巧说已赢（细致拼点流程见上面的用例）。
-    g.counters.insert("turn.qiaoshuo_win".to_string(), 1);
+    g.bump("turn.qiao:0");
     // 延时锦囊：不提供额外目标（用户 2026-11-10 裁定：废除延迟锦囊的额外目标支持）。
     assert_eq!(
         skills::extra_targets(&g, 0, Some(&"le1".to_string()), "乐不思蜀"),
@@ -429,13 +461,31 @@ fn qiaoshuo_delayed_trick_gets_no_extra_target() {
         !uses.iter().any(|(id, _)| id.starts_with("use:le1:1,2")),
         "不提供 2 目标的【乐不思蜀】"
     );
-    // 使用延时锦囊不消耗「下一张牌」效果。
+    // 使用延时锦囊不消耗「巧」。
     g.resolve_use(0, &"le1".to_string(), vec![1]).unwrap();
-    assert_eq!(g.counter("turn.qiaoshuo_win"), 1, "延时锦囊不消耗该效果");
-    // 下一张非延时牌（【杀】）仍可 +1 目标，并在使用后消费。
+    assert_eq!(skills::qiao(&g, 0), 1, "延时锦囊不消耗「巧」");
+    // 下一张非延时牌（【杀】）仍可 +1 目标，并在使用后消耗 1 枚。
     g.resolve_use(0, &"sp2".to_string(), vec![1, 2]).unwrap();
-    assert_eq!(g.counter("turn.qiaoshuo_win"), 0);
+    assert_eq!(skills::qiao(&g, 0), 0);
     assert_eq!(skills::extra_targets(&g, 0, None, "杀"), 0);
+}
+
+#[test]
+fn qiaoshuo_fixed_target_tricks_do_not_consume_mark() {
+    let mut g = game(&[
+        ("jianyong", &["qiaoshuo"], 3, "shu"),
+        ("p1", &[], 4, "wei"),
+        ("p2", &[], 4, "wei"),
+    ]);
+    play_phase(&mut g, 0);
+    give(&mut g, 0, &["tl1", "sp1"]);
+    g.bump("turn.qiao:0");
+    // 铁索连环（1–2 目标，另有目标流程）不参与 ±1，也不消耗「巧」。
+    g.resolve_use(0, &"tl1".to_string(), vec![1]).unwrap();
+    assert_eq!(skills::qiao(&g, 0), 1, "固定目标结构的锦囊不消耗「巧」");
+    // 满足条件的【杀】才消耗。
+    g.resolve_use(0, &"sp1".to_string(), vec![1]).unwrap();
+    assert_eq!(skills::qiao(&g, 0), 0);
 }
 
 #[test]

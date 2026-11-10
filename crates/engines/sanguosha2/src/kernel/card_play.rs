@@ -652,6 +652,8 @@ pub fn start_use(
     if crate::skills::extra_targets(g, seat, carrier, name) > 0 {
         crate::skills::consume_extra_targets(g, seat);
     }
+    // 巧说（界简雍）：每出一张符合条件的**手牌**消耗 1 枚「巧」（用户 2026-11-10 裁定）。
+    crate::skills::on_card_use(g, seat, name, carrier.is_some());
     if !planned.is_empty() {
         let targets_str = planned
             .iter()

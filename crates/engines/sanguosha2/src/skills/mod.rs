@@ -1029,7 +1029,16 @@ pub fn on_conversion_used(
 /// 消费「本回合多指定目标」的一次性效果（福绵②）。
 pub fn consume_extra_targets(g: &mut Game, seat: usize) {
     b8::consume_extra_targets(g, seat);
-    b17::consume_extra_targets(g, seat);
+}
+
+/// 一张牌被使用（`start_use`）：巧说每出一张符合条件的手牌消耗 1 枚「巧」。
+pub fn on_card_use(g: &mut Game, seat: usize, name: &str, has_carrier: bool) {
+    b17::on_card_use(g, seat, name, has_carrier);
+}
+
+/// 「巧」标记数量（巧说）。
+pub fn qiao(g: &Game, seat: usize) -> u32 {
+    b17::qiao(g, seat)
 }
 
 /// 响应牌打出后的统一接入点（复难：「其他角色响应你使用的牌」）。
