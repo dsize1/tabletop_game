@@ -292,8 +292,8 @@ impl EnginePlugin for Sanguosha2Engine {
             if g.turn != seat || g.phase != Phase::Play {
                 return Err(EngineError::IllegalAction("当前不是你的出牌阶段".into()));
             }
-            resolve::begin_phase(&mut g, seat, Phase::Discard)
-                .map_err(EngineError::Internal)?;
+            let next = crate::skills::on_end_play(&mut g, seat);
+            resolve::begin_phase(&mut g, seat, next).map_err(EngineError::Internal)?;
             "结束出牌阶段".to_string()
         } else {
             return Err(EngineError::IllegalAction(format!("未知动作：{action}")));

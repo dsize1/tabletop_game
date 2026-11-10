@@ -976,8 +976,8 @@ fn qiaoshuo_eligible(name: &str) -> bool {
 }
 
 /// 一张牌被使用（内核 `start_use` 调用）：每出一张符合条件的**手牌**消耗 1 枚「巧」。
-pub fn on_card_use(g: &mut Game, seat: usize, name: &str, has_carrier: bool) {
-    if !has_carrier || !active(g, seat, "qiaoshuo") {
+pub fn on_card_use(g: &mut Game, seat: usize, carrier: Option<&CardId>, name: &str) {
+    if carrier.is_none() || !active(g, seat, "qiaoshuo") {
         return;
     }
     let n = qiao(g, seat);

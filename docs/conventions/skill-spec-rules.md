@@ -265,3 +265,18 @@
 | 无效=不能成为目标 | `target_blocker` + `skills::trick_blocked` | 智迟；巧说没赢的锦囊封锁（`plan_use` 拦截）。 |
 | 禁酒 | `skills::jiu_blocked` / `effective_rank` | 高顺【酒】→点数 K 的【杀】；其回合内其他角色不能用【酒】（出牌/濒死/技能视为使用统一拦截）。 |
 | 纵适 code | `zongshi_jie` | 与界刘表【宗室】`zongshi` 解耦（ADR-0024 同音撞车另起 code）；v1 同步改名以保持目录一致。 |
+
+## 21. B18 跨批机制（2026-11-10）
+
+| 机制 | 入口 | 说明 |
+|---|---|---|
+| 伤害转失去体力 | `flow::damage_impl` → `skills::damage_to_hp_loss` / `flow::lose_hp_by` | 绝情：整次数值一次失去、保留来源用于死亡归属；不产生伤害事件。 |
+| 濒死时（第三方）技能 | `flow::start_dying` → `skills::on_dying_enter` | 补益/仁心/伏枥：在求桃之前压入询问；伏枥自救优先，其次补益/仁心。 |
+| 濒死救援入口 | `flow::revive_to` / `flow::revive_add` | 仁心/伏枥回复至 X；补益回复 1（濒死时体力 ≤0 也能生效）。 |
+| 锦囊目标拦截 | `card_play::step_card` → `skills::trick_intercept_owner` + `Game.trick_intercept` | 贞烈：逐目标询问，令此牌对该目标无效（目标列表裁剪）。 |
+| 回合结束钩子 | `resolve::begin_phase` 换人前 → `skills::on_turn_end` | 窃听：在清空 `turn.` 计数之前读取「未造成伤害/未对其他角色用牌」。 |
+| 额外出牌阶段 | `turn::tick` Prepare 分支 → `skills::start_extra_play_phase`；`end_play` → `skills::on_end_play` | 当先：准备阶段后、判定阶段前插入 Play；结束回判定阶段。 |
+| 本回合使用过伤害牌 | `card_play::start_use` → `skills::on_card_use`（b18） | 自守：`turn.damage_card_used:<seat>`。 |
+| 单张牌无距离 | `Game.no_distance_cards` / `skills::card_no_distance` | 当先获得的【杀】、酒诗的落英牌。 |
+| 落英标记 | `Game.luoying_cards`（离开手牌即清除）+ 视图 `card.marks` | 酒诗：背面朝上时无距离且不能被响应。 |
+| 整局伤害累计 | `flow::damage_now_impl` → `total.damage_dealt:<seat>` | 伏枥：X > 本局造成伤害数才翻面。 |

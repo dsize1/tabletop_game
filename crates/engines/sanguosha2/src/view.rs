@@ -88,6 +88,8 @@ pub fn card_view(g: &Game, id: &CardId) -> Value {
         "target_mode": target_mode_key(def.tags.target_mode.unwrap_or(TargetMode::Chosen)),
         "delayed": def.tags.delayed,
         "revealed": g.is_revealed(id),
+        // 落英标记（酒诗：背面朝上时该牌无距离限制且不能被响应；离开手牌即清除）。
+        "marks": if g.luoying_cards.contains(id) { json!(["luoying"]) } else { json!([]) },
     })
 }
 

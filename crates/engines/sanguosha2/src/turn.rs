@@ -65,6 +65,11 @@ pub fn tick(g: &mut Game) -> Result<(), String> {
         let seat = g.turn;
         match g.phase {
             Phase::Prepare => {
+                // 当先（界廖化）：准备阶段之后、判定阶段之前执行一个额外的出牌阶段。
+                if crate::skills::start_extra_play_phase(g, seat) {
+                    resolve::begin_phase(g, seat, Phase::Play)?;
+                    continue;
+                }
                 resolve::begin_phase(g, seat, Phase::Judge)?;
             }
             Phase::Judge => {

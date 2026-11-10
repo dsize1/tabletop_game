@@ -93,6 +93,12 @@ fn damage_impl(
     if g.seats[victim].hp <= 0 {
         return;
     }
+    // 绝情（界张春华，锁定）：你即将造成的伤害视为失去体力（整次数值一次失去，自伤同样转化）。
+    if crate::skills::damage_to_hp_loss(g, source, victim) && amount > 0 {
+        crate::skills::on_damage_to_hp_loss(g, source, victim, amount, card);
+        lose_hp_by(g, victim, amount, "jueqing", source);
+        return;
+    }
     if armor_prevents(g, source, victim, def, card, dtype) {
         g.push_log(format!(
             "{} 的防具使【{}】无效",
@@ -222,6 +228,8 @@ fn damage_now_impl(
     }
     if let Some(s) = source {
         g.bump(&format!("turn.damage_by:{s}"));
+        // 本局累计造成的伤害数（伏枥：X > 你造成的伤害数才翻面）。
+        g.bump(&format!("total.damage_dealt:{s}"));
         // 咆哮：本次【杀】已消费「下一次伤害 +1」。
         if card.map(|c| g.def_of(c).tags.sha).unwrap_or(false) {
             g.counters.insert("turn.paoxiao_bonus".to_string(), 0);
@@ -361,6 +369,11 @@ pub fn heal(g: &mut Game, seat: usize, n: i32, cause: &str) {
 /// 失去（流失）体力：**不产生伤害事件**（mechanics `damage-vs-hp-loss`，2026-11-06 用户裁定）。
 /// 「受到伤害后」类技能（反馈/权计/刚烈/智愚/御策…）**不得**由此触发。
 pub fn lose_hp(g: &mut Game, seat: usize, n: i32, cause: &str) {
+    lose_hp_by(g, seat, n, cause, None);
+}
+
+/// 带「伤害来源」的失去体力（绝情：死亡归属仍记来源）。
+pub fn lose_hp_by(g: &mut Game, seat: usize, n: i32, cause: &str, source: Option<usize>) {
     if g.seats[seat].hp <= 0 || n <= 0 {
         return;
     }
@@ -376,8 +389,55 @@ pub fn lose_hp(g: &mut Game, seat: usize, n: i32, cause: &str) {
         g.seats[seat].name, g.seats[seat].hp
     ));
     if g.seats[seat].hp <= 0 {
-        start_dying(g, seat, None);
+        start_dying(g, seat, source);
     }
+}
+
+/// 濒死救援：把体力置为 `hp`（仁心/伏枥；`hp` 为正数，且不超过上限）。
+pub fn revive_to(g: &mut Game, seat: usize, hp: i32, cause: &str) {
+    let target = hp.clamp(1, g.seats[seat].max_hp.max(1));
+    if g.seats[seat].hp >= target {
+        return;
+    }
+    g.seats[seat].hp = target;
+    g.events.push(Event::with_amount(
+        EventKind::Healed,
+        Some(seat),
+        Some(cause),
+        target,
+    ));
+    g.presentation.push(
+        Presentation::new("heal", POutcome::Heal { amount: target })
+            .target(seat)
+            .fx("dying_heal"),
+    );
+    g.push_log(format!(
+        "{} 回复至 {target} 点体力（原因：{cause}）",
+        g.seats[seat].name
+    ));
+}
+
+/// 濒死救援：回复 `n` 点体力（补益；濒死时体力 ≤0 也能生效）。
+pub fn revive_add(g: &mut Game, seat: usize, n: i32, cause: &str) {
+    if n <= 0 {
+        return;
+    }
+    let before = g.seats[seat].hp;
+    g.seats[seat].hp = (before + n).min(g.seats[seat].max_hp);
+    let healed = g.seats[seat].hp - before;
+    if healed <= 0 {
+        return;
+    }
+    g.events.push(Event::with_amount(
+        EventKind::Healed,
+        Some(seat),
+        Some(cause),
+        healed,
+    ));
+    g.push_log(format!(
+        "{} 回复 {healed} 点体力（体力 {}，原因：{cause}）",
+        g.seats[seat].name, g.seats[seat].hp
+    ));
 }
 
 /// 进入连环状态（铁索）：**所有**进入者都发 `ChainedEnter`（用户 2026-11-06 裁定）。
@@ -435,6 +495,8 @@ pub fn start_dying(g: &mut Game, victim: usize, source: Option<usize>) {
         stage: Stage::DyingAsk,
         data: json!({ "victim": victim, "source": source, "cursor": 0, "tried": false, "round": 0 }),
     }));
+    // 「进入濒死时」技能（补益/仁心/伏枥）：压在濒死帧之上，先于求桃询问。
+    crate::skills::on_dying_enter(g, victim, source);
 }
 
 /// 濒死询问顺序。

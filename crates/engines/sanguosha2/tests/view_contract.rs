@@ -82,6 +82,7 @@ const CARD_KEYS: &[&str] = &[
     "target_mode",
     "delayed",
     "revealed",
+    "marks",
 ];
 
 const PENDING_PUBLIC_KEYS: &[&str] = &["kind", "actor", "skill"];

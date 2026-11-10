@@ -23,6 +23,7 @@ pub mod b14;
 pub mod b15;
 pub mod b16;
 pub mod b17;
+pub mod b18;
 pub mod mingren;
 pub mod kongsheng;
 pub mod liangyin;
@@ -332,6 +333,24 @@ pub const SKILLS: &[SkillDef] = &[
     b17::ENYUAN,
     b17::LIHUO,
     b17::CHUNLAO,
+    // B18（界王异 / 界张春华 / 界刘表 / 界蔡夫人 / 界曹冲 / 界曹植 / 界吴国太 / 界廖化）
+    b18::ZHENLIE,
+    b18::MIJI,
+    b18::JUEQING,
+    b18::SHANGSHI,
+    b18::JIANMIE,
+    b18::ZISHOU,
+    b18::ZONGSHI,
+    b18::XIANZHOU,
+    b18::QIETING,
+    b18::CHENGXIANG,
+    b18::RENXIN,
+    b18::LUOYING,
+    b18::JIUSHI,
+    b18::GANLU,
+    b18::BUYI,
+    b18::DANGXIAN,
+    b18::FULI,
 ];
 
 /// 转换技（阳/阴两面）：视图按此清单投影 `transforms`（与 handlers 的 `g.yang/toggle_yang` 对应）。
@@ -383,6 +402,8 @@ pub const LOCKED_SKILLS: &[&str] = &[
     "wansha", "bengkuai", "roulin", "tuotian", "juxiang",
     // B17 锁定技（智迟/禁酒）
     "zhichi", "jinjiu",
+    // B18 锁定技（绝情/宗室）
+    "jueqing", "zongshi",
 ];
 
 /// 「本回合非锁定技失效」（义绝·黑 / 铁骑）。
@@ -580,6 +601,9 @@ pub fn damage_before_victim(
     amount: i32,
     card: Option<&crate::kernel::CardId>,
 ) -> bool {
+    if b18::zongshi_guard(g, source, victim, amount) {
+        return true;
+    }
     if b15::weimu_prevent(g, source, victim, amount) {
         return true;
     }
@@ -735,6 +759,8 @@ pub fn draw_bonus(g: &Game, seat: usize) -> usize {
     }
     // 好施（界鲁肃）：摸牌阶段多摸 2 张（可选，已询问）。
     n += b15::draw_bonus(g, seat);
+    // 自守（界刘表）：摸牌阶段多摸 X（势力数）。
+    n += b18::draw_bonus(g, seat);
     n
 }
 
@@ -935,6 +961,7 @@ pub fn hand_limit_delta(g: &Game, seat: usize) -> i32 {
     b13::hand_limit_delta(g, seat)
         + b8::hand_limit_delta(g, seat)
         + b17::hand_limit_delta(g, seat)
+        + b18::hand_limit_delta(g, seat)
         + g.counter("turn.jizhi_hand_limit") as i32
         + g.counter(&format!("turn.qingjian_limit:{seat}")) as i32
         + g.counter(&format!("turn.luoshen_free:{seat}")) as i32
@@ -1005,6 +1032,62 @@ pub fn armor_ignored_by_skill(g: &Game, source: usize, victim: usize) -> bool {
     b17::armor_ignored(g, source, victim)
 }
 
+/// 单张牌的「无距离限制」（酒诗的落英牌 / 当先获得的无距离【杀】）。
+pub fn card_no_distance(
+    g: &Game,
+    seat: usize,
+    card: Option<&crate::kernel::CardId>,
+) -> bool {
+    b18::card_no_distance(g, seat, card)
+}
+
+/// 「成为普通锦囊目标后」的拦截技能（贞烈）。
+pub fn trick_intercept_owner(
+    g: &Game,
+    user: usize,
+    name: &str,
+    target: usize,
+    carrier: Option<&crate::kernel::CardId>,
+) -> Option<(usize, &'static str)> {
+    b18::trick_intercept_owner(g, user, name, target, carrier)
+}
+
+/// 绝情：来源的伤害是否转化为失去体力。
+pub fn damage_to_hp_loss(g: &Game, source: Option<usize>, victim: usize) -> bool {
+    b18::damage_to_hp_loss(g, source, victim)
+}
+
+/// 绝情：伤害转失去体力时的附加事件（保留伤害来源用于死亡归属）。
+pub fn on_damage_to_hp_loss(
+    g: &mut Game,
+    source: Option<usize>,
+    victim: usize,
+    amount: i32,
+    card: Option<&crate::kernel::CardId>,
+) {
+    b18::on_damage_to_hp_loss(g, source, victim, amount, card);
+}
+
+/// 「进入濒死时」技能（补益/仁心/伏枥）：在求桃之前压入询问。
+pub fn on_dying_enter(g: &mut Game, victim: usize, source: Option<usize>) {
+    b18::on_dying_enter(g, victim, source);
+}
+
+/// 回合结束（在清空 `turn.` 计数之前）：窃听等「其他角色回合结束后」技能。
+pub fn on_turn_end(g: &mut Game, ended: usize) {
+    b18::on_turn_end(g, ended);
+}
+
+/// 出牌阶段结束时：技能可指定下一个阶段（当先：额外出牌阶段 → 判定阶段）。
+pub fn on_end_play(g: &mut Game, seat: usize) -> Phase {
+    b18::on_end_play(g, seat)
+}
+
+/// 准备阶段结束：是否触发「额外出牌阶段」（当先）。
+pub fn start_extra_play_phase(g: &mut Game, seat: usize) -> bool {
+    b18::start_extra_play_phase(g, seat)
+}
+
 /// 禁酒：该角色当前不能使用【酒】。
 pub fn jiu_blocked(g: &Game, user: usize) -> bool {
     b17::jiu_blocked(g, user)
@@ -1031,9 +1114,20 @@ pub fn consume_extra_targets(g: &mut Game, seat: usize) {
     b8::consume_extra_targets(g, seat);
 }
 
-/// 一张牌被使用（`start_use`）：巧说每出一张符合条件的手牌消耗 1 枚「巧」。
-pub fn on_card_use(g: &mut Game, seat: usize, name: &str, has_carrier: bool) {
-    b17::on_card_use(g, seat, name, has_carrier);
+/// 一张牌被使用（`start_use`）：巧说消耗「巧」/ 自守统计伤害牌 / 酒诗标记。
+pub fn on_card_use(
+    g: &mut Game,
+    seat: usize,
+    carrier: Option<&crate::kernel::CardId>,
+    name: &str,
+) {
+    b17::on_card_use(g, seat, carrier, name);
+    b18::on_card_use(g, seat, carrier, name);
+}
+
+/// 使用牌时选定的目标列表（窃听：本回合是否对其他角色使用过牌）。
+pub fn on_targets_chosen(g: &mut Game, seat: usize, targets: &[usize]) {
+    b18::on_targets_chosen(g, seat, targets);
 }
 
 /// 「巧」标记数量（巧说）。
@@ -1090,7 +1184,9 @@ pub fn sha_intercept_skills(
     target: usize,
     card: Option<&crate::kernel::CardId>,
 ) -> Vec<(usize, &'static str)> {
-    b8::sha_intercept_skills(g, user, target, card)
+    let mut out = b8::sha_intercept_skills(g, user, target, card);
+    out.extend(b18::zhenlie_sha_intercept(g, user, target, card));
+    out
 }
 
 /// 该介入技能是否「每张牌只问一次」（否则每个目标各问一次）。
@@ -1309,6 +1405,7 @@ pub fn sha_no_distance(g: &Game, seat: usize, card: &crate::kernel::CardId) -> b
     b9::sha_no_distance(g, seat, card)
         || b15::sha_no_distance(g, seat, card)
         || b17::sha_no_distance(g, seat, card)
+        || b18::sha_no_distance(g, seat, card)
 }
 
 /// 锦囊无距离限制（奇才）。
@@ -1500,7 +1597,7 @@ pub fn on_turn_end_for_scheduled(g: &mut Game, ended: usize) {
 
 /// 阶段开始前的技能询问（巧变）：返回 true = 已压入询问，调用方应暂停阶段切换。
 pub fn before_phase(g: &mut Game, seat: usize, phase: Phase) -> bool {
-    b15::before_phase(g, seat, phase)
+    b15::before_phase(g, seat, phase) || b18::before_phase(g, seat, phase)
 }
 
 /// 摸牌阶段结束后（好施：手牌 >5 交一半）。

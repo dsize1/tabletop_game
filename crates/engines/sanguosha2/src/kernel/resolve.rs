@@ -410,6 +410,8 @@ pub fn submit(g: &mut Game, actor: usize, action: &str) -> Result<String, String
 pub fn begin_phase(g: &mut Game, seat: usize, phase: Phase) -> Result<(), String> {
     let mut phase = phase;
     if g.turn != seat {
+        // 「回合结束后」技能（窃听）：在清空 `turn.` 计数之前询问。
+        crate::skills::on_turn_end(g, g.turn);
         for i in 0..g.seats.len() {
             g.unfreeze_hand(i);
             // 义绝·黑的手牌封印只持续到本回合结束。

@@ -1,0 +1,1831 @@
+{
+  "batch": "B18",
+  "source": "界限突破·J6",
+  "status": "implemented",
+  "mechanics_version": 2,
+  "confirmed_by": "用户",
+  "confirmed_at": "2026-11-10",
+  "note": "机器文件（单一事实源）。人读请看同目录 <B>.md；改这里后运行 --sync 重生成 md。",
+  "generals": [
+    {
+      "gid": 621,
+      "code": "sgs_hero_621",
+      "name": "界王异",
+      "skills": [
+        {
+          "code": "zhenlie",
+          "name": "贞烈",
+          "kind": "normal",
+          "status": "implemented",
+          "original": "当你成为其他角色【杀】或普通锦囊牌的目标后，你可以失去1点体力令此牌对你无效，然后你可以选择一项：\n 1.获得使用者一张牌；\n 2.本回合结束阶段，发动一次“秘计”。",
+          "original_source": "heroes.json#gid=621",
+          "mechanics_version": 2,
+          "current": [
+            "v2：成为其他角色【杀】目标后（`sha_intercept_skills` 增补 b18）或普通锦囊目标后（`card_play::step_card` 的 `trick_intercept_owner` 逐目标询问），王异可失去 1 点体力令此牌对其无效。",
+            "失去体力走 `flow::lose_hp_by`（含伤害来源用于死亡归属）；无效结果：杀 → `ShaIntercept::Immune`；锦囊 → 从目标列表移除（若目标列表为空或借刀不足 2 目标则整张牌作废）。",
+            "每张牌只询问一次（`turn.zhenlie_skip` / `turn.zhenlie_void`）；延时锦囊与无懈不触发。",
+            "界版二选一：①获得使用者一张牌（由王异选：手牌随机 / 装备区具体牌；不含判定区）；②`turn.miji_granted=1`，本回合结束阶段发动一次秘计（多次只记一次）。"
+          ],
+          "confidence": "verified",
+          "diff": [
+            "「失去 1 点体力」v1 直接改 `hp`，未走统一 lose_hp 入口（不产生 hp_lost 事件）。",
+            "「获得使用者一张牌」由引擎按区域顺序自动取（判定区优先），不是王异选择。",
+            "「本回合结束阶段发动一次秘计」v1 只把秘计的摸牌翻倍，交牌上限仍为 X（不是完整第二次）。",
+            "锦囊白名单排除 `无中生有/闪电`，不是按牌类别属性判定「普通锦囊」。"
+          ],
+          "questions": [
+            {
+              "id": "Q1",
+              "ask": "「失去 1 点体力」的入口？",
+              "options": {
+                "A": "走统一 `lose_hp`（不触发受伤类技能、产生 hp_lost）",
+                "B": "直接扣 hp（v1 口径）"
+              },
+              "lean": "A",
+              "why": "mechanics damage-vs-hp-loss：失去体力必须走独立入口。",
+              "impact": "体力入口 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q2",
+              "ask": "「获得使用者一张牌」由谁选、取哪个区域？",
+              "options": {
+                "A": "由王异选择（手牌随机/装备/判定区可见）",
+                "B": "引擎按 判定区→装备区→随机手牌 自动取（v1 口径）"
+              },
+              "lean": "A",
+              "why": "文本是「获得一张牌」，选择权应在技能持有者。",
+              "impact": "交互 + 用例。",
+              "answer": "A 手牌随机/装备不包括判定区"
+            },
+            {
+              "id": "Q3",
+              "ask": "界贞烈②「本回合结束阶段发动一次秘计」如何结算？",
+              "options": {
+                "A": "完整第二次秘计（再摸 X 张、可再交至多 X 张）",
+                "B": "仅摸牌翻倍、交牌上限仍 X（v1 口径）"
+              },
+              "lean": "A",
+              "why": "「发动一次秘计」= 完整技能结算。",
+              "impact": "秘计帧 + 用例。",
+              "answer": "A 仅可发动一次界秘计"
+            },
+            {
+              "id": "Q4",
+              "ask": "贞烈可响应的锦囊范围？",
+              "options": {
+                "A": "全部普通锦囊（按牌类别：非延时、非无懈）",
+                "B": "v1 白名单（排除无中生有/闪电）"
+              },
+              "lean": "A",
+              "why": "mechanics card-attributes 禁止牌名枚举；无中目标是自己（已由「其他角色」排除）。",
+              "impact": "触发判定 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q5",
+              "ask": "同一张牌对王异只结算一次时，是否重复询问？",
+              "options": {
+                "A": "每张牌只询问一次（放弃后不再问）",
+                "B": "每个目标各询问一次"
+              },
+              "lean": "A",
+              "why": "v1 用 `zhenlie_skip` 记录放弃；与「成为目标后」一次一致。",
+              "impact": "计数 + 反例。",
+              "answer": "A"
+            }
+          ],
+          "mechanics": [
+            "damage-vs-hp-loss",
+            "card-target-attribute",
+            "card-gained",
+            "wording-then"
+          ],
+          "terms": {},
+          "ui": {
+            "prompt": "贞烈：可失去 1 点体力令此牌对你无效，然后二选一（获得其一张牌 / 本回合结束阶段发动一次秘计）",
+            "overlay": "选牌：手牌随机 / 装备区（不含判定区）；二选一浮层",
+            "fx": "immune_flash",
+            "reveal": "无",
+            "qq": "播报无效与选择结果"
+          },
+          "agreed": "当你成为其他角色【杀】或普通锦囊牌的目标后，你可以失去 1 点体力（走统一失去体力入口）令此牌对你无效，然后你可以选择一项：1. 获得使用者一张牌（由你选择：手牌随机 / 装备区具体牌；不含判定区）；2. 本回合结束阶段发动一次「秘计」（完整一次；同一回合多次贞烈②也只额外一次）。每张牌只询问一次。",
+          "assertions": {
+            "positive": [
+              "成为【杀】/普通锦囊目标后可失去 1 点体力令其无效，并二选一",
+              "贞烈②后本回合结束阶段秘计额外发动一次"
+            ],
+            "negative": [
+              "放弃后同一张牌不再询问",
+              "不是【杀】/普通锦囊（延时/无懈）不触发"
+            ]
+          },
+          "impl": "sanguosha2::skills::b18::ZHENLIE + card_play::step_card（trick_intercept）/ sha_intercept_skills",
+          "tests": [
+            "b18::zhenlie_cancels_sha_and_grants_miji",
+            "b18::zhenlie_cancels_normal_trick_but_not_delayed"
+          ]
+        },
+        {
+          "code": "miji",
+          "name": "秘计",
+          "kind": "normal",
+          "status": "implemented",
+          "original": "结束阶段，你可以摸X张牌（X为你已损失的体力值），然后你可以交给其他角色至多X张牌。",
+          "original_source": "heroes.json#gid=621",
+          "mechanics_version": 2,
+          "current": [
+            "v2：结束阶段触发（`PhaseStart(End)`）；**仅在贞烈②授权（`turn.miji_granted`）时发动**；X=当前已损失体力。",
+            "询问是否摸牌（可放弃）；摸 X 张后可选择至多 X 张手牌交给**一名**其他角色（多选 ✔ + 确认 / 放弃）。",
+            "交牌走统一 `Game::gain`；每回合只询问一次（`turn.miji_offered`）。"
+          ],
+          "confidence": "verified",
+          "diff": [
+            "交牌只能给一名其他角色（官方可交给任意名角色分配）。",
+            "界贞烈额外发动只翻倍摸牌，不是完整第二次（摸 X + 交 X）。",
+            "摸牌是自动的（原文「可以摸 X 张」没有放弃出口）。"
+          ],
+          "questions": [
+            {
+              "id": "Q1",
+              "ask": "「交给其他角色至多 X 张」是否可分配给多名角色？",
+              "options": {
+                "A": "可以任意分配（合计至多 X 张）",
+                "B": "只能交给一名角色（v1 口径）"
+              },
+              "lean": "A",
+              "why": "文本是「其他角色」未限一名。",
+              "impact": "交互 + 用例。",
+              "answer": "B"
+            },
+            {
+              "id": "Q2",
+              "ask": "界贞烈的「额外发动一次秘计」结算？",
+              "options": {
+                "A": "完整第二次（再摸 X 张、可再交至多 X 张）",
+                "B": "仅摸牌翻倍（v1 口径）"
+              },
+              "lean": "A",
+              "why": "「发动一次秘计」应完整结算。",
+              "impact": "帧 + 用例。",
+              "answer": "A（口径）：贞烈②未被选择时不能发动秘计；多次贞烈②也只额外发动一次秘计（不存在 2 次）"
+            },
+            {
+              "id": "Q3",
+              "ask": "「可以摸 X 张」是否提供放弃出口？",
+              "options": {
+                "A": "提供（可放弃摸牌）",
+                "B": "自动摸（v1 口径）"
+              },
+              "lean": "A",
+              "why": "wording-can：原文有「可以」。",
+              "impact": "pending + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q4",
+              "ask": "X 的读取时点？",
+              "options": {
+                "A": "结束阶段结算时读当前已损失体力",
+                "B": "回合开始时快照"
+              },
+              "lean": "A",
+              "why": "文本未规定快照；结束阶段实时读取与 v1 一致。",
+              "impact": "数值 + 用例。",
+              "answer": "A"
+            }
+          ],
+          "mechanics": [
+            "turn-window",
+            "card-gained",
+            "wording-can"
+          ],
+          "terms": {},
+          "ui": {
+            "prompt": "秘计：结束阶段摸 X 张（X=已损失体力），可交给其他角色至多 X 张",
+            "overlay": "多选交给的牌（✔）→ 选一名目标 / 放弃",
+            "fx": "draw_and_give",
+            "reveal": "无",
+            "qq": "播报摸牌与交牌"
+          },
+          "agreed": "结束阶段，你可以摸 X 张牌（X=当前已损失的体力值，可放弃摸牌），然后可以将至多 X 张手牌交给其他角色至多**一名**角色（2026-11-10 裁定）；**若本回合贞烈②未被选择则不能发动秘计，多次贞烈②也只额外一次**（用户口径，与官方独立触发不同）。",
+          "assertions": {
+            "positive": [
+              "结束阶段摸 X 张（X=已损失体力）并可选交给至多 X 张",
+              "贞烈②后额外发动一次秘计"
+            ],
+            "negative": [
+              "未选贞烈②不发动秘计（用户口径）",
+              "多次贞烈②不叠加额外次数"
+            ]
+          },
+          "impl": "sanguosha2::skills::b18::MIJI（贞烈②授权 turn.miji_granted）",
+          "tests": [
+            "b18::miji_needs_zhenlie_grant_and_draws"
+          ]
+        }
+      ]
+    },
+    {
+      "gid": 625,
+      "code": "sgs_hero_625",
+      "name": "界张春华",
+      "skills": [
+        {
+          "code": "jueqing",
+          "name": "绝情",
+          "kind": "locked",
+          "status": "implemented",
+          "original": "锁定技，你即将造成的伤害视为失去体力。",
+          "original_source": "heroes.json#gid=625",
+          "mechanics_version": 2,
+          "current": [
+            "v2（锁定）：`flow::damage_impl` 在防具/伤害加成之前调用 `skills::damage_to_hp_loss`；来源拥有绝情（含自伤）时改为 `flow::lose_hp_by` 整次数值一次失去。",
+            "不产生伤害事件（不触发受伤类技能）、不触发防具/加成/连环；死亡归属仍记来源。",
+            "实现为内核级转换（`skills::damage_to_hp_loss` + `on_damage_to_hp_loss`）；`flow::damage*` 的常规入口都会先走转换；`damage_now*` 直连入口不经过该转换（登记边界）。"
+          ],
+          "confidence": "verified",
+          "diff": [
+            "失去体力直接改 `hp`（v1），未走 `lose_hp`（不产生 hp_lost 事件）。",
+            "「视为失去体力」后 v1 连「来源」相关的后续也一并跳过（官方只改变伤害性质）。"
+          ],
+          "questions": [
+            {
+              "id": "Q1",
+              "ask": "失去体力的入口？",
+              "options": {
+                "A": "走 `flow::lose_hp`（不触发受伤类技能）",
+                "B": "直接扣 hp（v1 口径）"
+              },
+              "lean": "A",
+              "why": "mechanics damage-vs-hp-loss。",
+              "impact": "体力入口 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q2",
+              "ask": "一次 2 点伤害如何失去体力？",
+              "options": {
+                "A": "一次失去 2 点",
+                "B": "逐点失去 2 次（v1 逐点调用钩子）"
+              },
+              "lean": "A",
+              "why": "「伤害视为失去体力」按整次数值结算；逐点只在需要「每点」触发时才有意义（失去体力无受伤技）。",
+              "impact": "数值 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q3",
+              "ask": "绝情转化后，来源侧「造成伤害后」类效果是否仍触发？",
+              "options": {
+                "A": "不触发（不是伤害）",
+                "B": "照旧触发（v1 会跳过全部）"
+              },
+              "lean": "A",
+              "why": "mechanics damage-vs-hp-loss：失去体力不产生伤害事件。",
+              "impact": "事件 + 反例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q4",
+              "ask": "自伤（来源==受伤者）是否也转化？",
+              "options": {
+                "A": "转化（只要来源拥有绝情）",
+                "B": "不转化（v1 排除自伤）"
+              },
+              "lean": "A",
+              "why": "文本「你即将造成的伤害」未排除自伤；转化后更安全（不触发受伤技）。",
+              "impact": "边界 + 用例。",
+              "answer": "A"
+            }
+          ],
+          "mechanics": [
+            "damage-vs-hp-loss",
+            "skill-status"
+          ],
+          "terms": {},
+          "ui": {
+            "prompt": "绝情：你造成的伤害视为失去体力",
+            "overlay": "无（锁定自动）",
+            "fx": "hp_lost",
+            "reveal": "无",
+            "qq": "播报失去体力"
+          },
+          "agreed": "锁定技，你即将造成的伤害视为失去体力：一次伤害整次数值一次失去（走 `lose_hp`，不产生伤害事件、不触发受伤类技能、不触发防具/伤害加成/连环）；自伤同样转化。",
+          "assertions": {
+            "positive": [
+              "绝情来源造成的伤害改为失去体力（无伤害事件）",
+              "自伤也转化"
+            ],
+            "negative": [
+              "无绝情来源的伤害正常结算",
+              "失去体力不触发受伤类技能"
+            ]
+          },
+          "impl": "sanguosha2::skills::b18::JUEQING + flow::damage_impl（damage_to_hp_loss/lose_hp_by）",
+          "tests": [
+            "b18::jueqing_turns_damage_into_hp_loss"
+          ]
+        },
+        {
+          "code": "shangshi",
+          "name": "伤逝",
+          "kind": "normal",
+          "status": "implemented",
+          "original": "当你的手牌数小于X后，你可以将手牌摸至X张。（X为你已损失体力值）",
+          "original_source": "heroes.json#gid=625",
+          "mechanics_version": 2,
+          "current": [
+            "v2：`CardLost`（失去手牌）+ `PhaseStart(End)` 两处检查：手牌 < 已损失体力 X 时摸至 X。",
+            "弃牌阶段内不即时补牌（防「弃 1 摸 1」循环），改为弃牌阶段结束（进入结束阶段）时判定一次。",
+            "失去手牌触发来自 `CardLost` 事件（使用/弃置/给出均覆盖）；摸牌与获得牌不触发。"
+          ],
+          "confidence": "verified",
+          "diff": [
+            "只在失去手牌路径检查（官方是「手牌数小于 X 后」任意来源）。",
+            "弃牌阶段跳过触发是 v1 的防循环近似（官方文本没有该排除）。"
+          ],
+          "questions": [
+            {
+              "id": "Q1",
+              "ask": "触发时点？",
+              "options": {
+                "A": "任何原因导致手牌数 < 已损失体力后（含弃牌阶段）",
+                "B": "v1 口径（失去手牌后、弃牌阶段除外）"
+              },
+              "lean": "A",
+              "why": "文本是「手牌数小于 X 后」，不区分来源/阶段。",
+              "impact": "触发入口 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q2",
+              "ask": "弃牌阶段的循环如何避免？",
+              "options": {
+                "A": "正常触发；因补到 X 张而重新超上限时，下个弃牌阶段再弃（需要防同阶段死循环）",
+                "B": "弃牌阶段不触发（v1 口径）"
+              },
+              "lean": "A",
+              "why": "规则优先；用「同阶段只触发一次」避免循环。",
+              "impact": "流程 + 反例。",
+              "answer": "A 弃牌阶段结束时判定伤逝条件"
+            },
+            {
+              "id": "Q3",
+              "ask": "「摸至 X 张」的 X 是否含体力上限削减后的当前已损失？",
+              "options": {
+                "A": "当前已损失体力（实时）",
+                "B": "初始体力上限差"
+              },
+              "lean": "A",
+              "why": "与体力上限变化的通用口径一致。",
+              "impact": "数值 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q4",
+              "ask": "是否每点手牌变化都触发一次？",
+              "options": {
+                "A": "每次手牌数变成 < X 后触发一次，摸到 X 为止",
+                "B": "每失去 1 张都触发"
+              },
+              "lean": "A",
+              "why": "避免同一次结算多次补牌。",
+              "impact": "计数 + 用例。",
+              "answer": "A"
+            }
+          ],
+          "mechanics": [
+            "lose-vs-discard",
+            "turn-window",
+            "wording-can"
+          ],
+          "terms": {},
+          "ui": {
+            "prompt": "伤逝：手牌少于已损失体力时摸至该值",
+            "overlay": "无（自动触发）",
+            "fx": "draw_to_x",
+            "reveal": "无",
+            "qq": "播报补牌"
+          },
+          "agreed": "当你的手牌数小于 X 后（X=当前已损失体力值），你可以将手牌摸至 X 张；弃牌阶段内不即时补牌，改为弃牌阶段结束时判定一次（避免「弃 1 摸 1」循环）。",
+          "assertions": {
+            "positive": [
+              "手牌数低于已损失体力后摸至该值",
+              "弃牌阶段结束时判定一次"
+            ],
+            "negative": [
+              "手牌数不低于已损失体力不补",
+              "弃牌阶段内不即时补（防循环）"
+            ]
+          },
+          "impl": "sanguosha2::skills::b18::SHANGSHI",
+          "tests": [
+            "b18::shangshi_draws_to_lost_hp_but_not_in_discard_phase"
+          ]
+        },
+        {
+          "code": "jianmie",
+          "name": "翦灭",
+          "kind": "normal",
+          "status": "implemented",
+          "original": "出牌阶段限一次，你可与一名其他角色同时选择一种颜色，你与其弃置各自选择颜色的手牌，然后弃置牌较多的角色视为对另一角色使用【决斗】。",
+          "original_source": "heroes.json#gid=625",
+          "mechanics_version": 2,
+          "current": [
+            "v2：出牌阶段限一次（`phase.jianmie_used`）；选一名其他角色（可无手牌），双方顺序选颜色（选择期互不可见）。",
+            "各自弃置所选颜色的全部手牌；弃置多者视为对对方使用【决斗】（真实虚拟牌 `use_virtual`）；平手不发生。",
+            "【决斗】为纯虚拟牌（无承载牌/花色/点数），按正常响应与伤害流程结算；`phase.jianmie_used` 保证每出牌阶段一次。"
+          ],
+          "confidence": "verified",
+          "diff": [
+            "「同时选择」用顺序询问近似（先问张春华、再问目标；信息上等价于同时，但操作有先后）。",
+            "【决斗】用 `Respond` 帧而不是真实虚拟牌结算（不吃无懈/牌属性加成）。"
+          ],
+          "questions": [
+            {
+              "id": "Q1",
+              "ask": "「同时选择颜色」的实现？",
+              "options": {
+                "A": "顺序询问（张春华先、目标后；选择期间互不可见）",
+                "B": "其他交互方式（请口述）"
+              },
+              "lean": "A",
+              "why": "v2 没有真正并行输入；顺序询问不泄露信息即可。",
+              "impact": "交互 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q2",
+              "ask": "弃置范围？",
+              "options": {
+                "A": "仅所选颜色的手牌（全部）",
+                "B": "手牌 + 装备区"
+              },
+              "lean": "A",
+              "why": "文本明确「手牌」。",
+              "impact": "候选集合 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q3",
+              "ask": "「视为使用【决斗】」的结算入口？",
+              "options": {
+                "A": "走真实结算（虚拟【决斗】，按正常响应/伤害流程）",
+                "B": "v1 的 Respond 帧（固定 1 点伤害）"
+              },
+              "lean": "A",
+              "why": "M2 起技能视为使用牌走 `use_virtual`；可被无懈/牌属性影响。",
+              "impact": "牌结算 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q4",
+              "ask": "弃牌数相同时？",
+              "options": {
+                "A": "不发生【决斗】",
+                "B": "双方各受 1 点伤害"
+              },
+              "lean": "A",
+              "why": "文本「弃置牌较多的角色」（平手无较多者）。",
+              "impact": "反例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q5",
+              "ask": "目标手牌为空时能否发动？",
+              "options": {
+                "A": "不能（没有牌可弃）",
+                "B": "可以，双方都不弃"
+              },
+              "lean": "A",
+              "why": "目标需能参与弃牌；与 v1 一致。",
+              "impact": "目标枚举 + 反例。",
+              "answer": "B 可以 张春华选择颜色后所弃手牌数大于0即视为对其用决斗"
+            }
+          ],
+          "mechanics": [
+            "lose-vs-discard",
+            "virtual-card",
+            "wording-then"
+          ],
+          "terms": {},
+          "ui": {
+            "prompt": "翦灭：与一名其他角色同时选颜色弃手牌，弃多者视为对其使用【决斗】",
+            "overlay": "先选目标 → 自己选颜色 → 对方选颜色（互不可见）",
+            "fx": "color_choice",
+            "reveal": "无",
+            "qq": "播报双方弃牌数与决斗"
+          },
+          "agreed": "出牌阶段限一次，你可以与一名其他角色同时选择一种颜色（顺序询问、互不可见），各自弃置所选颜色的**全部手牌**，然后弃置牌较多的角色视为对另一角色使用【决斗】（走真实虚拟牌结算；平手不发生）。目标可以没有手牌。",
+          "assertions": {
+            "positive": [
+              "双方弃所选颜色手牌，弃多者视为对对方使用【决斗】",
+              "目标无手牌也可发动"
+            ],
+            "negative": [
+              "平手不发生决斗",
+              "只弃手牌不弃装备"
+            ]
+          },
+          "impl": "sanguosha2::skills::b18::JIANMIE + Game::use_virtual",
+          "tests": [
+            "b18::jianmie_more_discards_triggers_duel",
+            "b18::jianmie_tie_does_not_duel"
+          ]
+        }
+      ]
+    },
+    {
+      "gid": 626,
+      "code": "sgs_hero_626",
+      "name": "界刘表",
+      "skills": [
+        {
+          "code": "zishou",
+          "name": "自守",
+          "kind": "normal",
+          "status": "implemented",
+          "original": "摸牌阶段，你可以多摸X张牌，你以此法摸牌的结束阶段，若你本回合使用过伤害牌，你弃置X张牌（X为全场势力数）。",
+          "original_source": "heroes.json#gid=626",
+          "mechanics_version": 2,
+          "current": [
+            "v2：摸牌阶段前询问（`skills::before_phase`，`turn.zishou_offered`），发动后 `draw_bonus` 多摸 X（X=全场存活势力数）。",
+            "结束阶段若本回合使用过伤害牌（`turn.damage_card_used`：杀/伤害锦囊，按牌属性）→ 弃 X 张手牌；不足则弃至手牌为空。",
+            "界版不再防止自己造成的伤害（v2 未实现该拦截）。"
+          ],
+          "confidence": "verified",
+          "diff": [
+            "官方界自守没有「防止你造成的伤害」；v1 保留了标准版防止逻辑且对界版生效。",
+            "界版结束阶段弃 X 张未实现。",
+            "X 用实时势力数（v1），未固定快照。"
+          ],
+          "questions": [
+            {
+              "id": "Q1",
+              "ask": "界自守是否仍防止自己造成的伤害？",
+              "options": {
+                "A": "不防止（按官方界版，移除该条）",
+                "B": "保留防止（v1 口径）"
+              },
+              "lean": "A",
+              "why": "界版文本替换了该条；与标准版通过 `is_jiexian` 分支区分。",
+              "impact": "伤害拦截 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q2",
+              "ask": "是否实现「结束阶段若使用过伤害牌 → 弃 X 张」？",
+              "options": {
+                "A": "实现（本回合使用过伤害牌 → 结束阶段弃 X 张，X=势力数）",
+                "B": "不实现，登记已知边界"
+              },
+              "lean": "A",
+              "why": "这是界版核心改动，不实现等于界版技能失效。",
+              "impact": "结束阶段帧 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q3",
+              "ask": "「使用过伤害牌」的判定口径？",
+              "options": {
+                "A": "本回合使用过【杀】或伤害锦囊（按牌属性 `tags.sha`/`damage_trick`）",
+                "B": "本回合造成过伤害"
+              },
+              "lean": "A",
+              "why": "文本是「使用过伤害牌」，不是「造成过伤害」。",
+              "impact": "计数入口 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q4",
+              "ask": "「弃 X 张牌」不足时？",
+              "options": {
+                "A": "弃至手牌为空（能弃多少弃多少）",
+                "B": "不足则不发动自守"
+              },
+              "lean": "A",
+              "why": "摸牌已经发生；结束阶段按可弃张数处理。",
+              "impact": "边界 + 用例。",
+              "answer": "A"
+            }
+          ],
+          "mechanics": [
+            "turn-window",
+            "damage-vs-hp-loss",
+            "wording-can"
+          ],
+          "terms": {},
+          "ui": {
+            "prompt": "自守：摸牌阶段可多摸 X 张；结束阶段若使用过伤害牌则弃 X 张",
+            "overlay": "发动询问；结束阶段弃牌多选",
+            "fx": "draw_bonus",
+            "reveal": "无",
+            "qq": "播报多摸与弃牌"
+          },
+          "agreed": "摸牌阶段，你可以多摸 X 张牌（X=全场势力数）；你以此法摸牌的回合结束阶段，若你本回合使用过伤害牌（【杀】或伤害锦囊），你弃置 X 张牌（不足则弃至手牌为空）。界版**不再**防止你造成的伤害。",
+          "assertions": {
+            "positive": [
+              "摸牌阶段多摸势力数张",
+              "结束阶段若使用过伤害牌则弃 X 张"
+            ],
+            "negative": [
+              "未使用伤害牌不弃",
+              "界版不防止自己造成的伤害"
+            ]
+          },
+          "impl": "sanguosha2::skills::b18::ZISHOU + skills::before_phase/draw_bonus",
+          "tests": [
+            "b18::zishou_draw_bonus_and_end_phase_cost"
+          ]
+        },
+        {
+          "code": "zongshi",
+          "name": "宗室",
+          "kind": "locked",
+          "status": "implemented",
+          "original": "锁定技，全场每有一个势力，你的手牌上限便+1。\n其他角色对你造成伤害时，防止此伤害改为令其获得你区域内的一张牌，每个势力限一次。",
+          "original_source": "heroes.json#gid=626",
+          "mechanics_version": 2,
+          "current": [
+            "v2（锁定）：手牌上限 +全场势力数（`skills::hand_limit_delta`）。",
+            "其他角色对你造成伤害时（`skills::damage_before_victim` 首位）：每回合每势力首次 → 完全防止伤害，并令来源获得你区域内一张牌（来源选择装备区具体牌 / 随机手牌；不含判定区）。",
+            "防止在防具/其它拦截之前；不产生伤害事件。"
+          ],
+          "confidence": "verified",
+          "diff": [
+            "「你区域内的一张牌」由引擎按区域顺序自动取（判定区优先），不是刘表选择。",
+            "「每个势力限一次」按**回合**计（回合计数器），不是整局。",
+            "取牌顺序先判定区（官方「区域」可含判定区，但由谁选未定）。"
+          ],
+          "questions": [
+            {
+              "id": "Q1",
+              "ask": "「令其获得你区域内的一张牌」由谁选？",
+              "options": {
+                "A": "由刘表选择（手牌随机 / 装备区 / 判定区）",
+                "B": "引擎按 判定区→装备区→随机手牌 自动取（v1 口径）"
+              },
+              "lean": "A",
+              "why": "「获得你区域内的一张牌」通常由技能持有者选。",
+              "impact": "交互 + 用例。",
+              "answer": "C 由其他角色选装备区或者随机手牌，不可选判定区"
+            },
+            {
+              "id": "Q2",
+              "ask": "「每个势力限一次」的窗口？",
+              "options": {
+                "A": "每个回合每个势力限一次（v1 口径）",
+                "B": "整局每个势力限一次"
+              },
+              "lean": "A",
+              "why": "回合重置与类似技能口径一致；整局限一次过强。",
+              "impact": "计数 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q3",
+              "ask": "判定区是否算「区域」？",
+              "options": {
+                "A": "算（可交给其判定区里的牌）",
+                "B": "仅手牌 + 装备区"
+              },
+              "lean": "A",
+              "why": "「区域内的一张牌」含判定区（v1 也先取判定区）。",
+              "impact": "取牌候选 + 用例。",
+              "answer": "B"
+            },
+            {
+              "id": "Q4",
+              "ask": "手牌上限加成是否与标准版一致？",
+              "options": {
+                "A": "全场每有一个势力 +1（实时）",
+                "B": "只在准备阶段快照"
+              },
+              "lean": "A",
+              "why": "锁定技，与标准同口径。",
+              "impact": "手牌上限 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q5",
+              "ask": "防止伤害与「伤害来源」的关系？",
+              "options": {
+                "A": "伤害被完全防止（不产生伤害事件）；来源获得牌",
+                "B": "伤害改为失去体力"
+              },
+              "lean": "A",
+              "why": "文本是「防止此伤害」。",
+              "impact": "伤害入口 + 反例。",
+              "answer": "A"
+            }
+          ],
+          "mechanics": [
+            "damage-vs-hp-loss",
+            "card-gained",
+            "hand-limit",
+            "skill-status"
+          ],
+          "terms": {},
+          "ui": {
+            "prompt": "宗室：每个势力手牌上限 +1；其他角色对你造成伤害时防止之，令其获得你一张区域牌（每回合每势力一次）",
+            "overlay": "由伤害来源选择：装备区具体牌 / 随机手牌（不含判定区）",
+            "fx": "damage_guard",
+            "reveal": "无",
+            "qq": "播报防止伤害与交牌"
+          },
+          "agreed": "锁定技，全场每有一个势力，你的手牌上限 +1。其他角色对你造成伤害时，防止此伤害，改为令其获得你区域内一张牌（由**来源**选择：装备区具体牌或随机手牌；**不含判定区**）；每回合每个势力限一次。",
+          "assertions": {
+            "positive": [
+              "每回合每个势力首次受到伤害时防止之，来源获得一张区域牌",
+              "手牌上限 +势力数"
+            ],
+            "negative": [
+              "同一势力同回合第二次伤害不防止",
+              "判定区不可被选"
+            ]
+          },
+          "impl": "sanguosha2::skills::b18::ZONGSHI + skills::damage_before_victim/hand_limit_delta",
+          "tests": [
+            "b18::zongshi_guards_damage_once_per_kingdom_per_turn"
+          ]
+        }
+      ]
+    },
+    {
+      "gid": 627,
+      "code": "sgs_hero_627",
+      "name": "界蔡夫人",
+      "skills": [
+        {
+          "code": "xianzhou",
+          "name": "献州",
+          "kind": "limited",
+          "status": "implemented",
+          "original": "限定技，出牌阶段，你可以将你装备区里的所有牌交给一名其他角色，然后其选择一项：\n 1.令你回复X点体力；\n 2.对其攻击范围内至多X名角色各造成1点伤害。\n （X为你给出的牌数）",
+          "original_source": "heroes.json#gid=627",
+          "mechanics_version": 2,
+          "current": [
+            "v2（限定）：出牌阶段主动；将所有装备区牌交给一名其他角色（进其手牌，X=牌数）。",
+            "接收者二选一：①令蔡夫人回复 X 点体力；②由**蔡夫人**选择其攻击范围内至多 X 名角色各造成 1 点伤害（可含蔡夫人自己）。",
+            "每局一次（`Seat.flags[\"xianzhou_used\"]`）。"
+          ],
+          "confidence": "verified",
+          "diff": [
+            "②的目标由引擎自动取（前 X 名），不是接收者选择。",
+            "交给的牌进手牌（官方「交给」默认手牌，需确认）。",
+            "②可命中蔡夫人本人（只排除接收者）。"
+          ],
+          "questions": [
+            {
+              "id": "Q1",
+              "ask": "②「对其攻击范围内至多 X 名角色各造成 1 点伤害」的目标由谁选？",
+              "options": {
+                "A": "由接收者选择至多 X 名（不含接收者）",
+                "B": "引擎自动取前 X 名（v1 口径）"
+              },
+              "lean": "A",
+              "why": "文本给了接收者选择权。",
+              "impact": "交互 + 用例。",
+              "answer": "C 界蔡夫人选接收者攻击范围内至多X名"
+            },
+            {
+              "id": "Q2",
+              "ask": "①回复的对象？",
+              "options": {
+                "A": "令蔡夫人回复 X 点",
+                "B": "令接收者回复 X 点"
+              },
+              "lean": "A",
+              "why": "献州是蔡夫人的技能，「令你回复」指蔡夫人。",
+              "impact": "回血入口 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q3",
+              "ask": "装备牌交给接收者后进哪个区？",
+              "options": {
+                "A": "手牌（「交给」默认）",
+                "B": "装备区（直接穿上）"
+              },
+              "lean": "A",
+              "why": "与其余「交给」口径一致。",
+              "impact": "牌区 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q4",
+              "ask": "X 的口径？",
+              "options": {
+                "A": "实际交给的装备牌张数",
+                "B": "蔡夫人装备区初始槽位数（5）"
+              },
+              "lean": "A",
+              "why": "文本「X 为你给出的牌数」。",
+              "impact": "数值 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q5",
+              "ask": "②是否可命中蔡夫人本人？",
+              "options": {
+                "A": "可以（只要在接收者攻击范围内）",
+                "B": "不可以"
+              },
+              "lean": "A",
+              "why": "文本只排除接收者自己；v1 允许。",
+              "impact": "目标枚举 + 用例。",
+              "answer": "A"
+            }
+          ],
+          "mechanics": [
+            "limit-skill",
+            "lose-vs-discard",
+            "card-gained",
+            "damage-vs-hp-loss"
+          ],
+          "terms": {},
+          "ui": {
+            "prompt": "献州：将装备区所有牌交给一名其他角色，其选择回复你 X 点或由你选至多 X 名（其攻击范围内）各受 1 点伤害",
+            "overlay": "选接收者 → 接收者二选一 → 蔡夫人选伤害目标 / 结算回复",
+            "fx": "limited_give",
+            "reveal": "无",
+            "qq": "播报交牌与选择"
+          },
+          "agreed": "限定技，出牌阶段，你可以将装备区里的所有牌交给一名其他角色（进其手牌，X=给出的牌数），然后其选择一项：1. 令你回复 X 点体力；2. 由**你**选择其攻击范围内至多 X 名角色各造成 1 点伤害（可含你自己）。每局一次。",
+          "assertions": {
+            "positive": [
+              "交出全部装备牌后可回复 X 或对至多 X 名角色各 1 点伤害",
+              "伤害目标由蔡夫人选择"
+            ],
+            "negative": [
+              "限定技只能发动一次",
+              "装备区无牌不能发动"
+            ]
+          },
+          "impl": "sanguosha2::skills::b18::XIANZHOU",
+          "tests": [
+            "b18::xianzhou_gives_equips_then_heals"
+          ]
+        },
+        {
+          "code": "qieting",
+          "name": "窃听",
+          "kind": "normal",
+          "status": "implemented",
+          "original": "其他角色的回合结束后，若其本回合未对其他角色造成伤害，你可以选择一项；若其本回合未对其他角色使用过牌，你可以选择两项；\n 1.将其装备区里的一张牌置入你的装备区；\n 2.摸一张牌。",
+          "original_source": "heroes.json#gid=627",
+          "mechanics_version": 2,
+          "current": [
+            "v2：回合结束钩子（`skills::on_turn_end`，在清空 `turn.` 计数之前）；若该角色本回合未对其他角色造成伤害 → 可选一项；若未对其他角色使用过牌 → 可选两项（`both`）。",
+            "选项：①将其装备区一张牌移动到自己同槽位（已占用则替换旧装备进弃牌堆、触发失去装备钩子）；②摸一张牌。",
+            "`skills::on_turn_end` 在 `begin_phase` 换人时、清空 `turn.` 计数之前调用；装备移动经处理区中转，保证同一次动作内落盘。"
+          ],
+          "confidence": "verified",
+          "diff": [
+            "只实现「未使用过牌」的最严条件且只能选 1 项。",
+            "装备槽已占用时不提供「获得装备」选项（官方「置入你的装备区」）。",
+            "「未对其他角色造成伤害」的放宽未实现。"
+          ],
+          "questions": [
+            {
+              "id": "Q1",
+              "ask": "界窃听的触发条件？",
+              "options": {
+                "A": "本回合未对其他角色造成伤害 → 可选一项；未对其他角色使用过牌 → 可选两项（官方）",
+                "B": "仅「未使用过牌」选一项（v1 口径）"
+              },
+              "lean": "A",
+              "why": "界版文本明确两级放宽。",
+              "impact": "触发 + 交互 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q2",
+              "ask": "「将其装备区里的一张牌置入你的装备区」槽位已占用时？",
+              "options": {
+                "A": "可置入并替换旧装备（旧装备进弃牌堆）",
+                "B": "需要空槽才提供该选项（v1 口径）"
+              },
+              "lean": "A",
+              "why": "「置入」不要求空槽；替换按装备通用规则。",
+              "impact": "装备移动 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q3",
+              "ask": "「未对其他角色造成伤害」的口径？",
+              "options": {
+                "A": "本回合该角色未对任何其他角色造成伤害（含技能伤害）",
+                "B": "仅统计牌造成的伤害"
+              },
+              "lean": "A",
+              "why": "文本是「造成伤害」不限于牌。",
+              "impact": "计数 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q4",
+              "ask": "选两项时两项是否可重复选？",
+              "options": {
+                "A": "不能（两项各一次）",
+                "B": "可以重复"
+              },
+              "lean": "A",
+              "why": "「选择两项」= 两个选项各一次。",
+              "impact": "交互 + 反例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q5",
+              "ask": "触发窗口？",
+              "options": {
+                "A": "该角色的回合结束时（其结束阶段之后）",
+                "B": "结束阶段开始时"
+              },
+              "lean": "A",
+              "why": "文本「回合结束后」；与 v1 的触发点一致（回合结束段）。",
+              "impact": "窗口 + 用例。",
+              "answer": "A"
+            }
+          ],
+          "mechanics": [
+            "turn-window",
+            "equip-move",
+            "card-gained",
+            "wording-can"
+          ],
+          "terms": {},
+          "ui": {
+            "prompt": "窃听：其他角色回合结束后（未造成伤害可选一项；未对其使用过牌可选两项）",
+            "overlay": "选项：获得其装备区一张 / 摸一张（可同时/替换装备）",
+            "fx": "steal_equip",
+            "reveal": "无",
+            "qq": "播报获得装备/摸牌"
+          },
+          "agreed": "其他角色的回合结束后，若其本回合未对其他角色造成伤害，你可以选择一项；若其本回合未对其他角色使用过牌，你可以选择两项（两项各一次）：1. 将其装备区里的一张牌置入你的装备区（槽位已占用则替换，旧装备进弃牌堆）；2. 摸一张牌。",
+          "assertions": {
+            "positive": [
+              "未造成伤害时可选一项；未使用过牌时可选两项",
+              "获得装备可替换旧装备"
+            ],
+            "negative": [
+              "造成伤害且使用过牌时不触发",
+              "两项不可重复"
+            ]
+          },
+          "impl": "sanguosha2::skills::b18::QIETING + skills::on_turn_end",
+          "tests": [
+            "b18::qieting_triggers_after_other_turn_end"
+          ]
+        }
+      ]
+    },
+    {
+      "gid": 628,
+      "code": "sgs_hero_628",
+      "name": "界曹冲",
+      "skills": [
+        {
+          "code": "chengxiang",
+          "name": "称象",
+          "kind": "normal",
+          "status": "implemented",
+          "original": "当你受到1点伤害后，你可以亮出牌堆顶四张牌，获得其中任意张点数和小于等于13的牌；若获得的牌点数和恰好为13，你下次发动“称象”多亮出一张牌。",
+          "original_source": "heroes.json#gid=628",
+          "mechanics_version": 2,
+          "current": [
+            "v2：`DamageAfter` 触发，按伤害点数逐个询问（`left` 递减）；亮出牌堆顶 4 张（`chengxiang_bonus` 累计，多亮 N 张）进处理区并 `reveal`。",
+            "选择任意张点数和 ≤13 的牌获得（`Game::gain`），其余进弃牌堆；获得点数和恰为 13 → `chengxiang_bonus += 1`（可累积，下次消费）。",
+            "亮出的牌进处理区并 `Game::reveal`（公共可见），结算结束 `conceal`；未选择的牌进弃牌堆。"
+          ],
+          "confidence": "verified",
+          "diff": [
+            "每次伤害事件只触发一次（不按每 1 点伤害拆分）。",
+            "「下次多亮一张」只 +1（连续多次 13 不累积）。",
+            "亮出的牌放处理区（`deck.processing`），未选的进弃牌堆。"
+          ],
+          "questions": [
+            {
+              "id": "Q1",
+              "ask": "「受到 1 点伤害后」的触发粒度？",
+              "options": {
+                "A": "每受到 1 点伤害各触发一次（2 点伤害可触发 2 次）",
+                "B": "每次伤害事件触发一次（v1 口径）"
+              },
+              "lean": "A",
+              "why": "文本是「受到 1 点伤害后」；与反馈/权计等「按点触发」口径一致。",
+              "impact": "触发计数 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q2",
+              "ask": "「下次发动多亮一张」是否可累积？",
+              "options": {
+                "A": "可累积（连续两次 13 → 下次多亮 2 张）",
+                "B": "仅 +1（v1 口径）"
+              },
+              "lean": "A",
+              "why": "文本「下次多亮一张」每次 13 都应生效。",
+              "impact": "计数 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q3",
+              "ask": "获得牌的约束？",
+              "options": {
+                "A": "任意张且点数和 ≤13",
+                "B": "至多 4 张且点数和 ≤13"
+              },
+              "lean": "A",
+              "why": "文本只限制点数和。",
+              "impact": "候选 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q4",
+              "ask": "未选择的牌去向？",
+              "options": {
+                "A": "弃牌堆",
+                "B": "牌堆底 / 放回牌堆顶"
+              },
+              "lean": "A",
+              "why": "v1 与常见口径一致（亮出后不获得即弃置）。",
+              "impact": "牌区 + 用例。",
+              "answer": "A"
+            }
+          ],
+          "mechanics": [
+            "reveal",
+            "card-gained",
+            "damage-vs-hp-loss"
+          ],
+          "terms": {},
+          "ui": {
+            "prompt": "称象：受伤后亮出牌堆顶 4 张（上次 13 则多亮，可累积），获得点数和 ≤13 的任意张",
+            "overlay": "多选（点数和实时显示）→ 确认/放弃",
+            "fx": "reveal_cards",
+            "reveal": "亮出的牌公共可见，结算后收回",
+            "qq": "播报亮牌与获得"
+          },
+          "agreed": "当你受到 1 点伤害后（每点各触发一次），你可以亮出牌堆顶 4 张牌（若上次获得的牌点数和恰好为 13，则多亮一张；可累积），获得其中任意张点数和 ≤13 的牌，其余进弃牌堆；若获得的牌点数和恰好为 13，下次发动多亮一张。",
+          "assertions": {
+            "positive": [
+              "每点伤害触发一次；亮牌获得点数和 ≤13",
+              "获得点数和恰为 13 时下次多亮一张（可累积）"
+            ],
+            "negative": [
+              "未获得任何牌不触发 bonus",
+              "点数和超过 13 不能选择"
+            ]
+          },
+          "impl": "sanguosha2::skills::b18::CHENGXIANG",
+          "tests": [
+            "b18::chengxiang_reveals_gains_and_stacks_bonus",
+            "b18::chengxiang_triggers_per_damage_point"
+          ]
+        },
+        {
+          "code": "renxin",
+          "name": "仁心",
+          "kind": "normal",
+          "status": "implemented",
+          "original": "当一名其他角色进入濒死时，你可以弃置一张装备牌并翻面，然后令其回复至1点体力。",
+          "original_source": "heroes.json#gid=628",
+          "mechanics_version": 2,
+          "current": [
+            "v2（界版）：`skills::on_dying_enter` 在其他角色进入濒死时（求桃之前）询问拥有者：弃一张装备牌（手牌中的装备牌或装备区）并 `Game::flip`，然后 `flow::revive_to(victim, 1)`。",
+            "多个拥有者按座位顺序逐个询问；无装备牌不提供。",
+            "濒死询问由 `skills::on_dying_enter` 压入（求桃之前）；多个拥有者按座位顺序逐个询问；救起后体力为 1，不再求桃。"
+          ],
+          "confidence": "verified",
+          "diff": [
+            "v1 是标准版「1 体力角色受伤时防止伤害」；界版「进入濒死时回复至 1」未实现。",
+            "弃置装备后没有回复体力分支。",
+            "翻面走通用翻面（触发翻面钩子）。"
+          ],
+          "questions": [
+            {
+              "id": "Q1",
+              "ask": "是否实现界版（濒死时）？",
+              "options": {
+                "A": "实现：其他角色进入濒死时，弃一张装备牌并翻面，然后令其回复至 1 点体力",
+                "B": "保留 v1 标准行为（1 体力受伤时防止伤害），登记边界"
+              },
+              "lean": "A",
+              "why": "界版技能应按官方文本实现；否则界曹冲没有界版仁心。",
+              "impact": "濒死流程 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q2",
+              "ask": "弃置的装备牌来源？",
+              "options": {
+                "A": "手牌中的装备牌 + 装备区的牌",
+                "B": "仅装备区"
+              },
+              "lean": "A",
+              "why": "「弃置一张装备牌」含手牌装备牌（v1 同）。",
+              "impact": "候选 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q3",
+              "ask": "回复至 1 与濒死求桃的先后？",
+              "options": {
+                "A": "先触发仁心（体力回到 1），不再求桃",
+                "B": "先求桃，救不起再问仁心"
+              },
+              "lean": "A",
+              "why": "「进入濒死时」在求桃之前（v1 风格：buyi 也在求桃前）。",
+              "impact": "濒死流程 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q4",
+              "ask": "多名角色拥有仁心时？",
+              "options": {
+                "A": "按座位顺序逐个询问（先问到的可发动）",
+                "B": "只问第一名"
+              },
+              "lean": "A",
+              "why": "mechanics trigger-order：同时机逐个询问。",
+              "impact": "顺序 + 用例。",
+              "answer": "A"
+            }
+          ],
+          "mechanics": [
+            "dying-resolution",
+            "damage-vs-hp-loss",
+            "lose-vs-discard",
+            "wording-can"
+          ],
+          "terms": {},
+          "ui": {
+            "prompt": "仁心：其他角色进入濒死时，可弃一张装备牌并翻面，令其回复至 1 点体力",
+            "overlay": "选装备牌（手牌/装备区）→ 确认",
+            "fx": "flip_heal",
+            "reveal": "无",
+            "qq": "播报弃牌翻面与回复"
+          },
+          "agreed": "当一名其他角色进入濒死时，你可以弃置一张装备牌（手牌或装备区）并翻面，然后令其回复至 1 点体力。",
+          "assertions": {
+            "positive": [
+              "其他角色进入濒死时可弃装备翻面令其回复至 1",
+              "弃牌来源含手牌装备牌与装备区"
+            ],
+            "negative": [
+              "不能对未濒死角色发动",
+              "无装备牌不能发动"
+            ]
+          },
+          "impl": "sanguosha2::skills::b18::RENXIN + flow::revive_to / skills::on_dying_enter",
+          "tests": [
+            "b18::renxin_flips_and_heals_dying_other"
+          ]
+        }
+      ]
+    },
+    {
+      "gid": 629,
+      "code": "sgs_hero_629",
+      "name": "界曹植",
+      "skills": [
+        {
+          "code": "luoying",
+          "name": "落英",
+          "kind": "normal",
+          "status": "implemented",
+          "original": "当其他角色的梅花牌因弃置或判定而置入弃牌堆后，你可以获得其中任意张牌。",
+          "original_source": "heroes.json#gid=629",
+          "mechanics_version": 2,
+          "current": [
+            "v2：`CardDiscarded` 触发；其他角色（含判定牌，seat=None）的梅花牌进入弃牌堆后逐张询问是否获得。",
+            "获得走 `Game::gain`，并给该牌打上 `Game.luoying_cards` 标记（离开手牌自动清除）；回合外获得累计 `turn.luoying_gained`（供酒诗）。",
+            "落英标记只对「在手牌中」生效（`move_card` 离开手牌即清除）；获得不产生弃置类钩子。"
+          ],
+          "confidence": "verified",
+          "diff": [
+            "「任意张」实现为逐张询问（不是一次多选）。",
+            "获得的牌直接进手牌（v1），未走统一「获得」入口。",
+            "酒诗的「背面朝上时落英牌无距离/不可响应」「回合外累计获得 X 张翻回」未实现。"
+          ],
+          "questions": [
+            {
+              "id": "Q1",
+              "ask": "「获得其中任意张」的交互？",
+              "options": {
+                "A": "同一次弃置的牌合并为一次多选（可确认/放弃）",
+                "B": "逐张询问（v1 口径）"
+              },
+              "lean": "A",
+              "why": "与同批次其它「任意张」技能口径一致；减少询问次数。",
+              "impact": "交互 + 用例。",
+              "answer": "B"
+            },
+            {
+              "id": "Q2",
+              "ask": "判定牌是否触发？",
+              "options": {
+                "A": "触发（官方「因弃置或判定」）",
+                "B": "仅弃置（不含判定）"
+              },
+              "lean": "A",
+              "why": "官方文本明确含判定。",
+              "impact": "触发入口 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q3",
+              "ask": "获得的牌是否走统一「获得」入口？",
+              "options": {
+                "A": "是（产生获得事件，联动获得类技能）",
+                "B": "直接进手牌（v1 口径）"
+              },
+              "lean": "A",
+              "why": "mechanics card-gained。",
+              "impact": "事件 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q4",
+              "ask": "是否记录「本回合外累计获得的落英牌数」供酒诗翻回？",
+              "options": {
+                "A": "记录（供酒诗用）",
+                "B": "不记录（酒诗该分支不实现）"
+              },
+              "lean": "A",
+              "why": "界酒诗需要该计数；同一批内应闭环。",
+              "impact": "计数 + 用例。",
+              "answer": "A"
+            }
+          ],
+          "mechanics": [
+            "lose-vs-discard",
+            "card-gained",
+            "discard-contract",
+            "wording-can"
+          ],
+          "terms": {},
+          "ui": {
+            "prompt": "落英：其他角色的梅花牌因弃置/判定进入弃牌堆后，可获得其中任意张",
+            "overlay": "逐张询问获得/放弃",
+            "fx": "gain_card",
+            "reveal": "获得的牌进入手牌",
+            "qq": "播报获得"
+          },
+          "agreed": "当其他角色的梅花牌因弃置或判定而置入弃牌堆后，你可以获得其中任意张（逐张询问，可放弃）；获得的牌走统一「获得」入口，并记录回合外累计获得的落英牌数（供酒诗）。",
+          "assertions": {
+            "positive": [
+              "其他角色梅花牌因弃置/判定进弃牌堆后可获得",
+              "获得的牌走统一获得入口并计数"
+            ],
+            "negative": [
+              "自己的梅花牌不触发",
+              "非梅花牌不触发"
+            ]
+          },
+          "impl": "sanguosha2::skills::b18::LUOYING + Game::gain / luoying_cards",
+          "tests": [
+            "b18::luoying_gains_other_players_club_discard"
+          ]
+        },
+        {
+          "code": "jiushi",
+          "name": "酒诗",
+          "kind": "normal",
+          "status": "implemented",
+          "original": "你可以将武将牌翻至背面，视为使用一张【酒】。若你的武将牌背面朝上，你使用的“落英”牌无距离限制且不能被响应。\n当你受到伤害后，或回合外累计获得至少X张“落英”牌后（X为你体力值上限），若你的武将牌背面朝上，你可以翻至正面。",
+          "original_source": "heroes.json#gid=629",
+          "mechanics_version": 2,
+          "current": [
+            "v2：出牌阶段主动（`can_active`：正面朝上、本回合未使用【酒】、未被禁酒封锁）→ 翻至背面并 `apply_jiu`（视为使用【酒】）。",
+            "背面朝上时，手牌中的落英标记牌使用时 `mark_unresponsive`（不能被响应）且 `card_no_distance`（无距离）；受伤害后询问翻回；回合外累计获得 ≥体力上限张落英牌后询问翻回。",
+            "标签在视图 `card.marks` 暴露（WEB 同步显示）。"
+          ],
+          "confidence": "verified",
+          "diff": [
+            "每回合限一次（借用 `jiu_used`），官方文本未写「限一次」。",
+            "翻回为自动（无「可以」询问）。",
+            "界版两条强化未实现。"
+          ],
+          "questions": [
+            {
+              "id": "Q1",
+              "ask": "使用次数？",
+              "options": {
+                "A": "每回合一次（与【酒】次数共用，v1 口径）",
+                "B": "不受【酒】次数限制（每次翻面可用）"
+              },
+              "lean": "A",
+              "why": "酒诗是「视为使用【酒】」，应受【酒】的每回合一次限制。",
+              "impact": "主动技入口 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q2",
+              "ask": "背面朝上时「落英牌无距离且不能被响应」？",
+              "options": {
+                "A": "实现（落英获得的牌本回合使用/打出时无距离、不可被响应）",
+                "B": "不实现，登记边界"
+              },
+              "lean": "A",
+              "why": "界版核心强化。",
+              "impact": "使用入口 + 用例。",
+              "answer": "A 通过落英获取的牌需要在手牌中有标记（WEB页同样要实现），手牌进弃牌堆后清楚标记"
+            },
+            {
+              "id": "Q3",
+              "ask": "受伤后翻回是否询问？",
+              "options": {
+                "A": "询问（可以）",
+                "B": "自动（v1 口径）"
+              },
+              "lean": "A",
+              "why": "原文「你可以翻至正面」。",
+              "impact": "pending + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q4",
+              "ask": "「回合外累计获得 X 张落英牌后翻回」？",
+              "options": {
+                "A": "实现（X=体力上限；回合外累计，用后清零）",
+                "B": "不实现，登记边界"
+              },
+              "lean": "A",
+              "why": "界版文本有该分支。",
+              "impact": "计数 + 用例。",
+              "answer": "A"
+            }
+          ],
+          "mechanics": [
+            "virtual-card",
+            "use-vs-play",
+            "turn-window",
+            "wording-can"
+          ],
+          "terms": {},
+          "ui": {
+            "prompt": "酒诗：翻至背面视为使用【酒】；背面朝上时落英牌无距离且不能被响应；受伤后/累计落英可翻回",
+            "overlay": "确认翻面；受伤后询问翻回；手牌中落英牌带标记",
+            "fx": "flip_jiu",
+            "reveal": "落英牌在手牌中带标记（WEB 同步显示）",
+            "qq": "播报翻面与翻回"
+          },
+          "agreed": "你可以将武将牌翻至背面，视为使用一张【酒】（每回合一次，与【酒】次数共用）。若你的武将牌背面朝上，你使用的落英牌无距离限制且不能被响应（落英牌在手牌中带标记，离开手牌后清除；Web 视图同步显示）。当你受到伤害后，或回合外累计获得至少 X 张落英牌后（X=体力上限），若背面朝上，你可以翻至正面。",
+          "assertions": {
+            "positive": [
+              "翻至背面视为使用【酒】（每回合一次）",
+              "背面朝上时落英牌无距离且不可被响应；受伤后可翻回"
+            ],
+            "negative": [
+              "正面朝上不能重复翻面",
+              "累计落英不足 X 张不询问翻回"
+            ]
+          },
+          "impl": "sanguosha2::skills::b18::JIUSHI + card_no_distance / mark_unresponsive / card_play::apply_jiu",
+          "tests": [
+            "b18::jiushi_flips_for_jiu_and_back_after_damage",
+            "b18::jiushi_luoying_card_has_no_distance_while_flipped"
+          ]
+        }
+      ]
+    },
+    {
+      "gid": 640,
+      "code": "sgs_hero_640",
+      "name": "界吴国太",
+      "skills": [
+        {
+          "code": "ganlu",
+          "name": "甘露",
+          "kind": "normal",
+          "status": "implemented",
+          "original": "出牌阶段限一次，你可以令两名角色交换装备区里的牌。若X大于你已损失的体力值，你须在选择角色时弃置X张牌（X为其装备区里的牌数之差）。",
+          "original_source": "heroes.json#gid=640",
+          "mechanics_version": 2,
+          "current": [
+            "v2：出牌阶段限一次（`phase.ganlu_used`）；选两名有装备的角色（可含自己）交换装备区。",
+            "差额 X > 已损失体力时，须弃 X 张手牌（仅手牌；不足则弃光仍交换）；交换先移到处理区再放到对方同槽位（触发失去装备钩子），槽位废除则进手牌。",
+            "交换先把双方装备移到处理区（触发失去装备钩子），再放入对方同槽位；目标槽位已废除则进手牌。"
+          ],
+          "confidence": "verified",
+          "diff": [
+            "界版成本应为「弃置 X 张（X=装备区牌数之差）」，v1 只弃「差额-已损失」。",
+            "只从手牌弃；手牌不足时照常交换（未支付）。",
+            "不能选择吴国太自己（官方「两名角色」未排除自己）。",
+            "交换不触发失去/获得装备钩子。"
+          ],
+          "questions": [
+            {
+              "id": "Q1",
+              "ask": "界版弃牌数？",
+              "options": {
+                "A": "X = 两人装备区牌数之差（官方）",
+                "B": "差额 - 已损失体力（v1 口径）"
+              },
+              "lean": "A",
+              "why": "官方界版文本明确 X=差额；已损失体力只决定「是否需要弃」。",
+              "impact": "代价 + 用例。",
+              "answer": "B（正文口径）：X = 两人装备区牌数之差（官方）；若 X 大于你已损失的体力值，你须在选择角色时弃置 X 张牌"
+            },
+            {
+              "id": "Q2",
+              "ask": "弃置来源？",
+              "options": {
+                "A": "手牌 + 装备区（弃置前需先选两名角色，所以只能弃吴国太自己的牌）",
+                "B": "仅手牌"
+              },
+              "lean": "A",
+              "why": "「弃置 X 张牌」未限手牌；与其它代价口径一致。",
+              "impact": "代价候选 + 用例。",
+              "answer": "B"
+            },
+            {
+              "id": "Q3",
+              "ask": "手牌/牌不足支付时？",
+              "options": {
+                "A": "不能发动（选项不出现）",
+                "B": "弃光后仍交换（v1 口径）"
+              },
+              "lean": "A",
+              "why": "代价不足时不得发动。",
+              "impact": "合法动作 + 反例。",
+              "answer": "B"
+            },
+            {
+              "id": "Q4",
+              "ask": "是否可以选择吴国太自己作为两名角色之一？",
+              "options": {
+                "A": "可以（「两名角色」未排除自己）",
+                "B": "仅其他角色（v1 口径）"
+              },
+              "lean": "B",
+              "why": "v1 与常见实现只选其他角色；若官方裁定允许请改 A。",
+              "impact": "目标枚举 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q5",
+              "ask": "交换是否触发失去/获得装备钩子？",
+              "options": {
+                "A": "触发（枭姬/旋风等失去装备技能）",
+                "B": "不触发（纯移动）"
+              },
+              "lean": "A",
+              "why": "mechanics equip-move：离开装备区视为失去。",
+              "impact": "事件 + 用例。",
+              "answer": "A"
+            }
+          ],
+          "mechanics": [
+            "equip-move",
+            "lose-vs-discard",
+            "turn-window"
+          ],
+          "terms": {},
+          "ui": {
+            "prompt": "甘露：出牌阶段限一次，令两名角色（可含自己）交换装备区；差额 X 超过已损失体力时须弃 X 张手牌",
+            "overlay": "选两名角色 → （必要时）弃 X 张手牌",
+            "fx": "swap_equips",
+            "reveal": "无",
+            "qq": "播报交换与代价"
+          },
+          "agreed": "出牌阶段限一次，你可以令两名角色（可含自己）交换装备区里的牌。若 X（X=两人装备区牌数之差）大于你已损失的体力值，你须在选择角色时弃置 X 张手牌（仅手牌；不足则弃光后仍交换）。交换视为失去/获得装备（触发失去装备钩子）。",
+          "assertions": {
+            "positive": [
+              "交换两名角色装备区（可含自己）",
+              "差额超过已损失体力时弃 X 张后仍可交换"
+            ],
+            "negative": [
+              "未支付足够手牌时弃光仍交换（用户口径）",
+              "装备区都为空不能发动"
+            ]
+          },
+          "impl": "sanguosha2::skills::b18::GANLU + swap_equips",
+          "tests": [
+            "b18::ganlu_swaps_equips_and_pays_diff_when_needed"
+          ]
+        },
+        {
+          "code": "buyi",
+          "name": "补益",
+          "kind": "normal",
+          "status": "implemented",
+          "original": "当一名角色进入濒死状态时，你可以选择其一张牌，若此牌不为基本牌，则其弃置此牌，然后回复1点体力。",
+          "original_source": "heroes.json#gid=640",
+          "mechanics_version": 2,
+          "current": [
+            "v2（界版）：`on_dying_enter` 询问拥有者（排除濒死者本人）是否发动；选其手牌或装备区一张牌并 `reveal`。",
+            "非基本牌 → 弃置并 `flow::revive_add(victim, 1)`；基本牌无效果；每次濒死一次。",
+            "濒死询问由 `skills::on_dying_enter` 触发（求桃之前）；候选 = 其手牌具体牌 + 装备区具体牌，展示后按是否基本牌结算。"
+          ],
+          "confidence": "verified",
+          "diff": [
+            "自动发动（无询问），且只随机展示一张手牌。",
+            "不覆盖装备区/判定区。",
+            "每名濒死者每次濒死限一次（回合计数）。"
+          ],
+          "questions": [
+            {
+              "id": "Q1",
+              "ask": "是否询问发动？",
+              "options": {
+                "A": "询问（可以发动/放弃）",
+                "B": "自动发动（v1 口径）"
+              },
+              "lean": "A",
+              "why": "原文「你可以」。",
+              "impact": "pending + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q2",
+              "ask": "选牌范围？",
+              "options": {
+                "A": "任意区域（手牌 / 装备区 / 判定区）由吴国太选",
+                "B": "仅随机手牌（v1 口径）"
+              },
+              "lean": "A",
+              "why": "界版文本「选择其一张牌」未限手牌。",
+              "impact": "候选 + 用例。",
+              "answer": "C 手牌 / 装备区"
+            },
+            {
+              "id": "Q3",
+              "ask": "基本牌的结果？",
+              "options": {
+                "A": "展示后不弃置、不回复（v1 口径）",
+                "B": "照常弃置并回复 1"
+              },
+              "lean": "A",
+              "why": "原文「若此牌不为基本牌，则……」——基本牌无效果。",
+              "impact": "分支 + 反例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q4",
+              "ask": "同一名角色同一回合多次濒死？",
+              "options": {
+                "A": "每次濒死都可发动一次",
+                "B": "每回合只能发动一次（v1 计数器）"
+              },
+              "lean": "A",
+              "why": "文本按「进入濒死」触发，未限每回合一次。",
+              "impact": "计数 + 用例。",
+              "answer": "A"
+            }
+          ],
+          "mechanics": [
+            "dying-resolution",
+            "reveal",
+            "card-attributes",
+            "wording-can"
+          ],
+          "terms": {},
+          "ui": {
+            "prompt": "补益：一名角色进入濒死时，可选其手牌/装备区一张牌，非基本牌则弃置并回复 1 点体力",
+            "overlay": "选区域牌 → 展示 → 弃置/无效果",
+            "fx": "reveal_heal",
+            "reveal": "所选牌展示",
+            "qq": "播报弃牌与回复"
+          },
+          "agreed": "当一名角色进入濒死状态时，你可以选择其手牌或装备区的一张牌；若此牌不为基本牌，则其弃置此牌，然后回复 1 点体力。每次濒死限一次。",
+          "assertions": {
+            "positive": [
+              "濒死时可选其手牌/装备区一张，非基本牌则弃置并回复 1",
+              "每次濒死限一次"
+            ],
+            "negative": [
+              "基本牌不弃置不回复",
+              "无牌可选时不触发"
+            ]
+          },
+          "impl": "sanguosha2::skills::b18::BUYI + flow::revive_add",
+          "tests": [
+            "b18::buyi_reveals_non_basic_and_heals_dying",
+            "b18::buyi_skips_when_victim_has_no_card"
+          ]
+        }
+      ]
+    },
+    {
+      "gid": 641,
+      "code": "sgs_hero_641",
+      "name": "界廖化",
+      "skills": [
+        {
+          "code": "dangxian",
+          "name": "当先",
+          "kind": "normal",
+          "status": "implemented",
+          "original": "回合开始时，你执行一个额外的出牌阶段。此阶段开始时，你可以从牌堆或弃牌堆中获得一张无距离限制的【杀】，然后若你未于此阶段造成过伤害，阶段结束时你对自己造成1点伤害。",
+          "original_source": "heroes.json#gid=641",
+          "mechanics_version": 2,
+          "current": [
+            "v2：准备阶段之后、判定阶段之前（`turn::tick` Prepare 分支）由 `skills::start_extra_play_phase` 插入一个额外出牌阶段；阶段开始时询问是否从牌堆/弃牌堆获得一张【杀】（`no_distance_cards` 标记无距离）。",
+            "额外出牌阶段结束（`skills::on_end_play`）→ 若本阶段未造成伤害则 `flow::damage` 无来源自伤 1，然后回到判定阶段继续正常回合。",
+            "额外阶段的【杀】次数与本回合计数与正常出牌阶段共用；`turn.dangxian_done` 每回合一次，阶段结束回判定阶段。"
+          ],
+          "confidence": "verified",
+          "diff": [
+            "获得的【杀】没有「无距离限制」标记。",
+            "获得是自动的（原文「可以」）。",
+            "自伤走 `apply_damage`（无来源）；未造成伤害的判定用「本阶段」标记。"
+          ],
+          "questions": [
+            {
+              "id": "Q1",
+              "ask": "额外阶段开始时获得【杀】是否询问？",
+              "options": {
+                "A": "询问（可以放弃）",
+                "B": "自动获得（v1 口径）"
+              },
+              "lean": "A",
+              "why": "原文「你可以……获得一张」。",
+              "impact": "pending + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q2",
+              "ask": "获得的【杀】「无距离限制」如何实现？",
+              "options": {
+                "A": "该【杀】本回合使用无距离（标记到牌）",
+                "B": "不实现，登记边界"
+              },
+              "lean": "A",
+              "why": "界版文本明确。",
+              "impact": "距离入口 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q3",
+              "ask": "未造成伤害的自伤入口？",
+              "options": {
+                "A": "`flow::damage` 无来源",
+                "B": "`lose_hp` 失去体力"
+              },
+              "lean": "A",
+              "why": "文本「对自己造成 1 点伤害」→ 伤害事件（可触发受伤技）。",
+              "impact": "伤害入口 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q4",
+              "ask": "额外出牌阶段的【杀】次数/本回合计数是否与正常回合共用？",
+              "options": {
+                "A": "共用（同一回合的计数）",
+                "B": "独立（额外阶段单独计数）"
+              },
+              "lean": "A",
+              "why": "文本是「额外的出牌阶段」，不是额外回合。",
+              "impact": "计数 + 用例。",
+              "answer": "B 额外出牌阶段是在开始阶段之后，判定阶段之前（目的是额外出牌阶段不怕乐不思蜀）"
+            }
+          ],
+          "mechanics": [
+            "turn-window",
+            "damage-vs-hp-loss",
+            "wording-can"
+          ],
+          "terms": {},
+          "ui": {
+            "prompt": "当先：回合开始时（准备阶段后、判定前）执行额外出牌阶段；开始时获得一张【杀】（无距离），阶段未造成伤害则自伤 1",
+            "overlay": "获得【杀】询问；额外出牌阶段正常操作",
+            "fx": "extra_play",
+            "reveal": "无",
+            "qq": "播报额外阶段与自伤"
+          },
+          "agreed": "回合开始时（准备阶段之后、判定阶段之前），你执行一个额外的出牌阶段。此阶段开始时，你可以从牌堆或弃牌堆中获得一张【杀】（该【杀】本回合无距离限制）；然后若你未于此阶段造成过伤害，阶段结束时你对自己造成 1 点伤害（无来源）。",
+          "assertions": {
+            "positive": [
+              "准备阶段后、判定阶段前执行额外出牌阶段并获得一张【杀】",
+              "该阶段未造成伤害则结束自伤 1"
+            ],
+            "negative": [
+              "该阶段造成伤害则不自伤",
+              "额外出牌阶段结束回到判定阶段（不受乐不思蜀影响？见裁定）"
+            ]
+          },
+          "impl": "sanguosha2::skills::b18::DANGXIAN + skills::start_extra_play_phase/on_end_play",
+          "tests": [
+            "b18::dangxian_extra_play_phase_and_self_damage"
+          ]
+        },
+        {
+          "code": "fuli",
+          "name": "伏枥",
+          "kind": "limited",
+          "status": "implemented",
+          "original": "限定技，当你处于濒死状态时，你可以将体力回复至X点且手牌摸至X张（X为全场势力数）。然后若X大于你造成的伤害数，你翻面。",
+          "original_source": "heroes.json#gid=641",
+          "mechanics_version": 2,
+          "current": [
+            "v2（限定）：`on_dying_enter` 自救询问；发动后 `flow::revive_to(owner, X)`（X=全场势力数，含自己）并摸至 X 张。",
+            "若 X > 本局累计造成的伤害数（`total.damage_dealt:<seat>`）→ `Game::flip`；每局一次（`fuli_used`）。",
+            "X=全场势力数（濒死者自己的势力也算）；`total.damage_dealt:<seat>` 为整局累计造成的伤害数。"
+          ],
+          "confidence": "verified",
+          "diff": [
+            "缺「手牌摸至 X 张」。",
+            "翻面无条件（官方仅当 X > 你造成的伤害数时翻面）。",
+            "回复至 X 用 `min(X, max_hp)`（v1），官方「回复至 X 点」不超上限。"
+          ],
+          "questions": [
+            {
+              "id": "Q1",
+              "ask": "是否实现「手牌摸至 X 张」？",
+              "options": {
+                "A": "实现（摸到 X 张）",
+                "B": "不实现，登记边界"
+              },
+              "lean": "A",
+              "why": "界版文本明确。",
+              "impact": "摸牌 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q2",
+              "ask": "翻面条件？",
+              "options": {
+                "A": "X > 你造成的伤害数时翻面（官方）",
+                "B": "总是翻面（v1 口径）"
+              },
+              "lean": "A",
+              "why": "文本「然后若 X 大于你造成的伤害数，你翻面」。",
+              "impact": "翻面 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q3",
+              "ask": "「你造成的伤害数」的窗口？",
+              "options": {
+                "A": "本局累计（收到伤害数持久统计）",
+                "B": "本回合"
+              },
+              "lean": "A",
+              "why": "限定技按整局累计更符合「造成伤害数」的持久语义。",
+              "impact": "计数 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q4",
+              "ask": "回复至 X 后是否继续求桃？",
+              "options": {
+                "A": "体力 >0 直接脱离濒死",
+                "B": "继续求桃"
+              },
+              "lean": "A",
+              "why": "与其它濒死自救技能一致。",
+              "impact": "濒死流程 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q5",
+              "ask": "X 是否随势力数变化实时读取？",
+              "options": {
+                "A": "发动时实时读取",
+                "B": "回合开始快照"
+              },
+              "lean": "A",
+              "why": "v1 与其它势力数技能一致。",
+              "impact": "数值 + 用例。",
+              "answer": "A"
+            }
+          ],
+          "mechanics": [
+            "limit-skill",
+            "dying-resolution",
+            "wording-then",
+            "damage-vs-hp-loss"
+          ],
+          "terms": {},
+          "ui": {
+            "prompt": "伏枥：限定技，濒死时回复至 X 点且摸至 X 张（X=势力数），若 X > 本局造成伤害数则翻面",
+            "overlay": "濒死时询问发动",
+            "fx": "limited_dying",
+            "reveal": "无",
+            "qq": "播报回复/摸牌/翻面"
+          },
+          "agreed": "限定技，当你处于濒死状态时，你可以将体力回复至 X 点且手牌摸至 X 张（X=全场势力数）；然后若 X 大于你本局造成的伤害数，你翻面。",
+          "assertions": {
+            "positive": [
+              "濒死时回复至 X 且摸至 X 张",
+              "X 大于本局造成伤害数时翻面"
+            ],
+            "negative": [
+              "限定技每局一次",
+              "X 不大于伤害数时不翻面"
+            ]
+          },
+          "impl": "sanguosha2::skills::b18::FULI + flow::revive_to",
+          "tests": [
+            "b18::fuli_heals_draws_and_flips_when_x_gt_damage"
+          ]
+        }
+      ]
+    }
+  ],
+  "spotcheck": []
+}

@@ -436,9 +436,11 @@ fn planned_targets(
                 let Some(card) = carrier else {
                     return Err("【杀】需要实体牌承载".into());
                 };
-                // 多指定目标时「无距离限制」（福绵②/天义）；界武圣的方片【杀】也无距离。
+                // 多指定目标时「无距离限制」（福绵②/天义）；界武圣的方片【杀】也无距离；
+                // 酒诗（背面朝上时的落英牌）/ 当先（获得的无距离【杀】）同样无距离。
                 let no_dist = skills::extra_targets_no_distance(g, seat, carrier, name)
-                    || crate::skills::sha_no_distance(g, seat, card);
+                    || crate::skills::sha_no_distance(g, seat, card)
+                    || crate::skills::card_no_distance(g, seat, Some(card));
                 if !no_dist && !g.can_reach(seat, many[0], card) {
                     return Err("目标不在攻击范围内".into());
                 }
@@ -466,6 +468,7 @@ fn planned_targets(
             if def.effect == Effect::Snatch
                 && extra == 0
                 && !crate::skills::trick_no_distance(g, seat)
+                && !crate::skills::card_no_distance(g, seat, carrier)
                 && g.distance(seat, many[0]) > 1
             {
                 return Err("【顺手牵羊】只能对距离 1 的角色使用".into());
@@ -483,6 +486,7 @@ fn planned_targets(
             // 【兵粮寸断】距离 1（断粮：本回合未造成伤害 → 无距离；奇才同理）。
             if def.effect == Effect::SupplyShortage
                 && !skills::supply_shortage_no_distance(g, seat)
+                && !skills::card_no_distance(g, seat, carrier)
                 && g.distance(seat, many[0]) > 1
             {
                 return Err("【兵粮寸断】只能对距离 1 的角色使用".into());
@@ -652,8 +656,11 @@ pub fn start_use(
     if crate::skills::extra_targets(g, seat, carrier, name) > 0 {
         crate::skills::consume_extra_targets(g, seat);
     }
-    // 巧说（界简雍）：每出一张符合条件的**手牌**消耗 1 枚「巧」（用户 2026-11-10 裁定）。
-    crate::skills::on_card_use(g, seat, name, carrier.is_some());
+    // 一张牌被使用：巧说消耗「巧」/ 自守统计伤害牌 / 酒诗标记落英牌不可响应。
+    crate::skills::on_card_use(g, seat, carrier, name);
+    if !planned.is_empty() {
+        crate::skills::on_targets_chosen(g, seat, &planned);
+    }
     if !planned.is_empty() {
         let targets_str = planned
             .iter()
@@ -825,6 +832,60 @@ pub fn step_card(g: &mut Game, a: &Ask) -> Result<Step, String> {
                 finish(g, card_ref, "wuxie_negated")?;
                 return Ok(Step::Done);
             }
+        }
+    }
+
+    // 「成为普通锦囊目标后」拦截（贞烈）：逐目标询问；可令此牌对该目标无效。
+    if def.kind == CardKind::Trick && !def.tags.wuxie && !def.tags.delayed {
+        loop {
+            let targets = target_list(&data);
+            let cursor = data["ticursor"].as_u64().unwrap_or(0) as usize;
+            if cursor >= targets.len() {
+                break;
+            }
+            if data["ti_wait"].as_bool().unwrap_or(false) {
+                data["ti_wait"] = json!(false);
+                let (target, cancelled) = g
+                    .trick_intercept
+                    .take()
+                    .unwrap_or((targets[cursor], false));
+                if cancelled {
+                    let mut list = target_list(&data);
+                    list.retain(|x| *x != target);
+                    data["targets"] = json!(list);
+                    g.push_log(format!(
+                        "贞烈：此锦囊对 {} 无效",
+                        g.seats[target].name
+                    ));
+                    data["ticursor"] = json!(cursor.min(list.len()));
+                    continue;
+                }
+                data["ticursor"] = json!(cursor + 1);
+                continue;
+            }
+            if let Some((owner, code)) =
+                crate::skills::trick_intercept_owner(g, source, &name, targets[cursor], card_ref)
+            {
+                data["ti_wait"] = json!(true);
+                data["ticursor"] = json!(cursor);
+                let mut payload = json!({
+                    "trick_intercept": true,
+                    "user": source,
+                    "target": targets[cursor],
+                    "name": name,
+                    "card": card,
+                });
+                payload["target"] = json!(targets[cursor]);
+                crate::kernel::resolve::push_ask(g, code, Stage::Choose, owner, payload);
+                return Ok(Step::Next(stage, data));
+            }
+            data["ticursor"] = json!(cursor + 1);
+        }
+        let list = target_list(&data);
+        let abort = list.is_empty() || (def.effect == Effect::Collateral && list.len() < 2);
+        if abort {
+            finish(g, card_ref, "target_void")?;
+            return Ok(Step::Done);
         }
     }
 

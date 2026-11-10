@@ -353,6 +353,15 @@ pub struct Game {
     /// 本动作内的技能去重标记（`begin_action` 清空）。
     #[serde(default)]
     pub action_seen: BTreeSet<String>,
+    /// 落英标记：通过「落英」获得的牌（在手牌期间带标记；酒诗：无距离/不可被响应）。离开手牌即清除。
+    #[serde(default)]
+    pub luoying_cards: BTreeSet<CardId>,
+    /// 成为普通锦囊目标后的拦截结果通道（贞烈）：`(目标, 是否令此牌对其无效)`。
+    #[serde(default)]
+    pub trick_intercept: Option<(usize, bool)>,
+    /// 单张牌「无距离限制」标记（当先获得的【杀】）。
+    #[serde(default)]
+    pub no_distance_cards: BTreeSet<CardId>,
     /// 连营待询问：`(座位, X)`（栈空后消费）。
     #[serde(default)]
     pub lianying_pending: Option<(usize, usize)>,
@@ -435,6 +444,9 @@ impl Game {
             equip_lost_batch: Vec::new(),
             gain_batch: Vec::new(),
             action_seen: BTreeSet::new(),
+            luoying_cards: BTreeSet::new(),
+            trick_intercept: None,
+            no_distance_cards: BTreeSet::new(),
             lianying_pending: None,
             void_return: Vec::new(),
             judge_rewrite: None,
@@ -637,6 +649,10 @@ impl Game {
             if self.seats.get(s).is_some_and(|x| x.hp > 0) {
                 crate::skills::on_equip_lost(self, s);
             }
+        }
+        // 落英标记只对「在手牌中」生效：一旦离开手牌即清除（酒诗）。
+        if matches!(from, Zone::Hand(_)) {
+            self.luoying_cards.remove(id);
         }
         // 失去牌（手牌/装备区）→ `CardLost`（屯田等「失去牌后」技能的单一事实源）。
         // 判定区移出不算失去（`to_discard` 对判定区另发 `JudgeZoneLeft`）。

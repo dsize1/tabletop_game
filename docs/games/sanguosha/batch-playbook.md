@@ -304,21 +304,26 @@ node apps/scripts/sgs-align-sheet.mjs --batch B9 --v1-anchors
 - **新增状态**：必须进 `check_conservation` / `check_no_orphan_frames` 覆盖范围（必要时补不变量用例）。
 - 对齐单第 2 段写**新引擎行为**；旧引擎描述只保留在第 1 段原文与历史记录里。
 
-### 9.4 B18 开工交接（2026-11-10，B17 收口后）
+### 9.4 B18 收口记录（2026-11-10）
 
-> 基线：B0–B17 全部 implemented；`cargo test -p sanguosha2` 620+ 全绿；`check:sgs2` / `sgs:check:fast` 全绿。
+> B18（界限突破·J6，8 将 / 17 技能）已完成：`align/B18.json|md` 75 裁定 + `skills/b18.rs` + `tests/b18.rs` 22 条；
+> `cargo test -p sanguosha2` 644 全绿；`check:sgs2` / `sgs:check` 全绿。新增内核能力见 `skill-spec-rules.md` §21。
 
-- **批次**：B18 界限突破·J6（8 将 / 17 技能）
+### 9.5 B19 开工交接（2026-11-10，B18 收口后）
+
+> 基线：B0–B18 全部 implemented；`cargo test -p sanguosha2` 644 全绿。
+
+- **批次**：B19 界限突破·J7（8 将 / 15 技能）
   | 武将 | gid | 技能（code） |
   |---|---|---|
-  | 界王异 | 621 | 贞烈（`zhenlie`）、秘计（`miji`） |
-  | 界张春华 | 625 | 绝情（`jueqing`）、伤逝（`shangshi`）、翦灭（`jianmie`） |
-  | 界刘表 | 626 | 自守（`zishou`）、宗室（`zongshi`） |
-  | 界蔡夫人 | 627 | 献州（`xianzhou`）、窃听（`qieting`） |
-  | 界曹冲 | 628 | 称象（`chengxiang`）、仁心（`renxin`） |
-  | 界曹植 | 629 | 落英（`luoying`）、酒诗（`jiushi`） |
-  | 界吴国太 | 640 | 甘露（`ganlu`）、补益（`buyi`） |
-  | 界廖化 | 641 | 当先（`dangxian`）、伏枥（`fuli`） |
+  | 界李儒 | 642 | 灭计（`mieji`）、焚城（`fencheng`）、绝策（`juece`） |
+  | 界郭淮 | 658 | 精策（`jingce`） |
+  | 界伏皇后 | 671 | 惴恐（`zhuikong`）、求援（`qiuyuan`） |
+  | 界韩当 | 676 | 弓骑（`gongqi`）、解烦（`jiefan`） |
+  | 界关兴张苞 | 690 | 父魂（`fuhen`） |
+  | 界马岱 | 696 | 马术（`mashu`）、潜袭（`qianxi`） |
+  | 界郭皇后 | 726 | 矫诏（`jiazhao`）、殚心（`danxin`） |
+  | 界沮授 | 749 | 矢北（`shibei`）、渐营（`jianying`） |
 - **命令序列**
   1. `node apps/scripts/sgs-align-sheet.mjs --batch B18 --new` → `--sync`
   2. 填第 2–5 段（`--v1-anchors` 找 v1 锚点）→ `npm run sgs2:batch -- B18`
