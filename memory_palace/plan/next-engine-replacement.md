@@ -565,3 +565,66 @@ node apps/scripts/check-sgs2-metrics.mjs
 1. `node apps/scripts/sgs-align-sheet.mjs --batch B14 --new` → 填 2–5 段 → 用户裁定。
 2. `npm run sgs2:batch -- B14` 看机制缺口。
 3. 实现 `skills/b14.rs` + `tests/b14.rs` → `V2_BATCHES` 加 14 → 回写对齐单 → M86 → 单条 commit。
+
+## 19. 迁移收官与「全量替换 v1」交接（2026-11-10）
+
+**结论**：验证批次 **B0–B20 / 147 将全部迁到 v2**（用户 2026-11-10 签字 B19/B20）。
+v1（`crates/engines/sanguosha`）仍在仓内，但已**不再新增能力**；下一阶段是把 v1 从运行时彻底替换掉并按清单删除。
+
+### 19.1 基线（新会话直接引用，不要重跑全量）
+
+| 项 | 值 |
+|---|---|
+| 迁移批次 | B0–B20 全部 `implemented`；B19/B20 已 `verified`（用户签字） |
+| v2 注册表 | `skills::SKILLS` **295** 个技能（含授予技）；`check:sgs2-registry` 与对齐单 **288** code 精确一致 |
+| 对齐单 | `docs/games/sanguosha/align/B0..B20.json|md`（`check:sgs-align` 21 批 / 147-147 覆盖） |
+| 测试 | `cargo test -p sanguosha2` **695** 全绿 |
+| 门禁 | `npm run check:sgs2` 全绿（AI 10/10、parity 白名单外无差异）；`npm run sgs:check:fast` 25 步全绿 |
+| 退役时钟 | `legacy-retire.json.b20_verified_at = 2026-11-10` → 软期限 **2026-12-10**（硬上限 2027-01-31）；`npm run check:sgs-retire` 会告警 |
+
+### 19.2 剩余工作分解（建议按 M5–M9 切片，每片独立可验收）
+
+| 切片 | 内容 | 入口 / 关键文件 | 验收命令 |
+|---|---|---|---|
+| **M5 注册与网关** | v2 注册到 `game-engine-mcp`；`GAME_OPTIONS` 开关；`EnginePlugin` 能力对齐 | `crates/game-engine-mcp`、`apps/agent-gateway/src/games.ts`、`docs/games/sanguosha/engine-replacement/registration.md` | `cargo test -p sanguosha2 plugin_contract`、`npm run check:sgs2-plugin`、网关冒烟 |
+| **M6 Web 工作台切 v2** | 工作台/版图页改调 v2 视图；清 W1–W4 债务（W2 化身 UI、W3 蛊惑扣置视图、W4 授予技文案） | `apps/web`、`docs/games/sanguosha/align/README.md` WEB 债务台账、`ui-spec.md` | `npm run check:sgs-view-contract`、真机走查（`p3-manual-test.md`） |
+| **M7 门禁去 v1** | 「已实现技能清单」事实源从 v1 `skills.rs` 迁到 v2 注册表/生成物；`pack-presets` 的 v1 断言、`p67`、审计脚本数据源 | `apps/scripts/check-sgs-skill-cases.mjs`、`check-sgs-skill-docs.mjs`、`check-sgs-pack-presets.mjs`、`sgs-general-audit.mjs`、`gen-sgs-engine-data.mjs` | `npm run sgs:check`（全量，非 --fast） |
+| **M8 灰度 + 回滚演练** | 白名单房间跑 v2 ≥N 天；engine 切回 v1 的回滚脚本演练并记录 | 部署配置、`deploy/`、operational docs | 灰度记录 + 回滚演练记录 |
+| **M9 删除 v1** | 按 `engine-replacement/deletion-checklist.md` 执行；parity 白名单归档 | `docs/games/sanguosha/engine-replacement/deletion-checklist.md` | `npm run sgs:check` 全量 + `check:sgs-retire`（应输出「旧 crate 已删除」） |
+
+> **删除前置未满足项（2026-11-10 现状）**：M5/M6/M8 未做；M7 部分（技能清单事实源仍在 v1）；对拍脚本仍在用。
+> **人工验收列**：B19/B20 = 人工通过（用户签字）；**B0–B18 的人工列仍是「未验证」**（机器证据齐全）。
+> 删除 v1 前需要用户明确：接受机器证据 + B19/B20 抽检签字，或补签其余批次。
+
+### 19.3 v2 侧「不要破坏」的不变式（B14–B20 复盘，替换期高频踩点）
+
+1. **技能状态只查 `skills::active`**；`legal` 与 `execute` 必须调同一个 `can_*`。
+2. **结算入口**：`resolve_use` / `use_virtual` / `use_as`；技能禁止 `Game::use_card`（`tests/m2_wiring.rs` 会拦，注意源码里连 `use_card(` 字样都不能出现）。
+3. **伤害/回血/失去体力**只走 `flow::damage*` / `flow::heal` / `flow::lose_hp`；护甲在 `flow::damage_now_impl` 前置扣减。
+4. **阶段结束统一发 `PhaseEnd`**（`resolve::begin_phase`）；此时 `phase.*` 计数已清空 → 用 `turn.*` + 基准值。
+5. **事件在栈空后才路由**：事件里压询问等价于「该牌结算完之后」；需要「使用瞬间」的统计用 `skills::on_card_use`。
+6. **响应窗口**：`unresponsive`（整张牌不响应）/ `block_real_shan`（禁用真实【闪】）/ `shan_blocked_for`（逐张按来源判定）三者语义不同，别混用。
+7. **追加目标**在结算中只能走 `Game.extra_targets_mid`（`Replace` 会重置结算进度）。
+8. **回合外主动技**需 `skills::legal_actions_out_of_turn` + 驱动器轮询（当前只询问当前回合角色，属未完成项）。
+9. **视图契约**：新增可见状态必须进 `view.rs` 投影 + `tests/view_contract.rs`（如护甲 `marks_count.hu`、巧 `marks_count.qiao`、落英 `card.marks`）。
+10. **对齐单是单一事实源**：改技能 code/锚点要同步 v2 注册表、`V2_BATCHES`、对齐单 `impl/tests`、`general-audit.md`，然后 `check:sgs2-registry` + `check:sgs-align` + `sgs:check`。
+
+### 19.4 新会话开工顺序（照做）
+
+```bash
+# 0) 基线体检（只读）
+npm run check:sgs2 && npm run sgs:check:fast
+npm run check:sgs-retire            # 确认退役时钟状态
+
+# 1) 读三份材料
+#    docs/games/sanguosha/engine-replacement/README.md（注册/删除清单/白名单）
+#    docs/games/sanguosha/engine-replacement/registration.md（M5 阻塞项）
+#    本文件 §19.2（切片）+ §19.3（不变式）
+
+# 2) 从 M5 开始（注册与网关），每片单独 commit
+#    注册后立刻跑：cargo test -p sanguosha2 plugin_contract && npm run check:sgs2-plugin
+
+# 3) M6（Web 切 v2）需要先读：docs/games/sanguosha/ui-spec.md + align/README.md WEB 债务台账
+
+# 4) M9 删除前：npm run sgs:check（全量）→ check:sgs-retire → 用户二次确认
+```

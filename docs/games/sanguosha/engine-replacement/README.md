@@ -1,8 +1,10 @@
 # 引擎替换（v1 → v2）M4 资料
 
 > 计划：`memory_palace/plan/next-engine-replacement.md`（M1–M4）。
-> 状态（2026-11-06）：M1/M2/M3 已完成；**M4 进行中**（对拍 + 门禁数据源 + 注册接口清单；
-> 注册/网关/Web 切换按 OQ3 **后移**，不在本轮）。
+> 状态（2026-11-10）：M1/M2/M3 已完成；**B0–B20 全部迁移完成**（147/147，v2 注册表 295 技能，695 用例全绿），
+> B19/B20 已用户签字；**下一阶段 = 全量替换 v1**（注册/网关/Web 切换 + 退役删除），
+> 交接与切片见 `memory_palace/plan/next-engine-replacement.md` §19。
+> 退役时钟：`npm run check:sgs-retire`（软期限 2026-12-10 / 硬上限 2027-01-31）。
 
 | 文件 | 内容 |
 |---|---|
@@ -29,7 +31,7 @@
 
 | 依赖 | 说明 | 处理时机 |
 |---|---|---|
-| `crates/engines/sanguosha/src/skills.rs` | 技能实现表（`implemented` 标记）仍是 v1 事实源；v2 注册表已有 B0–B14 的 202 个 code（+ 授予技：绝响 4 / 荐言 / 思蜀；注册总数 209） | v1 删除前把「已实现技能清单」迁到 v2 注册表或 JSON |
+| `crates/engines/sanguosha/src/skills.rs` | 技能实现表（`implemented` 标记）仍是 v1 事实源；**v2 注册表已有 B0–B20 的 288 个对齐 code（注册总数 295，含授予技）** | v1 删除前把「已实现技能清单」迁到 v2 注册表或 JSON（M7） |
 | `check-sgs-pack-presets` 的 `lib.rs`/`state.rs` 断言 | v1 大厅预设/默认包实现事实 | 随注册/大厅迁移到 v2 |
 | `sgs-general-audit` / `sgs-batch-*` 的 `p67.rs` / 场景 | v1 走查基线 | 随 v1 退役归档（对拍语料保留） |
 | `check-sgs-parity` 本身 | 对拍只在迁移期有意义 | 删除 v1 时删除该脚本（白名单归档） |

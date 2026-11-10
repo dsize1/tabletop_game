@@ -379,4 +379,8 @@ node apps/scripts/sgs-align-sheet.mjs --batch B9 --v1-anchors
   `phase.damage_by:<seat>`（本阶段该来源造成的伤害点数）。
 - 踩坑：`begin_phase` 在 g.phase 未变化时不发 PhaseStart/PhaseEnd（测试要先切到别的阶段）；
   事件通道（`a.data["event"]`）与「主动发动」共用 handler 的技能必须显式区分（镇骨曾因此在 PhaseEnd 上误入主动分支）。
-- 下一阶段：验证批次已全部迁移 → 旧 crate（v1 `sanguosha`）退役签字流程见 `docs/games/sanguosha/engine-replacement/` 与 `check:sgs-retire`。
+- **2026-11-10 用户签字**：B19/B20 对齐单与人工矩阵行转「已验证/人工通过」（抽检：矫诏+殚心、矢北、求援；追忆、安恤、毅重）。
+  签字同时启动退役时钟：`legacy-retire.json.b20_verified_at = 2026-11-10` → 删除 v1 的软期限 = **2026-12-10**（硬上限 2027-01-31），
+  见 `check:sgs-retire` 与 `engine-replacement/deletion-checklist.md`（删除前需用户二次确认）。
+- 下一阶段：验证批次已全部迁移（147/147）→ 进入「全量替换 v1」：注册/网关/Web（W1–W4）+ 退役清单，交接见
+  `memory_palace/plan/next-engine-replacement.md` §19。

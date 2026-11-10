@@ -162,18 +162,18 @@
 | B18 | jiexian | 界曹植 | `sgs_hero_629` | 落英(`luoying`/normal)、酒诗(`jiushi`/normal) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B18 --seed 20261105` | |
 | B18 | jiexian | 界吴国太 | `sgs_hero_640` | 甘露(`ganlu`/normal)、补益(`buyi`/normal) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B18 --seed 20261105` | |
 | B18 | jiexian | 界廖化 | `sgs_hero_641` | 当先(`dangxian`/normal)、伏枥(`fuli`/limited) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B18 --seed 20261105` | |
-| B19 | jiexian | 界李儒 | `sgs_hero_642` | 灭计(`mieji`/normal)、焚城(`fencheng`/limited)、绝策(`juece`/normal) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B19 --seed 20261105` | |
-| B19 | jiexian | 界郭淮 | `sgs_hero_658` | 精策(`jingce`/normal) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B19 --seed 20261105` | |
-| B19 | jiexian | 界伏皇后 | `sgs_hero_671` | 惴恐(`zhuikong`/normal)、求援(`qiuyuan`/normal) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B19 --seed 20261105` | |
-| B19 | jiexian | 界韩当 | `sgs_hero_676` | 弓骑(`gongqi`/normal)、解烦(`jiefan`/limited) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B19 --seed 20261105` | |
-| B19 | jiexian | 界关兴张苞 | `sgs_hero_690` | 父魂(`fuhen`/normal) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B19 --seed 20261105` | |
-| B19 | jiexian | 界马岱 | `sgs_hero_696` | 马术(`mashu`/locked)、潜袭(`qianxi`/normal) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B19 --seed 20261105` | |
-| B19 | jiexian | 界郭皇后 | `sgs_hero_726` | 矫诏(`jiazhao`/normal)、殚心(`danxin`/normal) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B19 --seed 20261105` | |
-| B19 | jiexian | 界沮授 | `sgs_hero_749` | 矢北(`shibei`/locked)、渐营(`jianying`/normal) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B19 --seed 20261105` | |
-| B20 | jiexian | 界夏侯氏 | `sgs_hero_752` | 樵拾(`qiaoshi`/normal)、燕语(`yanyu`/normal) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B20 --seed 20261105` | |
-| B20 | jiexian | 界张松 | `sgs_hero_753` | 强识(`qiangshi`/normal)、献图(`xiantu`/normal) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B20 --seed 20261105` | |
-| B20 | jiexian | 界于禁 | `sgs_hero_756` | 镇军(`zhenjun`/normal)、毅重(`yizhong`/locked) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B20 --seed 20261105` | |
-| B20 | jiexian | 界步练师 | `sgs_hero_775` | 安恤(`anxu`/normal)、追忆(`zhuixi`/limited) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B20 --seed 20261105` | |
+| B19 | jiexian | 界李儒 | `sgs_hero_642` | 灭计(`mieji`/normal)、焚城(`fencheng`/limited)、绝策(`juece`/normal) | ≥3（已过门禁） | 已裁定：见 align/B19.md 第 7 段 | 见 evidence | 人工通过 | 用户 2026-11-10 | `--batch B19 --seed 20261105` | 界李儒 灭计/焚城/绝策（v2：`skills/b19.rs`）；用户签字（按用户指示登记；证据 = v2 用例 + check:sgs2 / sgs:check:fast） |
+| B19 | jiexian | 界郭淮 | `sgs_hero_658` | 精策(`jingce`/normal) | ≥3（已过门禁） | 已裁定：见 align/B19.md 第 7 段 | 见 evidence | 人工通过 | 用户 2026-11-10 | `--batch B19 --seed 20261105` | 界郭淮 精策（v2：`skills/b19.rs`）；用户签字（按用户指示登记；证据 = v2 用例 + check:sgs2 / sgs:check:fast） |
+| B19 | jiexian | 界伏皇后 | `sgs_hero_671` | 惴恐(`zhuikong`/normal)、求援(`qiuyuan`/normal) | ≥3（已过门禁） | 已裁定：见 align/B19.md 第 7 段 | 见 evidence | 人工通过 | 用户 2026-11-10 | `--batch B19 --seed 20261105` | 界伏皇后 惴恐/求援（v2：`skills/b19.rs`）；用户签字（按用户指示登记；证据 = v2 用例 + check:sgs2 / sgs:check:fast） |
+| B19 | jiexian | 界韩当 | `sgs_hero_676` | 弓骑(`gongqi`/normal)、解烦(`jiefan`/limited) | ≥3（已过门禁） | 已裁定：见 align/B19.md 第 7 段 | 见 evidence | 人工通过 | 用户 2026-11-10 | `--batch B19 --seed 20261105` | 界韩当 弓骑/解烦（v2：`skills/b19.rs`）；用户签字（按用户指示登记；证据 = v2 用例 + check:sgs2 / sgs:check:fast） |
+| B19 | jiexian | 界关兴张苞 | `sgs_hero_690` | 父魂(`fuhen`/normal) | ≥3（已过门禁） | 已裁定：见 align/B19.md 第 7 段 | 见 evidence | 人工通过 | 用户 2026-11-10 | `--batch B19 --seed 20261105` | 界关兴张苞 父魂（v2：`skills/b19.rs`）；用户签字（按用户指示登记；证据 = v2 用例 + check:sgs2 / sgs:check:fast） |
+| B19 | jiexian | 界马岱 | `sgs_hero_696` | 马术(`mashu`/locked)、潜袭(`qianxi`/normal) | ≥3（已过门禁） | 已裁定：见 align/B19.md 第 7 段 | 见 evidence | 人工通过 | 用户 2026-11-10 | `--batch B19 --seed 20261105` | 界马岱 马术/潜袭（v2：`skills/b19.rs`）；用户签字（按用户指示登记；证据 = v2 用例 + check:sgs2 / sgs:check:fast） |
+| B19 | jiexian | 界郭皇后 | `sgs_hero_726` | 矫诏(`jiazhao`/normal)、殚心(`danxin`/normal) | ≥3（已过门禁） | 已裁定：见 align/B19.md 第 7 段 | 见 evidence | 人工通过 | 用户 2026-11-10 | `--batch B19 --seed 20261105` | 界郭皇后 矫诏/殚心（v2：`skills/b19.rs`）；用户签字（按用户指示登记；证据 = v2 用例 + check:sgs2 / sgs:check:fast） |
+| B19 | jiexian | 界沮授 | `sgs_hero_749` | 矢北(`shibei`/locked)、渐营(`jianying`/normal) | ≥3（已过门禁） | 已裁定：见 align/B19.md 第 7 段 | 见 evidence | 人工通过 | 用户 2026-11-10 | `--batch B19 --seed 20261105` | 界沮授 矢北/渐营（v2：`skills/b19.rs`）；用户签字（按用户指示登记；证据 = v2 用例 + check:sgs2 / sgs:check:fast） |
+| B20 | jiexian | 界夏侯氏 | `sgs_hero_752` | 樵拾(`qiaoshi`/normal)、燕语(`yanyu`/normal) | ≥3（已过门禁） | 已裁定：见 align/B20.md 第 7 段 | 见 evidence | 人工通过 | 用户 2026-11-10 | `--batch B20 --seed 20261105` | 界夏侯氏 樵拾/燕语（v2：`skills/b20.rs`）；用户签字（按用户指示登记；证据 = v2 用例 + check:sgs2 / sgs:check:fast） |
+| B20 | jiexian | 界张松 | `sgs_hero_753` | 强识(`qiangshi`/normal)、献图(`xiantu`/normal) | ≥3（已过门禁） | 已裁定：见 align/B20.md 第 7 段 | 见 evidence | 人工通过 | 用户 2026-11-10 | `--batch B20 --seed 20261105` | 界张松 强识/献图（v2：`skills/b20.rs`）；用户签字（按用户指示登记；证据 = v2 用例 + check:sgs2 / sgs:check:fast） |
+| B20 | jiexian | 界于禁 | `sgs_hero_756` | 镇军(`zhenjun`/normal)、毅重(`yizhong`/locked) | ≥3（已过门禁） | 已裁定：见 align/B20.md 第 7 段 | 见 evidence | 人工通过 | 用户 2026-11-10 | `--batch B20 --seed 20261105` | 界于禁 镇军/毅重（v2：`skills/b20.rs`）；用户签字（按用户指示登记；证据 = v2 用例 + check:sgs2 / sgs:check:fast） |
+| B20 | jiexian | 界步练师 | `sgs_hero_775` | 安恤(`anxu`/normal)、追忆(`zhuixi`/limited) | ≥3（已过门禁） | 已裁定：见 align/B20.md 第 7 段 | 见 evidence | 人工通过 | 用户 2026-11-10 | `--batch B20 --seed 20261105` | 界步练师 安恤/追忆（v2：`skills/b20.rs`）；用户签字（按用户指示登记；证据 = v2 用例 + check:sgs2 / sgs:check:fast） |
 
 ## 4. 未纳入批次的武将（85 位，有界版同名 / 前缀去重）
 

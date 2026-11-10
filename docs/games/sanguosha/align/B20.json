@@ -1,7 +1,7 @@
 {
   "batch": "B20",
   "source": "界限突破·J8",
-  "status": "implemented",
+  "status": "verified",
   "mechanics_version": 2,
   "confirmed_by": "用户",
   "confirmed_at": "2026-11-10",
@@ -16,7 +16,7 @@
           "code": "qiaoshi",
           "name": "樵拾",
           "kind": "normal",
-          "status": "implemented",
+          "status": "verified",
           "original": "每个结束阶段，你可以与当前回合角色各摸一张牌。然后若其与你手牌数不相等，此技能本轮失效。",
           "original_source": "heroes.json#gid=752",
           "mechanics_version": 2,
@@ -104,7 +104,7 @@
           "code": "yanyu",
           "name": "燕语",
           "kind": "normal",
-          "status": "implemented",
+          "status": "verified",
           "original": "出牌阶段，你可以重铸【杀】。出牌阶段结束时，若你本阶段失去过至少两张【杀】，你可以令一名男性角色摸两张牌。",
           "original_source": "heroes.json#gid=752",
           "mechanics_version": 2,
@@ -210,7 +210,7 @@
           "code": "qiangshi",
           "name": "强识",
           "kind": "normal",
-          "status": "implemented",
+          "status": "verified",
           "original": "出牌阶段开始时，你可观看一名其他角色的手牌并展示其中一张牌，然后你本阶段使用此类别的牌时可摸一张牌。",
           "original_source": "heroes.json#gid=753",
           "mechanics_version": 2,
@@ -310,7 +310,7 @@
           "code": "xiantu",
           "name": "献图",
           "kind": "normal",
-          "status": "implemented",
+          "status": "verified",
           "original": "其他角色出牌阶段开始时，你可以摸至多两张牌，然后交给其等量牌。此阶段结束时，若其造成伤害小于你以此法交给其的牌数，你失去1点体力。",
           "original_source": "heroes.json#gid=753",
           "mechanics_version": 2,
@@ -430,7 +430,7 @@
           "code": "zhenjun",
           "name": "镇军",
           "kind": "normal",
-          "status": "implemented",
+          "status": "verified",
           "original": "准备阶段，你可以弃置一名角色X张牌（X为其手牌数减体力值且至少为1)，然后选择一项：\n 1.你弃置与其中非装备牌数等量张牌；\n 2.结束阶段，其摸与其中非装备牌数等量张牌。",
           "original_source": "heroes.json#gid=756",
           "mechanics_version": 2,
@@ -543,7 +543,7 @@
           "code": "yizhong",
           "name": "毅重",
           "kind": "locked",
-          "status": "implemented",
+          "status": "verified",
           "original": "锁定技，体力值大于等于你的角色的黑色【杀】对你无效；手牌数小于等于你的角色无法响应你的黑色【杀】。",
           "original_source": "heroes.json#gid=756",
           "mechanics_version": 2,
@@ -650,7 +650,7 @@
           "code": "anxu",
           "name": "安恤",
           "kind": "normal",
-          "status": "implemented",
+          "status": "verified",
           "original": "出牌阶段限一次，你可以获得两名角色各一张牌。然后你展示一张牌并交给其中手牌较少的角色，若不为黑桃，你摸一张牌。",
           "original_source": "heroes.json#gid=775",
           "mechanics_version": 2,
@@ -762,7 +762,7 @@
           "code": "zhuixi",
           "name": "追忆",
           "kind": "limited",
-          "status": "implemented",
+          "status": "verified",
           "original": "限定技，结束阶段，你可令一名其他角色摸三张牌并回复1点体力。然后你死亡时，可以对其再次发动本技能。",
           "original_source": "heroes.json#gid=775",
           "mechanics_version": 2,
@@ -874,5 +874,30 @@
       ]
     }
   ],
-  "spotcheck": []
+  "spotcheck": [
+    {
+      "skill": "追忆（zhuixi）",
+      "scene": "v2 用例 b20::zhuixi_end_phase_then_death_again",
+      "expect": "限定技结束阶段一次；死亡时（亡语，离开游戏前）对首次目标再次发动；满血仅摸牌",
+      "actual": "与期望一致",
+      "result": "通过",
+      "by": "用户 2026-11-10（按用户指示登记签字；证据 = v2 用例 + check:sgs2 / sgs:check:fast）"
+    },
+    {
+      "skill": "安恤（anxu）",
+      "scene": "v2 用例 b20::anxu_gains_two_cards_and_spade_rule / anxu_non_spade_draws_one",
+      "expect": "获得两名不同角色各一张；从获得的两张中展示一张交给手牌较少者；非黑桃摸 1",
+      "actual": "与期望一致",
+      "result": "通过",
+      "by": "用户 2026-11-10（按用户指示登记签字；证据 = v2 用例 + check:sgs2 / sgs:check:fast）"
+    },
+    {
+      "skill": "毅重（yizhong）",
+      "scene": "v2 用例 b20::yizhong_black_sha_is_immune_when_hp_ge / yizhong_blocks_shan_when_hand_le",
+      "expect": "①体力≥于禁者的黑色【杀】不结算；②手牌≤于禁者不能【闪】响应；红色【杀】不受影响",
+      "actual": "与期望一致",
+      "result": "通过",
+      "by": "用户 2026-11-10（按用户指示登记签字；证据 = v2 用例 + check:sgs2 / sgs:check:fast）"
+    }
+  ]
 }

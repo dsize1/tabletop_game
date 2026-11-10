@@ -5,7 +5,7 @@
   "decision": "新 crate 完成 148 将迁移并通过用户验收后删除旧 crate",
   "deadline_rule": "B20 验收签字日 + 30 天；硬上限 2027-01-31（取先到者）",
   "hard_deadline": "2027-01-31",
-  "b20_verified_at": null,
+  "b20_verified_at": "2026-11-10",
   "must_confirm_before_delete": true,
   "reminder": "到期未删除时，`npm run check:sgs-retire` 与会话开工提示会持续告警；删除前需用户二次确认。"
 }
