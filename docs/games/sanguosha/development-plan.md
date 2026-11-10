@@ -825,6 +825,16 @@ npm run gen:sgs-audit-matrix           # 生成矩阵骨架（已存在则拒绝
   花色【杀】不限次数（`sha_unlimited_card`）、本轮级计数（`round.` 前缀）、回合外主动技入口（`legal_actions_out_of_turn`）、
   花色覆盖（`effective_suit` → 渐营）、技能显示名动态化（`b19::display_name`）。
 - 用例：`tests/b19.rs` 32 条；`cargo test -p sanguosha2` **677** 全绿；`check:sgs2` 与 `sgs:check:fast` 全绿。
+
+**v2 迁移批次 B20（界标·J8，2026-11-10，已完成 · 验证批次收官）**：
+
+- 对齐：`align/B20.json|md` 35 条疑点用户逐条裁定（亡语口径统一钩子 / 献图至多两张自选 / 安恤获得两张）→ implemented。
+- 实现：`crates/engines/sanguosha2/src/skills/b20.rs`（8 技能：樵拾/燕语/强识/献图/镇军/毅重/安恤/追忆）。
+- 内核增量：`Window::OtherPhase`（他人回合指定阶段）、**阶段结束事件统一发 PhaseEnd**（`begin_phase` 阶段切换 + 回合切换）、
+  亡语统一入口（`skills::on_death` 约定）、`Game::response_source` + `skills::shan_blocked_for`（无法响应【闪】）、
+  `phase.damage_by:<seat>`（本阶段该来源伤害点数）。
+- 用例：`tests/b20.rs` 18 条；`cargo test -p sanguosha2` **695** 全绿；`check:sgs2` 与 `sgs:check:fast` 全绿。
+- 收官：验证批次 **147/147 将（B0–B20）全部迁到 v2**；对齐单 288 个 code 与注册表一致。
 - 已知边界：B19 之后 `round.jiazhao_used:<seat>` 依赖驱动器「回合外主动技」轮询（当前只询问当前回合角色，故回合外发动在 AI/Web 需上层轮询支持）；
   矫诏「无懈可击」作为主动声明走技能声明通道（非严格校验）。
 

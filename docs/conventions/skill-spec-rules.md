@@ -297,3 +297,13 @@
 | 回合外主动技 | `skills::legal_actions_out_of_turn`（`b19::OUT_OF_TURN_SKILLS`） | 矫诏 修改 1 起可回合外发动；驱动器目前仍只询问当前回合角色（登记边界）。 |
 | 花色覆盖（视为） | `skills::effective_suit` → `b19::jy_suit_override` | 渐营②：花色视为本阶段上一张牌的花色。 |
 | 技能显示名动态化 | `skills::b19::display_name` | 矫诏 → 矫诏plus → 矫诏plusplus（UI/legal 标签/播报共用）。 |
+
+## 23. B20 跨批机制（2026-11-10）
+
+| 机制 | 入口 | 说明 |
+|---|---|---|
+| 他人回合的指定阶段窗口 | `Window::OtherPhase(Phase)`（`event.rs`） | 樵拾（他人结束阶段）/ 献图（他人出牌阶段）：「其他角色的 X 阶段」不再靠 handler 自过滤。 |
+| 阶段结束事件 | `resolve::begin_phase` 阶段切换时发 `EventKind::PhaseEnd`（cause = 旧阶段名；回合切换时用旧座位） | 「阶段结束时」技能的唯一事实源；`turn.` 计数在阶段结束时仍有效，`phase.` 计数已被清空（需要时用 `turn.` + 基准值）。 |
+| 死亡后的亡语 | `skills::on_death`（`flow::die` 在死亡清理前调用） | 用户口径：亡语统一走该钩子，「在濒死后、离开游戏前」执行；可压入询问（如追忆对被选目标再次发动）。 |
+| 无法响应【闪】 | `Game::response_source` + `skills::shan_blocked_for` → `response_pending` / `apply_response` | 毅重②：按（响应者, 来源, 此牌）逐张判定，legal 与 execute 同源；与 `unresponsive`（整张牌不能响应）不同。 |
+| 【杀】无效（逐目标） | `ShaIntercept::Immune`（`skills::sha_intercept_skills` 增补） | 毅重①：该【杀】对该目标不结算，牌正常进弃牌堆。 |

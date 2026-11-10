@@ -365,3 +365,18 @@ node apps/scripts/sgs-align-sheet.mjs --batch B9 --v1-anchors
 - 已知边界：回合外主动技目前只在 `legal_actions` 暴露，驱动器仍只询问当前回合角色（AI/Web 需上层轮询）；
   矫诏声明的【无懈可击】走技能声明通道（非严格校验）。
 - B20（4 将）为验证批次最后一批；开工命令同 §9.1，替换批次号即可。
+
+### 9.7 B20 收口记录（2026-11-10 · 验证批次收官）
+
+> B20（界限突破·J8，4 将 / 8 技能）已完成：`align/B20.json|md` 35 裁定 + `skills/b20.rs` + `tests/b20.rs` 18 条；
+> `cargo test -p sanguosha2` **695** 全绿；`check:sgs2` / `sgs:check:fast` 全绿。
+> **B0–B20 = 147/147 将全部迁到 v2**（注册表 295 技能 / 对齐单 288 code 精确一致）。
+
+- 新内核能力（后续批次可直接复用）：`Window::OtherPhase(Phase)`（他人回合指定阶段）、
+  **阶段结束事件统一发 `PhaseEnd`**（`resolve::begin_phase`，cause=旧阶段名；「阶段结束时」技能的唯一事实源，
+  注意此时 `phase.*` 计数已清空，需用 `turn.*` + 基准值）、亡语统一入口（`skills::on_death` 约定：濒死后、离开游戏前）、
+  `Game::response_source` + `skills::shan_blocked_for`（「无法响应【闪】」逐张判定，legal≡execute）、
+  `phase.damage_by:<seat>`（本阶段该来源造成的伤害点数）。
+- 踩坑：`begin_phase` 在 g.phase 未变化时不发 PhaseStart/PhaseEnd（测试要先切到别的阶段）；
+  事件通道（`a.data["event"]`）与「主动发动」共用 handler 的技能必须显式区分（镇骨曾因此在 PhaseEnd 上误入主动分支）。
+- 下一阶段：验证批次已全部迁移 → 旧 crate（v1 `sanguosha`）退役签字流程见 `docs/games/sanguosha/engine-replacement/` 与 `check:sgs-retire`。
