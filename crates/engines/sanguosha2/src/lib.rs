@@ -191,7 +191,11 @@ impl EnginePlugin for Sanguosha2Engine {
             return Vec::new();
         }
         if g.turn != seat || g.phase != Phase::Play {
-            return Vec::new();
+            // 非当前回合/非出牌阶段：只保留「回合外也可发动」的主动技（矫诏plus/plusplus）。
+            return skills::legal_actions_out_of_turn(&g, seat)
+                .into_iter()
+                .map(|(id, description)| Action { id, description })
+                .collect();
         }
         let mut out: Vec<Action> = card_play::legal_uses(&g, seat)
             .into_iter()

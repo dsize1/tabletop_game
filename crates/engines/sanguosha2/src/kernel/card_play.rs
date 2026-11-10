@@ -97,7 +97,8 @@ fn plan_use(
     if def.tags.shan {
         return Err("【闪】只能用于响应".into());
     }
-    if def.tags.wuxie {
+    // 【无懈可击】只能在响应窗口使用；技能驱动的声明（矫诏）允许作为虚拟牌使用。
+    if def.tags.wuxie && opts.strict {
         return Err("【无懈可击】只能用于响应".into());
     }
     // 巧说没赢（界简雍）：本回合不能使用锦囊牌（含延时锦囊）。
@@ -143,6 +144,10 @@ fn plan_use(
         }
     }
     let planned = planned_targets(g, seat, &def, name, targets, opts.strict, carrier)?;
+    // 「本回合不能对除其以外的角色使用牌」（惴恐）：按目标列表判定，对自己使用不受限。
+    if crate::skills::others_use_blocked(g, seat) && planned.iter().any(|t| *t != seat) {
+        return Err("本回合不能对其他角色使用牌".into());
+    }
     // 「本回合不能对自己使用牌」（才识②）：含装备牌（用户 2026-11-09 裁定）。
     if skills::self_use_blocked(g, seat)
         && (def.kind == CardKind::Equip || planned.contains(&seat))
@@ -445,6 +450,7 @@ fn planned_targets(
                     return Err("目标不在攻击范围内".into());
                 }
                 if !crate::skills::sha_limit_exempt(g, seat, &many)
+                    && !crate::skills::sha_unlimited_card(g, seat, carrier)
                     && g.sha_used(seat) >= g.sha_limit(seat)
                 {
                     return Err("本阶段【杀】使用次数已用完".into());
@@ -629,6 +635,8 @@ pub fn start_use(
 
     // 使用记账（与 `Game::use_card` 同口径：事件 + 本回合使用数）。
     g.bump("turn.cards_used");
+    // 「本轮未有角色使用过」记账（矫诏）：所有角色的使用都记，随轮次清空。
+    g.bump(&format!("round.used:{name}"));
     if let Some(card) = carrier {
         if g.seats[seat].flags.contains("xiongluan_active") {
             g.mark_unresponsive(card);
@@ -881,7 +889,16 @@ pub fn step_card(g: &mut Game, a: &Ask) -> Result<Step, String> {
             }
             data["ticursor"] = json!(cursor + 1);
         }
-        let list = target_list(&data);
+        let mut list = target_list(&data);
+        // 结算中追加目标（求援：伤害锦囊的「成为额外目标」）。
+        if !g.extra_targets_mid.is_empty() {
+            for t in std::mem::take(&mut g.extra_targets_mid) {
+                if !list.contains(&t) && g.seats.get(t).is_some_and(|s| s.hp > 0) {
+                    list.push(t);
+                }
+            }
+            data["targets"] = json!(list);
+        }
         let abort = list.is_empty() || (def.effect == Effect::Collateral && list.len() < 2);
         if abort {
             finish(g, card_ref, "target_void")?;
@@ -1095,6 +1112,15 @@ fn sha_loop(
                     continue;
                 }
             }
+        }
+        // 结算中追加目标（求援：「成为此牌的额外目标」）：追加到列表末尾，不重置进度。
+        if !g.extra_targets_mid.is_empty() {
+            for t2 in std::mem::take(&mut g.extra_targets_mid) {
+                if !targets.contains(&t2) && g.seats.get(t2).is_some_and(|s| s.hp > 0) {
+                    targets.push(t2);
+                }
+            }
+            data["targets"] = json!(targets);
         }
         // ② 询问介入技能（按注册顺序，逐个；per-card / per-target 两种去重口径）。
         for (owner, code) in skills::sha_intercept_skills(g, source, t, card) {
@@ -1846,6 +1872,14 @@ fn response_options(g: &Game, target: usize, kind: ResponseKind) -> Vec<(String,
         if kind == ResponseKind::Shan && skills::shan_blocked_by_shizhi(g, target, &id) {
             continue;
         }
+        // 父魂：本张牌只能用同色手牌响应。
+        if kind == ResponseKind::Shan {
+            if let Some(red) = g.response_color_lock {
+                if g.is_red(&id) != red {
+                    continue;
+                }
+            }
+        }
         if cards::responds_as(&g.name_of(&id), kind) {
             out.push((format!("respond:{id}"), format!("打出【{}】", g.card_label(&id))));
         }
@@ -1871,6 +1905,19 @@ fn response_options(g: &Game, target: usize, kind: ResponseKind) -> Vec<(String,
     // 主公技接力（激将：蜀势力替主公打出【杀】）
     for (id, label) in skills::relay_options(g, target, kind) {
         out.push((id, label));
+    }
+    // 父魂：将两张手牌当【杀】打出（响应窗口）。
+    if kind == ResponseKind::Sha && skills::two_card_sha(g, target) {
+        for (c1, c2) in skills::two_card_sha_pairs(g, target) {
+            out.push((
+                format!("pair:{c1},{c2}"),
+                format!(
+                    "将【{}】【{}】当【杀】打出",
+                    g.card_label(&c1),
+                    g.card_label(&c2)
+                ),
+            ));
+        }
     }
     // 蛊惑（于吉）：扣置一张手牌当本次需要的牌打出（延后结算：质疑链后再回传结果）。
     if (kind == ResponseKind::Shan || kind == ResponseKind::Sha)
@@ -1942,6 +1989,16 @@ fn apply_response(
         if !g.can_use_card(actor, &id) {
             return Err("响应：该牌已被冻结".into());
         }
+        // 父魂：本张牌只能用同色手牌响应（legal 与 execute 同源）。
+        if kind == ResponseKind::Shan {
+            if let Some(red) = g.response_color_lock {
+                if g.is_red(&id) != red {
+                    return Err("响应：父魂要求打出同色手牌".into());
+                }
+            }
+        }
+        // 打出记账（矫诏：本轮使用与打出都算）。
+        g.bump(&format!("round.used:{}", g.name_of(&id)));
         g.to_discard(&id, "respond")?;
         let label = g.name_of(&id);
         g.events.push(Event::card(
@@ -2011,6 +2068,8 @@ fn apply_response(
         }
         let label = g.name_of(&carrier);
         g.to_discard(&carrier, "respond")?;
+        // 打出记账（转化牌按生效牌名）。
+        g.bump(&format!("round.used:{label}"));
         g.events.push(Event::card(
             EventKind::CardPlayed,
             Some(actor),
@@ -2029,6 +2088,35 @@ fn apply_response(
             g.card_label(&carrier)
         ));
         crate::skills::on_response_played(g, used, actor, &carrier);
+        return Ok(Some(true));
+    }
+    if let Some(pair) = ans.strip_prefix("pair:") {
+        // 父魂：两张手牌当【杀】打出。
+        if kind != ResponseKind::Sha {
+            return Err("两张手牌当【杀】只能用于响应【杀】".into());
+        }
+        let (c1, c2) = pair
+            .split_once(',')
+            .ok_or_else(|| "响应：需要两张手牌".to_string())?;
+        let (c1, c2) = (c1.to_string(), c2.to_string());
+        if !skills::two_card_sha(g, actor) {
+            return Err("响应：没有可将两张手牌当【杀】的技能".into());
+        }
+        if !g.hand(actor).contains(&c1) || !g.hand(actor).contains(&c2) || c1 == c2 {
+            return Err("响应：两张牌不合法".into());
+        }
+        if !g.can_use_card(actor, &c1) || !g.can_use_card(actor, &c2) {
+            return Err("响应：该牌已被冻结".into());
+        }
+        g.to_discard(&c1, "respond")?;
+        g.to_discard(&c2, "respond")?;
+        g.bump("round.used:杀");
+        let label = format!("{}、{}", g.card_label(&c1), g.card_label(&c2));
+        g.push_log(format!(
+            "{} 将【{}】当【杀】打出响应",
+            g.seats[actor].name, label
+        ));
+        crate::skills::on_response_played(g, used, actor, &c1);
         return Ok(Some(true));
     }
     if ans == "jijiang" {
@@ -2304,6 +2392,8 @@ fn finish(g: &mut Game, card: Option<&CardId>, cause: &str) -> Result<(), String
     g.counters.remove("turn.aoe_trim");
     g.fenwei_void.clear();
     g.response_context = None;
+    // 父魂的同色响应限制只对本次使用的牌生效。
+    g.response_color_lock = None;
     let Some(card) = card else {
         return Ok(());
     };

@@ -46,6 +46,8 @@ pub enum EventKind {
     Death,
     JudgeRevealed,
     JudgeEffective,
+    /// 护甲变化（mechanics `armor-points`；cause = gain / lose / absorb）。
+    ArmorChanged,
     TurnStart,
     PhaseStart,
     PhaseEnd,

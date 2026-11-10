@@ -24,6 +24,7 @@ pub mod b15;
 pub mod b16;
 pub mod b17;
 pub mod b18;
+pub mod b19;
 pub mod mingren;
 pub mod kongsheng;
 pub mod liangyin;
@@ -351,6 +352,21 @@ pub const SKILLS: &[SkillDef] = &[
     b18::BUYI,
     b18::DANGXIAN,
     b18::FULI,
+    // B19（界李儒 / 界郭淮 / 界伏皇后 / 界韩当 / 界关兴张苞 / 界郭皇后 / 界沮授）
+    b19::MIEJI,
+    b19::FENCHENG,
+    b19::JUECE,
+    b19::JINGCE,
+    b19::ZHUIKONG,
+    b19::QIUYUAN,
+    b19::GONGQI,
+    b19::JIEFAN,
+    b19::FUHEN,
+    b19::QIANXI,
+    b19::JIAZHAO,
+    b19::DANXIN,
+    b19::SHIBEI,
+    b19::JIANYING,
 ];
 
 /// 转换技（阳/阴两面）：视图按此清单投影 `transforms`（与 handlers 的 `g.yang/toggle_yang` 对应）。
@@ -483,6 +499,19 @@ pub fn legal_actions(g: &Game, seat: usize) -> Vec<(String, String)> {
     out
 }
 
+/// 非当前回合/非出牌阶段也能发动的主动技（矫诏 修改 1 起：回合外也可以使用）。
+pub fn legal_actions_out_of_turn(g: &Game, seat: usize) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    for code in b19::OUT_OF_TURN_SKILLS {
+        let Some(d) = def(code) else { continue };
+        let Some(can) = d.can_active else { continue };
+        if can(g, seat) {
+            out.push((format!("skill:{}", d.code), format!("发动【{}】", d.name)));
+        }
+    }
+    out
+}
+
 /// 执行主动技：**再次**调用同一个 `can_active`（legal 与 execute 不会漂移）。
 pub fn execute_active(g: &mut Game, seat: usize, action: &str) -> Result<String, String> {
     let code = action
@@ -560,6 +589,10 @@ pub fn on_flip(g: &mut Game, seat: usize, face_up: bool) {
 
 /// 花色读取单入口（红颜：黑桃 → 红桃）。
 pub fn effective_suit(g: &Game, seat: usize, card: &crate::kernel::CardId) -> Option<crate::kernel::Suit> {
+    // 渐营②：花色视为「本阶段上一张牌」的花色（统一入口）。
+    if let Some(suit) = b19::jy_suit_override(g, card) {
+        return Some(suit);
+    }
     b14::effective_suit(g, seat, card)
 }
 
@@ -962,6 +995,7 @@ pub fn hand_limit_delta(g: &Game, seat: usize) -> i32 {
         + b8::hand_limit_delta(g, seat)
         + b17::hand_limit_delta(g, seat)
         + b18::hand_limit_delta(g, seat)
+        + b19::hand_limit_delta(g, seat)
         + g.counter("turn.jizhi_hand_limit") as i32
         + g.counter(&format!("turn.qingjian_limit:{seat}")) as i32
         + g.counter(&format!("turn.luoshen_free:{seat}")) as i32
@@ -1041,7 +1075,7 @@ pub fn card_no_distance(
     b18::card_no_distance(g, seat, card)
 }
 
-/// 「成为普通锦囊目标后」的拦截技能（贞烈）。
+/// 「成为普通锦囊目标后」的拦截技能（贞烈/求援）。
 pub fn trick_intercept_owner(
     g: &Game,
     user: usize,
@@ -1050,6 +1084,7 @@ pub fn trick_intercept_owner(
     carrier: Option<&crate::kernel::CardId>,
 ) -> Option<(usize, &'static str)> {
     b18::trick_intercept_owner(g, user, name, target, carrier)
+        .or_else(|| b19::trick_intercept_owner(g, user, name, target, carrier))
 }
 
 /// 绝情：来源的伤害是否转化为失去体力。
@@ -1076,6 +1111,7 @@ pub fn on_dying_enter(g: &mut Game, victim: usize, source: Option<usize>) {
 /// 回合结束（在清空 `turn.` 计数之前）：窃听等「其他角色回合结束后」技能。
 pub fn on_turn_end(g: &mut Game, ended: usize) {
     b18::on_turn_end(g, ended);
+    b19::on_turn_end(g, ended);
 }
 
 /// 出牌阶段结束时：技能可指定下一个阶段（当先：额外出牌阶段 → 判定阶段）。
@@ -1123,6 +1159,7 @@ pub fn on_card_use(
 ) {
     b17::on_card_use(g, seat, carrier, name);
     b18::on_card_use(g, seat, carrier, name);
+    b19::on_card_use(g, seat, carrier, name);
 }
 
 /// 使用牌时选定的目标列表（窃听：本回合是否对其他角色使用过牌）。
@@ -1186,7 +1223,44 @@ pub fn sha_intercept_skills(
 ) -> Vec<(usize, &'static str)> {
     let mut out = b8::sha_intercept_skills(g, user, target, card);
     out.extend(b18::zhenlie_sha_intercept(g, user, target, card));
+    out.extend(b19::sha_intercept_skills(g, user, target, card));
     out
+}
+
+/// 弓骑：本回合攻击范围无限（`Game::can_reach` 统一入口）。
+pub fn infinite_range(g: &Game, seat: usize) -> bool {
+    b19::infinite_range(g, seat)
+}
+
+/// 弓骑：与弃置牌同花色的【杀】不限次数（`planned_targets` 统一入口）。
+pub fn sha_unlimited_card(
+    g: &Game,
+    seat: usize,
+    card: Option<&crate::kernel::CardId>,
+) -> bool {
+    b19::sha_unlimited_card(g, seat, card)
+}
+
+/// 潜袭：本回合不能用/打出该颜色手牌（`Game::can_use_card` 统一入口）。
+pub fn hand_color_blocked(g: &Game, seat: usize, id: &crate::kernel::CardId) -> bool {
+    b19::hand_color_blocked(g, seat, id)
+}
+
+/// 惴恐（赢）：本回合不能对除其以外的角色使用牌（`plan_use` 统一入口）。
+pub fn others_use_blocked(g: &Game, seat: usize) -> bool {
+    b19::others_use_blocked(g, seat)
+}
+
+/// 父子两张手牌当【杀】打出（父魂）。
+pub fn two_card_sha(g: &Game, seat: usize) -> bool {
+    b19::two_card_sha(g, seat)
+}
+
+pub fn two_card_sha_pairs(
+    g: &Game,
+    seat: usize,
+) -> Vec<(crate::kernel::CardId, crate::kernel::CardId)> {
+    b19::two_card_sha_pairs(g, seat)
 }
 
 /// 该介入技能是否「每张牌只问一次」（否则每个目标各问一次）。
@@ -1488,7 +1562,7 @@ pub fn damage_bonus(
     victim: usize,
     card: Option<&crate::kernel::CardId>,
 ) -> i32 {
-    b4::anjian_bonus(g, source, victim, card)
+    b4::anjian_bonus(g, source, victim, card) + b19::damage_bonus(g, source, card)
 }
 
 /// 【杀】结算完毕的统一接入点（忠勇「使用【杀】后」/ 勇略「未造成伤害则摸 1」/ 奔袭「伤害后摸 1」）。
@@ -1570,6 +1644,8 @@ pub fn on_game_start(g: &mut Game) {
     b13::init_huashen(g);
     // 巧变（界张郃）：开局 2 枚「变」。
     b15::on_game_start(g);
+    // B19：矢北开盘 3 点护甲。
+    b19::on_game_start(g);
     // 明任：开局摸 1 张并必选一张作为「任」（压入 Ask 帧，由调用方 advance 驱动）
     for seat in 0..g.seats.len() {
         if active(g, seat, "mingren") {

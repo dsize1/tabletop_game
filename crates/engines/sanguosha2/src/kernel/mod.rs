@@ -143,6 +143,9 @@ pub struct Seat {
     pub flipped: bool,
     pub hp: i32,
     pub max_hp: i32,
+    /// 护甲（mechanics `armor-points`）：受到伤害时先扣护甲、溢出扣体力。
+    #[serde(default)]
+    pub armor: i32,
     pub skills: Vec<String>,
     /// 授予技：`skills::active` 的唯一查询入口会合并它。
     pub granted: Vec<String>,
@@ -191,6 +194,7 @@ impl Seat {
             flipped: false,
             hp,
             max_hp: hp,
+            armor: 0,
             skills: skills.iter().map(|s| s.to_string()).collect(),
             granted: Vec::new(),
             flags: BTreeSet::new(),
@@ -274,6 +278,12 @@ pub struct Game {
     /// 本回合已使用的牌（`(seat, card)`；`sha_used` 由它派生，不另存计数）。
     #[serde(default)]
     pub used_this_turn: Vec<(usize, CardId)>,
+    /// 结算中追加的目标（求援：成为此牌的额外目标；由牌结算帧消费后清空）。
+    #[serde(default)]
+    pub extra_targets_mid: Vec<usize>,
+    /// 本张牌的目标只能用该颜色手牌响应（父魂：同色响应限制；`Some(true)` = 红色）。
+    #[serde(default)]
+    pub response_color_lock: Option<bool>,
     /// 虚拟牌：承载牌 → 生效牌名（奇策等）。颜色/点数仍读物理牌。
     #[serde(default)]
     pub virtual_defs: BTreeMap<CardId, String>,
@@ -418,6 +428,8 @@ impl Game {
             unresponsive: BTreeSet::new(),
             uncounted: BTreeSet::new(),
             used_this_turn: Vec::new(),
+            extra_targets_mid: Vec::new(),
+            response_color_lock: None,
             virtual_defs: BTreeMap::new(),
             origins: BTreeMap::new(),
             void_tags: BTreeMap::new(),
@@ -1304,6 +1316,10 @@ impl Game {
         if self.first_card_no_distance(from, card) {
             return true;
         }
+        // 攻击范围无限（弓骑：视为攻击范围无限）。
+        if crate::skills::infinite_range(self, from) {
+            return true;
+        }
         self.distance(from, to) <= self.attack_range(from)
     }
 
@@ -1515,7 +1531,24 @@ impl Game {
         {
             return false;
         }
+        // 颜色封锁（潜袭：本回合不能用/打出该颜色手牌）——走统一入口，legal 与 execute 同源。
+        if crate::skills::hand_color_blocked(self, seat, id) {
+            return false;
+        }
         !self.seats[seat].frozen.contains(id) && !self.seats[seat].frozen_phase.contains(id)
+    }
+
+    /// 获得护甲（mechanics `armor-points`；护甲变化必须有事件与视图投影）。
+    pub fn add_armor(&mut self, seat: usize, n: i32) {
+        if n == 0 {
+            return;
+        }
+        self.seats[seat].armor = (self.seats[seat].armor + n).max(0);
+        self.events.push(Event::simple(
+            event::EventKind::ArmorChanged,
+            Some(seat),
+            Some(if n > 0 { "gain" } else { "lose" }),
+        ));
     }
 
     pub fn flip(&mut self, seat: usize) {

@@ -235,7 +235,19 @@ fn damage_now_impl(
             g.counters.insert("turn.paoxiao_bonus".to_string(), 0);
         }
     }
-    g.seats[victim].hp -= amount;
+    // 护甲（mechanics `armor-points`）：先扣护甲，溢出伤害扣体力；
+    // 伤害事件仍成立（amount = 原伤害值），因此「受到伤害后」技能照常触发。
+    let mut hp_loss = amount;
+    if hp_loss > 0 && g.seats[victim].armor > 0 {
+        let absorbed = g.seats[victim].armor.min(hp_loss);
+        g.add_armor(victim, -absorbed);
+        hp_loss -= absorbed;
+        g.push_log(format!(
+            "{} 的护甲吸收 {absorbed} 点伤害",
+            g.seats[victim].name
+        ));
+    }
+    g.seats[victim].hp -= hp_loss;
     // 「本阶段是否有人受到过伤害」（佐定等）。
     g.bump("phase.damage");
     // 「本阶段造成的伤害值」（急攻等）：只统计有来源的伤害。

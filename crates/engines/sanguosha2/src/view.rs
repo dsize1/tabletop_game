@@ -142,6 +142,10 @@ fn marks_count_view(g: &Game, seat: usize) -> Value {
     if qiao > 0 {
         out.insert("qiao".to_string(), json!(qiao));
     }
+    // 护甲（矢北）：复用标记区显示「护N」。
+    if g.seats[seat].armor > 0 {
+        out.insert("hu".to_string(), json!(g.seats[seat].armor));
+    }
     Value::Object(out)
 }
 

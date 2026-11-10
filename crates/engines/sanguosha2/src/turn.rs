@@ -58,6 +58,8 @@ pub fn tick(g: &mut Game) -> Result<(), String> {
             };
             if next <= dead {
                 g.round += 1;
+                // 「本轮」级计数（矫诏：本轮未有角色使用过的牌名）随轮次清空。
+                g.clear_prefix("round.");
             }
             resolve::begin_phase(g, next, Phase::Prepare)?;
             continue;
@@ -144,6 +146,7 @@ pub fn tick(g: &mut Game) -> Result<(), String> {
                 };
                 if next <= seat {
                     g.round += 1;
+                    g.clear_prefix("round.");
                 }
                 resolve::begin_phase(g, next, Phase::Prepare)?;
             }
