@@ -804,7 +804,7 @@ npm run gen:sgs-audit-matrix           # 生成矩阵骨架（已存在则拒绝
   此牌造成伤害计数（`turn.damage_card:<card>`）、巧说「少指定目标」`trim:` 动作入口、`extra_targets_no_distance` 拆分、
   陷阵 `target_no_distance` / `sha_limit_exempt` / `sha_blocked_for` / 无视防具钩子、将驰次数修正（+1 / -1）、
   禁酒 `jiu_blocked` / `effective_rank`（点数 K）与濒死【酒】统一拦截、纵适 code 与宗室解耦（v1 同步改名 `zongshi_jie`）。
-- 用例：`tests/b17.rs` 32 条；`cargo test -p sanguosha2` 617 全绿；`check:sgs2` 与 `sgs:check:fast` 全绿。
+- 用例：`tests/b17.rs` 33 条；`cargo test -p sanguosha2` 618 全绿；`check:sgs2` 与 `sgs:check:fast` 全绿。
 - 修订（2026-11-10，用户裁定）：**废除延时锦囊的额外目标支持**——巧说 ±1 仅适用非延时锦囊/基本牌，使用延时锦囊不消耗该效果（不引入虚拟判定牌）。
 
 

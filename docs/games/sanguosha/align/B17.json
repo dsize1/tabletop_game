@@ -696,7 +696,8 @@
             "b17::qiaoshuo_win_allows_extra_target_then_consumes",
             "b17::qiaoshuo_lose_blocks_tricks_and_invalidates_skill",
             "b17::qiaoshuo_win_offers_trim_action",
-            "b17::qiaoshuo_delayed_trick_gets_no_extra_target"
+            "b17::qiaoshuo_delayed_trick_gets_no_extra_target",
+            "b17::qiaoshuo_consecutive_wins_do_not_stack"
           ]
         }
       ]

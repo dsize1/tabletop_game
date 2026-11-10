@@ -371,6 +371,40 @@ fn qiaoshuo_lose_blocks_tricks_and_invalidates_skill() {
 }
 
 #[test]
+fn qiaoshuo_consecutive_wins_do_not_stack() {
+    let mut g = game(&[
+        ("jianyong", &["qiaoshuo"], 3, "shu"),
+        ("p1", &[], 4, "wei"),
+        ("p2", &[], 4, "wei"),
+    ]);
+    play_phase(&mut g, 0);
+    give(&mut g, 0, &["sp1", "h1", "sp2"]);
+    give(&mut g, 1, &["d1", "c1"]);
+    // 第一次拼点：赢。
+    skills::execute_active(&mut g, 0, "skill:qiaoshuo").unwrap();
+    answer(&mut g, 0, "target:1");
+    answer(&mut g, 0, "choose:sp1");
+    answer(&mut g, 1, "choose:d1");
+    advance(&mut g).unwrap();
+    assert_eq!(g.counter("turn.qiaoshuo_win"), 1);
+    // 第二次拼点（未使用牌前）：仍赢。
+    skills::execute_active(&mut g, 0, "skill:qiaoshuo").unwrap();
+    answer(&mut g, 0, "target:1");
+    answer(&mut g, 0, "choose:h1");
+    answer(&mut g, 1, "choose:c1");
+    advance(&mut g).unwrap();
+    assert_eq!(
+        g.counter("turn.qiaoshuo_win"),
+        1,
+        "连续赢不叠加（「下一张牌」是一次性效果）"
+    );
+    assert_eq!(skills::extra_targets(&g, 0, None, "杀"), 1, "上限仍为 +1");
+    // 使用下一张牌后消费；再赢可重新获得一次。
+    g.resolve_use(0, &"sp2".to_string(), vec![1, 2]).unwrap();
+    assert_eq!(g.counter("turn.qiaoshuo_win"), 0);
+}
+
+#[test]
 fn qiaoshuo_delayed_trick_gets_no_extra_target() {
     let mut g = game(&[
         ("jianyong", &["qiaoshuo"], 3, "shu"),
