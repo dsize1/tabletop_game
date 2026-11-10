@@ -1,10 +1,10 @@
 {
   "batch": "B19",
   "source": "界限突破·J7",
-  "status": "discussed",
+  "status": "confirmed",
   "mechanics_version": 2,
-  "confirmed_by": null,
-  "confirmed_at": null,
+  "confirmed_by": "用户",
+  "confirmed_at": "2026-11-10",
   "note": "机器文件（单一事实源）。人读请看同目录 <B>.md；改这里后运行 --sync 重生成 md。",
   "generals": [
     {
@@ -16,7 +16,7 @@
           "code": "mieji",
           "name": "灭计",
           "kind": "normal",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "出牌阶段限一次，你可以将一张锦囊牌置于牌堆顶并令一名有手牌的其他角色选择一项：\n 1.弃置一张锦囊牌；\n 2.依次弃置两张牌。",
           "original_source": "heroes.json#gid=642",
           "mechanics_version": 2,
@@ -44,7 +44,7 @@
               "lean": "A",
               "why": "原文把「选择一项」交给目标，选项内的牌也应由目标决定。",
               "impact": "交互（单选+多选）+ 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q2",
@@ -56,7 +56,7 @@
               "lean": "A",
               "why": "原文只说「锦囊牌」；灭计本身就可以把延时锦囊置于牌堆顶。",
               "impact": "候选集合 + 用例。",
-              "answer": null
+              "answer": "A"
             }
           ],
           "mechanics": [
@@ -73,7 +73,7 @@
             "reveal": "置于牌堆顶的牌公开亮牌",
             "qq": "播报置于牌堆顶的牌与目标选择"
           },
-          "agreed": null,
+          "agreed": "出牌阶段限一次，你可以将一张锦囊牌（含延时锦囊）置于牌堆顶（公开并留在牌堆顶），并令一名有手牌的其他角色选择一项：1. 弃置一张锦囊牌；2. 依次弃置两张牌。两项弃牌均由该角色自选（锦囊自选一张；两张可一次多选，顺序不公开）。",
           "assertions": {
             "positive": [
               "将一张锦囊置于牌堆顶后，目标二选一：弃一张锦囊 / 依次弃两张牌",
@@ -91,7 +91,7 @@
           "code": "fencheng",
           "name": "焚城",
           "kind": "limited",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "限定技，出牌阶段，你可以选择一名其他角色开始，令所有其他角色依次选择一项：\n 1.弃置任意张牌（须比上家弃置的牌多）；\n 2.受到你造成的2点火焰伤害。",
           "original_source": "heroes.json#gid=642",
           "mechanics_version": 2,
@@ -119,7 +119,7 @@
               "lean": "A",
               "why": "原文明确「你可以选择一名其他角色开始」。",
               "impact": "交互（选起点）+ 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q2",
@@ -131,7 +131,7 @@
               "lean": "A",
               "why": "「任意张」是多选而非固定值；mechanics discard-contract 里弃置含装备区。",
               "impact": "多选交互 + 计数 + 用例。",
-              "answer": null
+              "answer": "A"
             }
           ],
           "mechanics": [
@@ -148,7 +148,7 @@
             "reveal": "弃置张数公开播报",
             "qq": "播报每人的选择与剩余张数"
           },
-          "agreed": null,
+          "agreed": "限定技，出牌阶段，你可以选择一名其他角色作为起点，从其左手起令所有其他角色依次选择一项：1. 弃置任意张牌（须比上家弃置的牌多；由该角色自选，可来自手牌与装备区，判定区不算）；2. 受到你造成的 2 点火焰伤害。整局只能发动一次。",
           "assertions": {
             "positive": [
               "从选定角色起依次结算：弃置数须比上家多，否则受 2 点火焰伤害",
@@ -166,7 +166,7 @@
           "code": "juece",
           "name": "绝策",
           "kind": "normal",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "结束阶段，你可以对一名手牌数小于等于你的其他角色造成1点伤害。",
           "original_source": "heroes.json#gid=642",
           "mechanics_version": 2,
@@ -191,7 +191,7 @@
               "lean": "A",
               "why": "原文「你可以」，且目标选择需要人/AI 决策。",
               "impact": "询问与 AI 决策。",
-              "answer": null
+              "answer": "A"
             }
           ],
           "mechanics": [
@@ -206,7 +206,7 @@
             "reveal": "无",
             "qq": "播报目标与伤害"
           },
-          "agreed": null,
+          "agreed": "结束阶段，若存在手牌数小于等于你的其他角色，你可以对其中一名造成 1 点伤害（可放弃）。",
           "assertions": {
             "positive": [
               "结束阶段可对手牌数 ≤ 你的其他角色造成 1 点伤害"
@@ -230,7 +230,7 @@
           "code": "jingce",
           "name": "精策",
           "kind": "normal",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "你每于回合内使用一种花色的手牌，本回合的手牌上限便+1；每个出牌阶段结束时，你可以摸X张牌（X为你本回合使用过牌的类型数）。",
           "original_source": "heroes.json#gid=658",
           "mechanics_version": 2,
@@ -258,7 +258,7 @@
               "lean": "A",
               "why": "原文「你可以摸 X 张牌」。",
               "impact": "询问 + AI 决策 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q2",
@@ -270,7 +270,7 @@
               "lean": "A",
               "why": "原文「你每于回合内使用一种花色的手牌」。",
               "impact": "计数口径 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q3",
@@ -282,7 +282,7 @@
               "lean": "A",
               "why": "《三国杀》「类型」按基本牌/锦囊牌/装备牌三分（v1 同口径）。",
               "impact": "X 计算 + 用例。",
-              "answer": null
+              "answer": "A"
             }
           ],
           "mechanics": [
@@ -298,7 +298,7 @@
             "reveal": "无",
             "qq": "播报手牌上限加成与摸牌数"
           },
-          "agreed": null,
+          "agreed": "你每于回合内使用一种花色的手牌（仅统计从手牌使用的牌），本回合的手牌上限便 +1；每个出牌阶段结束时，你可以摸 X 张牌（X 为你本回合使用过牌的类型数：基本 / 锦囊（含延时）/ 装备，三类）。",
           "assertions": {
             "positive": [
               "回合内使用一种花色的手牌 → 手牌上限 +1（可叠加到 +4）",
@@ -323,7 +323,7 @@
           "code": "zhuikong",
           "name": "惴恐",
           "kind": "normal",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "其他角色的回合开始时，若你已受伤，你可以与其拼点：\n•若你赢，其本回合不能对除其以外的角色使用牌；\n•若你没赢，你获得其拼点牌，然后其视为对你使用一张【杀】。",
           "original_source": "heroes.json#gid=671",
           "mechanics_version": 2,
@@ -350,7 +350,7 @@
               "lean": "A",
               "why": "原文「你获得其拼点牌」，「其」= 对方。",
               "impact": "获得事件 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q2",
@@ -362,7 +362,7 @@
               "lean": "A",
               "why": "「视为使用一张【杀】」走正常【杀】结算，才能与响应/防具/父魂等交互。",
               "impact": "use_virtual + 响应窗口 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q3",
@@ -374,7 +374,7 @@
               "lean": "A",
               "why": "原文是「不能对除其以外的角色使用牌」，按目标属性判定（mechanics target-list）。",
               "impact": "统一入口拦截 + 用例。",
-              "answer": null
+              "answer": "C 所有「对其他角色使用」的牌（含锦囊/【杀】/技能可以使用），对自己使用不受限"
             }
           ],
           "mechanics": [
@@ -392,7 +392,7 @@
             "reveal": "拼点亮牌公开",
             "qq": "播报拼点结果与封锁/【杀】"
           },
-          "agreed": null,
+          "agreed": "其他角色的回合开始时，若你已受伤，你可以与其拼点：若你赢，其本回合不能对除其以外的角色使用牌（含锦囊、【杀】与技能视为使用的牌；对自己使用不受限）；若你没赢，你获得其拼点牌（只获得对方的拼点牌），然后其视为对你使用一张【杀】（普通【杀】，来源为其，可被【闪】响应）。",
           "assertions": {
             "positive": [
               "其他角色回合开始且你已受伤时拼点；赢 → 其本回合不能对除其以外的角色使用牌",
@@ -410,7 +410,7 @@
           "code": "qiuyuan",
           "name": "求援",
           "kind": "normal",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "当你成为【杀】或伤害锦囊的目标时，你可以令另一名其他角色选择一项：\n 1.交给你一张与此牌同类型不同牌名的牌；\n 2.成为此牌的额外目标。",
           "original_source": "heroes.json#gid=671",
           "mechanics_version": 2,
@@ -438,7 +438,7 @@
               "lean": "A",
               "why": "mechanics card-attributes：类型 = 基本/锦囊/装备；「不同牌名」= 不是同一张牌名。",
               "impact": "候选集合 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q2",
@@ -451,7 +451,7 @@
               "lean": "A",
               "why": "「交给你一张…牌」应给出牌者选择；原文未含装备区。",
               "impact": "交互 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q3",
@@ -464,7 +464,7 @@
               "lean": "A",
               "why": "原文含伤害锦囊；群体锦囊本来就指定全体，追加无意义。",
               "impact": "内核时序（追加目标）+ 用例。",
-              "answer": null
+              "answer": "A"
             }
           ],
           "mechanics": [
@@ -481,7 +481,7 @@
             "reveal": "交出的牌公开",
             "qq": "播报协助者选择与成为额外目标"
           },
-          "agreed": null,
+          "agreed": "当你成为【杀】或伤害锦囊的目标时，你可以令另一名其他角色选择一项：1. 交给你一张与此牌同类型（基本 / 锦囊 / 装备类别）不同牌名的牌（由其从手牌自选）；2. 成为此牌的额外目标。额外目标在结算前追加到目标列表末尾；群体锦囊不提供该选项。",
           "assertions": {
             "positive": [
               "成为【杀】或伤害锦囊目标时可令协助者二选一",
@@ -506,7 +506,7 @@
           "code": "gongqi",
           "name": "弓骑",
           "kind": "normal",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "出牌阶段限一次，你可以弃置一张牌使你本回合攻击范围无限，且你使用与弃置的牌花色相同的【杀】无次数限制。若弃置的牌为装备牌，你可以弃置一名其他角色一张牌。",
           "original_source": "heroes.json#gid=676",
           "mechanics_version": 2,
@@ -534,7 +534,7 @@
               "lean": "A",
               "why": "原文与「若弃置的牌为装备牌」分支都指向装备区可用；mechanics discard-contract。",
               "impact": "选牌交互 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q2",
@@ -546,7 +546,7 @@
               "lean": "A",
               "why": "原文是「攻击范围」而非「使用牌无距离」。",
               "impact": "距离入口 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q3",
@@ -558,7 +558,7 @@
               "lean": "A",
               "why": "原文限定「与弃置的牌花色相同」。",
               "impact": "sha_limit 入口 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q4",
@@ -570,7 +570,7 @@
               "lean": "A",
               "why": "「弃置一张牌」应给发动者选择；判定区离开不算弃置（discard-contract）。",
               "impact": "交互 + 用例。",
-              "answer": null
+              "answer": "A"
             }
           ],
           "mechanics": [
@@ -588,7 +588,7 @@
             "reveal": "弃置牌公开",
             "qq": "播报弃置牌与花色【杀】不限次数"
           },
-          "agreed": null,
+          "agreed": "出牌阶段限一次，你可以弃置一张牌（手牌或自己装备区）使你本回合攻击范围无限（视为攻击范围无限），且你使用与弃置的牌花色相同的【杀】无次数限制。若弃置的牌为装备牌，你可以弃置一名其他角色一张牌（由你选择：手牌随机 / 装备区具体牌；不含判定区）。",
           "assertions": {
             "positive": [
               "弃一张牌（含装备区）→ 本回合攻击范围无限；同花色【杀】无次数限制",
@@ -606,7 +606,7 @@
           "code": "jiefan",
           "name": "解烦",
           "kind": "limited",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "限定技，出牌阶段，你可以选择一名角色，令所有攻击范围内包含其的角色选择一项：\n 1.弃置一张武器牌；\n 2.令该角色摸一张牌。\n若此时为第一轮，回合结束时，此技能视为未发动过。",
           "original_source": "heroes.json#gid=676",
           "mechanics_version": 2,
@@ -633,7 +633,7 @@
               "lean": "A",
               "why": "原文「令所有…角色选择一项」。",
               "impact": "逐个询问 + AI + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q2",
@@ -646,7 +646,7 @@
               "lean": "A",
               "why": "原文未限定区域；mechanics discard-contract 弃置含手牌/装备区。",
               "impact": "候选集合 + 用例。",
-              "answer": null
+              "answer": "A 如果手牌和装备区都没有武器不能选1"
             },
             {
               "id": "Q3",
@@ -658,7 +658,7 @@
               "lean": "A",
               "why": "原文是「视为未发动过」，重置后可在后续回合再次发动。",
               "impact": "标记清理时机 + 用例。",
-              "answer": null
+              "answer": "C 限定技的含义是1场游戏只能用一次检查下之前所有批次的限定技是不是都是只能用一次，如果不是呈报并约定修改范围和方案，该问题的口径是第一轮（即所有角色的第一个回合）解烦在回合结束时无论出牌阶段有没有用过，后面的所有回合都可以用（仅一次）"
             }
           ],
           "mechanics": [
@@ -675,14 +675,14 @@
             "reveal": "弃置的武器牌公开",
             "qq": "播报投票与摸牌结果"
           },
-          "agreed": null,
+          "agreed": "限定技，出牌阶段，你可以选择一名角色，令所有攻击范围内包含其的角色选择一项：1. 弃置一张武器牌（手牌或装备区；都没有则不能选此项）；2. 令该角色摸一张牌。若此时为第一轮（所有角色的第一个回合），回合结束时此技能视为未发动过；第一轮结束后，此技能整局只能再发动一次。",
           "assertions": {
             "positive": [
               "攻击范围包含目标的角色各自二选一（弃武器 / 令目标摸一张）",
-              "第一轮内回合结束时视为未发动（每回合可再发动）"
+              "第一轮内回合结束时视为未发动（每轮可再发动）"
             ],
             "negative": [
-              "非第一轮发动后不可再发动",
+              "第一轮结束后整局只能再发动一次",
               "攻击范围不含目标的角色不参与"
             ]
           },
@@ -700,7 +700,7 @@
           "code": "fuhen",
           "name": "父魂",
           "kind": "normal",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "你可将两张牌当【杀】使用或打出。你使用的转化【杀】目标角色只能使用颜色相同的手牌响应；\n你于出牌阶段使用【杀】造成伤害后，你本回合获得“武圣”“咆哮”。",
           "original_source": "heroes.json#gid=690",
           "mechanics_version": 2,
@@ -728,7 +728,7 @@
               "lean": "A",
               "why": "原文该句未限定「以此法使用的」，前一句已单列转化【杀】的响应限制。",
               "impact": "伤害后钩子条件 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q2",
@@ -741,7 +741,7 @@
               "lean": "A",
               "why": "转化牌无固定颜色时按「无色」处理（mechanics card-attributes / virtual-card）。",
               "impact": "响应过滤 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q3",
@@ -753,7 +753,7 @@
               "lean": "A",
               "why": "原文针对「使用【杀】后目标角色的响应」。",
               "impact": "响应窗口过滤 + 用例。",
-              "answer": null
+              "answer": "A"
             }
           ],
           "mechanics": [
@@ -771,7 +771,7 @@
             "reveal": "两张承载牌公开",
             "qq": "播报转化【杀】与颜色响应限制"
           },
-          "agreed": null,
+          "agreed": "你可以将两张手牌当【杀】使用或打出。你使用的转化【杀】目标角色只能使用颜色相同的手牌响应（两张承载牌同色时取该颜色；异色时不限制颜色；仅限制目标的【闪】响应）。你于出牌阶段使用【杀】造成伤害后，本回合获得「武圣」「咆哮」（回合结束时撤销）。",
           "assertions": {
             "positive": [
               "两张手牌当【杀】使用/打出",
@@ -797,7 +797,7 @@
           "code": "mashu",
           "name": "马术",
           "kind": "locked",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "锁定技，你计算与其他角色的距离-1。",
           "original_source": "heroes.json#gid=696",
           "mechanics_version": 2,
@@ -822,7 +822,7 @@
             "reveal": "无",
             "qq": "无"
           },
-          "agreed": null,
+          "agreed": "锁定技，你计算与其他角色的距离 -1（走 skills::distance_delta 统一入口，最终距离下限 1）。",
           "assertions": {
             "positive": [
               "与所有其他角色的距离 -1（下限 1）"
@@ -838,7 +838,7 @@
           "code": "qianxi",
           "name": "潜袭",
           "kind": "normal",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "出牌阶段开始时，你可以展示一张牌。若如此做，距离为1的其他角色本回合不能使用或打出与“潜袭”牌颜色相同的手牌，你本回合使用“潜袭”牌造成的伤害+1。",
           "original_source": "heroes.json#gid=696",
           "mechanics_version": 2,
@@ -867,7 +867,7 @@
               "lean": "A",
               "why": "原文「出牌阶段开始时，你可以展示一张牌」。",
               "impact": "触发窗口 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q2",
@@ -880,7 +880,7 @@
               "lean": "A",
               "why": "「距离为 1 的其他角色」在发动时确定集合，避免中途距离变化反复变化。",
               "impact": "受限集合 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q3",
@@ -892,7 +892,7 @@
               "lean": "A",
               "why": "原文是「本回合不能使用或打出手牌」，是持续状态而非一次快照。",
               "impact": "统一入口（hand-freeze 语义）+ 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q4",
@@ -905,7 +905,7 @@
               "lean": "A",
               "why": "「『潜袭』牌」指被展示的那张牌（v1 无此实现，需新建）。",
               "impact": "伤害加成入口 + 用例。",
-              "answer": null
+              "answer": "A"
             }
           ],
           "mechanics": [
@@ -922,7 +922,7 @@
             "reveal": "展示牌公开",
             "qq": "播报展示牌与受限颜色/角色"
           },
-          "agreed": null,
+          "agreed": "出牌阶段开始时，你可以展示一张手牌（留在手牌并公开）。若如此做，所有距离为 1 的其他角色（发动时确定集合）本回合不能使用或打出与该牌颜色相同的手牌（含之后摸到的牌），你本回合使用该展示牌造成的伤害 +1（该牌离开手牌后不再 +1）。",
           "assertions": {
             "positive": [
               "出牌阶段开始展示一张牌后，所有距离 1 的其他角色本回合不能用同色手牌",
@@ -947,7 +947,7 @@
           "code": "jiazhao",
           "name": "矫诏",
           "kind": "normal",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "出牌阶段限一次，你可将一张牌当本轮未有角色使用过的基本或普通锦囊牌使用。",
           "original_source": "heroes.json#gid=726",
           "mechanics_version": 2,
@@ -975,7 +975,7 @@
               "lean": "A",
               "why": "原文限定「基本或普通锦囊牌」，且矫诏是出牌阶段主动使用。",
               "impact": "候选集合（复用 `cards::non_delayed_tricks`）+ 用例。",
-              "answer": null
+              "answer": "B"
             },
             {
               "id": "Q2",
@@ -988,7 +988,7 @@
               "lean": "A",
               "why": "原文「未有角色使用过」。",
               "impact": "新增每轮用牌名集合（内核状态）+ 用例。",
-              "answer": null
+              "answer": "C 本轮内使用 + 打出都算"
             },
             {
               "id": "Q3",
@@ -1000,7 +1000,7 @@
               "lean": "A",
               "why": "「将一张牌当…使用」走真实使用结算（mechanics virtual-card / use-vs-play）。",
               "impact": "use_as 入口 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q4",
@@ -1013,7 +1013,7 @@
               "lean": "C",
               "why": "你没有给出修改后的文本；C 不引入未定义行为，后续可再补。",
               "impact": "矫诏 handler 分支 + 用例；影响殚心 X。",
-              "answer": null
+              "answer": "修改1，每轮限一次（回合外也可以使用），你可将一张牌当【任意】基本或普通锦囊牌使用；修改2，每轮限一次，你可使用（虚拟牌不需要出牌）【任意】基本或普通锦囊牌；另外界面上需要同步修改技能描述，技能名称也要修改 修改1为『矫诏plus』修改2为『矫诏plusplus』"
             }
           ],
           "mechanics": [
@@ -1024,21 +1024,22 @@
           ],
           "terms": {},
           "ui": {
-            "prompt": "矫诏：可将一张牌当本轮未有角色使用过的基本/普通锦囊使用",
-            "overlay": "选承载牌 → 牌名列表（隐藏本轮已用牌名）→ 目标",
+            "prompt": "矫诏：可将一张牌当本轮未有角色使用过的基本/普通锦囊使用（修改后显示「矫诏plus」/「矫诏plusplus」）",
+            "overlay": "选承载牌 → 牌名列表（隐藏本轮已用过的牌名）→ 目标；修改 2 时不需要承载牌",
             "fx": "edict_glow",
             "reveal": "承载牌公开",
-            "qq": "播报声明牌名与目标"
+            "qq": "播报当前技能名（矫诏/矫诏plus/矫诏plusplus）、声明牌名与目标"
           },
-          "agreed": null,
+          "agreed": "出牌阶段限一次，你可以将一张手牌当本轮未有角色使用过的基本或普通锦囊牌使用（「使用过」含本轮所有角色的使用与打出；牌名可含【无懈可击】，不含延时锦囊）；按常规校验（【杀】占次数、【桃】需受伤、【酒】限量）。修改 1 后技能名显示「矫诏plus」：每轮限一次（回合外也可以使用），你可将一张牌当任意基本或普通锦囊牌使用；修改 2 后显示「矫诏plusplus」：每轮限一次，你可使用虚拟牌（不需要承载牌）当任意基本或普通锦囊牌使用。",
           "assertions": {
             "positive": [
-              "可将一张牌当本轮未有角色使用过的基本/普通锦囊使用",
-              "本轮已有人使用过的牌名不可选"
+              "可将一张手牌当本轮未有角色使用过的基本/普通锦囊使用（含【无懈可击】）",
+              "本轮已有人使用或打出过的牌名不可选",
+              "修改 1 后可当任意基本/普通锦囊（技能名显示「矫诏plus」）；修改 2 后无承载牌直接使用（显示「矫诏plusplus」）"
             ],
             "negative": [
-              "延时锦囊与【无懈可击】不可声明",
-              "本阶段已发动过不能再发动"
+              "延时锦囊不可声明",
+              "本阶段已发动过不能再发动（修改后改为每轮限一次）"
             ]
           },
           "impl": null,
@@ -1048,7 +1049,7 @@
           "code": "danxin",
           "name": "殚心",
           "kind": "normal",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "当你受到伤害后，你可摸X张牌，然后修改“矫诏”（X为你修改“矫诏”的次数）。",
           "original_source": "heroes.json#gid=726",
           "mechanics_version": 2,
@@ -1076,7 +1077,7 @@
               "lean": "A",
               "why": "原文「你可以摸 X 张牌，然后修改…（X 为你修改『矫诏』的次数）」：摸牌在修改之前，故不含本次。",
               "impact": "handler 顺序 + 用例。",
-              "answer": null
+              "answer": "A 最多修改2次，修改后的矫诏持续到游戏结束，满2次仅摸牌不再修改"
             },
             {
               "id": "Q2",
@@ -1088,7 +1089,7 @@
               "lean": "A",
               "why": "原文未设上限。",
               "impact": "计数 + 与矫诏修改表的分档。",
-              "answer": null
+              "answer": "B"
             }
           ],
           "mechanics": [
@@ -1104,10 +1105,11 @@
             "reveal": "无",
             "qq": "播报摸牌数与矫诏修改次数"
           },
-          "agreed": null,
+          "agreed": "当你受到伤害后，你可以摸 X 张牌（X 为你修改「矫诏」的次数），然后修改「矫诏」（最多修改 2 次；修改后的效果持续到游戏结束，满 2 次后仅摸牌、不再修改）。",
           "assertions": {
             "positive": [
-              "受伤后摸 X 张（X=已修改次数）然后修改矫诏"
+              "受伤后摸 X 张（X=已修改次数）然后修改矫诏",
+              "最多修改 2 次；满 2 次后仅摸牌、不再修改（修改持续到游戏结束）"
             ],
             "negative": [
               "体力为 0（濒死）受伤不触发",
@@ -1128,7 +1130,7 @@
           "code": "shibei",
           "name": "矢北",
           "kind": "locked",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "锁定技，游戏开始时，你获得3点护甲。当你每回合首次受到伤害后，你回复1点体力，然后当你本回合再受到伤害后，你失去1点体力。",
           "original_source": "heroes.json#gid=749",
           "mechanics_version": 2,
@@ -1156,7 +1158,7 @@
               "lean": "A",
               "why": "《三国杀OL》护甲是「先扣护甲、溢出扣体力」的防护值。",
               "impact": "内核伤害入口（`flow::damage` 前置扣护甲）+ 守恒 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q2",
@@ -1168,7 +1170,7 @@
               "lean": "A",
               "why": "护甲是吸收数值而不是「防止伤害」。",
               "impact": "受伤事件与技能触发 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q3",
@@ -1180,7 +1182,7 @@
               "lean": "A",
               "why": "回归 `flow::heal` 的既有口径（不能超过上限）。",
               "impact": "回血入口 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q4",
@@ -1192,7 +1194,7 @@
               "lean": "A",
               "why": "护甲是可见资源，不展示会让玩家误判体力。",
               "impact": "view 投影 + 契约用例。",
-              "answer": null
+              "answer": "A 复用标记区 护N"
             }
           ],
           "mechanics": [
@@ -1204,12 +1206,12 @@
           "terms": {},
           "ui": {
             "prompt": "矢北（锁定）：游戏开始获得 3 点护甲",
-            "overlay": "体力旁显示护甲值；首次/再次受伤提示",
+            "overlay": "复用标记区显示「护N」",
             "fx": "armor_hit / heal_glow",
             "reveal": "无",
             "qq": "播报护甲变化与回血/失去体力"
           },
-          "agreed": null,
+          "agreed": "锁定技，游戏开始时，你获得 3 点护甲。受到伤害时先扣护甲、溢出伤害扣体力；被护甲吸收仍算受到伤害。当你每回合首次受到伤害后，你回复 1 点体力（满血则不回复）；然后当你本回合再受到伤害后，你失去 1 点体力（走统一失去体力入口）。护甲在视图标记区显示为「护N」。",
           "assertions": {
             "positive": [
               "游戏开始时获得 3 点护甲；每回合首次受伤后回复 1 点体力",
@@ -1227,7 +1229,7 @@
           "code": "jianying",
           "name": "渐营",
           "kind": "normal",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "当你于出牌阶段使用牌时，若此牌与你于此阶段使用的上一张牌花色或点数相同，则你可以摸一张牌。出牌阶段限一次，你可以将一张牌当做任意一张基本牌使用，若你于本阶段使用的上一张牌有花色，则此牌的花色视为与上一张牌的花色相同。",
           "original_source": "heroes.json#gid=749",
           "mechanics_version": 2,
@@ -1254,7 +1256,7 @@
               "lean": "A",
               "why": "原文「则你可以摸一张牌」。",
               "impact": "询问 + AI + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q2",
@@ -1266,7 +1268,7 @@
               "lean": "A",
               "why": "原文两处都写「于此阶段」。",
               "impact": "阶段级计数 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q3",
@@ -1278,7 +1280,7 @@
               "lean": "A",
               "why": "【闪】没有主动使用入口；允许声明也只会产生无效选项。",
               "impact": "候选集合 + 用例。",
-              "answer": null
+              "answer": "A 同刘备仁德，区分杀，雷杀，火杀"
             },
             {
               "id": "Q4",
@@ -1290,7 +1292,7 @@
               "lean": "A",
               "why": "原文只改花色，不改使用规则；mechanics virtual-card。",
               "impact": "use_as + 花色覆盖 + 用例。",
-              "answer": null
+              "answer": "A"
             }
           ],
           "mechanics": [
@@ -1307,7 +1309,7 @@
             "reveal": "使用的上一张牌花色/点数提示",
             "qq": "播报摸牌与②的声明"
           },
-          "agreed": null,
+          "agreed": "当你于出牌阶段使用牌时，若此牌与你于此阶段使用的上一张牌花色或点数相同，则你可以摸一张牌。出牌阶段限一次，你可以将一张牌当任意一张基本牌使用（牌名区分【杀】【雷杀】【火杀】【桃】【酒】，不含【闪】）；若你于本阶段使用的上一张牌有花色，则此牌的花色视为与上一张牌的花色相同；按常规校验（【桃】需受伤、【酒】限量、【杀】占次数）。",
           "assertions": {
             "positive": [
               "出牌阶段使用牌与上一张同花色或点数时摸一张",
