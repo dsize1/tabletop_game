@@ -177,6 +177,33 @@ fn miji_needs_zhenlie_grant_and_draws() {
     answer(&mut g, 0, "pass");
 }
 
+#[test]
+fn miji_triggers_at_other_players_end_phase_when_granted() {
+    let mut g = game(&[
+        ("wangyi", &["zhenlie", "miji"], 3, "wei"),
+        ("p1", &[], 4, "qun"),
+    ]);
+    play_phase(&mut g, 1);
+    g.seats[0].hp = 2; // 已损失 1 → 秘计 X=1
+    give(&mut g, 1, &["sp1"]);
+    g.resolve_use(1, &"sp1".to_string(), vec![0]).unwrap();
+    pass_until(&mut g, "zhenlie");
+    answer(&mut g, 0, "opt1");
+    answer(&mut g, 0, "miji");
+    // 该【杀】对王异无效，结算结束后轮到 p1 的结束阶段。
+    if g.pending.is_some() {
+        answer_cur(&mut g, "pass");
+    }
+    g.phase = Phase::Play;
+    begin_phase(&mut g, 1, Phase::End).unwrap();
+    assert_eq!(pend_skill(&g).as_deref(), Some("miji"), "他人回合结束阶段发动秘计");
+    assert_eq!(pend_actor(&g), 0);
+    let before = g.hand(0).len();
+    answer(&mut g, 0, "opt1");
+    // 贞烈已失去 1 点体力 → 已损失 2 → 摸 2 张。
+    assert_eq!(g.hand(0).len(), before + 2);
+}
+
 // ---------------------------------------------------------------- 绝情
 #[test]
 fn jueqing_turns_damage_into_hp_loss() {

@@ -813,7 +813,7 @@ npm run gen:sgs-audit-matrix           # 生成矩阵骨架（已存在则拒绝
 - 内核增量：伤害转失去体力（`lose_hp_by` + `damage_to_hp_loss`）、濒死时第三方技能（`on_dying_enter`）、濒死救援入口（`revive_to`/`revive_add`）、
   锦囊目标拦截（`trick_intercept`）、回合结束钩子（`on_turn_end`）、额外出牌阶段（`start_extra_play_phase`/`on_end_play`）、
   单张牌无距离（`no_distance_cards`）、落英标记（`luoying_cards` + 视图 `card.marks`）、整局伤害累计（`total.damage_dealt`）。
-- 用例：`tests/b18.rs` 22 条；`cargo test -p sanguosha2` 644 全绿；`check:sgs2` 与 `sgs:check` 全绿。
+- 用例：`tests/b18.rs` 23 条；`cargo test -p sanguosha2` 645 全绿；`check:sgs2` 与 `sgs:check` 全绿。
 
 - 修订（2026-11-10，用户裁定）：**废除延时锦囊的额外目标支持**——巧说 ±1 仅适用非延时锦囊/基本牌，使用延时锦囊不消耗该效果（不引入虚拟判定牌）。
 - 修订（2026-11-10，用户裁定）：巧说新增**「巧」标记**（每赢 +1、每出一张符合条件手牌消耗 1、拼点失败/回合结束清空），视图 `marks_count.qiao` 暴露。

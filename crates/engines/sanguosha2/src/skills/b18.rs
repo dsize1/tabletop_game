@@ -268,7 +268,8 @@ pub const MIJI: SkillDef = SkillDef {
     code: "miji",
     name: "秘计",
     triggers: &[EventKind::PhaseStart],
-    window: Window::OwnPhase(Phase::End),
+    // 贞烈②的「本回合结束阶段」可以是**其他角色**的回合（王异通常在他人回合被指定）。
+    window: Window::AnyTime,
     priority: 0,
     can_active: None,
     handler: miji,
