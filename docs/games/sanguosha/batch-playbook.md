@@ -351,3 +351,17 @@ node apps/scripts/sgs-align-sheet.mjs --batch B9 --v1-anchors
   * 濒死相关（补益/仁心/伏枥）统一用 `on_dying_enter`（在求桃之前压询问）；救援走 `revive_to` / `revive_add`，
     不要直接改 `hp`（门禁会拦）。
   * 「回合结束后」类技能用 `skills::on_turn_end`（清空 `turn.*` 之前）；不要依赖 `PhaseEnd` 事件（普通阶段切换不发）。
+
+### 9.6 B19 收口记录（2026-11-10）
+
+> B19（界限突破·J7，8 将 / 15 技能）已完成：`align/B19.json|md` 42 裁定 + `skills/b19.rs` + `tests/b19.rs` 32 条；
+> `cargo test -p sanguosha2` **677** 全绿；`check:sgs2` / `sgs:check:fast` 全绿。新增内核能力见 `skill-spec-rules.md` §22。
+
+- 新内核能力（B20 起可直接复用）：`Seat.armor` + `Game::add_armor`（护甲，`flow::damage` 前置扣甲 + `ArmorChanged` + 视图 `marks_count.hu`）、
+  `Game.extra_targets_mid`（结算中追加目标）、`Game.response_color_lock`（同色响应限制）、`pair:c1,c2` 两张手牌当【杀】打出、
+  `skills::hand_color_blocked`（手牌颜色封锁）、`skills::others_use_blocked`（不能对其他角色使用牌）、
+  `skills::infinite_range`（攻击范围无限）、`skills::sha_unlimited_card`（花色【杀】不限次数）、
+  `round.*` 计数（随轮次清空）、`skills::legal_actions_out_of_turn`（回合外主动技）、`effective_suit` 花色覆盖、`b19::display_name`（动态技能名）。
+- 已知边界：回合外主动技目前只在 `legal_actions` 暴露，驱动器仍只询问当前回合角色（AI/Web 需上层轮询）；
+  矫诏声明的【无懈可击】走技能声明通道（非严格校验）。
+- B20（4 将）为验证批次最后一批；开工命令同 §9.1，替换批次号即可。

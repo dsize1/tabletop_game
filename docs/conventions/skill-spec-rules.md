@@ -280,3 +280,20 @@
 | 单张牌无距离 | `Game.no_distance_cards` / `skills::card_no_distance` | 当先获得的【杀】、酒诗的落英牌。 |
 | 落英标记 | `Game.luoying_cards`（离开手牌即清除）+ 视图 `card.marks` | 酒诗：背面朝上时无距离且不能被响应。 |
 | 整局伤害累计 | `flow::damage_now_impl` → `total.damage_dealt:<seat>` | 伏枥：X > 本局造成伤害数才翻面。 |
+
+## 22. B19 跨批机制（2026-11-10）
+
+| 机制 | 入口 | 说明 |
+|---|---|---|
+| 护甲（独立防护值） | `Seat.armor` + `Game::add_armor` + `EventKind::ArmorChanged` + `flow::damage_now_impl` 前置扣甲 | 矢北：先扣护甲、溢出扣体力；伤害事件仍成立（amount = 原伤害值）；视图 `marks_count.hu`（显示「护N」）。 |
+| 结算中追加目标 | `Game.extra_targets_mid` → `sha_loop` / 锦囊拦截段消费 | 求援②：追加到目标列表末尾，不重置结算进度（区别于 `ShaIntercept::Replace`）。 |
+| 同色响应限制 | `Game.response_color_lock`（`finish` 清空）→ `response_options` + `apply_response` | 父魂：本张【杀】的【闪】响应只能用同色手牌（legal 与 execute 同源）。 |
+| 两张手牌当【杀】打出 | `skills::two_card_sha` / `two_card_sha_pairs` → `pair:c1,c2` 响应选项 | 父魂的打出通道（内核不出现技能名）。 |
+| 手牌颜色封锁 | `Game::can_use_card` → `skills::hand_color_blocked` | 潜袭：本回合不能用/打出该颜色手牌（含之后摸到的）。 |
+| 「不能对其他角色使用牌」 | `plan_use` → `skills::others_use_blocked` | 惴恐（赢）：按目标列表判定；对自己使用不受限。 |
+| 攻击范围无限 | `Game::can_reach` → `skills::infinite_range` | 弓骑：其他角色恒可达（不改 `attack_range` 数值）。 |
+| 花色【杀】不限次数 | `planned_targets` → `skills::sha_unlimited_card` | 弓骑：与弃置牌同花色的【杀】跳过次数校验（legal 同源）。 |
+| 本轮级计数 | `g.round += 1` 时 `clear_prefix("round.")` | 矫诏：`round.used:<牌名>`（本轮所有角色的使用+打出都记）。 |
+| 回合外主动技 | `skills::legal_actions_out_of_turn`（`b19::OUT_OF_TURN_SKILLS`） | 矫诏 修改 1 起可回合外发动；驱动器目前仍只询问当前回合角色（登记边界）。 |
+| 花色覆盖（视为） | `skills::effective_suit` → `b19::jy_suit_override` | 渐营②：花色视为本阶段上一张牌的花色。 |
+| 技能显示名动态化 | `skills::b19::display_name` | 矫诏 → 矫诏plus → 矫诏plusplus（UI/legal 标签/播报共用）。 |

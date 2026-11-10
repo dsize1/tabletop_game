@@ -815,6 +815,19 @@ npm run gen:sgs-audit-matrix           # 生成矩阵骨架（已存在则拒绝
   单张牌无距离（`no_distance_cards`）、落英标记（`luoying_cards` + 视图 `card.marks`）、整局伤害累计（`total.damage_dealt`）。
 - 用例：`tests/b18.rs` 23 条；`cargo test -p sanguosha2` 645 全绿；`check:sgs2` 与 `sgs:check` 全绿。
 
+**v2 迁移批次 B19（界标·J7，2026-11-10，已完成）**：
+
+- 对齐：`align/B19.json|md` 42 条疑点用户逐条裁定（含矫诏修改表自定义为「矫诏plus / 矫诏plusplus」）→ implemented。
+- 实现：`crates/engines/sanguosha2/src/skills/b19.rs`（15 技能：灭计/焚城/绝策/精策/惴恐/求援/弓骑/解烦/父魂/马术/潜袭/矫诏/殚心/矢北/渐营）。
+- 内核增量：**护甲**（`Seat.armor` + `Game::add_armor` + `EventKind::ArmorChanged` + 伤害前置扣甲 + 视图 `marks_count.hu`）、
+  结算中追加目标（`Game.extra_targets_mid`）、同色响应限制（`Game.response_color_lock`）、两张手牌当【杀】打出（`pair:` 响应选项）、
+  手牌颜色封锁（`hand_color_blocked`）、「不能对其他角色使用牌」（`others_use_blocked`）、攻击范围无限（`infinite_range`）、
+  花色【杀】不限次数（`sha_unlimited_card`）、本轮级计数（`round.` 前缀）、回合外主动技入口（`legal_actions_out_of_turn`）、
+  花色覆盖（`effective_suit` → 渐营）、技能显示名动态化（`b19::display_name`）。
+- 用例：`tests/b19.rs` 32 条；`cargo test -p sanguosha2` **677** 全绿；`check:sgs2` 与 `sgs:check:fast` 全绿。
+- 已知边界：B19 之后 `round.jiazhao_used:<seat>` 依赖驱动器「回合外主动技」轮询（当前只询问当前回合角色，故回合外发动在 AI/Web 需上层轮询支持）；
+  矫诏「无懈可击」作为主动声明走技能声明通道（非严格校验）。
+
 - 修订（2026-11-10，用户裁定）：**废除延时锦囊的额外目标支持**——巧说 ±1 仅适用非延时锦囊/基本牌，使用延时锦囊不消耗该效果（不引入虚拟判定牌）。
 - 修订（2026-11-10，用户裁定）：巧说新增**「巧」标记**（每赢 +1、每出一张符合条件手牌消耗 1、拼点失败/回合结束清空），视图 `marks_count.qiao` 暴露。
 
