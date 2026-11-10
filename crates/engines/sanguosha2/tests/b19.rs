@@ -293,6 +293,11 @@ fn zhuikong_win_blocks_targeting_others() {
         g.resolve_use(1, &"sp2".to_string(), vec![0]).is_err(),
         "不能对除其以外的角色使用牌"
     );
+    // 用户裁定：技能视为使用不受封锁（无承载牌的 use_virtual 仍可对其他角色使用）。
+    assert!(
+        g.use_virtual(1, "决斗", vec![0]).is_ok(),
+        "技能视为使用不被封锁"
+    );
 }
 
 #[test]

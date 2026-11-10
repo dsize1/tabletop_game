@@ -290,7 +290,7 @@
 | 同色响应限制 | `Game.response_color_lock`（`finish` 清空）→ `response_options` + `apply_response` | 父魂：本张【杀】的【闪】响应只能用同色手牌（legal 与 execute 同源）。 |
 | 两张手牌当【杀】打出 | `skills::two_card_sha` / `two_card_sha_pairs` → `pair:c1,c2` 响应选项 | 父魂的打出通道（内核不出现技能名）。 |
 | 手牌颜色封锁 | `Game::can_use_card` → `skills::hand_color_blocked` | 潜袭：本回合不能用/打出该颜色手牌（含之后摸到的）。 |
-| 「不能对其他角色使用牌」 | `plan_use` → `skills::others_use_blocked` | 惴恐（赢）：按目标列表判定；对自己使用不受限。 |
+| 「不能对其他角色使用牌」 | `plan_use` → `skills::others_use_blocked` | 惴恐（赢）：按目标列表判定；对自己使用不受限；**技能视为使用（`opts.strict == false`）不受封锁**（用户 2026-11-10 裁定）。 |
 | 攻击范围无限 | `Game::can_reach` → `skills::infinite_range` | 弓骑：其他角色恒可达（不改 `attack_range` 数值）。 |
 | 花色【杀】不限次数 | `planned_targets` → `skills::sha_unlimited_card` | 弓骑：与弃置牌同花色的【杀】跳过次数校验（legal 同源）。 |
 | 本轮级计数 | `g.round += 1` 时 `clear_prefix("round.")` | 矫诏：`round.used:<牌名>`（本轮所有角色的使用+打出都记）。 |

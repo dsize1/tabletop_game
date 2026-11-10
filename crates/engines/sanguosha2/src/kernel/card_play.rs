@@ -145,7 +145,11 @@ fn plan_use(
     }
     let planned = planned_targets(g, seat, &def, name, targets, opts.strict, carrier)?;
     // 「本回合不能对除其以外的角色使用牌」（惴恐）：按目标列表判定，对自己使用不受限。
-    if crate::skills::others_use_blocked(g, seat) && planned.iter().any(|t| *t != seat) {
+    // 用户 2026-11-10 裁定：**技能视为使用不受封锁**（`opts.strict == false` 的 use_virtual/use_as 通道）。
+    if opts.strict
+        && crate::skills::others_use_blocked(g, seat)
+        && planned.iter().any(|t| *t != seat)
+    {
         return Err("本回合不能对其他角色使用牌".into());
     }
     // 「本回合不能对自己使用牌」（才识②）：含装备牌（用户 2026-11-09 裁定）。
