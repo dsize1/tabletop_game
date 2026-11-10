@@ -796,6 +796,16 @@ npm run gen:sgs-audit-matrix           # 生成矩阵骨架（已存在则拒绝
   永久失去技能、AOE 伤害来源替换、兵粮距离规则、无视防具伤害入口、回合末归还（`void_return` 口径修正）。
 - 用例：`tests/b16.rs` 29 条；`cargo test -p sanguosha2` 585 全绿；`check:sgs2` 与 `sgs:check:fast` 全绿。
 
+**v2 迁移批次 B17（界标·J5，2026-11-10，已完成）**：
+
+- 对齐：`align/B17.json|md` 71 条疑点用户逐条裁定（含 2 条直接改写裁定文本）→ implemented。
+- 实现：`crates/engines/sanguosha2/src/skills/b17.rs`（14 技能：旋风/智迟/明策/将驰/纵适/巧说/纵玄/直言/陷阵/禁酒/眩惑/恩怨/疠火/醇醪）。
+- 内核增量：单动作失去批次（`lost_batch` / `equip_lost_batch`）、单动作获得批次（`gain_batch`）、单动作技能去重（`action_seen`）、
+  此牌造成伤害计数（`turn.damage_card:<card>`）、巧说「少指定目标」`trim:` 动作入口、`extra_targets_no_distance` 拆分、
+  陷阵 `target_no_distance` / `sha_limit_exempt` / `sha_blocked_for` / 无视防具钩子、将驰次数修正（+1 / -1）、
+  禁酒 `jiu_blocked` / `effective_rank`（点数 K）与濒死【酒】统一拦截、纵适 code 与宗室解耦（v1 同步改名 `zongshi_jie`）。
+- 用例：`tests/b17.rs` 31 条；`cargo test -p sanguosha2` 616 全绿；`check:sgs2` 与 `sgs:check:fast` 全绿。
+
 
 - 对齐：`align/B15.json|md` 63 条疑点用户逐条裁定（含 13 条直接在 md 上改写）→ implemented。
 - 实现：`crates/engines/sanguosha2/src/skills/b15.rs`（19 技能：天义/酣战/肉林/崩坏/酒池/暴虐/屯田/凿险/巨象/烈刃/长标/挑衅/志继/帷幕/乱武/完杀/好施/缔盟/巧变）。

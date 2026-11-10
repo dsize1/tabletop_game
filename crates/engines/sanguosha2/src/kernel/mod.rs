@@ -341,6 +341,18 @@ pub struct Game {
     /// 本动作内各座位「因弃置进入弃牌堆的牌」（界固政：单次弃置 ≥2 张）。
     #[serde(default)]
     pub discard_batch: BTreeMap<usize, Vec<CardId>>,
+    /// 本动作内各座位「离开手牌/装备区的牌」（旋风：一次性失去 ≥2 张）。
+    #[serde(default)]
+    pub lost_batch: BTreeMap<usize, Vec<CardId>>,
+    /// 本动作内失去的装备区牌 `(座位, 牌)`（旋风：失去装备区里的牌后）。
+    #[serde(default)]
+    pub equip_lost_batch: Vec<(usize, CardId)>,
+    /// 本动作内「获得」来源记录 `(来源座位, 获得者, 牌)`（恩怨：单次获得 ≥2 张）。
+    #[serde(default)]
+    pub gain_batch: Vec<(usize, usize, CardId)>,
+    /// 本动作内的技能去重标记（`begin_action` 清空）。
+    #[serde(default)]
+    pub action_seen: BTreeSet<String>,
     /// 连营待询问：`(座位, X)`（栈空后消费）。
     #[serde(default)]
     pub lianying_pending: Option<(usize, usize)>,
@@ -419,6 +431,10 @@ impl Game {
             fenwei_void: BTreeSet::new(),
             hand_loss_batch: BTreeMap::new(),
             discard_batch: BTreeMap::new(),
+            lost_batch: BTreeMap::new(),
+            equip_lost_batch: Vec::new(),
+            gain_batch: Vec::new(),
+            action_seen: BTreeSet::new(),
             lianying_pending: None,
             void_return: Vec::new(),
             judge_rewrite: None,
@@ -629,6 +645,13 @@ impl Game {
                 Zone::Hand(s) | Zone::Equip(s, _) => s,
                 _ => 0,
             };
+            self.lost_batch
+                .entry(owner)
+                .or_default()
+                .push(id.clone());
+            if matches!(from, Zone::Equip(_, _)) {
+                self.equip_lost_batch.push((owner, id.clone()));
+            }
             self.events.push(Event::card(
                 event::EventKind::CardLost,
                 Some(owner),
@@ -643,6 +666,10 @@ impl Game {
     pub fn begin_action(&mut self) {
         self.hand_loss_batch.clear();
         self.discard_batch.clear();
+        self.lost_batch.clear();
+        self.equip_lost_batch.clear();
+        self.gain_batch.clear();
+        self.action_seen.clear();
     }
 
     /// 弃置：进入弃牌堆 + `CardDiscarded`（原因透传）。
@@ -725,7 +752,17 @@ impl Game {
             Some(Zone::Judge(s)) => Some(s),
             _ => None,
         };
+        let from_seat = match self.zone.get(id) {
+            Some(Zone::Hand(s)) | Some(Zone::Equip(s, _)) | Some(Zone::Judge(s))
+            | Some(Zone::Mark(s, _)) => Some(*s),
+            _ => None,
+        };
         self.move_card(id, Zone::Hand(seat))?;
+        if let Some(src) = from_seat {
+            if src != seat {
+                self.gain_batch.push((src, seat, id.clone()));
+            }
+        }
         if let Some(s) = from_judge {
             // 判定区移出：不算弃置，只发 `JudgeZoneLeft`。
             self.judge_order.retain(|(_, c)| c != id);
@@ -1191,6 +1228,9 @@ impl Game {
 
     /// 座位距离（按座位环，取顺/逆较小值；马匹等修正在此扩展）。
     pub fn distance(&self, a: usize, b: usize) -> usize {
+        if crate::skills::target_no_distance(self, a, b) {
+            return 1;
+        }
         let base = self.distance_raw(a, b) as i32;
         let delta = crate::skills::distance_delta(self, a);
         (base + delta).max(1) as usize
@@ -1266,7 +1306,7 @@ impl Game {
         if self.counter(&format!("mingjian:{seat}")) >= 2 {
             n += 1;
         }
-        n
+        n.saturating_sub(crate::skills::sha_limit_penalty(self, seat))
     }
 
     /// 手牌上限（体力值 + 决堰防具栏… + 「权」）。

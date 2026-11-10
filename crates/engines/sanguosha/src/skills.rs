@@ -1943,7 +1943,7 @@ pub fn skills_of(general: &str) -> &'static [SkillDef] {
     }];
     const JIE_JIANYONG: &[SkillDef] = &[
         SkillDef {
-            code: "zongshi",
+            code: "zongshi_jie",
             name: "纵适",
             kind: SkillType::Normal,
             implemented: true,

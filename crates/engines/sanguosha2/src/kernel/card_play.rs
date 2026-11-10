@@ -100,6 +100,10 @@ fn plan_use(
     if def.tags.wuxie {
         return Err("【无懈可击】只能用于响应".into());
     }
+    // 巧说没赢（界简雍）：本回合不能使用锦囊牌（含延时锦囊）。
+    if def.kind == CardKind::Trick && crate::skills::trick_blocked(g, seat) {
+        return Err("巧说没赢：本回合不能使用锦囊牌".into());
+    }
     if (def.kind == CardKind::Equip || def.tags.delayed) && carrier.is_none() {
         return Err("该牌需要实体牌承载".into());
     }
@@ -221,6 +225,21 @@ pub fn legal_uses(g: &Game, seat: usize) -> Vec<(String, String)> {
                 out.push((
                     format!("use:{id}{suffix}"),
                     format!("使用【{}】", g.card_label(&id)),
+                ));
+            }
+        }
+        // 巧说（-1）：群体锦囊少指定一个目标。
+        if matches!(def.tags.target_mode, Some(cards::TargetMode::AllAlive))
+            && crate::skills::can_trim_targets(g, seat)
+        {
+            for t in alive.iter().copied() {
+                out.push((
+                    format!("trim:{id}:{t}"),
+                    format!(
+                        "【{}】少指定一个目标（不指定 {}）",
+                        g.card_label(&id),
+                        g.seats[t].name
+                    ),
                 ));
             }
         }
@@ -369,6 +388,10 @@ fn planned_targets(
             Ok(vec![seat])
         }
         Effect::Jiu => {
+            // 禁酒（界高顺）：高顺自己不能把【酒】当【酒】；其他角色不能在其回合使用【酒】。
+            if crate::skills::jiu_blocked(g, seat) {
+                return Err("禁酒：本回合不能使用【酒】".into());
+            }
             if g.counter(&format!("turn.jiu_used:{seat}")) > 0
                 && !crate::skills::jiu_unlimited(g, seat)
             {
@@ -388,6 +411,10 @@ fn planned_targets(
         Effect::PeachGarden | Effect::Harvest => {
             let mut v = vec![seat];
             v.extend(left_alive);
+            // 巧说（少指定一个目标）：群体锦囊可裁掉一个目标。
+            if let Some(t) = skills::aoe_trim_target(g, seat) {
+                v.retain(|x| *x != t);
+            }
             Ok(v)
         }
         Effect::SavageAssault | Effect::ArcheryAttack => {
@@ -409,13 +436,21 @@ fn planned_targets(
                 let Some(card) = carrier else {
                     return Err("【杀】需要实体牌承载".into());
                 };
-                // 多指定目标时「无距离限制」（福绵②）；界武圣的方片【杀】也无距离。
-                let no_dist = extra > 0 || crate::skills::sha_no_distance(g, seat, card);
+                // 多指定目标时「无距离限制」（福绵②/天义）；界武圣的方片【杀】也无距离。
+                let no_dist = skills::extra_targets_no_distance(g, seat, carrier, name)
+                    || crate::skills::sha_no_distance(g, seat, card);
                 if !no_dist && !g.can_reach(seat, many[0], card) {
                     return Err("目标不在攻击范围内".into());
                 }
-                if g.sha_used(seat) >= g.sha_limit(seat) {
+                if !crate::skills::sha_limit_exempt(g, seat, &many)
+                    && g.sha_used(seat) >= g.sha_limit(seat)
+                {
                     return Err("本阶段【杀】使用次数已用完".into());
+                }
+                for t in &many {
+                    if crate::skills::sha_blocked_for(g, seat, *t) {
+                        return Err("陷阵没赢：本回合不能对其使用【杀】".into());
+                    }
                 }
             }
             Ok(many)
@@ -910,6 +945,10 @@ fn sha_effect(
         return Ok(step);
     }
     finish(g, card, "use")?;
+    // 一张【杀】结算结束（疠火「此牌结算后」等）。
+    if let Some(card) = card {
+        crate::skills::on_card_finished(g, source, card);
+    }
     Ok(Step::Done)
 }
 

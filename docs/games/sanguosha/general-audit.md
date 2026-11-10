@@ -149,7 +149,7 @@
 | B17 | jiexian | 界凌统 | `sgs_hero_588` | 旋风(`xuanfeng`/normal) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B17 --seed 20261105` | |
 | B17 | jiexian | 界陈宫 | `sgs_hero_597` | 智迟(`zhichi`/locked)、明策(`mingce`/normal) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B17 --seed 20261105` | |
 | B17 | jiexian | 界曹彰 | `sgs_hero_599` | 将驰(`jiangchi`/normal) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B17 --seed 20261105` | |
-| B17 | jiexian | 界简雍 | `sgs_hero_600` | 纵适(`zongshi`/normal)、巧说(`qiaoshuo`/normal) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B17 --seed 20261105` | |
+| B17 | jiexian | 界简雍 | `sgs_hero_600` | 纵适(`zongshi_jie`/normal)、巧说(`qiaoshuo`/normal) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B17 --seed 20261105` | |
 | B17 | jiexian | 界虞翻 | `sgs_hero_603` | 纵玄(`zongxuan`/normal)、直言(`zhiyan`/normal) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B17 --seed 20261105` | |
 | B17 | jiexian | 界高顺 | `sgs_hero_604` | 陷阵(`xianzhen`/normal)、禁酒(`jinjiu`/locked) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B17 --seed 20261105` | |
 | B17 | jiexian | 界法正 | `sgs_hero_610` | 眩惑(`xuanhuo`/normal)、恩怨(`enyuan`/normal) | ≥3（已过门禁） | 待确认 | 见 evidence | 未验证 | - | `--batch B17 --seed 20261105` | |

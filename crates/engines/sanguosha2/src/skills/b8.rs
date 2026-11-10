@@ -1851,6 +1851,9 @@ pub fn pindian_take(g: &mut Game, seat: usize, option: &str) -> Result<Option<Ca
 }
 
 pub fn pindian_rank(g: &Game, seat: usize, card: &CardId) -> u8 {
+    if let Some(rank) = super::effective_rank(g, seat, card) {
+        return rank;
+    }
     let rank = g.cards.get(card).map(|c| c.rank).unwrap_or(0);
     if active(g, seat, "tianbian")
         && g.cards

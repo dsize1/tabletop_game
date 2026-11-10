@@ -239,7 +239,7 @@ impl EnginePlugin for Sanguosha2Engine {
         } else if let Some(rest) = action.strip_prefix("convert:") {
             // 被动转化技：`convert:<skill>:<承载牌>:<生效牌名>[:目标]`
             let mut parts = rest.split(':');
-            let _skill = parts.next().unwrap_or_default();
+            let skill = parts.next().unwrap_or_default().to_string();
             let id = parts
                 .next()
                 .filter(|s| !s.is_empty())
@@ -258,9 +258,31 @@ impl EnginePlugin for Sanguosha2Engine {
                         .collect()
                 })
                 .unwrap_or_default();
+            crate::skills::on_conversion_used(&mut g, seat, &skill, &id, &name);
             g.use_as(seat, &id, &name, targets, true, None)
                 .map_err(EngineError::IllegalAction)?;
             format!("【{}】当【{}】使用", g.name_of(&id), name)
+        } else if let Some(rest) = action.strip_prefix("trim:") {
+            // 巧说（-1）：`trim:<牌>:<不指定的目标>`
+            let mut parts = rest.split(':');
+            let id = parts
+                .next()
+                .filter(|s| !s.is_empty())
+                .ok_or_else(|| EngineError::IllegalAction("缺少牌".into()))?
+                .to_string();
+            let excluded: usize = parts
+                .next()
+                .and_then(|s| s.parse().ok())
+                .ok_or_else(|| EngineError::IllegalAction("缺少排除目标".into()))?;
+            if !crate::skills::can_trim_targets(&g, seat) {
+                return Err(EngineError::IllegalAction("当前不能少指定目标".into()));
+            }
+            g.counters
+                .insert("turn.aoe_trim".to_string(), (excluded + 1) as u32);
+            crate::skills::consume_extra_targets(&mut g, seat);
+            g.resolve_use(seat, &id, Vec::new())
+                .map_err(EngineError::IllegalAction)?;
+            format!("使用【{}】（少指定一个目标）", g.name_of(&id))
         } else if let Some(id) = action.strip_prefix("recast:") {
             let id = id.to_string();
             card_play::resolve_recast(&mut g, seat, &id).map_err(EngineError::IllegalAction)?;

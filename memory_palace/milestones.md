@@ -2,6 +2,19 @@
 
 > 记录项目关键节点与验证结果，按时间倒序。重大技术决策见 `decisions/`。
 
+## M89：B17 界标·J5 十四技能落地（v2 迁移批次第 10 批）✅
+
+- **日期**：2026-11-10
+- **对齐**：`align/B17.json` 71 条疑点裁定（旋风单动作失去、智迟不能成为目标、明策含装备区、将驰重铸含装备区、
+  纵适 code 解耦 `zongshi_jie`、巧说无次数限制与 ±1、纵玄上家分支、直言 reveal/lose_hp、陷阵赢/没赢口径、
+  禁酒点数 K、眩惑界版重做、恩怨单次获得 ≥2、疠火结算后代价、醇醪 X 张「醇」）→ implemented。
+- **实现**：`skills/b17.rs` 14 技能（界凌统/界陈宫/界曹彰/界简雍/界虞翻/界高顺/界法正/界程普）。
+- **内核增量**：单动作失去/获得批次与去重（`lost_batch`/`equip_lost_batch`/`gain_batch`/`action_seen`）、
+  `turn.damage_card`、巧说 `trim:` 入口、`extra_targets_no_distance` 拆分、陷阵目标级距离/次数/禁用钩子、
+  将驰次数双向修正、禁酒 `jiu_blocked`/`effective_rank`、纵适 code 解耦（v1 同步改名）。
+- **度量**：`cargo test -p sanguosha2` **616** 条（585 + 31）全绿；`check:sgs2` 全绿（注册 256 / 对齐单 249 /
+  B0–B17 一致，AI 10/10、parity 无差异）；`sgs:check:fast` 全绿。
+
 ## M88：B16 界标·J4 十四技能落地（v2 迁移批次第 9 批）✅
 
 - **日期**：2026-11-09

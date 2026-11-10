@@ -201,14 +201,14 @@ fn damage_now_impl(
             });
     // 装备数值链（顺序固定）：技能加成 → 藤甲（火伤 +1）→ 白银狮子（最后，>1 改为 1）。
     if !ignore_armor
-        && !armor_ignored(g, source, def)
+        && !armor_ignored(g, source, victim, def)
         && g.armor(victim) == crate::cards::ArmorKind::Tengjia
         && dtype == crate::cards::DamageKind::Fire
     {
         amount += 1;
     }
     if !ignore_armor
-        && !armor_ignored(g, source, def)
+        && !armor_ignored(g, source, victim, def)
         && g.armor(victim) == crate::cards::ArmorKind::Baiyin
         && amount > 1
     {
@@ -216,6 +216,10 @@ fn damage_now_impl(
     }
     // 狞恶（界典韦）：「每回合第二次受到伤害」按受害者计数。
     g.bump(&format!("turn.damage_taken:{victim}"));
+    // 「此牌造成过伤害」（疠火「此牌结算后，若其造成伤害」；结算完成时读取）。
+    if let Some(card) = card {
+        g.bump(&format!("turn.damage_card:{card}"));
+    }
     if let Some(s) = source {
         g.bump(&format!("turn.damage_by:{s}"));
         // 咆哮：本次【杀】已消费「下一次伤害 +1」。
@@ -274,11 +278,16 @@ fn damage_now_impl(
 fn armor_ignored(
     g: &Game,
     source: Option<usize>,
+    victim: usize,
     def: Option<&crate::cards::CardDef>,
 ) -> bool {
     let Some(def) = def else { return false };
     if !def.tags.sha {
         return false;
+    }
+    // 陷阵（界高顺，赢）：无视被拼点目标的防具。
+    if source.is_some_and(|s| crate::skills::armor_ignored_by_skill(g, s, victim)) {
+        return true;
     }
     source
         .map(|s| g.weapon(s) == crate::cards::WeaponKind::Qinggang)
@@ -299,7 +308,7 @@ fn armor_prevents(
         return false;
     }
     let armor = g.armor(victim);
-    if armor == crate::cards::ArmorKind::None || armor_ignored(g, source, Some(def)) {
+    if armor == crate::cards::ArmorKind::None || armor_ignored(g, source, victim, Some(def)) {
         return false;
     }
     match armor {
@@ -502,9 +511,11 @@ pub fn step_dying(g: &mut Game, a: &Ask) -> Result<Step, String> {
         b = b.option("xingshuai", "发动兴衰（其他魏势力角色施救）");
     }
     let peach_blocked = crate::skills::dying_peach_blocked(g, asker, victim);
+    // 禁酒（界高顺）：其回合内其他角色（含自己）不能使用【酒】。
+    let jiu_blocked = crate::skills::jiu_blocked(g, asker);
     for id in g.hand(asker) {
         let tags = g.def_of(&id).tags;
-        let usable = (tags.tao && !peach_blocked) || (tags.jiu && asker == victim);
+        let usable = (tags.tao && !peach_blocked) || (tags.jiu && asker == victim && !jiu_blocked);
         if usable {
             has = true;
             b = b.option(
@@ -513,8 +524,8 @@ pub fn step_dying(g: &mut Game, a: &Ask) -> Result<Step, String> {
             );
         }
     }
-    // 界酒池（界董卓）：黑桃手牌当【酒】自救（仅濒死者本人）。
-    if asker == victim {
+    // 界酒池（界董卓）：黑桃手牌当【酒】自救（仅濒死者本人；禁酒生效时不提供）。
+    if asker == victim && !jiu_blocked {
         for id in crate::skills::dying_self_jiu(g, asker) {
             if g.def_of(&id).tags.jiu || g.def_of(&id).tags.tao {
                 continue;

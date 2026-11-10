@@ -246,3 +246,20 @@
 | 兵粮距离 | `skills::supply_shortage_no_distance` | 【兵粮寸断】距离 1；奇才/慎断/界断粮（未造成伤害）例外。 |
 | 无视防具伤害 | `flow::damage_now_no_armor` | 驱虎：伤害不被防具减免/防止。 |
 | 回合末归还 | `Game.void_return` + `skills::return_void_cards` | 破军（`due = 当前 turn_seq`，回合切换即归还）；谦逊同口径。 |
+
+## 20. B17 跨批机制（2026-11-10）
+
+| 机制 | 入口 | 说明 |
+|---|---|---|
+| 单动作失去批次 | `Game.move_card` 追加 / `begin_action` 清空 → `lost_batch` | 旋风「一次性失去 ≥2 张」（含被获得/移出/置于武将牌上）。 |
+| 单动作失去装备 | `Game.move_card` → `equip_lost_batch` | 旋风「失去装备区里的牌后」（不与枭姬同步压帧，改由 `CardLost` 事件处理）。 |
+| 单动作获得批次 | `Game.gain` 追加 → `gain_batch` | 恩怨「单次获得一名其他角色 ≥2 张牌」。 |
+| 单动作技能去重 | `Game.action_seen`（`begin_action` 清空） | 一个动作内多个同类事件只触发一次（旋风/纵玄/恩怨）。 |
+| 此牌造成伤害 | `flow::damage_now_impl` → `turn.damage_card:<card>` | 疠火「此牌结算后，若其造成伤害」（结算完成时同步读取，不依赖 `DamageAfter` 事件排队）。 |
+| 少指定目标（-1） | `legal_uses` 产出 `trim:<牌>:<目标>` → `lib.rs` 设 `turn.aoe_trim` → `planned_targets` 裁剪 | 巧说：群体锦囊（南蛮/万箭/桃园/五谷）少指定一个目标。 |
+| 额外目标的距离语义 | `skills::extra_targets_no_distance` | 福绵②/天义的多目标含「无距离」；巧说/陷阵/疠火的多目标**不**自动获得无距离。 |
+| 目标级距离/次数/禁用 | `skills::target_no_distance`（`Game::distance`）/ `sha_limit_exempt` / `sha_blocked_for`（`planned_targets`） | 陷阵：赢 → 对目标无距离、【杀】不受次数；没赢 → 只对该角色禁用【杀】。 |
+| 次数修正双向 | `skills::sha_limit_bonus` / `sha_limit_penalty`（`Game::sha_limit`） | 将驰：②+1；①-1（与其它加成同层，可为 0）。 |
+| 无效=不能成为目标 | `target_blocker` + `skills::trick_blocked` | 智迟；巧说没赢的锦囊封锁（`plan_use` 拦截）。 |
+| 禁酒 | `skills::jiu_blocked` / `effective_rank` | 高顺【酒】→点数 K 的【杀】；其回合内其他角色不能用【酒】（出牌/濒死/技能视为使用统一拦截）。 |
+| 纵适 code | `zongshi_jie` | 与界刘表【宗室】`zongshi` 解耦（ADR-0024 同音撞车另起 code）；v1 同步改名以保持目录一致。 |

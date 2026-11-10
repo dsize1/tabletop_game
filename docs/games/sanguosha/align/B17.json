@@ -1,0 +1,1678 @@
+{
+  "batch": "B17",
+  "source": "界限突破·J5",
+  "status": "implemented",
+  "mechanics_version": 2,
+  "confirmed_by": "用户",
+  "confirmed_at": "2026-11-10",
+  "note": "机器文件（单一事实源）。人读请看同目录 <B>.md；改这里后运行 --sync 重生成 md。",
+  "generals": [
+    {
+      "gid": 588,
+      "code": "sgs_hero_588",
+      "name": "界凌统",
+      "skills": [
+        {
+          "code": "xuanfeng",
+          "name": "旋风",
+          "kind": "normal",
+          "status": "implemented",
+          "original": "当你失去装备区里的牌后，或一次性失去至少两张牌后，你可以依次弃置至多两名其他角色共计至多两张牌。",
+          "original_source": "heroes.json#gid=588",
+          "mechanics_version": 2,
+          "current": [
+            "v2：`CardLost` + `Window::AnyTime` 触发（失去的手牌/装备区牌为凌统本人）：①失去的牌原本在装备区（`equip_lost_batch`）→ 触发；②本动作 `lost_batch[seat].len() >= 2`（单次动作失去 ≥2 张，含被获得/移出游戏/置于武将牌上）→ 触发。",
+            "同一动作只触发一次（`action_seen` 去重），每回合无次数限制（用户裁定 Q5=A）。",
+            "结算：先选至多 2 个目标（可重复选同一名角色；选项 id `target:<seat>`，可 `confirm` 提前结束或 `pass` 放弃）；随后选择 1 名角色 → 该角色弃 2 张，选择 2 名 → 各弃 1 张。",
+            "弃置哪张牌由引擎随机（先随机手牌，无手牌再取装备区第一张），走 `Game::to_discard`（触发弃置类技能）。"
+          ],
+          "confidence": "verified",
+          "diff": [
+            "界版「一次性失去至少两张牌」在 v1 用「本回合累计弃置 2 张」近似，语义偏宽（同一回合分两次弃置也会触发）。",
+            "v1 不约束「至多两名其他角色」：可以连续两次选同一名角色（从其弃置 2 张），与文本「至多两名其他角色」不符。",
+            "被弃置的牌由引擎随机取，不是由凌统选择。",
+            "「失去」只覆盖弃置路径（`note_discard_tracking` 只挂在弃置入口）；被获得、移出游戏、置于武将牌上都不触发。",
+            "v1 标准凌统与界凌统共用该实现（弃牌阶段 ≥2 张条款对界版也生效）。"
+          ],
+          "questions": [
+            {
+              "id": "Q1",
+              "ask": "「一次性失去至少两张牌」的判定粒度？",
+              "options": {
+                "A": "单次动作：一次弃置/失去动作 ≥2 张（v2 用 `discard_batch` 计数）",
+                "B": "本回合累计 ≥2 张（v1 口径）",
+                "C": "本阶段累计 ≥2 张"
+              },
+              "lean": "A",
+              "why": "「一次性」应指同一时点；v2 已有 `discard_batch` 可精确表达。",
+              "impact": "触发入口 + 用例（新机制锚点）。",
+              "answer": "A"
+            },
+            {
+              "id": "Q2",
+              "ask": "「失去」是否包含非弃置路径（被获得 / 移出游戏 / 置于武将牌上）？",
+              "options": {
+                "A": "包含：按牌区差分（`card_lost`）判定任何离开你区域的移动",
+                "B": "只算弃置（v1 口径）"
+              },
+              "lean": "A",
+              "why": "文本是「失去」不是「弃置」；mechanics lose-vs-discard 明确两者不同。",
+              "impact": "触发事件 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q3",
+              "ask": "「你可以依次弃置至多两名其他角色共计至多两张牌」由谁选牌？",
+              "options": {
+                "A": "由凌统依次选目标并选牌（每名角色选一张）",
+                "B": "目标随机（v1 口径）"
+              },
+              "lean": "A",
+              "why": "「你可以……弃置」应体现选择；随机弃置会让技能收益不可控。",
+              "impact": "交互 + 用例。",
+              "answer": "A 先选至多2名目标，再逐个弃之随机手牌或者装备区，如果第一位弃置2张，后一位直接跳过；如果仅选择了1位目标，直接随机弃置2牌"
+            },
+            {
+              "id": "Q4",
+              "ask": "是否允许对同一名其他角色连弃两张？",
+              "options": {
+                "A": "不允许：至多两名**不同**角色，各一张",
+                "B": "允许：共两张，角色数 ≤2（可同一人两张）"
+              },
+              "lean": "A",
+              "why": "文本「至多两名其他角色……共计至多两张牌」按标准凌统「各一张」理解。",
+              "impact": "目标枚举 + 用例。",
+              "answer": "B, 交互已在Q3说明"
+            },
+            {
+              "id": "Q5",
+              "ask": "每回合触发次数？",
+              "options": {
+                "A": "无次数限制：每次满足条件都可发动（文本无「限一次」）",
+                "B": "每回合限一次（v1 `xuanfeng:<owner>`）"
+              },
+              "lean": "A",
+              "why": "原文无「限一次」；「失去装备 + 一次性失去≥2」可能在同一回合各触发一次。",
+              "impact": "计数 + 用例。",
+              "answer": "A，无论回合外/内都可以无次数限制发动"
+            }
+          ],
+          "mechanics": [
+            "lose-vs-discard",
+            "discard-contract",
+            "turn-window",
+            "wording-can"
+          ],
+          "terms": {},
+          "ui": {
+            "prompt": "旋风：选择至多两名其他角色，依次弃置其随机牌",
+            "overlay": "依次选目标（可重复选同一名）；弃置的牌由引擎随机选择",
+            "fx": "discard_flash",
+            "reveal": "无",
+            "qq": "播报弃置目标与牌数"
+          },
+          "agreed": "当你失去装备区里的牌后，或一次性失去至少两张牌后（按单次动作判定：一次动作失去 ≥2 张，含被获得/移出游戏/置于武将牌上），你可以依次弃置至多两名其他角色共计至多两张牌。可对同一名角色连续选择（共两张、角色数 ≤2）；若只选择 1 名角色，则该角色弃置 2 张。由凌统选择目标，弃置哪张牌由引擎随机（先随机手牌，无手牌再取装备区第一张）；每回合可多次发动（无「限一次」）。",
+          "assertions": {
+            "positive": [
+              "单次动作失去 ≥2 张牌触发；失去装备区牌触发",
+              "可选同一名角色两次（共弃 2 张）；只选 1 名角色则弃 2 张"
+            ],
+            "negative": [
+              "同一回合分两次各失去 1 张不触发",
+              "没有可弃牌的目标时不触发"
+            ]
+          },
+          "impl": "sanguosha2::skills::b17::XUANFENG + kernel::mod::lost_batch/equip_lost_batch/action_seen",
+          "tests": [
+            "b17::xuanfeng_triggers_on_two_cards_lost_in_one_action",
+            "b17::xuanfeng_ignores_single_card_loss_and_lost_equip_triggers"
+          ]
+        }
+      ]
+    },
+    {
+      "gid": 597,
+      "code": "sgs_hero_597",
+      "name": "界陈宫",
+      "skills": [
+        {
+          "code": "zhichi",
+          "name": "智迟",
+          "kind": "locked",
+          "status": "implemented",
+          "original": "锁定技，当你于回合外受到伤害后，本回合【杀】和普通锦囊牌对你无效。",
+          "original_source": "heroes.json#gid=597",
+          "mechanics_version": 2,
+          "current": [
+            "v2：`DamageAfter` + `Window::AnyTime`；受伤者为陈宫、当前回合不是其本人、体力 > 0（濒死救起后）时置 `turn.zhichi:<seat>`。",
+            "`target_blocker`：本回合内【杀】（含火/雷）与**普通锦囊**（`CardKind::Trick && !delayed && !wuxie`，按牌类别属性）不能以陈宫为目标（目标枚举阶段裁剪）。",
+            "延时锦囊、装备牌不受影响；计数器随回合切换清空（下一回合开始清除）。",
+            "锁定技，无询问（`LOCKED_SKILLS` 登记，义绝/铁骑不使其失效）。"
+          ],
+          "confidence": "verified",
+          "diff": [
+            "v1 用固定牌名白名单判定「普通锦囊」（决斗/南蛮/万箭/无中/顺手/过河/铁索/五谷/桃园），不是按牌类别属性。",
+            "v1 只在伤害结算后、体力 > 0 时开启；同一次伤害导致濒死、救起后是否开启未处理。",
+            "v1 的「无效」在结算时生效（牌仍指定了陈宫、仍消耗牌），不是「不能成为目标」。",
+            "锁定技在 v1 无询问（正确），但日志/视图只给一行提示。"
+          ],
+          "questions": [
+            {
+              "id": "Q1",
+              "ask": "「【杀】和普通锦囊牌对你无效」的实现口径？",
+              "options": {
+                "A": "结算时无效：牌仍可指定陈宫，但对其不产生效果（v1 口径）",
+                "B": "不能成为目标：目标枚举阶段直接裁剪"
+              },
+              "lean": "A",
+              "why": "与 B15 的巨象/祸首不同，此处文本是「无效」不是「不能成为目标」。",
+              "impact": "目标枚举 vs 结算拦截 + 用例。",
+              "answer": "B"
+            },
+            {
+              "id": "Q2",
+              "ask": "「普通锦囊」的范围？",
+              "options": {
+                "A": "全部非延时锦囊（按牌类别属性判定，含火攻/借刀等）",
+                "B": "v1 白名单（决斗/南蛮/万箭/无中/顺手/过河/铁索/五谷/桃园）"
+              },
+              "lean": "A",
+              "why": "mechanics card-attributes 禁止按牌名枚举。「无懈可击」以牌为目标、不针对角色，天然不在此列。",
+              "impact": "判定入口 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q3",
+              "ask": "同一次伤害使陈宫进入濒死、救起后是否开启智迟？",
+              "options": {
+                "A": "开启（濒死结算结束后体力 > 0 即视为「受到伤害后」成立）",
+                "B": "不开启（v1 在伤害结算末尾判定，此时体力 ≤ 0）"
+              },
+              "lean": "A",
+              "why": "文本不排除濒死救起；v1 的时点会漏掉这种情形。",
+              "impact": "触发时点 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q4",
+              "ask": "「本回合」的结束边界？",
+              "options": {
+                "A": "当前回合结束（下一回合开始时清除）",
+                "B": "当前阶段结束"
+              },
+              "lean": "A",
+              "why": "文本为「本回合」；v1 用回合计数器，与 A 等价。",
+              "impact": "窗口 + 用例。",
+              "answer": "A"
+            }
+          ],
+          "mechanics": [
+            "damage-vs-hp-loss",
+            "card-attributes",
+            "turn-window"
+          ],
+          "terms": {},
+          "ui": {
+            "prompt": "智迟：本回合【杀】与普通锦囊对你无效（不能以你为目标）",
+            "overlay": "无（锁定自动）",
+            "fx": "immune_aura",
+            "reveal": "无",
+            "qq": "播报「智迟生效」"
+          },
+          "agreed": "锁定技，当你于回合外受到伤害后（含该伤害导致濒死、救起后体力 > 0 的情形），本回合【杀】和普通锦囊牌对你无效：这些牌不能以你为目标（目标枚举阶段直接裁剪）；「普通锦囊」按牌类别属性判定（全部非延时锦囊）；效果持续到当前回合结束（下一回合开始时清除）。",
+          "assertions": {
+            "positive": [
+              "回合外受伤后，【杀】不能以智迟持有者为目标",
+              "非延时锦囊不能以智迟持有者为目标"
+            ],
+            "negative": [
+              "自己的回合内受伤不开启",
+              "延时锦囊与装备仍可指定"
+            ]
+          },
+          "impl": "sanguosha2::skills::b17::ZHICHI（target_blocker）+ skills::trick_blocked 同源属性判定",
+          "tests": [
+            "b17::zhichi_blocks_sha_and_normal_tricks_outside_own_turn",
+            "b17::zhichi_not_triggered_in_own_turn"
+          ]
+        },
+        {
+          "code": "mingce",
+          "name": "明策",
+          "kind": "normal",
+          "status": "implemented",
+          "original": "出牌阶段限一次，你可以交给一名其他角色一张【杀】或装备牌，然后其选择一项：\n 1.视为对你选择的另一名角色使用一张【杀】，若造成伤害，执行另一项；\n 2.你与其各摸一张牌。",
+          "original_source": "heroes.json#gid=597",
+          "mechanics_version": 2,
+          "current": [
+            "v2：出牌阶段限一次（`phase.mingce_used`）；可交出的牌 = 手牌或装备区中的【杀】/装备牌（`mingce_pool`）。",
+            "流程：选牌 → 选一名其他角色 → `Game::gain` 交牌（装备区牌被交出会触发失去装备钩子）→ 目标二选一。",
+            "①视为对陈宫指定的另一名角色使用【杀】：该角色须在协助者攻击范围内（虚拟【杀】无属性/花色/点数，按正常【杀】结算，受【闪】响应）；若造成伤害，`DamageAfter` 消费 `turn.mingce_watch/helper` 标记 → 陈宫与其各摸 1 张。",
+            "②陈宫与其各摸 1 张；协助者没有合法【杀】目标时不提供①。"
+          ],
+          "confidence": "verified",
+          "diff": [
+            "v1 交牌只允许手牌，不接受装备区的【杀】/装备牌。",
+            "v1 的虚拟【杀】同时要求「协助者攻击范围内」且带 `no_distance: true`（无距离），与「视为使用【杀】」应受距离限制不一致。",
+            "「若造成伤害，执行另一项」在 v1 解释为「陈宫与其各摸 1 张」（与②等价），没有二次选择。",
+            "虚拟【杀】不可被【闪】以外的响应影响？v1 仍走正常【杀】响应窗口（可出【闪】、可被防具影响）。"
+          ],
+          "questions": [
+            {
+              "id": "Q1",
+              "ask": "「交给一名其他角色一张【杀】或装备牌」的来源？",
+              "options": {
+                "A": "仅手牌（v1 口径）",
+                "B": "手牌 + 装备区的【杀】/装备牌"
+              },
+              "lean": "A",
+              "why": "「交给」未写「区域」；V1 与标准明策一致。",
+              "impact": "交付候选 + 用例。",
+              "answer": "B"
+            },
+            {
+              "id": "Q2",
+              "ask": "①视为使用的【杀】是否受距离限制？",
+              "options": {
+                "A": "按协助者的攻击范围（应受距离限制）",
+                "B": "无距离（v1 `no_distance: true`）"
+              },
+              "lean": "A",
+              "why": "文本只说「视为使用一张【杀】」，未给无距离。",
+              "impact": "目标枚举 + 用例。",
+              "answer": "A，如果协助者的攻击范围内没有有效目标，不能对其发动"
+            },
+            {
+              "id": "Q3",
+              "ask": "①造成伤害后「执行另一项」的结算？",
+              "options": {
+                "A": "陈宫与其各摸 1 张（v1 口径，等价执行②）",
+                "B": "仅目标摸 1 张"
+              },
+              "lean": "A",
+              "why": "界版②本身就是「你与其各摸一张」，「执行另一项」= 执行②。",
+              "impact": "伤害后钩子 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q4",
+              "ask": "协助者没有合法【杀】目标时，是否仍提供①？",
+              "options": {
+                "A": "不提供①，目标只能选②（v1 口径）",
+                "B": "提供①，选不到目标则作废"
+              },
+              "lean": "A",
+              "why": "避免死锁；与 v1 一致。",
+              "impact": "选项枚举 + 反例。",
+              "answer": "A（不提供①，只能选②）——用户补充：虚拟【杀】不需要手牌，无属性/无花色/无点数"
+            },
+            {
+              "id": "Q5",
+              "ask": "虚拟【杀】的伤害来源？",
+              "options": {
+                "A": "协助者（使用【杀】的角色）",
+                "B": "陈宫"
+              },
+              "lean": "A",
+              "why": "伤害来源应跟随使用【杀】的角色；v1 的 `ShaFrame.user = helper` 与此一致。",
+              "impact": "伤害来源 + 用例。",
+              "answer": "A"
+            }
+          ],
+          "mechanics": [
+            "virtual-card",
+            "turn-window",
+            "use-vs-play",
+            "response-cards"
+          ],
+          "terms": {},
+          "ui": {
+            "prompt": "明策：交给一名其他角色一张【杀】或装备牌",
+            "overlay": "先选牌 → 选交牌对象 → 目标二选一（视为出【杀】/各摸一张）",
+            "fx": "card_handover",
+            "reveal": "交付的牌对双方可见",
+            "qq": "播报交牌与目标选择"
+          },
+          "agreed": "出牌阶段限一次，你可以交给一名其他角色一张【杀】或装备牌（来源为手牌或装备区）；然后其选择一项：1. 视为对你指定的另一名角色使用一张【杀】（该角色须在协助者攻击范围内；虚拟【杀】无属性/花色/点数，按正常【杀】结算），若此法造成伤害，你与其各摸一张牌；2. 你与其各摸一张牌。若协助者攻击范围内没有合法目标，则不提供选项 1。",
+          "assertions": {
+            "positive": [
+              "交牌（手牌或装备区）后目标可选①视为出【杀】；伤害后各摸 1",
+              "目标可选②，陈宫与其各摸 1"
+            ],
+            "negative": [
+              "协助者攻击范围内无合法目标时不提供①",
+              "不是【杀】/装备牌不能交"
+            ]
+          },
+          "impl": "sanguosha2::skills::b17::MINGCE + Game::use_virtual + DamageAfter（mingce_watch）",
+          "tests": [
+            "b17::mingce_gives_card_and_helper_chooses_draw",
+            "b17::mingce_virtual_sha_damage_draws_for_both",
+            "b17::mingce_requires_sha_or_equip_in_hand"
+          ]
+        }
+      ]
+    },
+    {
+      "gid": 599,
+      "code": "sgs_hero_599",
+      "name": "界曹彰",
+      "skills": [
+        {
+          "code": "jiangchi",
+          "name": "将驰",
+          "kind": "normal",
+          "status": "implemented",
+          "original": "摸牌阶段结束时，你可以选择一项：\n 1.摸一张牌，你本回合使用【杀】的次数-1，且【杀】不计入手牌上限；\n 2.重铸一张牌，且本回合使用【杀】的次数+1，【杀】无距离限制。",
+          "original_source": "heroes.json#gid=599",
+          "mechanics_version": 2,
+          "current": [
+            "v2：`skills::after_draw_phase` 询问（`turn.jiangchi_offered` 每回合一次），选项①/②/放弃。",
+            "①摸 1 张；`turn.jiangchi_penalty` 使 `Game::sha_limit` 减 1（与其它加成同层相加、可为 0）；`turn.jiangchi_sha_free` 让手牌中的【杀】不计入手牌上限（`hand_limit_delta`）。",
+            "②从手牌或装备区选 1 张重铸：`to_discard`（计入弃置）→ 摸 1 张；`turn.jiangchi_bonus` 使【杀】次数 +1；`turn.jiangchi_no_distance` 只令【杀】无距离（`skills::sha_no_distance`）。"
+          ],
+          "confidence": "verified",
+          "diff": [
+            "②「重铸一张牌」v1 只从手牌选，未含装备区。",
+            "①的「次数 -1」实际会把 `sha_limit` 从 1 减到 0（基础 1 张也不能用），与「仍可使用、只是次数 -1」的意图有落差（除非另有 +X 或连弩）。",
+            "v1 的 `jiangchi_no_distance` 对**所有牌**生效（文本限定【杀】）。",
+            "「不计入手牌上限」只按手牌中的实体【杀】计数，不含转化牌。"
+          ],
+          "questions": [
+            {
+              "id": "Q1",
+              "ask": "②「重铸一张牌」的牌来源？",
+              "options": {
+                "A": "手牌 + 装备区",
+                "B": "仅手牌（v1 口径）"
+              },
+              "lean": "B",
+              "why": "三国杀「重铸」通常指手牌（如铁索连环），且 v1/标准一致。",
+              "impact": "候选集合 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q2",
+              "ask": "①「【杀】次数 -1」与其它次数加成如何叠加？",
+              "options": {
+                "A": "与 +X 同层相加（基础 1 + 加成 - 1，可为 0）",
+                "B": "只作用于本回合基础次数（不与其他 +X 同层）"
+              },
+              "lean": "A",
+              "why": "mechanics sha-limit 要求统一走 `Game::sha_limit` 的回合计数。",
+              "impact": "次数计算 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q3",
+              "ask": "②的重铸是否算「弃置」？",
+              "options": {
+                "A": "算：走统一弃置入口，触发弃置类技能（旋风/屯田/纵玄等）",
+                "B": "不算：重铸只弃不打触发"
+              },
+              "lean": "A",
+              "why": "v1 走 `discard_by`；官方重铸同样会触发「因弃置」。",
+              "impact": "弃置事件 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q4",
+              "ask": "②的「【杀】无距离限制」是否只作用于【杀】？",
+              "options": {
+                "A": "只作用于【杀】（文本限定）",
+                "B": "本回合所有牌无距离（v1 全局开关）"
+              },
+              "lean": "A",
+              "why": "文本明确「【杀】无距离限制」。",
+              "impact": "距离入口 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q5",
+              "ask": "①的「【杀】不计入手牌上限」如何判定？",
+              "options": {
+                "A": "手牌中牌定义为【杀/火杀/雷杀】即不计（v1 口径）",
+                "B": "转化后的【杀】也不计（按生效定义）"
+              },
+              "lean": "A",
+              "why": "与既有手牌上限豁免口径一致（按牌属性判 def）。",
+              "impact": "手牌上限 + 用例。",
+              "answer": "A"
+            }
+          ],
+          "mechanics": [
+            "hand-limit",
+            "sha-limit",
+            "lose-vs-discard",
+            "distance-modifier"
+          ],
+          "terms": {},
+          "ui": {
+            "prompt": "将驰：摸牌阶段结束二选一（摸牌并减【杀】次数 / 重铸并加次数且无距离）",
+            "overlay": "二选一 + 重铸选牌",
+            "fx": "phase_choice",
+            "reveal": "无",
+            "qq": "播报选择项"
+          },
+          "agreed": "摸牌阶段结束时，你可以选择一项：1. 摸一张牌，本回合使用【杀】的次数 -1（与其它次数加成同层相加，可为 0），且【杀】不计入手牌上限（按手牌中的牌属性判定）；2. 重铸一张牌（手牌或装备区，弃置后摸一张，计入弃置），本回合使用【杀】的次数 +1 且你使用的【杀】无距离限制。",
+          "assertions": {
+            "positive": [
+              "①摸 1、本回合【杀】次数 -1、杀不计手牌上限",
+              "②重铸（弃 1 摸 1）、次数 +1、【杀】无距离"
+            ],
+            "negative": [
+              "未发动时次数与距离不变",
+              "②弃置的牌计入弃置事件"
+            ]
+          },
+          "impl": "sanguosha2::skills::b17::JIANGCHI + skills::after_draw_phase + sha_limit_penalty/sha_limit_bonus/hand_limit_delta/sha_no_distance",
+          "tests": [
+            "b17::jiangchi_option1_penalty_and_hand_limit",
+            "b17::jiangchi_option2_recast_and_no_distance"
+          ]
+        }
+      ]
+    },
+    {
+      "gid": 600,
+      "code": "sgs_hero_600",
+      "name": "界简雍",
+      "skills": [
+        {
+          "code": "zongshi_jie",
+          "name": "纵适",
+          "kind": "normal",
+          "status": "implemented",
+          "original": "当你拼点赢时，你可以获得点数较小的拼点牌；当你拼点没赢时，你可以获得你的拼点牌。",
+          "original_source": "heroes.json#gid=600",
+          "mechanics_version": 2,
+          "current": [
+            "v2：技能 code = `zongshi_jie`（与界刘表【宗室】`zongshi` 解耦；v1 因 code 撞车导致纵适不触发 + 误吃宗室手牌上限，已修）。",
+            "拼点结算后由 `skills::pindian_after` → `b17::pindian_after` 为每个拥有者压入询问：赢 → 可获得点数较小的拼点牌（赢时即对方的牌）；没赢（含平手）→ 可获得自己的拼点牌。",
+            "比较用 `skills::pindian_rank`（有效点数）；牌此时已在弃牌堆，发动后经 `Game::gain` 取回（CardGained）。",
+            "询问带放弃出口（wording-can）。"
+          ],
+          "confidence": "verified",
+          "diff": [
+            "v1 界简雍纵适因 code 撞车完全不触发（且误吃宗室手牌上限），属于 v1 缺陷。",
+            "v1 结算为自动获得，不提供「可以」询问。",
+            "v1 取回拼点牌不走统一「获得」入口（不产生 CardGained）。",
+            "标准简雍（`zongshi2`）与界简雍文本相同，可复用同一实现。"
+          ],
+          "questions": [
+            {
+              "id": "Q1",
+              "ask": "v2 中「纵适」的 code 命名？",
+              "options": {
+                "A": "复用标准简雍的 `zongshi2`（推荐：与宗室区分，符合 ADR-0024 撞车另起 code）",
+                "B": "新起 `zongshi_jie`",
+                "C": "继续用 `zongshi`（与界刘表宗室冲突）"
+              },
+              "lean": "A",
+              "why": "`zongshi` 已被界刘表【宗室】占用；纵适与标准版同义，复用 `zongshi2` 最稳。",
+              "impact": "注册表 + 对齐单 + 用例 code。",
+              "answer": "B"
+            },
+            {
+              "id": "Q2",
+              "ask": "「你可以获得」是否询问？",
+              "options": {
+                "A": "询问发动/放弃（按 mechanics wording-can）",
+                "B": "自动获得（v1 口径）"
+              },
+              "lean": "A",
+              "why": "原文有「可以」，必须提供放弃出口。",
+              "impact": "pending 出口 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q3",
+              "ask": "赢时「点数较小的拼点牌」如何比较？",
+              "options": {
+                "A": "按拼点的有效点数（mechanics pindian，含点数修正）",
+                "B": "按牌面点数"
+              },
+              "lean": "A",
+              "why": "与拼点内核同一比较口径，避免两套判定。",
+              "impact": "结算入口 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q4",
+              "ask": "获得拼点牌的时点？",
+              "options": {
+                "A": "拼点结算后、牌已进弃牌堆时取回（v1 口径）",
+                "B": "结算完成前、牌仍在处理区时取回"
+              },
+              "lean": "A",
+              "why": "与落英/纵玄等弃牌堆触发保持同一时序。",
+              "impact": "结算顺序 + 用例。",
+              "answer": "A 该技能结算注意， 拼点赢意味者你的拼点牌大于对方的，获取对方的拼点牌（点数较小的拼点牌）；没赢意味着你的拼点牌小于或者等于对方，获取自己的拼点牌"
+            }
+          ],
+          "mechanics": [
+            "pindian",
+            "card-gained",
+            "wording-can"
+          ],
+          "terms": {},
+          "ui": {
+            "prompt": "纵适：你可以获得拼点牌",
+            "overlay": "拼点结算后询问是否获得",
+            "fx": "pindian_gain",
+            "reveal": "拼点牌亮出（内核已 reveal）",
+            "qq": "播报获得的拼点牌"
+          },
+          "agreed": "当你拼点赢时，你可以获得点数较小的拼点牌（即对方的拼点牌）；当你拼点没赢时，你可以获得你的拼点牌。结算时拼点牌已在弃牌堆，经统一「获得」入口取回；每次均可选择发动或放弃。",
+          "assertions": {
+            "positive": [
+              "拼点赢→可获得对方（点数较小）的拼点牌",
+              "拼点没赢→可获得自己的拼点牌"
+            ],
+            "negative": [
+              "放弃时不获得任何牌",
+              "未参与拼点不触发"
+            ]
+          },
+          "impl": "sanguosha2::skills::b17::ZONGSHI_JIE + skills::pindian_after + Game::gain",
+          "tests": [
+            "b17::zongshi_jie_win_gains_smaller_pindian_card",
+            "b17::zongshi_jie_lose_gains_own_and_requires_skill"
+          ]
+        },
+        {
+          "code": "qiaoshuo",
+          "name": "巧说",
+          "kind": "normal",
+          "status": "implemented",
+          "original": "出牌阶段，你可以拼点：\n•若你赢，你本回合使用的下一张牌目标可+1或-1（至少指定一个目标）；\n•若你没赢，此技能失效且你不能使用锦囊牌直到回合结束。",
+          "original_source": "heroes.json#gid=600",
+          "mechanics_version": 2,
+          "current": [
+            "v2：出牌阶段主动技，无次数限制（`turn.qiaoshuo_invalid` 为 0 时可反复发动），双方需有手牌且目标不受谦节影响。",
+            "拼点结算（`pindian_result`）：赢 → `turn.qiaoshuo_win`；没赢 → `turn.qiaoshuo_fail` + `turn.qiaoshuo_invalid`（本回合技能失效、不能使用锦囊）。",
+            "赢的 +1：`skills::extra_targets` 对本回合下一张有目标牌返回 1（杀/决斗/拆/顺/火攻/借刀/铁索），使用后由 `consume_extra_targets` 消费。",
+            "赢的 -1：`legal_uses` 为群体锦囊（南蛮/万箭/桃园/五谷）追加 `trim:<牌>:<不指定目标>` 动作，`planned_targets` 用 `aoe_trim_target` 裁掉目标；使用后同样消费。",
+            "没赢：`plan_use` 拦截所有锦囊（含延时锦囊）。"
+          ],
+          "confidence": "verified",
+          "diff": [
+            "界版赢的效果只实现「下一张【杀】目标 +1」，未实现「下一张牌」和「-1」。",
+            "「至少指定一个目标」的下限未实现。",
+            "「此技能失效」没有独立状态（仅靠每阶段一次挡住）。",
+            "v1 每阶段限一次；官方 界版文本未写「限一次」。",
+            "v1 的赢标记要等到下一张【杀】才消费；中间使用其它牌不会消耗（文本为「下一张牌」）。"
+          ],
+          "questions": [
+            {
+              "id": "Q1",
+              "ask": "界巧说的发动次数？",
+              "options": {
+                "A": "每阶段限一次（v1 口径）",
+                "B": "无次数限制（文本无「限一次」，可连发；没赢后失效）"
+              },
+              "lean": "B",
+              "why": "官方 界版文本确实无「限一次」；v1 的限制属于简化。",
+              "impact": "主动技入口 + 用例。",
+              "answer": "B 拼点赢了可以一直用直到自己或者目标没有手牌"
+            },
+            {
+              "id": "Q2",
+              "ask": "赢的效果「下一张牌目标可 +1 或 -1」的适用范围？",
+              "options": {
+                "A": "任意牌（含装备/桃/锦囊/【杀】）；无目标牌不消耗，顺延到下一张有目标的牌",
+                "B": "仅【杀】与普通锦囊"
+              },
+              "lean": "A",
+              "why": "文本是「下一张牌」。B 是 v1 的子集。",
+              "impact": "目标数修正 + 用例。",
+              "answer": "A 非装备牌，延迟锦囊的额外目标用虚拟牌"
+            },
+            {
+              "id": "Q3",
+              "ask": "±1 由谁在何时选择？",
+              "options": {
+                "A": "使用下一张牌时由简雍选择 +1 / -1 / 不修改",
+                "B": "拼点赢时预先选择"
+              },
+              "lean": "A",
+              "why": "与 mechanics target-extra「同源生效 legal ≡ execute」一致。",
+              "impact": "交互 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q4",
+              "ask": "没赢时「不能使用锦囊牌」是否含延时锦囊？",
+              "options": {
+                "A": "含普通锦囊与延时锦囊（v1 口径）",
+                "B": "仅普通锦囊"
+              },
+              "lean": "A",
+              "why": "文本为「锦囊牌」，延时锦囊也属锦囊。",
+              "impact": "使用拦截 + 反例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q5",
+              "ask": "没赢时「此技能失效」是否单独建模？",
+              "options": {
+                "A": "是：本回合巧说不再出现在合法动作（独立失效状态）",
+                "B": "不建模：每阶段一次已足够（v1 口径）"
+              },
+              "lean": "A",
+              "why": "文本明确写「此技能失效」；若 Q1 选 B 则需要独立状态。",
+              "impact": "技能状态 + 用例。",
+              "answer": "A"
+            }
+          ],
+          "mechanics": [
+            "pindian",
+            "target-extra",
+            "wording-can",
+            "wording-then"
+          ],
+          "terms": {},
+          "ui": {
+            "prompt": "巧说：与一名其他角色拼点",
+            "overlay": "选拼点目标；使用下一张有目标的牌时选择 +1/-1/不修改",
+            "fx": "pindian",
+            "reveal": "拼点牌亮出（内核）",
+            "qq": "播报拼点结果与失效状态"
+          },
+          "agreed": "出牌阶段，你可以与一名其他角色拼点（双方需有手牌；可反复发动，直到你或对方没有手牌）：若你赢，你本回合使用的下一张牌可以多指定或少指定一个目标（至少指定一个目标；无目标牌不消耗，顺延到下一张有目标的牌；非装备牌与延时锦囊的额外目标用虚拟牌承载）；若你没赢，你本回合不能使用锦囊牌（含延时锦囊）且此技能本回合失效。",
+          "assertions": {
+            "positive": [
+              "赢→下一张有目标的牌可 +1 目标",
+              "没赢→本回合不能使用锦囊且巧说失效"
+            ],
+            "negative": [
+              "赢后未使用有目标牌时不消耗",
+              "没赢后仍可使用基本牌/装备"
+            ]
+          },
+          "impl": "sanguosha2::skills::b17::QIAOSHUO + skills::extra_targets/consume_extra_targets/can_trim_targets/trick_blocked + card_play trim 入口",
+          "tests": [
+            "b17::qiaoshuo_win_allows_extra_target_then_consumes",
+            "b17::qiaoshuo_lose_blocks_tricks_and_invalidates_skill",
+            "b17::qiaoshuo_win_offers_trim_action"
+          ]
+        }
+      ]
+    },
+    {
+      "gid": 603,
+      "code": "sgs_hero_603",
+      "name": "界虞翻",
+      "skills": [
+        {
+          "code": "zongxuan",
+          "name": "纵玄",
+          "kind": "normal",
+          "status": "implemented",
+          "original": "当你的牌因弃置而置入弃牌堆后，或你上家的牌于每回合首次因弃置而置入弃牌堆后，你可以将其中任意张牌置于牌堆顶。",
+          "original_source": "heroes.json#gid=603",
+          "mechanics_version": 2,
+          "current": [
+            "v2：`CardDiscarded` + `Window::AnyTime`；弃置者为虞翻本人，或为虞翻的「上家」（存活座位环上一位）且本回合首次（`turn.zongxuan_upper:<seat>`）→ 触发。",
+            "候选 = 本次弃置动作中仍在弃牌堆的牌（`discard_batch`）；同一动作去重（`action_seen`），上家分支每回合一次。",
+            "多选（✔ 标记）+ 确认/放弃；确认后按选择顺序 `put_on_top`（后选的在最上面）。"
+          ],
+          "confidence": "verified",
+          "diff": [
+            "界版新增的「上家每回合首次弃置」触发未实现（登记为 v1 边界）。",
+            "v1 的「其中任意张」不限张数/顺序。",
+            "「每回合首次」若实现，需明确按谁的回合计数、以及「上家」是否按存活座位环。",
+            "v1 可选牌用「本次弃置」的牌，但同一次弃置的判定分散在多次 `on_card_discarded` 调用。"
+          ],
+          "questions": [
+            {
+              "id": "Q1",
+              "ask": "是否实现「上家的牌于每回合首次因弃置而置入弃牌堆后」？",
+              "options": {
+                "A": "实现（官方文本）",
+                "B": "保持 v1 未实现，登记已知边界"
+              },
+              "lean": "A",
+              "why": "这是界版相对标准版的主要增强，不实现会与「界版语义」不符。",
+              "impact": "新触发入口 + 用例（新机制锚点）。",
+              "answer": "A"
+            },
+            {
+              "id": "Q2",
+              "ask": "「每回合首次」的计数口径？",
+              "options": {
+                "A": "每个回合一次（任意角色回合内，上家首次弃牌时触发）",
+                "B": "仅「上家自己的回合」内首次弃牌",
+                "C": "每名上家每回合各一次"
+              },
+              "lean": "A",
+              "why": "文本「于每回合首次」指回合粒度；v1 的回合计数器可直接复用。",
+              "impact": "窗口 + 用例。",
+              "answer": "B"
+            },
+            {
+              "id": "Q3",
+              "ask": "「你上家」如何判定？",
+              "options": {
+                "A": "存活座位环中的上一位",
+                "B": "原始座位号减一（含死亡）",
+                "C": "当前回合角色正好是你的上家才算"
+              },
+              "lean": "A",
+              "why": "与 v1 生活环上家判定（`upper_seat`）一致。",
+              "impact": "座位判定 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q4",
+              "ask": "上家一次弃置多张时，候选集合？",
+              "options": {
+                "A": "该次弃置的全部牌都可选（任意张组合）",
+                "B": "只有该次弃置的第一张"
+              },
+              "lean": "A",
+              "why": "文本「其中任意张牌」。",
+              "impact": "候选集合 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q5",
+              "ask": "置于牌堆顶的顺序由谁决定？",
+              "options": {
+                "A": "由虞翻按选择顺序决定（最后选的牌在最上面）",
+                "B": "固定按原弃置顺序"
+              },
+              "lean": "A",
+              "why": "v1 `put_on_top` 按选择顺序 push，等价 A。",
+              "impact": "顺序 + 用例。",
+              "answer": "A"
+            }
+          ],
+          "mechanics": [
+            "lose-vs-discard",
+            "discard-contract",
+            "wording-can"
+          ],
+          "terms": {},
+          "ui": {
+            "prompt": "纵玄：将其中任意张牌置于牌堆顶",
+            "overlay": "多选弃置牌（✔ 标记）→ 确认/放弃",
+            "fx": "deck_top",
+            "reveal": "无",
+            "qq": "播报置于牌堆顶的张数"
+          },
+          "agreed": "当你的牌因弃置而置入弃牌堆后，或你上家的牌于每回合首次因弃置而置入弃牌堆后，你可以将其中任意张牌置于牌堆顶（按选择顺序，后选的在最上面）。「上家」= 存活座位环上一位；「每回合首次」= 每个回合一次；上家一次弃置多张时全部进入候选。",
+          "assertions": {
+            "positive": [
+              "自己的牌因弃置进弃牌堆后可置于牌堆顶",
+              "上家每回合首次弃置后可置于牌堆顶"
+            ],
+            "negative": [
+              "每回合上家的第二次弃置不触发",
+              "被获得（非弃置）不触发"
+            ]
+          },
+          "impl": "sanguosha2::skills::b17::ZONGXUAN + discard_batch + Game::put_on_top",
+          "tests": [
+            "b17::zongxuan_puts_own_discards_on_top",
+            "b17::zongxuan_upper_seat_first_discard_only"
+          ]
+        },
+        {
+          "code": "zhiyan",
+          "name": "直言",
+          "kind": "normal",
+          "status": "implemented",
+          "original": "你上家或你的结束阶段，你可以令一名角色摸一张牌并展示之，若为装备牌，其使用之并回复1点体力。若为非装备牌且其体力值不等于你，其失去1点体力。",
+          "original_source": "heroes.json#gid=603",
+          "mechanics_version": 2,
+          "current": [
+            "v2：`PhaseStart` + `Window::AnyTime`，在「自己的结束阶段」或「上家的结束阶段」各触发一次（`turn.zhiyan_own/upper:<seat>` 计数）。",
+            "选一名角色（含自己）摸 1 张并用 `Game::reveal` 展示（结算后 `conceal`）。",
+            "装备牌：自动置入装备区（替换旧装备 → 弃置并触发失去装备钩子），体力未满则 `flow::heal` 回复 1 点。",
+            "非装备牌且其体力值 ≠ 虞翻：`flow::lose_hp` 失去 1 点体力（不触发受伤类技能）。"
+          ],
+          "confidence": "verified",
+          "diff": [
+            "「失去 1 点体力」v1 直接改 `hp`，未走统一 lose_hp 入口（不产生 hp_lost 事件）。",
+            "装备牌「使用之」v1 是自动置入装备区（无使用帧、无「可以」询问），替换旧装备也不询问。",
+            "「摸一张牌并展示之」的展示只在日志里，未走 reveal 公共可见区。",
+            "上家判定按存活座位环上一位（`upper_seat`）。",
+            "「体力值不等于你」在摸牌后立即比较（v1 口径）。"
+          ],
+          "questions": [
+            {
+              "id": "Q1",
+              "ask": "「展示之」是否走 reveal（公共可见）？",
+              "options": {
+                "A": "是：结算当下公开（mechanics reveal），结算后 conceal",
+                "B": "仅写日志（v1 口径）"
+              },
+              "lean": "A",
+              "why": "mechanics reveal 明确「仅写历史日志不算展示」。",
+              "impact": "展示事件 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q2",
+              "ask": "非装备牌的「失去 1 点体力」入口？",
+              "options": {
+                "A": "走 lose_hp（不触发受伤类技能）",
+                "B": "直接扣体力（v1 口径）"
+              },
+              "lean": "A",
+              "why": "mechanics damage-vs-hp-loss：失去体力必须走独立入口。",
+              "impact": "伤害/体力入口 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q3",
+              "ask": "装备牌「其使用之并回复 1 点体力」是否自动？",
+              "options": {
+                "A": "自动使用（锁定，v1 口径）",
+                "B": "询问目标是否使用"
+              },
+              "lean": "A",
+              "why": "文本无「可以」。",
+              "impact": "使用入口 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q4",
+              "ask": "「你上家或你的结束阶段」两处触发的关系？",
+              "options": {
+                "A": "各自每回合一次（上家的结束阶段 + 自己的结束阶段都可能各触发一次）",
+                "B": "每回合合计一次"
+              },
+              "lean": "A",
+              "why": "文本用「或」，是两个独立窗口；v1 分别用 `zhiyan_upper:<i>` / `zhiyan_offered` 计数。",
+              "impact": "触发窗口 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q5",
+              "ask": "「体力值不等于你」的时点？",
+              "options": {
+                "A": "摸牌后、结算失去体力前读取当前体力（v1 口径）",
+                "B": "发动时快照"
+              },
+              "lean": "A",
+              "why": "结算顺序为「摸牌→展示→判定」，中间无其它体力变化，二者等价；但锁定 A 便于实现。",
+              "impact": "判定时点 + 用例。",
+              "answer": "A"
+            }
+          ],
+          "mechanics": [
+            "reveal",
+            "damage-vs-hp-loss",
+            "turn-window",
+            "equip-move"
+          ],
+          "terms": {},
+          "ui": {
+            "prompt": "直言：令一名角色摸一张并展示",
+            "overlay": "选目标；展示牌公共可见",
+            "fx": "reveal",
+            "reveal": "展示摸到的牌（结算后收回）",
+            "qq": "播报展示牌与后续效果"
+          },
+          "agreed": "你上家或你的结束阶段（两处各自每回合一次），你可以令一名角色摸一张牌并展示之（公共可见，结算后收回）：若为装备牌，其使用之并回复 1 点体力（自动使用，替换旧装备并触发失去装备钩子）；若为非装备牌且其体力值不等于你，其失去 1 点体力（走统一失去体力入口，不触发受伤类技能）。",
+          "assertions": {
+            "positive": [
+              "结束阶段令一名角色摸 1 展示；装备牌→使用并回复 1",
+              "非装备且体力不等于虞翻→失去 1 点体力"
+            ],
+            "negative": [
+              "体力值等于虞翻时不失去体力",
+              "上家结束阶段每回合只触发一次"
+            ]
+          },
+          "impl": "sanguosha2::skills::b17::ZHIYAN + Game::reveal/conceal + flow::lose_hp/flow::heal",
+          "tests": [
+            "b17::zhiyan_uses_equip_and_heals",
+            "b17::zhiyan_non_equip_hp_diff_loses_hp",
+            "b17::zhiyan_upper_seat_end_phase_triggers"
+          ]
+        }
+      ]
+    },
+    {
+      "gid": 604,
+      "code": "sgs_hero_604",
+      "name": "界高顺",
+      "skills": [
+        {
+          "code": "xianzhen",
+          "name": "陷阵",
+          "kind": "normal",
+          "status": "implemented",
+          "original": "出牌阶段限一次，你可以与一名角色拼点：\n•若你赢，你本回合对其使用牌无距离和次数限制且无视其防具，你使用【杀】或普通锦囊牌能多指定其为目标；\n•若你没赢，你本回合不能对其使用【杀】且你的【杀】不计入手牌上限。",
+          "original_source": "heroes.json#gid=604",
+          "mechanics_version": 2,
+          "current": [
+            "v2：出牌阶段限一次（`phase.xianzhen_used`），与一名有手牌的角色拼点（自己需有手牌）。",
+            "赢：`turn.xianzhen_win` + `turn.xianzhen_target` → 对其使用牌无距离（`Game::distance` 走 `target_no_distance`）、对其【杀】不受次数上限（`sha_limit_exempt`）、无视其防具（`armor_ignored_by_skill`）、【杀】/普通锦囊可多指定其为目标（`extra_targets` +1）。",
+            "没赢：`turn.xianzhen_lose` + `turn.xianzhen_lose_target` → 不能对其使用【杀】（`sha_blocked_for`，不影响其他角色），且手牌【杀】不计手牌上限。"
+          ],
+          "confidence": "verified",
+          "diff": [
+            "界版赢的三项强化只实现「无视防具」；「使用牌无距离和次数限制」「【杀】/普通锦囊可多指定其为目标」未实现。",
+            "没赢时 v1 是全局禁【杀】（`sha_blocked`），界版是「本回合不能**对其**使用【杀】」。",
+            "标准高顺与界高顺共用 code，v1 没区分「界版赢的强化」。",
+            "赢的收益无显式「本回合」窗口（靠回合计数器，等价本回合）。"
+          ],
+          "questions": [
+            {
+              "id": "Q1",
+              "ask": "赢的「对其使用牌无距离和次数限制」范围？",
+              "options": {
+                "A": "对所有指向该目标的牌均无距离；对其使用的【杀】不受次数上限",
+                "B": "仅【杀】无距离/无次数"
+              },
+              "lean": "A",
+              "why": "文本是「对其使用牌无距离和次数限制」，不限【杀】。",
+              "impact": "距离/次数入口 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q2",
+              "ask": "「【杀】或普通锦囊牌能多指定其为目标」的口径？",
+              "options": {
+                "A": "使用【杀】/普通锦囊时，可把被拼点角色追加进目标（即使已达该牌目标上限），仅限本张牌",
+                "B": "只是提高可选目标数上限，仍受牌本身目标数限制"
+              },
+              "lean": "A",
+              "why": "官方裁定为「可以额外指定该角色为目标」，是追加而非放宽上限。",
+              "impact": "目标枚举 + 用例。",
+              "answer": "A，虽然可以将拼点目标作为额外目标，但是比如火攻这些，如果目标没有手牌还是不能使用，要不然会导致异常"
+            },
+            {
+              "id": "Q3",
+              "ask": "没赢的【杀】限制范围？",
+              "options": {
+                "A": "只对被拼点角色（本回合不能对其使用【杀】）",
+                "B": "全局本回合不能使用【杀】（v1 口径）"
+              },
+              "lean": "A",
+              "why": "界版文本明确「不能对其使用【杀】」。",
+              "impact": "使用拦截 + 反例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q4",
+              "ask": "赢/没赢的收益窗口？",
+              "options": {
+                "A": "本回合（回合结束清除）",
+                "B": "直到下一轮开始"
+              },
+              "lean": "A",
+              "why": "文本「本回合」；v2 用回合窗口计数。",
+              "impact": "窗口 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q5",
+              "ask": "拼点双方的手牌要求？",
+              "options": {
+                "A": "双方都需有手牌（v1 口径）",
+                "B": "仅自己需要"
+              },
+              "lean": "A",
+              "why": "拼点双方各需一张手牌（mechanics pindian）。",
+              "impact": "目标枚举 + 反例。",
+              "answer": "A"
+            }
+          ],
+          "mechanics": [
+            "pindian",
+            "distance-modifier",
+            "sha-limit",
+            "target-extra",
+            "hand-limit"
+          ],
+          "terms": {},
+          "ui": {
+            "prompt": "陷阵：与一名角色拼点",
+            "overlay": "选拼点目标",
+            "fx": "pindian",
+            "reveal": "拼点牌亮出（内核）",
+            "qq": "播报拼点结果与本回合效果"
+          },
+          "agreed": "出牌阶段限一次，你可以与一名有手牌的其他角色拼点（你需有手牌）：若你赢，本回合你对其使用牌无距离限制、对其使用【杀】不受次数上限、无视其防具，且你使用【杀】或普通锦囊牌可以多指定其为目标（即使已达该牌目标上限，仍须满足该牌自身的目标合法性）；若你没赢，本回合你不能对其使用【杀】且你的【杀】不计入手牌上限。收益持续本回合。",
+          "assertions": {
+            "positive": [
+              "赢→对其无距离/无次数/无视防具/可多指定其为目标",
+              "没赢→本回合不能对其使用【杀】且杀不计手牌上限"
+            ],
+            "negative": [
+              "没赢不影响对其他角色使用【杀】",
+              "赢的收益不对其他角色生效"
+            ]
+          },
+          "impl": "sanguosha2::skills::b17::XIANZHEN + skills::target_no_distance/sha_limit_exempt/sha_blocked_for/armor_ignored_by_skill",
+          "tests": [
+            "b17::xianzhen_win_grants_distance_limit_and_extra_target",
+            "b17::xianzhen_lose_blocks_sha_only_vs_target"
+          ]
+        },
+        {
+          "code": "jinjiu",
+          "name": "禁酒",
+          "kind": "locked",
+          "status": "implemented",
+          "original": "锁定技，你的【酒】视为点数K的【杀】。其他角色不能于你的回合使用【酒】。",
+          "original_source": "heroes.json#gid=604",
+          "mechanics_version": 2,
+          "current": [
+            "v2：`conversions` 提供「手牌【酒】→【杀】」（`usable` + `playable`，可主动使用与响应打出）；`effective_rank` 令其有效点数为 K（拼点等读取）。",
+            "`jiu_blocked`：高顺本人不能用【酒】（锁定转化）；其他角色在高顺的回合内不能用【酒】——`plan_use`（出牌阶段）、濒死自救（含酒池）、醇醪视为【酒】三处统一拦截。",
+            "锁定技，无「当【酒】使用」选项；`LOCKED_SKILLS` 登记。"
+          ],
+          "confidence": "verified",
+          "diff": [
+            "「视为点数 K 的【杀】」的点数 K 未实现（拼点/点数判定读原牌点数）。",
+            "v1 允许高顺自己把【酒】当【酒】使用（官方锁定转化下应视为【杀】）。",
+            "「其他角色不能于你的回合使用【酒】」v1 只拦截主动使用（`play_card`）；濒死自救用【酒】/技能视为使用【酒】是否拦截未处理。",
+            "锁定技在 v1 提供的是可选转化动作，而不是「自动视为」——与「锁定技」语义有落差。"
+          ],
+          "questions": [
+            {
+              "id": "Q1",
+              "ask": "是否实现「点数 K」？",
+              "options": {
+                "A": "实现：视为【杀】时有效点数为 K（覆盖牌面点数）",
+                "B": "保持原牌点数（v1 口径）"
+              },
+              "lean": "A",
+              "why": "文本明确「点数 K」；mechanics card-attributes 支持生效定义覆盖点数。",
+              "impact": "点数入口 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q2",
+              "ask": "高顺自己能否把【酒】当【酒】使用？",
+              "options": {
+                "A": "不能：锁定技下【酒】一律视为【杀】",
+                "B": "可以（v1 口径）"
+              },
+              "lean": "A",
+              "why": "「【酒】视为【杀】」是锁定转化，不存在二选一。",
+              "impact": "使用入口 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q3",
+              "ask": "「其他角色不能于你的回合使用【酒】」范围？",
+              "options": {
+                "A": "所有使用入口：出牌阶段主动使用 / 濒死自救 / 技能视为使用【酒】",
+                "B": "仅出牌阶段主动使用（v1 口径）"
+              },
+              "lean": "A",
+              "why": "文本「使用【酒】」不限于出牌阶段。",
+              "impact": "使用拦截 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q4",
+              "ask": "转化后的属性取值？",
+              "options": {
+                "A": "牌名 =【杀】、花色按承载牌、点数 = K（本技能指定）",
+                "B": "牌名/花色/点数全部按承载牌"
+              },
+              "lean": "A",
+              "why": "与 mechanics card-attributes「转化牌牌名按结果、颜色点数按承载牌」的例外（技能显式指定点数）一致。",
+              "impact": "卡牌属性入口 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q5",
+              "ask": "锁定转化是否自动（不出现在主动技列表）？",
+              "options": {
+                "A": "是：使用【酒】时自动按【杀】结算，不提供「当酒用」选项",
+                "B": "保留可选转化动作（v1 口径）"
+              },
+              "lean": "A",
+              "why": "锁定技不应提供「不发动」。",
+              "impact": "合法动作 + 用例。",
+              "answer": "A"
+            }
+          ],
+          "mechanics": [
+            "card-attributes",
+            "virtual-card",
+            "use-vs-play"
+          ],
+          "terms": {},
+          "ui": {
+            "prompt": "禁酒：你的【酒】视为点数 K 的【杀】",
+            "overlay": "无（锁定转化）",
+            "fx": "card_convert",
+            "reveal": "无",
+            "qq": "播报转化后的牌名与点数"
+          },
+          "agreed": "锁定技，你的【酒】视为点数 K 的【杀】（牌名=【杀】、花色按承载牌、点数=K），不提供「当【酒】使用」的选项；其他角色不能于你的回合使用【酒】（含出牌阶段使用、濒死自救、技能视为使用【酒】）。",
+          "assertions": {
+            "positive": [
+              "【酒】只能作为点数 K 的【杀】使用",
+              "其他角色在高顺回合不能使用【酒】"
+            ],
+            "negative": [
+              "高顺自己不能把【酒】当【酒】用",
+              "其他角色在其他回合可正常使用【酒】"
+            ]
+          },
+          "impl": "sanguosha2::skills::b17::JINJIU + skills::conversions/effective_rank/jiu_blocked",
+          "tests": [
+            "b17::jinjiu_converts_jiu_to_sha_with_rank_k",
+            "b17::jinjiu_blocks_others_jiu_during_own_turn"
+          ]
+        }
+      ]
+    },
+    {
+      "gid": 610,
+      "code": "sgs_hero_610",
+      "name": "界法正",
+      "skills": [
+        {
+          "code": "xuanhuo",
+          "name": "眩惑",
+          "kind": "normal",
+          "status": "implemented",
+          "original": "摸牌阶段结束时，你可以交给一名其他角色两张牌，令其选择一项：\n 1.对你指定的另一名角色使用一张【杀】；\n 2.你观看其手牌并获得其两张牌。",
+          "original_source": "heroes.json#gid=610",
+          "mechanics_version": 2,
+          "current": [
+            "v2：按官方界版重做——`skills::after_draw_phase` 在摸牌阶段结束时询问（`turn.xuanhuo_offered`），要求法正有 ≥2 张手牌且场上还有其他角色。",
+            "选两张手牌 → 选一名其他角色 → `Game::gain` 交给其两张 → 该角色二选一。",
+            "①由法正指定一名在协助者攻击范围内的角色（排除协助者与法正），协助者 `use_virtual` 视为使用【杀】。",
+            "②法正观看协助者手牌（`reveal_private`，仅法正可见），随后选择并获得其中两张手牌（`Game::gain`），结算后清除私密展示。"
+          ],
+          "confidence": "verified",
+          "diff": [
+            "v1 是标准版眩惑；界版的「摸牌阶段**结束时**」「交给其两张牌」「观看其手牌」都未实现。",
+            "②「获得其两张牌」v1 从手牌 + 装备区取，官方 界版为「观看其手牌并获得其两张牌」（应限手牌）。",
+            "①的虚拟【杀】带 `no_distance: true`，但目标枚举已限制在协助者攻击范围内。",
+            "界法正与标准法正共用 code，v1 没有界/标准分支。"
+          ],
+          "questions": [
+            {
+              "id": "Q1",
+              "ask": "界眩惑是否按官方文本重做？",
+              "options": {
+                "A": "重做：摸牌阶段结束时，交给一名其他角色两张牌，再令其二选一",
+                "B": "保留 v1 的标准流程（放弃摸牌 → 其摸 2 → 二选一）"
+              },
+              "lean": "A",
+              "why": "界版文本与标准差异是核心，保留 v1 等于界法正没有界版技能。",
+              "impact": "主流程重写 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q2",
+              "ask": "「交给其两张牌」的来源？",
+              "options": {
+                "A": "仅手牌",
+                "B": "手牌 + 装备区"
+              },
+              "lean": "A",
+              "why": "「交给」未写区域；官方为手牌。",
+              "impact": "交付候选 + 用例（不足两张则不发动）。",
+              "answer": "A"
+            },
+            {
+              "id": "Q3",
+              "ask": "②「你观看其手牌并获得其两张牌」的范围？",
+              "options": {
+                "A": "仅手牌（观看后选 2 张）",
+                "B": "手牌 + 装备区（v1 口径）"
+              },
+              "lean": "A",
+              "why": "文本「观看其手牌并获得其两张牌」限手牌。",
+              "impact": "获得候选 + 展示 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q4",
+              "ask": "①视为使用的【杀】是否受距离限制？",
+              "options": {
+                "A": "按协助者的攻击范围（受距离限制）",
+                "B": "无距离（v1 口径）"
+              },
+              "lean": "A",
+              "why": "文本只说「视为……使用一张【杀】」。",
+              "impact": "目标枚举 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q5",
+              "ask": "协助者无法使用【杀】时（如无合法目标）？",
+              "options": {
+                "A": "只提供②",
+                "B": "①仍可选，选不到目标则作废"
+              },
+              "lean": "A",
+              "why": "避免死锁（v1 口径）。",
+              "impact": "选项枚举 + 反例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q6",
+              "ask": "眩惑的发动时点是否要求法正有 ≥2 张手牌？",
+              "options": {
+                "A": "是：不足两张则不能发动",
+                "B": "可以发动但只能选②"
+              },
+              "lean": "A",
+              "why": "成本无法支付时不得发动（选项不出现）。",
+              "impact": "合法动作 + 反例。",
+              "answer": "A"
+            }
+          ],
+          "mechanics": [
+            "virtual-card",
+            "card-gained",
+            "turn-window",
+            "use-vs-play"
+          ],
+          "terms": {},
+          "ui": {
+            "prompt": "眩惑：交给一名其他角色两张手牌",
+            "overlay": "选两张手牌 → 选目标 → 目标二选一（出【杀】/观看并获得其两张手牌）",
+            "fx": "card_handover",
+            "reveal": "观看时对法正私密展示目标手牌",
+            "qq": "播报交牌与目标选择"
+          },
+          "agreed": "摸牌阶段结束时，你可以交给一名其他角色两张手牌；然后其选择一项：1. 对你指定的另一名角色使用一张【杀】（须在协助者攻击范围内，按正常【杀】结算）；2. 你观看其手牌并获得其中两张（经统一获得入口）。不足两张手牌时不能发动。",
+          "assertions": {
+            "positive": [
+              "摸牌阶段结束交两张手牌后目标可选①出【杀】",
+              "目标可选②：法正观看并获得其两张手牌"
+            ],
+            "negative": [
+              "不足两张手牌不能发动",
+              "①的目标不在协助者攻击范围内时不提供"
+            ]
+          },
+          "impl": "sanguosha2::skills::b17::XUANHUO + skills::after_draw_phase + Game::reveal_private/gain",
+          "tests": [
+            "b17::xuanhuo_gives_two_cards_and_views_hand",
+            "b17::xuanhuo_requires_two_hand_cards"
+          ]
+        },
+        {
+          "code": "enyuan",
+          "name": "恩怨",
+          "kind": "normal",
+          "status": "implemented",
+          "original": "当你获得一名其他角色至少两张牌后，你可以令其摸一张牌。\n当你受到1点伤害后，你可以令伤害来源选择一项：\n 1.交给你一张红色手牌；\n 2.失去1点体力。",
+          "original_source": "heroes.json#gid=610",
+          "mechanics_version": 2,
+          "current": [
+            "v2：`CardGained` 触发：单次动作内经 `Game::gain` 从一名其他角色获得 ≥2 张（`gain_batch`）→ 询问是否令其摸 1 张（可放弃）。",
+            "`DamageAfter` 触发：每受到 1 点伤害后，令伤害来源二选一（逐点询问）：①交给法正一张红色手牌（由来源选牌，按物理花色判红）；②`flow::lose_hp` 失去 1 点体力。",
+            "来源没有红色手牌时不提供①；无伤害来源不触发。"
+          ],
+          "confidence": "verified",
+          "diff": [
+            "「获得至少两张牌」只在眩惑路径触发；其它获得路径（顺手牵羊、技能获得）不触发。",
+            "「你可以令其摸一张牌」在 v1 为自动发动（无放弃选项）。",
+            "①由引擎代选第一张红色手牌，未让来源选牌。",
+            "②直接扣体力（v1），非统一 lose_hp 入口。",
+            "「红色」按 `effective_suit`（含虚拟装备/技能修正）判定，不是物理花色。"
+          ],
+          "questions": [
+            {
+              "id": "Q1",
+              "ask": "「获得至少两张牌」的触发范围？",
+              "options": {
+                "A": "所有「单次获得 ≥2 张」路径（统一 CardGained 事件，按单次获得张数判定）",
+                "B": "仅眩惑（v1 口径）"
+              },
+              "lean": "A",
+              "why": "mechanics card-gained 要求所有获得走统一事件；限眩惑会让技能在其它获得场景失效。",
+              "impact": "获得钩子 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q2",
+              "ask": "「你可以令其摸一张牌」是否询问？",
+              "options": {
+                "A": "询问（可放弃）",
+                "B": "自动（v1 口径）"
+              },
+              "lean": "A",
+              "why": "原文有「可以」。",
+              "impact": "pending + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q3",
+              "ask": "①交红色手牌时由谁选牌？",
+              "options": {
+                "A": "由伤害来源选择交哪一张红色手牌",
+                "B": "引擎自动取第一张（v1 口径）"
+              },
+              "lean": "A",
+              "why": "交牌属于来源的选择；自动取牌剥夺决策。",
+              "impact": "交互 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q4",
+              "ask": "②「失去 1 点体力」的入口？",
+              "options": {
+                "A": "走 lose_hp（不触发受伤类技能）",
+                "B": "直接扣体力（v1 口径）"
+              },
+              "lean": "A",
+              "why": "mechanics damage-vs-hp-loss。",
+              "impact": "体力入口 + 反例（不触发受伤技）。",
+              "answer": "A"
+            },
+            {
+              "id": "Q5",
+              "ask": "「红色」的判定口径？",
+              "options": {
+                "A": "按物理牌花色（card-attributes）",
+                "B": "按 effective_suit（v1，含虚拟修正）"
+              },
+              "lean": "A",
+              "why": "红色是牌的物理属性；effective_suit 用于被技能改写花色的场景，此处文本未涉及。",
+              "impact": "花色判定 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q6",
+              "ask": "是否包含「获得」来自装备区/判定区的牌？",
+              "options": {
+                "A": "包含（任何获得 ≥2 张牌）",
+                "B": "仅手牌"
+              },
+              "lean": "A",
+              "why": "文本为「获得……至少两张牌」，不限区域。",
+              "impact": "获得范围 + 反例。",
+              "answer": "A"
+            }
+          ],
+          "mechanics": [
+            "card-gained",
+            "damage-vs-hp-loss",
+            "wording-can",
+            "card-attributes"
+          ],
+          "terms": {},
+          "ui": {
+            "prompt": "恩怨：令其摸一张 / 令伤害来源交红色手牌或失去体力",
+            "overlay": "伤害来源二选一；交牌时由来源选牌",
+            "fx": "choice",
+            "reveal": "无",
+            "qq": "播报选择与结果"
+          },
+          "agreed": "当你获得一名其他角色至少两张牌后（单次获得 ≥2 张，任意区域），你可以令其摸一张牌；当你受到 1 点伤害后（每点各一次），你可以令伤害来源选择一项：1. 交给你一张红色手牌（由来源选择交哪张，按物理花色判定红色）；2. 失去 1 点体力（走统一失去体力入口）。",
+          "assertions": {
+            "positive": [
+              "单次获得其他角色 ≥2 张牌后可令其摸 1",
+              "受伤后来源可选交红色手牌或失去 1 点体力"
+            ],
+            "negative": [
+              "获得 1 张牌不触发",
+              "来源无红色手牌时不提供交牌选项"
+            ]
+          },
+          "impl": "sanguosha2::skills::b17::ENYUAN + kernel::mod::gain_batch + flow::lose_hp",
+          "tests": [
+            "b17::enyuan_gain_two_cards_lets_owner_draw",
+            "b17::enyuan_single_gain_and_damage_choice"
+          ]
+        }
+      ]
+    },
+    {
+      "gid": 620,
+      "code": "sgs_hero_620",
+      "name": "界程普",
+      "skills": [
+        {
+          "code": "lihuo",
+          "name": "疠火",
+          "kind": "normal",
+          "status": "implemented",
+          "original": "你使用的非火【杀】可以改为火【杀】使用，此牌结算后，若其造成伤害，你弃置一张牌或失去1体力。你使用的火【杀】可以多指定一个目标。",
+          "original_source": "heroes.json#gid=620",
+          "mechanics_version": 2,
+          "current": [
+            "v2：`conversions` 提供「非火【杀】（普通/雷）→ 火【杀】」（仅主动使用，不用于响应）；`lib.rs` 的 `convert:` 入口调用 `on_conversion_used` 记录标记。",
+            "「此牌结算后」由内核 `sha_effect` 结算完成时调 `skills::on_card_finished` → 若本牌造成过伤害（`turn.damage_card:<card>`）则询问程普：弃置一张牌（手牌或装备区，由程普选）或失去 1 点体力；每张牌只结算一次。",
+            "火【杀】可多指定一个目标（`extra_targets` +1，不因额外目标获得无距离）。"
+          ],
+          "confidence": "verified",
+          "diff": [
+            "界版代价「弃置一张牌或失去 1 点体力」为引擎自动选择（有手牌即弃第一张），无询问。",
+            "代价时点在伤害结算中，而非「此牌结算后」。",
+            "「非火【杀】」v1 只覆盖普通【杀】；雷【杀】不能转化。",
+            "v1 疠火的多目标对任意火【杀】生效（含未转化的真火杀），与文本一致。"
+          ],
+          "questions": [
+            {
+              "id": "Q1",
+              "ask": "界版代价「弃置一张牌或失去 1 点体力」是否询问程普？",
+              "options": {
+                "A": "询问：二选一，且弃哪张牌由程普选",
+                "B": "自动：有手牌弃牌、否则失去体力（v1 口径）"
+              },
+              "lean": "A",
+              "why": "原文「你弃置一张牌或失去1体力」是程普的选择。",
+              "impact": "交互 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q2",
+              "ask": "代价时点？",
+              "options": {
+                "A": "此牌结算后（官方）",
+                "B": "造成伤害时立即（v1 口径）"
+              },
+              "lean": "A",
+              "why": "文本明确「此牌结算后」。",
+              "impact": "结算时序 + 用例（伤害后/濒死交互）。",
+              "answer": "A"
+            },
+            {
+              "id": "Q3",
+              "ask": "「非火【杀】」是否含雷【杀】？",
+              "options": {
+                "A": "含普通【杀】与雷【杀】（所有非火【杀】）",
+                "B": "仅普通【杀】（v1 口径）"
+              },
+              "lean": "A",
+              "why": "文本为「非火【杀】」。",
+              "impact": "转化候选 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q4",
+              "ask": "代价「弃置一张牌」的范围？",
+              "options": {
+                "A": "手牌 + 装备区",
+                "B": "仅手牌"
+              },
+              "lean": "A",
+              "why": "「一张牌」未限区域；v1 只弃手牌属于简化。",
+              "impact": "弃置候选 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q5",
+              "ask": "火【杀】多目标 + 多名角色受伤时，代价付几次？",
+              "options": {
+                "A": "只付一次（此牌结算后一次）",
+                "B": "每名受伤角色各付一次"
+              },
+              "lean": "A",
+              "why": "文本是「此牌结算后，若其造成伤害」，单次代价。",
+              "impact": "代价计数 + 用例。",
+              "answer": "A"
+            }
+          ],
+          "mechanics": [
+            "damage-attributes",
+            "target-extra",
+            "damage-vs-hp-loss"
+          ],
+          "terms": {},
+          "ui": {
+            "prompt": "疠火：是否将此【杀】当火【杀】使用",
+            "overlay": "询问是否转化；结算后询问弃牌或失去体力（弃哪张由程普选）",
+            "fx": "fire_sha",
+            "reveal": "无",
+            "qq": "播报火【杀】与代价"
+          },
+          "agreed": "你使用的非火【杀】（含普通【杀】与雷【杀】）可以改为火【杀】使用（牌名按火【杀】、花色点数按承载牌），此牌结算后若其造成过伤害，你弃置一张牌（手牌或装备区，由你选择）或失去 1 点体力（每张牌只结算一次）；你使用的火【杀】可以多指定一个目标（不因此获得无距离）。",
+          "assertions": {
+            "positive": [
+              "非火【杀】可改为火【杀】，造成伤害后付代价",
+              "火【杀】可多指定一个目标"
+            ],
+            "negative": [
+              "未造成伤害不付代价",
+              "代价每张牌只结算一次"
+            ]
+          },
+          "impl": "sanguosha2::skills::b17::LIHUO + skills::conversions/on_conversion_used/on_card_finished + turn.damage_card",
+          "tests": [
+            "b17::lihuo_converts_sha_to_fire_and_pays_cost",
+            "b17::lihuo_real_fire_sha_has_no_cost_and_extra_target"
+          ]
+        },
+        {
+          "code": "chunlao",
+          "name": "醇醪",
+          "kind": "normal",
+          "status": "implemented",
+          "original": "你或你相邻角色的【杀】因弃置置入弃牌堆后，将之置于你的武将牌上，称为“醇”（至多为9）。当一名角色处于濒死状态时，你可以移去X张“醇”视为其使用一张【酒】(X为本轮以此法使用【酒】的次数)。",
+          "original_source": "heroes.json#gid=620",
+          "mechanics_version": 2,
+          "current": [
+            "v2：`CardDiscarded` + `Window::AnyTime`：弃置者为程普本人或存活座位环相邻的角色，且弃置的牌是【杀】→ 自动（无「可以」）从弃牌堆 `to_mark(..., \"chun\")`，上限 9 张。",
+            "结束阶段：若「醇」为 0 且手牌有【杀】，可选择任意张（多选+确认/放弃）置于武将牌上。",
+            "濒死窗口：`dying_extra_options` 提供「移去 X 张「醇」视为使用【酒】」（X = 本轮以此法使用【酒】次数 + 1，每轮清零；`jiu_blocked` 生效时不提供）；执行时移去 X 张进弃牌堆、濒死者回复 1 点体力。"
+          ],
+          "confidence": "verified",
+          "diff": [
+            "界版「移去 X 张（X=本轮以此法使用【酒】的次数）」的 X 未实现（v1 恒 1 张）。",
+            "濒死救人自动，无「可以」询问。",
+            "v1 相邻判定额外要求程普为吴势力（引擎上等价于无限制，但语义多余）。",
+            "「将之置于你的武将牌上」v1 自动（非可选），且只处理界版（标准醇醪无相邻分支）。",
+            "移去的「醇」v1 走 `discard_by` 进弃牌堆（视为离开标记区）。"
+          ],
+          "questions": [
+            {
+              "id": "Q1",
+              "ask": "是否实现「X = 本轮以此法使用【酒】的次数」？",
+              "options": {
+                "A": "实现：每轮清零，每次以此法用【酒】后 X+1",
+                "B": "恒为 1 张（v1 口径）"
+              },
+              "lean": "A",
+              "why": "界版核心改动，不实现等于沿用标准版。",
+              "impact": "计数 + 濒死消耗 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q2",
+              "ask": "濒死用「醇」是否询问程普？",
+              "options": {
+                "A": "询问（可以放弃）",
+                "B": "自动（v1 口径）"
+              },
+              "lean": "A",
+              "why": "原文「你可以移去」。",
+              "impact": "pending + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q3",
+              "ask": "「将之置于你的武将牌上」是否可选？",
+              "options": {
+                "A": "必须（锁定式，无「可以」）",
+                "B": "询问是否置于武将牌上（v1 自动，无询问）"
+              },
+              "lean": "A",
+              "why": "文本无「可以」，应自动。",
+              "impact": "自动钩子 + 反例（不询问）。",
+              "answer": "A"
+            },
+            {
+              "id": "Q4",
+              "ask": "「相邻角色」的判定？",
+              "options": {
+                "A": "存活座位环相邻（v1 口径）",
+                "B": "原始座位相邻（含死亡座位）"
+              },
+              "lean": "A",
+              "why": "与既有相邻判定一致。",
+              "impact": "座位判定 + 用例。",
+              "answer": "A"
+            },
+            {
+              "id": "Q5",
+              "ask": "多张「醇」时移去哪 X 张？",
+              "options": {
+                "A": "由程普选择",
+                "B": "按置入顺序"
+              },
+              "lean": "A",
+              "why": "「移去 X 张」未指定；由持有者选择更符合操作习惯。",
+              "impact": "交互 + 用例。",
+              "answer": "B"
+            },
+            {
+              "id": "Q6",
+              "ask": "「【杀】」的范围？",
+              "options": {
+                "A": "含普通/火/雷【杀】（按牌属性，v1 口径）",
+                "B": "仅普通【杀】"
+              },
+              "lean": "A",
+              "why": "文本为「【杀】」，按牌属性判定。",
+              "impact": "判定入口 + 用例。",
+              "answer": "A"
+            }
+          ],
+          "mechanics": [
+            "skill-card-zone",
+            "dying-resolution",
+            "discard-contract",
+            "zone-ownership"
+          ],
+          "terms": {},
+          "ui": {
+            "prompt": "醇醪：将【杀】置于武将牌上为「醇」",
+            "overlay": "濒死时询问是否移去 X 张「醇」用【酒】（X 由本轮次数决定）",
+            "fx": "mark_place",
+            "reveal": "无",
+            "qq": "播报「醇」数量变化"
+          },
+          "agreed": "你或你相邻角色（存活座位环相邻）的【杀】因弃置置入弃牌堆后，将之置于你的武将牌上，称为「醇」（至多 9 张，自动，无「可以」）；结束阶段若你没有「醇」，你可以将任意张手牌【杀】置于武将牌上；当一名角色处于濒死状态时，你可以移去 X 张「醇」视为其使用一张【酒】（X = 本轮以此法使用【酒】的次数，每轮清零；移去哪 X 张由你选择，可放弃）。",
+          "assertions": {
+            "positive": [
+              "相邻角色弃置的【杀】自动置于「醇」（至多 9）",
+              "濒死时可移去 X 张「醇」视为使用【酒】"
+            ],
+            "negative": [
+              "每轮 X 递增（第二轮起移去 2 张）",
+              "「醇」达到 9 张后不再放置"
+            ]
+          },
+          "impl": "sanguosha2::skills::b17::CHUNLAO + skills::dying_extra_options/dying_extra_use + Game::to_mark",
+          "tests": [
+            "b17::chunlao_places_adjacent_discarded_sha",
+            "b17::chunlao_dying_uses_x_chun_as_jiu"
+          ]
+        }
+      ]
+    }
+  ],
+  "spotcheck": []
+}
