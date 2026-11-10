@@ -1,10 +1,10 @@
 {
   "batch": "B20",
   "source": "界限突破·J8",
-  "status": "discussed",
+  "status": "confirmed",
   "mechanics_version": 2,
-  "confirmed_by": null,
-  "confirmed_at": null,
+  "confirmed_by": "用户",
+  "confirmed_at": "2026-11-10",
   "note": "机器文件（单一事实源）。人读请看同目录 <B>.md；改这里后运行 --sync 重生成 md。",
   "generals": [
     {
@@ -16,7 +16,7 @@
           "code": "qiaoshi",
           "name": "樵拾",
           "kind": "normal",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "每个结束阶段，你可以与当前回合角色各摸一张牌。然后若其与你手牌数不相等，此技能本轮失效。",
           "original_source": "heroes.json#gid=752",
           "mechanics_version": 2,
@@ -44,7 +44,7 @@
               "lean": "A",
               "why": "原文「与当前回合角色各摸一张」隐含两个不同角色；含自己会产生「自己与自己各摸」的歧义。",
               "impact": "触发窗口 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q2",
@@ -56,7 +56,7 @@
               "lean": "A",
               "why": "原文「然后若…此技能本轮失效」= 紧跟摸牌结算之后。",
               "impact": "标记时机 + 用例。",
-              "answer": null
+              "answer": "A**"
             },
             {
               "id": "Q3",
@@ -68,7 +68,7 @@
               "lean": "A",
               "why": "《三国杀》「本轮」= 从当前回合角色起所有角色各行动一次。",
               "impact": "失效标记键 + 用例。",
-              "answer": null
+              "answer": "A"
             }
           ],
           "mechanics": [
@@ -84,7 +84,7 @@
             "reveal": "无",
             "qq": "播报双方摸牌与是否本轮失效"
           },
-          "agreed": null,
+          "agreed": "其他角色的结束阶段（不含自己的结束阶段），你可以与当前回合角色各摸一张牌。然后若其与你手牌数不相等，此技能本轮（按轮次：所有角色各行动一次）失效，本轮剩余结束阶段不再询问；未发动不失效。",
           "assertions": {
             "positive": [
               "其他角色结束阶段可令双方各摸一张",
@@ -102,7 +102,7 @@
           "code": "yanyu",
           "name": "燕语",
           "kind": "normal",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "出牌阶段，你可以重铸【杀】。出牌阶段结束时，若你本阶段失去过至少两张【杀】，你可以令一名男性角色摸两张牌。",
           "original_source": "heroes.json#gid=752",
           "mechanics_version": 2,
@@ -129,7 +129,7 @@
               "lean": "A",
               "why": "原文是「失去过」，mechanics `lose-vs-discard`：使用/弃置/被获得都属于失去。",
               "impact": "计数来源 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q2",
@@ -141,7 +141,7 @@
               "lean": "A",
               "why": "原文「你可以重铸【杀】」未写限一次；重铸本身即消耗该牌。",
               "impact": "主动技入口 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q3",
@@ -153,7 +153,7 @@
               "lean": "A",
               "why": "原文「一名男性角色」未排除自己。",
               "impact": "候选集合 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q4",
@@ -165,7 +165,7 @@
               "lean": "A",
               "why": "原文明确「出牌阶段结束时」。",
               "impact": "触发窗口 + 用例。",
-              "answer": null
+              "answer": "A"
             }
           ],
           "mechanics": [
@@ -181,7 +181,7 @@
             "reveal": "重铸牌公开进弃牌堆",
             "qq": "播报重铸张数与阶段结束的摸牌对象"
           },
-          "agreed": null,
+          "agreed": "出牌阶段，你可以重铸【杀】（无次数限制：弃置并摸一张）。出牌阶段结束时，若你本阶段失去过至少两张【杀】（重铸/使用/被弃置/被获得等所有离开手牌的【杀】，按张数计），你可以令一名男性角色摸两张牌（可含自己，若自己为男性）。",
           "assertions": {
             "positive": [
               "出牌阶段可重铸任意张【杀】（弃置并摸 1）",
@@ -206,7 +206,7 @@
           "code": "qiangshi",
           "name": "强识",
           "kind": "normal",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "出牌阶段开始时，你可观看一名其他角色的手牌并展示其中一张牌，然后你本阶段使用此类别的牌时可摸一张牌。",
           "original_source": "heroes.json#gid=753",
           "mechanics_version": 2,
@@ -232,7 +232,7 @@
               "lean": "A",
               "why": "原文「观看…并展示其中一张」把选择权交给张松。",
               "impact": "私密展示 + 选牌交互 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q2",
@@ -244,7 +244,7 @@
               "lean": "A",
               "why": "原文「可摸一张牌」。",
               "impact": "询问 + AI + 用例。",
-              "answer": null
+              "answer": "A**"
             },
             {
               "id": "Q3",
@@ -256,7 +256,7 @@
               "lean": "A",
               "why": "mechanics `reveal`：「展示」即立即公共可见。",
               "impact": "视图投影 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q4",
@@ -268,7 +268,7 @@
               "lean": "A",
               "why": "与精策同口径（类型 = 基本/锦囊/装备）。",
               "impact": "同类判定 + 用例。",
-              "answer": null
+              "answer": "A"
             }
           ],
           "mechanics": [
@@ -285,7 +285,7 @@
             "reveal": "展示牌公开",
             "qq": "播报展示的牌与类别"
           },
-          "agreed": null,
+          "agreed": "出牌阶段开始时，你可以观看一名其他角色的手牌并展示其中一张（由你自选，公开展示）；然后你本阶段使用与该牌类别（基本 / 锦囊（含延时）/ 装备）相同的牌时，你可以摸一张牌（每次可选，可放弃）。",
           "assertions": {
             "positive": [
               "出牌阶段开始可观看一名其他角色手牌并展示其中一张（张松自选）",
@@ -303,7 +303,7 @@
           "code": "xiantu",
           "name": "献图",
           "kind": "normal",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "其他角色出牌阶段开始时，你可以摸至多两张牌，然后交给其等量牌。此阶段结束时，若其造成伤害小于你以此法交给其的牌数，你失去1点体力。",
           "original_source": "heroes.json#gid=753",
           "mechanics_version": 2,
@@ -331,7 +331,7 @@
               "lean": "A",
               "why": "原文「至多两张」是可选数量，且交给张数与之等量。",
               "impact": "选数量交互 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q2",
@@ -343,7 +343,7 @@
               "lean": "A",
               "why": "原文「交给其等量牌」应由交出者选择。",
               "impact": "选牌交互 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q3",
@@ -355,7 +355,7 @@
               "lean": "A",
               "why": "原文「造成伤害小于…牌数」，《三国杀》「造成伤害」按点数比较。",
               "impact": "计数 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q4",
@@ -367,7 +367,7 @@
               "lean": "A",
               "why": "严格按「小于」比较。",
               "impact": "边界用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q5",
@@ -379,7 +379,7 @@
               "lean": "A",
               "why": "原文以「其他角色出牌阶段开始时」为触发点，未写每轮限制。",
               "impact": "触发计数键 + 用例。",
-              "answer": null
+              "answer": "A"
             }
           ],
           "mechanics": [
@@ -396,7 +396,7 @@
             "reveal": "交出的牌公开",
             "qq": "播报摸牌/交牌张数与阶段结束的失去体力"
           },
-          "agreed": null,
+          "agreed": "其他角色出牌阶段开始时，你可以摸至多两张牌（0/1/2 由你选择，选 0 等同不发动），然后交给其等量张手牌（由你自选）。此阶段结束时，若其造成伤害的点数合计小于你以此法交给其的牌数，你失去 1 点体力；交给 0 张时不失去体力。",
           "assertions": {
             "positive": [
               "其他角色出牌阶段开始可摸至多两张并交给其等量牌",
@@ -421,7 +421,7 @@
           "code": "zhenjun",
           "name": "镇军",
           "kind": "normal",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "准备阶段，你可以弃置一名角色X张牌（X为其手牌数减体力值且至少为1)，然后选择一项：\n 1.你弃置与其中非装备牌数等量张牌；\n 2.结束阶段，其摸与其中非装备牌数等量张牌。",
           "original_source": "heroes.json#gid=756",
           "mechanics_version": 2,
@@ -448,7 +448,7 @@
               "lean": "A",
               "why": "原文「你可以弃置一名角色 X 张牌」应给发动者选择；mechanics `discard-contract`。",
               "impact": "选牌交互 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q2",
@@ -460,7 +460,7 @@
               "lean": "A",
               "why": "弃置自己的牌应由自己选择。",
               "impact": "选牌交互 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q3",
@@ -472,7 +472,7 @@
               "lean": "A",
               "why": "「弃置 X 张牌」中的牌含装备区（discard-contract），X 本身按手牌数算。",
               "impact": "X 计算与边界 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q4",
@@ -484,7 +484,7 @@
               "lean": "A",
               "why": "镇军在自己的准备阶段发动，原文「结束阶段」指本回合结束阶段。",
               "impact": "延迟结算键 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q5",
@@ -496,7 +496,7 @@
               "lean": "A",
               "why": "原文「一名角色」未排除自己；X 至少为 1 保证可发动。",
               "impact": "候选集合 + 用例。",
-              "answer": null
+              "answer": "A"
             }
           ],
           "mechanics": [
@@ -513,7 +513,7 @@
             "reveal": "弃置牌公开",
             "qq": "播报 X、n 与二选一结果"
           },
-          "agreed": null,
+          "agreed": "准备阶段，你可以弃置一名角色（含自己）X 张牌（X = max(1, 其手牌数 - 其体力值)；手牌随机、装备区具体牌由你选，判定区不算），然后选择一项：1. 你弃置与其中非装备牌数等量张牌（由你自选）；2. 于禁本回合的结束阶段，其摸与其中非装备牌数等量张牌。非装备牌数为 0 时不进入二选一。",
           "assertions": {
             "positive": [
               "准备阶段可弃置一名角色 X 张牌（X=手牌数-体力值，至少 1）",
@@ -531,7 +531,7 @@
           "code": "yizhong",
           "name": "毅重",
           "kind": "locked",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "锁定技，体力值大于等于你的角色的黑色【杀】对你无效；手牌数小于等于你的角色无法响应你的黑色【杀】。",
           "original_source": "heroes.json#gid=756",
           "mechanics_version": 2,
@@ -558,7 +558,7 @@
               "lean": "A",
               "why": "原文「大于等于」。",
               "impact": "条件判定 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q2",
@@ -570,7 +570,7 @@
               "lean": "A",
               "why": "「无效」= 对该目标不结算，不是把牌吞掉；mechanics `sha-intercept` 有 `Immune` 通道。",
               "impact": "内核介入通道 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q3",
@@ -582,7 +582,7 @@
               "lean": "A",
               "why": "【杀】的响应只有【闪】；与「不能被响应」（unresponsive）不是同一事实。",
               "impact": "响应窗口 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q4",
@@ -594,7 +594,7 @@
               "lean": "A",
               "why": "mechanics `card-attributes`：颜色读实体牌花色。",
               "impact": "颜色入口 + 用例。",
-              "answer": null
+              "answer": "A"
             }
           ],
           "mechanics": [
@@ -610,11 +610,11 @@
             "reveal": "无",
             "qq": "播报【杀】无效/无法响应"
           },
-          "agreed": null,
+          "agreed": "锁定技，体力值大于等于你的角色使用的黑色【杀】（按实体牌花色，转化牌按承载牌）对你无效（此次【杀】对你不结算，牌正常进弃牌堆）；手牌数小于等于你的角色无法响应你的黑色【杀】（不能使用/打出【闪】，含技能转化【闪】与八卦阵）。",
           "assertions": {
             "positive": [
-              "体力 ≥ 于禁的角色使用黑色【杀】时，此【杀】对于禁无效",
-              "手牌数 ≤ 于禁的角色不能响应其黑色【杀】"
+              "体力 ≥ 于禁的角色使用黑色【杀】时，此【杀】对于禁不结算（不走【闪】/不造伤）",
+              "手牌数 ≤ 于禁的角色不能使用/打出【闪】响应其黑色【杀】（含技能转化【闪】与八卦阵）"
             ],
             "negative": [
               "红色【杀】不受影响",
@@ -635,7 +635,7 @@
           "code": "anxu",
           "name": "安恤",
           "kind": "normal",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "出牌阶段限一次，你可以获得两名角色各一张牌。然后你展示一张牌并交给其中手牌较少的角色，若不为黑桃，你摸一张牌。",
           "original_source": "heroes.json#gid=775",
           "mechanics_version": 2,
@@ -661,7 +661,7 @@
               "lean": "A",
               "why": "「获得一张牌」应给发动者选择；mechanics `discard-contract`/`card-gained`。",
               "impact": "选牌交互 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q2",
@@ -673,7 +673,7 @@
               "lean": "A",
               "why": "原文「两名角色」+界版语义（安恤他人）；含自己会与「手牌较少者」冲突。",
               "impact": "候选集合 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q3",
@@ -685,7 +685,7 @@
               "lean": "A",
               "why": "「然后」表示获得之后再比较。",
               "impact": "比较时点 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q4",
@@ -697,7 +697,7 @@
               "lean": "A",
               "why": "原文「然后你展示一张牌并交给其中手牌较少的角色」——「其中」指两名角色之间，展示牌应是刚获得的牌。",
               "impact": "选牌 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q5",
@@ -709,7 +709,7 @@
               "lean": "A",
               "why": "展示的是交出的那张；花色读取统一入口（红颜等覆盖同样生效）。",
               "impact": "花色入口 + 用例。",
-              "answer": null
+              "answer": "A"
             }
           ],
           "mechanics": [
@@ -726,10 +726,10 @@
             "reveal": "展示牌公开",
             "qq": "播报获得/展示/摸牌"
           },
-          "agreed": null,
+          "agreed": "出牌阶段限一次，你可以获得两名不同的其他角色各一张牌（手牌随机 / 装备区具体牌，由你选；判定区不算）。然后你从获得的这两张牌中选一张展示并交给其中手牌较少的角色（按获得后的手牌数比较，平局由你选）；若此牌不为黑桃（按有效花色），你摸一张牌。",
           "assertions": {
             "positive": [
-              "出牌阶段限一次：获得两名角色各一张牌，展示一张交给手牌较少者",
+              "出牌阶段限一次：获得两名不同其他角色各一张牌，从获得的两张中展示一张交给手牌较少者",
               "展示牌不为黑桃时安恤者摸一张"
             ],
             "negative": [
@@ -744,7 +744,7 @@
           "code": "zhuixi",
           "name": "追忆",
           "kind": "limited",
-          "status": "discussed",
+          "status": "confirmed",
           "original": "限定技，结束阶段，你可令一名其他角色摸三张牌并回复1点体力。然后你死亡时，可以对其再次发动本技能。",
           "original_source": "heroes.json#gid=775",
           "mechanics_version": 2,
@@ -772,7 +772,7 @@
               "lean": "A",
               "why": "原文「对其」指首次选定的角色。",
               "impact": "状态记忆 + 死亡钩子 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q2",
@@ -784,7 +784,7 @@
               "lean": "A",
               "why": "原文「再次发动本技能」明确给了第二段，若受同一限制则该句无意义。",
               "impact": "flags/计数 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q3",
@@ -796,7 +796,7 @@
               "lean": "A",
               "why": "「你死亡时」即死亡事件发生时；mechanics `dying-resolution` 之外需要死亡钩子。",
               "impact": "死亡钩子入口 + 用例。",
-              "answer": null
+              "answer": "A 此类技能称之为亡语，使用统一钩子，在濒死后死亡的角色在离开游戏前执行该技能"
             },
             {
               "id": "Q4",
@@ -808,7 +808,7 @@
               "lean": "A",
               "why": "原文仅写「对其」，未排除；v1 的 killer 过滤来自标准版文本。",
               "impact": "候选集合 + 用例。",
-              "answer": null
+              "answer": "A"
             },
             {
               "id": "Q5",
@@ -820,7 +820,7 @@
               "lean": "A",
               "why": "统一回复入口口径。",
               "impact": "回血入口 + 用例。",
-              "answer": null
+              "answer": "A 仅摸牌"
             }
           ],
           "mechanics": [
@@ -831,13 +831,13 @@
           ],
           "terms": {},
           "ui": {
-            "prompt": "追忆（限定技）：结束阶段令一名其他角色摸三张并回复 1；你死亡时可对其再次发动",
-            "overlay": "结束阶段选目标（可放弃）；死亡时自动提示再次发动",
+            "prompt": "追忆（限定技 · 亡语）：结束阶段令一名其他角色摸三张并回复 1；你死亡时可对其再次发动",
+            "overlay": "结束阶段选目标（可放弃）；死亡时（离开游戏前）提示再次发动",
             "fx": "memory_light",
             "reveal": "无",
             "qq": "播报摸牌/回血与死亡时再次发动"
           },
-          "agreed": null,
+          "agreed": "限定技，结束阶段，你可以令一名其他角色摸三张牌并回复 1 点体力（满血时仅摸牌）。然后你死亡时（亡语：走统一死亡钩子，在濒死结算后、离开游戏前执行），可以对其（首次选定的角色）再次发动本技能；死亡时的发动是独立的一次，不受「每局一次」限制，且不排除杀死者。",
           "assertions": {
             "positive": [
               "结束阶段可令一名其他角色摸 3 张并回复 1 点体力",
