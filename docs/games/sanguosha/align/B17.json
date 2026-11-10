@@ -591,8 +591,9 @@
           "current": [
             "v2：出牌阶段主动技，无次数限制（`turn.qiaoshuo_invalid` 为 0 时可反复发动），双方需有手牌且目标不受谦节影响。",
             "拼点结算（`pindian_result`）：赢 → `turn.qiaoshuo_win`；没赢 → `turn.qiaoshuo_fail` + `turn.qiaoshuo_invalid`（本回合技能失效、不能使用锦囊）。",
-            "赢的 +1：`skills::extra_targets` 对本回合下一张有目标牌返回 1（杀/决斗/拆/顺/火攻/借刀/铁索），使用后由 `consume_extra_targets` 消费。",
-            "赢的 -1：`legal_uses` 为群体锦囊（南蛮/万箭/桃园/五谷）追加 `trim:<牌>:<不指定目标>` 动作，`planned_targets` 用 `aoe_trim_target` 裁掉目标；使用后同样消费。",
+            "赢的 +1：`skills::extra_targets` 对本回合下一张**非延时**牌返回 1（杀/决斗/拆/顺/火攻/借刀/铁索），使用后由 `consume_extra_targets` 消费。",
+            "赢的 -1：`legal_uses` 为群体锦囊（南蛮/万箭/桃园/五谷，均为非延时）追加 `trim:<牌>:<不指定目标>` 动作，`planned_targets` 用 `aoe_trim_target` 裁掉目标；使用后同样消费。",
+            "延时锦囊（乐不思蜀/兵粮寸断）**不适用 ±1 且不消耗该效果**（用户 2026-11-10 修订：废除延时锦囊的额外目标支持）。",
             "没赢：`plan_use` 拦截所有锦囊（含延时锦囊）。"
           ],
           "confidence": "verified",
@@ -626,7 +627,7 @@
               "lean": "A",
               "why": "文本是「下一张牌」。B 是 v1 的子集。",
               "impact": "目标数修正 + 用例。",
-              "answer": "A 非装备牌，延迟锦囊的额外目标用虚拟牌"
+              "answer": "A 非装备牌，延迟锦囊的额外目标用虚拟牌｜2026-11-10 修订：废除延时锦囊的额外目标支持，巧说 ±1 仅支持非延时锦囊/基本牌；使用延时锦囊不消耗该效果"
             },
             {
               "id": "Q3",
@@ -679,7 +680,7 @@
             "reveal": "拼点牌亮出（内核）",
             "qq": "播报拼点结果与失效状态"
           },
-          "agreed": "出牌阶段，你可以与一名其他角色拼点（双方需有手牌；可反复发动，直到你或对方没有手牌）：若你赢，你本回合使用的下一张牌可以多指定或少指定一个目标（至少指定一个目标；无目标牌不消耗，顺延到下一张有目标的牌；非装备牌与延时锦囊的额外目标用虚拟牌承载）；若你没赢，你本回合不能使用锦囊牌（含延时锦囊）且此技能本回合失效。",
+          "agreed": "出牌阶段，你可以与一名其他角色拼点（双方需有手牌；可反复发动，直到你或对方没有手牌）：若你赢，你本回合使用的下一张牌可以多指定或少指定一个目标（至少指定一个目标；**仅适用于非延时锦囊与基本牌**；无目标牌或延时锦囊不消耗，顺延到下一张可适用的牌）。**2026-11-10 修订（用户裁定）：废除延时锦囊的额外目标支持，延时锦囊不适用 ±1 也不消耗该效果**；若你没赢，你本回合不能使用锦囊牌（含延时锦囊）且此技能本回合失效。",
           "assertions": {
             "positive": [
               "赢→下一张有目标的牌可 +1 目标",
@@ -694,7 +695,8 @@
           "tests": [
             "b17::qiaoshuo_win_allows_extra_target_then_consumes",
             "b17::qiaoshuo_lose_blocks_tricks_and_invalidates_skill",
-            "b17::qiaoshuo_win_offers_trim_action"
+            "b17::qiaoshuo_win_offers_trim_action",
+            "b17::qiaoshuo_delayed_trick_gets_no_extra_target"
           ]
         }
       ]

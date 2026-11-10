@@ -371,6 +371,40 @@ fn qiaoshuo_lose_blocks_tricks_and_invalidates_skill() {
 }
 
 #[test]
+fn qiaoshuo_delayed_trick_gets_no_extra_target() {
+    let mut g = game(&[
+        ("jianyong", &["qiaoshuo"], 3, "shu"),
+        ("p1", &[], 4, "wei"),
+        ("p2", &[], 4, "wei"),
+    ]);
+    play_phase(&mut g, 0);
+    give(&mut g, 0, &["le1", "sp2"]);
+    // 相当于巧说已赢（细致拼点流程见上面的用例）。
+    g.counters.insert("turn.qiaoshuo_win".to_string(), 1);
+    // 延时锦囊：不提供额外目标（用户 2026-11-10 裁定：废除延迟锦囊的额外目标支持）。
+    assert_eq!(
+        skills::extra_targets(&g, 0, Some(&"le1".to_string()), "乐不思蜀"),
+        0
+    );
+    let uses = card_play::legal_uses(&g, 0);
+    assert!(
+        uses.iter().any(|(id, _)| id == "use:le1:1"),
+        "仍可正常以 1 个目标使用"
+    );
+    assert!(
+        !uses.iter().any(|(id, _)| id.starts_with("use:le1:1,2")),
+        "不提供 2 目标的【乐不思蜀】"
+    );
+    // 使用延时锦囊不消耗「下一张牌」效果。
+    g.resolve_use(0, &"le1".to_string(), vec![1]).unwrap();
+    assert_eq!(g.counter("turn.qiaoshuo_win"), 1, "延时锦囊不消耗该效果");
+    // 下一张非延时牌（【杀】）仍可 +1 目标，并在使用后消费。
+    g.resolve_use(0, &"sp2".to_string(), vec![1, 2]).unwrap();
+    assert_eq!(g.counter("turn.qiaoshuo_win"), 0);
+    assert_eq!(skills::extra_targets(&g, 0, None, "杀"), 0);
+}
+
+#[test]
 fn qiaoshuo_win_offers_trim_action() {
     let mut g = game(&[
         ("jianyong", &["qiaoshuo"], 3, "shu"),

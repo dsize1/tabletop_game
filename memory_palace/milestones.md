@@ -12,7 +12,8 @@
 - **内核增量**：单动作失去/获得批次与去重（`lost_batch`/`equip_lost_batch`/`gain_batch`/`action_seen`）、
   `turn.damage_card`、巧说 `trim:` 入口、`extra_targets_no_distance` 拆分、陷阵目标级距离/次数/禁用钩子、
   将驰次数双向修正、禁酒 `jiu_blocked`/`effective_rank`、纵适 code 解耦（v1 同步改名）。
-- **度量**：`cargo test -p sanguosha2` **616** 条（585 + 31）全绿；`check:sgs2` 全绿（注册 256 / 对齐单 249 /
+- **修订**（2026-11-10，用户裁定）：废除延时锦囊的额外目标支持（巧说 ±1 仅非延时锦囊/基本牌，延时锦囊不消耗该效果），不做虚拟判定牌。
+- **度量**：`cargo test -p sanguosha2` **617** 条（585 + 32）全绿；`check:sgs2` 全绿（注册 256 / 对齐单 249 /
   B0–B17 一致，AI 10/10、parity 无差异）；`sgs:check:fast` 全绿。
 
 ## M88：B16 界标·J4 十四技能落地（v2 迁移批次第 9 批）✅

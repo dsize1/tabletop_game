@@ -932,6 +932,11 @@ pub fn qiaoshuo_extra_targets(g: &Game, seat: usize, name: &str) -> usize {
         return 0;
     }
     let def = crate::cards::def(name);
+    // 用户裁定（2026-11-10 修订）：废除延时锦囊的额外目标支持——延时锦囊不适用 ±1，
+    // 使用延时锦囊也不消耗该效果（顺延到下一张可适用的牌）。
+    if def.tags.delayed {
+        return 0;
+    }
     let eligible = def.tags.sha
         || matches!(
             def.effect,
