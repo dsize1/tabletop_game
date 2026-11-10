@@ -1653,7 +1653,7 @@
           },
           "impl": "sanguosha2::skills::b9::MASHU（复用）",
           "tests": [
-            "b9::mashu_reduces_distance"
+            "b9::mashu_reduces_distance_by_one"
           ]
         },
         {

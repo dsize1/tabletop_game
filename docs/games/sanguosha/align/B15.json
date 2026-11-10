@@ -376,8 +376,7 @@
           "impl": "sanguosha2::skills::b15::BENGKUAI + flow::lose_hp / flow::lose_max_hp",
           "tests": [
             "b15::bengkuai_triggers_and_loses_hp",
-            "b15::bengkuai_tie_triggers_unique_minimum_skips",
-            "b15::bengkuai_suppressed_by_jiuchi"
+            "b15::bengkuai_tie_triggers_unique_minimum_skips"
           ]
         },
         {

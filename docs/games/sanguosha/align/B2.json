@@ -369,8 +369,8 @@
           },
           "impl": "sanguosha2::skills::b2::ZUILUN",
           "tests": [
-            "b2::zuilun_draws_for_satisfied_conditions",
-            "b2::zuilun_all_false_costs_hp"
+            "b2::zuilun_one_condition_then_two_card_order",
+            "b2::zuilun_all_false_asks_victim"
           ]
         },
         {
