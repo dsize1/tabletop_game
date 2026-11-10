@@ -104,6 +104,15 @@ const MECHANISM_SUPPORT = {
     ok: true,
     where: "Game::move_equip + skills::on_flip（B14·设变）",
   },
+  "damage-trick": {
+    ok: true,
+    where: "cards::is_damage_trick / CardDef.damage_trick（决斗·万箭·南蛮·火攻）+ 伤害锦囊响应链",
+  },
+  // B19 声明的机制缺口（ok: false = 本批必须先补内核）
+  "armor-points": {
+    ok: false,
+    where: "⚠️ B19 需新增：Seat.armor + flow::damage 前置扣护甲（溢出扣体力）+ armor_changed 事件 + 视图投影（矢北）",
+  },
 };
 
 const args = process.argv.slice(2);
