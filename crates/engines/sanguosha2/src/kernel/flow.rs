@@ -228,6 +228,8 @@ fn damage_now_impl(
     }
     if let Some(s) = source {
         g.bump(&format!("turn.damage_by:{s}"));
+        // 本阶段该来源造成的伤害点数（献图：此阶段结束时比较）。
+        g.bump(&format!("phase.damage_by:{s}"));
         // 本局累计造成的伤害数（伏枥：X > 你造成的伤害数才翻面）。
         g.bump(&format!("total.damage_dealt:{s}"));
         // 咆哮：本次【杀】已消费「下一次伤害 +1」。

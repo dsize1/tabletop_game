@@ -1199,7 +1199,9 @@ fn sha_loop(
         }
         // 不能被响应的牌（往烈/雄乱）：直接结算伤害。
         if !unresponsive {
-            if let Some(p) = response_pending(g, t, ResponseKind::Shan) {
+            if let Some(p) =
+                response_pending(g, t, ResponseKind::Shan, Some(source), card)
+            {
                 if num(data, "need") == 0 {
                     let need = skills::response_need(g, t, source, ResponseKind::Shan, def.effect);
                     data["need"] = json!(need);
@@ -1288,7 +1290,9 @@ fn aoe(
                 data["cursor"] = json!(cursor);
                 return Ok(Step::Next(Stage::CardOpt, data.clone()));
             }
-            if let Some(p) = response_pending(g, t, kind) {
+            if let Some(p) =
+                response_pending(g, t, kind, Some(damage_source), card)
+            {
                 data["asked"] = json!(true);
                 return need_at(g, Stage::CardAsk, data.clone(), p);
             }
@@ -1381,7 +1385,9 @@ fn duel(
             data["relay_wait"] = json!(true);
             return Ok(Step::Next(Stage::CardOpt, data.clone()));
         }
-        if let Some(p) = response_pending(g, responder, ResponseKind::Sha) {
+        if let Some(p) =
+            response_pending(g, responder, ResponseKind::Sha, Some(opponent), card)
+        {
             data["responder"] = json!(responder);
             data["asked"] = json!(true);
             if num(data, "need") == 0 {
@@ -1948,10 +1954,17 @@ fn response_pending(
     g: &mut Game,
     target: usize,
     kind: ResponseKind,
+    source: Option<usize>,
+    card: Option<&CardId>,
 ) -> Option<super::pending::Pending> {
+    g.response_source = source;
     let mut options = response_options(g, target, kind);
     if kind == ResponseKind::Shan && crate::skills::block_real_shan(g, target) {
         options.retain(|(id, _)| !id.starts_with("respond:"));
+    }
+    // 毅重②（及其他「无法响应」类）：按（响应者, 使用者, 此牌）逐张判定。
+    if kind == ResponseKind::Shan && crate::skills::shan_blocked_for(g, target, source, card) {
+        options.retain(|(id, _)| !id.starts_with("respond:") && !id.starts_with("armor:"));
     }
     if options.is_empty() {
         return None;
@@ -1999,6 +2012,10 @@ fn apply_response(
                 if g.is_red(&id) != red {
                     return Err("响应：父魂要求打出同色手牌".into());
                 }
+            }
+            // 毅重②：手牌数 ≤ 你的角色无法响应你的黑色【杀】。
+            if crate::skills::shan_blocked_for(g, actor, g.response_source, used) {
+                return Err("响应：此【杀】不能被响应".into());
             }
         }
         // 打出记账（矫诏：本轮使用与打出都算）。
@@ -2398,6 +2415,7 @@ fn finish(g: &mut Game, card: Option<&CardId>, cause: &str) -> Result<(), String
     g.response_context = None;
     // 父魂的同色响应限制只对本次使用的牌生效。
     g.response_color_lock = None;
+    g.response_source = None;
     let Some(card) = card else {
         return Ok(());
     };

@@ -25,6 +25,7 @@ pub mod b16;
 pub mod b17;
 pub mod b18;
 pub mod b19;
+pub mod b20;
 pub mod mingren;
 pub mod kongsheng;
 pub mod liangyin;
@@ -367,6 +368,15 @@ pub const SKILLS: &[SkillDef] = &[
     b19::DANXIN,
     b19::SHIBEI,
     b19::JIANYING,
+    // B20（界夏侯氏 / 界张松 / 界于禁 / 界步练师）
+    b20::QIAOSHI,
+    b20::YANYU,
+    b20::QIANGSHI,
+    b20::XIANTU,
+    b20::ZHENJUN,
+    b20::YIZHONG,
+    b20::ANXU,
+    b20::ZHUIXI,
 ];
 
 /// 转换技（阳/阴两面）：视图按此清单投影 `transforms`（与 handlers 的 `g.yang/toggle_yang` 对应）。
@@ -1224,6 +1234,7 @@ pub fn sha_intercept_skills(
     let mut out = b8::sha_intercept_skills(g, user, target, card);
     out.extend(b18::zhenlie_sha_intercept(g, user, target, card));
     out.extend(b19::sha_intercept_skills(g, user, target, card));
+    out.extend(b20::sha_intercept(g, user, target, card));
     out
 }
 
@@ -1523,6 +1534,16 @@ pub fn sha_limit_bonus(g: &Game, seat: usize) -> usize {
         }
 }
 
+/// 毅重②（及同类「无法响应」）：该响应者能否用【闪】响应此牌。
+pub fn shan_blocked_for(
+    g: &Game,
+    responder: usize,
+    source: Option<usize>,
+    card: Option<&crate::kernel::CardId>,
+) -> bool {
+    b20::shan_blocked_for(g, responder, source, card)
+}
+
 pub fn block_real_shan(g: &Game, seat: usize) -> bool {
     b10::block_real_shan(g, seat)
 }
@@ -1691,6 +1712,8 @@ pub fn on_skip_draw(g: &mut Game, skipper: usize) {
 /// 死亡钩子（断肠 / 节命「死亡时」）。
 pub fn on_death(g: &mut Game, victim: usize, source: Option<usize>) {
     b16::on_death(g, victim, source);
+    // 亡语（B20 追忆）：统一死亡钩子，在濒死结算后、离开游戏前执行。
+    b20::on_death(g, victim, source);
 }
 
 /// 【南蛮入侵】的伤害来源替换（祸首）。

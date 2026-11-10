@@ -409,9 +409,18 @@ pub fn submit(g: &mut Game, actor: usize, action: &str) -> Result<String, String
 /// 回合/阶段切换（测试与引擎共用）：清一次性计数器 + 发事件。
 pub fn begin_phase(g: &mut Game, seat: usize, phase: Phase) -> Result<(), String> {
     let mut phase = phase;
-    if g.turn != seat {
+    let turn_switched = g.turn != seat;
+    if turn_switched {
         // 「回合结束后」技能（窃听）：在清空 `turn.` 计数之前询问。
         crate::skills::on_turn_end(g, g.turn);
+        // 上一回合最后阶段结束（正常为 End）：emit PhaseEnd（阶段结束时技能的唯一事实源）。
+        let old_turn = g.turn;
+        let old_phase = g.phase;
+        g.events.push(super::event::Event::simple(
+            EventKind::PhaseEnd,
+            Some(old_turn),
+            Some(&format!("{old_phase:?}")),
+        ));
         for i in 0..g.seats.len() {
             g.unfreeze_hand(i);
             // 义绝·黑的手牌封印只持续到本回合结束。
@@ -449,6 +458,15 @@ pub fn begin_phase(g: &mut Game, seat: usize, phase: Phase) -> Result<(), String
         return Ok(());
     }
     if g.phase != phase {
+        // 阶段结束事件（供「阶段结束时」技能；cause = 旧阶段名）。
+        if !turn_switched {
+            let old_phase = g.phase;
+            g.events.push(super::event::Event::simple(
+                EventKind::PhaseEnd,
+                Some(seat),
+                Some(&format!("{old_phase:?}")),
+            ));
+        }
         g.phase = phase;
         g.clear_prefix("phase.");
         g.phase_discard_cards.clear();

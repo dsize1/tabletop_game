@@ -111,6 +111,8 @@ pub enum Window {
     OwnPhase(super::Phase),
     /// 仅自己的回合外（回合外技能）。
     OtherTurn,
+    /// 仅他人回合内的指定阶段（樵拾：其他角色的结束阶段；献图：其他角色出牌阶段）。
+    OtherPhase(super::Phase),
 }
 
 impl Window {
@@ -120,6 +122,7 @@ impl Window {
             Window::OwnTurn => turn == owner,
             Window::OwnPhase(p) => turn == owner && phase == p,
             Window::OtherTurn => turn != owner,
+            Window::OtherPhase(p) => turn != owner && phase == p,
         }
     }
 }

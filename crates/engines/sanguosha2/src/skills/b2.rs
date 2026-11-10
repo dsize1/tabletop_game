@@ -393,6 +393,10 @@ fn align_hand(g: &mut Game, owner: usize, target: usize) {
 
 /// 镇骨：出牌阶段限一次，选目标 → **立刻结算一次** + 记下「其回合结束再结算一次」。
 fn zhengu(g: &mut Game, a: &Ask) -> Result<Step, String> {
+    // 事件通道（PhaseEnd）不是主动入口：第二时刻由 `on_turn_end_for_scheduled` 统一结算。
+    if a.data["event"].is_string() {
+        return Ok(Step::Done);
+    }
     match a.stage {
         Stage::Choose => {
             // 主动发动（事件为空）

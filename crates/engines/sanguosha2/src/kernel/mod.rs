@@ -284,6 +284,9 @@ pub struct Game {
     /// 本张牌的目标只能用该颜色手牌响应（父魂：同色响应限制；`Some(true)` = 红色）。
     #[serde(default)]
     pub response_color_lock: Option<bool>,
+    /// 正在询问响应的来源（毅重②：「无法响应你的黑色【杀】」按来源判定）。
+    #[serde(default)]
+    pub response_source: Option<usize>,
     /// 虚拟牌：承载牌 → 生效牌名（奇策等）。颜色/点数仍读物理牌。
     #[serde(default)]
     pub virtual_defs: BTreeMap<CardId, String>,
@@ -430,6 +433,7 @@ impl Game {
             used_this_turn: Vec::new(),
             extra_targets_mid: Vec::new(),
             response_color_lock: None,
+            response_source: None,
             virtual_defs: BTreeMap::new(),
             origins: BTreeMap::new(),
             void_tags: BTreeMap::new(),
