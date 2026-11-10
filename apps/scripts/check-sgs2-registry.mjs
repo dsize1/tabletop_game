@@ -194,6 +194,56 @@ for (const code of seen) {
 }
 
 // ---------------------------------------------------------------------------
+// 3.6) 对齐单锚点存在性：`tests: ["bN::fn"]` 与 `impl: "sanguosha2::skills::m::CONST"`
+//      必须真实存在（B17 教训：手写 typo / 改名后漏改只会在更晚的 general-audit 才暴露）。
+// ---------------------------------------------------------------------------
+const textCache = new Map();
+const sourceOf = (file) => {
+  if (!textCache.has(file)) {
+    textCache.set(file, existsSync(file) ? readFileSync(file, "utf8") : null);
+  }
+  return textCache.get(file);
+};
+for (const b of V2_BATCHES) {
+  const specFile = path.join(projectRoot, `docs/games/sanguosha/align/B${b}.json`);
+  if (!existsSync(specFile)) continue;
+  const spec = JSON.parse(readFileSync(specFile, "utf8"));
+  for (const gen of spec.generals ?? []) {
+    for (const sk of gen.skills ?? []) {
+      for (const t of sk.tests ?? []) {
+        const [mod, fn, extra] = String(t).split("::");
+        if (!mod || !fn || extra !== undefined || !/^[a-z][a-z0-9_]*$/.test(mod)) {
+          fail(`[B${b}] ${sk.code}: 用例锚点格式异常 \`${t}\`（应为 bN::fn）`);
+          continue;
+        }
+        const file = path.join(projectRoot, `crates/engines/sanguosha2/tests/${mod}.rs`);
+        const src = sourceOf(file);
+        if (src === null) {
+          fail(`[B${b}] ${sk.code}: 用例文件不存在 tests/${mod}.rs（${t}）`);
+          continue;
+        }
+        const found = src.split("\n").some((line) => line.trimStart().startsWith(`fn ${fn}(`));
+        if (!found) {
+          fail(`[B${b}] ${sk.code}: 用例锚点 \`${t}\` 在 tests/${mod}.rs 中找不到 \`fn ${fn}(\``);
+        }
+      }
+      for (const m of String(sk.impl ?? "").matchAll(/sanguosha2::skills::([a-z0-9_]+)::([A-Z0-9_]+)/g)) {
+        const file = path.join(
+          projectRoot,
+          `crates/engines/sanguosha2/src/skills/${m[1]}.rs`,
+        );
+        const src = sourceOf(file);
+        if (src === null) {
+          fail(`[B${b}] ${sk.code}: impl 模块不存在 src/skills/${m[1]}.rs（${m[0]}）`);
+        } else if (!src.includes(`pub const ${m[2]}`)) {
+          fail(`[B${b}] ${sk.code}: impl 锚点 \`${m[0]}\` 找不到 \`pub const ${m[2]}\``);
+        }
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 4) 用例覆盖（每个 code 必须出现在某个 #[test] 函数体里）
 // ---------------------------------------------------------------------------
 

@@ -1,6 +1,6 @@
 //! 机制门禁：牌名硬编码、目标列表、手牌冻结。
 
-use sanguosha2::kernel::{Card, Game, Phase, Seat, Suit};
+use sanguosha2::kernel::{Card, Game, Phase, Seat, Slot, Suit};
 use sanguosha2::skills;
 
 fn g() -> Game {
@@ -21,27 +21,140 @@ fn g() -> Game {
     g
 }
 
-// 门禁：技能/内核代码里不得用牌名比较（只能读 cards::def 属性）
+// 门禁：技能/内核代码里不得用牌名比较（只能读 cards::def 属性）。
+//
+// B17 harness：文件清单扩到全部技能模块 + 内核流程；历史批次的已知例外显式登记
+// （`ALLOW`），新增代码一律不得再加牌名比较——否则新批次会绕过旧清单。
 #[test]
 fn gate_no_card_name_comparison() {
-    for (name, src) in [
+    // 已知例外（历史批次，待属性化）：文件 → 允许的牌名比较处数。
+    // - b9（3 处）：界武圣/转换的 `name == "杀"/"火杀"/"雷杀"` → 应读 def.tags.sha
+    // - b15（2 处）：天义 `name == "杀"`、巨象 `name == "南蛮入侵"` → 应读属性
+    // - b16（1 处）：祸首 `name == "南蛮入侵"` → 应读 def.effect
+    const ALLOW: &[(&str, usize)] = &[
+        ("skills/b9.rs", 3),
+        ("skills/b15.rs", 2),
+        ("skills/b16.rs", 1),
+    ];
+    let files: &[(&str, &str)] = &[
         ("skills/b0.rs", include_str!("../src/skills/b0.rs")),
         ("skills/b1.rs", include_str!("../src/skills/b1.rs")),
         ("skills/b1b.rs", include_str!("../src/skills/b1b.rs")),
+        ("skills/b2.rs", include_str!("../src/skills/b2.rs")),
         ("skills/b3.rs", include_str!("../src/skills/b3.rs")),
         ("skills/b4.rs", include_str!("../src/skills/b4.rs")),
         ("skills/b5.rs", include_str!("../src/skills/b5.rs")),
         ("skills/b6.rs", include_str!("../src/skills/b6.rs")),
         ("skills/b7.rs", include_str!("../src/skills/b7.rs")),
+        ("skills/b8.rs", include_str!("../src/skills/b8.rs")),
+        ("skills/b9.rs", include_str!("../src/skills/b9.rs")),
+        ("skills/b10.rs", include_str!("../src/skills/b10.rs")),
+        ("skills/b11.rs", include_str!("../src/skills/b11.rs")),
+        ("skills/b12.rs", include_str!("../src/skills/b12.rs")),
+        ("skills/b13.rs", include_str!("../src/skills/b13.rs")),
+        ("skills/b14.rs", include_str!("../src/skills/b14.rs")),
+        ("skills/b15.rs", include_str!("../src/skills/b15.rs")),
+        ("skills/b16.rs", include_str!("../src/skills/b16.rs")),
+        ("skills/b17.rs", include_str!("../src/skills/b17.rs")),
+        (
+            "skills/mingren.rs",
+            include_str!("../src/skills/mingren.rs"),
+        ),
+        (
+            "skills/kongsheng.rs",
+            include_str!("../src/skills/kongsheng.rs"),
+        ),
+        (
+            "skills/liangyin.rs",
+            include_str!("../src/skills/liangyin.rs"),
+        ),
+        (
+            "skills/zhenliang.rs",
+            include_str!("../src/skills/zhenliang.rs"),
+        ),
         ("kernel/flow.rs", include_str!("../src/kernel/flow.rs")),
-    ] {
-        for pat in ["name == \"", "name != \"", "matches!(name"] {
-            assert!(
-                !src.contains(pat),
-                "{name} 出现牌名硬编码 `{pat}`（应读 cards::def 属性）"
-            );
-        }
+        (
+            "kernel/card_play.rs",
+            include_str!("../src/kernel/card_play.rs"),
+        ),
+        (
+            "kernel/pindian.rs",
+            include_str!("../src/kernel/pindian.rs"),
+        ),
+    ];
+    for (name, src) in files {
+        let allowed = ALLOW
+            .iter()
+            .find(|(file, _)| file == name)
+            .map(|(_, n)| *n)
+            .unwrap_or(0);
+        let hits: usize = ["name == \"", "name != \"", "matches!(name"]
+            .iter()
+            .map(|pat| src.matches(pat).count())
+            .sum();
+        assert!(
+            hits <= allowed,
+            "{name} 出现牌名硬编码 {hits} 处（允许 {allowed} 处历史例外）；新增代码应读 cards::def 属性"
+        );
     }
+}
+
+// 门禁：B17 引入的「单动作批次」必须在 `begin_action` 清空，防止跨动作泄漏。
+#[test]
+fn action_batches_are_cleared_between_actions() {
+    let mut g = batch_game();
+    g.to_equip(&"e1".to_string(), 0, Slot::Weapon).unwrap();
+    g.to_discard(&"e1".to_string(), "test").unwrap();
+    assert!(
+        g.lost_batch
+            .get(&0)
+            .is_some_and(|v| v.contains(&"e1".to_string())),
+        "失去装备区牌进入 lost_batch"
+    );
+    assert!(
+        g.equip_lost_batch.iter().any(|(s, c)| *s == 0 && c == "e1"),
+        "失去装备区牌进入 equip_lost_batch"
+    );
+    g.action_seen.insert("x".to_string());
+    g.begin_action();
+    assert!(g.lost_batch.is_empty(), "begin_action 清空 lost_batch");
+    assert!(
+        g.equip_lost_batch.is_empty(),
+        "begin_action 清空 equip_lost_batch"
+    );
+    assert!(g.gain_batch.is_empty(), "begin_action 清空 gain_batch");
+    assert!(g.action_seen.is_empty(), "begin_action 清空 action_seen");
+}
+
+// 门禁：`gain_batch` 只记录「从其他角色获得」，摸牌不算（恩怨）。
+#[test]
+fn gain_batch_tracks_cross_seat_gain_not_draw() {
+    let mut g = batch_game();
+    g.to_hand(&"c2".to_string(), 1).unwrap();
+    g.gain(&"c2".to_string(), 0).unwrap();
+    assert!(
+        g.gain_batch
+            .iter()
+            .any(|(from, to, id)| *from == 1 && *to == 0 && id == "c2"),
+        "跨座位获得进入 gain_batch"
+    );
+    g.begin_action();
+    let drawn = g.draw(0, 1);
+    assert!(!drawn.is_empty(), "牌堆有牌");
+    assert!(g.gain_batch.is_empty(), "摸牌不算「获得」");
+}
+
+fn batch_game() -> Game {
+    Game::new(
+        vec![Seat::new("p0", "a", &[], 4), Seat::new("p1", "b", &[], 4)],
+        vec![
+            Card::new("c1", "杀", Suit::Spade, 7),
+            Card::new("c2", "闪", Suit::Heart, 8),
+            Card::new("f1", "闪", Suit::Heart, 9),
+            Card::new("f2", "闪", Suit::Club, 10),
+            Card::equip("e1", "青釭剑", Suit::Spade, 6, Slot::Weapon),
+        ],
+    )
 }
 
 // 目标列表：多目标必须能逐个拿到
@@ -100,7 +213,10 @@ fn abolished_slot_and_judge_zone_reject_cards() {
         "已废除的装备栏不能装备"
     );
     g.seats[0].judge_abolished = true;
-    assert!(g.to_judge(&card, 0).is_err(), "判定区废除后不能放入延时锦囊");
+    assert!(
+        g.to_judge(&card, 0).is_err(),
+        "判定区废除后不能放入延时锦囊"
+    );
 }
 
 // 消费点：雄乱生效期间，张绣使用的牌自动标记为不可响应
@@ -137,9 +253,11 @@ fn wiring_frozen_blocks_use_card() {
     g.to_hand(&"c1".to_string(), 0).unwrap();
     g.freeze_hand(0);
     g.use_card(0, &"c1".to_string(), vec![2]);
-    assert_eq!(g.counter("turn.blocked_use"), 1, "冻结后使用应被拒绝") ;
+    assert_eq!(g.counter("turn.blocked_use"), 1, "冻结后使用应被拒绝");
     assert!(
-        !g.events.iter().any(|e| matches!(e.kind, sanguosha2::kernel::event::EventKind::TargetChosen)),
+        !g.events
+            .iter()
+            .any(|e| matches!(e.kind, sanguosha2::kernel::event::EventKind::TargetChosen)),
         "被拒绝时不应产生目标指定事件"
     );
 }
@@ -147,10 +265,15 @@ fn wiring_frozen_blocks_use_card() {
 #[test]
 fn wiring_qianjie_filters_targets() {
     let mut g = g4();
-    g.cards.insert("le".to_string(), Card::new("le", "乐不思蜀", Suit::Heart, 6));
+    g.cards.insert(
+        "le".to_string(),
+        Card::new("le", "乐不思蜀", Suit::Heart, 6),
+    );
     g.use_card(0, &"le".to_string(), vec![1]);
     assert!(
-        !g.events.iter().any(|e| matches!(e.kind, sanguosha2::kernel::event::EventKind::TargetChosen)),
+        !g.events
+            .iter()
+            .any(|e| matches!(e.kind, sanguosha2::kernel::event::EventKind::TargetChosen)),
         "谦节角色不应被写入目标列表"
     );
 }
@@ -179,7 +302,10 @@ fn wiring_reach_uses_wanglie_first_card() {
     // 无往烈的角色：4 人局 2→0 距离 2，基础范围 1 → 打不到
     assert!(!g.can_reach(2, 0, &"c2".to_string()), "距离 2 超出范围 1");
     // 往烈：出牌阶段首张牌无距离限制 → 0→2 可打
-    assert!(g.first_card_no_distance(0, &"c2".to_string()), "首张牌应无距离限制");
+    assert!(
+        g.first_card_no_distance(0, &"c2".to_string()),
+        "首张牌应无距离限制"
+    );
     assert!(g.can_reach(0, 2, &"c2".to_string()), "往烈首张牌应无视距离");
     // 距离 1 的目标本来就在范围内
     assert!(g.can_reach(0, 1, &"c2".to_string()));
@@ -198,9 +324,13 @@ fn attack_range_reads_weapon_and_horses() {
     // 距离：4 人局 0→2 基础距离 2；装备进攻马（赤兔）后 -1
     assert_eq!(g.distance(0, 2), 2);
     g.cards.get_mut("c2").unwrap().name = "赤兔".to_string();
-    g.to_equip(&"c2".to_string(), 0, Slot::HorseOffense).unwrap();
+    g.to_equip(&"c2".to_string(), 0, Slot::HorseOffense)
+        .unwrap();
     assert_eq!(g.distance(0, 2), 1, "进攻马使距离 -1");
-    assert!(g.can_reach(0, 2, &"c1".to_string()), "范围 5 应能打到距离 1");
+    assert!(
+        g.can_reach(0, 2, &"c1".to_string()),
+        "范围 5 应能打到距离 1"
+    );
 }
 
 // 弃置契约（mechanics `discard-contract`，用户 2026-11-06 裁定）：
@@ -213,7 +343,9 @@ fn discard_contract_judge_zone_is_not_discard() {
     let mut g = g();
     g.to_judge(&"c3".to_string(), 0).unwrap();
     assert!(
-        g.events.iter().any(|e| e.kind == EventKind::JudgeZoneEntered),
+        g.events
+            .iter()
+            .any(|e| e.kind == EventKind::JudgeZoneEntered),
         "进入判定区要发 JudgeZoneEntered"
     );
     g.events.clear();

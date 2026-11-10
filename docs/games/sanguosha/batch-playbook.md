@@ -272,7 +272,7 @@ npm run sgs:check:fast      # 全仓 23+ 步（含 v1 回归）
 
 | 门禁 | 作用 |
 |---|---|
-| `npm run check:sgs2-registry` | 注册表唯一性 / 转换技清单 / **对齐单（V2_BATCHES）↔ 注册表精确一致** / 每个 code 必须有 `#[test]` 覆盖 / **机制用例锚点**（对齐单声明的机制必须在 `tests/*.rs` 有内核级锚点；措辞类机制走 `MECHANISM_ANCHOR_WAIVED` 且有理由） / 授予型子技能走 `GRANT_ONLY` 白名单 |
+| `npm run check:sgs2-registry` | 注册表唯一性 / 转换技清单 / **对齐单（V2_BATCHES）↔ 注册表精确一致** / 每个 code 必须有 `#[test]` 覆盖 / **对齐单 `tests` 与 `impl` 锚点必须真实存在**（B17 起：`bN::fn` 必须在 `tests/bN.rs`、`sanguosha2::skills::m::CONST` 必须能找到 `pub const`；防手写 typo/改名漏改） / **机制用例锚点**（措辞类走 `MECHANISM_ANCHOR_WAIVED`） / 授予型子技能走 `GRANT_ONLY` 白名单 |
 | `npm run check:sgs2-decision-log` | AI 决策日志 schema（`legal` 必须包含 `chosen`、候选 ≤64、step 单调） |
 | `npm run check:sgs2-ai` | 10 局自对弈：终局率 / illegal / loop / stalled / pending 覆盖 |
 | `npm run check:sgs-parity` | v1↔v2 数据/属性/技能覆盖（迁移期；删 v1 时归档） |
@@ -285,6 +285,16 @@ npm run sgs:check:fast      # 全仓 23+ 步（含 v1 回归）
 node apps/scripts/sgs-align-sheet.mjs --batch B9 --v1-anchors
 ```
 
+### 9.2.2 每批收尾的「harness 自查」（B17 起固化）
+
+| 检查 | 落点 | 说明 |
+|---|---|---|
+| 技能 code ↔ 名称撞车 | `npm run check:sgs-align` | 同一 code 在名录里对应 ≥2 个不同技能名 → 失败（如 宗室/纵适 曾共用 `zongshi`）；界/标同名复用不受影响。 |
+| 对齐单 tests/impl 锚点 | `npm run check:sgs2-registry` | `tests: ["bN::fn"]` / `impl: "sanguosha2::skills::m::CONST"` 必须真实存在。 |
+| 牌名硬编码 | `cargo test -p sanguosha2 --test mechanisms gate_no_card_name_comparison` | 文件清单已覆盖全部技能模块 + kernel 流程；历史例外在 `ALLOW` 显式登记，新增代码不得再加。 |
+| 单动作批次不变量 | `tests/mechanisms.rs::action_batches_are_cleared_between_actions` / `gain_batch_tracks_cross_seat_gain_not_draw` | `lost_batch`/`equip_lost_batch`/`gain_batch`/`action_seen` 必须由 `begin_action` 清空；摸牌不算「获得」。 |
+| 界面标记 | 对齐单第 6 段 + `view::marks_count_view` | 新增纯计数标记（如「巧」）必须进视图投影并在对齐单 UI 段声明；否则 Web/契约看不到。 |
+
 ### 9.3 v2 写法要点（与 v1 最大的不同）
 
 - **技能状态只查 `skills::active`**；触发用 `SkillDef.triggers + Window`，不要在流程里写武将名分支。
@@ -293,3 +303,36 @@ node apps/scripts/sgs-align-sheet.mjs --batch B9 --v1-anchors
 - **伤害/回血**：`flow::damage*` / `flow::lose_hp` / `flow::heal`；禁止直接改 `hp`。
 - **新增状态**：必须进 `check_conservation` / `check_no_orphan_frames` 覆盖范围（必要时补不变量用例）。
 - 对齐单第 2 段写**新引擎行为**；旧引擎描述只保留在第 1 段原文与历史记录里。
+
+### 9.4 B18 开工交接（2026-11-10，B17 收口后）
+
+> 基线：B0–B17 全部 implemented；`cargo test -p sanguosha2` 620+ 全绿；`check:sgs2` / `sgs:check:fast` 全绿。
+
+- **批次**：B18 界限突破·J6（8 将 / 17 技能）
+  | 武将 | gid | 技能（code） |
+  |---|---|---|
+  | 界王异 | 621 | 贞烈（`zhenlie`）、秘计（`miji`） |
+  | 界张春华 | 625 | 绝情（`jueqing`）、伤逝（`shangshi`）、翦灭（`jianmie`） |
+  | 界刘表 | 626 | 自守（`zishou`）、宗室（`zongshi`） |
+  | 界蔡夫人 | 627 | 献州（`xianzhou`）、窃听（`qieting`） |
+  | 界曹冲 | 628 | 称象（`chengxiang`）、仁心（`renxin`） |
+  | 界曹植 | 629 | 落英（`luoying`）、酒诗（`jiushi`） |
+  | 界吴国太 | 640 | 甘露（`ganlu`）、补益（`buyi`） |
+  | 界廖化 | 641 | 当先（`dangxian`）、伏枥（`fuli`） |
+- **命令序列**
+  1. `node apps/scripts/sgs-align-sheet.mjs --batch B18 --new` → `--sync`
+  2. 填第 2–5 段（`--v1-anchors` 找 v1 锚点）→ `npm run sgs2:batch -- B18`
+  3. 交用户逐条裁定 → 回写第 6/7 段 → `status=confirmed`
+  4. 实现 `crates/engines/sanguosha2/src/skills/b18.rs` + `tests/b18.rs`（每技能 ≥1 正例 + ≥1 反例）
+  5. 注册 `SKILLS` + `V2_BATCHES` 加 18
+  6. 回写对齐单第 2 段/impl/tests → 文档（skills/rules-rulings/skill-spec-rules/development-plan/milestones）
+  7. `npm run check:sgs2` + `npm run sgs:check:fast` 全绿，一条 commit 一批
+- **可复用钩子（勿重写）**：`skills::extra_targets` / `consume_extra_targets` / `extra_targets_no_distance`、`target_no_distance`、
+  `sha_limit_exempt` / `sha_blocked_for`、`sha_limit_bonus` / `sha_limit_penalty`、`jiu_blocked`、`effective_rank`、
+  `on_card_use`（每张牌使用钩子）、`on_card_finished`（此牌结算后）、`on_equip_lost`、`dying_extra_options/use`、
+  `pindian_after`、`after_draw_phase`、`gain_batch`/`lost_batch`/`equip_lost_batch`/`action_seen`、`turn.damage_card:<card>`、`trim:` 动作入口。
+- **pitfalls（B17 新增）**
+  * `can_active` 必须与 handler 的 `active(g, seat, code)` 同源；否则 AI 会在「可发动 → 立即 Done」上空转（`check:sgs2-ai` 判 loop）。
+  * 新增纯计数标记（如「巧」）要同时：`turn.*` 计数（回合清空）+ `view::marks_count_view` 投影 + 对齐单 UI 段。
+  * 修改技能 code（撞车改名）要同步 5 处：v1 `skills.rs`、对齐单 `code`、`V2_BATCHES`/注册表、`general-audit.md` 矩阵、skills.md 表；改完跑 `check:sgs-align` + `check:sgs2-registry`（锚点校验）+ `sgs:check`。
+  * 「延时锦囊额外目标」不要实现虚拟判定牌（用户 2026-11-10 裁定）；延时锦囊一律不参与 ±1。

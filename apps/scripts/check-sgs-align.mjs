@@ -68,6 +68,26 @@ for (const spec of specs) {
 // 5. 跨批术语
 conflicts.push(...detectTermConflicts(specs));
 
+// 5.1 技能 code ↔ 名称撞车（B17 教训：宗室/纵适 曾共用 `zongshi`，导致界简雍纵适不触发）
+// 允许：同一 code 在不同武将上对应**同一技能名**（界/标同名复用，ADR-0024）；
+// 不允许：同一 code 对应 ≥2 个不同技能名（必须另起 code）。
+const codeNames = new Map();
+for (const g of [...catalog.audited, ...catalog.excluded]) {
+  for (const s of g.skills ?? []) {
+    if (!codeNames.has(s.code)) codeNames.set(s.code, new Map());
+    const byName = codeNames.get(s.code);
+    if (!byName.has(s.name)) byName.set(s.name, []);
+    byName.get(s.name).push(g.name);
+  }
+}
+for (const [code, byName] of codeNames) {
+  if (byName.size <= 1) continue;
+  const detail = [...byName.entries()]
+    .map(([name, generals]) => `${name}(${generals.join("/")})`)
+    .join(" vs ");
+  errors.push(`技能 code 撞车：\`${code}\` → ${detail}（不同技能必须另起 code，见 ADR-0024）`);
+}
+
 if (verbose) {
   const skills = specs.flatMap((s) => s.generals.flatMap((g) => g.skills));
   console.log(

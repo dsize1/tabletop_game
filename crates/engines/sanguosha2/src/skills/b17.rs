@@ -1984,7 +1984,9 @@ pub const LIHUO: SkillDef = SkillDef {
 
 /// 转化牌被使用（`lib.rs` 的 `convert:` 入口调用）。疠火记录「此牌是疠火火杀」。
 pub fn on_conversion_used(g: &mut Game, seat: usize, skill: &str, card: &CardId, name: &str) {
-    if skill == "lihuo" && name == "火杀" {
+    // 读牌属性（火属性【杀】），不比较牌名字符串（mechanics card-attributes）。
+    let def = crate::cards::def(name);
+    if skill == "lihuo" && def.tags.sha && def.damage_kind == DamageKind::Fire {
         g.counters.insert(format!("turn.lihuo:{card}"), 1);
         g.counters
             .insert(format!("turn.lihuo_owner:{card}"), (seat + 1) as u32);
@@ -2101,11 +2103,14 @@ pub fn on_card_finished(g: &mut Game, source: usize, card: &CardId) {
 
 /// 疠火：火【杀】可多指定一个目标（不因此获得无距离）。
 pub fn lihuo_extra_targets(g: &Game, seat: usize, name: &str) -> usize {
-    if play_phase(g, seat) && active(g, seat, "lihuo") && name == "火杀" {
-        1
-    } else {
-        0
-    }
+    // 火【杀】可多指定一个目标（读属性：火属性 + 杀）。
+    let def = crate::cards::def(name);
+    usize::from(
+        play_phase(g, seat)
+            && active(g, seat, "lihuo")
+            && def.tags.sha
+            && def.damage_kind == DamageKind::Fire,
+    )
 }
 
 // ---------------------------------------------------------------------------
