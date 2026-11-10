@@ -160,21 +160,25 @@ fn zhenlie_cancels_normal_trick_but_not_delayed() {
 
 // ---------------------------------------------------------------- 秘计
 #[test]
-fn miji_needs_zhenlie_grant_and_draws() {
+fn miji_fires_once_in_own_end_phase_even_without_grant() {
     let mut g = game(&[("wangyi", &["zhenlie", "miji"], 3, "wei"), ("p1", &[], 4, "qun")]);
     g.turn = 0;
     g.seats[0].hp = 2;
     begin_phase(&mut g, 0, Phase::End).unwrap();
-    assert_ne!(pend_skill(&g).as_deref(), Some("miji"), "未获贞烈②不发动秘计");
-    g.counters.insert("turn.miji_granted".to_string(), 1);
-    g.phase = Phase::Play;
-    begin_phase(&mut g, 0, Phase::End).unwrap();
-    assert_eq!(pend_skill(&g).as_deref(), Some("miji"));
+    assert_eq!(pend_skill(&g).as_deref(), Some("miji"), "自己结束阶段恒可发动");
     let before = g.hand(0).len();
     answer(&mut g, 0, "opt1");
     assert_eq!(g.hand(0).len(), before + 1, "摸 X=1 张");
+    answer(&mut g, 0, "pass");
+    // 模拟下一个自己的回合：即使也有贞烈②授权，结束阶段也只发动一次。
+    g.counters.insert("turn.miji_offered:0".to_string(), 0);
+    g.counters.insert("turn.miji_granted".to_string(), 1);
+    g.phase = Phase::Play;
+    g.seats[0].hp = 2;
+    begin_phase(&mut g, 0, Phase::End).unwrap();
     assert_eq!(pend_skill(&g).as_deref(), Some("miji"));
     answer(&mut g, 0, "pass");
+    assert_ne!(pend_skill(&g).as_deref(), Some("miji"), "只发动一次");
 }
 
 #[test]
@@ -202,6 +206,13 @@ fn miji_triggers_at_other_players_end_phase_when_granted() {
     answer(&mut g, 0, "opt1");
     // 贞烈已失去 1 点体力 → 已损失 2 → 摸 2 张。
     assert_eq!(g.hand(0).len(), before + 2);
+    // 反例：他人回合、未获贞烈②授权 → 不发动。
+    let mut g2 = game(&[("wangyi", &["zhenlie", "miji"], 3, "wei"), ("p1", &[], 4, "qun")]);
+    g2.turn = 1;
+    g2.seats[0].hp = 2;
+    g2.phase = Phase::Play;
+    begin_phase(&mut g2, 1, Phase::End).unwrap();
+    assert_ne!(pend_skill(&g2).as_deref(), Some("miji"));
 }
 
 // ---------------------------------------------------------------- 绝情

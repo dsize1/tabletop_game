@@ -286,6 +286,7 @@ fn miji(g: &mut Game, a: &Ask) -> Result<Step, String> {
     let owner = a.actor;
     let stage = a.data["stage"].as_str().unwrap_or("").to_string();
     if stage.is_empty() {
+        let turn_seat = a.data["seat"].as_u64().map(|n| n as usize);
         if !a.data["event"].as_str().unwrap_or("").starts_with("PhaseStart")
             || g.phase != Phase::End
             || !active(g, owner, "miji")
@@ -293,7 +294,9 @@ fn miji(g: &mut Game, a: &Ask) -> Result<Step, String> {
         {
             return Ok(Step::Done);
         }
-        if g.counter("turn.miji_granted") == 0 {
+        // 自己的结束阶段恒可发动一次；其他角色的结束阶段仅在「贞烈②」授权时发动。
+        // 同一结束阶段只发动一次（own turn 时即使也有②，也不再额外一次）。
+        if turn_seat != Some(owner) && g.counter("turn.miji_granted") == 0 {
             return Ok(Step::Done);
         }
         let x = lost_hp(g, owner);

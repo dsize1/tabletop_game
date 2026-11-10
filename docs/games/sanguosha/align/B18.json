@@ -135,9 +135,9 @@
           "original_source": "heroes.json#gid=621",
           "mechanics_version": 2,
           "current": [
-            "v2：结束阶段触发（`PhaseStart(End)`，`Window::AnyTime`）——**可以是其他角色的回合结束阶段**（贞烈②在本回合授权；`turn.miji_granted` 随回合切换清除）；**仅在贞烈②授权时发动**；X=当前已损失体力。",
+            "v2：结束阶段触发（`PhaseStart(End)`，`Window::AnyTime`）——自己的结束阶段**恒可发动一次**（无论是否选过贞烈②）；**其他角色的回合结束阶段**仅在贞烈②授权（`turn.miji_granted`，随回合切换清除）时发动。",
             "询问是否摸牌（可放弃）；摸 X 张后可选择至多 X 张手牌交给**一名**其他角色（多选 ✔ + 确认 / 放弃）。",
-            "交牌走统一 `Game::gain`；每回合只询问一次（`turn.miji_offered`）。"
+            "交牌走统一 `Game::gain`；同一结束阶段只发动一次（`turn.miji_offered`），贞烈②不叠加次数。"
           ],
           "confidence": "verified",
           "diff": [
@@ -208,7 +208,7 @@
             "reveal": "无",
             "qq": "播报摸牌与交牌"
           },
-          "agreed": "结束阶段（**可为其他角色的回合结束阶段**），你可以摸 X 张牌（X=当前已损失的体力值，可放弃摸牌），然后可以将至多 X 张手牌交给其他角色至多**一名**角色（2026-11-10 裁定）；**若本回合贞烈②未被选择则不能发动秘计，多次贞烈②也只额外一次**（用户口径，与官方独立触发不同）。",
+          "agreed": "结束阶段（含**其他角色的回合结束阶段**），你可以摸 X 张牌（X=当前已损失的体力值，可放弃摸牌），然后可以将至多 X 张手牌交给其他角色中的**一名**（2026-11-10 裁定）；自己的结束阶段无论是否选择贞烈②都可发动一次；其他角色的结束阶段需贞烈②授权；同一结束阶段只发动一次（多次贞烈②不叠加）。",
           "assertions": {
             "positive": [
               "结束阶段摸 X 张（X=已损失体力）并可选交给至多 X 张",
@@ -221,7 +221,7 @@
           },
           "impl": "sanguosha2::skills::b18::MIJI（贞烈②授权 turn.miji_granted）",
           "tests": [
-            "b18::miji_needs_zhenlie_grant_and_draws",
+            "b18::miji_fires_once_in_own_end_phase_even_without_grant",
             "b18::miji_triggers_at_other_players_end_phase_when_granted"
           ]
         }
