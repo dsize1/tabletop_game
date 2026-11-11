@@ -592,7 +592,7 @@ fn special_zones(g: &Game, viewer: Option<usize>) -> Value {
     if let Some(p) = &g.pending {
         match p.kind() {
             "harvest" => {
-                let pool: Vec<CardId> = p.data()["pool"]
+                let mut pool: Vec<CardId> = p.data()["pool"]
                     .as_array()
                     .map(|a| {
                         a.iter()
@@ -600,6 +600,15 @@ fn special_zones(g: &Game, viewer: Option<usize>) -> Value {
                             .collect()
                     })
                     .unwrap_or_default();
+                // 兜底：`pending.data` 缺失时（旧存档/旧实现写入的五谷待办），
+                // 直接从待办选项（`pick:<id>`）反推展示牌 —— 否则端侧特殊区没有牌可点，对局卡死。
+                if pool.is_empty() {
+                    pool = p
+                        .options()
+                        .iter()
+                        .filter_map(|o| o.id.strip_prefix("pick:").map(str::to_string))
+                        .collect();
+                }
                 let pickers: Vec<String> = p.data()["pickers"]
                     .as_array()
                     .map(|a| {

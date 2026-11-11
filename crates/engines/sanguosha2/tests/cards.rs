@@ -837,6 +837,18 @@ fn harvest_pending_carries_pool_for_view() {
         true,
         "五谷特殊区应标出当前选牌者"
     );
+    // 旧存档兜底：`pending.data` 缺失（旧实现写入）时，仍要能从选项反推展示牌。
+    let mut legacy = serde_json::to_value(g.pending.as_ref().unwrap()).unwrap();
+    legacy["data"] = serde_json::Value::Null;
+    g.pending = Some(serde_json::from_value(legacy).unwrap());
+    let legacy_view = sanguosha2::view::player_view(&g, 0);
+    assert_eq!(
+        legacy_view["special_zones"]["wugu"]["cards"]
+            .as_array()
+            .map(|a| a.len()),
+        Some(3),
+        "pending.data 缺失时也不能让五谷特殊区空掉"
+    );
 }
 
 /// 回归（2026-11-11 真机）：同一张【杀】对不同目标的合法动作，标签必须能区分目标
