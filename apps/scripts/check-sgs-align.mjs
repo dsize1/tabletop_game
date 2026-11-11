@@ -82,7 +82,8 @@ for (const spec of specs) {
       for (const q of sk.questions ?? []) {
         if (!q.answer) continue;
         if (q.test) {
-          if (!testsText.includes(`fn ${q.test}(`)) {
+          const fnName = String(q.test).split("::").pop();
+          if (!testsText.includes(`fn ${fnName}(`)) {
             errors.push(`[${spec.batch}] ${sk.code} ${q.id}: 用例 ${q.test} 不存在`);
           } else anchored += 1;
         } else if (q.legacy === true) {

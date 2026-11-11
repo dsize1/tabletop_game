@@ -48,7 +48,7 @@
               "why": "现实现为置位；且「翻面」在多数结算里是取反，此处需你统一口径",
               "impact": "影响与放逐/解围②的联动顺序与翻面类触发",
               "answer": "B",
-              "legacy": true
+              "test": "b0::jushou_flips_back_to_face_up_and_triggers_jiewei_first"
             },
             {
               "id": "Q2",
@@ -61,7 +61,7 @@
               "why": "原文「你改为使用之」读作强制",
               "impact": "影响弃置类触发（如需要弃牌数）",
               "answer": "A",
-              "legacy": true
+              "test": "b0::jushou_equip_card_must_be_used_not_discarded"
             }
           ],
           "mechanics": [
@@ -218,7 +218,7 @@
               "why": "原文「移去此牌」通常按置入弃牌堆处理",
               "impact": "影响弃置/失去牌类技能是否触发",
               "answer": "A",
-              "legacy": true
+              "test": "b0::buqu_duplicate_rank_goes_to_discard_not_void"
             },
             {
               "id": "Q2",
@@ -299,7 +299,7 @@
               "why": "A 可实现为动作差分，覆盖稳；B 语义更贴字面但要枚举来源",
               "impact": "直接决定触发频率与 AI 估值；影响 148 将里所有「弃置/获得」类交互",
               "answer": "A（仅排除摸牌阶段摸牌；其他来源摸牌计入）",
-              "legacy": true
+              "test": "b0::fenji_triggers_on_other_discard_even_in_own_turn"
             },
             {
               "id": "Q2",
@@ -325,7 +325,7 @@
               "why": "原文无禁止，失去体力可致死",
               "impact": "濒死链与 AI 风险偏好",
               "answer": "A",
-              "legacy": true
+              "test": "b0::fenji_draws_after_leaving_dying"
             }
           ],
           "mechanics": [
@@ -354,7 +354,10 @@
           "impl": "sanguosha2::skills::b0::FENJI",
           "tests": [
             "b0::fenji_ignores_draw_phase_draws",
-            "b0::fenji_draws_after_leaving_dying"
+            "b0::fenji_draws_after_leaving_dying",
+            "b0::fenji_triggers_on_other_discard_even_in_own_turn",
+            "b0::fenji_ignores_self_discard_and_discard_phase",
+            "b0::fenji_gain_from_other_targets_original_owner"
           ]
         }
       ]
@@ -399,7 +402,7 @@
               "why": "原文「所有牌」，且判定区牌归属该角色",
               "impact": "影响延时锦囊归属与弃牌堆数量",
               "answer": "B",
-              "legacy": true
+              "test": "b0::xingshang_excludes_judge_zone"
             },
             {
               "id": "Q2",
@@ -479,7 +482,7 @@
               "why": "原文无上限；上限 5 无出处（疑似历史遗留）",
               "impact": "体力上限被提高的场景（觉醒/加体力上限）会差 1–N 张",
               "answer": "B",
-              "legacy": true
+              "test": "b0::fangzhu_x_has_no_cap"
             },
             {
               "id": "Q2",
@@ -492,7 +495,7 @@
               "why": "原文语序「翻面，并令其摸X张牌」",
               "impact": "与解围②/设变等翻面钩子的插入顺序",
               "answer": "A",
-              "legacy": true
+              "test": "b0::fangzhu_flips_before_drawing_and_can_trigger_jiewei"
             }
           ],
           "mechanics": [
@@ -556,7 +559,7 @@
               "why": "原文明确「可以」，且这是可选收益（可能不想让主公摸牌）",
               "impact": "多一次交互；AI/群侧交互量",
               "answer": "A",
-              "legacy": true
+              "test": "b0::songwei_asks_the_judging_player"
             },
             {
               "id": "Q2",
