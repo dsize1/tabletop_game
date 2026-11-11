@@ -13,7 +13,11 @@ pub enum Status {
 #[derive(Debug, Clone, Copy)]
 pub struct GeneralDef {
     pub code: &'static str,
+    /// 官网 gid（素材映射/中台主键）。
+    pub gid: u32,
     pub name: &'static str,
+    /// 武将包 key（`standard` / `wind_fire_forest_mountain` / `yijiang` / `jiexian`）。
+    pub pack: &'static str,
     pub kingdom: &'static str,
     pub male: bool,
     pub max_hp: i32,
@@ -22,10 +26,15 @@ pub struct GeneralDef {
     pub status: Status,
 }
 
+/// 武将包 key（顺序=选将/大厅菜单顺序；`standard` 恒为基数）。
+pub const PACK_KEYS: &[&str] = &["standard", "wind_fire_forest_mountain", "yijiang", "jiexian"];
+
 pub const GENERALS: &[GeneralDef] = &[
     GeneralDef {
         code: "sgs_hero_1",
+        gid: 1,
         name: "刘备",
+        pack: "standard",
         kingdom: "shu",
         male: true,
         max_hp: 4,
@@ -35,7 +44,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_2",
+        gid: 2,
         name: "关羽",
+        pack: "standard",
         kingdom: "shu",
         male: true,
         max_hp: 4,
@@ -45,7 +56,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_3",
+        gid: 3,
         name: "张飞",
+        pack: "standard",
         kingdom: "shu",
         male: true,
         max_hp: 4,
@@ -55,7 +68,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_4",
+        gid: 4,
         name: "诸葛亮",
+        pack: "standard",
         kingdom: "shu",
         male: true,
         max_hp: 3,
@@ -65,7 +80,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_5",
+        gid: 5,
         name: "赵云",
+        pack: "standard",
         kingdom: "shu",
         male: true,
         max_hp: 4,
@@ -75,7 +92,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_6",
+        gid: 6,
         name: "马超",
+        pack: "standard",
         kingdom: "shu",
         male: true,
         max_hp: 4,
@@ -85,7 +104,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_7",
+        gid: 7,
         name: "黄月英",
+        pack: "standard",
         kingdom: "shu",
         male: false,
         max_hp: 3,
@@ -95,7 +116,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_8",
+        gid: 8,
         name: "孙权",
+        pack: "standard",
         kingdom: "wu",
         male: true,
         max_hp: 4,
@@ -105,7 +128,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_9",
+        gid: 9,
         name: "甘宁",
+        pack: "standard",
         kingdom: "wu",
         male: true,
         max_hp: 4,
@@ -115,7 +140,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_10",
+        gid: 10,
         name: "吕蒙",
+        pack: "standard",
         kingdom: "wu",
         male: true,
         max_hp: 4,
@@ -125,7 +152,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_11",
+        gid: 11,
         name: "黄盖",
+        pack: "standard",
         kingdom: "wu",
         male: true,
         max_hp: 4,
@@ -135,7 +164,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_12",
+        gid: 12,
         name: "周瑜",
+        pack: "standard",
         kingdom: "wu",
         male: true,
         max_hp: 3,
@@ -145,7 +176,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_13",
+        gid: 13,
         name: "大乔",
+        pack: "standard",
         kingdom: "wu",
         male: false,
         max_hp: 3,
@@ -155,7 +188,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_14",
+        gid: 14,
         name: "陆逊",
+        pack: "standard",
         kingdom: "wu",
         male: true,
         max_hp: 3,
@@ -165,7 +200,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_15",
+        gid: 15,
         name: "曹操",
+        pack: "standard",
         kingdom: "wei",
         male: true,
         max_hp: 4,
@@ -175,7 +212,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_16",
+        gid: 16,
         name: "司马懿",
+        pack: "standard",
         kingdom: "wei",
         male: true,
         max_hp: 3,
@@ -185,7 +224,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_17",
+        gid: 17,
         name: "夏侯惇",
+        pack: "standard",
         kingdom: "wei",
         male: true,
         max_hp: 4,
@@ -195,7 +236,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_18",
+        gid: 18,
         name: "张辽",
+        pack: "standard",
         kingdom: "wei",
         male: true,
         max_hp: 4,
@@ -205,7 +248,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_19",
+        gid: 19,
         name: "许褚",
+        pack: "standard",
         kingdom: "wei",
         male: true,
         max_hp: 4,
@@ -215,7 +260,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_20",
+        gid: 20,
         name: "郭嘉",
+        pack: "standard",
         kingdom: "wei",
         male: true,
         max_hp: 3,
@@ -225,7 +272,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_21",
+        gid: 21,
         name: "甄姬",
+        pack: "standard",
         kingdom: "wei",
         male: false,
         max_hp: 3,
@@ -235,7 +284,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_22",
+        gid: 22,
         name: "华佗",
+        pack: "standard",
         kingdom: "qun",
         male: true,
         max_hp: 3,
@@ -245,7 +296,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_23",
+        gid: 23,
         name: "吕布",
+        pack: "standard",
         kingdom: "qun",
         male: true,
         max_hp: 4,
@@ -255,7 +308,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_24",
+        gid: 24,
         name: "貂蝉",
+        pack: "standard",
         kingdom: "qun",
         male: false,
         max_hp: 3,
@@ -265,7 +320,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_25",
+        gid: 25,
         name: "孙尚香",
+        pack: "standard",
         kingdom: "wu",
         male: false,
         max_hp: 3,
@@ -275,7 +332,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_27",
+        gid: 27,
         name: "魏延",
+        pack: "wind_fire_forest_mountain",
         kingdom: "shu",
         male: true,
         max_hp: 4,
@@ -285,7 +344,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_28",
+        gid: 28,
         name: "夏侯渊",
+        pack: "wind_fire_forest_mountain",
         kingdom: "wei",
         male: true,
         max_hp: 4,
@@ -295,7 +356,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_29",
+        gid: 29,
         name: "曹仁",
+        pack: "wind_fire_forest_mountain",
         kingdom: "wei",
         male: true,
         max_hp: 4,
@@ -305,7 +368,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_30",
+        gid: 30,
         name: "小乔",
+        pack: "wind_fire_forest_mountain",
         kingdom: "wu",
         male: false,
         max_hp: 3,
@@ -315,7 +380,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_34",
+        gid: 34,
         name: "典韦",
+        pack: "wind_fire_forest_mountain",
         kingdom: "wei",
         male: true,
         max_hp: 4,
@@ -325,7 +392,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_35",
+        gid: 35,
         name: "荀彧",
+        pack: "wind_fire_forest_mountain",
         kingdom: "wei",
         male: true,
         max_hp: 3,
@@ -335,7 +404,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_36",
+        gid: 36,
         name: "庞统",
+        pack: "wind_fire_forest_mountain",
         kingdom: "shu",
         male: true,
         max_hp: 3,
@@ -345,7 +416,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_37",
+        gid: 37,
         name: "卧龙诸葛亮",
+        pack: "wind_fire_forest_mountain",
         kingdom: "shu",
         male: true,
         max_hp: 3,
@@ -355,7 +428,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_38",
+        gid: 38,
         name: "太史慈",
+        pack: "wind_fire_forest_mountain",
         kingdom: "wu",
         male: true,
         max_hp: 4,
@@ -365,7 +440,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_39",
+        gid: 39,
         name: "庞德",
+        pack: "wind_fire_forest_mountain",
         kingdom: "qun",
         male: true,
         max_hp: 4,
@@ -375,7 +452,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_40",
+        gid: 40,
         name: "颜良文丑",
+        pack: "wind_fire_forest_mountain",
         kingdom: "qun",
         male: true,
         max_hp: 4,
@@ -385,7 +464,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_41",
+        gid: 41,
         name: "袁绍",
+        pack: "wind_fire_forest_mountain",
         kingdom: "qun",
         male: true,
         max_hp: 4,
@@ -395,7 +476,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_42",
+        gid: 42,
         name: "徐晃",
+        pack: "wind_fire_forest_mountain",
         kingdom: "wei",
         male: true,
         max_hp: 4,
@@ -405,7 +488,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_43",
+        gid: 43,
         name: "曹丕",
+        pack: "wind_fire_forest_mountain",
         kingdom: "wei",
         male: true,
         max_hp: 3,
@@ -415,7 +500,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_44",
+        gid: 44,
         name: "孙坚",
+        pack: "wind_fire_forest_mountain",
         kingdom: "wu",
         male: true,
         max_hp: 4,
@@ -425,7 +512,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_45",
+        gid: 45,
         name: "董卓",
+        pack: "wind_fire_forest_mountain",
         kingdom: "qun",
         male: true,
         max_hp: 8,
@@ -435,7 +524,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_46",
+        gid: 46,
         name: "祝融",
+        pack: "wind_fire_forest_mountain",
         kingdom: "shu",
         male: false,
         max_hp: 4,
@@ -445,7 +536,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_47",
+        gid: 47,
         name: "孟获",
+        pack: "wind_fire_forest_mountain",
         kingdom: "shu",
         male: true,
         max_hp: 4,
@@ -455,7 +548,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_48",
+        gid: 48,
         name: "贾诩",
+        pack: "wind_fire_forest_mountain",
         kingdom: "qun",
         male: true,
         max_hp: 3,
@@ -465,7 +560,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_49",
+        gid: 49,
         name: "鲁肃",
+        pack: "wind_fire_forest_mountain",
         kingdom: "wu",
         male: true,
         max_hp: 3,
@@ -475,7 +572,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_50",
+        gid: 50,
         name: "张郃",
+        pack: "wind_fire_forest_mountain",
         kingdom: "wei",
         male: true,
         max_hp: 4,
@@ -485,7 +584,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_51",
+        gid: 51,
         name: "邓艾",
+        pack: "wind_fire_forest_mountain",
         kingdom: "wei",
         male: true,
         max_hp: 4,
@@ -495,7 +596,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_52",
+        gid: 52,
         name: "姜维",
+        pack: "wind_fire_forest_mountain",
         kingdom: "shu",
         male: true,
         max_hp: 4,
@@ -505,7 +608,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_53",
+        gid: 53,
         name: "刘禅",
+        pack: "wind_fire_forest_mountain",
         kingdom: "shu",
         male: true,
         max_hp: 3,
@@ -515,7 +620,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_54",
+        gid: 54,
         name: "孙策",
+        pack: "wind_fire_forest_mountain",
         kingdom: "wu",
         male: true,
         max_hp: 4,
@@ -525,7 +632,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_55",
+        gid: 55,
         name: "张昭张纮",
+        pack: "wind_fire_forest_mountain",
         kingdom: "wu",
         male: true,
         max_hp: 3,
@@ -535,7 +644,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_56",
+        gid: 56,
         name: "左慈",
+        pack: "wind_fire_forest_mountain",
         kingdom: "qun",
         male: true,
         max_hp: 3,
@@ -545,7 +656,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_57",
+        gid: 57,
         name: "蔡文姬",
+        pack: "wind_fire_forest_mountain",
         kingdom: "qun",
         male: false,
         max_hp: 3,
@@ -555,7 +668,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_61",
+        gid: 61,
         name: "黄忠",
+        pack: "wind_fire_forest_mountain",
         kingdom: "shu",
         male: true,
         max_hp: 4,
@@ -565,7 +680,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_100",
+        gid: 100,
         name: "袁术",
+        pack: "wind_fire_forest_mountain",
         kingdom: "qun",
         male: true,
         max_hp: 4,
@@ -575,7 +692,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_210",
+        gid: 210,
         name: "周泰",
+        pack: "wind_fire_forest_mountain",
         kingdom: "wu",
         male: true,
         max_hp: 4,
@@ -585,7 +704,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_211",
+        gid: 211,
         name: "于吉",
+        pack: "wind_fire_forest_mountain",
         kingdom: "qun",
         male: true,
         max_hp: 3,
@@ -595,7 +716,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_212",
+        gid: 212,
         name: "张角",
+        pack: "wind_fire_forest_mountain",
         kingdom: "qun",
         male: true,
         max_hp: 3,
@@ -605,7 +728,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_362",
+        gid: 362,
         name: "王基",
+        pack: "wind_fire_forest_mountain",
         kingdom: "wei",
         male: true,
         max_hp: 3,
@@ -615,7 +740,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_400",
+        gid: 400,
         name: "严颜",
+        pack: "wind_fire_forest_mountain",
         kingdom: "shu",
         male: true,
         max_hp: 4,
@@ -625,7 +752,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_401",
+        gid: 401,
         name: "王平",
+        pack: "wind_fire_forest_mountain",
         kingdom: "shu",
         male: true,
         max_hp: 4,
@@ -635,7 +764,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_402",
+        gid: 402,
         name: "陆绩",
+        pack: "wind_fire_forest_mountain",
         kingdom: "wu",
         male: true,
         max_hp: 3,
@@ -645,7 +776,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_403",
+        gid: 403,
         name: "孙亮",
+        pack: "wind_fire_forest_mountain",
         kingdom: "wu",
         male: true,
         max_hp: 3,
@@ -655,7 +788,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_404",
+        gid: 404,
         name: "蒯越蒯良",
+        pack: "wind_fire_forest_mountain",
         kingdom: "wei",
         male: true,
         max_hp: 3,
@@ -665,7 +800,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_406",
+        gid: 406,
         name: "许攸",
+        pack: "wind_fire_forest_mountain",
         kingdom: "qun",
         male: true,
         max_hp: 3,
@@ -675,7 +812,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_407",
+        gid: 407,
         name: "卢植",
+        pack: "wind_fire_forest_mountain",
         kingdom: "qun",
         male: true,
         max_hp: 3,
@@ -685,7 +824,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_408",
+        gid: 408,
         name: "郝昭",
+        pack: "wind_fire_forest_mountain",
         kingdom: "wei",
         male: true,
         max_hp: 4,
@@ -695,7 +836,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_409",
+        gid: 409,
         name: "陈到",
+        pack: "wind_fire_forest_mountain",
         kingdom: "shu",
         male: true,
         max_hp: 4,
@@ -705,7 +848,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_410",
+        gid: 410,
         name: "诸葛瞻",
+        pack: "wind_fire_forest_mountain",
         kingdom: "shu",
         male: true,
         max_hp: 3,
@@ -715,7 +860,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_411",
+        gid: 411,
         name: "周妃",
+        pack: "wind_fire_forest_mountain",
         kingdom: "wu",
         male: false,
         max_hp: 3,
@@ -725,7 +872,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_413",
+        gid: 413,
         name: "毌丘俭",
+        pack: "wind_fire_forest_mountain",
         kingdom: "wei",
         male: true,
         max_hp: 4,
@@ -735,7 +884,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_414",
+        gid: 414,
         name: "陆抗",
+        pack: "wind_fire_forest_mountain",
         kingdom: "wu",
         male: true,
         max_hp: 4,
@@ -745,7 +896,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_415",
+        gid: 415,
         name: "张绣",
+        pack: "wind_fire_forest_mountain",
         kingdom: "qun",
         male: true,
         max_hp: 4,
@@ -755,7 +908,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_151",
+        gid: 151,
         name: "曹植",
+        pack: "yijiang",
         kingdom: "wei",
         male: true,
         max_hp: 3,
@@ -765,7 +920,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_152",
+        gid: 152,
         name: "高顺",
+        pack: "yijiang",
         kingdom: "qun",
         male: true,
         max_hp: 4,
@@ -775,7 +932,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_153",
+        gid: 153,
         name: "陈宫",
+        pack: "yijiang",
         kingdom: "qun",
         male: true,
         max_hp: 3,
@@ -785,7 +944,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_155",
+        gid: 155,
         name: "凌统",
+        pack: "yijiang",
         kingdom: "wu",
         male: true,
         max_hp: 4,
@@ -795,7 +956,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_156",
+        gid: 156,
         name: "马谡",
+        pack: "yijiang",
         kingdom: "shu",
         male: true,
         max_hp: 3,
@@ -805,7 +968,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_157",
+        gid: 157,
         name: "吴国太",
+        pack: "yijiang",
         kingdom: "wu",
         male: false,
         max_hp: 3,
@@ -815,7 +980,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_158",
+        gid: 158,
         name: "徐盛",
+        pack: "yijiang",
         kingdom: "wu",
         male: true,
         max_hp: 4,
@@ -825,7 +992,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_160",
+        gid: 160,
         name: "于禁",
+        pack: "yijiang",
         kingdom: "wei",
         male: true,
         max_hp: 4,
@@ -835,7 +1004,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_161",
+        gid: 161,
         name: "张春华",
+        pack: "yijiang",
         kingdom: "wei",
         male: false,
         max_hp: 3,
@@ -845,7 +1016,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_162",
+        gid: 162,
         name: "曹彰",
+        pack: "yijiang",
         kingdom: "wei",
         male: true,
         max_hp: 4,
@@ -855,7 +1028,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_164",
+        gid: 164,
         name: "荀攸",
+        pack: "yijiang",
         kingdom: "wei",
         male: true,
         max_hp: 3,
@@ -865,7 +1040,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_166",
+        gid: 166,
         name: "廖化",
+        pack: "yijiang",
         kingdom: "shu",
         male: true,
         max_hp: 4,
@@ -875,7 +1052,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_167",
+        gid: 167,
         name: "马岱",
+        pack: "yijiang",
         kingdom: "shu",
         male: true,
         max_hp: 4,
@@ -885,7 +1064,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_168",
+        gid: 168,
         name: "步练师",
+        pack: "yijiang",
         kingdom: "wu",
         male: false,
         max_hp: 3,
@@ -895,7 +1076,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_169",
+        gid: 169,
         name: "程普",
+        pack: "yijiang",
         kingdom: "wu",
         male: true,
         max_hp: 4,
@@ -905,7 +1088,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_170",
+        gid: 170,
         name: "韩当",
+        pack: "yijiang",
         kingdom: "wu",
         male: true,
         max_hp: 4,
@@ -915,7 +1100,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_171",
+        gid: 171,
         name: "将华雄",
+        pack: "yijiang",
         kingdom: "qun",
         male: true,
         max_hp: 6,
@@ -925,7 +1112,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_172",
+        gid: 172,
         name: "刘表",
+        pack: "yijiang",
         kingdom: "qun",
         male: true,
         max_hp: 3,
@@ -935,7 +1124,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_173",
+        gid: 173,
         name: "钟会",
+        pack: "yijiang",
         kingdom: "wei",
         male: true,
         max_hp: 4,
@@ -945,7 +1136,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_174",
+        gid: 174,
         name: "曹冲",
+        pack: "yijiang",
         kingdom: "wei",
         male: true,
         max_hp: 3,
@@ -955,7 +1148,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_175",
+        gid: 175,
         name: "郭淮",
+        pack: "yijiang",
         kingdom: "wei",
         male: true,
         max_hp: 3,
@@ -965,7 +1160,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_176",
+        gid: 176,
         name: "满宠",
+        pack: "yijiang",
         kingdom: "wei",
         male: true,
         max_hp: 3,
@@ -975,7 +1172,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_177",
+        gid: 177,
         name: "关平",
+        pack: "yijiang",
         kingdom: "shu",
         male: true,
         max_hp: 4,
@@ -985,7 +1184,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_178",
+        gid: 178,
         name: "简雍",
+        pack: "yijiang",
         kingdom: "shu",
         male: true,
         max_hp: 3,
@@ -995,7 +1196,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_179",
+        gid: 179,
         name: "刘封",
+        pack: "yijiang",
         kingdom: "shu",
         male: true,
         max_hp: 4,
@@ -1005,7 +1208,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_180",
+        gid: 180,
         name: "潘璋马忠",
+        pack: "yijiang",
         kingdom: "wu",
         male: true,
         max_hp: 4,
@@ -1015,7 +1220,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_181",
+        gid: 181,
         name: "虞翻",
+        pack: "yijiang",
         kingdom: "wu",
         male: true,
         max_hp: 3,
@@ -1025,7 +1232,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_182",
+        gid: 182,
         name: "朱然",
+        pack: "yijiang",
         kingdom: "wu",
         male: true,
         max_hp: 4,
@@ -1035,7 +1244,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_183",
+        gid: 183,
         name: "伏皇后",
+        pack: "yijiang",
         kingdom: "qun",
         male: false,
         max_hp: 3,
@@ -1045,7 +1256,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_184",
+        gid: 184,
         name: "李儒",
+        pack: "yijiang",
         kingdom: "qun",
         male: true,
         max_hp: 3,
@@ -1055,7 +1268,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_185",
+        gid: 185,
         name: "法正",
+        pack: "yijiang",
         kingdom: "shu",
         male: true,
         max_hp: 3,
@@ -1065,7 +1280,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_186",
+        gid: 186,
         name: "徐庶",
+        pack: "yijiang",
         kingdom: "shu",
         male: true,
         max_hp: 3,
@@ -1075,7 +1292,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_187",
+        gid: 187,
         name: "王异",
+        pack: "yijiang",
         kingdom: "wei",
         male: false,
         max_hp: 3,
@@ -1085,7 +1304,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_188",
+        gid: 188,
         name: "关兴张苞",
+        pack: "yijiang",
         kingdom: "shu",
         male: true,
         max_hp: 4,
@@ -1095,7 +1316,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_321",
+        gid: 321,
         name: "曹真",
+        pack: "yijiang",
         kingdom: "wei",
         male: true,
         max_hp: 4,
@@ -1105,7 +1328,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_322",
+        gid: 322,
         name: "韩浩史涣",
+        pack: "yijiang",
         kingdom: "wei",
         male: true,
         max_hp: 4,
@@ -1115,7 +1340,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_323",
+        gid: 323,
         name: "陈群",
+        pack: "yijiang",
         kingdom: "wei",
         male: true,
         max_hp: 3,
@@ -1125,7 +1352,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_324",
+        gid: 324,
         name: "吴懿",
+        pack: "yijiang",
         kingdom: "shu",
         male: true,
         max_hp: 4,
@@ -1135,7 +1364,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_325",
+        gid: 325,
         name: "周仓",
+        pack: "yijiang",
         kingdom: "shu",
         male: true,
         max_hp: 4,
@@ -1145,7 +1376,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_326",
+        gid: 326,
         name: "张松",
+        pack: "yijiang",
         kingdom: "shu",
         male: true,
         max_hp: 3,
@@ -1155,7 +1388,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_327",
+        gid: 327,
         name: "孙鲁班",
+        pack: "yijiang",
         kingdom: "wu",
         male: false,
         max_hp: 3,
@@ -1165,7 +1400,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_328",
+        gid: 328,
         name: "朱桓",
+        pack: "yijiang",
         kingdom: "wu",
         male: true,
         max_hp: 4,
@@ -1175,7 +1412,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_329",
+        gid: 329,
         name: "顾雍",
+        pack: "yijiang",
         kingdom: "wu",
         male: true,
         max_hp: 3,
@@ -1185,7 +1424,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_330",
+        gid: 330,
         name: "沮授",
+        pack: "yijiang",
         kingdom: "qun",
         male: true,
         max_hp: 3,
@@ -1195,7 +1436,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_331",
+        gid: 331,
         name: "蔡夫人",
+        pack: "yijiang",
         kingdom: "qun",
         male: false,
         max_hp: 3,
@@ -1205,7 +1448,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_332",
+        gid: 332,
         name: "曹叡",
+        pack: "yijiang",
         kingdom: "wei",
         male: true,
         max_hp: 3,
@@ -1215,7 +1460,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_333",
+        gid: 333,
         name: "曹休",
+        pack: "yijiang",
         kingdom: "wei",
         male: true,
         max_hp: 4,
@@ -1225,7 +1472,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_334",
+        gid: 334,
         name: "钟繇",
+        pack: "yijiang",
         kingdom: "wei",
         male: true,
         max_hp: 3,
@@ -1235,7 +1484,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_335",
+        gid: 335,
         name: "刘谌",
+        pack: "yijiang",
         kingdom: "shu",
         male: true,
         max_hp: 4,
@@ -1245,7 +1496,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_336",
+        gid: 336,
         name: "夏侯氏",
+        pack: "yijiang",
         kingdom: "shu",
         male: false,
         max_hp: 3,
@@ -1255,7 +1508,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_337",
+        gid: 337,
         name: "张嶷",
+        pack: "yijiang",
         kingdom: "shu",
         male: true,
         max_hp: 4,
@@ -1265,7 +1520,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_338",
+        gid: 338,
         name: "孙休",
+        pack: "yijiang",
         kingdom: "wu",
         male: true,
         max_hp: 3,
@@ -1275,7 +1532,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_339",
+        gid: 339,
         name: "朱治",
+        pack: "yijiang",
         kingdom: "wu",
         male: true,
         max_hp: 4,
@@ -1285,7 +1544,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_340",
+        gid: 340,
         name: "全琮",
+        pack: "yijiang",
         kingdom: "wu",
         male: true,
         max_hp: 4,
@@ -1295,7 +1556,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_341",
+        gid: 341,
         name: "公孙渊",
+        pack: "yijiang",
         kingdom: "qun",
         male: true,
         max_hp: 4,
@@ -1305,7 +1568,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_342",
+        gid: 342,
         name: "郭图逢纪",
+        pack: "yijiang",
         kingdom: "qun",
         male: true,
         max_hp: 3,
@@ -1315,7 +1580,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_380",
+        gid: 380,
         name: "郭皇后",
+        pack: "yijiang",
         kingdom: "wei",
         male: false,
         max_hp: 3,
@@ -1325,7 +1592,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_381",
+        gid: 381,
         name: "李严",
+        pack: "yijiang",
         kingdom: "shu",
         male: true,
         max_hp: 3,
@@ -1335,7 +1604,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_382",
+        gid: 382,
         name: "孙登",
+        pack: "yijiang",
         kingdom: "wu",
         male: true,
         max_hp: 4,
@@ -1345,7 +1616,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_383",
+        gid: 383,
         name: "刘虞",
+        pack: "yijiang",
         kingdom: "qun",
         male: true,
         max_hp: 2,
@@ -1355,7 +1628,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_384",
+        gid: 384,
         name: "岑昏",
+        pack: "yijiang",
         kingdom: "wu",
         male: true,
         max_hp: 3,
@@ -1365,7 +1640,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_385",
+        gid: 385,
         name: "孙资刘放",
+        pack: "yijiang",
         kingdom: "wei",
         male: true,
         max_hp: 3,
@@ -1375,7 +1652,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_386",
+        gid: 386,
         name: "黄皓",
+        pack: "yijiang",
         kingdom: "shu",
         male: true,
         max_hp: 3,
@@ -1385,7 +1664,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_387",
+        gid: 387,
         name: "张让",
+        pack: "yijiang",
         kingdom: "qun",
         male: true,
         max_hp: 3,
@@ -1395,7 +1676,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_388",
+        gid: 388,
         name: "辛宪英",
+        pack: "yijiang",
         kingdom: "wei",
         male: false,
         max_hp: 3,
@@ -1405,7 +1688,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_389",
+        gid: 389,
         name: "吴苋",
+        pack: "yijiang",
         kingdom: "shu",
         male: false,
         max_hp: 3,
@@ -1415,7 +1700,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_390",
+        gid: 390,
         name: "徐氏",
+        pack: "yijiang",
         kingdom: "wu",
         male: false,
         max_hp: 3,
@@ -1425,7 +1712,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_391",
+        gid: 391,
         name: "曹节",
+        pack: "yijiang",
         kingdom: "qun",
         male: false,
         max_hp: 3,
@@ -1435,7 +1724,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_392",
+        gid: 392,
         name: "嵇康",
+        pack: "yijiang",
         kingdom: "wei",
         male: true,
         max_hp: 3,
@@ -1445,7 +1736,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_393",
+        gid: 393,
         name: "秦宓",
+        pack: "yijiang",
         kingdom: "shu",
         male: true,
         max_hp: 3,
@@ -1455,7 +1748,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_394",
+        gid: 394,
         name: "薛综",
+        pack: "yijiang",
         kingdom: "wu",
         male: true,
         max_hp: 3,
@@ -1465,7 +1760,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_395",
+        gid: 395,
         name: "蔡邕",
+        pack: "yijiang",
         kingdom: "qun",
         male: true,
         max_hp: 3,
@@ -1475,7 +1772,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_26",
+        gid: 26,
         name: "界黄忠",
+        pack: "jiexian",
         kingdom: "shu",
         male: true,
         max_hp: 4,
@@ -1485,7 +1784,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_299",
+        gid: 299,
         name: "界刘备",
+        pack: "jiexian",
         kingdom: "shu",
         male: true,
         max_hp: 4,
@@ -1495,7 +1796,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_300",
+        gid: 300,
         name: "界关羽",
+        pack: "jiexian",
         kingdom: "shu",
         male: true,
         max_hp: 4,
@@ -1505,7 +1808,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_301",
+        gid: 301,
         name: "界张飞",
+        pack: "jiexian",
         kingdom: "shu",
         male: true,
         max_hp: 4,
@@ -1515,7 +1820,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_302",
+        gid: 302,
         name: "界赵云",
+        pack: "jiexian",
         kingdom: "shu",
         male: true,
         max_hp: 4,
@@ -1525,7 +1832,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_303",
+        gid: 303,
         name: "界马超",
+        pack: "jiexian",
         kingdom: "shu",
         male: true,
         max_hp: 4,
@@ -1535,7 +1844,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_304",
+        gid: 304,
         name: "界徐庶",
+        pack: "jiexian",
         kingdom: "shu",
         male: true,
         max_hp: 4,
@@ -1545,7 +1856,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_305",
+        gid: 305,
         name: "界甘宁",
+        pack: "jiexian",
         kingdom: "wu",
         male: true,
         max_hp: 4,
@@ -1555,7 +1868,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_306",
+        gid: 306,
         name: "界吕蒙",
+        pack: "jiexian",
         kingdom: "wu",
         male: true,
         max_hp: 4,
@@ -1565,7 +1880,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_307",
+        gid: 307,
         name: "界黄盖",
+        pack: "jiexian",
         kingdom: "wu",
         male: true,
         max_hp: 4,
@@ -1575,7 +1892,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_308",
+        gid: 308,
         name: "界周瑜",
+        pack: "jiexian",
         kingdom: "wu",
         male: true,
         max_hp: 3,
@@ -1585,7 +1904,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_309",
+        gid: 309,
         name: "界大乔",
+        pack: "jiexian",
         kingdom: "wu",
         male: false,
         max_hp: 3,
@@ -1595,7 +1916,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_310",
+        gid: 310,
         name: "界陆逊",
+        pack: "jiexian",
         kingdom: "wu",
         male: true,
         max_hp: 3,
@@ -1605,7 +1928,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_311",
+        gid: 311,
         name: "界曹操",
+        pack: "jiexian",
         kingdom: "wei",
         male: true,
         max_hp: 4,
@@ -1615,7 +1940,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_312",
+        gid: 312,
         name: "界司马懿",
+        pack: "jiexian",
         kingdom: "wei",
         male: true,
         max_hp: 3,
@@ -1625,7 +1952,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_313",
+        gid: 313,
         name: "界夏侯惇",
+        pack: "jiexian",
         kingdom: "wei",
         male: true,
         max_hp: 4,
@@ -1635,7 +1964,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_314",
+        gid: 314,
         name: "界张辽",
+        pack: "jiexian",
         kingdom: "wei",
         male: true,
         max_hp: 4,
@@ -1645,7 +1976,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_315",
+        gid: 315,
         name: "界许褚",
+        pack: "jiexian",
         kingdom: "wei",
         male: true,
         max_hp: 4,
@@ -1655,7 +1988,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_316",
+        gid: 316,
         name: "界郭嘉",
+        pack: "jiexian",
         kingdom: "wei",
         male: true,
         max_hp: 3,
@@ -1665,7 +2000,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_317",
+        gid: 317,
         name: "界李典",
+        pack: "jiexian",
         kingdom: "wei",
         male: true,
         max_hp: 3,
@@ -1675,7 +2012,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_318",
+        gid: 318,
         name: "界华佗",
+        pack: "jiexian",
         kingdom: "qun",
         male: true,
         max_hp: 3,
@@ -1685,7 +2024,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_319",
+        gid: 319,
         name: "界吕布",
+        pack: "jiexian",
         kingdom: "qun",
         male: true,
         max_hp: 5,
@@ -1695,7 +2036,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_320",
+        gid: 320,
         name: "界公孙瓒",
+        pack: "jiexian",
         kingdom: "qun",
         male: true,
         max_hp: 4,
@@ -1705,7 +2048,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_440",
+        gid: 440,
         name: "界诸葛亮",
+        pack: "jiexian",
         kingdom: "shu",
         male: true,
         max_hp: 3,
@@ -1715,7 +2060,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_441",
+        gid: 441,
         name: "界黄月英",
+        pack: "jiexian",
         kingdom: "shu",
         male: true,
         max_hp: 3,
@@ -1725,7 +2072,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_442",
+        gid: 442,
         name: "界孙权",
+        pack: "jiexian",
         kingdom: "wu",
         male: true,
         max_hp: 4,
@@ -1735,7 +2084,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_443",
+        gid: 443,
         name: "界孙尚香",
+        pack: "jiexian",
         kingdom: "wu",
         male: false,
         max_hp: 3,
@@ -1745,7 +2096,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_444",
+        gid: 444,
         name: "界甄姬",
+        pack: "jiexian",
         kingdom: "wei",
         male: false,
         max_hp: 3,
@@ -1755,7 +2108,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_445",
+        gid: 445,
         name: "界貂蝉",
+        pack: "jiexian",
         kingdom: "qun",
         male: false,
         max_hp: 3,
@@ -1765,7 +2120,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_446",
+        gid: 446,
         name: "界华雄",
+        pack: "jiexian",
         kingdom: "qun",
         male: true,
         max_hp: 6,
@@ -1775,7 +2132,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_447",
+        gid: 447,
         name: "界左慈",
+        pack: "jiexian",
         kingdom: "qun",
         male: true,
         max_hp: 3,
@@ -1785,7 +2144,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_448",
+        gid: 448,
         name: "界张角",
+        pack: "jiexian",
         kingdom: "qun",
         male: true,
         max_hp: 3,
@@ -1795,7 +2156,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_449",
+        gid: 449,
         name: "界于吉",
+        pack: "jiexian",
         kingdom: "qun",
         male: true,
         max_hp: 3,
@@ -1805,7 +2168,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_450",
+        gid: 450,
         name: "界袁绍",
+        pack: "jiexian",
         kingdom: "qun",
         male: true,
         max_hp: 4,
@@ -1815,7 +2180,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_451",
+        gid: 451,
         name: "界刘禅",
+        pack: "jiexian",
         kingdom: "shu",
         male: true,
         max_hp: 3,
@@ -1825,7 +2192,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_452",
+        gid: 452,
         name: "界孙策",
+        pack: "jiexian",
         kingdom: "wu",
         male: true,
         max_hp: 4,
@@ -1835,7 +2204,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_453",
+        gid: 453,
         name: "界夏侯渊",
+        pack: "jiexian",
         kingdom: "wei",
         male: true,
         max_hp: 4,
@@ -1845,7 +2216,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_454",
+        gid: 454,
         name: "界卧龙诸葛亮",
+        pack: "jiexian",
         kingdom: "shu",
         male: true,
         max_hp: 3,
@@ -1855,7 +2228,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_455",
+        gid: 455,
         name: "界庞统",
+        pack: "jiexian",
         kingdom: "shu",
         male: true,
         max_hp: 3,
@@ -1865,7 +2240,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_456",
+        gid: 456,
         name: "界魏延",
+        pack: "jiexian",
         kingdom: "shu",
         male: true,
         max_hp: 4,
@@ -1875,7 +2252,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_457",
+        gid: 457,
         name: "界小乔",
+        pack: "jiexian",
         kingdom: "wu",
         male: false,
         max_hp: 3,
@@ -1885,7 +2264,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_458",
+        gid: 458,
         name: "界孙坚",
+        pack: "jiexian",
         kingdom: "wu",
         male: true,
         max_hp: 5,
@@ -1895,7 +2276,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_462",
+        gid: 462,
         name: "界庞德",
+        pack: "jiexian",
         kingdom: "qun",
         male: true,
         max_hp: 4,
@@ -1905,7 +2288,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_463",
+        gid: 463,
         name: "界太史慈",
+        pack: "jiexian",
         kingdom: "wu",
         male: true,
         max_hp: 4,
@@ -1915,7 +2300,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_470",
+        gid: 470,
         name: "界董卓",
+        pack: "jiexian",
         kingdom: "qun",
         male: true,
         max_hp: 8,
@@ -1925,7 +2312,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_471",
+        gid: 471,
         name: "界邓艾",
+        pack: "jiexian",
         kingdom: "wei",
         male: true,
         max_hp: 4,
@@ -1935,7 +2324,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_479",
+        gid: 479,
         name: "界祝融",
+        pack: "jiexian",
         kingdom: "shu",
         male: false,
         max_hp: 4,
@@ -1945,7 +2336,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_480",
+        gid: 480,
         name: "界姜维",
+        pack: "jiexian",
         kingdom: "shu",
         male: true,
         max_hp: 4,
@@ -1955,7 +2348,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_484",
+        gid: 484,
         name: "界贾诩",
+        pack: "jiexian",
         kingdom: "qun",
         male: true,
         max_hp: 3,
@@ -1965,7 +2360,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_485",
+        gid: 485,
         name: "界鲁肃",
+        pack: "jiexian",
         kingdom: "wu",
         male: true,
         max_hp: 3,
@@ -1975,7 +2372,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_486",
+        gid: 486,
         name: "界张郃",
+        pack: "jiexian",
         kingdom: "wei",
         male: true,
         max_hp: 4,
@@ -1985,7 +2384,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_492",
+        gid: 492,
         name: "界孟获",
+        pack: "jiexian",
         kingdom: "shu",
         male: true,
         max_hp: 4,
@@ -1995,7 +2396,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_496",
+        gid: 496,
         name: "界徐晃",
+        pack: "jiexian",
         kingdom: "wei",
         male: true,
         max_hp: 4,
@@ -2005,7 +2408,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_505",
+        gid: 505,
         name: "界蔡文姬",
+        pack: "jiexian",
         kingdom: "qun",
         male: false,
         max_hp: 3,
@@ -2015,7 +2420,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_515",
+        gid: 515,
         name: "界荀彧",
+        pack: "jiexian",
         kingdom: "wei",
         male: true,
         max_hp: 3,
@@ -2025,7 +2432,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_526",
+        gid: 526,
         name: "界典韦",
+        pack: "jiexian",
         kingdom: "wei",
         male: true,
         max_hp: 4,
@@ -2035,7 +2444,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_550",
+        gid: 550,
         name: "界颜良文丑",
+        pack: "jiexian",
         kingdom: "qun",
         male: true,
         max_hp: 4,
@@ -2045,7 +2456,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_563",
+        gid: 563,
         name: "界张昭张纮",
+        pack: "jiexian",
         kingdom: "wu",
         male: true,
         max_hp: 3,
@@ -2055,7 +2468,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_587",
+        gid: 587,
         name: "界徐盛",
+        pack: "jiexian",
         kingdom: "wu",
         male: true,
         max_hp: 4,
@@ -2065,7 +2480,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_588",
+        gid: 588,
         name: "界凌统",
+        pack: "jiexian",
         kingdom: "wu",
         male: true,
         max_hp: 4,
@@ -2075,7 +2492,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_597",
+        gid: 597,
         name: "界陈宫",
+        pack: "jiexian",
         kingdom: "qun",
         male: true,
         max_hp: 3,
@@ -2085,7 +2504,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_599",
+        gid: 599,
         name: "界曹彰",
+        pack: "jiexian",
         kingdom: "wei",
         male: true,
         max_hp: 4,
@@ -2095,7 +2516,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_600",
+        gid: 600,
         name: "界简雍",
+        pack: "jiexian",
         kingdom: "shu",
         male: true,
         max_hp: 3,
@@ -2105,7 +2528,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_603",
+        gid: 603,
         name: "界虞翻",
+        pack: "jiexian",
         kingdom: "wu",
         male: true,
         max_hp: 3,
@@ -2115,7 +2540,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_604",
+        gid: 604,
         name: "界高顺",
+        pack: "jiexian",
         kingdom: "qun",
         male: true,
         max_hp: 4,
@@ -2125,7 +2552,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_610",
+        gid: 610,
         name: "界法正",
+        pack: "jiexian",
         kingdom: "shu",
         male: true,
         max_hp: 3,
@@ -2135,7 +2564,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_620",
+        gid: 620,
         name: "界程普",
+        pack: "jiexian",
         kingdom: "wu",
         male: true,
         max_hp: 4,
@@ -2145,7 +2576,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_621",
+        gid: 621,
         name: "界王异",
+        pack: "jiexian",
         kingdom: "wei",
         male: false,
         max_hp: 3,
@@ -2155,7 +2588,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_625",
+        gid: 625,
         name: "界张春华",
+        pack: "jiexian",
         kingdom: "wei",
         male: false,
         max_hp: 3,
@@ -2165,7 +2600,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_626",
+        gid: 626,
         name: "界刘表",
+        pack: "jiexian",
         kingdom: "qun",
         male: true,
         max_hp: 3,
@@ -2175,7 +2612,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_627",
+        gid: 627,
         name: "界蔡夫人",
+        pack: "jiexian",
         kingdom: "qun",
         male: false,
         max_hp: 3,
@@ -2185,7 +2624,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_628",
+        gid: 628,
         name: "界曹冲",
+        pack: "jiexian",
         kingdom: "wei",
         male: true,
         max_hp: 3,
@@ -2195,7 +2636,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_629",
+        gid: 629,
         name: "界曹植",
+        pack: "jiexian",
         kingdom: "wei",
         male: true,
         max_hp: 3,
@@ -2205,7 +2648,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_640",
+        gid: 640,
         name: "界吴国太",
+        pack: "jiexian",
         kingdom: "wu",
         male: false,
         max_hp: 3,
@@ -2215,7 +2660,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_641",
+        gid: 641,
         name: "界廖化",
+        pack: "jiexian",
         kingdom: "shu",
         male: true,
         max_hp: 4,
@@ -2225,7 +2672,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_642",
+        gid: 642,
         name: "界李儒",
+        pack: "jiexian",
         kingdom: "qun",
         male: true,
         max_hp: 3,
@@ -2235,7 +2684,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_658",
+        gid: 658,
         name: "界郭淮",
+        pack: "jiexian",
         kingdom: "wei",
         male: true,
         max_hp: 4,
@@ -2245,7 +2696,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_671",
+        gid: 671,
         name: "界伏皇后",
+        pack: "jiexian",
         kingdom: "qun",
         male: false,
         max_hp: 3,
@@ -2255,7 +2708,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_676",
+        gid: 676,
         name: "界韩当",
+        pack: "jiexian",
         kingdom: "wu",
         male: true,
         max_hp: 4,
@@ -2265,7 +2720,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_690",
+        gid: 690,
         name: "界关兴张苞",
+        pack: "jiexian",
         kingdom: "shu",
         male: true,
         max_hp: 4,
@@ -2275,7 +2732,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_696",
+        gid: 696,
         name: "界马岱",
+        pack: "jiexian",
         kingdom: "shu",
         male: true,
         max_hp: 4,
@@ -2285,7 +2744,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_726",
+        gid: 726,
         name: "界郭皇后",
+        pack: "jiexian",
         kingdom: "wei",
         male: false,
         max_hp: 3,
@@ -2295,7 +2756,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_749",
+        gid: 749,
         name: "界沮授",
+        pack: "jiexian",
         kingdom: "qun",
         male: true,
         max_hp: 3,
@@ -2305,7 +2768,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_752",
+        gid: 752,
         name: "界夏侯氏",
+        pack: "jiexian",
         kingdom: "shu",
         male: false,
         max_hp: 3,
@@ -2315,7 +2780,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_753",
+        gid: 753,
         name: "界张松",
+        pack: "jiexian",
         kingdom: "shu",
         male: true,
         max_hp: 3,
@@ -2325,7 +2792,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_756",
+        gid: 756,
         name: "界于禁",
+        pack: "jiexian",
         kingdom: "wei",
         male: true,
         max_hp: 4,
@@ -2335,7 +2804,9 @@ pub const GENERALS: &[GeneralDef] = &[
     },
     GeneralDef {
         code: "sgs_hero_775",
+        gid: 775,
         name: "界步练师",
+        pack: "jiexian",
         kingdom: "wu",
         male: false,
         max_hp: 3,

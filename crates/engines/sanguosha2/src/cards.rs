@@ -295,9 +295,18 @@ pub fn horse_bonus(name: &str) -> Option<usize> {
 ///
 /// 这是 M1 的「真实牌堆」入口：洗牌/发牌由调用方决定（确定性顺序便于测试）。
 pub fn deck() -> Vec<Card> {
+    deck_of(&[])
+}
+
+/// 按牌堆包组堆（`packs` 为空 = 全部 160 张）。
+///
+/// id 按**全量牌堆下标**生成（`c1..c160`），因此子集组堆的 id 与全量一致 →
+/// 回放/对拍不受「本局选了哪些包」影响。
+pub fn deck_of(packs: &[&str]) -> Vec<Card> {
     crate::cards_generated::DECK
         .iter()
         .enumerate()
+        .filter(|(_, p)| packs.is_empty() || packs.contains(&p.pack))
         .map(|(i, p)| {
             let d = def(p.name);
             Card {
@@ -310,6 +319,33 @@ pub fn deck() -> Vec<Card> {
             }
         })
         .collect()
+}
+
+/// 牌名 → 定义码（中台同步/对拍用）。
+pub fn code_of(name: &str) -> Option<&'static str> {
+    crate::cards_generated::DEFS
+        .iter()
+        .find(|r| r.name == name)
+        .map(|r| r.code)
+}
+
+/// 定义码 → 牌名（场景/模板 token 兼容：v1 用 `sha`/`shan` 这类 code）。
+pub fn name_of_code(code: &str) -> Option<&'static str> {
+    crate::cards_generated::DEFS
+        .iter()
+        .find(|r| r.code == code)
+        .map(|r| r.name)
+}
+
+/// 全部牌堆包 key（生成物顺序：standard → junzheng）。
+pub fn pack_keys() -> Vec<&'static str> {
+    let mut out: Vec<&'static str> = Vec::new();
+    for p in crate::cards_generated::DECK {
+        if !out.contains(&p.pack) {
+            out.push(p.pack);
+        }
+    }
+    out
 }
 
 #[cfg(test)]

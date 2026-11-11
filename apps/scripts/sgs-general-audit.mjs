@@ -163,8 +163,11 @@ function dbCounts() {
   return out;
 }
 
-/** SgsState 牌数（所有区域合计；守恒断言）。 */
+/** 牌数（所有区域合计；守恒断言）。v2：`Game.zone` 每张牌一条位置记录（含 Void）。 */
 function countCards(st) {
+  if (st?.zone && typeof st.zone === "object" && !Array.isArray(st.zone)) {
+    return Object.keys(st.zone).length;
+  }
   const n = (a) => (Array.isArray(a) ? a.length : 0);
   let total =
     n(st?.deck?.draw) + n(st?.deck?.discard) + n(st?.deck?.processing) + n(st?.deck?.void);
@@ -264,7 +267,11 @@ async function auditGeneral(general) {
       `sandbox(${general.name})`,
     );
     const raw0 = sandbox.raw;
-    const targetId = raw0?.data?.seats?.[0]?.player_id;
+    // v2：沙盒视图 `seats.seats[].player_id`（v1 是 `raw.data.seats[].player_id`）。
+    const seatInfo = sandbox.seats?.seats?.[0];
+    const targetId =
+      seatInfo?.player_id ?? raw0?.data?.seats?.[0]?.player_id ?? raw0?.players?.[0];
+    const targetSeat = Number(seatInfo?.index ?? 0);
     if (!targetId) throw new Error("sandbox 未返回座位 0 的 player_id");
 
     const created = must(
@@ -299,20 +306,22 @@ async function auditGeneral(general) {
     const collect = (sheet, tag) => {
       const ids = (sheet?.actions ?? []).map((a) => a.id);
       const st = sheet?.raw?.data ?? null;
-      const pending = st?.pending
+      const rawPending = st?.pending ?? null;
+      const pending = rawPending
         ? {
-            actor: st.pending.actor ?? st.pending.player_id ?? null,
-            skill: st.pending.skill ?? null,
-            reason: st.pending.data?.reason ?? null,
-            required: st.pending.data?.required ?? null,
-            options: (st.pending.options ?? []).map((o) => o.id).slice(0, 20),
+            // v2：raw 里的 `actor` 是座位下标；v1 是 player_id。两者都兼容。
+            actor: rawPending.actor ?? rawPending.player_id ?? null,
+            skill: rawPending.skill ?? null,
+            reason: rawPending.data?.reason ?? null,
+            required: rawPending.data?.required ?? null,
+            options: (rawPending.options ?? []).map((o) => o.id).slice(0, 20),
           }
         : null;
       const pool = [...ids, ...(pending?.options ?? [])];
       const ownCodes = new Set(general.skills.map((s) => s.code));
       if (pending?.skill && ownCodes.has(pending.skill)) reached.add(pending.skill);
       // pending 的 data 也可能携带技能归因（如庸肆弃牌 `data.reason = "yongsi"`）。
-      const dataText = pending ? JSON.stringify(st?.pending?.data ?? {}) : "";
+      const dataText = pending ? JSON.stringify(rawPending?.data ?? {}) : "";
       const dataHits = dataText ? [...mentionedSkills([dataText], general.skills)] : [];
       for (const code of mentionedSkills(pool, general.skills)) reached.add(code);
       if (dataText) for (const code of mentionedSkills([dataText], general.skills)) reached.add(code);
@@ -320,7 +329,7 @@ async function auditGeneral(general) {
       run.steps.push({
         tag,
         turn: st?.turn ?? null,
-        turnPhase: st?.turn_phase ?? null,
+        turnPhase: st?.turn_phase ?? (typeof st?.phase === "string" ? st.phase.toLowerCase() : null),
         legalCount: ids.length,
         pending,
         matchedIds: pool.filter((x) => mentionedSkills([x], general.skills).size > 0).concat(dataHits).slice(0, 10),
@@ -380,10 +389,11 @@ async function auditGeneral(general) {
         break;
       }
       const sheet = collect(view.body, `walk${i + 1}`);
-      if (sheet.st?.phase === "finished") break;
+      if (sheet.st?.finished === true || sheet.st?.phase === "finished") break;
       // 本将的 pending：优先选与技能相关的选项；否则取“必选项”（弃牌/确认等）继续推进，
       // 仅用于提高可达面，记录在 autoPicks 里供人工核对（不作为语义证据）。
-      const ownPending = sheet.pending && sheet.pending.actor === targetId;
+      const ownPending =
+        sheet.pending && (sheet.pending.actor === targetId || sheet.pending.actor === targetSeat);
       if (ownPending) {
         const skillPick = (sheet.pending.options ?? []).find(
           (o) => mentionedSkills([o], general.skills).size > 0,

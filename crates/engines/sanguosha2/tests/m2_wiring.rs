@@ -308,11 +308,15 @@ fn gate_skills_use_real_resolution_only() {
             continue;
         }
         let src = std::fs::read_to_string(&path).expect("读源文件");
-        assert!(
-            !src.contains("use_card("),
-            "{} 仍调用事件模拟入口 `use_card`：请改用 resolve_use / use_virtual / use_as",
-            path.display()
-        );
+        // 只拦「事件模拟入口」`Game::use_card`：`can_use_card` 是合法的只读查询 API。
+        let banned = ["g.use_card(", "Game::use_card(", "self.use_card("];
+        if let Some(hit) = banned.iter().find(|p| src.contains(**p)) {
+            panic!(
+                "{} 仍调用事件模拟入口 `{}`：请改用 resolve_use / use_virtual / use_as",
+                path.display(),
+                hit
+            );
+        }
         checked += 1;
     }
     assert!(checked > 10, "应扫描到全部技能文件");
@@ -326,4 +330,58 @@ fn gate_virtual_use_counts_toward_sha_limit() {
     g.use_virtual(0, "杀", vec![1]).unwrap();
     advance(&mut g).unwrap();
     assert_eq!(g.sha_used(0), 1, "虚拟杀计入次数");
+}
+
+#[test]
+fn gate_active_skills_only_offered_to_owner() {
+    // 回归（B0–B20 走查发现）：部分 `can_active` 漏了 `active(g, seat, code)` 归属校验，
+    // 导致当前回合角色能看到/发动**其他武将**的主动技（legal 集合污染，且 execute 同源放行）。
+    // 例外：设计上由「其他角色」发动的技能（陷嗣主动移逆 / 黄天给牌 / 问卦由他人使用）。
+    const NON_OWNER: &[&str] = &["xiansi", "huangtian", "wengua"];
+    let mut g = game(&[
+        ("a", &["jushou", "jiewei"], 4),
+        ("b", &["chuli", "jijiu"], 4),
+        ("c", &["lijian", "biyue"], 4),
+        ("d", &["zhiheng"], 4),
+    ]);
+    let names = [
+        "杀",
+        "闪",
+        "桃",
+        "酒",
+        "决斗",
+        "过河拆桥",
+        "顺手牵羊",
+        "无懈可击",
+        "八卦阵",
+        "诸葛连弩",
+    ];
+    for seat in 0..g.seats.len() {
+        for name in names {
+            let id = g
+                .ids_in(|z| *z == Zone::Draw)
+                .into_iter()
+                .find(|id| g.name_of(id) == name);
+            if let Some(id) = id {
+                g.to_hand(&id, seat).expect("给牌");
+            }
+        }
+    }
+    play(&mut g, 0);
+    for seat in 0..g.seats.len() {
+        for d in skills::SKILLS {
+            let Some(can) = d.can_active else { continue };
+            if NON_OWNER.contains(&d.code) {
+                continue;
+            }
+            if can(&g, seat) {
+                assert!(
+                    skills::active(&g, seat, d.code),
+                    "座位 {seat} 未拥有【{}】({})，can_active 却为真（legal/execute 会放行他人技能）",
+                    d.name,
+                    d.code
+                );
+            }
+        }
+    }
 }

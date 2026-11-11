@@ -167,6 +167,21 @@ pub struct Seat {
     /// 判定区是否废除（雄乱）。
     #[serde(default)]
     pub judge_abolished: bool,
+    /// 机器人座位（server `drive_bots` / 大厅 `lobby:add_bot`；身份局不区分）。
+    #[serde(default)]
+    pub bot: bool,
+}
+
+/// 结算前钩子的结果（谮毁：代用 / 额外目标）。
+///
+/// 由技能在「使用瞬间」写入，`card_play::step_pre_use` 读取后清空；
+/// 只在**结算开始之前**生效（这是 v1 的时序缺口，见 `plan` §9.2）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct UsePre {
+    /// 代用：使用者变更为该角色（伤害来源 / 技能归属随之改变）。
+    pub switch_user: Option<usize>,
+    /// 额外目标（结算前追加到目标列表）。
+    pub extra_targets: Vec<usize>,
 }
 
 /// serde 默认值：老存档没有性别字段时按男处理。
@@ -204,6 +219,7 @@ impl Seat {
             chained: false,
             abolished_slots: BTreeSet::new(),
             judge_abolished: false,
+            bot: false,
         }
     }
 }
@@ -231,6 +247,7 @@ pub mod pending;
 pub mod pindian;
 pub mod resolve;
 pub mod flow;
+pub mod gear;
 
 use self::deferred::Deferred;
 use self::event::{Event, Sub};
@@ -253,6 +270,15 @@ pub struct Game {
     pub pending: Option<Pending>,
     /// 当前 pending 的回答（handler 下一次被调用时读取）。
     pub answer: Option<String>,
+    /// 该回答的「发起帧」技能（`Step::Need` 时记下）。
+    ///
+    /// 消费规则：只有 skill 相同的帧可以消费；其它帧读到即丢弃（防止上一个技能的
+    /// 回答被事件触发的下一个技能误读，2026-11-10 自对弈抓到：龙吟拿到别家的 `opt1`）。
+    #[serde(default)]
+    pub answer_skill: Option<String>,
+    /// 未知发起帧（测试直接设 pending）时的消费预算：只允许第一帧消费。
+    #[serde(default)]
+    pub answer_budget: u8,
     pub deferred: Vec<Deferred>,
     /// 待路由事件（栈空后按窗口派发）。
     pub events: Vec<Event>,
@@ -387,6 +413,12 @@ pub struct Game {
     /// 判定子流程结果（生效的判定牌）。
     #[serde(default)]
     pub judge_result: Option<CardId>,
+    /// 装备窗口结果（青龙/贯石/寒冰：由 `sha_loop` 消费后清空）。
+    #[serde(default)]
+    pub gear_result: Option<gear::GearResult>,
+    /// 结算前钩子结果（谮毁）：`step_pre_use` 消费后清空。
+    #[serde(default)]
+    pub use_pre: Option<UsePre>,
     /// 化身（左慈）：座位 → 化身牌与展示状态。
     #[serde(default)]
     pub huashen: BTreeMap<usize, HuashenState>,
@@ -402,6 +434,24 @@ pub struct Game {
     /// 摸牌获得的牌不计入「本回合获得的牌」（腹鳞）。
     #[serde(skip)]
     pub suppress_gain_count: bool,
+    /// 房主 player_id（开局后仍保留：`#中断` 等运维动作依赖它）。
+    #[serde(default)]
+    pub host: String,
+    /// 大厅（`Some` = 还在房间阶段；开局前固定 5–8 人）。
+    #[serde(default)]
+    pub lobby: Option<crate::lobby::Lobby>,
+    /// 选将状态（`Some` = 选将阶段）。
+    #[serde(default)]
+    pub setup: Option<crate::lobby::Setup>,
+    /// 房间配置（大厅可改；开局后固定）。
+    #[serde(default)]
+    pub cfg: crate::lobby::LobbyConfig,
+    /// 中断原因（房主 `#中断` / 房主离开）。
+    #[serde(default)]
+    pub abort_reason: Option<String>,
+    /// 是否身份局（身份奖惩/胜负只在此为 true 时生效；单测夹具不受影响）。
+    #[serde(default)]
+    pub identity_game: bool,
     pub subs: Vec<Sub>,
     pub finished: bool,
 }
@@ -419,6 +469,8 @@ impl Game {
             stack: Vec::new(),
             pending: None,
             answer: None,
+            answer_skill: None,
+            answer_budget: 0,
             deferred: Vec::new(),
             events: Vec::new(),
             log: Vec::new(),
@@ -467,11 +519,19 @@ impl Game {
             void_return: Vec::new(),
             judge_rewrite: None,
             judge_result: None,
+            gear_result: None,
+            use_pre: None,
             huashen: BTreeMap::new(),
             guhuo_result: None,
             skill_deferred: false,
             phase_discard_cards: Vec::new(),
             suppress_gain_count: false,
+            host: String::new(),
+            lobby: None,
+            setup: None,
+            cfg: crate::lobby::LobbyConfig::default(),
+            abort_reason: None,
+            identity_game: false,
             subs: Vec::new(),
             finished: false,
         };
@@ -1095,6 +1155,17 @@ impl Game {
         Ok(())
     }
 
+    /// 不变量：动作结束后不得遗留未消费的 `answer`（见 `resolve::advance` 的同名清理）。
+    pub fn check_no_stale_answer(&self) -> Result<(), String> {
+        if self.pending.is_none() && self.answer.is_some() {
+            return Err(format!(
+                "结算结束后仍遗留未消费的回答：{:?}（会污染下一个动作的技能）",
+                self.answer
+            ));
+        }
+        Ok(())
+    }
+
     pub fn check_no_orphan_frames(&self) -> Result<(), String> {
         if !self.stack.is_empty() {
             return Ok(());
@@ -1336,6 +1407,10 @@ impl Game {
         if crate::skills::active(self, seat, "paoxiao") {
             return usize::MAX;
         }
+        // 诸葛连弩：出牌阶段【杀】无次数限制。
+        if self.weapon(seat) == crate::cards::WeaponKind::Zhugeliannu {
+            return usize::MAX;
+        }
         n += crate::skills::sha_limit_bonus(self, seat);
         n += self.counter("turn.jueyan_sha_bonus") as usize;
         n += self.counter("turn.lijun_sha_bonus") as usize;
@@ -1352,7 +1427,14 @@ impl Game {
         }
         let base = self.hand_limit_base(seat) as i64;
         let delta = crate::skills::hand_limit_delta(self, seat) as i64;
-        base.saturating_add(delta).max(0) as usize
+        let limit = base.saturating_add(delta).max(0) as usize;
+        // 大厅「手牌持有上限」（默认 20；正常体力上限远低于此，仅配置为 10 时生效）。
+        let cap = self.cfg.max_hand_cards as usize;
+        if cap > 0 {
+            limit.min(cap)
+        } else {
+            limit
+        }
     }
 
     fn hand_limit_base(&self, seat: usize) -> usize {

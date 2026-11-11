@@ -66,11 +66,19 @@ export function stateSignature(
   });
 }
 
-/** 侧栏签名：history 末 seq（侧栏只展示历史/阶段）。 */
+/** 侧栏签名：history 末 seq + 阶段/回合/待办（侧栏展示历史与阶段）。 */
 export function sideSignature(
   data: SgsViewData | null | undefined,
   names?: Record<string, string> | null,
 ): string {
-  const h = data?.public_board?.history;
-  return `${h && h.length ? h[h.length - 1].seq : 0}|${JSON.stringify(names ?? {})}`;
+  const b = data?.public_board;
+  const h = b?.history;
+  return [
+    h && h.length ? h[h.length - 1].seq : 0,
+    b?.phase ?? "",
+    b?.round ?? 0,
+    b?.turn?.phase ?? "",
+    b?.pending?.kind ?? "",
+    b?.pending?.actor ?? "",
+  ].join("|") + `|${JSON.stringify(names ?? {})}`;
 }

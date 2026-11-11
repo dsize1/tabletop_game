@@ -31,9 +31,12 @@ function poolOf(generals, mode) {
   const packs = new Set(mode.split("+"));
   const codes = generals.filter((g) => packs.has(g.pack));
   const jieNames = new Set(
-    codes.filter((g) => g.pack === "jiexian").map((g) => g.name.replace(/^界/, "")),
+    codes.filter((g) => g.pack === "jiexian").map((g) => g.name.replace(/^(界|将)/, "")),
   );
-  return codes.filter((g) => g.pack === "jiexian" || !jieNames.has(g.name));
+  // 候选名也要去掉「界/将」前缀再比对（否则「将华雄」不会被「界华雄」去重 → 多算 1 位）。
+  return codes.filter(
+    (g) => g.pack === "jiexian" || !jieNames.has(g.name.replace(/^(界|将)/, "")),
+  );
 }
 
 /** 预设枚举（与 `lib.rs::general_pack_presets` 同序：按包数升序）。 */

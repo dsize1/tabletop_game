@@ -217,7 +217,8 @@ const IDENTITY_OPTIONS = [
   { label: "主公", value: "lord" },
   { label: "忠臣", value: "loyalist" },
   { label: "反贼", value: "rebel" },
-  { label: "内奸", value: "spy" },
+  // v2 的引擎 code 是 `traitor`；中台/统计旧数据用 `spy`（引擎侧已做别名，两者都可用）。
+  { label: "内奸", value: "traitor" },
 ];
 interface SandboxSeatForm {
   general: string | null;
@@ -301,7 +302,11 @@ function identityOptions(index: number) {
   });
   const current = createForm.value.seats[index]?.identity;
   return IDENTITY_OPTIONS.map(({ label, value }) => {
-    const remain = (total[value] ?? 0) - (used[value] ?? 0);
+    // 兼容：引擎 meta 同时给出 `traitor` 与 `spy` 别名。
+    const alias = value === "traitor" ? "spy" : value;
+    const totalFor = (total[value] ?? total[alias] ?? 0) as number;
+    const usedFor = (used[value] ?? used[alias] ?? 0) as number;
+    const remain = totalFor - usedFor;
     return {
       label: `${label}（剩余 ${Math.max(0, remain)}）`,
       value,
@@ -602,7 +607,7 @@ onMounted(loadTemplates);
                       v-model:value="sceneText"
                       type="textarea"
                       :autosize="{ minRows: 12, maxRows: 26 }"
-                      placeholder='{"phase":"turn","turn_phase":"play","seats":[{"index":0,"general":"sgs_hero_1","hand":["sha"]}]}'
+                      placeholder='{"phase":"play","turn":0,"round":1,"seats":[{"index":0,"general":"sgs_hero_1","hand":["sha"]}]}'
                     />
                     <p class="muted small">
                       卡牌 token：牌实例 id（c12）或定义码（sha）；定义码只能从摸牌堆/弃牌堆/移出区取，不能重复。

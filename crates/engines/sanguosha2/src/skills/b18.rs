@@ -1046,7 +1046,7 @@ fn xianzhou(g: &mut Game, a: &Ask) -> Result<Step, String> {
                     "opt2",
                     format!("对其攻击范围内至多 {x} 名角色各造成 1 点伤害"),
                 );
-                Ok(Step::Need(b.escape("（不会出现）不选择").build()))
+                Ok(Step::Need(b.escape_mandatory("（不能放弃）不选择").build()))
             }
             Some("opt1") => {
                 flow::heal(g, owner, x as i32, "xianzhou");

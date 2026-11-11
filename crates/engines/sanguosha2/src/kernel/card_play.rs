@@ -17,6 +17,7 @@
 use serde_json::{json, Value};
 
 use super::event::{Event, EventKind};
+use super::gear;
 use super::resolve::{Ask, FlowFrame, FlowKind, Frame, Stage, Step};
 use super::{CardId, Game, Phase, Slot, Suit, Zone};
 use crate::cards::{self, ArmorKind, CardKind, Effect, ResponseKind};
@@ -108,6 +109,14 @@ fn plan_use(
     if (def.kind == CardKind::Equip || def.tags.delayed) && carrier.is_none() {
         return Err("该牌需要实体牌承载".into());
     }
+    // 装备栏已废除（决堰/破势/雄乱）：legal 与 execute 同源 —— 不再枚举「装不上」的牌。
+    if def.kind == CardKind::Equip {
+        if let Some(slot) = def.slot {
+            if g.is_slot_abolished(seat, slot) {
+                return Err(format!("{} 栏已废除，不能装备", slot.label()));
+            }
+        }
+    }
     if opts.strict {
         let Some(card) = carrier else {
             return Err("普通使用需要实体牌".into());
@@ -182,41 +191,57 @@ pub fn legal_uses(g: &Game, seat: usize) -> Vec<(String, String)> {
         if def.tags.lianhuan {
             out.push((format!("recast:{id}"), format!("重铸【{}】", g.card_label(&id))));
         }
-        let target_sets: Vec<Vec<usize>> = match def.effect {
-            Effect::Sha
-            | Effect::Duel
-            | Effect::Dismantle
-            | Effect::Snatch
-            | Effect::FireAttack
-            | Effect::Indulgence
-            | Effect::SupplyShortage => alive
+        // 目标候选集与转化牌共用同一入口（避免 legal 与 execute 不一致）；
+        // 再按 `can_target`（帷幕/谦节等「不能成为目标」）逐目标过滤。
+        let mut target_sets: Vec<Vec<usize>> = target_sets_for(g, seat, &def)
+            .into_iter()
+            .filter(|ts| {
+                ts.iter()
+                    .all(|t| skills::can_target(g, seat, &name, *t, Some(&id)))
+            })
+            .collect();
+        // 多目标【杀】（方天画戟 / 福绵）：枚举 2..=1+extra 的组合（legality 仍由 plan_use 复核）。
+        if def.tags.sha {
+            let cands: Vec<usize> = target_sets
                 .iter()
-                .filter(|t| **t != seat)
-                .map(|t| vec![*t])
-                .collect(),
-            Effect::Collateral => {
-                let mut sets = Vec::new();
-                for a in alive.iter().filter(|t| **t != seat) {
-                    if g.equip_in(*a, Slot::Weapon).is_none() {
-                        continue;
+                .flat_map(|ts| ts.iter().copied())
+                .collect::<std::collections::BTreeSet<_>>()
+                .into_iter()
+                .collect();
+            if cands.len() >= 2 {
+                let extra_room = if g.weapon(seat) == crate::cards::WeaponKind::Fangtian
+                    && g.hand(seat).len() == 1
+                {
+                    2
+                } else {
+                    skills::extra_targets(g, seat, Some(&id), &name)
+                };
+                let max_targets = 1 + extra_room;
+                let mut combos: Vec<Vec<usize>> = Vec::new();
+                fn pick(
+                    cands: &[usize],
+                    start: usize,
+                    need: usize,
+                    cur: &mut Vec<usize>,
+                    out: &mut Vec<Vec<usize>>,
+                ) {
+                    if need == 0 {
+                        out.push(cur.clone());
+                        return;
                     }
-                    for b in alive.iter().filter(|t| *t != a) {
-                        sets.push(vec![*a, *b]);
+                    for i in start..cands.len() {
+                        cur.push(cands[i]);
+                        pick(cands, i + 1, need - 1, cur, out);
+                        cur.pop();
                     }
                 }
-                sets
-            }
-            Effect::IronChain => {
-                let mut sets: Vec<Vec<usize>> = alive.iter().map(|t| vec![*t]).collect();
-                for (i, a) in alive.iter().enumerate() {
-                    for b in alive.iter().skip(i + 1) {
-                        sets.push(vec![*a, *b]);
-                    }
+                for n in 2..=max_targets.min(cands.len()) {
+                    let mut cur = Vec::new();
+                    pick(&cands, 0, n, &mut cur, &mut combos);
                 }
-                sets
+                target_sets.extend(combos);
             }
-            _ => vec![Vec::new()],
-        };
+        }
         for targets in target_sets {
             if plan_use(g, seat, Some(&id), &name, &targets, UseOpts::normal()).is_ok() {
                 let suffix = if targets.is_empty() {
@@ -259,7 +284,13 @@ pub fn legal_uses(g: &Game, seat: usize) -> Vec<(String, String)> {
             continue;
         }
         let def = cards::def(conv.to);
-        for targets in target_sets_for(g, seat, &def) {
+        for targets in target_sets_for(g, seat, &def)
+            .into_iter()
+            .filter(|ts| {
+                ts.iter()
+                    .all(|t| skills::can_target(g, seat, conv.to, *t, Some(&conv.from)))
+            })
+        {
             if plan_use(g, seat, Some(&conv.from), conv.to, &targets, UseOpts::skill()).is_ok() {
                 let suffix = if targets.is_empty() {
                     String::new()
@@ -287,6 +318,7 @@ pub fn legal_uses(g: &Game, seat: usize) -> Vec<(String, String)> {
 fn target_sets_for(g: &Game, seat: usize, def: &cards::CardDef) -> Vec<Vec<usize>> {
     let alive: Vec<usize> = (0..g.seats.len())
         .filter(|i| g.seats[*i].hp > 0)
+        .filter(|i| !(def.tags.delayed && g.seats[*i].judge_abolished))
         .collect();
     match def.effect {
         Effect::Sha
@@ -348,11 +380,24 @@ fn planned_targets(
     carrier: Option<&CardId>,
 ) -> Result<Vec<usize>, String> {
     // 目标数修正（福绵②）：只有红色基本牌/红色普通锦囊且是「自己使用」时生效。
-    let extra = if g.turn == seat && g.phase == Phase::Play {
+    let mut extra = if g.turn == seat && g.phase == Phase::Play {
         skills::extra_targets(g, seat, carrier.filter(|c| g.is_red(c)), name)
     } else {
         0
     };
+    // 结算前钩子追加的目标（谮毁「成为额外目标」）：放宽目标数上限。
+    extra += g
+        .use_pre
+        .as_ref()
+        .map(|p| p.extra_targets.len())
+        .unwrap_or(0);
+    // 方天画戟：【杀】为使用者最后一张手牌时，可额外指定至多两个目标（共 3 个）。
+    if def.tags.sha
+        && g.weapon(seat) == crate::cards::WeaponKind::Fangtian
+        && carrier.is_some_and(|c| g.hand(seat).len() == 1 && &g.hand(seat)[0] == c)
+    {
+        extra += 2;
+    }
     let alive = |i: usize| g.seats.get(i).is_some_and(|s| s.hp > 0);
     // 注意：`seats_from_left_of` 末尾包含自己，这里要排除（目标列表不得重复）。
     let left_alive: Vec<usize> = g
@@ -377,6 +422,10 @@ fn planned_targets(
             }
             if !skills::can_target(g, seat, name, *t, carrier) {
                 return Err("目标不能成为此牌目标".into());
+            }
+            // 判定区已废除（雄乱）：延时锦囊不能指定该角色。
+            if def.tags.delayed && g.seats[*t].judge_abolished {
+                return Err("目标判定区已废除".into());
             }
             out.push(*t);
         }
@@ -579,8 +628,54 @@ pub fn resolve_use(
         return Err("请先完成当前结算".into());
     }
     let name = g.name_of(card);
+    // 结算前钩子（谮毁）：先询问「代用 / 额外目标」，再开始结算。
+    if crate::skills::pre_use_owner(g, seat, Some(card), &name, &targets).is_some() {
+        super::resolve::start_pre_use(g, seat, Some(card), &name, targets);
+        return super::resolve::advance(g);
+    }
     start_use(g, seat, Some(card), &name, targets, UseOpts::normal())?;
     super::resolve::advance(g)
+}
+
+/// 结算前钩子的步进（`FlowKind::PreUse`）：先让技能询问，再真正开始结算。
+pub fn step_pre_use(g: &mut Game, a: &Ask) -> Result<Step, String> {
+    let user = a.data["user"].as_u64().unwrap_or(0) as usize;
+    let card: Option<CardId> = a.data["card"].as_str().map(str::to_string);
+    let name = a.data["name"].as_str().unwrap_or_default().to_string();
+    let targets: Vec<usize> = a.data["targets"]
+        .as_array()
+        .map(|v| v.iter().filter_map(|x| x.as_u64().map(|n| n as usize)).collect())
+        .unwrap_or_default();
+    let asked = a.data["asked"].as_bool().unwrap_or(false);
+    if !asked {
+        // 技能压入自己的询问帧（在当前帧之上）。
+        if let Some(code) = crate::skills::pre_use_owner(g, user, card.as_ref(), &name, &targets) {
+            crate::skills::start_pre_use_ask(g, code, user, card.as_ref(), &name, &targets);
+        }
+        let mut data = a.data.clone();
+        data["asked"] = json!(true);
+        return Ok(Step::Next(Stage::PreUse, data));
+    }
+    // 技能已给出结果：代用 / 额外目标。
+    // 注意：`use_pre` 在 `start_use` 期间**保留**（`planned_targets` 用它放宽目标数上限），
+    // 结算帧压入后再清空。
+    let pre = g.use_pre.clone().unwrap_or_default();
+    let switch_user = pre.switch_user;
+    let mut final_targets = targets.clone();
+    for t in pre.extra_targets {
+        if !final_targets.contains(&t) {
+            final_targets.push(t);
+        }
+    }
+    let opts = UseOpts {
+        strict: true,
+        damage_source: switch_user,
+        no_wuxie: false,
+    };
+    // 使用者身份：代用时记账在**原使用者**（牌在其实体区域），伤害来源改为协助者。
+    start_use(g, user, card.as_ref(), &name, final_targets, opts)?;
+    g.use_pre = None;
+    Ok(Step::Done)
 }
 
 /// 技能入口：纯虚拟牌（无承载牌，如「视为使用【杀】」）。
@@ -1069,8 +1164,67 @@ fn sha_loop(
     let mut targets = targets.to_vec();
     let damage_source = damage_source_of(data, source);
     let unresponsive = card.map(|c| g.is_unresponsive(c)).unwrap_or(false);
+
     while cursor < targets.len() {
         let t = targets[cursor];
+        // 「装备窗口」回来后的收尾：`GearResult` 决定「重新响应 / 跳过伤害 / 继续」。
+        if data["gear_wait"].as_bool().unwrap_or(false) {
+            data["gear_wait"] = json!(false);
+            let phase = data["gear_phase"].as_str().unwrap_or("").to_string();
+            data["gear_phase"] = json!("");
+            let result = g.gear_result.take().unwrap_or(gear::GearResult::Declined);
+            let gt = num(data, "gear_target");
+            match phase.as_str() {
+                // 雌雄：选完继续正常询问【闪】。
+                "cixiong" => {}
+                // 青龙：目标需重新响应；贯石/放弃 → 本目标结算完毕。
+                "dodge" => match result {
+                    gear::GearResult::Retry => {
+                        data["asked"] = json!(false);
+                        data["need"] = json!(0);
+                        data["got"] = json!(0);
+                        continue;
+                    }
+                    // 贯石斧：弃 2 张后强行造成伤害。
+                    gear::GearResult::Accepted => {
+                        let step =
+                            sha_hit(g, source, damage_source, gt, def, card, data, "guanshi")?;
+                        if let Some(step) = step {
+                            return Ok(Some(step));
+                        }
+                        cursor = num(data, "cursor");
+                        continue;
+                    }
+                    _ => {
+                        skills::on_sha_finished(g, source, Some(gt), card, None, false);
+                        cursor += 1;
+                        data["cursor"] = json!(cursor);
+                        continue;
+                    }
+                },
+                // 寒冰：伤害被防止；否则照常造成伤害（直接进入命中结算）。
+                "pre_damage" => {
+                    if result == gear::GearResult::Prevented {
+                        skills::on_sha_finished(g, source, Some(gt), card, None, false);
+                        cursor += 1;
+                        data["cursor"] = json!(cursor);
+                        continue;
+                    }
+                    let step = sha_hit(g, source, damage_source, gt, def, card, data, phase.as_str())?;
+                    if let Some(step) = step {
+                        return Ok(Some(step));
+                    }
+                    continue;
+                }
+                // 麒麟：弃坐骑后本目标结束。
+                _ => {
+                    skills::on_sha_finished(g, source, Some(gt), card, None, false);
+                    cursor += 1;
+                    data["cursor"] = json!(cursor);
+                    continue;
+                }
+            }
+        }
         if g.seats.get(t).map(|s| s.hp <= 0).unwrap_or(true) || g.fenwei_void.contains(&t) {
             cursor += 1;
             data["cursor"] = json!(cursor);
@@ -1078,10 +1232,7 @@ fn sha_loop(
         }
         // ① 读取介入技能的结果（技能帧在上方执行完毕后回到本帧）。
         if data["intercept_wait"].as_bool().unwrap_or(false) {
-            let r = g
-                .sha_intercept
-                .take()
-                .unwrap_or(ShaIntercept::Continue);
+            let r = g.sha_intercept.take().unwrap_or(ShaIntercept::Continue);
             data["intercept_wait"] = json!(false);
             match r {
                 ShaIntercept::Continue => {}
@@ -1092,15 +1243,11 @@ fn sha_loop(
                     continue;
                 }
                 ShaIntercept::Unresponsive(_) => {
-                    let bonus = jiu_take_bonus(g);
-                    if bonus > 0 {
-                        g.counters
-                            .insert(format!("turn.jiu_boost:{t}"), bonus as u32);
+                    let step = sha_hit(g, source, damage_source, t, def, card, data, "intercept")?;
+                    if let Some(step) = step {
+                        return Ok(Some(step));
                     }
-                    deal_damage(g, damage_source, t, 1 + bonus, def, card);
-                    skills::on_sha_finished(g, source, Some(t), card, None, true);
-                    cursor += 1;
-                    data["cursor"] = json!(cursor);
+                    cursor = num(data, "cursor");
                     continue;
                 }
                 ShaIntercept::Replace(list) => {
@@ -1117,7 +1264,7 @@ fn sha_loop(
                 }
             }
         }
-        // 结算中追加目标（求援：「成为此牌的额外目标」）：追加到列表末尾，不重置进度。
+        // 结算中追加目标（求援）：追加到列表末尾，不重置进度。
         if !g.extra_targets_mid.is_empty() {
             for t2 in std::mem::take(&mut g.extra_targets_mid) {
                 if !targets.contains(&t2) && g.seats.get(t2).is_some_and(|s| s.hp > 0) {
@@ -1154,6 +1301,20 @@ fn sha_loop(
             data["cursor"] = json!(cursor);
             return Ok(Some(Step::Next(Stage::CardOpt, data.clone())));
         }
+        // ③ 雌雄双股剑：指定目标后（每个目标一次）。
+        if !data["cixiong_done"]
+            .get(t.to_string())
+            .is_some_and(|v| v.as_bool() == Some(true))
+            && gear::has_window(g, gear::GearTag::TargetChosen, source, t)
+        {
+            data["cixiong_done"][t.to_string()] = json!(true);
+            data["gear_wait"] = json!(true);
+            data["gear_phase"] = json!("cixiong");
+            data["gear_target"] = json!(t);
+            data["cursor"] = json!(cursor);
+            gear::start(g, gear::GearTag::TargetChosen, source, t, card);
+            return Ok(Some(Step::Next(Stage::CardOpt, data.clone())));
+        }
         if data["asked"].as_bool().unwrap_or(false) {
             // 蛊惑延后结果优先；未就绪则保持 asked，等待流程结束重入。
             let outcome = match g.guhuo_result.take() {
@@ -1176,6 +1337,20 @@ fn sha_loop(
                         g.counters.insert("turn.paoxiao_bonus".to_string(), 1);
                         g.push_log("咆哮：【杀】被抵消，本回合下一次【杀】伤害 +1".to_string());
                     }
+                    // 青龙偃月刀 / 贯石斧：被【闪】抵消后的追加窗口（每个目标一次）。
+                    if !data["dodge_gear_done"]
+                        .get(t.to_string())
+                        .is_some_and(|v| v.as_bool() == Some(true))
+                        && gear::has_window(g, gear::GearTag::AfterDodge, source, t)
+                    {
+                        data["dodge_gear_done"][t.to_string()] = json!(true);
+                        data["gear_wait"] = json!(true);
+                        data["gear_phase"] = json!("dodge");
+                        data["gear_target"] = json!(t);
+                        data["cursor"] = json!(cursor);
+                        gear::start(g, gear::GearTag::AfterDodge, source, t, card);
+                        return Ok(Some(Step::Next(Stage::CardOpt, data.clone())));
+                    }
                     skills::on_sha_finished(g, source, Some(t), card, None, false);
                     cursor += 1;
                     data["cursor"] = json!(cursor);
@@ -1185,23 +1360,17 @@ fn sha_loop(
             } else {
                 data["need"] = json!(0);
                 data["got"] = json!(0);
-                let bonus = jiu_take_bonus(g);
-                if bonus > 0 {
-                    g.counters
-                        .insert(format!("turn.jiu_boost:{t}"), bonus as u32);
+                let step = sha_hit(g, source, damage_source, t, def, card, data, "response")?;
+                if let Some(step) = step {
+                    return Ok(Some(step));
                 }
-                deal_damage(g, damage_source, t, 1 + bonus, def, card);
-                skills::on_sha_finished(g, source, Some(t), card, None, true);
-                cursor += 1;
-                data["cursor"] = json!(cursor);
+                cursor = num(data, "cursor");
                 continue;
             }
         }
         // 不能被响应的牌（往烈/雄乱）：直接结算伤害。
         if !unresponsive {
-            if let Some(p) =
-                response_pending(g, t, ResponseKind::Shan, Some(source), card)
-            {
+            if let Some(p) = response_pending(g, t, ResponseKind::Shan, Some(source), card) {
                 if num(data, "need") == 0 {
                     let need = skills::response_need(g, t, source, ResponseKind::Shan, def.effect);
                     data["need"] = json!(need);
@@ -1217,16 +1386,78 @@ fn sha_loop(
                 return need_at(g, Stage::CardAsk, data.clone(), p).map(Some);
             }
         }
-        let bonus = jiu_take_bonus(g);
-        if bonus > 0 {
-            g.counters
-                .insert(format!("turn.jiu_boost:{t}"), bonus as u32);
+        let step = sha_hit(g, source, damage_source, t, def, card, data, "no_response")?;
+        if let Some(step) = step {
+            return Ok(Some(step));
         }
-        deal_damage(g, damage_source, t, 1 + bonus, def, card);
-        skills::on_sha_finished(g, source, Some(t), card, None, true);
-        cursor += 1;
-        data["cursor"] = json!(cursor);
+        cursor = num(data, "cursor");
     }
+    Ok(None)
+}
+
+/// 一次【杀】命中结算：寒冰剑（伤害前）/ 麒麟弓（伤害后）窗口、古锭刀 +1、朱雀羽扇火属性。
+///
+/// 返回 `Some(Step)` = 已压入装备窗口等待；`None` = 当前目标已结算完（`cursor` 已 +1）。
+#[allow(clippy::too_many_arguments)]
+fn sha_hit(
+    g: &mut Game,
+    source: usize,
+    damage_source: usize,
+    t: usize,
+    def: &cards::CardDef,
+    card: Option<&CardId>,
+    data: &mut Value,
+    cause: &str,
+) -> Result<Option<Step>, String> {
+    // 寒冰剑：造成伤害前（每个目标一次；从窗口回来时 cause == "pre_damage"）。
+    if cause != "pre_damage"
+        && !data["damage_gear_done"]
+            .get(t.to_string())
+            .is_some_and(|v| v.as_bool() == Some(true))
+        && gear::has_window(g, gear::GearTag::BeforeDamage, source, t)
+    {
+        data["damage_gear_done"][t.to_string()] = json!(true);
+        data["gear_wait"] = json!(true);
+        data["gear_phase"] = json!("pre_damage");
+        data["gear_target"] = json!(t);
+        gear::start(g, gear::GearTag::BeforeDamage, source, t, card);
+        return Ok(Some(Step::Next(Stage::CardOpt, data.clone())));
+    }
+    let mut amount = 1 + jiu_take_bonus(g);
+    if amount > 1 {
+        g.counters
+            .insert(format!("turn.jiu_boost:{t}"), (amount - 1) as u32);
+    }
+    // 古锭刀：目标无手牌时伤害 +1。
+    if g.weapon(source) == crate::cards::WeaponKind::Gudingdao && g.hand(t).is_empty() {
+        amount += 1;
+        g.push_log("古锭刀：目标无手牌，伤害 +1".to_string());
+    }
+    // 朱雀羽扇：普通【杀】改为火属性伤害。
+    let mut hit_def = *def;
+    if g.weapon(source) == crate::cards::WeaponKind::Zhuque
+        && hit_def.effect == Effect::Sha
+        && hit_def.damage_kind == crate::cards::DamageKind::Normal
+    {
+        hit_def.damage_kind = crate::cards::DamageKind::Fire;
+    }
+    deal_damage(g, damage_source, t, amount, &hit_def, card);
+    // 麒麟弓：造成伤害后（每个目标一次）。
+    if !data["qilin_done"]
+        .get(t.to_string())
+        .is_some_and(|v| v.as_bool() == Some(true))
+        && gear::has_window(g, gear::GearTag::AfterDamage, source, t)
+    {
+        data["qilin_done"][t.to_string()] = json!(true);
+        data["gear_wait"] = json!(true);
+        data["gear_phase"] = json!("post_damage");
+        data["gear_target"] = json!(t);
+        gear::start(g, gear::GearTag::AfterDamage, source, t, card);
+        return Ok(Some(Step::Next(Stage::CardOpt, data.clone())));
+    }
+    skills::on_sha_finished(g, source, Some(t), card, None, true);
+    let cursor = num(data, "cursor") + 1;
+    data["cursor"] = json!(cursor);
     Ok(None)
 }
 
@@ -2490,7 +2721,13 @@ fn need_at(
 }
 
 fn read_answer(g: &mut Game) -> Result<String, String> {
-    g.answer
-        .take()
-        .ok_or_else(|| "牌结算：等待输入但缺少回答".to_string())
+    match g.answer.take() {
+        Some(a) => Ok(a),
+        None => {
+            // 嵌套流程（濒死/接力/蛊惑）可能先把回答消费掉：此时把本次响应按「放弃」处理，
+            // 并留下日志排障；不把整局打断（历史上这是 AI 自对弈的唯一硬错误来源）。
+            g.push_log("（结算：回答丢失，按放弃处理）".to_string());
+            Ok("pass".to_string())
+        }
+    }
 }

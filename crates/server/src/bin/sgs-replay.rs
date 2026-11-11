@@ -55,7 +55,7 @@ fn main() -> anyhow::Result<()> {
             anyhow::bail!("replay base game_id 不一致: {} != {game_id}", gs.game_id);
         }
         let mut reg = EngineRegistry::new();
-        reg.register(sanguosha::SanguoshaEngine);
+        reg.register(sanguosha2::Sanguosha2Engine);
         let mgr = GameManager::with_rng(reg, Box::new(SeededRng::new(0)));
         mgr.restore(gs);
         restored = true;
@@ -75,10 +75,7 @@ fn main() -> anyhow::Result<()> {
                 .get_state(&room)
                 .ok_or_else(|| anyhow::anyhow!("回放中状态丢失"))?;
             if let Some(expected) = row.state_digest.as_deref() {
-                let actual = sanguosha::SgsState::parse(&state.data)
-                    .ok()
-                    .map(|s| sanguosha::ai::state_digest(&s))
-                    .unwrap_or_default();
+                let actual = sanguosha2::ai::state_digest_of(&state).unwrap_or_default();
                 if actual != expected {
                     mismatches.push(format!(
                         "seq={} digest 不一致 expected={expected} actual={actual}",

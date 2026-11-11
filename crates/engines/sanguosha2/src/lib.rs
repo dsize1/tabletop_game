@@ -16,20 +16,25 @@
 //! `Game::use_card` 仅保留为「事件模拟」兼容入口。
 //! M3（2026-11-06）：[`turn`] 回合驱动器 + [`view`] 三分区视图 + 手牌动作枚举（AI 最小接口）。
 //!
-//! 本 crate 在迁移完成前**不注册**进 `game-engine-mcp`（见计划 O3）。
+//! 本 crate 已具备「大厅/选将/身份局/真实结算/三分区视图」（S1 起为注册做准备，见
+//! `docs/games/sanguosha/engine-replacement/v2-gap-matrix.md`）。
 
+pub mod ai;
 pub mod cards;
 pub mod cards_generated;
 #[path = "generals_generated.rs"]
 pub mod generals;
+pub mod identity;
 pub mod kernel;
+pub mod lobby;
 pub mod presentation;
+pub mod sandbox;
 pub mod skills;
 pub mod turn;
 pub mod view;
 
 use game_engine_core::{
-    shuffle, Action, ActionResult, EngineError, EngineEvent, EnginePlugin, GameState, GameStatus,
+    Action, ActionResult, EngineError, EngineEvent, EnginePlugin, GameState, GameStatus,
     RandomSource,
 };
 use serde_json::json;
@@ -75,45 +80,16 @@ pub fn demo_game() -> Game {
     Game::new(seats, default_cards())
 }
 
-fn seat_template(i: usize) -> (&'static str, &'static [&'static str], i32) {
-    match i {
-        0 => ("zhoufei", &["liangyin", "kongsheng"], 3),
-        1 => ("luzhi", &["zhenliang"], 4),
-        2 => ("caoren", &["jushou", "jiewei"], 4),
-        3 => ("zhoutai", &["buqu", "fenji"], 4),
-        _ => ("guest", &[], 4),
-    }
-}
-
-fn seats_for(players: &[String]) -> Vec<Seat> {
-    let mut seats: Vec<Seat> = players
-        .iter()
-        .enumerate()
-        .map(|(i, p)| {
-            let (general, skills, hp) = seat_template(i);
-            Seat::new(p, general, skills, hp)
-        })
-        .collect();
-    if seats.is_empty() {
-        seats.push(Seat::new("p0", "zhoufei", &["liangyin", "kongsheng"], 3));
-    }
-    // 身份：第 0 位主公，其余反贼（M3 自对弈/胜负判定用；完整身份局在 M4 之后扩展）。
-    seats[0].identity = "lord".to_string();
-    seats[0].flags.insert("lord".to_string());
-    for s in seats.iter_mut().skip(1) {
-        s.identity = "rebel".to_string();
-    }
-    seats
-}
-
-fn state_of(
-    room_id: &str,
-    group_id: &str,
-    players: Vec<String>,
-    g: &Game,
-) -> GameState {
+pub(crate) fn state_of(room_id: &str, group_id: &str, players: Vec<String>, g: &Game) -> GameState {
+    // `players` 与座位保持一致（大厅 `#加入`/`#加机器人` 后座位会增加；
+    // 工作台/摘要按 `players.len()` 统计人数，不能停在建局时的房主列表）。
+    let players = if g.seats.is_empty() {
+        players
+    } else {
+        g.seats.iter().map(|s| s.name.clone()).collect()
+    };
     GameState {
-        game_id: "sanguosha2".into(),
+        game_id: "sanguosha".into(),
         room_id: room_id.to_string(),
         group_id: group_id.to_string(),
         status: if g.finished {
@@ -126,14 +102,85 @@ fn state_of(
     }
 }
 
+/// 建局：**大厅阶段**（只含房主；`#加入` / `#加机器人` 再补位）。
+///
+/// `new_game` 不再直接开打（S1 起）：测试/示例需要可玩开局时用 [`Sanguosha2Engine::new_started_game`]。
+fn new_lobby_game(
+    room_id: &str,
+    group_id: &str,
+    players: Vec<String>,
+    rng: &mut dyn RandomSource,
+) -> (GameState, Vec<EngineEvent>) {
+    let host = players
+        .first()
+        .cloned()
+        .unwrap_or_else(|| "unknown".to_string());
+    let seats: Vec<Seat> = players
+        .iter()
+        .map(|p| Seat::new(p, "", &[], 0))
+        .collect();
+    let mut g = Game::new(seats, cards::deck());
+    g.rand_state = rng.next_u64() | 1;
+    g.cfg = lobby::LobbyConfig::default();
+    g.host = host.clone();
+    g.lobby = Some(lobby::Lobby { host: host.clone() });
+    let state = state_of(room_id, group_id, players, &g);
+    let events = vec![EngineEvent::new(
+        "sgs2_lobby",
+        json!({ "host": host, "seats": g.seats.len() }),
+    )];
+    (state, events)
+}
+
 fn parse(state: &GameState) -> Result<Game, EngineError> {
     serde_json::from_value::<Game>(state.data.clone())
         .map_err(|e| EngineError::Internal(format!("状态解析失败：{e}")))
 }
 
+/// 供 `sandbox` 模块构造对外状态（同 crate 内部；不对外暴露实现细节）。
+pub(crate) fn state_of_public(
+    room_id: &str,
+    group_id: &str,
+    players: Vec<String>,
+    g: &Game,
+) -> GameState {
+    state_of(room_id, group_id, players, g)
+}
+
+impl Sanguosha2Engine {
+    /// 一键开局（测试 / 示例 / 自对弈 / `check:sgs2-ai`）：建局 → 开赛 → 全员自动选将 →
+    /// 发牌进入主公回合。**不经过大厅**（不模拟 join/开始，供自动化使用）。
+    pub fn new_started_game(
+        &self,
+        room_id: &str,
+        group_id: &str,
+        players: Vec<String>,
+        rng: &mut dyn RandomSource,
+    ) -> (GameState, Vec<EngineEvent>) {
+        let seed = rng.next_u64();
+        let (state, mut events) = new_lobby_game(room_id, group_id, players, rng);
+        let Ok(mut g) = parse(&state) else {
+            return (state, events);
+        };
+        g.rand_state = seed | 1;
+        if let Err(e) = lobby::default_start(&mut g) {
+            g.push_log(format!("自动开局失败：{e}"));
+        }
+        events.push(EngineEvent::new(
+            "sgs2_started",
+            json!({
+                "seats": g.seats.len(),
+                "lord": g.seats.iter().position(|s| s.identity == "lord"),
+            }),
+        ));
+        (state_of(room_id, group_id, state.players.clone(), &g), events)
+    }
+}
+
 impl EnginePlugin for Sanguosha2Engine {
     fn game_id(&self) -> &'static str {
-        "sanguosha2"
+        // OQ1=A（2026-11-10）：v2 接管正式引擎 id `sanguosha`（v1 不再注册）。
+        "sanguosha"
     }
 
     fn rules(&self) -> String {
@@ -148,32 +195,20 @@ impl EnginePlugin for Sanguosha2Engine {
         players: Vec<String>,
         rng: &mut dyn RandomSource,
     ) -> (GameState, Vec<EngineEvent>) {
-        let seats = seats_for(&players);
-        let mut deck = cards::deck();
-        shuffle(rng, &mut deck);
-        let mut g = Game::new(seats, deck);
-        // 初始手牌 4 张（主公 +1 留到身份局细化）。
-        for i in 0..g.seats.len() {
-            g.draw(i, 4);
-        }
-        if let Err(e) = turn::begin_game(&mut g) {
-            g.push_log(format!("开局推进失败：{e}"));
-        }
-        let state = state_of(room_id, group_id, players, &g);
-        let mut events = vec![EngineEvent::new("sgs2_started", json!({}))];
-        if let Some(p) = &g.pending {
-            events.push(EngineEvent::new(
-                "sgs2_pending",
-                json!({ "actor": g.seats[p.actor()].name, "kind": p.kind(), "skill": p.skill() }),
-            ));
-        }
-        (state, events)
+        new_lobby_game(room_id, group_id, players, rng)
     }
 
     fn legal_actions(&self, state: &GameState, player_id: &str) -> Vec<Action> {
         let Ok(g) = parse(state) else {
             return Vec::new();
         };
+        // 大厅 / 选将：未入座玩家也能 `lobby:join`（不查座位）。
+        if g.lobby.is_some() || g.setup.is_some() {
+            return lobby::legal_actions(&g, player_id)
+                .into_iter()
+                .map(|(id, description)| Action { id, description })
+                .collect();
+        }
         let Some(seat) = view::seat_of(&g, player_id) else {
             return Vec::new();
         };
@@ -182,6 +217,8 @@ impl EnginePlugin for Sanguosha2Engine {
                 return p
                     .options()
                     .iter()
+                    // 强制选择类待办的占位出口不下发（与视图一致）。
+                    .filter(|o| !(p.escape_hidden() && o.id == p.escape_id()))
                     .map(|o| Action {
                         id: o.id.clone(),
                         description: o.label.clone(),
@@ -217,6 +254,21 @@ impl EnginePlugin for Sanguosha2Engine {
         _rng: &mut dyn RandomSource,
     ) -> Result<ActionResult, EngineError> {
         let mut g = parse(state)?;
+        // 大厅 / 选将：动作协议与 v1 一致（`lobby:*` / `setup:choose_general:*`）；
+        // 此阶段没有回合可推进，不调 `tick`（否则会推进回合）。
+        if g.lobby.is_some() || g.setup.is_some() || action.starts_with("lobby:") {
+            let message = lobby::apply(&mut g, player_id, action)
+                .map_err(EngineError::IllegalAction)?;
+            g.check_conservation().map_err(EngineError::Internal)?;
+            g.check_no_orphan_frames().map_err(EngineError::Internal)?;
+            let out = state_of(&state.room_id, &state.group_id, state.players.clone(), &g);
+            return Ok(ActionResult {
+                state: out,
+                message,
+                finished: g.finished,
+                events: Vec::new(),
+            });
+        }
         let seat = view::seat_of(&g, player_id)
             .ok_or_else(|| EngineError::PermissionDenied("不在座".into()))?;
 
@@ -263,7 +315,9 @@ impl EnginePlugin for Sanguosha2Engine {
                 })
                 .unwrap_or_default();
             crate::skills::on_conversion_used(&mut g, seat, &skill, &id, &name);
-            g.use_as(seat, &id, &name, targets, true, None)
+            // 转化技的承载牌可来自手牌或**自己装备区**（界奇袭等）：走非严格通道，
+            // 合法性由 `legal_uses` 的 `plan_use` 枚举保证（legal ≡ execute）。
+            g.use_as(seat, &id, &name, targets, false, None)
                 .map_err(EngineError::IllegalAction)?;
             format!("【{}】当【{}】使用", g.name_of(&id), name)
         } else if let Some(rest) = action.strip_prefix("trim:") {
@@ -296,6 +350,7 @@ impl EnginePlugin for Sanguosha2Engine {
             if g.turn != seat || g.phase != Phase::Play {
                 return Err(EngineError::IllegalAction("当前不是你的出牌阶段".into()));
             }
+            g.push_log(format!("{} 结束出牌阶段", g.seats[seat].name));
             let next = crate::skills::on_end_play(&mut g, seat);
             resolve::begin_phase(&mut g, seat, next).map_err(EngineError::Internal)?;
             "结束出牌阶段".to_string()
@@ -304,9 +359,14 @@ impl EnginePlugin for Sanguosha2Engine {
         };
 
         g.check_conservation().map_err(EngineError::Internal)?;
+        // 技能/转化牌的入口只「压帧」不推进（`use_as`/`use_virtual`/`execute_active`）：
+        // 动作结束后必须先把结算栈驱动到「需要输入」或清空，再进回合驱动器。
+        // 否则会留下「有结算帧但无 pending」的中间态，下一步 `use:` 会报「请先完成当前结算」。
+        resolve::advance(&mut g).map_err(EngineError::Internal)?;
         turn::tick(&mut g).map_err(EngineError::Internal)?;
         g.check_conservation().map_err(EngineError::Internal)?;
         g.check_no_orphan_frames().map_err(EngineError::Internal)?;
+        g.check_no_stale_answer().map_err(EngineError::Internal)?;
         let out = state_of(&state.room_id, &state.group_id, state.players.clone(), &g);
         Ok(ActionResult {
             state: out,
@@ -337,27 +397,101 @@ impl EnginePlugin for Sanguosha2Engine {
         out
     }
 
+    /// 场景注入（工作台模板/预览）：白名单字段 + 只移动既有牌 + 注入后守恒校验。
+    fn apply_scene(
+        &self,
+        state: &GameState,
+        scene: &serde_json::Value,
+    ) -> Result<GameState, EngineError> {
+        let mut g = parse(state)?;
+        sandbox::apply_scene(&mut g, scene).map_err(EngineError::IllegalAction)?;
+        Ok(state_of(&state.room_id, &state.group_id, state.players.clone(), &g))
+    }
+
+    /// 快照校验（工作台模板/预览/导入用）：牌区守恒 + 无帧遗留 + 待办出口 + 座位/技能合法。
+    ///
+    /// 返回 `Err` 表示该快照不可用于预览（模板被拒）；不会修改任何状态。
+    fn validate_state(&self, state: &GameState) -> Result<(), String> {
+        let g = parse(state).map_err(|e| format!("状态解析失败：{e}"))?;
+        if g.seats.is_empty() || g.seats.len() > lobby::MAX_PLAYERS {
+            return Err(format!("座位数不合法：{}", g.seats.len()));
+        }
+        if g.cards.len() != cards::DECK_SIZE {
+            return Err(format!(
+                "牌实例数 {} ≠ 牌堆上限 {}",
+                g.cards.len(),
+                cards::DECK_SIZE
+            ));
+        }
+        g.check_conservation()?;
+        g.check_no_orphan_frames()?;
+        g.check_no_stale_answer()?;
+        if let Some(p) = &g.pending {
+            if p.actor() >= g.seats.len() {
+                return Err(format!("待办行动者越界：{}", p.actor()));
+            }
+            if !p.has_option(p.escape_id()) {
+                return Err(format!("待办 {} 缺少出口 {}", p.kind(), p.escape_id()));
+            }
+        }
+        for (i, s) in g.seats.iter().enumerate() {
+            if s.name.trim().is_empty() {
+                return Err(format!("座位 {i} 缺少玩家 id"));
+            }
+            if !s.general.is_empty() && generals::by_code(&s.general).is_none() {
+                return Err(format!("座位 {i} 武将不存在：{}", s.general));
+            }
+            for code in s.skills.iter().chain(s.granted.iter()) {
+                if skills::def(code).is_none() {
+                    return Err(format!("座位 {i} 技能未注册：{code}"));
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn summarize(&self, state: &GameState) -> String {
         let Ok(g) = parse(state) else {
             return "三国杀：状态异常".to_string();
         };
         let status = if g.finished { "已结束" } else { "进行中" };
-        let current = g
-            .seats
-            .get(g.turn)
-            .map(|s| s.name.as_str())
-            .unwrap_or("-");
+        let stage = if let Some(l) = &g.lobby {
+            format!(
+                "等待加入（{}/{}）· 房主 {}",
+                g.seats.len(),
+                lobby::MAX_PLAYERS,
+                l.host
+            )
+        } else if let Some(s) = &g.setup {
+            format!(
+                "选将中（已选 {}/{}）· 主公已选 {}",
+                s.picks.len(),
+                g.seats.len(),
+                s.lord_picked
+            )
+        } else if let Some(reason) = &g.abort_reason {
+            format!("已中断（{reason}）")
+        } else {
+            let current = g
+                .seats
+                .get(g.turn)
+                .map(|s| s.name.as_str())
+                .unwrap_or("-");
+            format!("第 {} 回合 · {:?} · 当前 {}", g.round, g.phase, current)
+        };
         let pending = g
             .pending
             .as_ref()
-            .map(|p| format!("等待 {}", g.seats[p.actor()].name))
+            .map(|p| {
+                format!(
+                    "等待 {} 响应（{}）",
+                    g.seats.get(p.actor()).map(|s| s.name.as_str()).unwrap_or("-"),
+                    p.kind()
+                )
+            })
             .unwrap_or_else(|| "自由行动".to_string());
         format!(
-            "三国杀（{status}）：第 {} 回合 · {:?} · 当前 {} · {} · 存活 {}/{}",
-            g.round,
-            g.phase,
-            current,
-            pending,
+            "三国杀（{status}）：{stage} · {pending} · 存活 {}/{}",
             g.seats.iter().filter(|s| s.hp > 0).count(),
             g.seats.len()
         )

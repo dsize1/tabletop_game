@@ -113,6 +113,8 @@ export interface SgsPublicBoard {
   seats: SgsSeat[];
   deck: { draw: number; discard: number; processing: number; void: number };
   discard_top?: SgsCard | null;
+  /** 当前公开亮出的牌（火攻展示/五谷亮牌/蛊惑翻开等）。 */
+  revealed?: SgsCard[];
   /** 弃牌堆全量（顶 → 底，引擎按入堆顺序返回）。 */
   discard?: SgsCard[];
   pending?: { kind: string; actor: string } | null;
@@ -189,6 +191,8 @@ export interface SgsPlayerArea {
   equipment_skills?: { slot: string; code: string; name: string; card: string; trigger: string }[];
   pending?: SgsPending | null;
   setup?: SgsPlayerSetup | null;
+  /** 私密展示（观星/攻心等）：只对本人可见的牌。 */
+  private_reveals?: SgsCard[];
 }
 
 /** 特殊交互区（按 visibility 已由服务端过滤）。 */

@@ -799,3 +799,51 @@ fn b15_mechanism_anchors() {
     g.to_discard(&"x31".to_string(), "test").unwrap();
     g.check_conservation().unwrap();
 }
+
+// ---------------------------------------------------------------- 急袭（凿险授予）
+#[test]
+fn zaoxian_grants_jixi_and_equipment_becomes_sha() {
+    // 邓艾：屯田 3 张「田」→ 准备阶段觉醒，减 1 体力上限并获得「急袭」。
+    let mut g = game(&[("dengai", &["zaoxian"], 4, "wei"), ("p1", &[], 4, "qun")]);
+    for code in ["t1", "t2", "j1"] {
+        g.to_mark(&code.to_string(), 0, "tian").unwrap();
+    }
+    g.phase = Phase::Prepare;
+    g.turn = 0;
+    g.events
+        .push(sanguosha2::kernel::event::Event::simple(
+            EventKind::PhaseStart,
+            Some(0),
+            Some("Prepare"),
+        ));
+    advance(&mut g).unwrap();
+    assert!(
+        g.seats[0].granted.iter().any(|c| c == "jixi"),
+        "凿险应授予「急袭」"
+    );
+    // 装备区的武器可以当【杀】使用（legal 与 execute 同源）。
+    g.to_equip(&"w1".to_string(), 0, Slot::Weapon).unwrap();
+    let conv = skills::conversions(&g, 0);
+    assert!(
+        conv.iter().any(|c| c.skill == "jixi" && c.to == "杀" && c.from == "w1"),
+        "急袭应把装备区的武器视为【杀】：{}", conv.iter().map(|c| format!("{}:{}->{}", c.skill, c.from, c.to)).collect::<Vec<_>>().join(",")
+    );
+    play_phase(&mut g, 0);
+    let before = g.seats[1].hp;
+    g.use_as(0, &"w1".to_string(), "杀", vec![1], false, None)
+        .expect("急袭：装备当杀");
+    advance(&mut g).unwrap();
+    while g.pending.is_some() {
+        answer_cur(&mut g, "pass");
+    }
+    assert_eq!(g.seats[1].hp, before - 1, "急袭【杀】应造成伤害");
+}
+
+#[test]
+fn jixi_is_registered_and_grant_only() {
+    // 注册表必须包含 jixi（否则授予后 handler 缺失 → 静默失效）。
+    assert!(skills::def("jixi").is_some(), "jixi 必须在 v2 注册表");
+    // 未授予时不应提供转化。
+    let g = game(&[("p0", &[], 4, "wei"), ("p1", &[], 4, "qun")]);
+    assert!(skills::conversions(&g, 0).is_empty());
+}

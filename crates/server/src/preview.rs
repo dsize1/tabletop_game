@@ -143,30 +143,33 @@ impl PreviewSession {
 
     fn seat_summary(&self) -> Value {
         if let Some(state) = self.mgr.get_state(&self.room_id) {
-            if let Ok(st) = sanguosha::SgsState::parse(&state.data) {
-                let seats: Vec<Value> = st
+            if let Ok(g) = serde_json::from_value::<sanguosha2::kernel::Game>(state.data.clone()) {
+                let seats: Vec<Value> = g
                     .seats
                     .iter()
                     .enumerate()
                     .map(|(i, s)| {
+                        let name = sanguosha2::generals::by_code(&s.general)
+                            .map(|d| d.name)
+                            .unwrap_or(s.general.as_str());
                         json!({
                             "index": i,
-                            "player_id": s.player_id,
+                            "player_id": s.name,
                             "general": s.general,
-                            "general_name": s.general_name,
-                            "identity": s.identity.code(),
+                            "general_name": name,
+                            "identity": s.identity,
                             "hp": s.hp,
                             "max_hp": s.max_hp,
-                            "alive": s.alive,
-                            "is_bot": s.is_bot,
+                            "alive": s.hp > 0,
+                            "is_bot": s.bot,
                         })
                     })
                     .collect();
                 return json!({
-                    "phase": format!("{:?}", st.phase).to_lowercase(),
-                    "turn": st.turn,
-                    "turn_phase": format!("{:?}", st.turn_phase).to_lowercase(),
-                    "round": st.round,
+                    "phase": sanguosha2::view::phase_label(&g),
+                    "turn": g.turn,
+                    "turn_phase": format!("{:?}", g.phase).to_lowercase(),
+                    "round": g.round,
                     "seats": seats,
                 });
             }
@@ -246,7 +249,7 @@ impl PreviewSession {
         message: String,
         finished: bool,
         legal: Vec<Action>,
-        trace: Option<&sanguosha::ai::policy::DecisionTrace>,
+        trace: Option<&sanguosha2::ai::DecisionTrace>,
         events: &[game_engine_core::EngineEvent],
         latency_ms: i64,
     ) {
@@ -319,8 +322,8 @@ impl PreviewSession {
 
     fn current_actor(&self) -> Option<String> {
         let state = self.mgr.get_state(&self.room_id)?;
-        let st = sanguosha::SgsState::parse(&state.data).ok()?;
-        sanguosha::ai::driver::current_actor(&self.mgr, &self.room_id, &st)
+        let g: sanguosha2::kernel::Game = serde_json::from_value(state.data.clone()).ok()?;
+        sanguosha2::ai::current_actor(&self.mgr, &self.room_id, &g)
     }
 
     /// AI 单步/连推。`max_steps == 1` 可操作任意当前行动者；`> 1` 只推进机器人。
@@ -343,7 +346,8 @@ impl PreviewSession {
                 stop = "finished".to_string();
                 break;
             }
-            let Ok(st) = sanguosha::SgsState::parse(&state.data) else {
+            let Ok(st) = serde_json::from_value::<sanguosha2::kernel::Game>(state.data.clone())
+            else {
                 stop = "engine_error".to_string();
                 errors.push("状态解析失败".to_string());
                 break;
@@ -351,7 +355,7 @@ impl PreviewSession {
             let actor = if single && req.actor.as_deref().is_some_and(|a| !a.is_empty()) {
                 req.actor.clone().unwrap()
             } else {
-                match sanguosha::ai::driver::current_actor(&self.mgr, &self.room_id, &st) {
+                match sanguosha2::ai::current_actor(&self.mgr, &self.room_id, &st) {
                     Some(a) => a,
                     None => {
                         stop = "no_actor".to_string();
@@ -359,7 +363,14 @@ impl PreviewSession {
                     }
                 }
             };
-            if !single && !st.seat(&actor).map(|s| s.is_bot).unwrap_or(false) {
+            if !single
+                && !st
+                    .seats
+                    .iter()
+                    .find(|s| s.name == actor)
+                    .map(|s| s.bot)
+                    .unwrap_or(false)
+            {
                 stop = "human_turn".to_string();
                 break;
             }
@@ -381,7 +392,7 @@ impl PreviewSession {
                 let chosen = RandomPolicy.choose(&state, &actor, &legal, &mut rng);
                 (chosen, None)
             } else {
-                let trace = sanguosha::ai::policy::decide_traced(&state, &actor, &legal);
+                let trace = sanguosha2::ai::decide_traced(&state, &actor, &legal);
                 (trace.as_ref().map(|t| t.action.clone()), trace)
             };
             let Some(chosen) = chosen else {
@@ -815,7 +826,7 @@ pub async fn sandbox_meta(
     headers: HeaderMap,
 ) -> Result<Json<Value>, ApiError> {
     require_workbench(&state, &headers)?;
-    Ok(Json(sanguosha::sandbox::sandbox_meta()))
+    Ok(Json(sanguosha2::sandbox::sandbox_meta()))
 }
 
 #[derive(Debug, Deserialize)]
@@ -825,7 +836,7 @@ pub struct SandboxRequest {
     #[serde(default)]
     pub seed: Option<u64>,
     #[serde(default)]
-    pub seats: Vec<sanguosha::sandbox::SandboxSeat>,
+    pub seats: Vec<sanguosha2::sandbox::SandboxSeat>,
     /// 是否同时保存为模板（默认 false）。
     #[serde(default)]
     pub save_template: Option<bool>,
@@ -843,14 +854,14 @@ pub async fn sandbox(
 ) -> Result<Json<Value>, ApiError> {
     require_workbench(&state, &headers)?;
     let seed = req.seed.unwrap_or_else(rand::random);
-    let spec = sanguosha::sandbox::SandboxSpec {
+    let spec = sanguosha2::sandbox::SandboxSpec {
         players: req.players,
         seats: req.seats,
     };
     let mut rng = SeededRng::new(seed);
     let placeholder = format!("preview:{}", uuid::Uuid::new_v4());
     let (game_state, _events) =
-        sanguosha::sandbox::new_sandbox_game(&placeholder, &placeholder, &spec, &mut rng)
+        sanguosha2::sandbox::new_sandbox_game(&placeholder, &placeholder, &spec, &mut rng)
             .map_err(map_engine_error)?;
     let viewer = game_state.players.first().cloned().unwrap_or_default();
 

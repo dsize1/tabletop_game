@@ -25,6 +25,8 @@ function loc(files) {
 /** 旧引擎：按函数名包含技能 code 统计「技能专属代码」行数。 */
 function oldPerSkill(codes) {
   const out = Object.fromEntries(codes.map((c) => [c, { loc: 0, fns: [] }]));
+  // v1 crate 已删除时跳过「旧引擎专属 LOC」对比（S6 起该度量只作历史参考）。
+  if (!existsSync(OLD_SRC)) return out;
   for (const f of walk(OLD_SRC).filter((p) => !p.includes(`${path.sep}tests${path.sep}`))) {
     const lines = readFileSync(f, "utf8").split("\n");
     let cur = null;

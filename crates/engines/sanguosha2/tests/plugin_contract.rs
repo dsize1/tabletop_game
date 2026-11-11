@@ -16,7 +16,7 @@ fn new_state(players: usize, seed: u64) -> (game_engine_core::GameState, SeededR
     let engine = Sanguosha2Engine;
     let mut rng = SeededRng::new(seed);
     let ids: Vec<String> = (0..players).map(|i| format!("p{i}")).collect();
-    let (state, events) = engine.new_game("r1", "g1", ids, &mut rng);
+    let (state, events) = engine.new_started_game("r1", "g1", ids, &mut rng);
     assert!(!events.is_empty(), "开局应有事件");
     (state, rng)
 }
@@ -28,7 +28,7 @@ fn game_of(state: &game_engine_core::GameState) -> Game {
 #[test]
 fn plugin_identity_and_rules() {
     let engine = Sanguosha2Engine;
-    assert_eq!(engine.game_id(), "sanguosha2");
+    assert_eq!(engine.game_id(), "sanguosha", "v2 接管正式 id");
     assert!(!engine.rules().is_empty());
     let (state, _) = new_state(3, 1);
     let sum = engine.summarize(&state);
@@ -42,33 +42,56 @@ fn new_game_builds_playable_state() {
     let g = game_of(&state);
     assert_eq!(g.seats.len(), 5);
     assert_eq!(g.cards.len(), 160, "真实牌堆");
-    assert_eq!(g.seats[0].identity, "lord");
-    assert!(g.seats.iter().skip(1).all(|s| s.identity == "rebel"));
+    assert!(g.identity_game, "一键开局应进入身份局");
+    assert_eq!(
+        g.seats.iter().filter(|s| s.identity == "lord").count(),
+        1,
+        "身份配比：恰好一个主公"
+    );
+    assert!(g.seats.iter().all(|s| !s.general.is_empty()), "全员已选将");
     g.check_conservation().unwrap();
     g.check_no_orphan_frames().unwrap();
     assert_eq!(state.status, GameStatus::Active);
-    // 初始每人 4 张手牌（主公 +1 留待身份局细化）。
+    // 初始每人 4 张手牌；主公体力上限 +1。
     assert!(g.seats.iter().all(|s| s.hp > 0));
     let total_hand: usize = (0..5).map(|i| g.hand(i).len()).sum();
-    assert_eq!(total_hand, 20, "5 人 × 4 张");
+    // 开局发牌 5×4；`new_started_game` 会推进到「需要输入」的时点：
+    // 主公回合已过摸牌阶段则再 +2（若无 pending 阻挡）。
+    let draw_done = !matches!(
+        g.phase,
+        sanguosha2::kernel::Phase::Prepare | sanguosha2::kernel::Phase::Judge
+    );
+    assert_eq!(
+        total_hand,
+        20 + if draw_done { 2 } else { 0 },
+        "发牌 5×4 + 主公摸牌阶段"
+    );
+    let lord = g.seats.iter().position(|s| s.identity == "lord").unwrap();
+    let def = sanguosha2::generals::by_code(&g.seats[lord].general).expect("主公武将已在名录");
+    assert_eq!(g.seats[lord].max_hp, def.max_hp + 1, "主公体力上限 +1");
 }
 
 #[test]
 fn public_and_player_views_are_redacted() {
     let engine = Sanguosha2Engine;
-    let (state, _) = new_state(3, 2);
+    let (state, _) = new_state(5, 2);
     let public = engine.public_state(&state);
     let pv: serde_json::Value =
         serde_json::from_value(public.data.clone()).expect("公共视图是 JSON");
     assert_eq!(pv["schema_version"], 1);
-    assert!(pv["player_area"]["hand"].as_array().unwrap().is_empty());
-    assert!(pv["player_area"]["identity"].is_null());
+    // 公共视图 player_area 为 null（v1 契约）。
+    assert!(pv["player_area"].is_null());
 
+    let g = game_of(&state);
     let me = engine.player_view(&state, "p0");
     let mv: serde_json::Value = serde_json::from_value(me.data.clone()).unwrap();
     assert_eq!(mv["player_area"]["seat"], 0);
     assert!(!mv["player_area"]["hand"].as_array().unwrap().is_empty());
-    assert_eq!(mv["player_area"]["identity"], "lord");
+    // 本人身份可见（身份局洗牌后 p0 不一定是主公）。
+    assert_eq!(
+        mv["player_area"]["identity"],
+        serde_json::json!(g.seats[0].identity)
+    );
 
     let other = engine.player_view(&state, "p1");
     let ov: serde_json::Value = serde_json::from_value(other.data.clone()).unwrap();
@@ -76,8 +99,7 @@ fn public_and_player_views_are_redacted() {
     // 非座玩家 → 公共视图（不泄漏任何人的手牌）。
     let stranger = engine.player_view(&state, "nobody");
     let sv: serde_json::Value = serde_json::from_value(stranger.data.clone()).unwrap();
-    assert!(sv["player_area"]["seat"].is_null());
-    assert!(sv["player_area"]["hand"].as_array().unwrap().is_empty());
+    assert!(sv["player_area"].is_null(), "非座玩家 → 公共视图（player_area=null）");
 }
 
 #[test]
@@ -107,7 +129,7 @@ fn legal_actions_are_accepted_by_execute() {
 #[test]
 fn pending_always_has_escape_and_private_options() {
     let engine = Sanguosha2Engine;
-    let (state, _) = new_state(3, 4);
+    let (state, _) = new_state(5, 4);
     let g = game_of(&state);
     if let Some(p) = &g.pending {
         assert!(
@@ -130,9 +152,53 @@ fn pending_always_has_escape_and_private_options() {
 }
 
 #[test]
+fn validate_state_accepts_fresh_game_and_rejects_broken_snapshot() {
+    let engine = Sanguosha2Engine;
+    let (state, _) = new_state(5, 11);
+    engine.validate_state(&state).expect("新开局应通过校验");
+
+    // 1) 牌实例数被改（守恒/完整性）：删掉一张牌的实例表项。
+    let mut broken = state.clone();
+    {
+        let mut g = game_of(&broken);
+        let id = g.all_ids()[0].clone();
+        g.cards.remove(&id);
+        broken.data = serde_json::to_value(&g).unwrap();
+    }
+    assert!(
+        engine.validate_state(&broken).is_err(),
+        "牌实例数与牌堆上限不符应被拒"
+    );
+
+    // 2) 技能 code 未注册。
+    let mut broken = state.clone();
+    {
+        let mut g = game_of(&broken);
+        g.seats[0].skills.push("no_such_skill".into());
+        broken.data = serde_json::to_value(&g).unwrap();
+    }
+    assert!(
+        engine.validate_state(&broken).is_err(),
+        "未注册技能应被拒"
+    );
+
+    // 3) 武将不存在。
+    let mut broken = state.clone();
+    {
+        let mut g = game_of(&broken);
+        g.seats[0].general = "no_such_general".into();
+        broken.data = serde_json::to_value(&g).unwrap();
+    }
+    assert!(
+        engine.validate_state(&broken).is_err(),
+        "未知武将应被拒"
+    );
+}
+
+#[test]
 fn finished_action_sets_status_and_summary() {
     let engine = Sanguosha2Engine;
-    let (mut state, mut rng) = new_state(2, 5);
+    let (mut state, mut rng) = new_state(5, 5);
     // 手动把主公打到濒死前：直接结束游戏，验证 execute 后的 status 映射。
     {
         let mut g = game_of(&state);

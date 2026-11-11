@@ -135,10 +135,19 @@ export function sgsSeatList(
   data: unknown,
 ): Array<{ player_id: string; is_bot?: boolean }> {
   const d = (data ?? {}) as {
-    seats?: Array<{ player_id: string; is_bot?: boolean }>;
-    public_board?: { seats?: Array<{ player_id: string; is_bot?: boolean }> };
+    seats?: Array<{ player_id?: string; name?: string; is_bot?: boolean; bot?: boolean }>;
+    public_board?: {
+      seats?: Array<{ player_id?: string; name?: string; is_bot?: boolean; bot?: boolean }>;
+    };
   };
-  return d.seats ?? d.public_board?.seats ?? [];
+  // v1 原始 state 用 `player_id`/`is_bot`，v2 用 `name`/`bot`；视图投影统一 `player_id`/`is_bot`。
+  const raw = d.seats ?? d.public_board?.seats ?? [];
+  return raw
+    .map((s) => ({
+      player_id: s.player_id ?? s.name ?? "",
+      is_bot: s.is_bot ?? s.bot,
+    }))
+    .filter((s) => s.player_id.length > 0);
 }
 
 /**

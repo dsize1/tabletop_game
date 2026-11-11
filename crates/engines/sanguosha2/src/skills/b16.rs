@@ -229,7 +229,7 @@ fn zaizhi(g: &mut Game, a: &Ask) -> Result<Step, String> {
                 let mut b = builder(target, "choice").skill("zaizhi");
                 b = b.option("opt1", "再起：摸一张牌");
                 b = b.option("opt2", format!("再起：令 {} 回复 1 点体力", g.seats[owner].name));
-                Ok(Step::Need(b.escape("（不会出现）不选择").build()))
+                Ok(Step::Need(b.escape_mandatory("（不能放弃）不选择").build()))
             }
             Some("opt1") => {
                 let n = g.draw_with_cause(target, 1, Some("zaizhi")).len();
@@ -610,7 +610,8 @@ pub const QUHU: SkillDef = SkillDef {
 };
 
 fn can_quhu(g: &Game, seat: usize) -> bool {
-    play_phase(g, seat)
+    active(g, seat, "quhu")
+        && play_phase(g, seat)
         && g.counter("phase.cancel_quhu") == 0
         && g.counter("turn.quhu_used") == 0
         && !g.hand(seat).is_empty()
@@ -807,7 +808,7 @@ fn jieming(g: &mut Game, a: &Ask) -> Result<Step, String> {
                     for id in &avail {
                         b = b.option(format!("pick:{id}"), format!("弃置【{}】", label(g, id)));
                     }
-                    Ok(Step::Need(b.escape("（不会出现）结束").build()))
+                    Ok(Step::Need(b.escape_mandatory("（不能放弃）结束").build()))
                 }
                 Some(act) => {
                     let id = act
@@ -885,7 +886,8 @@ fn qiangxi_targets(g: &Game, actor: usize) -> Vec<usize> {
         .collect()
 }
 fn can_qiangxi(g: &Game, seat: usize) -> bool {
-    play_phase(g, seat)
+    active(g, seat, "qiangxi")
+        && play_phase(g, seat)
         && g.counter("phase.cancel_qiangxi") == 0
         && g.counter("turn.qiangxi_used") < 2
         && (g.seats[seat].hp > 0 || g.equip_in(seat, Slot::Weapon).is_some())
@@ -1174,7 +1176,8 @@ fn zhijian_equips(g: &Game, seat: usize) -> Vec<CardId> {
         .collect()
 }
 fn can_zhijian(g: &Game, seat: usize) -> bool {
-    play_phase(g, seat)
+    active(g, seat, "zhijian")
+        && play_phase(g, seat)
         && g.counter("phase.cancel_zhijian") == 0
         && !other_alive(g, seat).is_empty()
         && !zhijian_equips(g, seat).is_empty()

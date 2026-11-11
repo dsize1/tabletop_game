@@ -80,14 +80,14 @@ SERVER_URL=http://127.0.0.1:3100 npm --workspace @tabletop-game/props-admin run 
 | POST | `/internal/gameprops/status` | `{table,entity_code,to_status,note?}` + 审计日志 |
 | POST | `/internal/gameprops/seed` | 身份/配比/包初始化（幂等） |
 | POST | `/internal/gameprops/import/heroes` | 导入 `heroes.json`（幂等，`draft`：官网候选 696 位） |
-| POST | `/internal/gameprops/import/engine` | **从引擎同步已制作数据**（幂等，`live`）：牌定义 43 / 物理牌 160 / 武将 232 / 技能 294 / 关联 443 |
+| POST | `/internal/gameprops/import/engine` | **从引擎（v2）同步已制作数据**（幂等）：牌定义 44 / 物理牌 160 / 武将 232（147 live + 85 offline）/ 技能与关联按 v2 注册表（只登记已实现技能） |
 | GET/POST | `/internal/gameprops/templates` | 工作台模板列表 / 新建（`game_id,name,source,snapshot,meta?`） |
 | GET/PUT/DELETE | `/internal/gameprops/templates/{id}` | 模板详情 / 更新 / 删除 |
 | POST | `/internal/gameprops/templates/{id}/duplicate` | 复制模板 |
 | POST | `/internal/gameprops/templates/from-room` | 从当前对局快照抓取模板 |
 | POST | `/internal/gameprops/templates/from-replay` | 从回放基线抓取模板 |
 | GET | `/internal/gameprops/decision-logs?room_id=&since_seq=&limit=` | 决策日志只读（`player_id` 已哈希） |
-| GET | `/internal/game/preview/meta` | 沙盒表单：149 去重武将 / 标准身份配比 / 默认包 |
+| GET | `/internal/game/preview/meta` | 沙盒表单：v2 可选武将池 147 / 标准身份配比（含 `traitor` 与 `spy` 别名）/ 默认包 |
 | POST | `/internal/game/preview/sandbox` | **创建对局（沙盒开局）**：`{players,seed?,seats,save_template?,name?}` → 预览会话（全 bot、跳过选将） |
 | POST | `/internal/game/preview` | 创建预览（`template_id` 或内联 `snapshot` + `scene`） |
 | POST | `/internal/game/preview/scene` | 只校验/应用场景（不创建会话） |
@@ -103,11 +103,12 @@ SERVER_URL=http://127.0.0.1:3100 npm --workspace @tabletop-game/props-admin run 
 
 ## 引擎数据同步（2026-11-01）
 
-中台表与引擎代码是**两层**：引擎（`crates/engines/sanguosha/src/{data,skills}.rs`）是「已实现」的唯一真相，中台表只由导入写。
+中台表与引擎代码是**两层**：引擎（v2：`crates/engines/sanguosha2/src/{cards_generated,generals_generated,skills}`）是「已实现」的唯一真相，中台表只由导入写。
 
 - 「数据导入」页 → **同步引擎数据**（`POST /internal/gameprops/import/engine`）：写入牌定义/物理牌/武将/技能/关联，状态 `live`。
 - 幂等口径：牌定义/武将/技能按 `code` 覆盖；物理牌用**保留 id 段**（`1_000_000` 起）先清后写——因为真实牌堆允许「同牌名 + 同花色点数」重复（标准包 108 张里 11 组重复），**`sgs_cards` 不再建 `(pack_id, def_code, suit, rank)` 唯一索引**（历史索引由迁移 `DROP INDEX` 清理）。
 - 「官网武将」导入（`heroes.json`，`draft`）保留：用于未实现武将的候选元数据（696 位），与引擎同步互补。
+- S5 起「引擎同步」的真相源是 **v2 crate**（`cards_generated` / `generals_generated` / `skills`），server 已不依赖 v1 crate。
 - 包 code 与引擎 `GENERAL_PACK_KEYS` 对齐（`standard` / `wind_fire_forest_mountain` / `yijiang` / `jiexian`）；`seed` 已改用 `jiexian`（旧 `boundary_break` 会残留空行，需手工删除）。
 
 ## 工作台（P5 基座，ADR-0033）
@@ -117,7 +118,7 @@ SERVER_URL=http://127.0.0.1:3100 npm --workspace @tabletop-game/props-admin run 
 - 预览是**独立内存态**：不写 `game_state` / `game_events` / `game_decision_log`，重启即丢；默认空闲 2h、最多 8 个会话（`SGS_PREVIEW_TTL_SECS` / `SGS_PREVIEW_MAX_SESSIONS`）。
 - 预览页 `/tabletop_game/:gameId/preview` 走中台会话（`tg_props` + 白名单），**不要求**玩家 token；预览 API 由 web 代理，浏览器不直连 server。
 - **本地开发注意**：Vite（5174）与 web（18080）跨站，`SameSite=Lax` 的 `tg_props` 不会随 iframe 发送。要在本地看 iframe 预览，请用同源构建页：`npm run build:props` 后打开 `http://127.0.0.1:18080/props-admin/workbench`。
-- 场景注入 `SceneSpec` 字段见 `crates/engines/sanguosha/src/scene.rs` 的 `scene_schema()`；卡牌 token 只支持「牌实例 id / 定义码」，且只能从摸牌堆/弃牌堆/移出区取。
+- 场景注入 `SceneSpec` 字段见 `crates/engines/sanguosha2/src/sandbox.rs` 的 `SceneSpec`；卡牌 token 只支持「牌实例 id / 定义码（v1 code 兼容）」，且只能从摸牌堆/弃牌堆/移出区取。
 
 ## 素材（P1 入中台，ADR-0036）
 

@@ -1,9 +1,10 @@
 # 引擎替换（v1 → v2）M4 资料
 
 > 计划：`memory_palace/plan/next-engine-replacement.md`（M1–M4）。
-> 状态（2026-11-10）：M1/M2/M3 已完成；**B0–B20 全部迁移完成**（147/147，v2 注册表 295 技能，695 用例全绿），
-> B19/B20 已用户签字；**下一阶段 = 全量替换 v1**（注册/网关/Web 切换 + 退役删除），
-> 交接与切片见 `memory_palace/plan/next-engine-replacement.md` §19。
+> 状态（2026-11-10）：M1/M2/M3 已完成；**B0–B20 全部迁移完成**（147/147，v2 注册表 295 技能）；
+> B19/B20 已用户签字。**S1–S5 + S2-b + S4-b 已完成**：v2 接管 `game_id=sanguosha`，
+> MCP/server/Web/网关/中台全部切 v2，门禁事实源已迁 v2；**删除 v1 演练通过（`sgs:check` 30/30）**，
+> 只差用户签字 + `skills.md` 文案迁移（S6-b）。见 `deletion-checklist.md` §2.5。
 > 退役时钟：`npm run check:sgs-retire`（软期限 2026-12-10 / 硬上限 2027-01-31）。
 
 | 文件 | 内容 |

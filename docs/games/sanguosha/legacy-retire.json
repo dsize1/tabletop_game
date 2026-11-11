@@ -7,5 +7,19 @@
   "hard_deadline": "2027-01-31",
   "b20_verified_at": "2026-11-10",
   "must_confirm_before_delete": true,
-  "reminder": "到期未删除时，`npm run check:sgs-retire` 与会话开工提示会持续告警；删除前需用户二次确认。"
+  "reminder": "到期未删除时，`npm run check:sgs-retire` 与会话开工提示会持续告警；删除前需用户二次确认。",
+  "delete_rehearsal": {
+    "at": "2026-11-10",
+    "result": "sgs:check 30/30 without v1 crate",
+    "note": "临时移出 crates/engines/sanguosha + 从 workspace members 移除后全量门禁通过；恢复后同版本仍 30/30。"
+  },
+  "remaining_before_delete": [],
+  "deleted_at": "2026-11-10",
+  "status": "deleted",
+  "note": "v1 crate 已于 2026-11-10 删除（用户签字）；删除后 `npm run sgs:check` 全量 30/30 通过。",
+  "post_delete_checks": {
+    "sgs_check_full": "30/30",
+    "retire": "旧 crate 已删除，无需提醒",
+    "engine_data": "v2 + catalog 校验通过（v1 已删除，跳过）"
+  }
 }

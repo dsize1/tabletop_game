@@ -1124,6 +1124,10 @@ pub fn huisheng_before(
     card: Option<&CardId>,
 ) -> bool {
     let Some(src) = source else { return false };
+    // 自抑制：`resume_huisheng_damage` 补结算的同一笔伤害不得再次触发贿生（否则成环）。
+    if g.hook_suppressed("huisheng") {
+        return false;
+    }
     if src == victim || amount <= 0 || !active(g, victim, "huisheng") {
         return false;
     }
@@ -1178,7 +1182,7 @@ fn huisheng(g: &mut Game, a: &Ask) -> Result<Step, String> {
                     }
                     Ok(Step::Next(
                         Stage::PickOther,
-                        json!({ "source": source, "amount": amount, "card": card, "shown": selected }),
+                        json!({ "source": source, "victim": a.actor, "amount": amount, "card": card, "shown": selected }),
                     ))
                 }
                 Some(act) => {
@@ -1225,19 +1229,17 @@ fn huisheng(g: &mut Game, a: &Ask) -> Result<Step, String> {
                 None => Ok(Step::Need(pending)),
                 Some("opt1") => Ok(Step::Next(
                     Stage::PickOwn,
-                    json!({ "source": source, "shown": shown, "amount": amount, "card": card }),
+                    json!({ "source": source, "victim": a.data["victim"], "shown": shown, "amount": amount, "card": card }),
                 )),
                 Some("opt2") => Ok(Step::Next(
                     Stage::DiscardTarget,
-                    json!({ "source": source, "shown": shown, "amount": amount, "card": card, "left": shown.len() }),
+                    json!({ "source": source, "victim": a.data["victim"], "shown": shown, "amount": amount, "card": card, "left": shown.len() }),
                 )),
                 Some("pass") => {
-                    for id in &shown {
-                        g.private_reveals.remove(&source);
-                        let _ = id;
-                    }
+                    // 拒绝 = 伤害照常结算给**受害者**（不是询问者本人；a.actor 是伤害来源）。
+                    let victim = a.data["victim"].as_u64().unwrap_or(source as u64) as usize;
                     g.clear_private_reveals(source);
-                    resume_huisheng_damage(g, a.actor, source, amount, card.as_deref());
+                    resume_huisheng_damage(g, victim, source, amount, card.as_deref());
                     Ok(Step::Done)
                 }
                 Some(other) => Err(format!("贿生：未知选项 {other}")),
@@ -1255,8 +1257,9 @@ fn huisheng(g: &mut Game, a: &Ask) -> Result<Step, String> {
             match g.answer.take().as_deref() {
                 None => Ok(Step::Need(b.escape("不获得（伤害照常）").build())),
                 Some("pass") => {
+                    let victim = a.data["victim"].as_u64().unwrap_or(source as u64) as usize;
                     g.clear_private_reveals(source);
-                    resume_huisheng_damage(g, a.actor, source, amount, card.as_deref());
+                    resume_huisheng_damage(g, victim, source, amount, card.as_deref());
                     Ok(Step::Done)
                 }
                 Some(act) => {
@@ -1291,10 +1294,11 @@ fn huisheng(g: &mut Game, a: &Ask) -> Result<Step, String> {
         }
         Stage::DiscardTarget => {
             let left = a.data["left"].as_u64().unwrap_or(0) as usize;
+            let victim = a.data["victim"].as_u64().unwrap_or(source as u64) as usize;
             let hand = g.hand(source);
             if left == 0 || hand.is_empty() {
                 g.clear_private_reveals(source);
-                resume_huisheng_damage(g, a.actor, source, amount, card.as_deref());
+                resume_huisheng_damage(g, victim, source, amount, card.as_deref());
                 return Ok(Step::Done);
             }
             let mut b = super::builder(source, "choice").skill("huisheng");
@@ -1304,8 +1308,9 @@ fn huisheng(g: &mut Game, a: &Ask) -> Result<Step, String> {
             match g.answer.take().as_deref() {
                 None => Ok(Step::Need(b.escape("剩余不弃（伤害照常）").build())),
                 Some("pass") => {
+                    let victim = a.data["victim"].as_u64().unwrap_or(source as u64) as usize;
                     g.clear_private_reveals(source);
-                    resume_huisheng_damage(g, a.actor, source, amount, card.as_deref());
+                    resume_huisheng_damage(g, victim, source, amount, card.as_deref());
                     Ok(Step::Done)
                 }
                 Some(act) => {
@@ -1323,7 +1328,7 @@ fn huisheng(g: &mut Game, a: &Ask) -> Result<Step, String> {
                         return Ok(Step::Next(Stage::DiscardTarget, data));
                     }
                     g.clear_private_reveals(source);
-                    resume_huisheng_damage(g, a.actor, source, amount, card.as_deref());
+                    resume_huisheng_damage(g, victim, source, amount, card.as_deref());
                     Ok(Step::Done)
                 }
             }

@@ -5,7 +5,7 @@
   "mechanics_version": 2,
   "confirmed_by": "用户",
   "confirmed_at": "2026-11-06",
-  "note": "B5 13/13 已在 `crates/engines/sanguosha2` 实现（2026-11-06）。跨批新增内核能力：「造成伤害时」钩子链（制蛮 → 骄矜 → 倾袭，含 hook 自抑制与「改完数值仍继续走剩余钩子」）、`phase.damage`（本阶段受伤计数）、兴衰式濒死流程（`xingshuai_available` / 求桃顺序 / `after_dying_damage` 延后结算）、明鉴下回合增益（`mingjian:<seat>` 1→2→0）、`Seat.male`（骄矜性别判定）、千驹并入统一距离入口。已知收口项：① 谮毁的「使用者变更 / 追加目标」在 v2 无【杀】结算引擎，先记为状态（`zanhui_switch_user` / `zanhui_extra_target`）；② 秉壹的「弃置」定义已固化为机制 `discard-contract`（弃置 ≠ 使用、判定区移出不算弃置、唯一弃置出口）；③ 活墨转化出的【杀】无承载牌。",
+  "note": "B5 13/13 已在 `crates/engines/sanguosha2` 实现（2026-11-06）。跨批新增内核能力：「造成伤害时」钩子链（制蛮 → 骄矜 → 倾袭，含 hook 自抑制与「改完数值仍继续走剩余钩子」）、`phase.damage`（本阶段受伤计数）、兴衰式濒死流程（`xingshuai_available` / 求桃顺序 / `after_dying_damage` 延后结算）、明鉴下回合增益（`mingjian:<seat>` 1→2→0）、`Seat.male`（骄矜性别判定）、千驹并入统一距离入口。已知收口项：① 谮毁的「使用者变更 / 追加目标」在 v2 无【杀】结算引擎，先记为状态（`zanhui_switch_user` / `zanhui_extra_target`）；② 秉壹的「弃置」定义已固化为机制 `discard-contract`（弃置 ≠ 使用、判定区移出不算弃置、唯一弃置出口）；③ 活墨转化出的【杀】无承载牌。\n\n【S2 销号（2026-11-10）】谮毁「代用 / 额外目标」已改走**结算前钩子**：`Game.use_pre` + `FlowKind::PreUse`（kernel），在牌结算开始**之前**询问；「额外目标」会真的多结算一份，「代用」会真的把伤害来源改为协助者（用例 `tests/pre_use.rs` 4 条）。旧的状态降级（`zanhui_switch_user` / `zanhui_extra_target`）仅保留为兼容字段。",
   "generals": [
     {
       "gid": 327,

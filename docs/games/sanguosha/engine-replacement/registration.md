@@ -22,30 +22,29 @@
 - `finished` 与 `GameState.status` 一致；
 - 动作后 `check_conservation` + `check_no_orphan_frames` 全绿。
 
-## 2. 注册步骤（后移，不在本轮）
+## 2. 注册步骤（**S3 已完成**，2026-11-10）
 
-1. **crate 注册**：`crates/game-engine-mcp` 的依赖表 + `main.rs` 注册 `Sanguosha2Engine`（game_id `sanguosha2`）。
-   - 注意：v1 仍注册为 `sanguosha`；两套并存期间 game_id 必须不同（`sanguosha` / `sanguosha2`）。
-2. **网关菜单**：`apps/agent-gateway/src/games.ts::GAME_OPTIONS` 追加一项（`#开局` 菜单自动出现）。
-   - 默认**不**暴露给群：受 `SGS_ENGINE`/房间白名单开关控制，默认 v1（OQ3）。
-3. **灰度**：按房间 `engine` 字段选择；白名单群 + 只读观战先跑；回滚 = 改房间 engine 回 `sanguosha`。
-4. **Web 工作台**：v2 `view` schema（`schema_version=1`）适配：
-   - `public_board.seats[].equips/judge_zone/marks`、`player_area.hand/pending`；
-   - `pending.options` 渲染（沿用交互原语）；`presentation` 文案；
-   - 先只读/沙盒，再开操作。
-5. **门禁**：`check:sgs-view-contract`、`check:sgs2-ai` 已在 `sgs:check:fast`；注册后把
-   `check:sgs-ai` / `check:sgs-view-contract` 的主口径切到 v2（v1 保留到退役）。
+1. ✅ **crate 注册**：`crates/game-engine-mcp` 依赖改为 `sanguosha2`，注册 `Sanguosha2Engine`；
+   **`game_id` 改为 `sanguosha`**（OQ1=A：v2 接管正式 id，v1 不再注册）。
+2. ✅ **网关菜单**：`GAME_OPTIONS` 的 `sanguosha` 项继续由 v2 服务（id 不变）；座位读取改成
+   v1/v2 适配器（`player_id`/`name`、`is_bot`/`bot`）。
+3. **回滚**：OQ1 口径 = 部署回旧二进制（旧二进制里 v1 注册为 `sanguosha`）；不再做房间级 engine 开关。
+4. ✅ **Web 工作台**：v2 视图输出 v1 兼容字段（S1/S3），`pending.actor` 改为 player_id；
+   特殊交互区与新 pending kinds 的渲染在 S4。
+5. ✅ **门禁**：`check:sgs2-*` 已在 `sgs:check:fast`；`verify:sanguosha.mjs` 已改为 v2 口径并通过。
+6. ✅ **server 执行宿主**：`main.rs` 注册 v2；`game_routes` 的 AI 驱动/状态摘要/决策日志、
+   `preview`（sandbox + apply_scene）、`bin/sgs-replay` 全部切 v2。
 
 ## 3. 当前阻塞项（注册前必须解决）
 
 | # | 阻塞 | 影响 | 计划 |
 |---|---|---|---|
-| B1 | **选将/大厅未实现**：`new_game` 用固定 `seat_template`（周妃/卢植/曹仁/周泰/guest） | QQ/Web 玩家无法选将，武将只有 5 个模板 | 注册前补「大厅选将 + 武将池过滤」（v2 版 `lobby:*`） |
-| B2 | **仅 B0–B14 的 202 个技能**（147 将中 103 将）；B14（2026-11-09）完成界标·J2 16 技能 | 注册后只能开放对应武将，否则技能缺失 | 继续按 B15–B20 批次迁移 |
-| B3 | **谮毁「代用/额外目标」**时序缺口（§9.2 未销号） | 该武将行为不完整 | 结算前钩子帧（M4 之后） |
-| B4 | **身份局最小口径**（主公 vs 反贼，无忠臣/内奸） | 8 人局/身份胜利条件不完整 | 注册前补完整身份分配与胜负 |
-| B5 | **AI 仅最小策略**（check:sgs2-ai 用） | 群内机器人强度不足 | 沿用 v1 `ai/` 的分层思路迁移（M4 之后） |
-| B6 | `validate_state` 未实现 | 工作台模板/预览无法校验 v2 快照 | 注册前补 |
+| B1 | ~~**选将/大厅未实现**~~ → **S1 已解决**（`src/lobby.rs`：`lobby:*` + `setup:choose_general:*`，147 池 + 武将包过滤 + 机器人） | — | 已解决 |
+| B2 | ~~仅 B0–B14 的 202 个技能~~ → **B0–B20 已完成**（147 将 / v2 注册表 296 技能，含授予技） | — | 已解决 |
+| B3 | ~~**谮毁「代用/额外目标」**时序缺口（§9.2 未销号）~~ → **S2 已销号**（`Game.use_pre` + `FlowKind::PreUse`，`tests/pre_use.rs`） | — | 已解决 |
+| B4 | ~~**身份局最小口径**~~ → **S1 已解决**（`src/identity.rs`：5–8 人配比 + 双内奸 + 奖惩 + 内奸胜负） | — | 已解决 |
+| B5 | ~~**AI 仅最小策略**~~ → **S2 已解决**（`src/ai.rs`：`BotBrain` 启发式 + `drive_bots`，与 server 同签名） | — | 已解决 |
+| B6 | ~~`validate_state` 未实现~~ → **S2 已解决**（守恒/无帧/待办出口/技能 code/武将校验，`plugin_contract` 用例） | — | 已解决 |
 
 ## 4. 不变量（注册时可直接复用的门禁）
 

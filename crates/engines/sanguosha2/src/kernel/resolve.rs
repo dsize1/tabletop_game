@@ -15,6 +15,12 @@ use crate::skills;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Stage {
+    /// 装备窗口：选择是否发动 / 发动哪一项。
+    GearChoose,
+    /// 装备窗口：逐张选牌（贯石斧/寒冰剑/雌雄）。
+    GearPick,
+    /// 结算前钩子（谮毁）。
+    PreUse,
     /// 通用：是/否/选项询问。
     Choose,
     /// 选择目标或候选牌。
@@ -71,6 +77,10 @@ pub enum Stage {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FlowKind {
+    /// 装备窗口（青龙偃月刀 / 贯石斧 / 寒冰剑 / 雌雄双股剑 / 麒麟弓）。
+    Gear,
+    /// 结算前钩子（谮毁：代用 / 额外目标）。
+    PreUse,
     Dying,
     Wuxie,
     /// 牌结算（使用→目标→响应→结算→弃牌/装备/判定区）。
@@ -152,6 +162,28 @@ pub fn advance(g: &mut Game) -> Result<(), String> {
             // Step::Next/Done 必须作用在**发起帧**上，而不是栈顶。
             let idx = g.stack.len() - 1;
             let frame = g.stack[idx].clone();
+            // 回答归属：**事件触发的技能帧**不得消费上一个待办的回答（会读成自己的选项）。
+            //
+            // 背景（2026-11-10 自对弈抓到）：技能 A 的 pending 被提交后，A 重入时因前置
+            // 条件失效直接 `Step::Done`（没消费回答），事件随后触发技能 B（龙吟），B 把
+            // `opt1` / `choose:*` 当成自己的选项 → `未知选项`。
+            // 只拦「事件触发 + 非发起技能」这一种情况：牌结算/濒死/接力等流程帧仍按原语义
+            // 跨辅助函数消费回答（`read_answer` 依赖它）。
+            let (frame_skill, is_ask) = match &frame {
+                Frame::Ask(a) => (a.skill.clone(), true),
+                Frame::Flow(f) => (f.skill.clone(), false),
+                _ => (String::new(), false),
+            };
+            if g.answer.is_some() {
+                // 技能帧（Ask）：回答只能由**发起该待办的技能帧**消费；
+                // 内核流程帧（Flow：牌结算/濒死/无懈…）保持原有跨辅助函数的消费语义。
+                let own = g.answer_skill.as_deref() == Some(frame_skill.as_str());
+                let fallback = g.answer_skill.is_none() && g.answer_budget > 0;
+                if is_ask && !own && !fallback {
+                    g.answer = None;
+                }
+            }
+            g.answer_budget = 0;
             let step = match frame {
                 Frame::Ask(a) => {
                     let h = skills::handler(&a.skill)
@@ -159,6 +191,18 @@ pub fn advance(g: &mut Game) -> Result<(), String> {
                     h(g, &a)?
                 }
                 Frame::Flow(f) => match f.kind {
+                    FlowKind::PreUse => super::card_play::step_pre_use(g, &Ask {
+                        skill: f.skill.clone(),
+                        stage: f.stage,
+                        actor: f.actor,
+                        data: f.data.clone(),
+                    })?,
+                    FlowKind::Gear => super::gear::step_gear(g, &Ask {
+                        skill: f.skill.clone(),
+                        stage: f.stage,
+                        actor: f.actor,
+                        data: f.data.clone(),
+                    })?,
                     FlowKind::Dying => super::flow::step_dying(g, &Ask {
                         skill: f.skill.clone(),
                         stage: f.stage,
@@ -233,10 +277,15 @@ pub fn advance(g: &mut Game) -> Result<(), String> {
                     continue;
                 }
                 Step::Need(p) => {
+                    // 同一技能重入后重新提问 = 上一个回答未被消费 → 丢弃，避免污染。
+                    g.answer = None;
+                    g.answer_skill = Some(frame_skill.clone());
                     g.pending = Some(p);
                     return Ok(());
                 }
                 Step::NeedAt(stage, p) => {
+                    g.answer = None;
+                    g.answer_skill = Some(frame_skill.clone());
                     match &mut g.stack[idx] {
                         Frame::Ask(ask) => ask.stage = stage,
                         Frame::Flow(f) => f.stage = stage,
@@ -281,6 +330,16 @@ pub fn advance(g: &mut Game) -> Result<(), String> {
             }
         }
         break;
+    }
+    // 不变量：结算栈空且无待办时，`answer` 必须已被消费（否则会污染下一个动作的技能）。
+    //
+    // 历史缺陷（2026-11-10 自对弈抓到）：技能在「重入时前置条件已失效」的分支返回
+    // `Step::Done` 而没有 `g.answer.take()`，未消费的回答被序列化进快照，
+    // 下一个动作的技能（奋威）把它当成自己的选项 → `未知选项 choose:kuizhu:draw`。
+    if g.pending.is_none() && g.stack.is_empty() {
+        g.answer = None;
+        g.answer_skill = None;
+        g.answer_budget = 0;
     }
     Ok(())
 }
@@ -387,9 +446,19 @@ pub fn submit(g: &mut Game, actor: usize, action: &str) -> Result<String, String
     if !p.has_option(action) {
         return Err(format!("非法选项：{action}"));
     }
+    // 强制选择类待办：出口只是类型系统占位 → 自动改选第一个实质选项（不能放弃）。
+    let mut action = action.to_string();
+    if p.escape_hidden() && action == p.escape_id() {
+        let Some(first) = p.options().iter().find(|o| o.id != p.escape_id()) else {
+            return Err("该待办必须选择，但没有可选项".into());
+        };
+        action = first.id.clone();
+    }
+    let action = action.as_str();
     g.begin_action();
     g.pending = None;
     g.answer = Some(action.to_string());
+    g.answer_budget = 1;
     // 「未发动」只用于真正的放弃出口（`pass` / `cancel`）：觉醒技等把真实收益当出口时不算放弃。
     if p.escape_id() == action && matches!(action, "pass" | "cancel") {
         let sk = p.skill().unwrap_or("pending").to_string();
@@ -397,13 +466,48 @@ pub fn submit(g: &mut Game, actor: usize, action: &str) -> Result<String, String
             Presentation::new(sk.clone(), POutcome::Declined { skill: sk }).fx("pending_cancel"),
         );
     }
+    let log_before = g.log.len();
     advance(g)?;
+    // 有些「放弃/选择」不产生业务日志（如 `pass`）：补一条动作记录，
+    // 保证 Web 侧栏「出牌历史」能即时反映每一步交互（与 v1 的 message 口径一致）。
+    if g.log.len() == log_before {
+        let name = g.seats.get(actor).map(|s| s.name.clone()).unwrap_or_default();
+        let label = if action == "pass" {
+            "放弃".to_string()
+        } else {
+            action.to_string()
+        };
+        g.push_log(format!("{name} 选择：{label}"));
+    }
     Ok(g
         .log
         .last()
         .map(|e| e.text.clone())
         .filter(|t| !t.is_empty())
         .unwrap_or_else(|| format!("已执行：{action}")))
+}
+
+/// 压入「结算前钩子」帧（谮毁：代用 / 额外目标）。
+pub fn start_pre_use(
+    g: &mut Game,
+    user: usize,
+    card: Option<&CardId>,
+    name: &str,
+    targets: Vec<usize>,
+) {
+    g.stack.push(Frame::Flow(FlowFrame {
+        kind: FlowKind::PreUse,
+        skill: "__preuse".to_string(),
+        actor: user,
+        stage: Stage::PreUse,
+        data: json!({
+            "user": user,
+            "card": card.map(|c| c.to_string()),
+            "name": name,
+            "targets": targets,
+            "asked": false,
+        }),
+    }));
 }
 
 /// 回合/阶段切换（测试与引擎共用）：清一次性计数器 + 发事件。

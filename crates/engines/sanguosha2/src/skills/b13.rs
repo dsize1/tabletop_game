@@ -386,7 +386,8 @@ fn jianyan_modes(g: &Game) -> Vec<&'static str> {
 }
 
 fn can_jianyan(g: &Game, seat: usize) -> bool {
-    play_phase(g, seat)
+    active(g, seat, "jianyan")
+        && play_phase(g, seat)
         && g.counter("turn.jianyan_used") == 0
         && !male_alive(g).is_empty()
         && !jianyan_modes(g).is_empty()
@@ -558,7 +559,8 @@ pub const SHIZHAN: SkillDef = SkillDef {
 };
 
 fn can_shizhan(g: &Game, seat: usize) -> bool {
-    play_phase(g, seat)
+    active(g, seat, "shizhan")
+        && play_phase(g, seat)
         && g.counter("turn.shizhan_used") < 2
         && !cancelled(g, "shizhan")
         && !other_alive(g, seat).is_empty()
@@ -1114,7 +1116,8 @@ fn luanji_pairs(g: &Game, seat: usize) -> Vec<(CardId, CardId)> {
 }
 
 fn can_luanji(g: &Game, seat: usize) -> bool {
-    play_phase(g, seat)
+    active(g, seat, "luanji")
+        && play_phase(g, seat)
         && !cancelled(g, "luanji")
         && !other_alive(g, seat).is_empty()
         && !luanji_pairs(g, seat).is_empty()
@@ -1319,7 +1322,10 @@ pub const FANGQUAN: SkillDef = SkillDef {
 };
 
 fn can_fangquan(g: &Game, seat: usize) -> bool {
-    play_phase(g, seat) && g.counter("turn.fangquan_used") == 0 && !other_alive(g, seat).is_empty()
+    active(g, seat, "fangquan")
+        && play_phase(g, seat)
+        && g.counter("turn.fangquan_used") == 0
+        && !other_alive(g, seat).is_empty()
 }
 
 fn fangquan(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -1969,7 +1975,7 @@ pub fn guhuo_available(g: &Game, seat: usize) -> bool {
 }
 
 fn can_guhuo(g: &Game, seat: usize) -> bool {
-    play_phase(g, seat) && guhuo_available(g, seat)
+    active(g, seat, "guhuo") && play_phase(g, seat) && guhuo_available(g, seat)
 }
 
 /// 响应窗口进入蛊惑：声明牌名由需要牌固定（闪/杀/无懈）。

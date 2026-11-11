@@ -232,7 +232,8 @@ fn wu_targets(g: &Game, owner: usize) -> Vec<usize> {
 }
 
 fn can_zhiba(g: &Game, seat: usize) -> bool {
-    play_phase(g, seat)
+    active(g, seat, "zhiba")
+        && play_phase(g, seat)
         && !cancelled(g, "zhiba")
         && g.counter("turn.zhiba_used") == 0
         && !wu_targets(g, seat).is_empty()
@@ -903,7 +904,8 @@ pub const QIMOU: SkillDef = SkillDef {
 };
 
 fn can_qimou(g: &Game, seat: usize) -> bool {
-    play_phase(g, seat)
+    active(g, seat, "qimou")
+        && play_phase(g, seat)
         && !cancelled(g, "qimou")
         && !g.seats[seat].flags.contains("qimou_used")
         && g.seats[seat].hp > 0
@@ -1624,7 +1626,8 @@ pub fn extra_targets(g: &Game, seat: usize, card: Option<&CardId>) -> usize {
 }
 
 fn can_lianhuan(g: &Game, seat: usize) -> bool {
-    play_phase(g, seat)
+    active(g, seat, "lianhuan")
+        && play_phase(g, seat)
         && !cancelled(g, "lianhuan")
         && hand_and_equip(g, seat)
             .into_iter()

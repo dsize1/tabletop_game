@@ -238,10 +238,93 @@ export function renderChooseManyOverlay(
   );
 }
 
+/** 拼点（v2 `pindian`）：暗选一张手牌，点数大者赢；平局无人赢。 */
+export function renderPindianOverlay(
+  p: SgsPending,
+  board: SgsPublicBoard,
+  names?: Record<string, string>,
+): string {
+  const target =
+    typeof p.data?.target === "string"
+      ? p.data.target
+      : typeof p.data?.target === "number"
+        ? (board.seats[p.data.target as number]?.player_id ?? null)
+        : null;
+  return (
+    `<p>与 ${escapeHtml(seatLabel(board, target, names))} <b>拼点</b>：` +
+    `请选择一张手牌亮出（点数大者赢；平局无人赢）。</p>` +
+    `<p class="muted">选择期对方看不到你的牌；双方选完一起亮牌。</p>` +
+    `<div class="sgs-zone-actions">${optionButtons(p, (id) => id.startsWith("choose:") || id.startsWith("card:"))}</div>`
+  );
+}
+
+/** 火攻（v2 `fire_attack`）：目标展示一张牌，再由你弃置同花色手牌造成伤害。 */
+export function renderFireAttackOverlay(
+  p: SgsPending,
+  board: SgsPublicBoard,
+  names?: Record<string, string>,
+): string {
+  const target =
+    typeof p.data?.target === "string"
+      ? p.data.target
+      : typeof p.data?.target === "number"
+        ? (board.seats[p.data.target as number]?.player_id ?? null)
+        : null;
+  const shown = board.revealed ?? [];
+  const shownHtml = shown.length
+    ? `<p class="muted">已亮出：${shown.map((c) => escapeHtml(cardLabel(c))).join("、")}</p>`
+    : "";
+  return (
+    `<p><b>火攻</b>：${escapeHtml(seatLabel(board, target, names))} 需展示一张手牌。</p>` +
+    shownHtml +
+    `<div class="sgs-zone-actions">${optionButtons(p)}</div>`
+  );
+}
+
+/** 借刀（v2 `collateral`）：目标 A 需对 B 使用【杀】，否则交出武器。 */
+export function renderCollateralOverlay(
+  p: SgsPending,
+  board: SgsPublicBoard,
+  names?: Record<string, string>,
+): string {
+  const hint =
+    typeof p.data?.step === "string" && p.data.step === "sha"
+      ? "选择要打出的【杀】（或取消）"
+      : "借刀杀人：请选择目标 / 打出【杀】（不打出则交出武器）";
+  return (
+    `<p>${escapeHtml(hint)}</p>` +
+    `<div class="sgs-zone-actions">${optionButtons(p)}</div>`
+  );
+}
+
+/** 勤王（v2 `qinwang_sha`）：主公技——是否替主公打出【杀】。 */
+export function renderQinwangOverlay(
+  p: SgsPending,
+  board: SgsPublicBoard,
+  names?: Record<string, string>,
+): string {
+  return (
+    `<p><b>勤王</b>：主公需要【杀】，${escapeHtml(seatLabel(board, p.actor, names))} 是否代出？</p>` +
+    `<div class="sgs-zone-actions">${optionButtons(p)}</div>`
+  );
+}
+
 /** 该 pending 是否用浮层呈现（其余留在个人区操作条）。 */
 export function overlayKindFor(
   p: SgsPending,
-): "wuxie" | "dying" | "wugu" | "pick_card" | "target" | "choose_many" | "arrange" | null {
+):
+  | "wuxie"
+  | "dying"
+  | "wugu"
+  | "pick_card"
+  | "target"
+  | "choose_many"
+  | "arrange"
+  | "pindian"
+  | "fire_attack"
+  | "collateral"
+  | "qinwang_sha"
+  | null {
   switch (p.kind) {
     case "wuxie":
     case "dying":
@@ -251,6 +334,20 @@ export function overlayKindFor(
     case "choose_many":
     case "arrange":
       return p.kind;
+    // v2：五谷丰登的逐人取牌（`harvest`）复用 v1 wugu 浮层（`special_zones.wugu` 已由引擎投影）。
+    case "harvest":
+      return "wugu";
+    // v2：牌堆/弃牌堆选牌（`card_pick`）与「指定承载牌」（`card_target`）与 v1 `pick_card` 同形。
+    case "card_pick":
+    case "card_target":
+      return "pick_card";
+    // v2：拼点 / 火攻 / 借刀 / 勤王——有专门浮层（交互语义与 v1 不同，不复用 pick_card）。
+    case "pindian":
+    case "fire_attack":
+    case "collateral":
+    case "qinwang_sha":
+      return p.kind;
+    // v2：观星逐张顶/底（`choice` + skill=guanxing）不弹 arrange 网格，用个人区按钮即可。
     default:
       return null;
   }
@@ -262,7 +359,11 @@ export function isBlockingPending(kind: string): boolean {
     kind === "wuxie" ||
     kind === "dying" ||
     kind === "wugu" ||
+    kind === "harvest" ||
     kind === "pick_card" ||
+    kind === "card_pick" ||
+    kind === "card_target" ||
+    kind === "pindian" ||
     kind === "arrange"
   );
 }
@@ -273,9 +374,21 @@ export function pendingTitle(kind: string): string {
     wuxie: "无懈可击",
     dying: "濒死求桃",
     wugu: "五谷丰登",
+    harvest: "五谷丰登",
     pick_card: "选择一张牌",
+    card_pick: "选择一张牌",
+    card_target: "选择承载牌",
+    card_response: "响应",
+    card: "选择一张牌",
     target: "选择目标",
     choose_many: "选择手牌",
+    choice: "请选择",
+    choose: "请选择",
+    pindian: "拼点",
+    fire_attack: "火攻",
+    collateral: "借刀",
+    qinwang_sha: "勤王",
+    discard_phase: "弃牌阶段",
     arrange: "观星",
   };
   return map[kind] ?? "待办";

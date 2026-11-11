@@ -12,6 +12,8 @@ use sanguosha2::view;
 
 const ROOT_KEYS: &[&str] = &[
     "schema_version",
+    // v1 兼容分派键（Web 按 `data.game === "sanguosha"` 走三分区页）。
+    "game",
     "game_id",
     "turn",
     "phase",
@@ -22,24 +24,39 @@ const ROOT_KEYS: &[&str] = &[
 ];
 
 const BOARD_KEYS: &[&str] = &[
+    // v1 兼容（Web 三分区页消费）
+    "phase",
+    "round",
+    "turn_index",
+    "turn",
+    "config",
+    "seat_count",
     "seats",
-    "draw_count",
+    "deck",
+    "discard_top",
     "discard",
+    "pending",
+    "setup",
+    "winner",
+    "aborted",
+    "history",
+    // v2 自有（数量投影 / 表现 / 日志）
+    "draw_count",
     "void_count",
     "processing_count",
     "frame_count",
     "revealed",
-    "pending",
     "presentation",
     "log",
     "finished",
-    "winner",
 ];
 
 const SEAT_KEYS: &[&str] = &[
     "seat",
     "player_id",
+    "identity",
     "general",
+    "general_name",
     "kingdom",
     "hp",
     "max_hp",
@@ -54,11 +71,14 @@ const SEAT_KEYS: &[&str] = &[
     "flipped",
     "chained",
     "alive",
+    "is_bot",
+    "has_picked",
     "skills",
     "transforms",
 ];
 
-const AREA_KEYS: &[&str] = &[
+/// 公共视图的 `player_area`（无 viewer：全部私有字段为空）。
+const AREA_KEYS_PUBLIC: &[&str] = &[
     "seat",
     "player_id",
     "identity",
@@ -66,16 +86,54 @@ const AREA_KEYS: &[&str] = &[
     "hand_limit",
     "private_reveals",
     "pending",
+    "setup",
+];
+
+/// 个人视图的 `player_area`（v1 兼容 + v2 补充）。
+const AREA_KEYS_PRIVATE: &[&str] = &[
+    "seat",
+    "player_id",
+    "identity",
+    "general",
+    "general_gid",
+    "kingdom",
+    "general_name",
+    "hp",
+    "max_hp",
+    "hand",
+    "hand_limit",
+    "equips",
+    "judge_zone",
+    "marks",
+    "marks_count",
+    "transforms",
+    "abolished_slots",
+    "judge_abolished",
+    "flipped",
+    "chained",
+    "skills",
+    "equipment_skills",
+    "is_bot",
+    "is_current",
+    "pending",
+    "setup",
+    "private_reveals",
 ];
 
 const CARD_KEYS: &[&str] = &[
     "id",
+    "def",
     "name",
     "name_is_virtual",
     "suit",
     "suit_label",
     "rank",
     "kind",
+    // v1 兼容：牌面详情（category/equip_slot/range_*）。
+    "category",
+    "equip_slot",
+    "range_value",
+    "range_type",
     "slot",
     "effect",
     "damage_kind",
@@ -196,14 +254,15 @@ fn view_contract_root_and_board_shape() {
     let pubv = view::public_state(&f.g);
     assert_keys(&pubv, ROOT_KEYS, "root");
     assert_eq!(pubv["schema_version"], 1);
-    assert_eq!(pubv["game_id"], "sanguosha2");
+    assert_eq!(pubv["game_id"], "sanguosha");
     assert_keys(&pubv["public_board"], BOARD_KEYS, "public_board");
-    assert_eq!(pubv["special_zones"], serde_json::json!([]));
+    assert_eq!(pubv["special_zones"], serde_json::json!({}));
 
     let seat = &pubv["public_board"]["seats"][0];
     assert_keys(seat, SEAT_KEYS, "public_board.seats[0]");
     assert_keys(&seat["equips"], EQUIP_SLOTS, "equips");
-    assert_keys(&pubv["player_area"], AREA_KEYS, "public player_area");
+    // v1 契约：公共视图 player_area = null。
+    assert!(pubv["player_area"].is_null(), "公共视图 player_area 应为 null");
     assert_keys(&pubv["public_board"]["log"][0], LOG_KEYS, "log[0]");
 }
 
@@ -332,12 +391,12 @@ fn view_contract_nine_zones_are_projected() {
 fn view_contract_hand_and_identity_hidden_from_public() {
     let f = fixture();
     let pubv = view::public_state(&f.g);
-    let area = &pubv["player_area"];
-    assert!(area["hand"].as_array().unwrap().is_empty(), "公共视图无手牌明细");
-    assert!(area["identity"].is_null(), "公共视图无身份");
+    // v1 契约：公共视图 player_area 为 null（最严格的「无私有信息」）。
+    assert!(pubv["player_area"].is_null(), "公共视图无 player_area");
+    // v1 兼容：非主公身份字段存在但为 null（只有主公/已死亡公开）。
     assert!(
-        pubv["public_board"]["seats"][0].get("identity").is_none(),
-        "公共座位不得出现 identity 字段"
+        pubv["public_board"]["seats"][0]["identity"].is_null(),
+        "公共座位不得公开非主公身份"
     );
     // 牌堆顺序不暴露：只有 draw_count。
     assert!(

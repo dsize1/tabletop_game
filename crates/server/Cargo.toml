@@ -10,7 +10,8 @@ storage = { path = "../storage" }
 bot-adapter = { path = "../bot-adapter" }
 game-engine-core = { path = "../game-engine-core" }
 las-vegas = { path = "../engines/las-vegas" }
-sanguosha = { path = "../engines/sanguosha" }
+# v2 接管正式引擎 id `sanguosha`（OQ1=A）；S5 后 server 不再依赖 v1 crate。
+sanguosha2 = { path = "../engines/sanguosha2" }
 auth = { path = "../auth" }
 axum.workspace = true
 serde.workspace = true

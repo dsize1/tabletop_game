@@ -16,15 +16,20 @@ use crate::kernel::resolve::{self, Ask, FlowFrame, Frame, Stage, Step};
 use crate::kernel::{Game, Phase};
 use crate::skills;
 
-/// 开局：发 `TurnStart` 并进入第一回合的准备阶段。
+/// 开局：发 `TurnStart` 并进入第一回合的准备阶段（主公先手 = 座位 0，夹具用）。
 pub fn begin_game(g: &mut Game) -> Result<(), String> {
+    begin_game_at(g, 0)
+}
+
+/// 指定首回合角色的开局（身份局：主公先手）。
+pub fn begin_game_at(g: &mut Game, seat: usize) -> Result<(), String> {
     // 让 `begin_phase` 认为阶段发生变化，从而发出 PhaseStart。
     g.phase = Phase::End;
-    g.turn = 0;
+    g.turn = seat;
     g.round = 1;
     g.events
-        .push(Event::simple(EventKind::TurnStart, Some(0), None));
-    resolve::begin_phase(g, 0, Phase::Prepare)?;
+        .push(Event::simple(EventKind::TurnStart, Some(seat), None));
+    resolve::begin_phase(g, seat, Phase::Prepare)?;
     tick(g)
 }
 
@@ -167,9 +172,16 @@ fn next_alive(g: &Game, from: usize) -> Option<usize> {
         .find(|i| g.seats[*i].hp > 0)
 }
 
-/// 胜负判定（只有存在主公身份时才生效；单测夹具没有主公 → 不判定）。
+/// 胜负判定。
+///
+/// - 身份局（`Game.identity_game`）：委托 `identity::check_finished`（主公/忠臣/反贼/内奸）。
+/// - 单测夹具：保留旧口径（存在 `identity=lord` 的座位时才判定，否则不判）。
 pub fn check_finished(g: &mut Game) {
     if g.finished {
+        return;
+    }
+    if g.identity_game {
+        crate::identity::check_finished(g);
         return;
     }
     let Some(lord) = g.seats.iter().position(|s| s.identity == "lord") else {
@@ -235,5 +247,6 @@ pub fn step_discard(g: &mut Game, a: &Ask) -> Result<Step, String> {
             format!("弃置【{}】", g.card_label(&id)),
         );
     }
-    Ok(Step::Need(b.escape("结束弃牌阶段").build()))
+    // 弃牌阶段是**强制**的：出口只作类型占位（提交出口 = 自动弃第一张），端侧不展示。
+    Ok(Step::Need(b.escape_mandatory("结束弃牌阶段").build()))
 }

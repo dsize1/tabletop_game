@@ -37,6 +37,8 @@ const GRANT_ONLY = new Set([
   // B13 授予技（权威文本写在授予者技能的第 7 段）
   "jianyan",
   "sishu",
+  // B15 凿险授予技（权威文本写在 zaoxian 第 7 段）
+  "jixi",
 ]);
 
 /**

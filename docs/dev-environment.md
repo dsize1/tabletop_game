@@ -30,6 +30,18 @@ docker pull docker.m.daocloud.io/library/redis:7-alpine
 docker tag docker.m.daocloud.io/library/redis:7-alpine redis:7-alpine
 ```
 
+## 2.5 无 Docker 时的 Redis（WSL 备选）
+
+Docker Desktop 未运行时，可直接用 WSL Ubuntu 里的 redis-server（Windows 侧 `127.0.0.1:6379` 可直连）：
+
+```bash
+wsl -d Ubuntu-24.04 -u root -- bash -lc "apt-get install -y redis-server"
+wsl -d Ubuntu-24.04 -u root -- bash -lc "redis-server --daemonize yes --bind 127.0.0.1 --save '' --appendonly no; redis-cli ping"
+```
+
+注意：WSL 发行版空闲会被回收；跑 e2e 前先 `redis-cli ping` 确认，
+必要时加一个长驻进程保持发行版存活（`nohup sleep 7200 &`）。
+
 ## 3. Redis 起停
 
 ```bash

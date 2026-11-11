@@ -18,8 +18,12 @@ import {
   isBlockingPending,
   overlayKindFor,
   renderChooseManyOverlay,
+  renderCollateralOverlay,
   renderDyingOverlay,
+  renderFireAttackOverlay,
   renderPickCardOverlay,
+  renderPindianOverlay,
+  renderQinwangOverlay,
   renderTargetOverlay,
   renderWuguOverlay,
   renderWuxieOverlay,
@@ -598,6 +602,26 @@ assert.ok(
   "无动作时不带 data-action（但保留长按技能简述）",
 );
 
+// —— S4：v2 动作 id 兼容（`use:<card>[:targets]` / `convert:<skill>:<card>:<name>`） ——
+const v2Actions = [
+  { id: "use:c1", description: "使用【杀♠7】" },
+  { id: "use:c1:2", description: "使用【杀♠7】→ p2" },
+  { id: "use:c2", description: "使用【桃♥3】" },
+  { id: "convert:wusheng:c2:杀:2", description: "【桃♥3】当【杀】→ p2" },
+  { id: "end_play", description: "结束出牌阶段" },
+];
+const v2Html = renderPersonalArea(me, board, {}, names, v2Actions);
+assert.ok(
+  /class="sgs-card[^"]*playable"[^>]*data-card="c1"/.test(v2Html),
+  "v2 `use:<card>` 应标记可出",
+);
+assert.ok(
+  /class="sgs-card[^"]*playable"[^>]*data-card="c2"/.test(v2Html),
+  "v2 `convert:<skill>:<card>:<name>` 的承载牌应标记可出",
+);
+assert.ok(!v2Html.includes('data-action="play:c1"'), "v2 不应伪造 v1 play: 动作");
+console.log("[sgs-web] v2 动作 id 兼容（use/convert）单测通过 ✅");
+
 console.log("[sgs-web] 出牌链路（可用性/动作按钮）单测通过 ✅");
 
 // —— 视图契约快照（P4.4.1 SP-1）：marks_count 计数标记 + 转换技阳/阴 ——
@@ -882,6 +906,147 @@ assert.ok(!isBlockingPending("target"), "目标选择可关闭（个人区仍可
 const blockingShell = renderOverlayShell("无懈可击", "x", { blocking: true });
 assert.ok(!blockingShell.includes('data-overlay-close="button"'), "阻塞浮层无关闭按钮");
 assert.ok(blockingShell.includes("sgs-overlay-lock"), "阻塞浮层显示「需选择」");
+
+// —— S4-b：v2 专用浮层（拼点/火攻/借刀/勤王） ——
+const pindianHtml = renderPindianOverlay(
+  {
+    kind: "pindian",
+    actor: "p0",
+    skill: "pindian",
+    options: [
+      { id: "choose:c1", label: "用【杀♠7】拼点" },
+      { id: "pass", label: "放弃" },
+    ],
+    data: { target: "p1" },
+  },
+  board,
+  names,
+);
+assert.ok(pindianHtml.includes("拼点") && pindianHtml.includes('data-action="choose:c1"'), "拼点浮层含选项");
+assert.ok(pindianHtml.includes("平局"), "拼点浮层提示平局规则");
+
+const fireHtml = renderFireAttackOverlay(
+  {
+    kind: "fire_attack",
+    actor: "p1",
+    skill: "__card",
+    options: [{ id: "reveal:c1", label: "展示【杀♠7】" }],
+    data: { target: "p1" },
+  },
+  { ...board, revealed: [{ id: "c9", name: "桃", suit: "heart", rank: 3 } as never] },
+  names,
+);
+assert.ok(fireHtml.includes("火攻") && fireHtml.includes('data-action="reveal:c1"'), "火攻浮层含选项");
+assert.ok(fireHtml.includes("已亮出"), "火攻浮层展示亮出的牌");
+
+const collateralHtml = renderCollateralOverlay(
+  {
+    kind: "collateral",
+    actor: "p1",
+    skill: "__card",
+    options: [
+      { id: "respond:c2", label: "打出【杀♦5】" },
+      { id: "pass", label: "不打出" },
+    ],
+    data: {},
+  },
+  board,
+  names,
+);
+assert.ok(collateralHtml.includes("借刀") && collateralHtml.includes('data-action="respond:c2"'), "借刀浮层含选项");
+
+const qinwangHtml = renderQinwangOverlay(
+  {
+    kind: "qinwang_sha",
+    actor: "p2",
+    skill: "qinwang",
+    options: [
+      { id: "choose:c3", label: "代出【杀♣8】" },
+      { id: "pass", label: "不代出" },
+    ],
+    data: {},
+  },
+  board,
+  names,
+);
+assert.ok(qinwangHtml.includes("勤王") && qinwangHtml.includes('data-action="choose:c3"'), "勤王浮层含选项");
+
+assert.equal(overlayKindFor({ kind: "pindian" } as never), "pindian");
+assert.equal(overlayKindFor({ kind: "fire_attack" } as never), "fire_attack");
+assert.equal(overlayKindFor({ kind: "collateral" } as never), "collateral");
+assert.equal(overlayKindFor({ kind: "qinwang_sha" } as never), "qinwang_sha");
+assert.equal(overlayKindFor({ kind: "harvest" } as never), "wugu", "v2 harvest 复用五谷浮层");
+// 蛊惑面板（W3）：扣置牌 + 声明名，仅本人可见
+const guhuoHtml = renderPersonalArea(
+  {
+    ...me,
+    pending: {
+      kind: "choice",
+      actor: me.player_id,
+      skill: "guhuo",
+      options: [{ id: "declare:闪", label: "蛊惑为【闪】" }],
+      data: { stage: "declare", carrier: me.hand?.[0]?.id ?? "c1", declared: "" },
+    },
+  },
+  board,
+  {},
+  names,
+  [],
+);
+assert.ok(guhuoHtml.includes('data-zone="guhuo"') && guhuoHtml.includes("蛊惑"), "蛊惑面板可见");
+
+// 化身面板（W2）：展示化身牌 + 当前展示标记
+const huashenHtml = renderPersonalArea(
+  me,
+  board,
+  {
+    huashen: {
+      visibility: "owner",
+      cards: [
+        { code: "sgs_hero_1", name: "刘备", active: true },
+        { code: "sgs_hero_2", name: "关羽", active: false },
+      ],
+      active: "sgs_hero_1",
+    } as never,
+  },
+  names,
+  [],
+);
+assert.ok(
+  huashenHtml.includes('data-zone="huashen"') && huashenHtml.includes("展示中"),
+  "化身面板展示当前化身",
+);
+
+// 观星面板（W6）：展示私密牌 + 当前张数进度
+const gxPanelHtml = renderPersonalArea(
+  {
+    ...me,
+    pending: {
+      kind: "choice",
+      actor: me.player_id,
+      skill: "guanxing",
+      options: [
+        { id: "top", label: "置于牌堆顶" },
+        { id: "bottom", label: "置于牌堆底" },
+      ],
+      data: { cards: ["c1", "c2"], cursor: 1 },
+    },
+    private_reveals: [
+      { id: "c1", name: "杀", suit: "spade", rank: 7 } as never,
+      { id: "c2", name: "闪", suit: "heart", rank: 2 } as never,
+    ],
+  },
+  board,
+  { guanxing: { visibility: "owner", rows: 2, cols: 5, slots: {}, rev: 0, cards: [] } as never },
+  names,
+  [],
+);
+assert.ok(
+  gxPanelHtml.includes('data-zone="guanxing"') && gxPanelHtml.includes("2 / 2"),
+  "观星面板显示进度",
+);
+
+console.log("[sgs-web] v2 专用浮层（拼点/火攻/借刀/勤王）单测通过 ✅");
 
 console.log("[sgs-web] 特殊区 pending 浮层单测通过 ✅");
 

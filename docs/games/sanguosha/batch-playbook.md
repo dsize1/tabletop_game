@@ -25,7 +25,7 @@
 ## 2. 一批 8 将的标准流程
 
 1. **开工脚手架**：`npm run sgs:batch-scaffold`（自动取下一批；也可 `--batch Y4` / `--gids 187,188 --module resolve_yijiang5 --tests p91`）→ 打印武将元数据、`skills.rs` 常量/match 模板、`skills.md` 表行、用例/文档/门禁清单；技能描述再查 `data/heroes.json`。
-2. **注册技能**：`crates/engines/sanguosha/src/skills.rs`
+2. **注册技能**：`crates/engines/sanguosha2/src/skills/mod.rs`（`SKILLS`；v1 crate 已删除）
    - 每位武将一个 `const XXX: &[SkillDef]`（`code/name/kind/implemented:true`）；
    - `match general { "sgs_hero_<gid>" => XXX, ... }`；
    - 觉醒/限定授予技能进 `EXTRA_SKILLS`（docs 同步 §4.1）。

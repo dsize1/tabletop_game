@@ -404,3 +404,26 @@ fn gate_kernel_has_no_skill_branch_b0() {
         assert!(skills::def(code).is_some(), "技能 {code} 未注册");
     }
 }
+
+#[test]
+fn jushou_discard_step_is_mandatory() {
+    // 走查发现：弃/使用 步骤曾下发「不弃置（跳过）」出口，与对齐单「④ 必须弃置 1 张」冲突。
+    let mut g = b0_game();
+    begin_phase(&mut g, 0, Phase::End).unwrap();
+    answer(&mut g, 0, "choose:jushou");
+    assert_eq!(pend(&g).skill(), Some("jushou"));
+    assert!(pend(&g).escape_hidden(), "弃置步骤应为强制（出口不下发）");
+    let before = g.hand(0).len();
+    answer(&mut g, 0, "pass");
+    assert!(g.hand(0).len() < before, "不能跳过弃置");
+}
+
+#[test]
+fn fenji_ignores_current_turn_player_hand_gain() {
+    // 走查发现：奋激未校验「受影响角色处于回合外」，当前回合玩家摸牌也会触发。
+    let mut g = b0_game(); // 周泰在座位 1
+    begin_phase(&mut g, 0, Phase::Play).unwrap();
+    g.draw(0, 2); // 当前回合玩家（座位 0）手牌增加
+    advance(&mut g).unwrap();
+    assert!(g.pending.is_none(), "回合内玩家手牌增加不得触发奋激");
+}

@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "updated": "2026-11-10",
+  "why": "切换期登记。S3/S5 已把 server/MCP/preview/replay/中台同步全部切到 v2；仅剩网关座位读取的 v1/v2 兼容适配器（S6 收紧）。S6 删除 v1 后本文件与 check:sgs2-coupling 一并退场。",
+  "rules": [
+    {
+      "id": "gateway-seat-shape-adapter",
+      "file": "apps/agent-gateway/src/sanguosha-chat.ts",
+      "patterns": [
+        "d.seats",
+        "public_board?.seats"
+      ],
+      "reason": "群侧座位数/座位列表的 v1/v2 适配器（原始 state 与视图投影两种形状都接），不是 v1 耦合；S6 删除 v1 后可简化为单一形状",
+      "until": "S6"
+    },
+    {
+      "id": "gateway-raw-seats-index",
+      "file": "apps/agent-gateway/src/index.ts",
+      "patterns": [
+        "data?.seats",
+        "d.seats"
+      ],
+      "reason": "原始 state 座位读取已改为 v1/v2 适配器（seatPid/seatIsBot）；S6 删除 v1 后可收紧",
+      "until": "S6"
+    }
+  ],
+  "scan": {
+    "rust": {
+      "roots": [
+        "crates/server/src",
+        "crates/game-engine-mcp/src"
+      ],
+      "patterns": [
+        "sanguosha::"
+      ]
+    },
+    "v2_self": {
+      "roots": [
+        "crates/engines/sanguosha2/src",
+        "crates/engines/sanguosha2/tests",
+        "crates/engines/sanguosha2/examples"
+      ],
+      "patterns": [
+        "sanguosha::",
+        "use sanguosha;"
+      ]
+    },
+    "ts": {
+      "roots": [
+        "apps/agent-gateway/src"
+      ],
+      "patterns": [
+        "data?.seats",
+        "d.seats",
+        "st.data.seats",
+        "public_board?.seats"
+      ]
+    }
+  }
+}

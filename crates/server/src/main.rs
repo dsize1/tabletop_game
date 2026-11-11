@@ -92,7 +92,7 @@ async fn main() -> anyhow::Result<()> {
     // 快照是真相源：房间不在内存时按需从 SQLite 恢复（见 resources_routes::ensure_room）。
     let mut registry = game_engine_core::EngineRegistry::new();
     registry.register(las_vegas::LasVegasEngine);
-    registry.register(sanguosha::SanguoshaEngine);
+    registry.register(sanguosha2::Sanguosha2Engine);
     let games = Arc::new(game_engine_core::GameManager::new(registry));
     let preview_registry = games.registry_arc();
 

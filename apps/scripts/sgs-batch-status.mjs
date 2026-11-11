@@ -4,7 +4,7 @@
 // 输出：
 // - 各武将包「总武将数 / 已实现 / 剩余」；
 // - `development-plan.md` 批次表每批完成度与缺失武将；
-// - `p67` 中「一将成名已实现 N 位」硬编码断言与代码实际值是否一致。
+// - （兼容保留）v1 `p67` 断言值；S6 起不再读取 v1，恒为 null。
 //
 // 用法：
 //   node apps/scripts/sgs-batch-status.mjs           # 只报告
@@ -111,7 +111,9 @@ if (jsonOut) {
     );
   }
   console.log(
-    `[sgs] p67 断言：一将成名 ${p67 ?? "未找到"} 位 / 代码实际 ${yijiang.ready} 位`,
+    p67 === null
+      ? `[sgs] 一将成名已实现 ${yijiang.ready} 位（v2 生成物口径；v1 p67 断言已退役）`
+      : `[sgs] p67 断言：一将成名 ${p67} 位 / 代码实际 ${yijiang.ready} 位`,
   );
   if (nextBatch) {
     console.log(

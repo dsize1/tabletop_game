@@ -332,7 +332,7 @@ try {
     }));
     assert(
       sideAfter.items > sideBefore.items || sideAfter.last !== sideBefore.last,
-      "侧栏出牌历史随动作即时更新（无需刷新）",
+      `侧栏出牌历史随动作即时更新（无需刷新）: clicked=${clickedEnd} before=${JSON.stringify(sideBefore)} after=${JSON.stringify(sideAfter)}`,
     );
     assert(sideAfter.phases.length >= 1, "侧栏阶段条随动作更新");
   }

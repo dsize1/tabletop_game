@@ -3,7 +3,7 @@
 > 状态：**P6.1 已落地（Batch-1 / 1.5 / 1.6，2026-11-01）**。范围：规则引擎 + 行为树 + 启发式评估的 Baseline。
 > **门禁口径 = 全将（149 位去重）+ 全卡牌（160 张）100 局：100/100 终局、0 非法动作、0 回环、0 卡死**；
 > `standard`（25 将）为快速自检口径（同样 100/100）。
-> 代码：`crates/engines/sanguosha/src/ai/`；门禁：`npm run check:sgs-ai`。
+> 代码（v1 历史）：`crates/engines/sanguosha/src/ai/`（crate 已于 2026-11-10 删除）；**现行 v2 AI** 见 §9（`crates/engines/sanguosha2/src/ai.rs`），门禁 `npm run check:sgs2-ai`。
 > 相关：ADR-0019（AI/录制回放）、ADR-0032（AI 分层与可见信息不变量）、`development-plan.md` P6。
 
 ## 1. 分层与数据流
@@ -172,3 +172,28 @@ pending 覆盖（`standard` 100 局）：`arrange` `choice` `choose_many` `disca
   `legal`（完整集）/ `candidates`（`prune` ≤26）/ `action` / `priority` / `score` / `reason` / `state_digest`（动作前）。
 - `drive_bots` 的 `DriveReport.decisions` 携带每步 `seq`、latency 与轨迹；server/MCP 落 `game_decision_log`。
 - 门禁：`cargo test -p sanguosha ai_`；决策日志/回放见 `npm run sgs:export-decisions` / `npm run sgs:replay`。
+
+## 9. v2 AI（S2 起，正式引擎）
+
+`crates/engines/sanguosha2/src/ai.rs`：`BotBrain`（有状态启发式）+ `drive_bots`（server 单写者调用）。
+
+- **pending 分类策略**：濒死（自救优先 / 手牌 ≥3 救他人）、响应牌、拼点（取最大点数）、弃牌阶段（弃价值最低）、
+  多选（先选一张再确认）、选目标（最虚弱）、选牌/五谷（取最高价值）、二选一（`opt1` 优先）、强制放弃类（收口）；
+- **出牌策略**：桃（受伤时最高）> 装备 > 无中 > 杀（目标血最少/空手加成）> 锦囊 > 技能（GOOD 列表）/ 结束；
+- **破环三层**：①本回合「发动→放弃」的技能屏蔽；②交互态（pending）状态摘要回环 → 换未试动作；③同 (actor, action) 连 8 次中止；
+- **回落**：引擎拒绝 → `pass`/`confirm`/`end_play`/首个其他动作（`illegal` 计数仍上报）。
+
+### 9.1 门禁与 seed 覆盖
+
+`npm run check:sgs2-ai` 默认扫 **seed 1,2,3 × 10 局**（30 局）；`npm run check:sgs2-ai:all` 扫 1–12（120 局）。
+S2-b 的 12-seed 扫描结果：**118/120 终局、illegal 0、loops 2**。
+
+### 9.2 已知缺陷（S2-b 台账）
+
+| # | 现象 | 复现 | 处置 |
+|---|---|---|---|
+| A1 | `屯田` 的「判定→获得田」待办在极少数局面重复询问（同 opt1 循环） | seed 8 / game 2 | 已加「同牌只判定一次」守卫仍未根治 → 需排查 QuickJudge 收尾与触发帧的关系 |
+| A2 | 某个 `pass` 交互态循环（状态完全还原） | seed 10 / game 8 | 待定位具体技能（决策日志可复现） |
+| A3 | 嵌套流程（濒死/接力/蛊惑）偶发「回答被上层消费」 | 已用 `read_answer` 兜底（按放弃处理并记日志） | 根因是单一 `answer` 槽；长期应改为「回答随待办 id」 |
+
+上述 A1/A2 **不影响** 默认门禁的 seed 集合（1–7、9、11、12 全绿）。

@@ -49,6 +49,10 @@ if (has("--v1-anchors")) {
   }
   const spec = loadSpec(id);
   const v1Dir = path.join(projectRoot, "crates/engines/sanguosha/src");
+  if (!existsSync(v1Dir)) {
+    console.log("[align] 跳过 --v1-anchors：v1 crate 已删除（S6 起只保留历史记录）。");
+    return;
+  }
   const files = readdirSync(v1Dir).filter((f) => f.endsWith(".rs"));
   const sources = files.map((f) => ({ f, lines: readFileSync(path.join(v1Dir, f), "utf8").split("\n") }));
   for (const g of spec.generals) {

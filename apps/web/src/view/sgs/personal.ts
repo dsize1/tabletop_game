@@ -71,7 +71,13 @@ function pendingSummary(area: SgsPlayerArea, discardSelected: string[] = []): st
   const extra =
     discardDetail
       ? discardDetail
-      : p.kind === "arrange"
+      : p.kind === "discard_phase"
+        ? "（弃牌阶段：逐张点「弃置」按钮，直到手牌不超过上限）"
+        : p.kind === "pindian"
+          ? "（拼点：请选择一张手牌亮出，点数大者赢；点数相同时视为平局）"
+          : p.kind === "harvest"
+            ? "（五谷丰登：从亮出的牌中选择一张）"
+            : p.kind === "arrange"
         ? "（观星：P3.5 提供槽位，这里可用默认顺序）"
         : p.skill === "huogong_reveal"
           ? "（火攻：请选择一张手牌亮出）"
@@ -89,6 +95,84 @@ function pendingSummary(area: SgsPlayerArea, discardSelected: string[] = []): st
     `<div class="sgs-pending" data-kind="${escapeHtml(p.kind)}">` +
     `<div class="sgs-pending-head">待办：${escapeHtml(p.kind)}${extra}</div>` +
     `<div class="sgs-pending-actions">${buttons}</div>` +
+    `</div>`
+  );
+}
+
+/** 观星（v2：逐张顶/底）——展示私密亮出的牌 + 说明；具体选择用待办按钮。 */
+function guanxingPanel(area: SgsPlayerArea, zones: SgsSpecialZones | undefined): string {
+  const p = area.pending;
+  if (!p || p.skill !== "guanxing") return "";
+  const cards = zones?.guanxing?.cards ?? area.private_reveals ?? [];
+  const rawCursor = p.data?.cursor;
+  const cursor = typeof rawCursor === "number" ? (rawCursor as number) : null;
+  const total = Array.isArray(p.data?.cards) ? (p.data?.cards as unknown[]).length : cards.length;
+  const stepInfo =
+    cursor !== null && total > 0
+      ? `（第 ${Math.min(cursor + 1, total)} / ${total} 张）`
+      : "";
+  const current = cursor !== null ? cards[cursor] : undefined;
+  const list = cards
+    .map(
+      (c) =>
+        `<span class="sgs-zone-card${current && c.id === current.id ? " on" : ""}">${escapeHtml(
+          cardLabel(c),
+        )}</span>`,
+    )
+    .join("");
+  return (
+    `<div class="sgs-zone-note" data-zone="guanxing">` +
+    `<p><b>观星</b>${escapeHtml(stepInfo)}：请逐张选择「置于牌堆顶 / 牌堆底」（可全部置底）。</p>` +
+    `<div class="sgs-wuxie-wugu-cards">${list}</div>` +
+    `</div>`
+  );
+}
+
+/** 化身（界左慈，W2）：本人可见的化身牌与当前展示。 */
+function huashenPanel(zones: SgsSpecialZones | undefined): string {
+  const h = zones?.huashen as
+    | {
+        cards?: Array<{ code?: string; name?: string; active?: boolean; skills?: string[] }>;
+        active?: string | null;
+      }
+    | undefined;
+  if (!h?.cards?.length) return "";
+  const chips = h.cards
+    .map((c) => {
+      const skills = Array.isArray(c.skills) && c.skills.length
+        ? `（${(c.skills as string[]).join("、")}）`
+        : "";
+      return `<span class="sgs-zone-card${c.active ? " on" : ""}">${escapeHtml(
+        (c.name ?? c.code ?? "") + (c.active ? "（展示中）" : ""),
+      )}${c.active ? escapeHtml(skills) : ""}</span>`;
+    })
+    .join("");
+  return (
+    `<div class="sgs-zone-note" data-zone="huashen">` +
+    `<p><b>化身</b>：${escapeHtml(String(h.active ?? "未展示"))}</p>` +
+    `<div class="sgs-wuxie-wugu-cards">${chips}</div>` +
+    `</div>`
+  );
+}
+
+/** 蛊惑（W3）：扣置一张手牌并声明牌名；翻开前不对其他玩家公开。 */
+function guhuoPanel(area: SgsPlayerArea): string {
+  const p = area.pending;
+  if (!p || p.skill !== "guhuo") return "";
+  const declared = typeof p.data?.declared === "string" ? p.data.declared : "";
+  const carrier = typeof p.data?.carrier === "string" ? p.data.carrier : "";
+  const card = (area.hand ?? []).find((c) => c.id === carrier);
+  const stage = typeof p.data?.stage === "string" ? p.data.stage : "";
+  const carrierText = card
+    ? `已扣置【${cardLabel(card)}】`
+    : carrier
+      ? `已扣置一张牌（${carrier}）`
+      : "";
+  return (
+    `<div class="sgs-zone-note" data-zone="guhuo">` +
+    `<p><b>蛊惑</b>：${escapeHtml(carrierText)}${declared ? `，声明为【${escapeHtml(declared)}】` : ""}` +
+    `${stage === "question" ? "；等待质疑" : ""}</p>` +
+    `<p class="muted">翻开前其他玩家看不到这张牌；为假时作废并令质疑者摸牌。</p>` +
     `</div>`
   );
 }
@@ -222,15 +306,23 @@ export function renderPersonalArea(
   if (!area) return `<section class="sgs-personal muted">个人资源区不可见（未坐下或已阵亡）</section>`;
   const acts = actions ?? [];
   const canEndPlay = acts.some((a) => a.id === "end_play");
-  // 可点手牌 = 直接 `play:<card>` ∪ 转化技 `skill:<skill>:<card>`
-  // （武圣/龙胆/国色/奇袭/连环等：此前只认 play:，导致「武圣不能主动使用」——真机）。
+  // 可点手牌 =
+  //  · v1：`play:<card>`
+  //  · v2：`use:<card>[:<targets>]`
+  //  · 转化技（v1 `skill:<skill>:<card>` / v2 `convert:<skill>:<card>:<牌名>[:<targets>]`）
   const handIds = new Set((area.hand ?? []).map((c) => c.id));
   const playable = new Set(
     acts
       .map((a) => {
         if (a.id.startsWith("play:")) return a.id.slice("play:".length);
-        const m = /^skill:[a-z_]+:(.+)$/.exec(a.id);
-        return m && handIds.has(m[1]) ? m[1] : null;
+        if (a.id.startsWith("use:")) {
+          const card = a.id.slice("use:".length).split(":")[0];
+          return handIds.has(card) ? card : null;
+        }
+        const m1 = /^skill:[a-z_]+:(.+)$/.exec(a.id);
+        if (m1 && handIds.has(m1[1])) return m1[1];
+        const m2 = /^convert:[a-z_]+:([^:]+):/.exec(a.id);
+        return m2 && handIds.has(m2[1]) ? m2[1] : null;
       })
       .filter((id): id is string => Boolean(id)),
   );
@@ -388,6 +480,9 @@ export function renderPersonalArea(
     `<div class="sgs-hand-head"><span class="sgs-equip-label">手牌</span> ${(area.hand ?? []).length}/${handLimitLabel(area.hand_limit)}</div>` +
     `<div class="sgs-hand" role="list">${hand || `<span class="muted">无手牌</span>`}</div>` +
     pendingSummary(area, discardSelected) +
+    guanxingPanel(area, zones) +
+    guhuoPanel(area) +
+    huashenPanel(zones) +
     wuguPanel(zones, names) +
     zuilunPanel(zones) +
     `<div class="sgs-ops" data-my-turn="${isMyTurn ? "1" : "0"}">` +

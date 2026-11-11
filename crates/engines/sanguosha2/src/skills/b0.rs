@@ -80,7 +80,11 @@ fn jushou(g: &mut Game, a: &Ask) -> Result<Step, String> {
                     format!("弃置/使用【{}】", g.card_label(&id)),
                 );
             }
-            Ok(Step::NeedAt(Stage::Target, b.escape("不弃置（跳过）").build()))
+            // 对齐单裁定：④ 必须弃置 1 张（装备牌强制使用）；出口只是类型占位，不下发。
+            Ok(Step::NeedAt(
+                Stage::Target,
+                b.escape_mandatory("不弃置（跳过）").build(),
+            ))
         }
         Stage::Target => {
             let act = match g.answer.take() {
@@ -483,6 +487,10 @@ fn fenji(g: &mut Game, a: &Ask) -> Result<Step, String> {
             let Some(seat) = a.data["seat"].as_u64().map(|n| n as usize) else {
                 return Ok(Step::Done);
             };
+            // 复验 11：受影响的角色必须**处于回合外**（其回合内的摸牌/弃牌不触发）。
+            if g.turn == seat {
+                return Ok(Step::Done);
+            }
             if first_fenji_owner(g, seat) != Some(a.actor) {
                 return Ok(Step::Done); // 只问座位顺序第一个
             }

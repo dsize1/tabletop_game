@@ -1076,3 +1076,16 @@
 - **M11 遗留**：非 @ 消息采集、群层记忆、对话摘要压缩（T3）、向量召回（T4）
 - **harness**：单批范围守卫（批内改动 >10 文件即暂停拆批）
 - **延后**：A2A（P3+）、chat 改 playwright 抓取（仅当目标站点 JS 渲染/反爬时）
+
+## 2026-11-10 引擎 v2 全量替换收官（S1–S6b）
+
+- **v2 接管正式引擎**：`game_id=sanguosha`（OQ1=A）；v1 crate `crates/engines/sanguosha` **已删除**（用户签字）。
+- **交付切片**：
+  - S1 大厅/选将（147 池 + 武将包过滤 + 机器人）+ 5–8 人身份局（奖惩/胜负/双内奸）+ `Seat.bot`；
+  - S2 启发式 AI（`BotBrain` + `drive_bots`）+ `validate_state` + 武器特效 9 种 + 谮毁结算前钩子 + 回合外主动技；
+  - S3 MCP/server/preview/replay/网关全切 v2（新增 `sanguosha2::sandbox`：沙盒开局 + 场景注入）；
+  - S4/S4-b Web 对接（视图 v1 兼容 80/80、`use:`/`convert:` 动作、v2 pending 专用浮层、观星/五谷/化身/蛊惑面板）；
+  - S5 中台同步切 v2（44 牌定义 / 160 牌 / 232 将 / 147 live；`traitor`/`spy` 别名）；
+  - S2-b AI 多 seed（12×10 局：118/120 终局、0 illegal）；S6 门禁事实源迁 v2；S6-b `skills.md` ↔ v2 注册表 + 授予技文案（并补实现「急袭」jixi）。
+- **门禁**：`npm run sgs:check` **30/30**（含 Web/e2e/中台预览）；`sgs:check:fast` 24/24；`check:sgs2` 全绿；`check:sgs-retire` 输出「旧 crate 已删除」。
+- **待办（用户）**：B0–B18 人工列统一验证后补签；可选真实时长灰度。

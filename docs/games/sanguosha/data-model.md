@@ -293,7 +293,7 @@ CREATE INDEX IF NOT EXISTS idx_prop_status_log_entity
 
 中台「元数据只读 API」留 P5：P4 阶段引擎消费**内置生成数据**，来源与中台同一批 `data/*.json`，保证口径一致。
 
-| 生成产物（`crates/engines/sanguosha/src/data.rs`） | 说明 |
+| 生成产物（`crates/engines/sanguosha2/src/{cards_generated,generals_generated}.rs`；v1 `data.rs` 已删除） | 说明 |
 |---|---|
 | `CARD_DEFS` | 牌定义（按 code 去重；跨包同名定义字段必须一致） |
 | `STANDARD_DECK` / `JUNZHENG_DECK` | 物理牌表（108 / 52），`PhysicalCard.pack` 标注所属牌堆包 |
@@ -318,10 +318,10 @@ CREATE INDEX IF NOT EXISTS idx_prop_status_log_entity
 | `standard+jiexian` | 标准 + 界限突破 | 87 |
 | `standard+wind_fire_forest_mountain+yijiang` | 标准 + 风林火山 + 一将成名 | 145 |
 | `standard+wind_fire_forest_mountain+jiexian` | 标准 + 风林火山 + 界限突破 | 106 |
-| `standard+yijiang+jiexian` | 标准 + 一将成名 + 界限突破 | 129 |
-| `standard+wind_fire_forest_mountain+yijiang+jiexian` | 标准 + 风林火山 + 一将成名 + 界限突破（全量） | 148 |
+| `standard+yijiang+jiexian` | 标准 + 一将成名 + 界限突破 | 128 |
+| `standard+wind_fire_forest_mountain+yijiang+jiexian` | 标准 + 风林火山 + 一将成名 + 界限突破（全量） | 147 |
 
-- 同名去重（ADR-0024 口径 A）：启用 `jiexian` 时，与「界化」武将同名的原版不进池；全量四包去重 83 位（界标 25 位 + 风包 48 位 + 一将成名 10 位同名原版）。
+- 同名去重（ADR-0024 口径 A）：启用 `jiexian` 时，与「界化」武将同名的原版（含「将X」别名）不进池；全量四包 = **147** 位（S6 起与引擎 v2 `available_codes` 一致；此前文档写 148 是把「将华雄」与「界华雄」当两人）。
 - 旧快照兼容：schema v2 及以前没有 `config.packs` / `config.general_packs`，反序列化分别按默认 `["standard","junzheng"]` / **全将 4 包** 补齐（**带**字段的旧快照仍按自身值解析，不回溯改池）（**不重建已有牌堆**，实例仍以快照中的 `cards` 为准；武将包同样不回溯追加）。
 
 ## 4. 运行时状态模型（不建实体表）

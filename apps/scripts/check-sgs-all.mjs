@@ -16,29 +16,24 @@ const full = args.has("--full");
 
 const node = process.execPath;
 const cargo = "cargo";
-const cargoTest = (filter) => ({
-  cmd: [cargo, "test", "--manifest-path", "crates/Cargo.toml", "-p", "sanguosha", filter ?? ""]
-    .join(" ")
-    .trim(),
-});
-
 const steps = [
-  { name: "cargo test -p sanguosha", ...cargoTest() },
-  { name: "skill-cases（每将 ≥3 用例）", cmd: `${node} apps/scripts/check-sgs-skill-cases.mjs` },
+  // S6：事实源已切 v2（v1 crate 仅保留给对拍/退役，不参与门禁）。
+  { name: "skill-cases（每将 ≥1 条 v2 用例锚点）", cmd: `${node} apps/scripts/check-sgs-skill-cases.mjs` },
   { name: "general-names（武将名/错别字/近似名）", cmd: `${node} apps/scripts/check-sgs-general-names.mjs` },
   {
     name: "batch-consistency（验证批次 ↔ 去重池 ↔ 开发批次）",
     cmd: `${node} apps/scripts/check-sgs-batch-consistency.mjs`,
   },
-  { name: "skill-docs（skills.md ↔ 注册表）", cmd: `${node} apps/scripts/check-sgs-skill-docs.mjs` },
+  { name: "skill-docs（skills.md ↔ v2 注册表 + §4.1 授予技）", cmd: `${node} apps/scripts/check-sgs-skill-docs.mjs` },
   // 2026-11-06：计数类事实门禁（防 149/83 这类文档漂移）+ 技能对齐单 + 内核 v2 spike
-  { name: "counts（148/84/232/预设人数 ↔ 文档）", cmd: `${node} apps/scripts/check-sgs-counts.mjs` },
+  { name: "counts（232/85/147/预设人数 ↔ 文档）", cmd: `${node} apps/scripts/check-sgs-counts.mjs` },
   { name: "align（技能对齐单一致性/冲突阻断）", cmd: `${node} apps/scripts/check-sgs-align.mjs` },
   { name: "sgs2（内核 v2 用例 + 6 类缺陷门禁）", cmd: `${cargo} test --manifest-path crates/Cargo.toml -p sanguosha2` },
   { name: "sgs2-plugin（EnginePlugin 完备性/视图脱敏）", cmd: `${cargo} test --manifest-path crates/Cargo.toml -p sanguosha2 plugin_contract` },
   { name: "retire（旧 crate 退役 deadline 提醒）", cmd: `${node} apps/scripts/check-sgs-retire.mjs` },
   { name: "engine-data（v1 data.rs + v2 cards + catalog 最新）", cmd: `${node} apps/scripts/gen-sanguosha-engine-data.mjs --check` },
-  { name: "parity（v1↔v2 数据/属性/技能覆盖）", cmd: `${node} apps/scripts/check-sgs-parity.mjs` },
+  { name: "sgs2-parity-view（v2 视图覆盖前端字段，strict）", cmd: `${node} apps/scripts/check-sgs2-view-parity.mjs --strict` },
+  { name: "sgs2-coupling（v1 引用台账，白名单外失败）", cmd: `${node} apps/scripts/check-sgs2-coupling.mjs` },
   { name: "sgs2-registry（注册表/对齐单/用例覆盖）", cmd: `${node} apps/scripts/check-sgs2-registry.mjs` },
   { name: "sgs2-decision-log（决策日志 schema）", cmd: `${node} apps/scripts/check-sgs2-decision-log.mjs` },
   { name: "skill-text（长按技能简述最新）", cmd: `${node} apps/scripts/gen-sgs-skill-text.mjs --check` },
@@ -50,12 +45,10 @@ const steps = [
     name: "pack-presets（武将包预设 ↔ engine-catalog.json ↔ data-model.md）",
     cmd: `${node} apps/scripts/check-sgs-pack-presets.mjs`,
   },
-  { name: "pack-pool（选将池包过滤）", ...cargoTest("pack_pool") },
-  { name: "view-contract（视图契约 v1+v2）", cmd: `npm run check:sgs-view-contract` },
+  { name: "pack-pool（v2 选将池/包过滤）", cmd: `${cargo} test --manifest-path crates/Cargo.toml -p sanguosha2 lobby::` },
+  { name: "view-contract（v2 视图契约）", cmd: `npm run check:sgs-view-contract` },
   { name: "sgs2-ai（内核 v2 自对弈 10 局）", cmd: `${node} apps/scripts/check-sgs2-ai.mjs` },
-  { name: "interaction（交互原语契约）", ...cargoTest("interaction_") },
-  // P6：AI 自对弈（10 局全将 release，约 6s）——「机器人能打完 5 人局」的硬门禁。
-  { name: "sgs-ai（自对弈 10 局）", cmd: `${node} apps/scripts/check-sgs-ai.mjs` },
+  // v1 交互原语 / 自对弈门禁由 v2 的 pending 出口 + `check:sgs2-ai` 覆盖。
   // 全武将验证：矩阵 ↔ 名录/批次表一致性（纯静态，无需 server）
   { name: "generals-matrix（全武将验证矩阵一致性）", cmd: `${node} apps/scripts/sgs-general-audit.mjs --check-matrix` },
 ];
@@ -73,8 +66,6 @@ if (!fast) {
     // 回放自检放在「机器人推进 e2e」之后：该 e2e 会新建一局并打完整局，
     // 保证库里存在**用当前引擎**产生的可回放房间（规则修复后旧局回放不一致属预期）。
     { name: "decision-log（导出/回放自检）", cmd: `${node} apps/scripts/check-sgs-decision-log.mjs` },
-    // 全武将验证：机器证据抽样（起临时 server；需 Redis）
-    { name: "sgs-generals（全武将审计抽样 8 将）", cmd: `${node} apps/scripts/sgs-general-audit.mjs --check --sample 8` },
   );
 }
 if (full) {

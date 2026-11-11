@@ -37,8 +37,12 @@ import {
   overlayKindFor,
   pendingTitle,
   renderChooseManyOverlay,
+  renderCollateralOverlay,
   renderDyingOverlay,
+  renderFireAttackOverlay,
   renderPickCardOverlay,
+  renderPindianOverlay,
+  renderQinwangOverlay,
   renderTargetOverlay,
   renderWuguOverlay,
   renderWuxieOverlay,
@@ -153,8 +157,21 @@ function updateOpsSummary(): void {
   label.textContent = card ? `已选：${cardLabel(card)}` : "未选择";
 }
 
+/** 选中牌的可用动作（v1 `play:<card>`；v2 `use:<card>[:目标]`；转化技 `convert:*:<card>:*`）。 */
+function actionsForCard(card: string): Array<{ id: string; description: string }> {
+  return currentActions.filter((a) => {
+    if (a.id === `play:${card}` || a.id === `use:${card}`) return true;
+    if (a.id.startsWith(`play:${card}:`)) return true;
+    if (a.id.startsWith(`use:${card}:`)) return true;
+    const m = /^convert:[a-z_]+:([^:]+):/.exec(a.id);
+    if (m && m[1] === card) return true;
+    const m2 = /^skill:[a-z_]+:(.+)$/.exec(a.id);
+    return Boolean(m2 && m2[1] === card);
+  });
+}
+
 function canPlaySelected(): boolean {
-  return Boolean(selectedCard && currentActions.some((a) => a.id === `play:${selectedCard}`));
+  return Boolean(selectedCard && actionsForCard(selectedCard).length > 0);
 }
 
 function syncSelection(): void {
@@ -372,6 +389,18 @@ function syncPendingOverlay(): void {
     case "choose_many":
       body = renderChooseManyOverlay(p, area, lastNames);
       break;
+    case "pindian":
+      body = renderPindianOverlay(p, board, lastNames);
+      break;
+    case "fire_attack":
+      body = renderFireAttackOverlay(p, board, lastNames);
+      break;
+    case "collateral":
+      body = renderCollateralOverlay(p, board, lastNames);
+      break;
+    case "qinwang_sha":
+      body = renderQinwangOverlay(p, board, lastNames);
+      break;
     case "arrange": {
       const zone = currentData?.special_zones?.guanxing;
       syncGuanxingDraft(zone);
@@ -571,23 +600,38 @@ function onClick(ev: MouseEvent): void {
       return;
     }
     if (op === "confirm") {
-      // 直接使用优先；否则回落到「转化技把这张牌当别的牌使用」（武圣/龙胆/国色/奇袭/连环等）。
-      const playId = selectedCard ? `play:${selectedCard}` : "";
-      const conversion = selectedCard
-        ? currentActions.find(
-            (a) =>
-              /^skill:[a-z_]+:/.test(a.id) &&
-              a.id.endsWith(`:${selectedCard}`) &&
-              !a.id.includes(","),
-          )
-        : undefined;
-      if (selectedCard && currentActions.some((a) => a.id === playId)) {
-        void submitAction(playId);
-      } else if (conversion) {
-        void submitAction(conversion.id);
-      } else {
-        message("该牌当前不可打出", true);
+      if (!selectedCard) {
+        message("请先选择一张手牌", true);
+        return;
       }
+      // 直接使用（无目标）：v1 `play:<card>` / v2 `use:<card>`。
+      for (const id of [`play:${selectedCard}`, `use:${selectedCard}`]) {
+        if (currentActions.some((a) => a.id === id)) {
+          void submitAction(id);
+          return;
+        }
+      }
+      const candidates = actionsForCard(selectedCard);
+      if (candidates.length === 0) {
+        message("该牌当前不可打出", true);
+        return;
+      }
+      if (candidates.length === 1) {
+        void submitAction(candidates[0].id);
+        return;
+      }
+      // v2：需要目标 / 转化方式有多选 → 弹选择层（按钮都是可直接提交的 action id）。
+      const buttons = candidates
+        .map(
+          (a) =>
+            `<button type="button" class="btn small" data-action="${escapeHtml(a.id)}">` +
+            `${escapeHtml(a.description)}</button>`,
+        )
+        .join("");
+      openOverlay(
+        "选择目标 / 用法",
+        `<p class="muted">这张牌有多种用法：</p><div class="sgs-zone-actions">${buttons}</div>`,
+      );
     } else if (op === "cancel") {
       selectedCard = null;
       syncSelection();

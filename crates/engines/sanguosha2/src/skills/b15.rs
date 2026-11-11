@@ -155,7 +155,8 @@ pub const TIANYI: SkillDef = SkillDef {
 };
 
 fn can_tianyi(g: &Game, seat: usize) -> bool {
-    play_phase(g, seat)
+    active(g, seat, "tianyi")
+        && play_phase(g, seat)
         && g.counter("phase.cancel_tianyi") == 0
         && g.counter("turn.tianyi_used") == 0
         && !g.hand(seat).is_empty()
@@ -415,7 +416,7 @@ fn bengkuai(g: &mut Game, a: &Ask) -> Result<Step, String> {
             let mut b = builder(owner, "choice").skill("bengkuai");
             b = b.option("opt1", "崩坏：失去 1 点体力");
             b = b.option("opt2", "崩坏：减少 1 点体力上限");
-            Ok(Step::Need(b.escape("（不会出现）不结算").build()))
+            Ok(Step::Need(b.escape_mandatory("（不能放弃）不结算").build()))
         }
         Some("opt1") => {
             g.push_log(format!("崩坏：{} 失去 1 点体力", g.seats[owner].name));
@@ -457,20 +458,43 @@ pub const JIUCHI: SkillDef = SkillDef {
 };
 
 pub fn conversions(g: &Game, seat: usize) -> Vec<super::Conversion> {
-    if !active(g, seat, "jiuchi") {
-        return Vec::new();
+    let mut out: Vec<super::Conversion> = Vec::new();
+    // 急袭（凿险授予）：装备区的装备牌当【杀】使用或打出。
+    if active(g, seat, "jixi") {
+        for slot in [
+            crate::kernel::Slot::Weapon,
+            crate::kernel::Slot::Armor,
+            crate::kernel::Slot::HorseOffense,
+            crate::kernel::Slot::HorseDefense,
+            crate::kernel::Slot::Treasure,
+        ] {
+            if let Some(id) = g.equip_in(seat, slot) {
+                out.push(super::Conversion {
+                    skill: "jixi",
+                    from: id,
+                    to: "杀",
+                    usable: true,
+                    playable: true,
+                });
+            }
+        }
     }
-    g.hand(seat)
-        .into_iter()
-        .filter(|id| g.cards.get(id).is_some_and(|c| c.suit == crate::kernel::Suit::Spade))
-        .map(|id| super::Conversion {
-            skill: "jiuchi",
-            from: id,
-            to: "酒",
-            usable: true,
-            playable: false,
-        })
-        .collect()
+    if !active(g, seat, "jiuchi") {
+        return out;
+    }
+    out.extend(
+        g.hand(seat)
+            .into_iter()
+            .filter(|id| g.cards.get(id).is_some_and(|c| c.suit == crate::kernel::Suit::Spade))
+            .map(|id| super::Conversion {
+                skill: "jiuchi",
+                from: id,
+                to: "酒",
+                usable: true,
+                playable: false,
+            }),
+    );
+    out
 }
 
 /// 界酒池：使用【酒】无次数限制。
@@ -670,10 +694,10 @@ fn tuotian(g: &mut Game, a: &Ask) -> Result<Step, String> {
     let own_turn = g.turn == owner;
     let ok = match lost_card {
         None => false,
-        Some(card) => {
+        Some(ref card) => {
             if own_turn {
                 // 回合内：只看「弃置【杀】」（弃牌阶段/主动弃置）。
-                cause == "to:Discard" && is_sha(g, &card)
+                cause == "to:Discard" && is_sha(g, card)
             } else {
                 true
             }
@@ -690,6 +714,15 @@ fn tuotian(g: &mut Game, a: &Ask) -> Result<Step, String> {
         }
         Some("pass") => Ok(Step::Done),
         Some(_) => {
+            // 同一张牌只判定一次（防「判定帧异常 → 待办重入」成环）。
+            let key = format!(
+                "turn.tuotian_judged:{owner}:{}",
+                lost_card.as_deref().unwrap_or("-")
+            );
+            if g.counter(&key) > 0 {
+                return Ok(Step::Done);
+            }
+            g.bump(&key);
             push(g, "tuotian", owner, json!({ "stage": "after" }));
             crate::kernel::card_play::start_quick_judge(g, owner, "tuotian");
             Ok(Step::Done)
@@ -753,6 +786,32 @@ fn zaoxian(g: &mut Game, a: &Ask) -> Result<Step, String> {
         }
         _ => Ok(Step::Done),
     }
+}
+
+// ---------------------------------------------------------------------------
+// 急袭（邓艾，凿险授予）：装备区/手牌的装备牌当【杀】使用或打出
+// ---------------------------------------------------------------------------
+
+pub const JIXI: SkillDef = SkillDef {
+    code: "jixi",
+    name: "急袭",
+    triggers: &[],
+    window: Window::AnyTime,
+    priority: 0,
+    can_active: None,
+    handler: jixi,
+    dying_hook: None,
+    flip_hook: None,
+    wuxie_opts: None,
+    wuxie_use: None,
+    target_blocker: None,
+    yang_window: None,
+    yin_window: None,
+};
+
+/// 急袭是**纯转化技**（无主动/触发窗口）：handler 只作为注册占位。
+fn jixi(_g: &mut Game, _a: &Ask) -> Result<Step, String> {
+    Ok(Step::Done)
 }
 
 // ---------------------------------------------------------------------------
@@ -951,7 +1010,8 @@ pub const CHANGBIAO: SkillDef = SkillDef {
 };
 
 fn can_changbiao(g: &Game, seat: usize) -> bool {
-    play_phase(g, seat)
+    active(g, seat, "changbiao")
+        && play_phase(g, seat)
         && g.counter("turn.changbiao_used") == 0
         && !g.hand(seat).is_empty()
         && g.sha_used(seat) < g.sha_limit(seat)
@@ -1129,6 +1189,9 @@ pub const TIAOXIN: SkillDef = SkillDef {
 };
 
 fn can_tiaoxin(g: &Game, seat: usize) -> bool {
+    if !active(g, seat, "tiaoxin") {
+        return false;
+    }
     if !play_phase(g, seat) || g.counter("turn.tiaoxin_block") > 0 {
         return false;
     }
@@ -1319,7 +1382,7 @@ fn zhiji(g: &mut Game, a: &Ask) -> Result<Step, String> {
                 b = b.option("opt1", "志继：回复 1 点体力");
             }
             b = b.option("opt2", "志继：摸 2 张牌");
-            Ok(Step::Need(b.escape("（不会出现）不结算").build()))
+            Ok(Step::Need(b.escape_mandatory("（不能放弃）不结算").build()))
         }
         Some("opt1") => {
             g.seats[owner].flags.insert("awaken_zhiji".to_string());
@@ -1425,7 +1488,10 @@ pub const LUANWU: SkillDef = SkillDef {
 };
 
 fn can_luanwu(g: &Game, seat: usize) -> bool {
-    play_phase(g, seat) && !g.seats[seat].flags.contains("luanwu_used") && !other_alive(g, seat).is_empty()
+    active(g, seat, "luanwu")
+        && play_phase(g, seat)
+        && !g.seats[seat].flags.contains("luanwu_used")
+        && !other_alive(g, seat).is_empty()
 }
 
 fn nearest_tied(g: &Game, seat: usize) -> Vec<usize> {
@@ -1473,8 +1539,17 @@ fn luanwu(g: &mut Game, a: &Ask) -> Result<Step, String> {
                 return Ok(Step::Done);
             }
             let seat = order[cursor];
-            let nearest = nearest_tied(g, seat);
-            let sha = g.hand(seat).into_iter().find(|id| g.def_of(id).tags.sha);
+            // 目标必须能被【杀】指定（空城/帷幕等「不能成为目标」的技能在此过滤，
+            // 否则 legal 给出 target:N、execute 才报「目标不能成为此牌目标」）。
+            let nearest: Vec<usize> = nearest_tied(g, seat)
+                .into_iter()
+                .filter(|t| crate::skills::can_target(g, seat, "杀", *t, None))
+                .collect();
+            // 只能打出「可用」的【杀】（复难等手牌冻结的牌不能作为乱武的杀）。
+            let sha = g
+                .hand(seat)
+                .into_iter()
+                .find(|id| g.def_of(id).tags.sha && g.can_use_card(seat, id));
             match g.answer.take().as_deref() {
                 None => {
                     let mut b = builder(seat, "choice").skill("luanwu");
@@ -1533,7 +1608,10 @@ fn luanwu(g: &mut Game, a: &Ask) -> Result<Step, String> {
             Some(_) => Ok(Step::Next(Stage::Choose, json!({ "stage": "final_target" }))),
         },
         "final_target" => {
-            let cands = other_alive(g, owner);
+            let cands: Vec<usize> = other_alive(g, owner)
+                .into_iter()
+                .filter(|t| crate::skills::can_target(g, owner, "杀", *t, None))
+                .collect();
             match g.answer.take().as_deref() {
                 None => {
                     let mut b = builder(owner, "target").skill("luanwu");
@@ -1876,7 +1954,8 @@ pub const DIMENG: SkillDef = SkillDef {
 };
 
 fn can_dimeng(g: &Game, seat: usize) -> bool {
-    play_phase(g, seat)
+    active(g, seat, "dimeng")
+        && play_phase(g, seat)
         && g.counter("turn.dimeng_used") == 0
         && other_alive(g, seat).len() >= 2
 }

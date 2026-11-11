@@ -1,280 +1,75 @@
 #!/usr/bin/env node
-// P4.1-D 门禁 / P4.4 扩围：「已实现武将」每武将 ≥3 条规则用例。
+// 门禁（S6：事实源切 v2）：每个「已实现武将」至少 1 条 v2 规则用例锚点。
 //
-// 统计口径：扫描 `crates/engines/sanguosha/src/tests/` 下所有 `#[test]` 函数体，
-// 若测试体出现该武将的 `sgs_hero_<gid>` 或该武将任一技能 code（带引号），
-// 即认为该用例覆盖该武将。
+// 口径：
+// - 武将集合 = `engine-catalog.json` 的 live（147）/ 或 `generals_generated.rs` 的 Status::Live；
+// - 用例集合 = `crates/engines/sanguosha2/tests/*.rs`（`#[test]` 函数体）；
+// - 锚点 = 函数体出现该武将 code（`sgs_hero_N`）或该武将任一技能 code（带引号）。
 //
-// 覆盖范围（P4.4）：从 `skills.rs` 解析「已注册 + 全部 implemented」的武将，
-// 从 `data.rs` 解析 gid → 武将名。未实现的武将不要求用例（也不进选将池）。
+// 说明：v1 的「每将 ≥3 条」在 v2 用「每技能 code 必须有 #[test]」覆盖
+// （`npm run check:sgs2-registry`），本门禁只保证「每个武将有归属用例」，防漏测。
 //
-// 用法：node apps/scripts/check-sgs-skill-cases.mjs [--min 3] [--verbose]
+// 用法：node apps/scripts/check-sgs-skill-cases.mjs [--min 1] [--verbose]
 
-import { readdir, readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
+import { loadEngineCatalog, projectRoot } from "./lib/sgs-catalog.mjs";
+import { loadSkillNameCodes } from "./sgs-data-lib.mjs";
 
-const TESTS_DIR = resolve("crates", "engines", "sanguosha", "src", "tests");
-const SRC_DIR = resolve("crates", "engines", "sanguosha", "src");
-const SKILLS_RS = resolve("crates", "engines", "sanguosha", "src", "skills.rs");
-const CATALOG_JSON = resolve("docs", "games", "sanguosha", "data", "engine-catalog.json");
+const args = process.argv.slice(2);
+const verbose = args.includes("--verbose");
+const minArg = args.indexOf("--min");
+const MIN = minArg >= 0 ? Number(args[minArg + 1] ?? 1) : 1;
 
-function parseArgs(argv) {
-  const opts = { min: 3, verbose: false };
-  for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === "--min") opts.min = Number(argv[++i]);
-    else if (argv[i] === "--verbose" || argv[i] === "-v") opts.verbose = true;
-    else if (argv[i] === "--help" || argv[i] === "-h") {
-      console.log("用法：node apps/scripts/check-sgs-skill-cases.mjs [--min 3] [--verbose]");
-      process.exit(0);
-    } else {
-      console.error(`未知参数：${argv[i]}`);
-      process.exit(1);
-    }
-  }
-  if (!Number.isInteger(opts.min) || opts.min < 1) {
-    console.error("--min 必须为正整数");
-    process.exit(1);
-  }
-  return opts;
-}
+const TESTS_DIR = path.join(projectRoot, "crates/engines/sanguosha2/tests");
 
-const TEST_RE = /#\[test\][\s\S]*?\n\s*fn\s+([A-Za-z0-9_]+)\s*\(/g;
-// 顶层 `fn` 边界（含 `pub(super) fn`）：用例体不得跨过下一个函数定义，
-// 否则测试之间的私有助手会被误算进上一条用例的覆盖范围（曾导致批次 Y2 误判）。
-const FN_RE = /^(?:pub(?:\([^)]*\))?\s+)?fn\s+([A-Za-z0-9_]+)/gm;
+const nameToCode = loadSkillNameCodes();
+const catalog = loadEngineCatalog();
+const live = catalog.generals.filter((g) => g.status === "live");
 
-async function collectTests() {
-  const files = (await readdir(TESTS_DIR)).filter((f) => f.endsWith(".rs"));
-  const tests = [];
-  for (const file of files) {
-    const text = await readFile(resolve(TESTS_DIR, file), "utf8");
-    const fnStarts = [...text.matchAll(FN_RE)].map((m) => m.index);
-    const marks = [...text.matchAll(TEST_RE)].map((m) => ({
-      name: m[1],
-      start: m.index,
-      fnPos: m.index + m[0].lastIndexOf("fn"),
-    }));
-    for (const mark of marks) {
-      const end = fnStarts.find((pos) => pos > mark.fnPos) ?? text.length;
-      tests.push({ file, name: mark.name, body: text.slice(mark.start, end) });
-    }
-  }
-  return tests;
-}
-
-/** gid → 武将名（data.rs）。 */
-/**
- * 觉醒授予技能检查：`<skill>_awaken` 中的 `grant_skill(st, seat, "<extra>")`，
- * 若授予的技能未实现（`implemented:false`），输出告警（`--strict-granted` 时失败）。
- */
-async function loadGrantedInactive() {
-  const skillsRs = await readFile(SKILLS_RS, "utf8");
-  const extraRe = /pub static EXTRA_SKILLS:\s*&\[SkillDef\]\s*=\s*&\[([\s\S]*?)\n\];/;
-  const m = extraRe.exec(skillsRs);
-  const extras = new Map();
-  if (m) {
-    for (const e of m[1].split("SkillDef {").slice(1)) {
-      const code = /code:\s*"([a-z0-9_]+)"/.exec(e)?.[1];
-      const name = /name:\s*"([^"]+)"/.exec(e)?.[1];
-      if (!code || !name) continue;
-      extras.set(code, { name, implemented: /implemented:\s*true/.test(e) });
-    }
-  }
-  if (extras.size === 0) return [];
-  const files = (await readdir(SRC_DIR)).filter(
-    (f) => f.startsWith("resolve") && f.endsWith(".rs"),
-  );
-  const out = [];
-  for (const f of files) {
-    const text = await readFile(resolve(SRC_DIR, f), "utf8");
-    const fnRe = /fn\s+([a-z0-9_]+)\s*\([\s\S]*?\n\}/g;
-    for (const fm of text.matchAll(fnRe)) {
-      const fnRaw = fm[1];
-      const skillCode = /^([a-z0-9]+)_(awaken|awakening)$/.exec(fnRaw)?.[1];
-      if (!skillCode) continue;
-      for (const gm of fm[0].matchAll(/grant_skill\(st,\s*[^,]+,\s*"([a-z0-9_]+)"\)/g)) {
-        const granted = extras.get(gm[1]);
-        if (granted && !granted.implemented) {
-          out.push({ skillCode, extra: gm[1], extraName: granted.name, file: f });
-        }
-      }
-    }
-  }
-  return out;
-}
-
-async function loadGeneralNames() {
-  const catalog = JSON.parse(await readFile(CATALOG_JSON, "utf8"));
-  return new Map(catalog.generals.map((g) => [g.gid, g.name]));
-}
-
-/**
- * 解析 skills.rs：
- * - `const XXX: &[SkillDef] = &[...]` → { code, implemented } 列表；
- * - `"sgs_hero_<gid>" => XXX` → gid → 技能列表。
- * 只返回「全部 implemented」的武将。
- */
-async function loadImplementedGenerals() {
-  const text = await readFile(SKILLS_RS, "utf8");
-  const consts = new Map();
-  for (const m of text.matchAll(
-    /const\s+([A-Z0-9_]+):\s*&\[SkillDef\]\s*=\s*&\[([\s\S]*?)\n\s*\}?\];/g,
-  )) {
-    const entries = [];
-    for (const e of m[2].split("SkillDef {").slice(1)) {
-      const code = /code:\s*"([a-z0-9_]+)"/.exec(e)?.[1];
-      if (!code) continue;
-      entries.push({ code, implemented: /implemented:\s*true/.test(e) });
-    }
-    consts.set(m[1], entries);
-  }
-  const generals = new Map();
-  for (const m of text.matchAll(/"sgs_hero_(\d+)"\s*=>\s*([A-Z0-9_]+)/g)) {
-    const gid = Number(m[1]);
-    const skills = consts.get(m[2]);
-    if (!skills || skills.length === 0) continue;
-    if (!skills.every((s) => s.implemented)) continue;
-    generals.set(gid, skills.map((s) => s.code));
-  }
-  return generals;
-}
-
-/**
- * 覆盖判定：
- * - 测试体出现 `sgs_hero_<gid>` → 直接覆盖；
- * - 出现技能 code（带引号）→ 覆盖，但**共享 code**（如界版复用标准技能）需排除
- *   「测试体里出现该 code 的另一位拥有者 gid」的情况，避免界版/标准版互相顶数。
- */
-function covers(body, gid, skills, codeOwners) {
-  if (body.includes(`sgs_hero_${gid}`)) return true;
-  return skills.some((code) => {
-    if (!body.includes(`"${code}"`)) return false;
-    const owners = codeOwners.get(code) ?? [];
-    if (owners.length <= 1) return true;
-    return !owners.some((other) => other !== gid && body.includes(`sgs_hero_${other}`));
-  });
-}
-
-const opts = parseArgs(process.argv.slice(2));
-const tests = await collectTests();
-if (!tests.length) {
-  console.error(`[check] 未找到任何 #[test]：${TESTS_DIR}`);
+// 收集全部测试体（文件 → 内容）。
+let testFiles = [];
+try {
+  testFiles = readdirSync(TESTS_DIR)
+    .filter((f) => f.endsWith(".rs"))
+    .map((f) => ({ file: f, text: readFileSync(path.join(TESTS_DIR, f), "utf8") }));
+} catch (e) {
+  console.error(`[skill-cases] 读 v2 测试目录失败：${e.message}`);
   process.exit(1);
 }
 
-const names = await loadGeneralNames();
-const generals = await loadImplementedGenerals();
-if (generals.size === 0) {
-  console.error("[check] 未解析到任何已实现武将（skills.rs）");
-  process.exit(1);
-}
-
-// code → 拥有该 code 的已实现武将 gid（用于共享 code 的去歧义）。
-const codeOwners = new Map();
-for (const [gid, skills] of generals) {
-  for (const code of skills) {
-    const owners = codeOwners.get(code) ?? [];
-    owners.push(gid);
-    codeOwners.set(code, owners);
-  }
-}
-const sharedCodes = [...codeOwners.entries()]
-  .filter(([, owners]) => owners.length > 1)
-  .map(([code]) => code)
-  .sort();
-if (sharedCodes.length && opts.verbose) {
-  console.log(
-    `[check] 共享 code（${sharedCodes.length}）：计数需 gid 或唯一引用 —— ${sharedCodes.join(", ")}`,
-  );
-}
-
-const counts = {};
-const covered = {};
-for (const gid of generals.keys()) {
-  counts[gid] = 0;
-  covered[gid] = [];
-}
-for (const t of tests) {
-  for (const [gid, skills] of generals) {
-    if (covers(t.body, gid, skills, codeOwners)) {
-      counts[gid] += 1;
-      covered[gid].push(`${t.file}::${t.name}`);
+/** 该武将的锚点命中（返回命中的文件列表）。 */
+function anchorsOf(g) {
+  const codes = (g.skills ?? []).map((n) => nameToCode.get(n)).filter(Boolean);
+  const hits = [];
+  for (const { file, text } of testFiles) {
+    if (text.includes(`"${g.code}"`)) {
+      hits.push(file);
+      continue;
     }
+    if (codes.some((c) => text.includes(`"${c}"`))) hits.push(file);
   }
+  return hits;
 }
 
-const missing = [];
-for (const gid of generals.keys()) {
-  if (opts.verbose || counts[gid] < opts.min) {
-    console.log(`  ${counts[gid]}\t${names.get(gid) ?? gid} (sgs_hero_${gid})`);
+const problems = [];
+let ok = 0;
+const details = [];
+for (const g of live) {
+  const hits = anchorsOf(g);
+  if (hits.length < MIN) {
+    problems.push(`${g.code} ${g.name}：用例锚点 ${hits.length} < ${MIN}`);
+  } else {
+    ok += 1;
   }
-  if (counts[gid] < opts.min) missing.push(gid);
+  if (verbose) details.push(`${g.code} ${g.name}: ${hits.join(",") || "-"}`);
 }
 
-if (missing.length) {
-  console.error(
-    `[check] 失败：${missing.length} 位武将用例不足 ${opts.min} 条：` +
-      missing.map((gid) => `${names.get(gid) ?? gid}(sgs_hero_${gid})=${counts[gid]}`).join("、"),
-  );
-  for (const gid of missing) {
-    console.error(`  ${names.get(gid) ?? gid} 现有用例：${covered[gid].join(", ") || "（无）"}`);
-  }
+if (verbose) for (const d of details) console.log(`  ${d}`);
+
+if (problems.length) {
+  console.error(`[skill-cases] 失败 ${problems.length}/${live.length}：`);
+  for (const p of problems.slice(0, 40)) console.error(`  - ${p}`);
   process.exit(1);
 }
-
-// 转换技（ADR-0028）：要求「阳 / 阴」两面均有用例覆盖。
-// 判定口径：测试体**写入** `flags.insert("yj:<code>", true)` → 阴面用例；
-// 其余引用该技能 code 的用例 → 阳面用例（显式 `flags.remove("yj:<code>")` 视为阳面）。
-const TRANSFORM_SKILLS = ["juzhan", "shenshi", "chenglue", "zhenliang"];
-const transformMissing = [];
-console.log("[check] 转换技两面覆盖：");
-for (const code of TRANSFORM_SKILLS) {
-  const registered = [...generals.values()].some((skills) => skills.includes(code));
-  if (!registered) continue;
-  const yinMarks = [
-    `flags.insert("yj:${code}".into(), true)`,
-    `flags.insert("yj:${code}", true)`,
-  ];
-  const refs = tests.filter(
-    (t) =>
-      t.body.includes(`"${code}"`) ||
-      t.body.includes(`choose:${code}`) ||
-      t.body.includes(`skill:${code}`) ||
-      t.body.includes(`yj:${code}`),
-  );
-  const isYin = (body) => yinMarks.some((m) => body.includes(m));
-  const yin = refs.filter((t) => isYin(t.body));
-  const yang = refs.filter((t) => !isYin(t.body));
-  const ok = yang.length > 0 && yin.length > 0;
-  console.log(`  ${ok ? "OK " : "FAIL"} ${code}：阳 ${yang.length} 条 / 阴 ${yin.length} 条`);
-  if (!ok) transformMissing.push(`${code}(阳=${yang.length},阴=${yin.length})`);
-}
-if (transformMissing.length) {
-  console.error(
-    `[check] 失败：转换技两面覆盖不足：${transformMissing.join("、")}` +
-      '（阴面用例需在测试内写 `flags.insert("yj:<code>", true)`）',
-  );
-  process.exit(1);
-}
-
-// 觉醒授予技能已实现性（提示；`--strict-granted` 时作为失败项）。
-const strictGranted = process.argv.includes("--strict-granted");
-const inactiveGranted = await loadGrantedInactive();
-if (inactiveGranted.length > 0) {
-  console.log("[check] 觉醒授予技能：");
-  for (const g of inactiveGranted) {
-    console.log(
-      `  ${strictGranted ? "FAIL" : "WARN"} ${g.skillCode} 授予 ${g.extra}（${g.extraName}）未实现` +
-        "（待补官方文本；见 skills.md §4.1）",
-    );
-  }
-  if (strictGranted) {
-    console.error("[check] 失败：存在未实现的授予技能（--strict-granted）");
-    process.exit(1);
-  }
-}
-
-const min = Math.min(...Object.values(counts));
-console.log(
-  `[check] OK：${tests.length} 条测试 / ${generals.size} 位已实现武将均 ≥${opts.min} 条（最低 ${min}）`,
-);
+console.log(`[skill-cases] OK：${ok}/${live.length} 位 live 武将各有 ≥${MIN} 条 v2 用例锚点`);

@@ -513,7 +513,7 @@ dependencies = [
  "las-vegas",
  "rmcp",
  "rock-paper-scissors",
- "sanguosha",
+ "sanguosha2",
  "schemars",
  "serde",
  "serde_json",
@@ -1202,15 +1202,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 
 [[package]]
-name = "sanguosha"
-version = "0.1.0"
-dependencies = [
- "game-engine-core",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "sanguosha2"
 version = "0.1.0"
 dependencies = [
@@ -1340,7 +1331,7 @@ dependencies = [
  "las-vegas",
  "rand 0.8.8",
  "redis",
- "sanguosha",
+ "sanguosha2",
  "serde",
  "serde_json",
  "sha2",

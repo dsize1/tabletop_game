@@ -518,7 +518,7 @@ fn mingce(g: &mut Game, a: &Ask) -> Result<Step, String> {
                         b = b.option("opt1", "明策：视为对陈宫指定的角色使用【杀】");
                     }
                     b = b.option("opt2", "明策：与陈宫各摸一张牌");
-                    Ok(Step::Need(b.escape("（不会出现）不选择").build()))
+                    Ok(Step::Need(b.escape_mandatory("（不能放弃）不选择").build()))
                 }
                 Some("opt1") => {
                     if !has_target {
@@ -1622,7 +1622,7 @@ fn xuanhuo(g: &mut Game, a: &Ask) -> Result<Step, String> {
                     b = b.option("opt1", "眩惑：对法正指定的角色使用【杀】");
                 }
                 b = b.option("opt2", "眩惑：令法正观看你的手牌并获得其中两张");
-                Ok(Step::Need(b.escape("（不会出现）不选择").build()))
+                Ok(Step::Need(b.escape_mandatory("（不能放弃）不选择").build()))
             }
             Some("opt1") => {
                 if !has_target {
@@ -1883,7 +1883,7 @@ fn enyuan(g: &mut Game, a: &Ask) -> Result<Step, String> {
                     );
                 }
                 b = b.option("opt2", "恩怨：失去 1 点体力");
-                Ok(Step::Need(b.escape("（不会出现）不选择").build()))
+                Ok(Step::Need(b.escape_mandatory("（不能放弃）不选择").build()))
             }
             Some("opt1") => {
                 if red.is_empty() {
@@ -2026,7 +2026,7 @@ fn lihuo(g: &mut Game, a: &Ask) -> Result<Step, String> {
                     b = b.option("opt1", "疠火：弃置一张牌");
                 }
                 b = b.option("opt2", "疠火：失去 1 点体力");
-                Ok(Step::Need(b.escape("（不会出现）不选择").build()))
+                Ok(Step::Need(b.escape_mandatory("（不能放弃）不选择").build()))
             }
             Some("opt1") => {
                 if pool.is_empty() {

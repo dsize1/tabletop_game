@@ -150,7 +150,8 @@ fn chuli_candidates(g: &Game, owner: usize, selected: &[usize]) -> Vec<usize> {
 }
 
 fn can_chuli(g: &Game, seat: usize) -> bool {
-    g.turn == seat
+    active(g, seat, "chuli")
+        && g.turn == seat
         && g.phase == Phase::Play
         && g.counter("turn.chuli_used") == 0
         && has_region_cards(g, seat)
@@ -733,6 +734,9 @@ fn male_others(g: &Game, owner: usize) -> Vec<usize> {
 }
 
 fn can_lijian(g: &Game, seat: usize) -> bool {
+    if !active(g, seat, "lijian") {
+        return false;
+    }
     if g.turn != seat || g.phase != Phase::Play || g.counter("turn.lijian_used") > 0 {
         return false;
     }

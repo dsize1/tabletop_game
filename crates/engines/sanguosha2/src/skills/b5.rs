@@ -97,6 +97,10 @@ pub const ZANHUI: SkillDef = SkillDef {
 };
 
 fn zanhui(g: &mut Game, a: &Ask) -> Result<Step, String> {
+    // 结算前钩子（S2 销号）：使用瞬间决定「代用 / 额外目标」。
+    if a.data.get("preuse").is_some() {
+        return zanhui_preuse(g, a);
+    }
     if g.answer.is_none() && a.data.get("event").is_some() {
         if !a.data["event"].as_str().unwrap_or("").starts_with("TargetChosen") {
             return Ok(Step::Done);
@@ -254,6 +258,156 @@ fn zanhui(g: &mut Game, a: &Ask) -> Result<Step, String> {
     }
 }
 
+/// 谮毁的「结算前」分支：用户选协助者 → 协助者选「代用（交一张牌）」或「成为额外目标」。
+///
+/// 与旧的 `TargetChosen` 分支的区别：本分支在**结算开始之前**写入 `Game.use_pre`，
+/// 因此「额外目标」会真的多结算一次、`代用`会真的改变伤害来源（旧实现只记状态）。
+fn zanhui_preuse(g: &mut Game, a: &Ask) -> Result<Step, String> {
+    let user = a.data["user"].as_u64().unwrap_or(a.actor as u64) as usize;
+    let targets: Vec<usize> = a.data["targets"]
+        .as_array()
+        .map(|v| v.iter().filter_map(|x| x.as_u64().map(|n| n as usize)).collect())
+        .unwrap_or_default();
+    let target = targets.first().copied().unwrap_or(usize::MAX);
+    let step = a.data["step"].as_str().unwrap_or("").to_string();
+    match step.as_str() {
+        // ① 使用者选协助者。
+        "" => match g.answer.take().as_deref() {
+            None => {
+                let cands: Vec<usize> = (0..g.seats.len())
+                    .filter(|i| *i != user && *i != target && g.seats[*i].hp > 0)
+                    .collect();
+                if cands.is_empty() {
+                    return Ok(Step::Done);
+                }
+                let mut b = super::builder(user, "choice").skill("zanhui");
+                for i in &cands {
+                    b = b.option(
+                        format!("target:{i}"),
+                        format!("令 {} 选择（代用或成为额外目标）", g.seats[*i].name),
+                    );
+                }
+                Ok(Step::Need(b.escape("不发动谮毁").build()))
+            }
+            Some("pass") => Ok(Step::Done),
+            Some(act) => {
+                let helper: usize = act
+                    .strip_prefix("target:")
+                    .and_then(|x| x.parse().ok())
+                    .ok_or_else(|| format!("谮毁：未知选项 {act}"))?;
+                if helper == user || helper == target || g.seats[helper].hp <= 0 {
+                    return Err("谮毁：协助者不合法".into());
+                }
+                g.bump("turn.zanhui_used");
+                let mut data = a.data.clone();
+                data["step"] = json!("helper");
+                data["helper"] = json!(helper);
+                Ok(Step::Next(Stage::Choose, data))
+            }
+        },
+        // ② 协助者选「代用」或「成为额外目标」。
+        "helper" => {
+            let helper = a.data["helper"].as_u64().unwrap_or(0) as usize;
+            let can_give = !hand_and_equip(g, helper).is_empty();
+            match g.answer.take().as_deref() {
+                None => {
+                    let mut b = super::builder(helper, "choice").skill("zanhui");
+                    if can_give {
+                        b = b.option(
+                            "opt1",
+                            format!("交给 {} 一张牌，代替其成为此牌使用者", g.seats[user].name),
+                        );
+                    }
+                    Ok(Step::Need(
+                        b.escape_with("opt2", "成为此牌的额外目标").build(),
+                    ))
+                }
+                Some("opt1") if can_give => {
+                    let mut data = a.data.clone();
+                    data["step"] = json!("pick");
+                    Ok(Step::Next(Stage::Choose, data))
+                }
+                // opt2 / pass / 不可交牌 → 成为额外目标。
+                Some(_) => {
+                    g.use_pre = Some(crate::kernel::UsePre {
+                        switch_user: None,
+                        extra_targets: vec![helper],
+                    });
+                    g.push_log(format!(
+                        "谮毁：{} 成为【{}】的额外目标",
+                        g.seats[helper].name,
+                        a.data["name"].as_str().unwrap_or("牌")
+                    ));
+                    Ok(Step::Done)
+                }
+            }
+        }
+        // ③ 协助者选一张牌交出。
+        "pick" => {
+            let helper = a.data["helper"].as_u64().unwrap_or(0) as usize;
+            let cards = hand_and_equip(g, helper);
+            if cards.is_empty() {
+                g.use_pre = Some(crate::kernel::UsePre {
+                    switch_user: None,
+                    extra_targets: vec![helper],
+                });
+                return Ok(Step::Done);
+            }
+            match g.answer.take().as_deref() {
+                None => {
+                    let mut b = super::builder(helper, "choice").skill("zanhui");
+                    for id in &cards {
+                        b = b.option(format!("choose:{id}"), format!("交给 {}", label(g, id)));
+                    }
+                    Ok(Step::Need(
+                        b.escape("不交出（改为成为额外目标）").build(),
+                    ))
+                }
+                Some("pass") => {
+                    g.use_pre = Some(crate::kernel::UsePre {
+                        switch_user: None,
+                        extra_targets: vec![helper],
+                    });
+                    Ok(Step::Done)
+                }
+                Some(act) => {
+                    let id = act
+                        .strip_prefix("choose:")
+                        .ok_or_else(|| format!("谮毁：未知选项 {act}"))?
+                        .to_string();
+                    if !cards.contains(&id) {
+                        return Err("谮毁：只能交出自己的牌".into());
+                    }
+                    let label = label(g, &id);
+                    g.gain(&id, user)?;
+                    g.use_pre = Some(crate::kernel::UsePre {
+                        switch_user: Some(helper),
+                        extra_targets: Vec::new(),
+                    });
+                    g.presentation.push(
+                        Presentation::new(
+                            "zanhui",
+                            POutcome::Activated {
+                                skill: "谮毁".to_string(),
+                            },
+                        )
+                        .actor(helper)
+                        .target(user)
+                        .cards(vec![id.clone()])
+                        .fx("zanhui_switch_user"),
+                    );
+                    g.push_log(format!(
+                        "谮毁：{} 交出【{label}】，代替 {} 成为此牌使用者",
+                        g.seats[helper].name, g.seats[user].name
+                    ));
+                    Ok(Step::Done)
+                }
+            }
+        }
+        _ => Ok(Step::Done),
+    }
+}
+
 // ---------------------------------------------------------------------------
 // 骄矜（孙鲁班）：男性角色对你造成伤害时，可弃一张装备牌令伤害 -1
 // ---------------------------------------------------------------------------
@@ -363,7 +517,8 @@ fn jiaojin(g: &mut Game, a: &Ask) -> Result<Step, String> {
                 }
             }
         }
-        _ => Err("骄矜：未知阶段".into()),
+        // 事件触发的技能帧可能被外层流程复用（阶段被改写）：容忍并结束，避免整局中断。
+        _ => Ok(Step::Done),
     }
 }
 

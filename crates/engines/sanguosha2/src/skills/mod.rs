@@ -34,7 +34,7 @@ pub mod zhenliang;
 use crate::kernel::event::{EventKind, Sub, Window};
 use crate::kernel::pending::PendingBuilder;
 use crate::kernel::resolve::{self, Ask, Stage, Step};
-use crate::kernel::{Game, Phase};
+use crate::kernel::{CardId, Game, Phase};
 
 pub struct SkillDef {
     pub code: &'static str,
@@ -291,6 +291,7 @@ pub const SKILLS: &[SkillDef] = &[
     b15::ROULIN,
     b15::BENGKUAI,
     b15::JIUCHI,
+    b15::JIXI,
     b15::BAONUE,
     b15::TUOTIAN,
     b15::ZAOXIAN,
@@ -1673,6 +1674,69 @@ pub fn on_game_start(g: &mut Game) {
             mingren::start_init(g, seat);
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// 结算前钩子（谮毁）：使用瞬间的「代用 / 额外目标」
+// ---------------------------------------------------------------------------
+
+/// 结算前钩子归属：返回需要询问的技能 code（当前只有谮毁；后续同类技能在此登记）。
+///
+/// 口径：只有**该技能持有者自己**使用「【杀】/ 黑色普通锦囊」且**唯一目标**时才有窗口；
+/// 每回合一次（`turn.zanhui_used`，由技能自己维护）。
+pub fn pre_use_owner(
+    g: &Game,
+    user: usize,
+    card: Option<&CardId>,
+    name: &str,
+    targets: &[usize],
+) -> Option<&'static str> {
+    if targets.len() != 1 || !active(g, user, "zanhui") {
+        return None;
+    }
+    if g.turn != user || g.phase != Phase::Play {
+        return None;
+    }
+    if g.counter("turn.zanhui_used") > 0 {
+        return None;
+    }
+    let def = crate::cards::def(name);
+    let eligible = def.tags.sha
+        || (def.kind == crate::cards::CardKind::Trick
+            && !def.tags.delayed
+            && card.is_some_and(|c| !g.is_red(c)));
+    if !eligible {
+        return None;
+    }
+    // 需要有另一个存活角色可作为协助者。
+    let others = (0..g.seats.len())
+        .filter(|i| *i != user && g.seats[*i].hp > 0 && *i != targets[0])
+        .count();
+    (others > 0).then_some("zanhui")
+}
+
+/// 压入结算前钩子的技能询问帧。
+pub fn start_pre_use_ask(
+    g: &mut Game,
+    code: &'static str,
+    user: usize,
+    card: Option<&CardId>,
+    name: &str,
+    targets: &[usize],
+) {
+    resolve::push_ask(
+        g,
+        code,
+        Stage::Choose,
+        user,
+        serde_json::json!({
+            "preuse": true,
+            "user": user,
+            "card": card.map(|c| c.to_string()),
+            "name": name,
+            "targets": targets,
+        }),
+    );
 }
 
 /// 回合结束钩子：把「到期」的延迟结算交给对应技能（目前只有镇骨）。

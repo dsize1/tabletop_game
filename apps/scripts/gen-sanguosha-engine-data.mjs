@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // 由 docs/games/sanguosha/data/{cards,heroes}.json 生成引擎内置数据表
-// （crates/engines/sanguosha/src/data.rs）。
+// （v1 crate 已于 2026-11-10 删除；现只生成 v2 `cards_generated.rs` / `generals_generated.rs` / `engine-catalog.json`）。
 //
 // 用法：
 //   node apps/scripts/gen-sanguosha-engine-data.mjs
@@ -15,6 +15,7 @@
 // - 「主公将」由技能 `type_guess === "lord"` 推出（官网无该字段）。
 // - 输出确定性：同样的输入必然产出逐字节相同的文件。
 
+import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fixedGeneralName } from "./lib/sgs-name-fixes.mjs";
@@ -430,6 +431,7 @@ function buildV2(built, payload) {
     const dt = damageType.get(d.name);
     const damageKind = dt === "fire" ? "Fire" : dt === "thunder" ? "Thunder" : "Normal";
     rows.push({
+      code: d.code,
       name: d.name,
       kind,
       slot: slotOf(d.equip_slot),
@@ -470,7 +472,7 @@ function buildV2(built, payload) {
     for (const c of deck.physical) {
       const def = built.defs.get(c.def);
       if (!def) throw new Error(`物理牌缺少定义：${c.def}`);
-      deckRows.push({ name: def.name, suit: c.suit, rank: c.rank });
+      deckRows.push({ name: def.name, pack: c.pack, suit: c.suit, rank: c.rank });
     }
   }
   return { rows, deckRows };
@@ -515,7 +517,11 @@ function renderV2Generals(generals) {
   L.push("#[derive(Debug, Clone, Copy)]");
   L.push("pub struct GeneralDef {");
   L.push("    pub code: &'static str,");
+  L.push("    /// 官网 gid（素材映射/中台主键）。");
+  L.push("    pub gid: u32,");
   L.push("    pub name: &'static str,");
+  L.push("    /// 武将包 key（`standard` / `wind_fire_forest_mountain` / `yijiang` / `jiexian`）。");
+  L.push("    pub pack: &'static str,");
   L.push("    pub kingdom: &'static str,");
   L.push("    pub male: bool,");
   L.push("    pub max_hp: i32,");
@@ -524,13 +530,21 @@ function renderV2Generals(generals) {
   L.push("    pub status: Status,");
   L.push("}");
   L.push("");
+  L.push("/// 武将包 key（顺序=选将/大厅菜单顺序；`standard` 恒为基数）。");
+  {
+    const keys = [...new Set(generals.map((g) => g.pack))];
+    L.push(`pub const PACK_KEYS: &[&str] = &[${keys.map(rustStr).join(", ")}];`);
+  }
+  L.push("");
   L.push("pub const GENERALS: &[GeneralDef] = &[");
   for (const g of generals) {
     const status = g.status === "live" ? "Live" : g.status === "offline" ? "Offline" : "Review";
     const skills = (g.skills ?? []).map((x) => JSON.stringify(x)).join(", ");
     L.push("    GeneralDef {");
     L.push("        code: " + JSON.stringify(g.code) + ",");
+    L.push("        gid: " + Number(g.gid) + ",");
     L.push("        name: " + JSON.stringify(g.name) + ",");
+    L.push("        pack: " + JSON.stringify(g.pack) + ",");
     L.push("        kingdom: " + JSON.stringify(g.kingdom) + ",");
     L.push("        male: " + (g.gender === "male" ? "true" : "false") + ",");
     L.push("        max_hp: " + g.max_hp + ",");
@@ -580,6 +594,8 @@ function renderV2({ rows, deckRows }) {
   lines.push("");
   lines.push("/// 牌定义（每张名称一条；物理牌实例见 `DECK`）。");
   lines.push("pub struct Row {");
+  lines.push("    /// 定义码（与 v1 `CardDef.code` 一致；场景/模板 token 兼容用）。");
+  lines.push("    pub code: &'static str,");
   lines.push("    pub name: &'static str,");
   lines.push("    pub kind: CardKind,");
   lines.push("    pub slot: Option<Slot>,");
@@ -609,7 +625,7 @@ function renderV2({ rows, deckRows }) {
   lines.push("pub static DEFS: &[Row] = &[");
   for (const r of rows) {
     lines.push(
-      `    Row { name: ${rustStr(r.name)}, kind: CardKind::${r.kind}, slot: ${opt(
+      `    Row { code: ${rustStr(r.code)}, name: ${rustStr(r.name)}, kind: CardKind::${r.kind}, slot: ${opt(
         r.slot,
         (v) => `Slot::${v}`,
       )}, weapon_range: ${opt(r.weapon_range, (v) => v)}, horse: ${opt(
@@ -626,6 +642,8 @@ function renderV2({ rows, deckRows }) {
   lines.push("/// 物理牌（按建堆顺序：standard → junzheng）。");
   lines.push("pub struct Phy {");
   lines.push("    pub name: &'static str,");
+  lines.push("    /// 所属牌堆包（`standard` / `junzheng`；大厅按包组堆）。");
+  lines.push("    pub pack: &'static str,");
   lines.push("    pub suit: Suit,");
   lines.push("    pub rank: u8,");
   lines.push("}");
@@ -633,7 +651,9 @@ function renderV2({ rows, deckRows }) {
   lines.push("#[rustfmt::skip]");
   lines.push("pub static DECK: &[Phy] = &[");
   for (const c of deckRows) {
-    lines.push(`    Phy { name: ${rustStr(c.name)}, suit: Suit::${c.suit}, rank: ${c.rank} },`);
+    lines.push(
+      `    Phy { name: ${rustStr(c.name)}, pack: ${rustStr(c.pack)}, suit: Suit::${c.suit}, rank: ${c.rank} },`,
+    );
   }
   lines.push("];");
   lines.push("");
@@ -966,9 +986,11 @@ async function main() {
     .map((p) => `${p.label} ${p.picked.length}`)
     .join(" + ");
 
+  // v1 crate 删除后 `--out` 目录不存在：v1 产物变为可选（S6 起只校验 v2 + catalog）。
+  const v1Present = existsSync(dirname(opts.out));
   if (opts.check) {
     const targets = [
-      { out: opts.out, text, label: "v1 data.rs" },
+      ...(v1Present ? [{ out: opts.out, text, label: "v1 data.rs" }] : []),
       { out: opts.outV2, text: textV2, label: "v2 cards_generated.rs" },
       { out: opts.catalog, text: textCatalog, label: "engine-catalog.json" },
       { out: opts.outV2Generals, text: textV2Generals, label: "v2 generals_generated.rs" },
@@ -987,22 +1009,26 @@ async function main() {
       }
     }
     console.log(
-      `[check] OK：${built.total} 张牌（${deckSummary}）/ ${gens.total} 位武将（${generalSummary}）/ v2 ${v2.deckRows.length} 张物理牌 + ${v2.rows.length} 条定义 / catalog ${catalog.generals.length} 将 + ${catalog.card_defs.length} 定义，三个产物均为最新`,
+      `[check] OK：${built.total} 张牌（${deckSummary}）/ ${gens.total} 位武将（${generalSummary}）/ v2 ${v2.deckRows.length} 张物理牌 + ${v2.rows.length} 条定义 / catalog ${catalog.generals.length} 将 + ${catalog.card_defs.length} 定义，产品均为最新（v1 ${v1Present ? "已校验" : "已删除，跳过"}）`,
     );
     return;
   }
 
-  await mkdir(dirname(opts.out), { recursive: true });
-  await writeFile(opts.out, text, "utf8");
+  if (v1Present) {
+    await mkdir(dirname(opts.out), { recursive: true });
+    await writeFile(opts.out, text, "utf8");
+  }
   await mkdir(dirname(opts.outV2), { recursive: true });
   await writeFile(opts.outV2, textV2, "utf8");
   await mkdir(dirname(opts.catalog), { recursive: true });
   await writeFile(opts.catalog, textCatalog, "utf8");
   await mkdir(dirname(opts.outV2Generals), { recursive: true });
   await writeFile(opts.outV2Generals, textV2Generals, "utf8");
-  console.log(
-    `[gen] ${built.defs.size} 个牌定义 / ${built.total} 张物理牌（${deckSummary}）/ ${gens.total} 位武将（${generalSummary}）→ ${opts.out}`,
-  );
+  if (v1Present) {
+    console.log(
+      `[gen] ${built.defs.size} 个牌定义 / ${built.total} 张物理牌（${deckSummary}）/ ${gens.total} 位武将（${generalSummary}）→ ${opts.out}`,
+    );
+  }
   console.log(
     `[gen] v2：${v2.rows.length} 条牌定义 / ${v2.deckRows.length} 张物理牌 → ${opts.outV2}`,
   );

@@ -66,7 +66,7 @@
 - `EnginePlugin` 新增两个默认方法（其它引擎可不实现）：
   - `validate_state(&GameState)`：校验快照可用于预览（schema/座位/资源守恒/武将技能 code）；
   - `apply_scene(&GameState, &Value)`：结构化场景注入（`SceneSpec`），返回新状态。
-- 三国杀实现见 `crates/engines/sanguosha/src/scene.rs`：座位/回合/阶段/牌堆顶/种子/计数器；卡牌只做移动，不新增。
+- 三国杀实现见 `crates/engines/sanguosha2/src/sandbox.rs`（v2；`apply_scene`）：座位/回合/阶段/牌堆顶/种子/计数器；卡牌只做移动，不新增。v1 crate 已于 2026-11-10 删除。
 - `crates/server/src/preview.rs`：每个预览会话独立 `GameManager`（共享 `EngineRegistry`），房间号 `preview:<uuid>`，**不注册 `active_by_group`、不写 `game_state`/`game_events`/`game_decision_log`**；TTL/上限见 ADR-0033。
 - 模板表 `game_state_templates`（`crates/storage/src/templates.rs`）只存快照与 `meta.scene`，是预览输入而非真相源。
 - 预览动作/AI 与线上共用 `EnginePlugin::execute_action` / `decide_traced`，但 persist 只写会话内存时间线。

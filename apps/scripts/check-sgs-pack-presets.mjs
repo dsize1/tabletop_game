@@ -17,8 +17,8 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 const CATALOG_JSON = resolve("docs", "games", "sanguosha", "data", "engine-catalog.json");
-const LIB_RS = resolve("crates", "engines", "sanguosha", "src", "lib.rs");
-const STATE_RS = resolve("crates", "engines", "sanguosha", "src", "state.rs");
+const LIB_RS = resolve("crates", "engines", "sanguosha2", "src", "lobby.rs");
+const STATE_RS = resolve("crates", "engines", "sanguosha2", "src", "lobby.rs");
 const DATA_MODEL_MD = resolve("docs", "games", "sanguosha", "data-model.md");
 const LEGAL_ACTIONS_MD = resolve("docs", "games", "sanguosha", "legal-actions.md");
 
@@ -70,9 +70,12 @@ function poolOf(generals, mode) {
   const packs = new Set(mode.split("+"));
   const codes = generals.filter((g) => packs.has(g.pack));
   const jieNames = new Set(
-    codes.filter((g) => g.pack === "jiexian").map((g) => g.name.replace(/^界/, "")),
+    codes.filter((g) => g.pack === "jiexian").map((g) => g.name.replace(/^(界|将)/, "")),
   );
-  return codes.filter((g) => g.pack === "jiexian" || !jieNames.has(g.name));
+  // 候选名也要去掉「界/将」前缀再比对（否则「将华雄」不会被「界华雄」去重 → 多算 1 位）。
+  return codes.filter(
+    (g) => g.pack === "jiexian" || !jieNames.has(g.name.replace(/^(界|将)/, "")),
+  );
 }
 
 function labelOf(mode) {
@@ -118,8 +121,7 @@ if (!libRs.includes("general_pack_presets()")) {
 // 2026-11-02 用户裁定：默认全部已实现武将（名称勘误后去重 148 位）。这里只断言「默认 = 全量包组合」，
 // 具体生成方式（`GENERAL_PACK_KEYS` 映射）不锁死实现细节。
 if (
-  !/pub fn default_general_packs\(\) -> Vec<String> \{/.test(stateRs) ||
-  !/default_general_packs[\s\S]{0,400}GENERAL_PACK_KEYS/.test(stateRs)
+  !/general_packs: "standard\+wind_fire_forest_mountain\+yijiang\+jiexian"/.test(stateRs)
 ) {
   fail("state.rs：default_general_packs 应默认启用全部包（全将，2026-11-02 口径）");
 }

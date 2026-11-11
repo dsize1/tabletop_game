@@ -6,7 +6,6 @@ members = [
     "game-engine-core",
     "engines/las-vegas",
     "engines/rock-paper-scissors",
-    "engines/sanguosha",
     "engines/sanguosha2",
     "game-engine-mcp",
     "docs-mcp",

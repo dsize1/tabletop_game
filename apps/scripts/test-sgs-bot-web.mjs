@@ -350,9 +350,10 @@ try {
     botStepsSeen + driveBotSteps + botTurnSeen > 0,
     `至少一次真人动作触发机器人推进（响应 ${botStepsSeen} + drive ${driveBotSteps} + 回合回归 ${botTurnSeen}）`,
   );
+  // 身份局随机武将下真人可能早死（合法终局）：终局即视为达标，否则要求推进足够多步。
   assert(
-    steps >= MIN_HUMAN_ACTIONS,
-    `真人至少推进 ${MIN_HUMAN_ACTIONS} 个动作（实际 ${steps}）`,
+    finished || steps >= MIN_HUMAN_ACTIONS,
+    `真人推进 ${steps}/${MIN_HUMAN_ACTIONS} 个动作${finished ? "（已终局）" : ""}`,
   );
   // 终局与否不作为硬断言：一局长度方差很大（真人挂机时机器人互打可能很久）。
   // 「能打完整局」由 `npm run check:sgs-ai`（全将 100 局 strict）负责。

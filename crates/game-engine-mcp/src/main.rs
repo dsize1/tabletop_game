@@ -381,7 +381,7 @@ impl EngineServer {
                 las_vegas::ai::HeuristicPolicy.choose(&state, &p.player_id, &actions, &mut rng)
             }
             "sanguosha" => {
-                let t = sanguosha::ai::decide_traced(&state, &p.player_id, &actions);
+                let t = sanguosha2::ai::decide_traced(&state, &p.player_id, &actions);
                 trace = t.clone();
                 t.map(|t| t.action)
             }
@@ -435,9 +435,7 @@ impl EngineServer {
                     .manager
                     .legal_actions(&p.room_id, &p.player_id)
                     .unwrap_or_default();
-                let digest = sanguosha::SgsState::parse(&st.data)
-                    .ok()
-                    .map(|s| sanguosha::ai::state_digest(&s));
+                let digest = sanguosha2::ai::state_digest_of(st);
                 (legal, digest)
             }
             _ => (Vec::new(), None),
@@ -486,7 +484,7 @@ async fn main() -> anyhow::Result<()> {
     let mut registry = EngineRegistry::new();
     registry.register(rock_paper_scissors::RpsEngine);
     registry.register(las_vegas::LasVegasEngine);
-    registry.register(sanguosha::SanguoshaEngine);
+    registry.register(sanguosha2::Sanguosha2Engine);
     let manager = Arc::new(GameManager::new(registry));
 
     // 从 SQLite 恢复活跃对局（引擎重启后内存丢失）
@@ -523,7 +521,7 @@ mod tests {
     fn server_with_sgs() -> (EngineServer, Arc<GameManager>, Arc<storage::Storage>) {
         let storage = Arc::new(storage::Storage::open(":memory:").expect("storage"));
         let mut registry = EngineRegistry::new();
-        registry.register(sanguosha::SanguoshaEngine);
+        registry.register(sanguosha2::Sanguosha2Engine);
         let manager = Arc::new(GameManager::with_rng(registry, Box::new(SeededRng::new(7))));
         let server = EngineServer::new(manager.clone(), storage.clone());
         (server, manager, storage)
@@ -568,9 +566,10 @@ mod tests {
         // 同步后应看到 setup（座位数 5、选将中）。
         server.sync_room(&room);
         let now = manager.get_state(&room).expect("synced");
-        let st = sanguosha::SgsState::parse(&now.data).expect("parse");
-        assert_eq!(st.phase, sanguosha::Phase::Setup, "应已同步到选将阶段");
-        assert_eq!(st.seats.len(), 5);
+        let g: sanguosha2::kernel::Game =
+            serde_json::from_value(now.data.clone()).expect("parse");
+        assert!(g.setup.is_some(), "应已同步到选将阶段");
+        assert_eq!(g.seats.len(), 5);
     }
 
     /// 反向保护：版本没变时不做多余 restore（避免把内存里更新的选择丢掉）。
@@ -598,8 +597,9 @@ mod tests {
             .expect("add bot");
         server.sync_room(&room);
         let now = manager.get_state(&room).expect("state");
-        let st = sanguosha::SgsState::parse(&now.data).expect("parse");
-        assert_eq!(st.seats.len(), 2, "版本未变时不应回滚内存态");
+        let g: sanguosha2::kernel::Game =
+            serde_json::from_value(now.data.clone()).expect("parse");
+        assert_eq!(g.seats.len(), 2, "版本未变时不应回滚内存态");
     }
 
     #[test]

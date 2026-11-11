@@ -737,6 +737,8 @@ pub fn die(g: &mut Game, victim: usize, source: Option<usize>) {
     crate::skills::leaving_dying(g);
     // 死亡钩子（断肠 / 节命「死亡时」）：在死亡清理（延迟项）之前询问。
     crate::skills::on_death(g, victim, source);
+    // 身份局死亡奖惩（杀反贼摸 3 / 主公误杀忠臣弃全部）；非身份局不生效。
+    crate::identity::on_death(g, victim, source);
     let name = g.seats[victim].name.clone();
     g.push_log(format!("{name} 死亡"));
     g.events

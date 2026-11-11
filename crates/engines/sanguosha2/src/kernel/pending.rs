@@ -24,6 +24,10 @@ pub struct Pending {
     data: Value,
     /// 出口选项 id（`pass` / `cancel`），由 builder 保证存在。
     escape_id: String,
+    /// 强制选择类待办：出口只是类型系统占位（如「必须弃至 X 张」「必须失去体力或交牌」）。
+    /// 端侧不展示该出口；提交出口时由 `resolve::submit` 自动选第一个实质选项。
+    #[serde(default)]
+    mandatory: bool,
 }
 
 impl Pending {
@@ -45,6 +49,10 @@ impl Pending {
     pub fn escape_id(&self) -> &str {
         &self.escape_id
     }
+    /// 出口是否为「占位」（强制选择类）：`true` 时端侧不展示、提交时自动改选实质选项。
+    pub fn escape_hidden(&self) -> bool {
+        self.mandatory
+    }
     pub fn has_option(&self, id: &str) -> bool {
         self.options.iter().any(|o| o.id == id)
     }
@@ -62,6 +70,7 @@ pub struct PendingBuilder<S> {
     options: Vec<PendingOption>,
     data: Value,
     escape_id: Option<String>,
+    mandatory: bool,
     _state: PhantomData<S>,
 }
 
@@ -74,6 +83,7 @@ impl PendingBuilder<NoEscape> {
             options: Vec::new(),
             data: Value::Null,
             escape_id: None,
+            mandatory: false,
             _state: PhantomData,
         }
     }
@@ -115,6 +125,27 @@ impl PendingBuilder<NoEscape> {
             options: self.options,
             data: self.data,
             escape_id: self.escape_id,
+            mandatory: false,
+            _state: PhantomData,
+        }
+    }
+
+    /// 强制选择类待办：出口仅满足类型状态（端侧不展示；提交出口 = 自动选第一个实质选项）。
+    pub fn escape_mandatory(mut self, label: impl Into<String>) -> PendingBuilder<HasEscape> {
+        let id = "pass".to_string();
+        self.options.push(PendingOption {
+            id: id.clone(),
+            label: label.into(),
+        });
+        self.escape_id = Some(id);
+        PendingBuilder {
+            actor: self.actor,
+            kind: self.kind,
+            skill: self.skill,
+            options: self.options,
+            data: self.data,
+            escape_id: self.escape_id,
+            mandatory: true,
             _state: PhantomData,
         }
     }
@@ -137,6 +168,7 @@ impl PendingBuilder<NoEscape> {
             options: self.options,
             data: self.data,
             escape_id: self.escape_id,
+            mandatory: false,
             _state: PhantomData,
         }
     }
@@ -157,6 +189,7 @@ impl PendingBuilder<HasEscape> {
             options: self.options,
             data: self.data,
             escape_id: self.escape_id.expect("HasEscape 状态必有出口"),
+            mandatory: self.mandatory,
         }
     }
 }

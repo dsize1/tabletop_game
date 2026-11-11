@@ -3,13 +3,13 @@
 // 数据来源：
 // - docs/games/sanguosha/data/engine-catalog.json → 232 将自己（code/gid/name/pack/kingdom/max_hp/gender/is_lord/skills）
 //   **生成物**（`npm run gen:sgs-engine-data`）；v1 `data.rs` 退役后仍是唯一机器源。
-// - crates/engines/sanguosha/src/skills.rs → 技能实现表（code/name/kind/implemented）+ 武将→技能映射 + EXTRA_SKILLS
+// - crates/engines/sanguosha2/src/skills/*.rs → 技能注册表（code/name）+ 武将→技能映射（v1 crate 已删除）
 //   （v1 删除前保留；v2 注册表接管后迁移，见计划 M4）
 //
 // 口径（用户 2026-11-05 裁定「方案 A」）：
 // 有界版同名武将的原版不进验证批次（界优先去重），剩 148 位 = 默认选将池（232 − 84）。
 
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -19,7 +19,8 @@ const CATALOG_JSON = path.join(
   projectRoot,
   "docs/games/sanguosha/data/engine-catalog.json",
 );
-const SKILLS_RS = path.join(projectRoot, "crates/engines/sanguosha/src/skills.rs");
+// S6：技能事实源 = v2 注册表（v1 `skills.rs` 仅历史；删除后不再读取）。
+const V2_SKILLS_DIR = path.join(projectRoot, "crates/engines/sanguosha2/src/skills");
 
 
 const SKILL_CONST_RE =
@@ -61,21 +62,35 @@ export function loadGenerals() {
   }));
 }
 
-/** 解析技能注册表：{ consts, byGid, extras }。 */
+/** 解析技能注册表：{ consts, byGid, extras }（v2：扫描 `skills/*.rs` 的 SkillDef 块）。 */
 export function loadSkills() {
-  const text = readFileSync(SKILLS_RS, "utf8");
-  const consts = new Map();
-  for (const m of text.matchAll(SKILL_CONST_RE)) {
-    const entries = parseSkillEntries(m[2]);
-    if (entries.length) consts.set(m[1], entries);
+  const nameToCode = new Map();
+  let files = [];
+  try {
+    files = readdirSync(V2_SKILLS_DIR).filter((f) => f.endsWith(".rs"));
+  } catch {
+    return { consts: new Map(), byGid: new Map(), extras: [] };
+  }
+  for (const f of files) {
+    const text = readFileSync(path.join(V2_SKILLS_DIR, f), "utf8");
+    for (const chunk of text.split("SkillDef {").slice(1)) {
+      const block = chunk.slice(0, chunk.indexOf("};"));
+      const code = /code:\s*"([a-z0-9_]+)"/.exec(block)?.[1];
+      const name = /name:\s*"([^"]+)"/.exec(block)?.[1];
+      if (code && name && !nameToCode.has(name)) nameToCode.set(name, code);
+    }
   }
   const byGid = new Map();
-  for (const m of text.matchAll(SKILL_MAP_RE)) {
-    const defs = consts.get(m[2]);
-    if (defs) byGid.set(Number(m[1]), defs);
+  for (const g of loadGenerals()) {
+    const defs = [];
+    for (const name of g.skills ?? []) {
+      const code = nameToCode.get(name);
+      if (code) defs.push({ code, name, kind: "normal", implemented: true });
+    }
+    if (defs.length) byGid.set(g.gid, defs);
   }
-  const extraBlock = EXTRA_RE.exec(text)?.[1] ?? "";
-  return { consts, byGid, extras: parseSkillEntries(extraBlock) };
+  // v2 没有单独的 EXTRA_SKILLS 表：授予技在注册表里（`GRANT_ONLY`）；这里不再单列。
+  return { consts: new Map(), byGid, extras: [] };
 }
 
 /**

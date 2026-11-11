@@ -1,7 +1,7 @@
-//! v2 自对弈（M3 AI 最小接口验收）。
+//! v2 自对弈（S2：**真实 AI** `sanguosha2::ai::BotBrain` 的 100 局回归）。
 //!
-//! 只通过 `EnginePlugin`（legal_actions / execute_action）+ 原始 `Game` 状态决策，
-//! 不碰内核私有字段。确定性：同一 seed 结果可复现。
+//! 只通过 `EnginePlugin`（legal_actions / execute_action）+ AI 决策；不碰内核私有字段。
+//! 与 server 的 `ai::drive_bots` 共用同一份策略（单一事实源）。确定性：同一 seed 结果可复现。
 //!
 //! 用法：
 //!   cargo run -p sanguosha2 --example sgs2-selfplay -- --games 10 --players 5 --seed 1 --json
@@ -14,6 +14,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use game_engine_core::{EnginePlugin, GameState, SeededRng};
+use sanguosha2::ai::BotBrain;
 use sanguosha2::kernel::Game;
 use sanguosha2::Sanguosha2Engine;
 
@@ -37,47 +38,6 @@ fn flag(name: &str) -> bool {
 
 fn parse_state(state: &GameState) -> Game {
     serde_json::from_value(state.data.clone()).expect("状态解析失败")
-}
-
-/// 决策策略（最小 AI）：
-/// - pending：优先 respond/pick/target/cardtarget/discard，其次 confirm，最后 pass；
-///   弃牌阶段必须弃到上限（只提供 discard 选项）。
-/// - 出牌阶段：先出牌（`use:*`），再发技能（`skill:*`），最后 `end_play`。
-fn choose(actions: &[game_engine_core::Action], g: &Game) -> Option<String> {
-    let ids: Vec<&str> = actions.iter().map(|a| a.id.as_str()).collect();
-    if g.pending.is_some() {
-        let kind = g.pending.as_ref().map(|p| p.kind().to_string()).unwrap_or_default();
-        let preference: &[&str] = if kind == "__discard" || kind == "discard_phase" {
-            &["discard:", "confirm"]
-        } else {
-            &[
-                "respond:",
-                "pick:",
-                "cardtarget:",
-                "target:",
-                "reveal:",
-                "discard:",
-                "choose:",
-                "confirm",
-            ]
-        };
-        for pref in preference {
-            if let Some(id) = ids.iter().find(|id| id.starts_with(pref)) {
-                return Some((*id).to_string());
-            }
-        }
-        return ids
-            .iter()
-            .find(|id| **id == "pass")
-            .map(|id| (*id).to_string())
-            .or_else(|| ids.first().map(|id| (*id).to_string()));
-    }
-    for pref in ["use:", "skill:", "recast:", "end_play"] {
-        if let Some(id) = ids.iter().find(|id| id.starts_with(pref)) {
-            return Some((*id).to_string());
-        }
-    }
-    ids.first().map(|id| (*id).to_string())
 }
 
 struct Summary {
@@ -121,13 +81,14 @@ fn main() {
         log_step = 0;
         let mut rng = SeededRng::new(seed + game_idx as u64 * 7919);
         let players_ids: Vec<String> = (0..players).map(|i| format!("p{i}")).collect();
-        let (mut state, _) = engine.new_game(
+        let (mut state, _) = engine.new_started_game(
             &format!("r{game_idx}"),
             "g1",
             players_ids.clone(),
             &mut rng,
         );
         let mut seen: HashMap<String, u32> = HashMap::new();
+        let mut brain = BotBrain::new();
         let mut steps = 0u32;
         let mut done = false;
 
@@ -147,37 +108,49 @@ fn main() {
                 None => g.seats[g.turn].name.clone(),
             };
             let actions = engine.legal_actions(&state, &actor);
-            let Some(action) = choose(&actions, &g) else {
+            let Some(seat) = sanguosha2::view::seat_of(&g, &actor) else {
                 s.stalled += 1;
-                s.errors.push(format!(
-                    "game {game_idx}: no legal action (turn={}, phase={:?}, pending={:?})",
-                    g.turn,
-                    g.phase,
-                    g.pending.as_ref().map(|p| p.kind())
-                ));
+                s.errors.push(format!("game {game_idx}: {actor} 不在座"));
                 break;
             };
+            let Some(choice) = brain.choose(&g, seat, &actions) else {
+                s.loops += 1;
+                s.errors.push(format!("game {game_idx}: loop（无可试动作）"));
+                break;
+            };
+            let action = choice.action.clone();
+            if choice.loop_breaker {
+                s.loops = s.loops.saturating_add(0);
+            }
 
-            // 环检测：同一（回合/阶段/行动者/动作/体力/手牌/牌堆）重复出现 → 判环。
+            // 环检测（第三层兜底）：只看**交互态**（pending）且带技能名。
+            // 出牌阶段「发动技能 → 放弃」会回到完全相同的非 pending 状态（正常），不参与判环。
             let hp: Vec<i32> = g.seats.iter().map(|x| x.hp).collect();
             let hands: Vec<usize> = (0..g.seats.len()).map(|i| g.hand(i).len()).collect();
-            let sig = format!(
-                "{:?}",
-                (
-                    g.turn,
-                    g.phase,
-                    g.pending.as_ref().map(|p| p.kind()),
-                    actor.clone(),
-                    action.clone(),
-                    hp.clone(),
-                    hands.clone()
-                )
+            let trackable = matches!(
+                g.pending.as_ref().map(|p| p.kind()),
+                Some(kind) if !matches!(kind, "wuxie" | "harvest")
             );
-            *seen.entry(sig).or_insert(0) += 1;
-            if seen.values().copied().max().unwrap_or(0) > 6 {
-                s.loops += 1;
-                s.errors.push(format!("game {game_idx}: loop detected at {action}"));
-                break;
+            if trackable {
+                let sig = format!(
+                    "{:?}",
+                    (
+                        g.turn,
+                        g.phase,
+                        g.pending.as_ref().map(|p| p.kind()),
+                        g.pending.as_ref().and_then(|p| p.skill()),
+                        actor.clone(),
+                        action.clone(),
+                        hp.clone(),
+                        hands.clone()
+                    )
+                );
+                *seen.entry(sig).or_insert(0) += 1;
+                if seen.values().copied().max().unwrap_or(0) > 12 {
+                    s.loops += 1;
+                    s.errors.push(format!("game {game_idx}: loop detected at {action}"));
+                    break;
+                }
             }
 
             // 决策日志（每步一行，供 `check:sgs2-decision-log` 校验/排障）。
@@ -191,6 +164,7 @@ fn main() {
                     "phase": format!("{:?}", g.phase),
                     "actor": actor,
                     "pending": g.pending.as_ref().map(|p| p.kind().to_string()),
+                    "pending_skill": g.pending.as_ref().and_then(|p| p.skill().map(str::to_string)),
                     "legal_count": actions.len(),
                     "legal": actions.iter().map(|a| a.id.clone()).collect::<Vec<_>>(),
                     "chosen": action.clone(),
@@ -215,9 +189,46 @@ fn main() {
                 }
                 Err(e) => {
                     s.illegal += 1;
-                    s.errors
-                        .push(format!("game {game_idx}: illegal {action}: {e}"));
-                    break;
+                    s.errors.push(format!(
+                        "game {game_idx}: illegal {action}: {e}（pending={:?}/{:?}）",
+                        g.pending.as_ref().map(|p| p.kind().to_string()),
+                        g.pending.as_ref().and_then(|p| p.skill())
+                    ));
+                    // 与 `ai::drive_bots` 同口径：被拒后回落到 pass/confirm/end_play/其它动作，
+                    // 不让一局因单步非法而整局中止（非法次数仍计入统计）。
+                    let fallback = ["pass", "confirm", "end_play"]
+                        .iter()
+                        .find(|id| actions.iter().any(|a| a.id == **id))
+                        .map(|id| (*id).to_string())
+                        .or_else(|| {
+                            actions
+                                .iter()
+                                .map(|a| a.id.clone())
+                                .find(|id| id != &action)
+                        });
+                    let Some(fb) = fallback else {
+                        break;
+                    };
+                    match engine.execute_action(&state, &actor, &fb, &mut rng) {
+                        Ok(res) => {
+                            steps += 1;
+                            s.steps += 1;
+                            state = res.state;
+                            if res.finished {
+                                let g = parse_state(&state);
+                                let w = g.winner.clone().unwrap_or_else(|| "unknown".to_string());
+                                *s.winners.entry(w).or_insert(0) += 1;
+                                done = true;
+                                break;
+                            }
+                        }
+                        Err(e2) => {
+                            s.errors.push(format!(
+                                "game {game_idx}: fallback {fb} 也失败：{e2}"
+                            ));
+                            break;
+                        }
+                    }
                 }
             }
         }

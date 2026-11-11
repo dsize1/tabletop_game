@@ -618,7 +618,10 @@ try {
     method: "POST",
     body: { snapshot: tpl.body.snapshot, scene },
   });
-  assert(sceneOk.status === 200 && sceneOk.body.seat_count === 5, "合法场景校验通过（5 人）");
+  assert(
+    sceneOk.status === 200 && sceneOk.body.seat_count === 5,
+    `合法场景校验通过（5 人）：${sceneOk.status} ${JSON.stringify(sceneOk.body).slice(0, 300)}`,
+  );
 
   // 7) 创建预览（模板 + 场景）
   const createdPreview = await api("/internal/game/preview", {
@@ -639,11 +642,14 @@ try {
   assert(rawView.status === 200, "读取预览 raw 状态");
   const rawState = rawView.body.raw?.data;
   assert(rawState?.seats?.[0]?.chained === true, "场景注入生效：座位 0 横置");
-  assert(rawState?.seats?.[0]?.mark_counts?.e2e === 1, "场景注入生效：标记 e2e=1");
-  const handDefs = (rawState?.seats?.[0]?.hand ?? []).map((id) => rawState.cards?.[id]?.def);
+  // v2：座位的标记计数在 `counters`（v1 是 `mark_counts`）。
+  const counters = rawState?.seats?.[0]?.counters ?? rawState?.seats?.[0]?.mark_counts ?? {};
+  assert(counters?.e2e === 1, "场景注入生效：标记 e2e=1");
+  // 手牌在个人视图（v2 原始 state 不含手牌区明细）；token 用 v1 定义码 `sha`/`shan`。
+  const handNames = (rawView.body.player?.data?.player_area?.hand ?? []).map((c) => c.name);
   assert(
-    handDefs.length >= 2 && handDefs[0] === "sha" && handDefs[1] === "shan",
-    `场景注入生效：手牌为 sha/shan（实际 ${handDefs.slice(0, 3).join(",")}）`,
+    handNames.length >= 2 && handNames.includes("杀") && handNames.includes("闪"),
+    `场景注入生效：手牌含 杀/闪（实际 ${handNames.slice(0, 3).join(",")}）`,
   );
 
   // 8) 视图 + 动作 + AI + 重置
@@ -719,10 +725,11 @@ try {
   assert(meta.status === 200, `沙盒 meta 可用（${meta.status}）`);
   const metaGenerals = meta.body?.generals ?? [];
   // 名称勘误（2026-11-05）后默认去重池由 149 降为 148（张昭张纮 与界版同名被去重）。
-  assert(metaGenerals.length === 148, `沙盒武将池为 148 去重（实际 ${metaGenerals.length}）`);
+  // v2 上线池 147（界优先去重；v1 catalog 的 148 含已下线原版）。
+  assert(metaGenerals.length === 147, `沙盒武将池为 147 去重（实际 ${metaGenerals.length}）`);
   assert(meta.body?.identities?.["5"]?.lord === 1, "沙盒身份配比：5 人 1 主");
   const g = metaGenerals.slice(0, 5).map((x) => x.code);
-  const ids = ["lord", "loyalist", "rebel", "rebel", "spy"];
+  const ids = ["lord", "loyalist", "rebel", "rebel", "traitor"];
   const seatsSpec = g.map((general, index) => ({ index, general, identity: ids[index] }));
   const sandboxCreated = await api("/internal/game/preview/sandbox", {
     method: "POST",
@@ -746,18 +753,29 @@ try {
   );
   assert(sandboxView.status === 200, "读取沙盒 raw 状态");
   const sandboxRaw = sandboxView.body.raw?.data;
-  assert(sandboxRaw?.phase === "turn", "沙盒跳过选将：phase=turn");
+  // v2：跳过 lobby/setup，直接进入回合内阶段（prepare/judge/draw/play/discard/end）。
+  assert(
+    ["prepare", "judge", "draw", "play", "discard", "end"].includes(
+      String(sandboxRaw?.phase ?? "").toLowerCase(),
+    ),
+    `沙盒跳过选将：phase=${sandboxRaw?.phase}`,
+  );
   assert(sandboxRaw?.turn === 0, "沙盒主公先手（seat 0）");
   assert(
-    (sandboxRaw?.seats ?? []).every((x) => x.is_bot === true),
+    (sandboxRaw?.seats ?? []).every((x) => x.is_bot === true || x.bot === true),
     "沙盒所有座位都是 bot",
   );
+  // 手牌在 v2 是牌区（raw state 不暴露明细）：用个人视图校验每人不低于 4 张。
+  for (const pid of ["bot:1", "bot:2", "bot:3", "bot:4", "bot:5"]) {
+    const pv2 = await api(
+      `/internal/game/preview/${encodeURIComponent(sandboxId)}?viewer=${encodeURIComponent(pid)}`,
+    );
+    const hand = pv2.body.player?.data?.player_area?.hand ?? [];
+    assert(hand.length >= 4, `沙盒 ${pid} 至少 4 张初始手牌（实际 ${hand.length}）`);
+  }
   assert(
-    (sandboxRaw?.seats ?? []).every((x) => (x.hand ?? []).length >= 4),
-    "沙盒每人至少 4 张初始手牌",
-  );
-  assert(
-    (sandboxRaw?.seats ?? []).map((x) => x.identity).join(",") === "lord,loyalist,rebel,rebel,spy",
+    (sandboxRaw?.seats ?? []).map((x) => x.identity).join(",") ===
+      "lord,loyalist,rebel,rebel,traitor",
     "沙盒身份按指定配比",
   );
   assert(
@@ -769,9 +787,8 @@ try {
     "沙盒武将不重复",
   );
   assert(
-    (sandboxRaw?.deck?.draw ?? []).length + (sandboxRaw?.seats ?? []).reduce((n, x) => n + (x.hand ?? []).length, 0) <=
-      Object.keys(sandboxRaw?.cards ?? {}).length,
-    "沙盒牌数不超实例总数（守恒由引擎保证）",
+    Object.keys(sandboxRaw?.cards ?? {}).length === 160,
+    "沙盒牌实例总数应为 160（守恒由引擎保证）",
   );
 
   // 负向：重复武将 / 主公超配比 / 人数越界

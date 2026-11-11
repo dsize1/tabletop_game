@@ -202,7 +202,7 @@ interface GameState {
   data?: {
     phase?: string;
     turn?: number;
-    seats?: Array<{ player_id: string; is_bot?: boolean }>;
+    seats?: Array<{ player_id?: string; name?: string; is_bot?: boolean; bot?: boolean }>;
     small_game_count?: number;
     winners?: string[];
     scores?: Record<string, number>;
@@ -1160,6 +1160,11 @@ function sgsTarget(roomId: string, openid: string): string {
   );
 }
 
+// 引擎原始 state 的座位字段适配：v1 是 `player_id`/`is_bot`，v2 是 `name`/`bot`。
+type RawSeat = { player_id?: string; name?: string; is_bot?: boolean; bot?: boolean };
+const seatPid = (s: RawSeat | undefined | null): string => s?.player_id ?? s?.name ?? "";
+const seatIsBot = (s: RawSeat | undefined | null): boolean => Boolean(s?.is_bot ?? s?.bot);
+
 /** 列出本局全部「非机器人」玩家的登录链接（开局/开始时用）。 */
 async function issueSgsPlayerLinks(
   redis: Redis,
@@ -1170,8 +1175,9 @@ async function issueSgsPlayerLinks(
   const names = await loadNames(redis, groupId, st);
   const out: { name: string; url: string }[] = [];
   for (const seat of st.data?.seats ?? []) {
-    if (!seat?.player_id || seat.is_bot) continue;
-    const openid = seat.player_id;
+    const pid = seatPid(seat);
+    if (!pid || seatIsBot(seat)) continue;
+    const openid = pid;
     const url = await makeLoginUrl({
       groupId,
       openid,
@@ -1238,9 +1244,10 @@ async function loadNames(
   }
   let botIdx = 0;
   for (const s of st.data?.seats ?? []) {
-    if (s.is_bot) {
+    if (seatIsBot(s)) {
       botIdx += 1;
-      names[s.player_id] = `机器人${botIdx}`;
+      const pid = seatPid(s);
+      if (pid) names[pid] = `机器人${botIdx}`;
     }
   }
   return names;
@@ -1288,10 +1295,12 @@ async function buildGuidance(
     return "等待房主「#开始」开赛；其他人可「#加入」，房主可「#加机器人」。";
   }
   const actor =
-    d.phase === "small_game" ? d.sg?.pending?.actor : d.seats?.[d.turn ?? -1]?.player_id;
+    d.phase === "small_game"
+      ? d.sg?.pending?.actor
+      : seatPid(d.seats?.[d.turn ?? -1] as RawSeat | undefined);
   if (!actor) return "";
-  const seat = (d.seats ?? []).find((s) => s.player_id === actor);
-  if (seat?.is_bot) {
+  const seat = (d.seats ?? []).find((s) => seatPid(s as RawSeat) === actor);
+  if (seatIsBot(seat as RawSeat | undefined)) {
     return `轮到 ${actor} 行动…`;
   }
   const legal = parseJson<LegalAction[]>(await engine.getLegalActions(roomId, actor), []);
@@ -1401,9 +1410,11 @@ async function driveBots(
     if (st.game_id === SANGUOSHA_GAME_ID) break;
     const d = st.data;
     const actor =
-      d.phase === "small_game" ? d.sg?.pending?.actor : d.seats?.[d.turn ?? -1]?.player_id;
-    const seat = (d.seats ?? []).find((s) => s.player_id === actor);
-    if (!actor || !seat?.is_bot) break;
+      d.phase === "small_game"
+        ? d.sg?.pending?.actor
+        : seatPid(d.seats?.[d.turn ?? -1] as RawSeat | undefined);
+    const seat = (d.seats ?? []).find((s) => seatPid(s as RawSeat) === actor);
+    if (!actor || !seatIsBot(seat as RawSeat | undefined)) break;
     const raw = await engine.botAction(roomId, actor);
     if (raw.startsWith("错误")) {
       console.error("[agent-gateway] bot_action 失败:", raw);
