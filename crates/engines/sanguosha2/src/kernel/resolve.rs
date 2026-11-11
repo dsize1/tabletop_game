@@ -112,6 +112,26 @@ pub struct Ask {
     pub data: Value,
 }
 
+impl Ask {
+    /// **事件发生时刻**的回合座位（事件快照；不要改读 live `g.turn`）。
+    pub fn event_turn(&self) -> Option<usize> {
+        self.data["turn"].as_u64().map(|n| n as usize)
+    }
+
+    /// **事件发生时刻**的阶段（事件快照）。
+    pub fn event_phase(&self) -> Option<Phase> {
+        match self.data["phase"].as_str()? {
+            "Prepare" => Some(Phase::Prepare),
+            "Judge" => Some(Phase::Judge),
+            "Draw" => Some(Phase::Draw),
+            "Play" => Some(Phase::Play),
+            "Discard" => Some(Phase::Discard),
+            "End" => Some(Phase::End),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Frame {
     Ask(Ask),

@@ -231,3 +231,40 @@ B 的正确实现待改：在 `PhaseEnd` 事件里携带「本回合计数快照
 | `awaiting_input` API | 未补 | 探针已用 pending 分类替代 |
 
 > 剩余项均已在门禁/白名单/台账显式登记，不再是「沉默实现」；但 M10、14 handler、制霸被动仍需在 V2 收口批次完成。
+
+## 8. 会话收口 / 下会话交接（2026-11-11）
+
+### 8.1 本会话已收口（代码 + 门禁 + 文档）
+
+| 项 | 落点 |
+|---|---|
+| 奋激口径 A→B（被其他角色弃置/获得；排除摸牌阶段摸牌与自己的弃牌） | `b0::fenji_subject`、`Event.by/from`、`align/B0.md`、`rules-rulings §44` |
+| M1 事件快照 / M2 开局生命周期 / M13 牌移动来源 | `Event.turn/phase/lifecycle/by/from`、`Game::emit`、`Lifecycle::Setup`、`action_actor` |
+| M12=B 结束阶段时序（含伪 PhaseEnd 修复） | `switch_to` + `complete_turn_switch` + `retry_phase`；用例 `b2::zuilun_phase_end_settles_before_turn_switch` |
+| M14 牌堆重洗 / M15 陈旧响应 | `refill_draw_from_discard`、`respond` 缺失时按未响应 |
+| B1 kind + 主公技统一闸门 | `SkillKind`、`lord_gate_ok`（黄天等他人使用豁免） |
+| B2 技能体力单出口 26→0 | `flow::heal/lose_hp/revive_to/revive_add/clamp_hp/heal_raw` |
+| B3 可见标记（裔/变/辎） | `VISIBLE_COUNTER_MARKS` + 视图投影 |
+| B4 内核去技能名 17→3 | `skills::distance_from_delta / hand_limit_* / reach_override / dying_support_* / ...` |
+| M10 裁定↔用例门禁 | `check:sgs-align`；B0 已回填 9 条，余 766 legacy（显式计数） |
+| M11 开局就绪 | `Game::awaiting_input()` |
+| 约定门禁 | `check:sgs2-conventions` C1–C6 + `conventions-allowlist.json`（逐条理由） |
+| 机制优先规范 | `coding-standards.md`、`skill-spec-rules.md` |
+
+### 8.2 下会话待办（按依赖分组）
+
+**需要用户裁定（阻塞）**
+1. AI 长局口径：`seed=3` 超长局（>12000 步未终局，无 illegal/loop）。三选一：
+   ①规则层允许「回合上限=平局」；②提高 AI 进攻性；③门禁区分「长局」与「卡死」。
+2. 制霸被动挑战（他人与孙策拼点、可拒绝）是否本期实现。
+
+**需要机制设计（不宜会话尾硬改）**
+3. M9「空选项自动跳过」：需要 **pending 身份（window id）+ 步骤收尾语义**；试运行已回滚（与借刀/攻心冲突）。
+4. B4 余 3 处：蛊惑响应窗口 / 激将接力 / 酣战拼点前窗口 → 抽 `response/relay/pindian_pre` 通用通道。
+5. M8 计数器 `Scope` 注册表（当前 10 处显式白名单）。
+
+**可独立推进（无阻塞）**
+6. 13 个触发 handler 迁移到 `Ask::event_turn()/event_phase()`（helper 已提供）。
+7. M10 legacy 回填（按批；B0 为范例，建议优先 B1–B4）。
+8. `check:sgs2` 全量复跑（AI 长局口径确定后）+ 8 人局/群入口验证。
+9. 147 将机检重跑（B0–B20）刷新 `general-audit-evidence.md` 与走查单。
