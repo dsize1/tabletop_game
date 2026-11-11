@@ -16,7 +16,7 @@ use crate::kernel::resolve::{self, Ask, Stage, Step};
 use crate::kernel::{flow, CardId, Game, Phase, Zone};
 use crate::presentation::{POutcome, Presentation};
 
-use super::{active, other_alive, quan, SkillDef};
+use super::{active, other_alive, quan, SkillDef, SkillKind};
 
 // ---------------------------------------------------------------------------
 // 通用小工具（都只读卡牌属性 / 派生查询，不按牌名分支）
@@ -68,7 +68,7 @@ fn label(g: &Game, id: &CardId) -> String {
 // 散谣（马谡）：出牌阶段各限一次，弃一张牌（手牌/装备区）对最大者造成 1 点伤害
 // ---------------------------------------------------------------------------
 
-pub const SANYAO: SkillDef = SkillDef {
+pub const SANYAO: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "sanyao",
     name: "散谣",
     triggers: &[],
@@ -238,7 +238,7 @@ fn sanyao(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 制蛮（马谡）：造成伤害时（结算之前）可防止并获得其区域里一张牌
 // ---------------------------------------------------------------------------
 
-pub const ZHIMAN: SkillDef = SkillDef {
+pub const ZHIMAN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "zhiman",
     name: "制蛮",
     triggers: &[],
@@ -357,7 +357,7 @@ fn zhiman(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 奇策（荀攸）：所有手牌当任意非延迟锦囊使用
 // ---------------------------------------------------------------------------
 
-pub const QICE: SkillDef = SkillDef {
+pub const QICE: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "qice",
     name: "奇策",
     triggers: &[],
@@ -545,7 +545,7 @@ fn qice_wuxie_use(g: &mut Game, seat: usize, action: &str) -> Result<bool, Strin
 // 智愚（荀攸）：受到伤害后，可以摸 1 张并展示手牌；颜色均相同则来源弃 1 张手牌
 // ---------------------------------------------------------------------------
 
-pub const ZHIYU: SkillDef = SkillDef {
+pub const ZHIYU: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "zhiyu",
     name: "智愚",
     triggers: &[EventKind::DamageAfter],
@@ -677,7 +677,7 @@ fn zhiyu(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 权计（钟会）：受到 1 点伤害后，可以摸 1 张，然后将一张手牌置为「权」（移出游戏）
 // ---------------------------------------------------------------------------
 
-pub const QUANJI: SkillDef = SkillDef {
+pub const QUANJI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "quanji",
     name: "权计",
     triggers: &[EventKind::DamageAfter],
@@ -804,7 +804,7 @@ fn next_quanji_point(_g: &mut Game, remaining: i64) -> Result<Step, String> {
 // 自立（钟会·觉醒）：准备阶段「权」≥3 → 回复 1 / 摸 2，然后减上限并获得「排异」
 // ---------------------------------------------------------------------------
 
-pub const ZILI: SkillDef = SkillDef {
+pub const ZILI: SkillDef = SkillDef { kind: SkillKind::Awaken,
     code: "zili",
     name: "自立",
     triggers: &[EventKind::PhaseStart],
@@ -859,7 +859,7 @@ fn zili(g: &mut Game, a: &Ask) -> Result<Step, String> {
             Some(act @ ("opt1" | "opt2")) => {
                 let actor = a.actor;
                 if act == "opt1" {
-                    g.seats[actor].hp += 1;
+                    flow::heal(g, actor, 1, "zili");
                     g.push_log(format!("自立：回复 1 点体力（体力 {}）", g.seats[actor].hp));
                 } else {
                     let n = g.draw(actor, 2).len();
@@ -897,7 +897,7 @@ fn zili(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 峻刑（满宠）：弃任意张手牌 → 一名其他角色二选一
 // ---------------------------------------------------------------------------
 
-pub const JUNXING: SkillDef = SkillDef {
+pub const JUNXING: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "junxing",
     name: "峻刑",
     triggers: &[],
@@ -1137,7 +1137,7 @@ fn junxing(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 御策（满宠）：受到伤害后，可以展示一张手牌令来源二选一
 // ---------------------------------------------------------------------------
 
-pub const YUCE: SkillDef = SkillDef {
+pub const YUCE: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "yuce",
     name: "御策",
     triggers: &[EventKind::DamageAfter],
@@ -1183,7 +1183,7 @@ fn yuce(g: &mut Game, a: &Ask) -> Result<Step, String> {
         // 裁定 Q1/Q3：来源无手牌 → 不询问，直接回复 1 点；此时若体力已满则不能发动。
         if g.hand(source).is_empty() {
             if g.seats[a.actor].hp < g.seats[a.actor].max_hp {
-                g.seats[a.actor].hp += 1;
+                flow::heal(g, a.actor, 1, "yuce");
                 g.presentation.push(
                     Presentation::new("yuce", POutcome::Heal { amount: 1 })
                         .actor(a.actor)
@@ -1301,7 +1301,7 @@ fn yuce(g: &mut Game, a: &Ask) -> Result<Step, String> {
                         g.conceal(&shown.to_string(), "yuce_done");
                     }
                     if g.seats[a.actor].hp < g.seats[a.actor].max_hp {
-                        g.seats[a.actor].hp += 1;
+                        flow::heal(g, a.actor, 1, "yuce");
                     }
                     let hp = g.seats[a.actor].hp;
                     g.presentation.push(
@@ -1376,7 +1376,7 @@ fn yuce(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 龙吟（关平）：一名角色于其出牌阶段内使用【杀】时，弃一张牌令其不计次数
 // ---------------------------------------------------------------------------
 
-pub const LONGYIN: SkillDef = SkillDef {
+pub const LONGYIN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "longyin",
     name: "龙吟",
     triggers: &[EventKind::CardUsed],

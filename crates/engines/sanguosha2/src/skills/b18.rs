@@ -31,7 +31,7 @@ use crate::kernel::event::{EventKind, Window};
 use crate::kernel::resolve::{Ask, Stage, Step};
 use crate::kernel::{flow, CardId, Game, Phase, Slot, Zone};
 
-use super::{active, builder, other_alive, SkillDef};
+use super::{active, builder, other_alive, SkillDef, SkillKind};
 
 const SLOTS: [Slot; 5] = [
     Slot::Weapon,
@@ -70,7 +70,7 @@ fn lost_hp(g: &Game, seat: usize) -> usize {
 // 贞烈（界王异）
 // ---------------------------------------------------------------------------
 
-pub const ZHENLIE: SkillDef = SkillDef {
+pub const ZHENLIE: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "zhenlie",
     name: "贞烈",
     triggers: &[],
@@ -265,7 +265,7 @@ pub fn trick_intercept_owner(
 // 秘计（界王异）：结束阶段（需贞烈②授权）摸 X，交给其他角色至多 X 张
 // ---------------------------------------------------------------------------
 
-pub const MIJI: SkillDef = SkillDef {
+pub const MIJI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "miji",
     name: "秘计",
     triggers: &[EventKind::PhaseStart],
@@ -427,7 +427,7 @@ fn miji(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 绝情（界张春华，锁定）
 // ---------------------------------------------------------------------------
 
-pub const JUEQING: SkillDef = SkillDef {
+pub const JUEQING: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "jueqing",
     name: "绝情",
     triggers: &[],
@@ -468,7 +468,7 @@ pub fn on_damage_to_hp_loss(
 // 伤逝（界张春华）
 // ---------------------------------------------------------------------------
 
-pub const SHANGSHI: SkillDef = SkillDef {
+pub const SHANGSHI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "shangshi",
     name: "伤逝",
     triggers: &[EventKind::CardLost, EventKind::PhaseStart],
@@ -526,7 +526,7 @@ fn shangshi(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 翦灭（界张春华）
 // ---------------------------------------------------------------------------
 
-pub const JIANMIE: SkillDef = SkillDef {
+pub const JIANMIE: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "jianmie",
     name: "翦灭",
     triggers: &[],
@@ -669,7 +669,7 @@ fn discard_color(g: &mut Game, seat: usize, red: bool) -> Result<u32, String> {
 // 自守（界刘表）
 // ---------------------------------------------------------------------------
 
-pub const ZISHOU: SkillDef = SkillDef {
+pub const ZISHOU: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "zishou",
     name: "自守",
     triggers: &[EventKind::PhaseStart],
@@ -849,7 +849,7 @@ pub fn on_card_use_for_zishou(g: &mut Game, seat: usize, name: &str) {
 // 宗室（界刘表，锁定）
 // ---------------------------------------------------------------------------
 
-pub const ZONGSHI: SkillDef = SkillDef {
+pub const ZONGSHI: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "zongshi",
     name: "宗室",
     triggers: &[],
@@ -968,7 +968,7 @@ fn zongshi(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 献州（界蔡夫人，限定）
 // ---------------------------------------------------------------------------
 
-pub const XIANZHOU: SkillDef = SkillDef {
+pub const XIANZHOU: SkillDef = SkillDef { kind: SkillKind::Limited,
     code: "xianzhou",
     name: "献州",
     triggers: &[],
@@ -1144,7 +1144,7 @@ fn xianzhou(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 窃听（界蔡夫人）
 // ---------------------------------------------------------------------------
 
-pub const QIETING: SkillDef = SkillDef {
+pub const QIETING: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "qieting",
     name: "窃听",
     triggers: &[],
@@ -1321,7 +1321,7 @@ fn steal_equip(g: &mut Game, owner: usize, act: &str) -> Result<(), String> {
 // 称象（界曹冲）
 // ---------------------------------------------------------------------------
 
-pub const CHENGXIANG: SkillDef = SkillDef {
+pub const CHENGXIANG: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "chengxiang",
     name: "称象",
     triggers: &[EventKind::DamageAfter],
@@ -1535,7 +1535,7 @@ fn finish_chengxiang(
 // 仁心（界曹冲）：其他角色濒死时，弃装备翻面 → 回复至 1
 // ---------------------------------------------------------------------------
 
-pub const RENXIN: SkillDef = SkillDef {
+pub const RENXIN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "renxin",
     name: "仁心",
     triggers: &[],
@@ -1632,7 +1632,7 @@ fn renxin(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 落英（界曹植）
 // ---------------------------------------------------------------------------
 
-pub const LUOYING: SkillDef = SkillDef {
+pub const LUOYING: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "luoying",
     name: "落英",
     triggers: &[EventKind::CardDiscarded],
@@ -1707,7 +1707,7 @@ fn luoying(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 酒诗（界曹植）
 // ---------------------------------------------------------------------------
 
-pub const JIUSHI: SkillDef = SkillDef {
+pub const JIUSHI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "jiushi",
     name: "酒诗",
     triggers: &[EventKind::DamageAfter],
@@ -1812,7 +1812,7 @@ fn jiushi_maybe_flip(g: &mut Game, owner: usize) {
 // 甘露（界吴国太）
 // ---------------------------------------------------------------------------
 
-pub const GANLU: SkillDef = SkillDef {
+pub const GANLU: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "ganlu",
     name: "甘露",
     triggers: &[],
@@ -1949,7 +1949,7 @@ fn swap_equips(g: &mut Game, a: usize, b: usize) -> Result<(), String> {
 // 补益（界吴国太）
 // ---------------------------------------------------------------------------
 
-pub const BUYI: SkillDef = SkillDef {
+pub const BUYI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "buyi",
     name: "补益",
     triggers: &[],
@@ -2047,7 +2047,7 @@ fn buyi(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 当先（界廖化）
 // ---------------------------------------------------------------------------
 
-pub const DANGXIAN: SkillDef = SkillDef {
+pub const DANGXIAN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "dangxian",
     name: "当先",
     triggers: &[EventKind::DamageAfter],
@@ -2164,7 +2164,7 @@ fn dangxian(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 伏枥（界廖化，限定）
 // ---------------------------------------------------------------------------
 
-pub const FULI: SkillDef = SkillDef {
+pub const FULI: SkillDef = SkillDef { kind: SkillKind::Limited,
     code: "fuli",
     name: "伏枥",
     triggers: &[],

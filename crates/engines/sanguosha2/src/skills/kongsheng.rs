@@ -10,17 +10,18 @@ use crate::kernel::deferred::{Deferred, DeferredKind};
 use crate::kernel::event::{EventKind, Window};
 use crate::kernel::pending::PendingBuilder;
 use crate::kernel::resolve::{Ask, Stage, Step};
+use crate::kernel::flow;
 use crate::kernel::Game;
 use crate::presentation::{POutcome, Presentation};
 
-use super::SkillDef;
+use super::{SkillDef, SkillKind};
 
 /// 箜声牌数（良姻回血判定的 X）。
 pub fn count(g: &Game, seat: usize) -> usize {
     g.mark_cards(seat, "kongsheng").len()
 }
 
-pub const DEF: SkillDef = SkillDef {
+pub const DEF: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "kongsheng",
     name: "箜声",
     triggers: &[EventKind::PhaseStart],
@@ -206,7 +207,7 @@ fn use_equip(g: &mut Game, a: &Ask) -> Result<Step, String> {
                     .cards(cards.clone())
                     .fx("kongsheng_use"),
             );
-            g.seats[seat].hp -= 1;
+            flow::lose_hp(g, seat, 1, "kongsheng");
             g.push_log(format!(
                 "箜声：{} 使用 {used} 张装备并失去 1 点体力（{}）",
                 g.seats[seat].name, g.seats[seat].hp

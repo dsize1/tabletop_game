@@ -357,6 +357,14 @@ pub fn heal(g: &mut Game, seat: usize, n: i32, cause: &str) {
     if crate::skills::start_jiuyuan(g, seat, n, cause) {
         return;
     }
+    heal_raw(g, seat, n, cause);
+}
+
+/// 回复体力（**跳过救援钩子**；仅供「救援已拒绝/照常回复」分支使用，避免递归）。
+pub fn heal_raw(g: &mut Game, seat: usize, n: i32, cause: &str) {
+    if n <= 0 || g.seats[seat].hp <= 0 {
+        return;
+    }
     let before = g.seats[seat].hp;
     g.seats[seat].hp = (before + n).min(g.seats[seat].max_hp);
     let healed = g.seats[seat].hp - before;
@@ -404,6 +412,19 @@ pub fn lose_hp_by(g: &mut Game, seat: usize, n: i32, cause: &str, source: Option
     ));
     if g.seats[seat].hp <= 0 {
         start_dying(g, seat, source);
+    }
+}
+
+/// 体力上限变化后的**钳制**（不是回复：不发 `Healed` 事件）。
+pub fn clamp_hp(g: &mut Game, seat: usize, cause: &str) {
+    let max = g.seats[seat].max_hp.max(1);
+    if g.seats[seat].hp > max {
+        let before = g.seats[seat].hp;
+        g.seats[seat].hp = max;
+        g.push_log(format!(
+            "{} 体力被压到上限 {}（{} → {}，原因：{cause}）",
+            g.seats[seat].name, max, before, g.seats[seat].hp
+        ));
     }
 }
 

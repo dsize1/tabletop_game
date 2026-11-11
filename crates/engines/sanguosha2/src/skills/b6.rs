@@ -20,7 +20,7 @@ use crate::kernel::resolve::{Ask, Stage, Step};
 use crate::kernel::{flow, CardId, Game, Phase, Slot, Zone};
 use crate::presentation::{POutcome, Presentation};
 
-use super::{active, other_alive, SkillDef};
+use super::{active, other_alive, SkillDef, SkillKind};
 
 // ---------------------------------------------------------------------------
 // 工具
@@ -57,7 +57,7 @@ fn same_kingdom(g: &Game, a: usize, b: usize) -> bool {
 // 战绝（刘谌）：所有手牌当【决斗】；与受伤者各摸 1；发动 2 次后本阶段失效
 // ---------------------------------------------------------------------------
 
-pub const ZHANJUE: SkillDef = SkillDef {
+pub const ZHANJUE: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "zhanjue",
     name: "战绝",
     triggers: &[],
@@ -182,7 +182,7 @@ pub fn zhanjue_on_damage(g: &mut Game, owner: usize, victim: usize) {
 // 勤王（刘谌·主公技）：弃一张牌（手牌/装备区）发动激将；响应者摸 1；伤害来源=刘谌
 // ---------------------------------------------------------------------------
 
-pub const QINWANG: SkillDef = SkillDef {
+pub const QINWANG: SkillDef = SkillDef { kind: SkillKind::Lord,
     code: "qinwang",
     name: "勤王",
     triggers: &[],
@@ -366,7 +366,7 @@ fn qinwang(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 怃戎（张嶷）：与一名其他角色同时展示一张手牌（选择期不公开）
 // ---------------------------------------------------------------------------
 
-pub const WURONG: SkillDef = SkillDef {
+pub const WURONG: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "wurong",
     name: "怃戎",
     triggers: &[],
@@ -545,7 +545,7 @@ fn resolve_wurong(
 // 矢志（张嶷·锁定）：体力 1 时【闪】视为【杀】（替代用法）
 // ---------------------------------------------------------------------------
 
-pub const SHIZHI: SkillDef = SkillDef {
+pub const SHIZHI: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "shizhi",
     name: "矢志",
     triggers: &[],
@@ -572,7 +572,7 @@ pub fn shizhi_blocks_shan(g: &Game, seat: usize, id: &CardId) -> bool {
 // 宴诛（孙休）：目标二选一（交出装备并修改兴学 / 弃一张牌）
 // ---------------------------------------------------------------------------
 
-pub const YANZHU: SkillDef = SkillDef {
+pub const YANZHU: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "yanzhu",
     name: "宴诛",
     triggers: &[],
@@ -711,7 +711,7 @@ fn yanzhu(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 兴学（孙休）：结束阶段，每点体力可令一名角色摸 1 并置顶一张（由其自选）
 // ---------------------------------------------------------------------------
 
-pub const XINGXUE: SkillDef = SkillDef {
+pub const XINGXUE: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "xingxue",
     name: "兴学",
     triggers: &[EventKind::PhaseEnd],
@@ -844,7 +844,7 @@ fn next_xingxue(g: &mut Game, remaining: usize) -> Result<Step, String> {
 // 诏缚（孙休·主公技 / 限定）：至多两名角色（含自己）视为在吴势力攻击范围内
 // ---------------------------------------------------------------------------
 
-pub const ZHAOFU: SkillDef = SkillDef {
+pub const ZHAOFU: SkillDef = SkillDef { kind: SkillKind::Lord,
     code: "zhaofu",
     name: "诏缚",
     triggers: &[],
@@ -936,7 +936,7 @@ fn zhaofu(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 安国（朱治）：按全场最少的三项执行，然后补做自己满足的未满足项
 // ---------------------------------------------------------------------------
 
-pub const ANGUO: SkillDef = SkillDef {
+pub const ANGUO: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "anguo",
     name: "安国",
     triggers: &[],
@@ -1052,7 +1052,7 @@ fn resolve_anguo(g: &mut Game, actor: usize, target: usize) -> Result<(), String
     }
     if t_hp_min {
         if g.seats[target].hp < g.seats[target].max_hp {
-            g.seats[target].hp += 1;
+            flow::heal(g, target, 1, "anguo");
         }
         g.push_log(format!("安国：{} 回复 1 点体力", g.seats[target].name));
         applied[1] = true;
@@ -1077,7 +1077,7 @@ fn resolve_anguo(g: &mut Game, actor: usize, target: usize) -> Result<(), String
     }
     if !t_hp_min && g.seats[actor].hp.max(0) as usize == min_hp {
         if g.seats[actor].hp < g.seats[actor].max_hp {
-            g.seats[actor].hp += 1;
+            flow::heal(g, actor, 1, "anguo");
         }
         g.push_log("安国：朱治回复 1 点体力".to_string());
     }
@@ -1091,7 +1091,7 @@ fn resolve_anguo(g: &mut Game, actor: usize, target: usize) -> Result<(), String
 // 邀名（全琮）：造成 / 受到伤害后各限一次
 // ---------------------------------------------------------------------------
 
-pub const YAOMING: SkillDef = SkillDef {
+pub const YAOMING: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "yaoming",
     name: "邀名",
     triggers: &[EventKind::DamageAfter],
@@ -1236,7 +1236,7 @@ fn yaoming(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 怀异（公孙渊）：展示手牌弃一种颜色；每弃一张获得一名角色一张牌
 // ---------------------------------------------------------------------------
 
-pub const HUAIYI: SkillDef = SkillDef {
+pub const HUAIYI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "huaiyi",
     name: "怀异",
     triggers: &[],
@@ -1421,7 +1421,7 @@ fn finish_huaiyi(g: &mut Game, actor: usize, gained: usize) -> Result<Step, Stri
 // 急攻（郭图逢纪）：出牌阶段开始可摸 2；本阶段手牌上限 = 本阶段伤害值
 // ---------------------------------------------------------------------------
 
-pub const JIGONG: SkillDef = SkillDef {
+pub const JIGONG: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "jigong",
     name: "急攻",
     triggers: &[EventKind::PhaseStart],
@@ -1488,7 +1488,7 @@ fn jigong(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 饰非（郭图逢纪）：「需要使用或打出【闪】」时的替代入口（使用 + 打出）
 // ---------------------------------------------------------------------------
 
-pub const SHIFEI: SkillDef = SkillDef {
+pub const SHIFEI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "shifei",
     name: "饰非",
     triggers: &[],

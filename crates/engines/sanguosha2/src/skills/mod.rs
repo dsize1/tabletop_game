@@ -36,9 +36,21 @@ use crate::kernel::pending::PendingBuilder;
 use crate::kernel::resolve::{self, Ask, Stage, Step};
 use crate::kernel::{CardId, Game, Phase};
 
+/// 技能类型（来自官网 `heroes.json.type_guess` 生成物；引擎侧门禁用）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum SkillKind {
+    Normal,
+    Locked,
+    Limited,
+    Awaken,
+    Lord,
+}
+
 pub struct SkillDef {
     pub code: &'static str,
     pub name: &'static str,
+    /// 技能类型：锁定技不可放弃 / 限定·觉醒每局一次 / 主公技身份闸门。
+    pub kind: SkillKind,
     pub triggers: &'static [EventKind],
     pub window: Window,
     /// 「事件主体」的生效窗口（客观判定，如奋激：手牌变化的角色必须在回合外）。
@@ -399,6 +411,19 @@ pub fn handler(code: &str) -> Option<fn(&mut Game, &Ask) -> Result<Step, String>
     def(code).map(|d| d.handler)
 }
 
+/// 主公技可用性（统一闸门）：本人是主公，或（伪帝）借用了当前主公的主公技。
+pub fn may_use_lord_skill(g: &Game, seat: usize) -> bool {
+    g.seats.get(seat).is_some_and(|s| s.flags.contains("lord")) || active(g, seat, "weidi")
+}
+
+/// 设计上由**其他角色**使用的主公技（不是持有者发起）：黄天（群势力给张角牌）；制霸被动（未实现）。
+pub const LORD_SKILLS_USED_BY_OTHERS: &[&str] = &["huangtian"];
+
+/// 主公技闸门：`owner` 是技能持有者（路由/主动技都按持有者判定）。
+pub fn lord_gate_ok(g: &Game, owner: usize, code: &str) -> bool {
+    LORD_SKILLS_USED_BY_OTHERS.contains(&code) || may_use_lord_skill(g, owner)
+}
+
 /// **唯一**技能状态查询入口。
 pub fn active(g: &Game, seat: usize, code: &str) -> bool {
     // 非锁定技失效：本回合该角色的非锁定技视为不存在（义绝·黑 / 铁骑）。
@@ -503,6 +528,9 @@ pub fn rebuild_subs(g: &mut Game) {
 pub fn legal_actions(g: &Game, seat: usize) -> Vec<(String, String)> {
     let mut out = Vec::new();
     for d in SKILLS {
+        if d.kind == SkillKind::Lord && !lord_gate_ok(g, seat, d.code) {
+            continue;
+        }
         if let Some(can) = d.can_active {
             if can(g, seat) {
                 out.push((format!("skill:{}", d.code), format!("发动【{}】", d.name)));
@@ -519,6 +547,9 @@ pub fn legal_actions_out_of_turn(g: &Game, seat: usize) -> Vec<(String, String)>
     for code in b19::OUT_OF_TURN_SKILLS {
         let Some(d) = def(code) else { continue };
         let Some(can) = d.can_active else { continue };
+        if d.kind == SkillKind::Lord && !lord_gate_ok(g, seat, d.code) {
+            continue;
+        }
         if can(g, seat) {
             out.push((format!("skill:{}", d.code), format!("发动【{}】", d.name)));
         }
@@ -532,6 +563,9 @@ pub fn execute_active(g: &mut Game, seat: usize, action: &str) -> Result<String,
         .strip_prefix("skill:")
         .ok_or_else(|| format!("未知动作：{action}"))?;
     let d = def(code).ok_or_else(|| format!("未注册技能：{code}"))?;
+    if d.kind == SkillKind::Lord && !lord_gate_ok(g, seat, d.code) {
+        return Err(format!("【{}】是主公技（非主公不可用）", d.name));
+    }
     let can = d.can_active.ok_or_else(|| format!("【{}】不是主动技", d.name))?;
     if !can(g, seat) {
         return Err(format!("【{}】当前不可发动", d.name));

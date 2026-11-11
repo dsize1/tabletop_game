@@ -13,12 +13,13 @@ use crate::kernel::deferred::{Deferred, DeferredKind};
 use crate::kernel::event::{EventKind, Window};
 use crate::kernel::pending::PendingBuilder;
 use crate::kernel::resolve::{Ask, Stage, Step};
+use crate::kernel::flow;
 use crate::kernel::Game;
 use crate::presentation::{POutcome, Presentation};
 
-use super::{other_alive, SkillDef};
+use super::{other_alive, SkillDef, SkillKind};
 
-pub const DEF: SkillDef = SkillDef {
+pub const DEF: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "liangyin",
     name: "良姻",
     triggers: &[EventKind::CardOutOfGame, EventKind::CardIntoGame],
@@ -248,7 +249,7 @@ fn heal(g: &mut Game, a: &Ask) -> Result<Step, String> {
             if !cands.contains(&seat) {
                 return Err("良姻：回血目标不合法".into());
             }
-            g.seats[seat].hp = (g.seats[seat].hp + 1).min(g.seats[seat].max_hp);
+            flow::heal(g, seat, 1, "liangyin");
             g.presentation.push(
                 Presentation::new("liangyin", POutcome::Heal { amount: 1 })
                     .actor(a.actor)

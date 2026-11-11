@@ -34,8 +34,7 @@ function parseSkillEntries(block) {
     const code = /code:\s*"([a-z0-9_]+)"/.exec(chunk)?.[1];
     const name = /name:\s*"([^"]+)"/.exec(chunk)?.[1];
     if (!code || !name) continue;
-    const kind =
-      /kind:\s*SkillType::(\w+)/.exec(chunk)?.[1]?.toLowerCase() ?? "unknown";
+    const kind = parseKind(chunk);
     out.push({ code, name, kind, implemented: /implemented:\s*true/.test(chunk) });
   }
   return out;
@@ -62,9 +61,17 @@ export function loadGenerals() {
   }));
 }
 
+/** v2：`kind: SkillKind::Locked` → "locked"；缺省 normal。 */
+function parseKind(chunk) {
+  return (
+    /kind:\s*SkillKind::(\w+)/.exec(chunk)?.[1]?.toLowerCase() ?? "normal"
+  );
+}
+
 /** 解析技能注册表：{ consts, byGid, extras }（v2：扫描 `skills/*.rs` 的 SkillDef 块）。 */
 export function loadSkills() {
   const nameToCode = new Map();
+  const nameToKind = new Map();
   let files = [];
   try {
     files = readdirSync(V2_SKILLS_DIR).filter((f) => f.endsWith(".rs"));
@@ -77,7 +84,10 @@ export function loadSkills() {
       const block = chunk.slice(0, chunk.indexOf("};"));
       const code = /code:\s*"([a-z0-9_]+)"/.exec(block)?.[1];
       const name = /name:\s*"([^"]+)"/.exec(block)?.[1];
-      if (code && name && !nameToCode.has(name)) nameToCode.set(name, code);
+      if (code && name && !nameToCode.has(name)) {
+        nameToCode.set(name, code);
+        nameToKind.set(name, parseKind(block));
+      }
     }
   }
   const byGid = new Map();
@@ -85,7 +95,7 @@ export function loadSkills() {
     const defs = [];
     for (const name of g.skills ?? []) {
       const code = nameToCode.get(name);
-      if (code) defs.push({ code, name, kind: "normal", implemented: true });
+      if (code) defs.push({ code, name, kind: nameToKind.get(name) ?? "normal", implemented: true });
     }
     if (defs.length) byGid.set(g.gid, defs);
   }

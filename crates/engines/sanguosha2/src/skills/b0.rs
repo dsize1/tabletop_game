@@ -16,13 +16,13 @@ use crate::kernel::resolve::{Ask, Stage, Step};
 use crate::kernel::{flow, Game, Zone};
 use crate::presentation::{POutcome, Presentation};
 
-use super::{active, SkillDef};
+use super::{active, SkillDef, SkillKind};
 
 // ---------------------------------------------------------------------------
 // 据守
 // ---------------------------------------------------------------------------
 
-pub const JUSHOU: SkillDef = SkillDef {
+pub const JUSHOU: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "jushou",
     name: "据守",
     triggers: &[EventKind::PhaseStart],
@@ -133,7 +133,7 @@ fn jushou(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 解围（翻回正面时：弃 1 移 1；装备当无懈）
 // ---------------------------------------------------------------------------
 
-pub const JIEWEI: SkillDef = SkillDef {
+pub const JIEWEI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "jiewei",
     name: "解围",
     triggers: &[],
@@ -397,7 +397,7 @@ fn jiewei(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 不屈（濒死锁定技）
 // ---------------------------------------------------------------------------
 
-pub const BUQU: SkillDef = SkillDef {
+pub const BUQU: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "buqu",
     name: "不屈",
     triggers: &[],
@@ -442,7 +442,7 @@ fn buqu_dying(g: &mut Game, seat: usize) -> bool {
     let _ = g.to_void(&card);
     *g.seats[seat].counters.entry(rank_key).or_insert(0) += 1;
     *g.seats[seat].counters.entry("buqu_total".to_string()).or_insert(0) += 1;
-    g.seats[seat].hp = 1;
+    flow::revive_to(g, seat, 1, "buqu");
     g.presentation.push(
         Presentation::new("buqu", POutcome::Heal { amount: 1 })
             .target(seat)
@@ -457,7 +457,7 @@ fn buqu_dying(g: &mut Game, seat: usize) -> bool {
 // 奋激
 // ---------------------------------------------------------------------------
 
-pub const FENJI: SkillDef = SkillDef {
+pub const FENJI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "fenji",
     name: "奋激",
     triggers: &[EventKind::CardGained, EventKind::CardDiscarded],
@@ -533,7 +533,7 @@ fn fenji(g: &mut Game, a: &Ask) -> Result<Step, String> {
                 )),
                 Some("pass") => Ok(Step::Done),
                 Some("choose:fenji") => {
-                    g.seats[a.actor].hp -= 1;
+                    flow::lose_hp(g, a.actor, 1, "fenji");
                     if g.seats[a.actor].hp <= 0 {
                         // 先完成濒死结算，脱困后才摸 2（用户裁定 Q9）。
                         flow::start_dying(g, a.actor, None);
@@ -573,7 +573,7 @@ fn fenji(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 行殇
 // ---------------------------------------------------------------------------
 
-pub const XINGSHANG: SkillDef = SkillDef {
+pub const XINGSHANG: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "xingshang",
     name: "行殇",
     triggers: &[EventKind::Death],
@@ -637,7 +637,7 @@ fn xingshang(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 放逐
 // ---------------------------------------------------------------------------
 
-pub const FANGZHU: SkillDef = SkillDef {
+pub const FANGZHU: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "fangzhu",
     name: "放逐",
     triggers: &[EventKind::DamageAfter],
@@ -712,7 +712,7 @@ fn fangzhu(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 颂威（主公技）
 // ---------------------------------------------------------------------------
 
-pub const SONGWEI: SkillDef = SkillDef {
+pub const SONGWEI: SkillDef = SkillDef { kind: SkillKind::Lord,
     code: "songwei",
     name: "颂威",
     triggers: &[EventKind::JudgeEffective],

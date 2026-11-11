@@ -8,7 +8,7 @@ use crate::kernel::event::{EventKind, Window};
 use crate::kernel::resolve::{Ask, Stage, Step};
 use crate::kernel::{flow, CardId, Game, Phase, Zone};
 
-use super::{active, builder, other_alive, SkillDef};
+use super::{active, builder, other_alive, SkillDef, SkillKind};
 
 fn label(g: &Game, id: &CardId) -> String {
     g.card_label(id)
@@ -29,7 +29,7 @@ fn push(g: &mut Game, code: &'static str, actor: usize, data: serde_json::Value)
 }
 
 // ------------------------------------------------------------------ 奸雄
-pub const JIANXIONG: SkillDef = SkillDef {
+pub const JIANXIONG: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "jianxiong", name: "奸雄", triggers: &[EventKind::DamageAfter], window: Window::AnyTime,
     priority: 0, can_active: None, handler: jianxiong, dying_hook: None, flip_hook: None,
     wuxie_opts: None, wuxie_use: None, target_blocker: None, yang_window: None, yin_window: None,
@@ -72,7 +72,7 @@ fn jianxiong(g: &mut Game, a: &Ask) -> Result<Step, String> {
 }
 
 // ------------------------------------------------------------------ 护驾
-pub const HUJIA: SkillDef = SkillDef {
+pub const HUJIA: SkillDef = SkillDef { kind: SkillKind::Lord,
     code: "hujia", name: "护驾", triggers: &[EventKind::CardUsed, EventKind::CardPlayed], window: Window::AnyTime,
     priority: 0, can_active: None, handler: hujia, dying_hook: None, flip_hook: None,
     wuxie_opts: None, wuxie_use: None, target_blocker: None, yang_window: None, yin_window: None,
@@ -172,7 +172,7 @@ fn hujia(g: &mut Game, a: &Ask) -> Result<Step, String> {
 }
 
 // ------------------------------------------------------------------ 反馈
-pub const FANKUI: SkillDef = SkillDef {
+pub const FANKUI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "fankui", name: "反馈", triggers: &[EventKind::DamageAfter], window: Window::AnyTime,
     priority: 0, can_active: None, handler: fankui, dying_hook: None, flip_hook: None,
     wuxie_opts: None, wuxie_use: None, target_blocker: None, yang_window: None, yin_window: None,
@@ -220,7 +220,7 @@ fn fankui(g: &mut Game, a: &Ask) -> Result<Step, String> {
 }
 
 // ------------------------------------------------------------------ 鬼才
-pub const GUICAI: SkillDef = SkillDef {
+pub const GUICAI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "guicai", name: "鬼才", triggers: &[], window: Window::AnyTime,
     priority: 0, can_active: None, handler: guicai, dying_hook: None, flip_hook: None,
     wuxie_opts: None, wuxie_use: None, target_blocker: None, yang_window: None, yin_window: None,
@@ -267,7 +267,7 @@ fn guicai(g: &mut Game, a: &Ask) -> Result<Step, String> {
 }
 
 // ------------------------------------------------------------------ 刚烈
-pub const GANGLIE: SkillDef = SkillDef {
+pub const GANGLIE: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "ganglie", name: "刚烈", triggers: &[EventKind::DamageAfter], window: Window::AnyTime,
     priority: 0, can_active: None, handler: ganglie, dying_hook: None, flip_hook: None,
     wuxie_opts: None, wuxie_use: None, target_blocker: None, yang_window: None, yin_window: None,
@@ -317,7 +317,7 @@ fn ganglie(g: &mut Game, a: &Ask) -> Result<Step, String> {
 }
 
 // ------------------------------------------------------------------ 清俭
-pub const QINGJIAN: SkillDef = SkillDef {
+pub const QINGJIAN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "qingjian", name: "清俭", triggers: &[EventKind::CardGained], window: Window::AnyTime,
     priority: 0, can_active: None, handler: qingjian, dying_hook: None, flip_hook: None,
     wuxie_opts: None, wuxie_use: None, target_blocker: None, yang_window: None, yin_window: None,
@@ -406,7 +406,7 @@ fn qingjian(g: &mut Game, a: &Ask) -> Result<Step, String> {
 }
 
 // ------------------------------------------------------------------ 突袭
-pub const TUXI: SkillDef = SkillDef {
+pub const TUXI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "tuxi", name: "突袭", triggers: &[EventKind::PhaseStart], window: Window::OwnPhase(Phase::Draw),
     priority: 0, can_active: None, handler: tuxi, dying_hook: None, flip_hook: None,
     wuxie_opts: None, wuxie_use: None, target_blocker: None, yang_window: None, yin_window: None,
@@ -484,7 +484,7 @@ fn tuxi(g: &mut Game, a: &Ask) -> Result<Step, String> {
 }
 
 // ------------------------------------------------------------------ 裸衣
-pub const LUOYI: SkillDef = SkillDef {
+pub const LUOYI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "luoyi", name: "裸衣", triggers: &[EventKind::PhaseStart], window: Window::OwnPhase(Phase::Draw),
     priority: 5, can_active: None, handler: luoyi, dying_hook: None, flip_hook: None,
     wuxie_opts: None, wuxie_use: None, target_blocker: None, yang_window: None, yin_window: None,
@@ -561,7 +561,7 @@ fn luoyi(g: &mut Game, a: &Ask) -> Result<Step, String> {
 }
 
 // ------------------------------------------------------------------ 天妒
-pub const TIANDU: SkillDef = SkillDef {
+pub const TIANDU: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "tiandu", name: "天妒", triggers: &[], window: Window::AnyTime,
     priority: 0, can_active: None, handler: tiandu, dying_hook: None, flip_hook: None,
     wuxie_opts: None, wuxie_use: None, target_blocker: None, yang_window: None, yin_window: None,
@@ -597,7 +597,7 @@ fn tiandu(g: &mut Game, a: &Ask) -> Result<Step, String> {
 }
 
 // ------------------------------------------------------------------ 遗计
-pub const YIJI: SkillDef = SkillDef {
+pub const YIJI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "yiji", name: "遗计", triggers: &[EventKind::DamageAfter], window: Window::AnyTime,
     priority: 0, can_active: None, handler: yiji, dying_hook: None, flip_hook: None,
     wuxie_opts: None, wuxie_use: None, target_blocker: None, yang_window: None, yin_window: None,
@@ -660,7 +660,7 @@ fn yiji(g: &mut Game, a: &Ask) -> Result<Step, String> {
 }
 
 // ------------------------------------------------------------------ 恂恂
-pub const XUNXUN: SkillDef = SkillDef {
+pub const XUNXUN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "xunxun", name: "恂恂", triggers: &[EventKind::PhaseStart], window: Window::OwnPhase(Phase::Draw),
     priority: 10, can_active: None, handler: xunxun, dying_hook: None, flip_hook: None,
     wuxie_opts: None, wuxie_use: None, target_blocker: None, yang_window: None, yin_window: None,
@@ -726,7 +726,7 @@ fn xunxun(g: &mut Game, a: &Ask) -> Result<Step, String> {
 }
 
 // ------------------------------------------------------------------ 忘隙
-pub const WANGXI: SkillDef = SkillDef {
+pub const WANGXI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "wangxi", name: "忘隙", triggers: &[EventKind::DamageAfter], window: Window::AnyTime,
     priority: 0, can_active: None, handler: wangxi, dying_hook: None, flip_hook: None,
     wuxie_opts: None, wuxie_use: None, target_blocker: None, yang_window: None, yin_window: None,
@@ -789,7 +789,7 @@ fn wangxi(g: &mut Game, a: &Ask) -> Result<Step, String> {
 }
 
 // ------------------------------------------------------------------ 倾国
-pub const QINGGUO: SkillDef = SkillDef {
+pub const QINGGUO: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "qingguo", name: "倾国", triggers: &[], window: Window::AnyTime,
     priority: 0, can_active: None, handler: noop, dying_hook: None, flip_hook: None,
     wuxie_opts: None, wuxie_use: None, target_blocker: None, yang_window: None, yin_window: None,
@@ -808,7 +808,7 @@ pub fn conversions(g: &Game, seat: usize) -> Vec<super::Conversion> {
 }
 
 // ------------------------------------------------------------------ 洛神
-pub const LUOSHEN: SkillDef = SkillDef {
+pub const LUOSHEN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "luoshen", name: "洛神", triggers: &[EventKind::PhaseStart], window: Window::OwnPhase(Phase::Prepare),
     priority: 0, can_active: None, handler: luoshen, dying_hook: None, flip_hook: None,
     wuxie_opts: None, wuxie_use: None, target_blocker: None, yang_window: None, yin_window: None,

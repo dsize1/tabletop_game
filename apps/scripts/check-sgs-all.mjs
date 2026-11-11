@@ -35,6 +35,7 @@ const steps = [
   { name: "sgs2-parity-view（v2 视图覆盖前端字段，strict）", cmd: `${node} apps/scripts/check-sgs2-view-parity.mjs --strict` },
   { name: "sgs2-coupling（v1 引用台账，白名单外失败）", cmd: `${node} apps/scripts/check-sgs2-coupling.mjs` },
   { name: "sgs2-registry（注册表/对齐单/用例覆盖）", cmd: `${node} apps/scripts/check-sgs2-registry.mjs` },
+  { name: "sgs2-conventions（机制/迁移欠账防复发：体力/内核名/标记/计数/出口/kind）", cmd: `${node} apps/scripts/check-sgs2-conventions.mjs` },
   { name: "sgs2-decision-log（决策日志 schema）", cmd: `${node} apps/scripts/check-sgs2-decision-log.mjs` },
   { name: "skill-text（长按技能简述最新）", cmd: `${node} apps/scripts/gen-sgs-skill-text.mjs --check` },
   { name: "fx-assets（特效素材/manifest/预算）", cmd: `${node} apps/scripts/check-fx-assets.mjs` },

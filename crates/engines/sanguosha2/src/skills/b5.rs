@@ -17,7 +17,7 @@ use crate::kernel::resolve::{Ask, Stage, Step};
 use crate::kernel::{flow, CardId, Game, Phase, Slot, Suit, Zone};
 use crate::presentation::{POutcome, Presentation};
 
-use super::{active, other_alive, SkillDef};
+use super::{active, other_alive, SkillDef, SkillKind};
 
 // ---------------------------------------------------------------------------
 // 通用小工具
@@ -79,7 +79,7 @@ fn noop(_g: &mut Game, _a: &Ask) -> Result<Step, String> {
 // 谮毁（孙鲁班）：使用【杀】或黑色普通锦囊指定唯一目标时，可令另一角色代用/成为额外目标
 // ---------------------------------------------------------------------------
 
-pub const ZANHUI: SkillDef = SkillDef {
+pub const ZANHUI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "zanhui",
     name: "谮毁",
     triggers: &[EventKind::TargetChosen],
@@ -413,7 +413,7 @@ fn zanhui_preuse(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 骄矜（孙鲁班）：男性角色对你造成伤害时，可弃一张装备牌令伤害 -1
 // ---------------------------------------------------------------------------
 
-pub const JIAOJIN: SkillDef = SkillDef {
+pub const JIAOJIN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "jiaojin",
     name: "骄矜",
     triggers: &[],
@@ -543,7 +543,7 @@ fn resume_damage(
 // 奋励（朱桓）：按条件跳过摸牌 / 出牌 / 弃牌阶段
 // ---------------------------------------------------------------------------
 
-pub const FENLI: SkillDef = SkillDef {
+pub const FENLI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "fenli",
     name: "奋励",
     triggers: &[EventKind::PhaseStart],
@@ -649,7 +649,7 @@ fn fenli(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 平寇（朱桓）：回合结束后，每跳过一个阶段对一名其他角色造成 1 点伤害
 // ---------------------------------------------------------------------------
 
-pub const PINGKOU: SkillDef = SkillDef {
+pub const PINGKOU: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "pingkou",
     name: "平寇",
     triggers: &[EventKind::PhaseEnd],
@@ -741,7 +741,7 @@ fn pingkou(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 慎行（顾雍）：弃两张牌（手牌或装备区）摸一张
 // ---------------------------------------------------------------------------
 
-pub const SHENXING: SkillDef = SkillDef {
+pub const SHENXING: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "shenxing",
     name: "慎行",
     triggers: &[],
@@ -831,7 +831,7 @@ fn shenxing(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 秉壹（顾雍）：自己的牌因弃置进弃牌堆后展示手牌，同色则可令至多 X 名角色各摸 1
 // ---------------------------------------------------------------------------
 
-pub const BINGYI: SkillDef = SkillDef {
+pub const BINGYI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "bingyi",
     name: "秉壹",
     triggers: &[EventKind::CardDiscarded],
@@ -983,7 +983,7 @@ fn bingyi(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 恢拓（曹叡）：受到伤害后令一名角色判定，红色回血 / 黑色摸伤害值张
 // ---------------------------------------------------------------------------
 
-pub const HUITUO: SkillDef = SkillDef {
+pub const HUITUO: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "huituo",
     name: "恢拓",
     triggers: &[EventKind::DamageAfter],
@@ -1042,7 +1042,7 @@ fn huituo(g: &mut Game, a: &Ask) -> Result<Step, String> {
                     if g.is_red(&judge) {
                         // 裁定 Q2=B：满体力直接跳过红色分支
                         if g.seats[t].hp < g.seats[t].max_hp {
-                            g.seats[t].hp += 1;
+                            flow::heal(g, t, 1, "huituo");
                             g.presentation.push(
                                 Presentation::new("huituo", POutcome::Heal { amount: 1 })
                                     .actor(a.actor)
@@ -1086,7 +1086,7 @@ fn huituo(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 明鉴（曹叡）：交给一名其他角色所有手牌；其下回合手牌上限 +1、杀次数 +1
 // ---------------------------------------------------------------------------
 
-pub const MINGJIAN: SkillDef = SkillDef {
+pub const MINGJIAN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "mingjian",
     name: "明鉴",
     triggers: &[],
@@ -1170,7 +1170,7 @@ fn mingjian(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 兴衰（曹叡·主公技/限定）：濒死时逐个询问魏势力；支援者脱困后受到 1 点伤害
 // ---------------------------------------------------------------------------
 
-pub const XINGSHUAI: SkillDef = SkillDef {
+pub const XINGSHUAI: SkillDef = SkillDef { kind: SkillKind::Lord,
     code: "xingshuai",
     name: "兴衰",
     triggers: &[],
@@ -1251,7 +1251,7 @@ fn xingshuai(g: &mut Game, a: &Ask) -> Result<Step, String> {
         )),
         Some("opt1") => {
             if g.seats[a.actor].hp < g.seats[a.actor].max_hp {
-                g.seats[a.actor].hp += 1;
+                flow::revive_add(g, a.actor, 1, "xingshuai");
             }
             accepted.push(helper);
             g.push_log(format!(
@@ -1293,7 +1293,7 @@ pub fn settle_after_dying(g: &mut Game, victim: usize) {
 // 千驹（曹休，锁定）：每损失 1 点体力距离 -1 —— 数值在 `Game::distance` 统一入口生效
 // ---------------------------------------------------------------------------
 
-pub const QIANJU: SkillDef = SkillDef {
+pub const QIANJU: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "qianju",
     name: "千驹",
     triggers: &[],
@@ -1315,7 +1315,7 @@ pub const QIANJU: SkillDef = SkillDef {
 // 倾袭（曹休）：【杀】造成伤害时，令目标二选一（弃等量手牌+弃武器 / 伤害 +1）
 // ---------------------------------------------------------------------------
 
-pub const QINGXI: SkillDef = SkillDef {
+pub const QINGXI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "qingxi",
     name: "倾袭",
     triggers: &[],
@@ -1477,7 +1477,7 @@ fn qingxi(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 活墨（钟繇）：黑色非基本牌置牌堆顶，视为使用牌名不同的基本牌
 // ---------------------------------------------------------------------------
 
-pub const HUOMO: SkillDef = SkillDef {
+pub const HUOMO: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "huomo",
     name: "活墨",
     triggers: &[EventKind::CardUsed],
@@ -1659,7 +1659,7 @@ fn huomo(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 佐定（钟繇）：其他角色出牌阶段使用黑桃牌指定目标后（本阶段无伤害）令其中一个目标摸 1
 // ---------------------------------------------------------------------------
 
-pub const ZUODING: SkillDef = SkillDef {
+pub const ZUODING: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "zuoding",
     name: "佐定",
     triggers: &[EventKind::TargetChosen],

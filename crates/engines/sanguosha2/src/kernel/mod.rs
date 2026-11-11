@@ -272,6 +272,9 @@ pub struct Game {
     /// 当前动作的施动者（`begin_action_as` 打点）：给牌移动事件提供「被其他角色…」判据。
     #[serde(default)]
     pub action_actor: Option<usize>,
+    /// 待完成的回合切换（`(目标座位, 新回合首阶段)`）：结束阶段触发结算完再切（见 ADR-0039 / M12）。
+    #[serde(default)]
+    pub switch_to: Option<(usize, Phase)>,
     pub round: u32,
     pub stack: Vec<Frame>,
     pub pending: Option<Pending>,
@@ -486,6 +489,7 @@ impl Game {
             phase: Phase::Prepare,
             lifecycle: crate::kernel::event::Lifecycle::Turn,
             action_actor: None,
+            switch_to: None,
             round: 1,
             stack: Vec::new(),
             pending: None,

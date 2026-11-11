@@ -14,13 +14,13 @@ use crate::kernel::resolve::{Ask, Step};
 use crate::kernel::{Game, Zone};
 use crate::presentation::{POutcome, Presentation};
 
-use super::SkillDef;
+use super::{SkillDef, SkillKind};
 
 // ---------------------------------------------------------------------------
 // 庸肆（袁术）：纯数值钩子，无询问（锁定）
 // ---------------------------------------------------------------------------
 
-pub const YONGSI: SkillDef = SkillDef {
+pub const YONGSI: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "yongsi",
     name: "庸肆",
     triggers: &[EventKind::PhaseStart],
@@ -60,7 +60,7 @@ fn yongsi(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 奇制（王基）：使用非装备牌指定目标后
 // ---------------------------------------------------------------------------
 
-pub const QIZHI: SkillDef = SkillDef {
+pub const QIZHI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "qizhi",
     name: "奇制",
     triggers: &[EventKind::TargetChosen],
@@ -160,7 +160,7 @@ fn qizhi(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 进趋（王基）：结束阶段
 // ---------------------------------------------------------------------------
 
-pub const JINZOU: SkillDef = SkillDef {
+pub const JINZOU: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "jinzou",
     name: "进趋",
     triggers: &[EventKind::PhaseStart],
@@ -250,7 +250,7 @@ fn jinzou(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 怀橘（陆绩）：数值钩子（开局 3 橘、摸牌 +1、自动防伤）——见 skills/mod.rs
 // ---------------------------------------------------------------------------
 
-pub const HUAJU: SkillDef = SkillDef {
+pub const HUAJU: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "huaiju",
     name: "怀橘",
     triggers: &[],
@@ -276,7 +276,7 @@ fn noop(_g: &mut Game, _a: &Ask) -> Result<Step, String> {
 // 寸目（许攸）：所有摸牌从牌堆底摸——见 skills::draw_from_bottom
 // ---------------------------------------------------------------------------
 
-pub const CUNMU: SkillDef = SkillDef {
+pub const CUNMU: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "cunmu",
     name: "寸目",
     triggers: &[],

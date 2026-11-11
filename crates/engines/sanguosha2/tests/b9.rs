@@ -172,6 +172,7 @@ fn jijiang_relay_lets_shu_ally_play_sha_for_lord() {
         ("p2", &[], 4),
     ]);
     g.seats[0].identity = "lord".to_string();
+    g.seats[0].flags.insert("lord".to_string());
     g.seats[1].kingdom = "shu".to_string();
     g.seats[2].kingdom = "wei".to_string();
     give(&mut g, 1, &["c1"]); // 蜀将手里有【杀】
@@ -225,6 +226,7 @@ fn jijiang_ally_may_let_lord_draw_after_out_of_turn_sha() {
         ("shu1", &[], 4),
     ]);
     g.seats[0].identity = "lord".to_string();
+    g.seats[0].flags.insert("lord".to_string());
     g.seats[1].kingdom = "shu".to_string();
     // 蜀将回合外使用【杀】（此处用手牌通过 resolve_use 需其回合，故走事件：直接发 CardUsed）
     g.seats[0].hp = 4;

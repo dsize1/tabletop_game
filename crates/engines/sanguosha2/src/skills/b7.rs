@@ -17,7 +17,7 @@ use crate::kernel::resolve::{Ask, Stage, Step};
 use crate::kernel::{flow, CardId, Game, Phase, Slot, Zone};
 use crate::presentation::{POutcome, Presentation};
 
-use super::{active, other_alive, SkillDef};
+use super::{active, other_alive, SkillDef, SkillKind};
 
 fn play_phase(g: &Game, seat: usize) -> bool {
     g.turn == seat && g.phase == Phase::Play
@@ -53,7 +53,7 @@ fn kind_bit(g: &Game, id: &CardId) -> u32 {
 // 督粮（李严）
 // ---------------------------------------------------------------------------
 
-pub const DULIANG: SkillDef = SkillDef {
+pub const DULIANG: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "duliang",
     name: "督粮",
     triggers: &[],
@@ -168,7 +168,7 @@ fn duliang(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 腹鳞（李严，锁定）：手牌上限逻辑在 `Game::hand_limit`（turn.gained 派生）
 // ---------------------------------------------------------------------------
 
-pub const FULIN: SkillDef = SkillDef {
+pub const FULIN: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "fulin",
     name: "腹鳞",
     triggers: &[],
@@ -190,7 +190,7 @@ pub const FULIN: SkillDef = SkillDef {
 // 匡弼（孙登）：目标置至多三张牌到武将牌上（移出游戏），下回合获得（移入游戏）
 // ---------------------------------------------------------------------------
 
-pub const KUANGBI: SkillDef = SkillDef {
+pub const KUANGBI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "kuangbi",
     name: "匡弼",
     triggers: &[EventKind::PhaseStart],
@@ -367,7 +367,7 @@ fn kuangbi(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 止戈（刘虞）
 // ---------------------------------------------------------------------------
 
-pub const ZHIGE: SkillDef = SkillDef {
+pub const ZHIGE: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "zhige",
     name: "止戈",
     triggers: &[],
@@ -549,7 +549,7 @@ fn zhige(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 宗祚（刘虞，锁定）：开局按势力数 +上限；势力最后一人死亡 -1 上限
 // ---------------------------------------------------------------------------
 
-pub const ZONGZUO: SkillDef = SkillDef {
+pub const ZONGZUO: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "zongzuo",
     name: "宗祚",
     triggers: &[EventKind::Death],
@@ -582,7 +582,7 @@ pub fn init_zongzuo(g: &mut Game) {
         let new_max = old + x as i32;
         g.seats[seat].max_hp = new_max;
         if g.seats[seat].hp > 0 {
-            g.seats[seat].hp = (g.seats[seat].hp + 1).min(new_max);
+            flow::heal(g, seat, 1, "zongzuo");
         }
         g.emit(
             crate::kernel::event::Event::with_amount(
@@ -622,7 +622,7 @@ fn zongzuo(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 极奢（岑昏）：摸 1 手牌上限 -1；结束阶段无手牌则按体力令角色横置
 // ---------------------------------------------------------------------------
 
-pub const JISHE: SkillDef = SkillDef {
+pub const JISHE: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "jishe",
     name: "极奢",
     triggers: &[EventKind::PhaseEnd],
@@ -717,7 +717,7 @@ fn jishe(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 链祸（岑昏，锁定）：作为连环传导起点受到火焰伤害时 +1（加成随传导延续）
 // ---------------------------------------------------------------------------
 
-pub const LIANHUO: SkillDef = SkillDef {
+pub const LIANHUO: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "lianhuo",
     name: "链祸",
     triggers: &[],
@@ -752,7 +752,7 @@ pub fn lianhuo_bonus(g: &Game, victim: usize, dtype: DamageKind, chain_origin: b
 // 瑰藻（孙资刘放）
 // ---------------------------------------------------------------------------
 
-pub const GUIZAO: SkillDef = SkillDef {
+pub const GUIZAO: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "guizao",
     name: "瑰藻",
     triggers: &[EventKind::PhaseEnd],
@@ -810,7 +810,7 @@ fn guizao(g: &mut Game, a: &Ask) -> Result<Step, String> {
         Some("opt1") => {
             g.bump("turn.guizao_offered");
             if g.seats[a.actor].hp < g.seats[a.actor].max_hp {
-                g.seats[a.actor].hp += 1;
+                flow::heal(g, a.actor, 1, "guizao");
             }
             g.push_log(format!(
                 "瑰藻：回复 1 点体力（{}）",
@@ -833,7 +833,7 @@ fn guizao(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 讥谀（孙资刘放）：目标自选弃一张手牌；冻结该花色；黑桃则其失去 1 点体力 + 自己翻面
 // ---------------------------------------------------------------------------
 
-pub const JIYU: SkillDef = SkillDef {
+pub const JIYU: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "jiyu",
     name: "讥谀",
     triggers: &[],
@@ -955,7 +955,7 @@ fn jiyu(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 寝情（黄皓）：结束阶段逐个「弃其一张牌 + 令其摸一张」，比主公手牌多则黄皓摸
 // ---------------------------------------------------------------------------
 
-pub const QINQING: SkillDef = SkillDef {
+pub const QINQING: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "qinqing",
     name: "寝情",
     triggers: &[EventKind::PhaseEnd],
@@ -1108,7 +1108,7 @@ fn settle_qinqing_one(
 // 贿生（黄皓）：受伤时私密展示任意张，令来源二选一
 // ---------------------------------------------------------------------------
 
-pub const HUISHENG: SkillDef = SkillDef {
+pub const HUISHENG: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "huisheng",
     name: "贿生",
     triggers: &[],
@@ -1365,7 +1365,7 @@ fn resume_huisheng_damage(
 // 滔乱（张让）：一张牌当任意基本牌/普通锦囊（每牌名整局一次）；响应场景只给响应牌
 // ---------------------------------------------------------------------------
 
-pub const TAOLUAN: SkillDef = SkillDef {
+pub const TAOLUAN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "taoluan",
     name: "滔乱",
     triggers: &[],

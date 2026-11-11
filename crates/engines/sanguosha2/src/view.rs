@@ -143,11 +143,22 @@ fn marks_view(g: &Game, seat: usize) -> Value {
     Value::Object(out)
 }
 
+/// 可见计数标记注册表（counters 表示法）。新增标记必须在此登记，
+/// 否则 `check:sgs2-conventions` 会失败（防「技能加了标记但 Web/AI 看不到」）。
+pub const VISIBLE_COUNTER_MARKS: &[&str] = &[
+    "ju",     // 橘（陆绩）
+    "quan",   // 权（钟会）
+    "chuang", // 创（周泰·不屈）
+    "ni",     // 逆（刘封·陷嗣）
+    "yi",     // 裔（界袁绍·血裔）
+    "bian",   // 变（界张郃·巧变）
+    "zai",    // 辎（界徐晃·截辎）
+];
+
 fn marks_count_view(g: &Game, seat: usize) -> Value {
     let mut out = Map::new();
     for (code, n) in &g.seats[seat].counters {
-        // 只暴露「标记类」计数（ju / quan / chuang / ni 等），不暴露内部计数器。
-        if matches!(code.as_str(), "ju" | "quan" | "chuang" | "ni") && *n > 0 {
+        if VISIBLE_COUNTER_MARKS.contains(&code.as_str()) && *n > 0 {
             out.insert(code.clone(), json!(n));
         }
     }

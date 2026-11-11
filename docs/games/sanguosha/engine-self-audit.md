@@ -15,10 +15,10 @@
 | **M1** | **事件缺「发生时刻」快照**（turn/phase/lifecycle）——窗口与 handler 读 live 状态 | **已补**（ADR-0039） |
 | **M2** | **开局/发牌不是一等生命周期**——发牌事件进入技能触发通道 | **已补**（`Lifecycle::Setup`） |
 | **M13** | **牌移动缺「施动者/来源」**——无法表达「被其他角色弃置/获得」 | **已补**（`Event.by/from` + `Game.action_actor`） |
-| **M12** | **回合/阶段结束的结算时序**——`PhaseEnd` 在切 turn 后路由，`turn.*` 已清空；结束阶段技能在下一回合才结算 | **待裁定**（见 §4-Q2） |
-| M9 | 「必选/可跳过」语义（`escape` vs `escape_mandatory`） | 待补（23 处复核） |
-| M8 | 计数器作用域无注册（非标准键手写清理） | 待补 |
-| M11 | 开局「就绪」语义（`new_started_game` 可能停在开局 pending） | 待补（小 API） |
+| **M12** | **回合/阶段结束的结算时序**——`PhaseEnd` 在切 turn 后路由，`turn.*` 已清空 | **已补（用户选 B）**：`PhaseEnd` 先结算，`switch_to` 延迟切回合；`begin_game_at` 不再发伪 PhaseEnd |
+| M9 | 「必选/可跳过」语义（`escape` vs `escape_mandatory`） | 门禁已拦（23 处显式白名单）；「空选项自动跳过」待实现 |
+| M8 | 计数器作用域无注册（非标准键手写清理） | 门禁已拦（10 处显式白名单）；`Scope` 注册表待实现 |
+| M11 | 开局「就绪」语义 | 探针已用「pending 分类」验证；`awaiting_input` API 待补 |
 
 ### 0.2 V2 全量替换中应完成但未收口的缺陷（属 bug/欠账，不是机制缺失）
 
@@ -26,10 +26,10 @@
 
 | # | 缺陷 | 证据 |
 |---|---|---|
-| **B1** | 技能类型元数据丢失：`SkillDef` 无 `kind`，296/296 被标 `normal`（不屈=普通、颂威=普通） | `data/audit/B0.json`、重新生成的 `audit-sheets/B0.md` |
-| **B2** | 技能层体力写入未收口：**26 处**直接写 `Seat.hp`，绕过 `flow::heal/lose_hp/revive_to` → `Healed/HpLost` 事件缺失 | §3 清单 |
-| **B3** | 可见标记投影缺失：裔/变/辎（`Seat.counters`）不在视图；视图只投影硬编码白名单 | `view::marks_count_view` |
-| **B4** | 内核仍按技能名分支：**17 处**字面量（数值钩子/兴衰濒死/蛊惑/激将/酣战/jigong/zhaofu） | §3 清单 |
+| **B1** | 技能类型元数据丢失：`SkillDef` 无 `kind` | **已修**：`SkillKind` 注册字段（202 normal / 49 locked / 13 lord / 8 awaken / 12 limited），catalog 恢复类型列；主公技统一闸门（`lord_gate_ok`） |
+| **B2** | 技能层体力写入未收口：26 处直接写 `Seat.hp` | **已修**：迁移到 `flow::heal/lose_hp/revive_to/revive_add/revive_to/clamp_hp/heal_raw`，`check:sgs2-conventions` C1 归零 |
+| **B3** | 可见标记投影缺失：裔/变/辎 | **已修**：`VISIBLE_COUNTER_MARKS` 注册 + 视图投影（C3 门禁） |
+| **B4** | 内核按技能名分支 17 处 | **门禁已拦**（C2，显式白名单 17 条）；抽通用钩子（V2.2）待排 |
 
 ### 0.3 本次已修的实现缺陷
 
@@ -160,7 +160,7 @@
 
 ## 4. 待裁定
 
-### Q2（重新表述）
+### Q2（已裁定：B，已实现）
 
 **问题**：像罪论/兴学/寝情这类「结束阶段」技能，允许哪种结算时序？
 
@@ -169,7 +169,9 @@
 - **B（维持现状）**：承认「结束阶段技能在下一回合开始结算」，只保证判定读事件快照；
   罪论的条件读 `turn.*` 仍会错（需要把这些计数改成跨回合留存或随事件快照携带）。
 
-**需要你选**：A（改时序，语义正确、风险中）还是 B（不改时序，接受展示滞后 + 需要额外快照计数）。
+**裁定（2026-11-11）**：B。实现：`Game.switch_to` + `resolve::complete_turn_switch`；`PhaseEnd` 先路由/结算，pending 清空后再切 turn；
+`begin_game_at` 不再补发伪 `PhaseEnd`（开局 pending 29→25）。回归：`setup_or_lobby::sandbox_start_does_not_trigger_gain_skills`（含诸葛瞻）、
+`b0::songwei_requires_lord`、`b16::pojun_voids_cards_until_turn_end`。
 
 ### Q-spec-kit（再评估）
 
@@ -195,11 +197,33 @@
 
 ## 6. 门禁补齐（防复发）
 
-| 门禁 | 作用 |
-|---|---|
-| `check:sgs2-registry` 扩展 | 裁定↔用例锚点；`kind` 派生校验（锁定/限定/主公）；`subject_window`/`visible_marks` 声明合法 |
+| 门禁 | 作用 | 状态 |
+|---|---|---|
+| `check:sgs2-conventions`（新增） | C1 体力直写 / C2 内核技能名 / C3 标记投影 / C4 计数器作用域 / C5 可跳过出口 / C6 kind 一致性；白名单逐条理由 | **已接入** `check:sgs2` 与 `sgs:check:fast` |
+| `check:sgs2-registry` 扩展 | 裁定↔用例锚点；`kind` 派生校验；`subject_window`/`visible_marks` 声明合法 | 部分（kind 已生成、裁定锚点待补） |
 | `gate_skills_never_touch_hp_directly` | 技能层不得直写 `Seat.hp` |
 | `gate_kernel_has_no_skill_branch` 扩展 | 扫描全部 kernel 文件 + 296 code |
 | `check:sgs2-view-parity` 扩展 | 「技能声明的可见标记」必须出现在 `view` |
 | `self-audit` 脚本 | 把本次的静态扫描 + 143 将开局探针纳入 `sgs:check:fast`（只读、无 Redis） |
 | 事件时机用例 | `Event.turn/phase/lifecycle` 快照、Setup 不触发、`by/from` 来源 |
+
+## 7. 本轮收口状态（2026-11-11）
+
+| 项 | 状态 | 落点 |
+|---|---|---|
+| 奋激口径 A→B | 已修 | `b0::fenji_subject` + `Event.by/from`；`align/B0.md`、`rules-rulings §44` |
+| M1 事件快照 | 已修 | `Event.turn/phase/lifecycle` + `Game::emit` |
+| M2 开局生命周期 | 已修 | `Lifecycle::Setup` |
+| M13 牌移动来源 | 已修 | `action_actor` + `to_discard_by` |
+| M12 结束阶段时序（B） | 已修 | `switch_to` 延迟切回合 + 开局伪 PhaseEnd 修复 |
+| B1 kind | 已修 | `SkillKind` + `lord_gate_ok` + catalog 类型列 |
+| B2 体力单出口 | 已修（26→0） | `flow::heal/lose_hp/revive_*/clamp_hp/heal_raw` |
+| B3 标记投影 | 已修 | `VISIBLE_COUNTER_MARKS` |
+| B4 内核技能名 | 门禁已拦（17 白名单） | `conventions-allowlist.json`；抽钩子排 V2.2 |
+| M9/M8 | 门禁已拦（23/10 白名单） | 空选项自动跳过、Scope 注册表待实现 |
+| M10 裁定↔用例 | **未收口** | 775 裁定 / 610 用例无绑定；需 schema 字段 + 分批补锚点 |
+| 剩余 14 个 handler 读 live turn/phase | **未收口** | 清单见 §2-M1，按批迁移（优先 PhaseEnd 类） |
+| 制霸被动挑战 | **未实现**（功能缺失，非机制） | `align/B14.md §7` 有、§2 无 |
+| `awaiting_input` API | 未补 | 探针已用 pending 分类替代 |
+
+> 剩余项均已在门禁/白名单/台账显式登记，不再是「沉默实现」；但 M10、14 handler、制霸被动仍需在 V2 收口批次完成。

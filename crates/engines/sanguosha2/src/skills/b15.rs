@@ -33,7 +33,7 @@ use crate::kernel::resolve::{self, Ask, Stage, Step};
 use crate::kernel::{flow, CardId, Game, Phase, Slot, Zone};
 use crate::presentation::{POutcome, Presentation};
 
-use super::{active, builder, grant_skill, other_alive, SkillDef};
+use super::{active, builder, grant_skill, other_alive, SkillDef, SkillKind};
 
 const SLOTS: [Slot; 5] = [
     Slot::Weapon,
@@ -137,7 +137,7 @@ fn take_one(g: &mut Game, target: usize, act: &str) -> Result<CardId, String> {
 // 天义（界太史慈）
 // ---------------------------------------------------------------------------
 
-pub const TIANYI: SkillDef = SkillDef {
+pub const TIANYI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "tianyi",
     name: "天义",
     triggers: &[],
@@ -257,7 +257,7 @@ pub fn sha_no_distance(g: &Game, seat: usize, _card: &CardId) -> bool {
 // 酣战（界太史慈）：拼点后获得点数最大的【杀】；拼点前令对方随机出牌
 // ---------------------------------------------------------------------------
 
-pub const HANZHAN: SkillDef = SkillDef {
+pub const HANZHAN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "hanzhan",
     name: "酣战",
     triggers: &[],
@@ -337,7 +337,7 @@ fn hanzhan(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 肉林（界董卓）：与女性角色的【杀】需两张【闪】（与无双相加）
 // ---------------------------------------------------------------------------
 
-pub const ROULIN: SkillDef = SkillDef {
+pub const ROULIN: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "roulin",
     name: "肉林",
     triggers: &[],
@@ -381,7 +381,7 @@ pub fn response_need_bonus(
 // 崩坏（界董卓）
 // ---------------------------------------------------------------------------
 
-pub const BENGKUAI: SkillDef = SkillDef {
+pub const BENGKUAI: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "bengkuai",
     name: "崩坏",
     triggers: &[EventKind::PhaseStart],
@@ -444,7 +444,7 @@ fn bengkuai(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 酒池（界董卓）：黑桃手牌当【酒】；不限次数（可叠加）；酒【杀】伤害后崩坏失效
 // ---------------------------------------------------------------------------
 
-pub const JIUCHI: SkillDef = SkillDef {
+pub const JIUCHI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "jiuchi",
     name: "酒池",
     triggers: &[EventKind::DamageAfter],
@@ -559,7 +559,7 @@ fn jiuchi(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 暴虐（界董卓，主公技）
 // ---------------------------------------------------------------------------
 
-pub const BAONUE: SkillDef = SkillDef {
+pub const BAONUE: SkillDef = SkillDef { kind: SkillKind::Lord,
     code: "baonue",
     name: "暴虐",
     triggers: &[EventKind::DamageAfter],
@@ -654,7 +654,7 @@ fn baonue(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 屯田（界邓艾）：失去牌后判定；非红桃为「田」；每张「田」距离 -1
 // ---------------------------------------------------------------------------
 
-pub const TUOTIAN: SkillDef = SkillDef {
+pub const TUOTIAN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "tuotian",
     name: "屯田",
     triggers: &[EventKind::CardLost],
@@ -750,7 +750,7 @@ pub fn distance_delta(g: &Game, seat: usize) -> i32 {
 // 凿险（界邓艾）：觉醒 + 本回合结束后额外回合
 // ---------------------------------------------------------------------------
 
-pub const ZAOXIAN: SkillDef = SkillDef {
+pub const ZAOXIAN: SkillDef = SkillDef { kind: SkillKind::Awaken,
     code: "zaoxian",
     name: "凿险",
     triggers: &[EventKind::PhaseStart],
@@ -800,7 +800,7 @@ fn zaoxian(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 急袭（邓艾，凿险授予）：装备区/手牌的装备牌当【杀】使用或打出
 // ---------------------------------------------------------------------------
 
-pub const JIXI: SkillDef = SkillDef {
+pub const JIXI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "jixi",
     name: "急袭",
     triggers: &[],
@@ -827,7 +827,7 @@ fn jixi(_g: &mut Game, _a: &Ask) -> Result<Step, String> {
 // 巨象（界祝融）
 // ---------------------------------------------------------------------------
 
-pub const JUXIANG: SkillDef = SkillDef {
+pub const JUXIANG: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "juxiang",
     name: "巨象",
     triggers: &[],
@@ -899,7 +899,7 @@ pub fn on_card_finished(g: &mut Game, source: usize, card: &CardId) {
 // 烈刃（界祝融）：【杀】造成伤害后可与其拼点，赢则获得其一张牌
 // ---------------------------------------------------------------------------
 
-pub const LIERENG: SkillDef = SkillDef {
+pub const LIERENG: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "liereng",
     name: "烈刃",
     triggers: &[EventKind::DamageAfter],
@@ -1003,7 +1003,7 @@ fn liereng(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 长标（界祝融）
 // ---------------------------------------------------------------------------
 
-pub const CHANGBIAO: SkillDef = SkillDef {
+pub const CHANGBIAO: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "changbiao",
     name: "长标",
     triggers: &[EventKind::PhaseStart, EventKind::DamageAfter],
@@ -1183,7 +1183,7 @@ fn changbiao(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 挑衅（界姜维）
 // ---------------------------------------------------------------------------
 
-pub const TIAOXIN: SkillDef = SkillDef {
+pub const TIAOXIN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "tiaoxin",
     name: "挑衅",
     triggers: &[EventKind::DamageAfter],
@@ -1359,7 +1359,7 @@ fn tiaoxin(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 志继（界姜维）：觉醒（准备/结束阶段，无手牌）
 // ---------------------------------------------------------------------------
 
-pub const ZHIJI: SkillDef = SkillDef {
+pub const ZHIJI: SkillDef = SkillDef { kind: SkillKind::Awaken,
     code: "zhiji",
     name: "志继",
     triggers: &[EventKind::PhaseStart],
@@ -1427,7 +1427,7 @@ fn finish_zhiji(g: &mut Game, owner: usize) {
 // 帷幕（界贾诩）
 // ---------------------------------------------------------------------------
 
-pub const WEIMU: SkillDef = SkillDef {
+pub const WEIMU: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "weimu",
     name: "帷幕",
     triggers: &[],
@@ -1485,7 +1485,7 @@ pub fn weimu_prevent(g: &mut Game, source: Option<usize>, victim: usize, amount:
 // 乱武（界贾诩，限定）
 // ---------------------------------------------------------------------------
 
-pub const LUANWU: SkillDef = SkillDef {
+pub const LUANWU: SkillDef = SkillDef { kind: SkillKind::Limited,
     code: "luanwu",
     name: "乱武",
     triggers: &[],
@@ -1659,7 +1659,7 @@ fn luanwu(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 完杀（界贾诩）
 // ---------------------------------------------------------------------------
 
-pub const WANSHA: SkillDef = SkillDef {
+pub const WANSHA: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "wansha",
     name: "完杀",
     triggers: &[],
@@ -1711,7 +1711,7 @@ pub fn dying_peach_blocked(g: &Game, asker: usize, victim: usize) -> bool {
 // 好施（界鲁肃）
 // ---------------------------------------------------------------------------
 
-pub const HAOSHI: SkillDef = SkillDef {
+pub const HAOSHI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "haoshi",
     name: "好施",
     triggers: &[
@@ -1954,7 +1954,7 @@ pub fn after_draw_phase(g: &mut Game, seat: usize) {
 // 缔盟（界鲁肃）
 // ---------------------------------------------------------------------------
 
-pub const DIMENG: SkillDef = SkillDef {
+pub const DIMENG: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "dimeng",
     name: "缔盟",
     triggers: &[EventKind::PhaseStart],
@@ -2104,7 +2104,7 @@ fn dimeng(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 巧变（界张郃）
 // ---------------------------------------------------------------------------
 
-pub const QIAOBIAN: SkillDef = SkillDef {
+pub const QIAOBIAN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "qiaobian",
     name: "巧变",
     triggers: &[],

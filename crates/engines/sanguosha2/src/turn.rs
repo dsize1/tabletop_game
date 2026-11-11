@@ -25,13 +25,12 @@ pub fn begin_game(g: &mut Game) -> Result<(), String> {
 pub fn begin_game_at(g: &mut Game, seat: usize) -> Result<(), String> {
     // Setup 结束：此后产生的事件才允许触发技能。
     g.lifecycle = crate::kernel::event::Lifecycle::Turn;
-    // 让 `begin_phase` 认为阶段发生变化，从而发出 PhaseStart。
+    // 用 `phase = End` 强制发出首个 PhaseStart；但**不**补发 PhaseEnd（开局没有「上一阶段」）。
     g.phase = Phase::End;
     g.turn = seat;
     g.round = 1;
-    g.events
-        .push(Event::simple(EventKind::TurnStart, Some(seat), None));
-    resolve::begin_phase(g, seat, Phase::Prepare)?;
+    g.emit(Event::simple(EventKind::TurnStart, Some(seat), None));
+    resolve::enter_phase(g, seat, Phase::Prepare, false)?;
     tick(g)
 }
 

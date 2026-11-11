@@ -18,7 +18,7 @@ use crate::kernel::resolve::{Ask, Step};
 use crate::kernel::{flow, CardId, Game, Phase, Zone};
 use crate::presentation::{POutcome, Presentation};
 
-use super::{active, builder, grant_skill, other_alive, SkillDef};
+use super::{active, builder, grant_skill, other_alive, SkillDef, SkillKind};
 
 fn label(g: &Game, id: &CardId) -> String {
     g.card_label(id)
@@ -165,8 +165,7 @@ pub fn dying_limited_use(
     g.seats[seat].skills.retain(|s| s != "niepan");
     crate::skills::rebuild_subs(g);
     // 回复至 3 点体力。
-    let hp = 3.min(g.seats[seat].max_hp);
-    g.seats[seat].hp = hp;
+    flow::revive_to(g, seat, 3, "niepan");
     // 摸 3 张。
     let n = g.draw(seat, 3).len();
     g.presentation.push(
@@ -180,7 +179,7 @@ pub fn dying_limited_use(
         .fx("niepan"),
     );
     g.push_log(format!(
-        "涅槃：{} 弃置所有牌、复原武将牌、摸 {n} 张、回复至 {hp} 点体力",
+        "涅槃：{} 弃置所有牌、复原武将牌、摸 {n} 张、回复至 3 点体力",
         g.seats[seat].name
     ));
     // 三选一获得技能。
@@ -207,7 +206,7 @@ pub fn lie_prevent(g: &mut Game, victim: usize) -> bool {
 // 制霸（界孙策，主公技）
 // ---------------------------------------------------------------------------
 
-pub const ZHIBA: SkillDef = SkillDef {
+pub const ZHIBA: SkillDef = SkillDef { kind: SkillKind::Lord,
     code: "zhiba",
     name: "制霸",
     triggers: &[],
@@ -296,7 +295,7 @@ fn zhiba(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 激昂（界孙策）
 // ---------------------------------------------------------------------------
 
-pub const JIANG: SkillDef = SkillDef {
+pub const JIANG: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "jiang",
     name: "激昂",
     triggers: &[
@@ -398,7 +397,7 @@ fn jiang(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 魂姿（界孙策，觉醒）
 // ---------------------------------------------------------------------------
 
-pub const HUNZI: SkillDef = SkillDef {
+pub const HUNZI: SkillDef = SkillDef { kind: SkillKind::Awaken,
     code: "hunzi",
     name: "魂姿",
     triggers: &[EventKind::PhaseStart, EventKind::PhaseEnd],
@@ -426,7 +425,7 @@ fn hunzi(g: &mut Game, a: &Ask) -> Result<Step, String> {
         g.seats[owner].flags.insert("awaken_hunzi".to_string());
         g.seats[owner].flags.insert("hunzi_end".to_string());
         g.seats[owner].max_hp = (g.seats[owner].max_hp - 1).max(1);
-        g.seats[owner].hp = g.seats[owner].hp.min(g.seats[owner].max_hp);
+        flow::clamp_hp(g, owner, "hunzi");
         grant_skill(g, owner, "yingzi");
         grant_skill(g, owner, "yinghun");
         g.presentation.push(
@@ -481,7 +480,7 @@ fn hunzi(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 神速（界夏侯渊）：准备阶段至多三项
 // ---------------------------------------------------------------------------
 
-pub const SHENSU: SkillDef = SkillDef {
+pub const SHENSU: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "shensu",
     name: "神速",
     triggers: &[EventKind::PhaseStart],
@@ -631,7 +630,7 @@ fn shensu_sha(g: &mut Game, owner: usize) -> Result<(), String> {
 // 设变（界夏侯渊）
 // ---------------------------------------------------------------------------
 
-pub const SHEBIAN: SkillDef = SkillDef {
+pub const SHEBIAN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "shebian",
     name: "设变",
     triggers: &[],
@@ -743,7 +742,7 @@ fn shebian(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 八阵 / 藏拙（界卧龙诸葛亮）
 // ---------------------------------------------------------------------------
 
-pub const BAZHEN: SkillDef = SkillDef {
+pub const BAZHEN: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "bazhen",
     name: "八阵",
     triggers: &[],
@@ -761,7 +760,7 @@ pub const BAZHEN: SkillDef = SkillDef {
     subject_window: None,
 };
 
-pub const CANGZHUO: SkillDef = SkillDef {
+pub const CANGZHUO: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "cangzhuo",
     name: "藏拙",
     triggers: &[],
@@ -783,7 +782,7 @@ pub const CANGZHUO: SkillDef = SkillDef {
 // 红颜（界小乔）
 // ---------------------------------------------------------------------------
 
-pub const HONGYAN: SkillDef = SkillDef {
+pub const HONGYAN: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "hongyan",
     name: "红颜",
     triggers: &[],
@@ -819,7 +818,7 @@ pub fn hand_limit_override(g: &Game, seat: usize) -> Option<usize> {
 // 狂骨（界魏延）
 // ---------------------------------------------------------------------------
 
-pub const KUANGGU: SkillDef = SkillDef {
+pub const KUANGGU: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "kuanggu",
     name: "狂骨",
     triggers: &[EventKind::DamageAfter],
@@ -895,7 +894,7 @@ fn kuanggu(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 奇谋（界魏延，限定）
 // ---------------------------------------------------------------------------
 
-pub const QIMOU: SkillDef = SkillDef {
+pub const QIMOU: SkillDef = SkillDef { kind: SkillKind::Limited,
     code: "qimou",
     name: "奇谋",
     triggers: &[],
@@ -974,7 +973,7 @@ fn qimou(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 飘零（界小乔）
 // ---------------------------------------------------------------------------
 
-pub const PIAOLING: SkillDef = SkillDef {
+pub const PIAOLING: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "piaoling",
     name: "飘零",
     triggers: &[EventKind::PhaseStart],
@@ -1125,7 +1124,7 @@ fn piaoling(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 英魂（界孙坚）
 // ---------------------------------------------------------------------------
 
-pub const YINGHUN: SkillDef = SkillDef {
+pub const YINGHUN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "yinghun",
     name: "英魂",
     triggers: &[EventKind::PhaseStart],
@@ -1219,7 +1218,7 @@ fn yinghun(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 武烈（界孙坚，限定）
 // ---------------------------------------------------------------------------
 
-pub const WULIE: SkillDef = SkillDef {
+pub const WULIE: SkillDef = SkillDef { kind: SkillKind::Limited,
     code: "wulie",
     name: "武烈",
     triggers: &[EventKind::PhaseStart],
@@ -1323,7 +1322,7 @@ fn wulie(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 鞬出（界庞德）
 // ---------------------------------------------------------------------------
 
-pub const JIANDU: SkillDef = SkillDef {
+pub const JIANDU: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "jiandu",
     name: "鞬出",
     triggers: &[],
@@ -1463,7 +1462,7 @@ pub const B14_SKILLS: &[SkillDef] = &[
 ];
 
 /// 涅槃（限定）：濒死窗口选项（实现在 `dying_limited_options/use`）。
-pub const NIEPAN: SkillDef = SkillDef {
+pub const NIEPAN: SkillDef = SkillDef { kind: SkillKind::Limited,
     code: "niepan",
     name: "涅槃",
     triggers: &[],
@@ -1513,7 +1512,7 @@ fn niepan_pick(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 火计 / 看破 / 连环（界卧龙诸葛亮 / 界庞统）：转化技
 // ---------------------------------------------------------------------------
 
-pub const HUOJI: SkillDef = SkillDef {
+pub const HUOJI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "huoji",
     name: "火计",
     triggers: &[],
@@ -1531,7 +1530,7 @@ pub const HUOJI: SkillDef = SkillDef {
     subject_window: None,
 };
 
-pub const KANPO: SkillDef = SkillDef {
+pub const KANPO: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "kanpo",
     name: "看破",
     triggers: &[],
@@ -1549,7 +1548,7 @@ pub const KANPO: SkillDef = SkillDef {
     subject_window: None,
 };
 
-pub const LIANHUAN: SkillDef = SkillDef {
+pub const LIANHUAN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "lianhuan",
     name: "连环",
     triggers: &[],
@@ -1698,7 +1697,7 @@ fn lianhuan(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 天香（界小乔）：受到伤害时弃红桃牌防止并转移
 // ---------------------------------------------------------------------------
 
-pub const TIANXIANG: SkillDef = SkillDef {
+pub const TIANXIANG: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "tianxiang",
     name: "天香",
     triggers: &[],

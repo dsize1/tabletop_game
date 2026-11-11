@@ -20,7 +20,7 @@ use crate::kernel::resolve::{Ask, Stage, Step};
 use crate::kernel::{flow, CardId, Game, Phase, Zone};
 use crate::presentation::{POutcome, Presentation};
 
-use super::{active, builder, other_alive, SkillDef};
+use super::{active, builder, other_alive, SkillDef, SkillKind};
 
 // ---------------------------------------------------------------------------
 // 工具
@@ -67,7 +67,7 @@ fn type_group(g: &Game, id: &CardId) -> u8 {
 // 仁德（界刘备）
 // ---------------------------------------------------------------------------
 
-pub const RENDE: SkillDef = SkillDef {
+pub const RENDE: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "rende",
     name: "仁德",
     triggers: &[],
@@ -282,7 +282,7 @@ fn rende(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 激将（界刘备·主公技）
 // ---------------------------------------------------------------------------
 
-pub const JIJIANG: SkillDef = SkillDef {
+pub const JIJIANG: SkillDef = SkillDef { kind: SkillKind::Lord,
     code: "jijiang",
     name: "激将",
     triggers: &[EventKind::CardUsed, EventKind::CardPlayed],
@@ -494,7 +494,7 @@ fn jijiang(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 义绝（界关羽）
 // ---------------------------------------------------------------------------
 
-pub const YIJUE: SkillDef = SkillDef {
+pub const YIJUE: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "yijue",
     name: "义绝",
     triggers: &[],
@@ -653,7 +653,7 @@ fn yijue(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 武圣（界关羽）——被动转化：红牌当【杀】；方片【杀】无距离
 // ---------------------------------------------------------------------------
 
-pub const WUSHENG: SkillDef = SkillDef {
+pub const WUSHENG: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "wusheng",
     name: "武圣",
     triggers: &[],
@@ -703,7 +703,7 @@ pub fn sha_no_distance(g: &Game, seat: usize, card: &CardId) -> bool {
 // 替身（界张飞）
 // ---------------------------------------------------------------------------
 
-pub const TISHEN: SkillDef = SkillDef {
+pub const TISHEN: SkillDef = SkillDef { kind: SkillKind::Limited,
     code: "tishen",
     name: "替身",
     triggers: &[EventKind::PhaseStart],
@@ -771,7 +771,7 @@ fn tishen(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 咆哮（界张飞）
 // ---------------------------------------------------------------------------
 
-pub const PAOXIAO: SkillDef = SkillDef {
+pub const PAOXIAO: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "paoxiao",
     name: "咆哮",
     triggers: &[],
@@ -840,7 +840,7 @@ pub fn yijue_heart_bonus(g: &Game, source: usize, victim: usize, card: Option<&C
 // 涯角（界赵云）
 // ---------------------------------------------------------------------------
 
-pub const YAJIAO: SkillDef = SkillDef {
+pub const YAJIAO: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "yajiao",
     name: "涯角",
     triggers: &[EventKind::CardUsed, EventKind::CardPlayed],
@@ -1034,7 +1034,7 @@ fn yajiao(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 龙胆（界赵云）——被动转化：杀↔闪 / 酒↔桃
 // ---------------------------------------------------------------------------
 
-pub const LONGDAN: SkillDef = SkillDef {
+pub const LONGDAN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "longdan",
     name: "龙胆",
     triggers: &[],
@@ -1085,7 +1085,7 @@ pub fn longdan_conversions(g: &Game, seat: usize) -> Vec<super::Conversion> {
 // 马术（界马超）
 // ---------------------------------------------------------------------------
 
-pub const MASHU: SkillDef = SkillDef {
+pub const MASHU: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "mashu",
     name: "马术",
     triggers: &[],
@@ -1115,7 +1115,7 @@ pub fn distance_delta(g: &Game, seat: usize) -> i32 {
 // 铁骑（界马超）
 // ---------------------------------------------------------------------------
 
-pub const TIEQI: SkillDef = SkillDef {
+pub const TIEQI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "tieqi",
     name: "铁骑",
     triggers: &[],
@@ -1232,7 +1232,7 @@ fn tieqi(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 空城（界诸葛亮）
 // ---------------------------------------------------------------------------
 
-pub const KONGCHENG: SkillDef = SkillDef {
+pub const KONGCHENG: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "kongcheng",
     name: "空城",
     triggers: &[],
@@ -1268,7 +1268,7 @@ fn kongcheng_block(
 // 观星（界诸葛亮）
 // ---------------------------------------------------------------------------
 
-pub const GUANXING: SkillDef = SkillDef {
+pub const GUANXING: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "guanxing",
     name: "观星",
     triggers: &[EventKind::PhaseStart],
@@ -1397,7 +1397,7 @@ fn guanxing(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 集智（界黄月英）
 // ---------------------------------------------------------------------------
 
-pub const JIZHI: SkillDef = SkillDef {
+pub const JIZHI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "jizhi",
     name: "集智",
     triggers: &[EventKind::CardUsed],
@@ -1480,7 +1480,7 @@ fn jizhi(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 奇才（界黄月英）
 // ---------------------------------------------------------------------------
 
-pub const QICAI: SkillDef = SkillDef {
+pub const QICAI: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "qicai",
     name: "奇才",
     triggers: &[],

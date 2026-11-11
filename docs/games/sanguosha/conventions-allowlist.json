@@ -1,0 +1,225 @@
+{
+  "generatedAt": "2026-11-11T04:25:02.984Z",
+  "note": "显式白名单：新增违反必须补机制或登记理由（engine-self-audit B4/M8/M9）",
+  "kernelLiterals": [
+    {
+      "reason": "V2.2（S6）待抽通用钩子：内核按技能名读取数值/窗口/接力（见 engine-self-audit B4）",
+      "file": "card_play.rs",
+      "code": "paoxiao"
+    },
+    {
+      "reason": "V2.2（S6）待抽通用钩子：内核按技能名读取数值/窗口/接力（见 engine-self-audit B4）",
+      "file": "card_play.rs",
+      "code": "guhuo"
+    },
+    {
+      "reason": "V2.2（S6）待抽通用钩子：内核按技能名读取数值/窗口/接力（见 engine-self-audit B4）",
+      "file": "card_play.rs",
+      "code": "jijiang"
+    },
+    {
+      "reason": "V2.2（S6）待抽通用钩子：内核按技能名读取数值/窗口/接力（见 engine-self-audit B4）",
+      "file": "flow.rs",
+      "code": "jueqing"
+    },
+    {
+      "reason": "V2.2（S6）待抽通用钩子：内核按技能名读取数值/窗口/接力（见 engine-self-audit B4）",
+      "file": "flow.rs",
+      "code": "xingshuai"
+    },
+    {
+      "reason": "V2.2（S6）待抽通用钩子：内核按技能名读取数值/窗口/接力（见 engine-self-audit B4）",
+      "file": "mod.rs",
+      "code": "mashu"
+    },
+    {
+      "reason": "V2.2（S6）待抽通用钩子：内核按技能名读取数值/窗口/接力（见 engine-self-audit B4）",
+      "file": "mod.rs",
+      "code": "benxi"
+    },
+    {
+      "reason": "V2.2（S6）待抽通用钩子：内核按技能名读取数值/窗口/接力（见 engine-self-audit B4）",
+      "file": "mod.rs",
+      "code": "qianju"
+    },
+    {
+      "reason": "V2.2（S6）待抽通用钩子：内核按技能名读取数值/窗口/接力（见 engine-self-audit B4）",
+      "file": "mod.rs",
+      "code": "paoxiao"
+    },
+    {
+      "reason": "V2.2（S6）待抽通用钩子：内核按技能名读取数值/窗口/接力（见 engine-self-audit B4）",
+      "file": "mod.rs",
+      "code": "jigong"
+    },
+    {
+      "reason": "V2.2（S6）待抽通用钩子：内核按技能名读取数值/窗口/接力（见 engine-self-audit B4）",
+      "file": "mod.rs",
+      "code": "fulin"
+    },
+    {
+      "reason": "V2.2（S6）待抽通用钩子：内核按技能名读取数值/窗口/接力（见 engine-self-audit B4）",
+      "file": "mod.rs",
+      "code": "jishe"
+    },
+    {
+      "reason": "V2.2（S6）待抽通用钩子：内核按技能名读取数值/窗口/接力（见 engine-self-audit B4）",
+      "file": "mod.rs",
+      "code": "zhaofu"
+    },
+    {
+      "reason": "V2.2（S6）待抽通用钩子：内核按技能名读取数值/窗口/接力（见 engine-self-audit B4）",
+      "file": "mod.rs",
+      "code": "wanglie"
+    },
+    {
+      "reason": "V2.2（S6）待抽通用钩子：内核按技能名读取数值/窗口/接力（见 engine-self-audit B4）",
+      "file": "pindian.rs",
+      "code": "hanzhan"
+    }
+  ],
+  "internalMarks": [
+    {
+      "reason": "内部标记（不面向 UI）：思蜀指定 / 烈弓内部 / 醇醪计数（UI 只播报数量）",
+      "key": "sishu_target"
+    },
+    {
+      "reason": "内部标记（不面向 UI）：思蜀指定 / 烈弓内部 / 醇醪计数（UI 只播报数量）",
+      "key": "lie"
+    },
+    {
+      "reason": "内部标记（不面向 UI）：思蜀指定 / 烈弓内部 / 醇醪计数（UI 只播报数量）",
+      "key": "chunlao_round"
+    },
+    {
+      "reason": "内部标记（不面向 UI）：思蜀指定 / 烈弓内部 / 醇醪计数（UI 只播报数量）",
+      "key": "chunlao_x"
+    }
+  ],
+  "internalCounters": [
+    {
+      "reason": "跨回合/整局累计计数器：思蜀指定、醇醪轮次、诫训累计（需显式作用域 registry）",
+      "key": "sishu_target"
+    },
+    {
+      "reason": "跨回合/整局累计计数器：思蜀指定、醇醪轮次、诫训累计（需显式作用域 registry）",
+      "key": "chunlao_round"
+    },
+    {
+      "reason": "跨回合/整局累计计数器：思蜀指定、醇醪轮次、诫训累计（需显式作用域 registry）",
+      "key": "chunlao_x"
+    },
+    {
+      "reason": "跨回合/整局累计计数器：思蜀指定、醇醪轮次、诫训累计（需显式作用域 registry）",
+      "key": "jiexun_count"
+    }
+  ],
+  "escapes": [
+    {
+      "reason": "候选为空/技能明文可选时的放弃出口（评审保留；空选项自动跳过待 M9 落地）",
+      "file": "b12.rs",
+      "label": "跳过（不弃置）"
+    },
+    {
+      "reason": "候选为空/技能明文可选时的放弃出口（评审保留；空选项自动跳过待 M9 落地）",
+      "file": "b12.rs",
+      "label": "不弃置"
+    },
+    {
+      "reason": "候选为空/技能明文可选时的放弃出口（评审保留；空选项自动跳过待 M9 落地）",
+      "file": "b14.rs",
+      "label": "不弃置"
+    },
+    {
+      "reason": "候选为空/技能明文可选时的放弃出口（评审保留；空选项自动跳过待 M9 落地）",
+      "file": "b15.rs",
+      "label": "不弃置"
+    },
+    {
+      "reason": "候选为空/技能明文可选时的放弃出口（评审保留；空选项自动跳过待 M9 落地）",
+      "file": "b3.rs",
+      "label": "不弃置（放弃散谣）"
+    },
+    {
+      "reason": "候选为空/技能明文可选时的放弃出口（评审保留；空选项自动跳过待 M9 落地）",
+      "file": "b3.rs",
+      "label": "不弃置（视为无牌可弃）"
+    },
+    {
+      "reason": "候选为空/技能明文可选时的放弃出口（评审保留；空选项自动跳过待 M9 落地）",
+      "file": "b3.rs",
+      "label": "不弃置（无合法牌）"
+    },
+    {
+      "reason": "候选为空/技能明文可选时的放弃出口（评审保留；空选项自动跳过待 M9 落地）",
+      "file": "b4.rs",
+      "label": "跳过该角色（不取牌）"
+    },
+    {
+      "reason": "候选为空/技能明文可选时的放弃出口（评审保留；空选项自动跳过待 M9 落地）",
+      "file": "b4.rs",
+      "label": "不弃置（手牌不足）"
+    },
+    {
+      "reason": "候选为空/技能明文可选时的放弃出口（评审保留；空选项自动跳过待 M9 落地）",
+      "file": "b5.rs",
+      "label": "不跳过"
+    },
+    {
+      "reason": "候选为空/技能明文可选时的放弃出口（评审保留；空选项自动跳过待 M9 落地）",
+      "file": "b5.rs",
+      "label": "不弃置（手牌不足）"
+    },
+    {
+      "reason": "候选为空/技能明文可选时的放弃出口（评审保留；空选项自动跳过待 M9 落地）",
+      "file": "b6.rs",
+      "label": "不弃置（无牌可弃）"
+    },
+    {
+      "reason": "候选为空/技能明文可选时的放弃出口（评审保留；空选项自动跳过待 M9 落地）",
+      "file": "b6.rs",
+      "label": "不置顶（跳过剩余）"
+    },
+    {
+      "reason": "候选为空/技能明文可选时的放弃出口（评审保留；空选项自动跳过待 M9 落地）",
+      "file": "b6.rs",
+      "label": "不弃置"
+    },
+    {
+      "reason": "候选为空/技能明文可选时的放弃出口（评审保留；空选项自动跳过待 M9 落地）",
+      "file": "b6.rs",
+      "label": "跳过该角色"
+    },
+    {
+      "reason": "候选为空/技能明文可选时的放弃出口（评审保留；空选项自动跳过待 M9 落地）",
+      "file": "b7.rs",
+      "label": "不弃置（无牌可弃）"
+    },
+    {
+      "reason": "候选为空/技能明文可选时的放弃出口（评审保留；空选项自动跳过待 M9 落地）",
+      "file": "b7.rs",
+      "label": "跳过该角色"
+    },
+    {
+      "reason": "候选为空/技能明文可选时的放弃出口（评审保留；空选项自动跳过待 M9 落地）",
+      "file": "b8.rs",
+      "label": "不弃置（没有选择）"
+    },
+    {
+      "reason": "候选为空/技能明文可选时的放弃出口（评审保留；空选项自动跳过待 M9 落地）",
+      "file": "b8.rs",
+      "label": "不弃置"
+    },
+    {
+      "reason": "候选为空/技能明文可选时的放弃出口（评审保留；空选项自动跳过待 M9 落地）",
+      "file": "b9.rs",
+      "label": "无法展示（跳过义绝）"
+    },
+    {
+      "reason": "候选为空/技能明文可选时的放弃出口（评审保留；空选项自动跳过待 M9 落地）",
+      "file": "b9.rs",
+      "label": "不弃置（不能使用【闪】）"
+    }
+  ],
+  "kindWaivers": []
+}

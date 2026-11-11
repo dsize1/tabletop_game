@@ -5,10 +5,10 @@ use serde_json::json;
 use crate::cards;
 use crate::kernel::event::{EventKind, Window};
 use crate::kernel::resolve::{Ask, Stage, Step};
-use crate::kernel::{Game, Zone};
+use crate::kernel::{flow, Game, Zone};
 use crate::presentation::{POutcome, Presentation};
 
-use super::SkillDef;
+use super::{SkillDef, SkillKind};
 
 fn targets_of(a: &Ask) -> Vec<usize> {
     a.data["cause"]
@@ -17,7 +17,7 @@ fn targets_of(a: &Ask) -> Vec<usize> {
         .unwrap_or_default()
 }
 
-pub const WANGLIE: SkillDef = SkillDef {
+pub const WANGLIE: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "wanglie",
     name: "往烈",
     triggers: &[EventKind::CardUsed],
@@ -85,7 +85,7 @@ fn wanglie(g: &mut Game, a: &Ask) -> Result<Step, String> {
     }
 }
 
-pub const FUYIN: SkillDef = SkillDef {
+pub const FUYIN: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "fuyin",
     name: "父荫",
     triggers: &[EventKind::TargetChosen],
@@ -143,7 +143,7 @@ fn fuyin(g: &mut Game, a: &Ask) -> Result<Step, String> {
     Ok(Step::Done)
 }
 
-pub const JUEYAN: SkillDef = SkillDef {
+pub const JUEYAN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "jueyan",
     name: "决堰",
     triggers: &[],
@@ -235,7 +235,7 @@ fn jueyan(g: &mut Game, a: &Ask) -> Result<Step, String> {
     }
 }
 
-pub const POSHI: SkillDef = SkillDef {
+pub const POSHI: SkillDef = SkillDef { kind: SkillKind::Awaken,
     code: "poshi",
     name: "破势",
     triggers: &[EventKind::PhaseStart],
@@ -278,7 +278,7 @@ fn poshi(g: &mut Game, a: &Ask) -> Result<Step, String> {
     Ok(Step::Done)
 }
 
-pub const XIONGLUAN: SkillDef = SkillDef {
+pub const XIONGLUAN: SkillDef = SkillDef { kind: SkillKind::Limited,
     code: "xiongluan",
     name: "雄乱",
     triggers: &[],
@@ -323,7 +323,7 @@ fn xiongluan(g: &mut Game, a: &Ask) -> Result<Step, String> {
     Ok(Step::Done)
 }
 
-pub const QIANJIE: SkillDef = SkillDef {
+pub const QIANJIE: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "qianjie",
     name: "谦节",
     triggers: &[],
@@ -360,7 +360,7 @@ fn qianjie_blocker(
     tags.delayed || tags.lianhuan
 }
 
-pub const ZHENGU: SkillDef = SkillDef {
+pub const ZHENGU: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "zhengu",
     name: "镇骨",
     triggers: &[EventKind::PhaseEnd],
@@ -460,7 +460,7 @@ pub(crate) fn zhengu_end(g: &mut Game, owner: usize, ended: usize) {
     }
 }
 
-pub const ZUILUN: SkillDef = SkillDef {
+pub const ZUILUN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "zuilun",
     name: "罪论",
     triggers: &[EventKind::PhaseEnd],
@@ -523,7 +523,7 @@ fn zuilun_reveal(g: &mut Game, a: &Ask) -> Result<Step, String> {
             .filter(|i| *i != a.actor && g.seats[*i].hp > 0)
             .collect();
         if cands.is_empty() {
-            g.seats[a.actor].hp -= 1;
+            flow::lose_hp(g, a.actor, 1, "zuilun");
             return Ok(Step::Done);
         }
         return Ok(Step::Next(Stage::Target, json!({ "step": "victim" })));
@@ -647,7 +647,7 @@ fn zuilun_victim(g: &mut Game, a: &Ask) -> Result<Step, String> {
             Ok(Step::Need(b.escape("只自己失去").build()))
         }
         Some("pass") => {
-            g.seats[a.actor].hp -= 1;
+            flow::lose_hp(g, a.actor, 1, "zuilun");
             Ok(Step::Done)
         }
         Some(act) => {
@@ -655,8 +655,8 @@ fn zuilun_victim(g: &mut Game, a: &Ask) -> Result<Step, String> {
                 .strip_prefix("target:")
                 .and_then(|s| s.parse().ok())
                 .ok_or_else(|| format!("罪论：目标不合法 {act}"))?;
-            g.seats[a.actor].hp -= 1;
-            g.seats[t].hp -= 1;
+            flow::lose_hp(g, a.actor, 1, "zuilun");
+            flow::lose_hp(g, t, 1, "zuilun");
             g.push_log(format!(
                 "罪论：{} 与 {} 各失去 1 点体力",
                 g.seats[a.actor].name, g.seats[t].name
@@ -670,7 +670,7 @@ fn zuilun_victim(g: &mut Game, a: &Ask) -> Result<Step, String> {
     }
 }
 
-pub const HONGJU: SkillDef = SkillDef {
+pub const HONGJU: SkillDef = SkillDef { kind: SkillKind::Awaken,
     code: "hongju",
     name: "鸿举",
     triggers: &[EventKind::PhaseStart],
@@ -800,7 +800,7 @@ fn noop(_g: &mut Game, _a: &Ask) -> Result<Step, String> {
 // 征荣（毌丘俭）：使用【杀】或伤害锦囊指定目标后，取目标一张牌移出游戏作「荣」
 // ---------------------------------------------------------------------------
 
-pub const ZHENGRONG: SkillDef = SkillDef {
+pub const ZHENGRONG: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "zhengrong",
     name: "征荣",
     triggers: &[EventKind::TargetChosen],
@@ -917,7 +917,7 @@ fn zhengrong(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 从谏（张绣）：成为目标后，交出自己的手牌/装备，然后摸 1
 // ---------------------------------------------------------------------------
 
-pub const CONGJIAN: SkillDef = SkillDef {
+pub const CONGJIAN: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "congjian",
     name: "从谏",
     triggers: &[EventKind::TargetChosen],

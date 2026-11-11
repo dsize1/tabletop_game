@@ -329,6 +329,13 @@ pub fn advance(g: &mut Game) -> Result<(), String> {
                 continue;
             }
         }
+        // 结束阶段触发已结算完：完成回合切换并进入新回合首阶段（M12 / ADR-0039）。
+        if g.pending.is_none() && g.stack.is_empty() {
+            if let Some((seat, phase)) = g.switch_to.take() {
+                complete_turn_switch(g, seat);
+                return enter_phase(g, seat, phase, false);
+            }
+        }
         break;
     }
     // 不变量：结算栈空且无待办时，`answer` 必须已被消费（否则会污染下一个动作的技能）。
@@ -438,7 +445,16 @@ fn route_one_event(g: &mut Game) {
     // 「主体窗口」：客观判定（如奋激：受影响的角色必须在回合外）。
     // 由技能声明，不写进 handler；判定同样用事件快照，避免回合切换后的误读。
     matched.retain(|s| {
-        let Some(sw) = crate::skills::def(&s.skill).and_then(|d| d.subject_window) else {
+        let Some(def) = crate::skills::def(&s.skill) else {
+            return true;
+        };
+        // 主公技统一闸门（伪帝借用由 may_use_lord_skill 处理）。
+        if def.kind == crate::skills::SkillKind::Lord
+            && !crate::skills::lord_gate_ok(g, s.owner, &s.skill)
+        {
+            return false;
+        }
+        let Some(sw) = def.subject_window else {
             return true;
         };
         let subject = ev.seat.unwrap_or(s.owner);
@@ -542,12 +558,10 @@ pub fn start_pre_use(
 
 /// 回合/阶段切换（测试与引擎共用）：清一次性计数器 + 发事件。
 pub fn begin_phase(g: &mut Game, seat: usize, phase: Phase) -> Result<(), String> {
-    let mut phase = phase;
-    let turn_switched = g.turn != seat;
-    if turn_switched {
-        // 「回合结束后」技能（窃听）：在清空 `turn.` 计数之前询问。
+    if g.turn != seat {
+        // 回合切换：先让「回合结束/结束阶段」的触发结算完，再清计数并换人（M12 / ADR-0039）。
+        // 期间若产生 pending，`advance` 会停下；`switch_to` 在队列清空后由 `advance` 完成。
         crate::skills::on_turn_end(g, g.turn);
-        // 上一回合最后阶段结束（正常为 End）：emit PhaseEnd（阶段结束时技能的唯一事实源）。
         let old_turn = g.turn;
         let old_phase = g.phase;
         g.emit(super::event::Event::simple(
@@ -555,31 +569,49 @@ pub fn begin_phase(g: &mut Game, seat: usize, phase: Phase) -> Result<(), String
             Some(old_turn),
             Some(&format!("{old_phase:?}")),
         ));
-        for i in 0..g.seats.len() {
-            g.unfreeze_hand(i);
-            // 义绝·黑的手牌封印只持续到本回合结束。
-            g.seats[i].flags.remove("hand_sealed");
-        }
-        // 谦逊：回合结束时把移出游戏的手牌归还。
-        crate::skills::return_void_cards(g, g.turn_seq);
-        g.clear_prefix("turn.");
-        // 本回合的「已使用牌 / 不计次数标记」随回合结束清空（派生计数 sha_used 依赖它）。
-        g.used_this_turn.clear();
-        g.uncounted.clear();
-        // 明鉴：交牌时置 1（待生效）→ 其下个回合开始时置 2（本回合生效）→ 再下一回合清零。
-        let key = format!("mingjian:{seat}");
-        let cur = g.counters.get(&key).copied().unwrap_or(0);
-        if cur >= 1 {
-            g.counters.insert(key, if cur == 1 { 2 } else { 0 });
-        }
-        g.turn = seat;
-        g.turn_seq += 1;
-        g.emit(super::event::Event::simple(
-            EventKind::TurnStart,
-            Some(seat),
-            None,
-        ));
+        g.switch_to = Some((seat, phase));
+        advance(g)?;
+        return Ok(());
     }
+    enter_phase(g, seat, phase, true)
+}
+
+/// 完成回合切换（在所有结束阶段触发结算完之后调用）。
+fn complete_turn_switch(g: &mut Game, seat: usize) {
+    for i in 0..g.seats.len() {
+        g.unfreeze_hand(i);
+        // 义绝·黑的手牌封印只持续到本回合结束。
+        g.seats[i].flags.remove("hand_sealed");
+    }
+    // 谦逊：回合结束时把移出游戏的手牌归还。
+    crate::skills::return_void_cards(g, g.turn_seq);
+    g.clear_prefix("turn.");
+    // 本回合的「已使用牌 / 不计次数标记」随回合结束清空（派生计数 sha_used 依赖它）。
+    g.used_this_turn.clear();
+    g.uncounted.clear();
+    // 明鉴：交牌时置 1（待生效）→ 其下个回合开始时置 2（本回合生效）→ 再下一回合清零。
+    let key = format!("mingjian:{seat}");
+    let cur = g.counters.get(&key).copied().unwrap_or(0);
+    if cur >= 1 {
+        g.counters.insert(key, if cur == 1 { 2 } else { 0 });
+    }
+    g.turn = seat;
+    g.turn_seq += 1;
+    g.emit(super::event::Event::simple(
+        EventKind::TurnStart,
+        Some(seat),
+        None,
+    ));
+}
+
+/// 进入某阶段（不含回合切换的计数清理）。`emit_phase_end` = 是否补发旧阶段的 PhaseEnd。
+pub(crate) fn enter_phase(
+    g: &mut Game,
+    seat: usize,
+    phase: Phase,
+    emit_phase_end: bool,
+) -> Result<(), String> {
+    let mut phase = phase;
     // 判定区效果（乐不思蜀）：跳过出牌阶段（唯一消费点；判定阶段写入 `turn.skip_play`）。
     if phase == Phase::Play && g.counter("turn.skip_play") > 0 {
         g.counters.insert("turn.skip_play".to_string(), 0);
@@ -593,7 +625,7 @@ pub fn begin_phase(g: &mut Game, seat: usize, phase: Phase) -> Result<(), String
     }
     if g.phase != phase {
         // 阶段结束事件（供「阶段结束时」技能；cause = 旧阶段名）。
-        if !turn_switched {
+        if emit_phase_end {
             let old_phase = g.phase;
             g.emit(super::event::Event::simple(
                 EventKind::PhaseEnd,

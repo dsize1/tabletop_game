@@ -16,7 +16,7 @@ use crate::kernel::resolve::{Ask, Stage, Step};
 use crate::kernel::{flow, CardId, Game, Phase, Slot, Zone};
 use crate::presentation::{POutcome, Presentation};
 
-use super::{active, other_alive, SkillDef};
+use super::{active, other_alive, SkillDef, SkillKind};
 
 // ---------------------------------------------------------------------------
 // 通用小工具
@@ -75,7 +75,7 @@ fn zone_label(g: &Game, id: &CardId) -> &'static str {
 //           其他角色可移去两张「逆」视为对刘封使用【杀】（不限次数）
 // ---------------------------------------------------------------------------
 
-pub const XIANSI: SkillDef = SkillDef {
+pub const XIANSI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "xiansi",
     name: "陷嗣",
     triggers: &[EventKind::PhaseStart],
@@ -291,7 +291,7 @@ fn xiansi(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 夺刀（潘璋马忠）：被【杀】伤害后，弃一张牌（手牌/装备区）获得其武器
 // ---------------------------------------------------------------------------
 
-pub const DUODAO: SkillDef = SkillDef {
+pub const DUODAO: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "duodao",
     name: "夺刀",
     triggers: &[EventKind::DamageAfter],
@@ -448,7 +448,7 @@ fn duodao(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 暗箭（潘璋马忠，锁定）：不在其攻击范围内时【杀】伤害 +1
 // ---------------------------------------------------------------------------
 
-pub const ANJIAN: SkillDef = SkillDef {
+pub const ANJIAN: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "anjian",
     name: "暗箭",
     triggers: &[],
@@ -491,7 +491,7 @@ fn noop(_g: &mut Game, _a: &Ask) -> Result<Step, String> {
 // 胆守（朱然）：第 X 次发动弃 X 张牌（手牌/装备区，自动支付），只需选目标
 // ---------------------------------------------------------------------------
 
-pub const DANSHOU: SkillDef = SkillDef {
+pub const DANSHOU: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "danshou",
     name: "胆守",
     triggers: &[],
@@ -640,7 +640,7 @@ fn resolve_danshou(g: &mut Game, actor: usize, target: usize, x: usize) -> Resul
 //               阶段结束若其未使用【杀】，视为对其使用【杀】
 // ---------------------------------------------------------------------------
 
-pub const SIDI: SkillDef = SkillDef {
+pub const SIDI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "sidi",
     name: "司敌",
     triggers: &[EventKind::PhaseStart, EventKind::PhaseEnd],
@@ -803,7 +803,7 @@ fn sidi_end_play(g: &mut Game, owner: usize, current: usize) -> Result<(), Strin
 // 慎断（韩浩史涣）：黑色基本牌被弃置后，可当无距离【兵粮寸断】使用
 // ---------------------------------------------------------------------------
 
-pub const SHENDUAN: SkillDef = SkillDef {
+pub const SHENDUAN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "shenduan",
     name: "慎断",
     triggers: &[EventKind::CardDiscarded],
@@ -912,7 +912,7 @@ fn shenduan(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 勇略（韩浩史涣）：其他角色判定阶段开始时，弃其判定牌视为对其使用【杀】
 // ---------------------------------------------------------------------------
 
-pub const YONGLUE: SkillDef = SkillDef {
+pub const YONGLUE: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "yonglue",
     name: "勇略",
     triggers: &[EventKind::PhaseStart],
@@ -1010,7 +1010,7 @@ fn yonglue(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 品第（陈群）：弃未用过的类型牌 → 令一名其他角色摸/弃 X 张；已受伤则陈群连环
 // ---------------------------------------------------------------------------
 
-pub const PINDI: SkillDef = SkillDef {
+pub const PINDI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "pindi",
     name: "品第",
     triggers: &[],
@@ -1212,7 +1212,7 @@ fn after_pindi(g: &mut Game, actor: usize, target: usize) -> Result<Step, String
 // 法恩（陈群）：任意角色翻至正面或进入连环状态后，可令其摸一张
 // ---------------------------------------------------------------------------
 
-pub const FAEN: SkillDef = SkillDef {
+pub const FAEN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "faen",
     name: "法恩",
     triggers: &[EventKind::ChainedEnter],
@@ -1289,7 +1289,7 @@ fn faen(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 奔袭（吴懿，锁定）：距离 -1（固定，等价进攻马）+ 单目标【杀】/普通锦囊的至多两项强化
 // ---------------------------------------------------------------------------
 
-pub const BENXI: SkillDef = SkillDef {
+pub const BENXI: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "benxi",
     name: "奔袭",
     triggers: &[EventKind::TargetChosen],
@@ -1468,7 +1468,7 @@ fn apply_benxi(g: &mut Game, actor: usize, card: &str, targets: &[usize], select
 // 忠勇（周仓）：使用【杀】后可把此【杀】/目标打出的【闪】交给其他角色
 // ---------------------------------------------------------------------------
 
-pub const ZHONGYONG: SkillDef = SkillDef {
+pub const ZHONGYONG: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "zhongyong",
     name: "忠勇",
     triggers: &[],

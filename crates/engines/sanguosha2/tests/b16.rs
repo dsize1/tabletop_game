@@ -587,6 +587,11 @@ fn pojun_voids_cards_until_turn_end() {
     answer(&mut g, zero, &opt);
     answer(&mut g, zero, "pass");
     assert!(g.ids_in(|z| *z == Zone::Void).iter().any(|c| c == "arm1"));
+    // 先结算【杀】的响应窗口（新时序：响应未结算时不允许切回合）。
+    while pend_skill(&g).as_deref() == Some("__card") {
+        let actor = pend_actor(&g);
+        answer(&mut g, actor, "pass");
+    }
     // 回合结束（切换到下一名角色的准备阶段）归还。
     g.phase = Phase::End;
     begin_phase(&mut g, 1, Phase::Prepare).unwrap();

@@ -21,7 +21,7 @@ use crate::kernel::resolve::{Ask, Step};
 use crate::kernel::{CardId, Game, Phase, Zone};
 use crate::presentation::{POutcome, Presentation};
 
-use super::{active, builder, other_alive, SkillDef};
+use super::{active, builder, other_alive, SkillDef, SkillKind};
 
 // ---------------------------------------------------------------------------
 // 工具
@@ -81,7 +81,7 @@ fn pick_card_options(g: &Game, seat: usize) -> Vec<(String, String)> {
 // 急救（界华佗）：回合外红色手牌/装备区牌当【桃】
 // ---------------------------------------------------------------------------
 
-pub const JIJIU: SkillDef = SkillDef {
+pub const JIJIU: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "jijiu",
     name: "急救",
     triggers: &[],
@@ -121,7 +121,7 @@ pub fn conversions(g: &Game, seat: usize) -> Vec<super::Conversion> {
 // 除疠（界华佗）：势力去重多选 → 各参与者自选一张弃置 → 黑桃者各摸 1
 // ---------------------------------------------------------------------------
 
-pub const CHULI: SkillDef = SkillDef {
+pub const CHULI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "chuli",
     name: "除疠",
     triggers: &[],
@@ -299,7 +299,7 @@ fn chuli_advance(
 // 无双（界吕布）：连续 N 张响应（multi-response）
 // ---------------------------------------------------------------------------
 
-pub const WUSHUANG: SkillDef = SkillDef {
+pub const WUSHUANG: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "wushuang",
     name: "无双",
     triggers: &[],
@@ -339,7 +339,7 @@ pub fn response_need(
 // 利驭（界吕布）：杀造成伤害后获得其一张牌；装备牌则由受伤角色指定决斗
 // ---------------------------------------------------------------------------
 
-pub const LIYU: SkillDef = SkillDef {
+pub const LIYU: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "liyu",
     name: "利驭",
     triggers: &[EventKind::DamageAfter],
@@ -552,7 +552,7 @@ fn liyu_after_gain(
 // 义从（界公孙瓒）：距离双向修正（锁定技）
 // ---------------------------------------------------------------------------
 
-pub const YICONG: SkillDef = SkillDef {
+pub const YICONG: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "yicong",
     name: "义从",
     triggers: &[],
@@ -592,7 +592,7 @@ pub fn distance_to_delta(g: &Game, seat: usize) -> i32 {
 // 趫猛（界公孙瓒）：杀造成伤害后弃其一张牌；坐骑牌改为获得
 // ---------------------------------------------------------------------------
 
-pub const QIAOMENG: SkillDef = SkillDef {
+pub const QIAOMENG: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "qiaomeng",
     name: "趫猛",
     triggers: &[EventKind::DamageAfter],
@@ -715,7 +715,7 @@ fn qiaomeng_take(
 // 离间（界貂蝉）：弃一张牌（手牌/装备区）→ 两名男性视为【决斗】（不能被无懈）
 // ---------------------------------------------------------------------------
 
-pub const LIJIAN: SkillDef = SkillDef {
+pub const LIJIAN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "lijian",
     name: "离间",
     triggers: &[],
@@ -889,7 +889,7 @@ fn lijian(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 闭月（界貂蝉）：结束阶段摸牌（无手牌 2，否则 1）
 // ---------------------------------------------------------------------------
 
-pub const BIYUE: SkillDef = SkillDef {
+pub const BIYUE: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "biyue",
     name: "闭月",
     triggers: &[EventKind::PhaseStart],

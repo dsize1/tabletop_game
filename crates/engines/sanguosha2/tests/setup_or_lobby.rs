@@ -367,8 +367,8 @@ fn sandbox_start_does_not_trigger_gain_skills() {
     let spec = SandboxSpec {
         players: 5,
         seats: vec![
-            seat(0, "sgs_hero_29", Some("lord")),
-            seat(1, "sgs_hero_210", None), // 周泰（奋激）
+            seat(0, "sgs_hero_410", Some("lord")), // 诸葛瞻（罪论：PhaseEnd 触发）
+            seat(1, "sgs_hero_210", None),         // 周泰（奋激：CardGained 触发）
             seat(2, "sgs_hero_43", None),
             seat(3, "sgs_hero_299", None),
             seat(4, "sgs_hero_311", None),
@@ -380,7 +380,7 @@ fn sandbox_start_does_not_trigger_gain_skills() {
     assert!(g.events.is_empty(), "开局发牌事件必须清空：{:?}", g.events);
     assert!(
         g.pending.is_none(),
-        "开局不得触发获得/弃置类技能：{:?}",
+        "开局不得触发获得/弃置/阶段结束类技能（含伪 PhaseEnd）：{:?}",
         g.pending
     );
 }

@@ -27,7 +27,7 @@ use crate::kernel::resolve::{Ask, Stage, Step};
 use crate::kernel::{flow, CardId, Game, Phase, Slot, Zone};
 use crate::presentation::{POutcome, Presentation};
 
-use super::{active, builder, other_alive, SkillDef};
+use super::{active, builder, other_alive, SkillDef, SkillKind};
 
 const SLOTS: [Slot; 5] = [
     Slot::Weapon,
@@ -114,7 +114,7 @@ fn take_one(g: &mut Game, target: usize, act: &str) -> Result<CardId, String> {
 // 祸首（界孟获）
 // ---------------------------------------------------------------------------
 
-pub const HUOSHOU: SkillDef = SkillDef {
+pub const HUOSHOU: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "huoshou",
     name: "祸首",
     triggers: &[],
@@ -160,7 +160,7 @@ pub fn huoshou_source(g: &Game, user: usize, card: Option<&CardId>) -> Option<us
 // 再起（界孟获）：结束阶段，按本回合红色牌进弃牌堆数逐次结算
 // ---------------------------------------------------------------------------
 
-pub const ZAIZHI: SkillDef = SkillDef {
+pub const ZAIZHI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "zaizhi",
     name: "再起",
     triggers: &[EventKind::PhaseStart],
@@ -263,7 +263,7 @@ fn next_round(g: &mut Game, owner: usize, remaining: usize) -> Result<Step, Stri
 // 断粮（界徐晃）：转化 + 无距离
 // ---------------------------------------------------------------------------
 
-pub const DUANLIANG: SkillDef = SkillDef {
+pub const DUANLIANG: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "duanliang",
     name: "断粮",
     triggers: &[],
@@ -290,7 +290,7 @@ pub fn duanliang_no_distance(g: &Game, seat: usize) -> bool {
 // 截辎（界徐晃）
 // ---------------------------------------------------------------------------
 
-pub const JIEZI: SkillDef = SkillDef {
+pub const JIEZI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "jiezi",
     name: "截辎",
     triggers: &[],
@@ -407,7 +407,7 @@ pub fn after_draw_phase(g: &mut Game, seat: usize) {
 // 断肠（界蔡文姬）：死亡时杀死者失去所有技能
 // ---------------------------------------------------------------------------
 
-pub const DUANCHANG: SkillDef = SkillDef {
+pub const DUANCHANG: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "duanchang",
     name: "断肠",
     triggers: &[],
@@ -429,7 +429,7 @@ pub const DUANCHANG: SkillDef = SkillDef {
 // 悲歌（界蔡文姬）
 // ---------------------------------------------------------------------------
 
-pub const BEIGE: SkillDef = SkillDef {
+pub const BEIGE: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "beige",
     name: "悲歌",
     triggers: &[EventKind::DamageAfter],
@@ -598,7 +598,7 @@ fn beige(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 驱虎（界荀彧）
 // ---------------------------------------------------------------------------
 
-pub const QUHU: SkillDef = SkillDef {
+pub const QUHU: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "quhu",
     name: "驱虎",
     triggers: &[],
@@ -729,7 +729,7 @@ fn quhu(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 节命（界荀彧）：受伤后 / 死亡时
 // ---------------------------------------------------------------------------
 
-pub const JIEMING: SkillDef = SkillDef {
+pub const JIEMING: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "jieming",
     name: "节命",
     triggers: &[EventKind::DamageAfter],
@@ -866,7 +866,7 @@ pub fn on_death(g: &mut Game, victim: usize, source: Option<usize>) {
 // 强袭（界典韦）
 // ---------------------------------------------------------------------------
 
-pub const QIANGXI: SkillDef = SkillDef {
+pub const QIANGXI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "qiangxi",
     name: "强袭",
     triggers: &[],
@@ -985,7 +985,7 @@ fn qiangxi(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 狞恶（界典韦，锁定）
 // ---------------------------------------------------------------------------
 
-pub const NINGE: SkillDef = SkillDef {
+pub const NINGE: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "ninge",
     name: "狞恶",
     triggers: &[EventKind::DamageAfter],
@@ -1064,7 +1064,7 @@ fn ninge(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 双雄（界颜良文丑）
 // ---------------------------------------------------------------------------
 
-pub const SHUANGXIONG: SkillDef = SkillDef {
+pub const SHUANGXIONG: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "shuangxiong",
     name: "双雄",
     triggers: &[EventKind::DamageAfter, EventKind::PhaseStart],
@@ -1163,7 +1163,7 @@ fn shuangxiong(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 直谏（界张昭张纮）
 // ---------------------------------------------------------------------------
 
-pub const ZHIJIAN: SkillDef = SkillDef {
+pub const ZHIJIAN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "zhijian",
     name: "直谏",
     triggers: &[],
@@ -1282,7 +1282,7 @@ fn zhijian(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 固政（界张昭张纮）
 // ---------------------------------------------------------------------------
 
-pub const GUZHENG: SkillDef = SkillDef {
+pub const GUZHENG: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "guzheng",
     name: "固政",
     triggers: &[EventKind::CardDiscarded],
@@ -1380,7 +1380,7 @@ fn guzheng(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 破军（界徐盛）
 // ---------------------------------------------------------------------------
 
-pub const POJUN: SkillDef = SkillDef {
+pub const POJUN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "pojun",
     name: "破军",
     triggers: &[],

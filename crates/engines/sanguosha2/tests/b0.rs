@@ -354,6 +354,7 @@ fn fangzhu_flips_before_drawing_and_can_trigger_jiewei() {
 #[test]
 fn songwei_asks_the_judging_player() {
     let mut g = b0_game();
+    g.seats[2].flags.insert("lord".to_string()); // 主公技：曹丕必须是主公
     g.seats[3].kingdom = "wei".to_string();
     let lord_hand = g.hand(2).len();
     let card = flow::judge_card(&mut g, 3).expect("判定牌");
@@ -370,6 +371,17 @@ fn songwei_asks_the_judging_player() {
     assert_eq!(p.actor(), 3, "必须询问判定者，而不是主公");
     answer(&mut g, 3, "choose:songwei");
     assert_eq!(g.hand(2).len(), lord_hand + 1, "发动后主公摸 1");
+}
+
+#[test]
+fn songwei_requires_lord() {
+    // 机制：`SkillDef.kind = Lord` 由路由层统一闸门（非主公不触发，不写 per-skill 检查）。
+    let mut g = b0_game(); // 曹丕（座位 2）不是主公
+    g.seats[3].kingdom = "wei".to_string();
+    let card = flow::judge_card(&mut g, 3).expect("判定牌");
+    flow::judge_effective(&mut g, 3, &card);
+    advance(&mut g).unwrap();
+    assert!(g.pending.is_none(), "非主公的颂威不得触发");
 }
 
 #[test]

@@ -15,7 +15,7 @@ use crate::kernel::resolve::{Ask, Stage, Step};
 use crate::kernel::{Game, Phase};
 use crate::presentation::{POutcome, Presentation};
 
-use super::{active, other_alive, SkillDef};
+use super::{active, other_alive, SkillDef, SkillKind};
 
 /// 「任」的颜色（spike 中由测试注入 mark ；明任本身不在本批）。
 pub fn ren_color(g: &Game, seat: usize) -> Option<bool> {
@@ -24,7 +24,7 @@ pub fn ren_color(g: &Game, seat: usize) -> Option<bool> {
         .and_then(|id| g.cards.get(id).map(|c| c.suit.is_red()))
 }
 
-pub const DEF: SkillDef = SkillDef {
+pub const DEF: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "zhenliang",
     name: "贞良",
     triggers: &[EventKind::CardUsed, EventKind::CardPlayed],

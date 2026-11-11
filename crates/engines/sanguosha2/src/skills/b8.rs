@@ -21,7 +21,7 @@ use crate::kernel::pindian;
 use crate::kernel::resolve::{Ask, FlowFrame, FlowKind, Frame, Stage, Step};
 use crate::kernel::{flow, CardId, Game, Phase, Slot, Zone};
 
-use super::{active, builder, other_alive, SkillDef};
+use super::{active, builder, other_alive, SkillDef, SkillKind};
 
 // ---------------------------------------------------------------------------
 // 通用工具
@@ -146,7 +146,7 @@ fn zone_tagged_options(g: &Game, seat: usize) -> Vec<(String, String)> {
 // 忠鉴（辛宪英）
 // ---------------------------------------------------------------------------
 
-pub const ZHONGJIAN: SkillDef = SkillDef {
+pub const ZHONGJIAN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "zhongjian",
     name: "忠鉴",
     triggers: &[],
@@ -429,7 +429,7 @@ fn resolve_zhongjian(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 才识（辛宪英）
 // ---------------------------------------------------------------------------
 
-pub const CAISHI: SkillDef = SkillDef {
+pub const CAISHI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "caishi",
     name: "才识",
     triggers: &[EventKind::PhaseStart],
@@ -487,7 +487,7 @@ fn caishi(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 福绵（吴苋）
 // ---------------------------------------------------------------------------
 
-pub const FUMIAN: SkillDef = SkillDef {
+pub const FUMIAN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "fumian",
     name: "福绵",
     triggers: &[EventKind::PhaseStart],
@@ -587,7 +587,7 @@ pub fn consume_extra_targets(g: &mut Game, seat: usize) {
 // 怠宴（吴苋）
 // ---------------------------------------------------------------------------
 
-pub const DAIYAN: SkillDef = SkillDef {
+pub const DAIYAN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "daiyan",
     name: "怠宴",
     triggers: &[EventKind::PhaseStart],
@@ -677,7 +677,7 @@ fn daiyan(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 问卦（徐氏）
 // ---------------------------------------------------------------------------
 
-pub const WENGUA: SkillDef = SkillDef {
+pub const WENGUA: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "wengua",
     name: "问卦",
     triggers: &[],
@@ -792,7 +792,7 @@ fn wengua(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 伏诛（徐氏）
 // ---------------------------------------------------------------------------
 
-pub const FUZHU: SkillDef = SkillDef {
+pub const FUZHU: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "fuzhu",
     name: "伏诛",
     triggers: &[EventKind::PhaseStart],
@@ -909,7 +909,7 @@ fn finish_fuzhu(g: &mut Game, owner: usize) -> Result<Step, String> {
 // 守玺（曹节）——【杀】目标介入
 // ---------------------------------------------------------------------------
 
-pub const SHOUXI: SkillDef = SkillDef {
+pub const SHOUXI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "shouxi",
     name: "守玺",
     triggers: &[],
@@ -1074,7 +1074,7 @@ fn shouxi(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 惠民（曹节）
 // ---------------------------------------------------------------------------
 
-pub const HUIMIN: SkillDef = SkillDef {
+pub const HUIMIN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "huimin",
     name: "惠民",
     triggers: &[EventKind::PhaseStart],
@@ -1207,7 +1207,7 @@ fn huimin(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 清弦（嵇康）+ 四条子技能（授予）
 // ---------------------------------------------------------------------------
 
-pub const QINGXIAN: SkillDef = SkillDef {
+pub const QINGXIAN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "qingxian",
     name: "清弦",
     triggers: &[EventKind::DamageAfter, EventKind::Healed],
@@ -1380,7 +1380,7 @@ fn qingxian(g: &mut Game, a: &Ask) -> Result<Step, String> {
 /// 四条子技能（绝响授予）：固定单一效果，无梅花摸牌。
 macro_rules! xian_skill {
     ($konst:ident, $code:literal, $name:literal, $trigger:expr, $from_source:expr, $mode:literal) => {
-        pub const $konst: SkillDef = SkillDef {
+        pub const $konst: SkillDef = SkillDef { kind: SkillKind::Normal,
             code: $code,
             name: $name,
             triggers: &[$trigger],
@@ -1559,7 +1559,7 @@ fn xian_equip_step(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 绝响（嵇康）
 // ---------------------------------------------------------------------------
 
-pub const JUEXIANG: SkillDef = SkillDef {
+pub const JUEXIANG: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "juexiang",
     name: "绝响",
     triggers: &[EventKind::Death, EventKind::PhaseStart],
@@ -1658,7 +1658,7 @@ fn card_suit_is_club(g: &Game, name: &str) -> bool {
 // 谏征（秦宓）——使用【杀】指定目标时的第三方介入
 // ---------------------------------------------------------------------------
 
-pub const JIANZHENG: SkillDef = SkillDef {
+pub const JIANZHENG: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "jianzheng",
     name: "谏征",
     triggers: &[],
@@ -1750,7 +1750,7 @@ fn jianzheng(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 专对（秦宓）——拼点
 // ---------------------------------------------------------------------------
 
-pub const ZHUANDUI: SkillDef = SkillDef {
+pub const ZHUANDUI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "zhuandui",
     name: "专对",
     triggers: &[],
@@ -1815,7 +1815,7 @@ fn zhuandui(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 天辩（秦宓）——拼点钩子（被动，无独立窗口）
 // ---------------------------------------------------------------------------
 
-pub const TIANBIAN: SkillDef = SkillDef {
+pub const TIANBIAN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "tianbian",
     name: "天辩",
     triggers: &[],
@@ -1883,7 +1883,7 @@ pub fn pindian_rank(g: &Game, seat: usize, card: &CardId) -> u8 {
 // 复难（薛综）
 // ---------------------------------------------------------------------------
 
-pub const FUNAN: SkillDef = SkillDef {
+pub const FUNAN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "funan",
     name: "复难",
     triggers: &[],
@@ -2008,7 +2008,7 @@ pub fn on_response_played(
 // 诫训（薛综）
 // ---------------------------------------------------------------------------
 
-pub const JIEXUN: SkillDef = SkillDef {
+pub const JIEXUN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "jiexun",
     name: "诫训",
     triggers: &[EventKind::PhaseStart],
@@ -2149,7 +2149,7 @@ fn finish_jiexun(g: &mut Game, owner: usize, target: usize) -> Result<Step, Stri
 // 辟撰（蔡邕）
 // ---------------------------------------------------------------------------
 
-pub const BIZHUAN: SkillDef = SkillDef {
+pub const BIZHUAN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "bizhuan",
     name: "辟撰",
     triggers: &[EventKind::CardUsed, EventKind::TargetChosen],
@@ -2237,7 +2237,7 @@ fn bizhuan(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 通博（蔡邕）
 // ---------------------------------------------------------------------------
 
-pub const TONGBO: SkillDef = SkillDef {
+pub const TONGBO: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "tongbo",
     name: "通博",
     triggers: &[EventKind::PhaseStart],

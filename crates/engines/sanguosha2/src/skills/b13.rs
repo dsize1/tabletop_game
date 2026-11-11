@@ -22,7 +22,7 @@ use crate::kernel::resolve::{Ask, Step};
 use crate::kernel::{flow, CardId, Game, Phase, Zone};
 use crate::presentation::{POutcome, Presentation};
 
-use super::{active, builder, grant_skill, other_alive, SkillDef};
+use super::{active, builder, grant_skill, other_alive, SkillDef, SkillKind};
 
 // ---------------------------------------------------------------------------
 // 工具
@@ -63,7 +63,7 @@ fn play_phase(g: &Game, seat: usize) -> bool {
 // 烈弓（界黄忠）
 // ---------------------------------------------------------------------------
 
-pub const LIEGONG: SkillDef = SkillDef {
+pub const LIEGONG: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "liegong",
     name: "烈弓",
     triggers: &[],
@@ -182,7 +182,7 @@ pub fn on_sha_finished(g: &mut Game, user: usize, target: Option<usize>) {
 // 诛害（界徐庶）：其他角色结束阶段且其本回合造成过伤害 → 真实使用手牌【杀】（无距离）
 // ---------------------------------------------------------------------------
 
-pub const ZHUHAI: SkillDef = SkillDef {
+pub const ZHUHAI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "zhuhai",
     name: "诛害",
     triggers: &[EventKind::PhaseStart],
@@ -292,7 +292,7 @@ fn zhuhai(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 潜心（界徐庶，觉醒）+ 授予技「荐言」
 // ---------------------------------------------------------------------------
 
-pub const QIANXIN: SkillDef = SkillDef {
+pub const QIANXIN: SkillDef = SkillDef { kind: SkillKind::Awaken,
     code: "qianxin",
     name: "潜心",
     triggers: &[EventKind::DamageAfter],
@@ -323,7 +323,7 @@ fn qianxin(g: &mut Game, a: &Ask) -> Result<Step, String> {
     }
     g.seats[owner].flags.insert("awaken_qianxin".to_string());
     g.seats[owner].max_hp = (g.seats[owner].max_hp - 1).max(1);
-    g.seats[owner].hp = g.seats[owner].hp.min(g.seats[owner].max_hp);
+    flow::clamp_hp(g, owner, "qianxin");
     grant_skill(g, owner, "jianyan");
     g.presentation.push(
         Presentation::new(
@@ -342,7 +342,7 @@ fn qianxin(g: &mut Game, a: &Ask) -> Result<Step, String> {
     Ok(Step::Done)
 }
 
-pub const JIANYAN: SkillDef = SkillDef {
+pub const JIANYAN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "jianyan",
     name: "荐言",
     triggers: &[],
@@ -491,7 +491,7 @@ fn jianyan(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 耀武（界华雄，锁定）
 // ---------------------------------------------------------------------------
 
-pub const YAOWU: SkillDef = SkillDef {
+pub const YAOWU: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "yaowu",
     name: "耀武",
     triggers: &[EventKind::DamageAfter],
@@ -546,7 +546,7 @@ fn yaowu(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 势斩（界华雄）：出牌阶段限两次，令一名其他角色视为对华雄使用【决斗】
 // ---------------------------------------------------------------------------
 
-pub const SHIZHAN: SkillDef = SkillDef {
+pub const SHIZHAN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "shizhan",
     name: "势斩",
     triggers: &[],
@@ -628,7 +628,7 @@ fn shizhan(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 雷击（界张角）
 // ---------------------------------------------------------------------------
 
-pub const LEIJI: SkillDef = SkillDef {
+pub const LEIJI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "leiji",
     name: "雷击",
     triggers: &[EventKind::CardUsed, EventKind::CardPlayed, EventKind::JudgeEffective],
@@ -776,7 +776,7 @@ fn leiji_effect(g: &mut Game, owner: usize, card: &CardId) -> Result<Step, Strin
         }
         Some(crate::kernel::Suit::Club) => {
             let before = g.seats[owner].hp;
-            g.seats[owner].hp = (before + 1).min(g.seats[owner].max_hp);
+            flow::heal(g, owner, 1, "leiji");
             let healed = g.seats[owner].hp - before;
             g.push_log(format!(
                 "雷击：判定为梅花，{} 回复 {healed} 点体力",
@@ -796,7 +796,7 @@ fn leiji_effect(g: &mut Game, owner: usize, card: &CardId) -> Result<Step, Strin
 // 鬼道（界张角）：黑色牌改判（手牌/装备区）；黑桃 2~9 摸 1
 // ---------------------------------------------------------------------------
 
-pub const GUIDAO: SkillDef = SkillDef {
+pub const GUIDAO: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "guidao",
     name: "鬼道",
     triggers: &[],
@@ -882,7 +882,7 @@ fn guidao(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 黄天（界张角，主公技）：其他群势力角色出牌阶段限一次交【闪】或黑桃手牌
 // ---------------------------------------------------------------------------
 
-pub const HUANGTIAN: SkillDef = SkillDef {
+pub const HUANGTIAN: SkillDef = SkillDef { kind: SkillKind::Lord,
     code: "huangtian",
     name: "黄天",
     triggers: &[],
@@ -975,7 +975,7 @@ fn huangtian(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 享乐（界刘禅，锁定）：使用者需弃基本牌，否则此【杀】对其无效
 // ---------------------------------------------------------------------------
 
-pub const XIANGLE: SkillDef = SkillDef {
+pub const XIANGLE: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "xiangle",
     name: "享乐",
     triggers: &[],
@@ -1094,7 +1094,7 @@ fn xiangle(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 乱击（界袁绍）：两张同花色手牌当【万箭齐发】；可少选一个目标
 // ---------------------------------------------------------------------------
 
-pub const LUANJI: SkillDef = SkillDef {
+pub const LUANJI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "luanji",
     name: "乱击",
     triggers: &[],
@@ -1224,7 +1224,7 @@ fn luanji_use(g: &mut Game, owner: usize, card: &CardId) -> Result<(), String> {
 // 血裔（界袁绍，主公技）：「裔」标记 / 出牌阶段开始摸 1 / 手牌上限 +1
 // ---------------------------------------------------------------------------
 
-pub const XUEYI: SkillDef = SkillDef {
+pub const XUEYI: SkillDef = SkillDef { kind: SkillKind::Lord,
     code: "xueyi",
     name: "血裔",
     triggers: &[EventKind::PhaseStart],
@@ -1316,7 +1316,7 @@ fn xueyi(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 放权（界刘禅）：跳过出牌阶段；弃牌阶段开始时弃一张手牌令他人额外回合
 // ---------------------------------------------------------------------------
 
-pub const FANGQUAN: SkillDef = SkillDef {
+pub const FANGQUAN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "fangquan",
     name: "放权",
     triggers: &[EventKind::PhaseStart],
@@ -1446,7 +1446,7 @@ fn fangquan(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 若愚（界刘禅，主公技+觉醒）+ 授予技「思蜀」
 // ---------------------------------------------------------------------------
 
-pub const RUOYU: SkillDef = SkillDef {
+pub const RUOYU: SkillDef = SkillDef { kind: SkillKind::Lord,
     code: "ruoyu",
     name: "若愚",
     triggers: &[EventKind::PhaseStart],
@@ -1482,7 +1482,7 @@ fn ruoyu(g: &mut Game, a: &Ask) -> Result<Step, String> {
     g.seats[owner].flags.insert("awaken_ruoyu".to_string());
     g.seats[owner].max_hp += 1;
     if g.seats[owner].hp < 3 {
-        g.seats[owner].hp = 3.min(g.seats[owner].max_hp);
+        flow::revive_to(g, owner, 3, "ruoyu");
     }
     grant_skill(g, owner, "jijiang");
     grant_skill(g, owner, "sishu");
@@ -1503,7 +1503,7 @@ fn ruoyu(g: &mut Game, a: &Ask) -> Result<Step, String> {
     Ok(Step::Done)
 }
 
-pub const SISHU: SkillDef = SkillDef {
+pub const SISHU: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "sishu",
     name: "思蜀",
     triggers: &[EventKind::PhaseStart],
@@ -1600,7 +1600,7 @@ fn sishu(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 化身（界左慈）+ 新生
 // ---------------------------------------------------------------------------
 
-pub const HUASHEN: SkillDef = SkillDef {
+pub const HUASHEN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "huashen",
     name: "化身",
     triggers: &[EventKind::TurnStart, EventKind::PhaseEnd],
@@ -1878,7 +1878,7 @@ fn huashen(g: &mut Game, a: &Ask) -> Result<Step, String> {
     }
 }
 
-pub const XINSHENG: SkillDef = SkillDef {
+pub const XINSHENG: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "xinsheng",
     name: "新生",
     triggers: &[EventKind::DamageAfter],
@@ -1967,7 +1967,7 @@ fn xinsheng(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 蛊惑（界于吉）：扣置声明 + 同时质疑链 + 缠怨
 // ---------------------------------------------------------------------------
 
-pub const GUHUO: SkillDef = SkillDef {
+pub const GUHUO: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "guhuo",
     name: "蛊惑",
     triggers: &[],

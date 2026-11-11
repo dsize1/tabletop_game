@@ -7,9 +7,9 @@ use crate::kernel::resolve::{Ask, Stage, Step};
 use crate::kernel::{Game, Zone};
 use crate::presentation::{POutcome, Presentation};
 
-use super::SkillDef;
+use super::{SkillDef, SkillKind};
 
-pub const DEF: SkillDef = SkillDef {
+pub const DEF: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "mingren",
     name: "明任",
     triggers: &[EventKind::PhaseStart],

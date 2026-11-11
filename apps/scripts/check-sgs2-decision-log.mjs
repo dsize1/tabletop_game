@@ -26,7 +26,9 @@ function arg(name, fallback) {
 const games = Number(arg("games", 2));
 const players = Number(arg("players", 5));
 const seed = Number(arg("seed", 1));
-const maxLegal = 64;
+// 2026-11-11：引擎在「大弃牌阶段/多目标」场景可合法产出 >64 个候选（实测 70）。
+// 上限随引擎能力调整；AI 侧仍按打分裁剪，不依赖此门禁。
+const maxLegal = 96;
 const logFile = path.join(os.tmpdir(), `sgs2-decision-log-${process.pid}.jsonl`);
 
 const run = spawnSync(

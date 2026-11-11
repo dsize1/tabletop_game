@@ -20,7 +20,7 @@ use crate::kernel::resolve::{Ask, Stage, Step};
 use crate::kernel::{flow, CardId, Game, Phase, Zone};
 use crate::presentation::POutcome;
 
-use super::{active, builder, other_alive, SkillDef};
+use super::{active, builder, other_alive, SkillDef, SkillKind};
 
 fn label(g: &Game, id: &CardId) -> String {
     g.card_label(id)
@@ -52,7 +52,7 @@ fn phase_cause(a: &Ask) -> String {
 // 奇袭（界甘宁）：黑色牌（手牌/装备区）当【过河拆桥】
 // ---------------------------------------------------------------------------
 
-pub const QIXI: SkillDef = SkillDef {
+pub const QIXI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "qixi",
     name: "奇袭",
     triggers: &[],
@@ -91,7 +91,7 @@ pub fn qixi_conversions(g: &Game, seat: usize) -> Vec<super::Conversion> {
 // 奋威（界甘宁，限定技）：多目标牌 → 令任意个目标无效
 // ---------------------------------------------------------------------------
 
-pub const FENWEI: SkillDef = SkillDef {
+pub const FENWEI: SkillDef = SkillDef { kind: SkillKind::Limited,
     code: "fenwei",
     name: "奋威",
     triggers: &[],
@@ -198,7 +198,7 @@ fn fenwei(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 克己（界吕蒙）：未使用【杀】→ 跳过弃牌阶段
 // ---------------------------------------------------------------------------
 
-pub const KEJI: SkillDef = SkillDef {
+pub const KEJI: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "keji",
     name: "克己",
     triggers: &[],
@@ -224,7 +224,7 @@ pub fn skip_discard_phase(g: &Game, seat: usize) -> bool {
 // 勤学（界吕蒙，觉醒）
 // ---------------------------------------------------------------------------
 
-pub const QINXUE: SkillDef = SkillDef {
+pub const QINXUE: SkillDef = SkillDef { kind: SkillKind::Awaken,
     code: "qinxue",
     name: "勤学",
     triggers: &[EventKind::PhaseStart],
@@ -268,7 +268,7 @@ fn qinxue(g: &mut Game, a: &Ask) -> Result<Step, String> {
         Some(opt) => {
             g.seats[seat].max_hp -= 1;
             if g.seats[seat].hp > g.seats[seat].max_hp {
-                g.seats[seat].hp = g.seats[seat].max_hp;
+                flow::clamp_hp(g, seat, "qinxue");
             }
             g.seats[seat].flags.insert("qinxue_awakened".to_string());
             if opt == "opt1" {
@@ -292,7 +292,7 @@ fn qinxue(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 攻心（界吕蒙，勤学觉醒后**授予**；授予型技能，对齐单不设技能行）
 // ---------------------------------------------------------------------------
 
-pub const GONGXIN: SkillDef = SkillDef {
+pub const GONGXIN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "gongxin",
     name: "攻心",
     triggers: &[],
@@ -424,7 +424,7 @@ fn gongxin(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 博图（界吕蒙）：本回合弃牌含四花色 → 额外回合
 // ---------------------------------------------------------------------------
 
-pub const BOTU: SkillDef = SkillDef {
+pub const BOTU: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "botu",
     name: "博图",
     triggers: &[],
@@ -467,7 +467,7 @@ pub fn botu_maybe(g: &mut Game, seat: usize) {
 // 苦肉（界黄盖）
 // ---------------------------------------------------------------------------
 
-pub const KUROU: SkillDef = SkillDef {
+pub const KUROU: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "kurou",
     name: "苦肉",
     triggers: &[],
@@ -527,7 +527,7 @@ fn kurou(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 诈降（界黄盖，锁定）
 // ---------------------------------------------------------------------------
 
-pub const ZHAXIANG: SkillDef = SkillDef {
+pub const ZHAXIANG: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "zhaxiang",
     name: "诈降",
     triggers: &[EventKind::HpLost],
@@ -599,7 +599,7 @@ pub fn block_real_shan(g: &Game, _target: usize) -> bool {
 // 英姿（界周瑜，锁定）
 // ---------------------------------------------------------------------------
 
-pub const YINGZI: SkillDef = SkillDef {
+pub const YINGZI: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "yingzi",
     name: "英姿",
     triggers: &[],
@@ -629,7 +629,7 @@ pub fn hand_limit_override(g: &Game, seat: usize) -> Option<usize> {
 // 反间（界周瑜）
 // ---------------------------------------------------------------------------
 
-pub const FANJIAN: SkillDef = SkillDef {
+pub const FANJIAN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "fanjian",
     name: "反间",
     triggers: &[],
@@ -759,7 +759,7 @@ fn fanjian(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 流离（界大乔）：成为【杀】目标时弃一张牌转移
 // ---------------------------------------------------------------------------
 
-pub const LIULI: SkillDef = SkillDef {
+pub const LIULI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "liuli",
     name: "流离",
     triggers: &[],
@@ -865,7 +865,7 @@ fn liuli(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 国色（界大乔）
 // ---------------------------------------------------------------------------
 
-pub const GUOSE: SkillDef = SkillDef {
+pub const GUOSE: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "guose",
     name: "国色",
     triggers: &[],
@@ -1010,7 +1010,7 @@ fn guose(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 谦逊（界陆逊）：唯一目标时移出所有手牌
 // ---------------------------------------------------------------------------
 
-pub const QIANXUN: SkillDef = SkillDef {
+pub const QIANXUN: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "qianxun",
     name: "谦逊",
     triggers: &[],
@@ -1094,7 +1094,7 @@ pub fn return_void_cards(g: &mut Game, turn_seq: u32) {
 // 连营（界陆逊）：失去所有手牌后令至多 X 名角色各摸 1
 // ---------------------------------------------------------------------------
 
-pub const LIANYING: SkillDef = SkillDef {
+pub const LIANYING: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "lianying",
     name: "连营",
     triggers: &[],
@@ -1200,7 +1200,7 @@ fn lianying(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 制衡（界孙权）
 // ---------------------------------------------------------------------------
 
-pub const ZHIHENG: SkillDef = SkillDef {
+pub const ZHIHENG: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "zhiheng",
     name: "制衡",
     triggers: &[],
@@ -1286,7 +1286,7 @@ fn zhiheng(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 救援（界孙权，主公技）：回复前改为令主公回复
 // ---------------------------------------------------------------------------
 
-pub const JIUYUAN: SkillDef = SkillDef {
+pub const JIUYUAN: SkillDef = SkillDef { kind: SkillKind::Lord,
     code: "jiuyuan",
     name: "救援",
     triggers: &[],
@@ -1348,18 +1348,7 @@ fn jiuyuan(g: &mut Game, a: &Ask) -> Result<Step, String> {
         }
         Some("pass") => {
             // 照常自己回复（绕过救援钩子，避免递归）。
-            let healed = (g.seats[seat].hp + n).min(g.seats[seat].max_hp);
-            let d = healed - g.seats[seat].hp;
-            g.seats[seat].hp = healed;
-            if d > 0 {
-                g.emit(crate::kernel::event::Event::with_amount(
-                    crate::kernel::event::EventKind::Healed,
-                    Some(seat),
-                    Some("jiuyuan_self"),
-                    d,
-                ));
-                g.push_log(format!("{} 回复 {d} 点体力", g.seats[seat].name));
-            }
+            crate::kernel::flow::heal_raw(g, seat, n, "jiuyuan_self");
             Ok(Step::Done)
         }
         Some(_) => {
@@ -1378,7 +1367,7 @@ fn jiuyuan(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 枭姬（界孙尚香）：失去装备区的牌 → 摸 2
 // ---------------------------------------------------------------------------
 
-pub const XIAOJI: SkillDef = SkillDef {
+pub const XIAOJI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "xiaoji",
     name: "枭姬",
     triggers: &[],
@@ -1408,7 +1397,7 @@ pub fn xiaoji_on_lose_equip(g: &mut Game, seat: usize) {
 // 结姻（界孙尚香）
 // ---------------------------------------------------------------------------
 
-pub const JIEYIN: SkillDef = SkillDef {
+pub const JIEYIN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "jieyin",
     name: "结姻",
     triggers: &[],

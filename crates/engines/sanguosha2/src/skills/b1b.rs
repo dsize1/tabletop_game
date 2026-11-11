@@ -10,7 +10,7 @@ use crate::kernel::resolve::{Ask, Stage, Step};
 use crate::kernel::{flow, Game, Phase, Zone};
 use crate::presentation::{POutcome, Presentation};
 
-use super::{active, SkillDef};
+use super::{active, SkillDef, SkillKind};
 
 fn noop(_g: &mut Game, _a: &Ask) -> Result<Step, String> {
     Ok(Step::Done)
@@ -50,7 +50,7 @@ fn is_sha(g: &Game, card: &str) -> bool {
 // 伪帝（袁术）：纯被动，`skills::active` 里借主公技
 // ---------------------------------------------------------------------------
 
-pub const WEIDI: SkillDef = SkillDef {
+pub const WEIDI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "weidi",
     name: "伪帝",
     triggers: &[],
@@ -72,7 +72,7 @@ pub const WEIDI: SkillDef = SkillDef {
 // 拒战（严颜，转换技）：阳=他人回合内；阴=自己回合内
 // ---------------------------------------------------------------------------
 
-pub const JUZHAN: SkillDef = SkillDef {
+pub const JUZHAN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "juzhan",
     name: "拒战",
     triggers: &[EventKind::TargetChosen],
@@ -185,7 +185,7 @@ fn juzhan(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 飞军 / 兵略（王平）
 // ---------------------------------------------------------------------------
 
-pub const FEIJUN: SkillDef = SkillDef {
+pub const FEIJUN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "feijun",
     name: "飞军",
     triggers: &[],
@@ -203,7 +203,7 @@ pub const FEIJUN: SkillDef = SkillDef {
     subject_window: None,
 };
 
-pub const BINGLUE: SkillDef = SkillDef {
+pub const BINGLUE: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "binglue",
     name: "兵略",
     triggers: &[],
@@ -348,7 +348,7 @@ fn feijun(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 遗礼 / 整论（陆绩）
 // ---------------------------------------------------------------------------
 
-pub const YILI: SkillDef = SkillDef {
+pub const YILI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "yili",
     name: "遗礼",
     triggers: &[EventKind::PhaseStart],
@@ -366,7 +366,7 @@ pub const YILI: SkillDef = SkillDef {
     subject_window: None,
 };
 
-pub const ZHENGLUN: SkillDef = SkillDef {
+pub const ZHENGLUN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "zhenglun",
     name: "整论",
     triggers: &[EventKind::PhaseStart],
@@ -410,7 +410,7 @@ fn yili(g: &mut Game, a: &Ask) -> Result<Step, String> {
                     if act == "choose:yili:ju" {
                         super::remove_ju(g, a.actor, 1);
                     } else {
-                        g.seats[a.actor].hp -= 1;
+                        flow::lose_hp(g, a.actor, 1, "yili");
                         if g.seats[a.actor].hp <= 0 {
                             flow::start_dying(g, a.actor, None);
                         }
@@ -497,7 +497,7 @@ fn zhenglun(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 溃诛 / 掣政 / 立军（孙亮）
 // ---------------------------------------------------------------------------
 
-pub const KUIZHU: SkillDef = SkillDef {
+pub const KUIZHU: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "kuizhu",
     name: "溃诛",
     triggers: &[EventKind::PhaseEnd],
@@ -515,7 +515,7 @@ pub const KUIZHU: SkillDef = SkillDef {
     subject_window: None,
 };
 
-pub const CHEZHENG: SkillDef = SkillDef {
+pub const CHEZHENG: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "chezheng",
     name: "掣政",
     triggers: &[EventKind::PhaseEnd],
@@ -533,7 +533,7 @@ pub const CHEZHENG: SkillDef = SkillDef {
     subject_window: None,
 };
 
-pub const LIJUN: SkillDef = SkillDef {
+pub const LIJUN: SkillDef = SkillDef { kind: SkillKind::Lord,
     code: "lijun",
     name: "立军",
     triggers: &[EventKind::TargetChosen],
@@ -718,7 +718,7 @@ fn lijun(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 荐降 / 审时（蒯越蒯良）
 // ---------------------------------------------------------------------------
 
-pub const JIANXIANG: SkillDef = SkillDef {
+pub const JIANXIANG: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "jianxiang",
     name: "荐降",
     triggers: &[EventKind::TargetChosen],
@@ -736,7 +736,7 @@ pub const JIANXIANG: SkillDef = SkillDef {
     subject_window: None,
 };
 
-pub const SHENSHI: SkillDef = SkillDef {
+pub const SHENSHI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "shenshi",
     name: "审时",
     triggers: &[EventKind::TargetChosen, EventKind::DamageAfter, EventKind::PhaseStart],
@@ -936,7 +936,7 @@ fn shenshi(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 成略 / 恃才 / 寸目（许攸）
 // ---------------------------------------------------------------------------
 
-pub const CHENGLUE: SkillDef = SkillDef {
+pub const CHENGLUE: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "chenglue",
     name: "成略",
     triggers: &[],
@@ -954,7 +954,7 @@ pub const CHENGLUE: SkillDef = SkillDef {
     subject_window: None,
 };
 
-pub const SHICAI: SkillDef = SkillDef {
+pub const SHICAI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "shicai",
     name: "恃才",
     triggers: &[EventKind::CardUsed],

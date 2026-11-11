@@ -20,7 +20,7 @@ use crate::kernel::event::{EventKind, Window};
 use crate::kernel::resolve::{Ask, Stage, Step};
 use crate::kernel::{flow, CardId, Game, Phase, Zone};
 
-use super::{active, builder, other_alive, SkillDef};
+use super::{active, builder, other_alive, SkillDef, SkillKind};
 
 fn push(g: &mut Game, code: &'static str, actor: usize, data: serde_json::Value) {
     crate::kernel::resolve::push_ask(g, code, Stage::Choose, actor, data);
@@ -75,7 +75,7 @@ fn seat_of(a: &Ask, key: &str) -> usize {
 // 樵拾（界夏侯氏）
 // ---------------------------------------------------------------------------
 
-pub const QIAOSHI: SkillDef = SkillDef {
+pub const QIAOSHI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "qiaoshi",
     name: "樵拾",
     triggers: &[EventKind::PhaseStart],
@@ -136,7 +136,7 @@ fn qiaoshi(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 燕语（界夏侯氏）
 // ---------------------------------------------------------------------------
 
-pub const YANYU: SkillDef = SkillDef {
+pub const YANYU: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "yanyu",
     name: "燕语",
     triggers: &[EventKind::CardLost, EventKind::PhaseEnd],
@@ -273,7 +273,7 @@ fn yanyu(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 强识（界张松）
 // ---------------------------------------------------------------------------
 
-pub const QIANGSHI: SkillDef = SkillDef {
+pub const QIANGSHI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "qiangshi",
     name: "强识",
     triggers: &[EventKind::PhaseStart, EventKind::CardUsed],
@@ -414,7 +414,7 @@ fn is_card_type(g: &Game, id: &CardId, bit: u32) -> bool {
 // 献图（界张松）
 // ---------------------------------------------------------------------------
 
-pub const XIANTU: SkillDef = SkillDef {
+pub const XIANTU: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "xiantu",
     name: "献图",
     triggers: &[EventKind::PhaseStart, EventKind::PhaseEnd],
@@ -597,7 +597,7 @@ fn finish_xiantu(g: &mut Game, owner: usize, target: usize, given: usize) {
 // 镇军（界于禁）
 // ---------------------------------------------------------------------------
 
-pub const ZHENJUN: SkillDef = SkillDef {
+pub const ZHENJUN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "zhenjun",
     name: "镇军",
     triggers: &[EventKind::PhaseStart, EventKind::PhaseEnd],
@@ -871,7 +871,7 @@ fn zhenjun_end_draw(g: &mut Game) {
 // 毅重（界于禁，锁定技）
 // ---------------------------------------------------------------------------
 
-pub const YIZHONG: SkillDef = SkillDef {
+pub const YIZHONG: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "yizhong",
     name: "毅重",
     triggers: &[],
@@ -948,7 +948,7 @@ pub fn shan_blocked_for(
 // 安恤（界步练师）
 // ---------------------------------------------------------------------------
 
-pub const ANXU: SkillDef = SkillDef {
+pub const ANXU: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "anxu",
     name: "安恤",
     triggers: &[],
@@ -1228,7 +1228,7 @@ fn finish_anxu(
 // 追忆（界步练师，限定技 + 亡语）
 // ---------------------------------------------------------------------------
 
-pub const ZHUIXI: SkillDef = SkillDef {
+pub const ZHUIXI: SkillDef = SkillDef { kind: SkillKind::Limited,
     code: "zhuixi",
     name: "追忆",
     triggers: &[EventKind::PhaseStart],

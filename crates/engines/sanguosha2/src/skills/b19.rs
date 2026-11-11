@@ -26,7 +26,7 @@ use crate::kernel::event::{EventKind, Window};
 use crate::kernel::resolve::{Ask, Stage, Step};
 use crate::kernel::{flow, CardId, Game, Phase, Slot, Zone};
 
-use super::{active, builder, other_alive, SkillDef};
+use super::{active, builder, other_alive, SkillDef, SkillKind};
 
 fn push(g: &mut Game, code: &'static str, actor: usize, data: serde_json::Value) {
     crate::kernel::resolve::push_ask(g, code, Stage::Choose, actor, data);
@@ -92,7 +92,7 @@ fn others_with_hand(g: &Game, seat: usize) -> Vec<usize> {
 // 灭计（界李儒）
 // ---------------------------------------------------------------------------
 
-pub const MIEJI: SkillDef = SkillDef {
+pub const MIEJI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "mieji",
     name: "灭计",
     triggers: &[],
@@ -318,7 +318,7 @@ fn mieji(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 焚城（界李儒，限定技）
 // ---------------------------------------------------------------------------
 
-pub const FENCHENG: SkillDef = SkillDef {
+pub const FENCHENG: SkillDef = SkillDef { kind: SkillKind::Limited,
     code: "fencheng",
     name: "焚城",
     triggers: &[],
@@ -553,7 +553,7 @@ fn fencheng(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 绝策（界李儒）
 // ---------------------------------------------------------------------------
 
-pub const JUECE: SkillDef = SkillDef {
+pub const JUECE: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "juece",
     name: "绝策",
     triggers: &[EventKind::PhaseStart],
@@ -623,7 +623,7 @@ fn juece(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 精策（界郭淮）
 // ---------------------------------------------------------------------------
 
-pub const JINGCE: SkillDef = SkillDef {
+pub const JINGCE: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "jingce",
     name: "精策",
     triggers: &[EventKind::PhaseEnd],
@@ -706,7 +706,7 @@ pub fn hand_limit_delta(g: &Game, seat: usize) -> i32 {
 // 惴恐（界伏皇后）
 // ---------------------------------------------------------------------------
 
-pub const ZHUIKONG: SkillDef = SkillDef {
+pub const ZHUIKONG: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "zhuikong",
     name: "惴恐",
     triggers: &[EventKind::TurnStart],
@@ -818,7 +818,7 @@ pub fn others_use_blocked(g: &Game, seat: usize) -> bool {
 // 求援（界伏皇后）
 // ---------------------------------------------------------------------------
 
-pub const QIUYUAN: SkillDef = SkillDef {
+pub const QIUYUAN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "qiuyuan",
     name: "求援",
     triggers: &[],
@@ -1067,7 +1067,7 @@ fn qiuyuan(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 弓骑（界韩当）
 // ---------------------------------------------------------------------------
 
-pub const GONGQI: SkillDef = SkillDef {
+pub const GONGQI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "gongqi",
     name: "弓骑",
     triggers: &[],
@@ -1266,7 +1266,7 @@ pub fn sha_unlimited_card(g: &Game, seat: usize, card: Option<&CardId>) -> bool 
 // 解烦（界韩当，限定技）
 // ---------------------------------------------------------------------------
 
-pub const JIEFAN: SkillDef = SkillDef {
+pub const JIEFAN: SkillDef = SkillDef { kind: SkillKind::Limited,
     code: "jiefan",
     name: "解烦",
     triggers: &[],
@@ -1511,7 +1511,7 @@ fn jiefan_weapon(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 父魂（界关兴张苞）
 // ---------------------------------------------------------------------------
 
-pub const FUHEN: SkillDef = SkillDef {
+pub const FUHEN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "fuhen",
     name: "父魂",
     triggers: &[EventKind::DamageAfter],
@@ -1691,7 +1691,7 @@ pub fn on_turn_end_fuhen(g: &mut Game, ended: usize) {
 // 潜袭（界马岱）
 // ---------------------------------------------------------------------------
 
-pub const QIANXI: SkillDef = SkillDef {
+pub const QIANXI: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "qianxi",
     name: "潜袭",
     triggers: &[EventKind::PhaseStart],
@@ -1784,7 +1784,7 @@ pub fn qianxi_bonus(g: &Game, _source: usize, card: Option<&CardId>) -> i32 {
 // 矫诏（界郭皇后）+ 殚心
 // ---------------------------------------------------------------------------
 
-pub const JIAZHAO: SkillDef = SkillDef {
+pub const JIAZHAO: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "jiazhao",
     name: "矫诏",
     triggers: &[],
@@ -2084,7 +2084,7 @@ fn jiazhao_resolve(
     Ok(())
 }
 
-pub const DANXIN: SkillDef = SkillDef {
+pub const DANXIN: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "danxin",
     name: "殚心",
     triggers: &[EventKind::DamageAfter],
@@ -2142,7 +2142,7 @@ fn danxin(g: &mut Game, a: &Ask) -> Result<Step, String> {
 // 矢北（界沮授，锁定技）
 // ---------------------------------------------------------------------------
 
-pub const SHIBEI: SkillDef = SkillDef {
+pub const SHIBEI: SkillDef = SkillDef { kind: SkillKind::Locked,
     code: "shibei",
     name: "矢北",
     triggers: &[EventKind::DamageAfter],
@@ -2203,7 +2203,7 @@ pub fn init_shibei(g: &mut Game) {
 // 渐营（界沮授）
 // ---------------------------------------------------------------------------
 
-pub const JIANYING: SkillDef = SkillDef {
+pub const JIANYING: SkillDef = SkillDef { kind: SkillKind::Normal,
     code: "jianying",
     name: "渐营",
     triggers: &[EventKind::CardUsed],
