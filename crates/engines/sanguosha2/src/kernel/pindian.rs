@@ -33,9 +33,35 @@ impl PindianResult {
     }
 }
 
+/// 拼点能否成立（用户裁定 2026-11-11）：
+/// 双方都存活；**双方都必须能出一张牌**（手牌，或有技能提供的拼点选项，如天辩用牌堆顶）。
+pub fn can_start(g: &Game, initiator: usize, target: usize) -> bool {
+    if initiator == target {
+        return false;
+    }
+    let alive = |i: usize| g.seats.get(i).is_some_and(|s| s.hp > 0);
+    if !alive(initiator) || !alive(target) {
+        return false;
+    }
+    let has_card = |i: usize| !g.hand(i).is_empty() || !skills::pindian_options(g, i).is_empty();
+    has_card(initiator) && has_card(target)
+}
+
 /// 发起拼点：压入拼点流程帧（不推进，由外层 `advance` 驱动）。
+///
+/// 前置条件不成立（任一方无牌）时**不压帧**（视为未拼点）：调用方的 after 阶段读到
+/// `pindian_result == None` 即按「没有拼点」收口。合法动作/技能入口应先用 `can_start` 过滤，
+/// 这里只是兜底，避免生成「必须选择却没有可选项」的坏待办。
 pub fn start(g: &mut Game, initiator: usize, target: usize, cause: &str) {
     debug_assert!(initiator != target, "拼点双方不能是同一角色");
+    if !can_start(g, initiator, target) {
+        g.push_log(format!(
+            "拼点未成立：{} / {} 无可出的牌",
+            g.seats.get(initiator).map(|s| s.name.as_str()).unwrap_or("-"),
+            g.seats.get(target).map(|s| s.name.as_str()).unwrap_or("-")
+        ));
+        return;
+    }
     // 拼点前窗口（酣战：询问是否令对方随机手牌拼点）。
     let pre = skills::pindian_pre_owners(g, initiator, target);
     let step = if pre.is_empty() { "init" } else { "pre" };
@@ -105,7 +131,9 @@ fn ask_card(g: &mut Game, actor: usize, stage: Stage, data: serde_json::Value) -
             "initiator": initiator_name,
             "stage": if actor == initiator { "init" } else { "resp" },
         }))
-        .escape("取消拼点（视为未赢）")
+        // 用户裁定（2026-11-11）：拼点一旦成立，**双方都必须出一张手牌**，不能取消；
+        // 唯一的「拒绝」是他人发起的挑战场景（如制霸）在发起前询问持有者，不走这里。
+        .escape_mandatory("必须出一张手牌拼点")
         .build(),
     ))
 }

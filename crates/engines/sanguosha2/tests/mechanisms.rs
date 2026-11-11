@@ -480,3 +480,45 @@ fn endgame_dying_tao_still_saves_after_round_100() {
     sanguosha2::kernel::resolve::submit(&mut g, actor, &heal).unwrap();
     assert_eq!(g.seats[0].hp, 1, "濒死阶段【桃】仍然有效");
 }
+
+// ---------------------------------------------------------------------------
+// 拼点前提（用户裁定 2026-11-11）：双方都必须有牌可出，否则不能发起
+// ---------------------------------------------------------------------------
+
+#[test]
+fn pindian_requires_cards_on_both_sides() {
+    use sanguosha2::kernel::Card;
+
+    fn two() -> Game {
+        let mut g = Game::new(
+            vec![Seat::new("p0", "a", &[], 4), Seat::new("p1", "b", &[], 4)],
+            vec![
+                Card::new("c1", "杀", Suit::Spade, 7),
+                Card::new("c2", "闪", Suit::Heart, 3),
+            ],
+        );
+        g.to_hand(&"c1".to_string(), 0).unwrap();
+        g
+    }
+    let mut g = two();
+    assert!(!sanguosha2::kernel::pindian::can_start(&g, 0, 1), "对方无手牌 → 不能发起");
+    assert!(!sanguosha2::kernel::pindian::can_start(&g, 1, 0), "自己无手牌 → 不能发起");
+    g.to_hand(&"c2".to_string(), 1).unwrap();
+    assert!(sanguosha2::kernel::pindian::can_start(&g, 0, 1), "双方都有手牌 → 可以发起");
+    assert!(!sanguosha2::kernel::pindian::can_start(&g, 0, 0), "不能和自己拼点");
+}
+
+#[test]
+fn pindian_start_is_noop_when_side_has_no_card() {
+    use sanguosha2::kernel::Card;
+
+    let mut g = Game::new(
+        vec![Seat::new("p0", "a", &[], 4), Seat::new("p1", "b", &[], 4)],
+        vec![Card::new("c1", "杀", Suit::Spade, 7)],
+    );
+    g.to_hand(&"c1".to_string(), 0).unwrap();
+    // 兜底：p1 无牌时不压帧（不产生「必须选择却没有可选项」的坏待办）。
+    sanguosha2::kernel::pindian::start(&mut g, 0, 1, "test");
+    assert!(g.stack.is_empty(), "拼点未成立时不应压帧");
+    assert!(g.pending.is_none());
+}

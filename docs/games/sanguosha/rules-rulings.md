@@ -1359,3 +1359,18 @@
   闸门：`m2_wiring::lord_others_side_gate_allows_same_kingdom_only`、
   `m2_wiring::lord_others_side_requires_live_holder`；
   覆盖校验：`skills::lord::tests::every_lord_skill_declares_others_side`。
+
+## 47. 拼点口径（2026-11-11 用户裁定）
+
+- **不能取消**：拼点一旦成立（技能/挑战已发起），**双方都必须出一张手牌**亮牌比点；
+  引擎不再提供「取消拼点（视为未赢）」出口（旧实现是普通出口，可放弃）。
+- **发起前提**：**双方都必须有可出的牌**（手牌；或技能提供的替代选项，如天辩用牌堆顶）。
+  任一方无牌 → **不能发起拼点**，合法动作里不出现该选项；
+  `pindian::start` 兜底：前提不成立时不压帧（按「未拼点」收口，记日志）。
+- **唯一例外**：他人**发起挑战**的场景（界制霸：吴势力角色出牌阶段向持有者拼点），
+  在拼点成立**之前**询问持有者「接受 / 拒绝」——这是发起前的选择，不是拼点取消。
+- **落点**：`kernel/pindian.rs`（`can_start` / `start` / `ask_card` 用 `escape_mandatory`）、
+  `skills/b8.rs`（专对：对方无牌不给「拼点」选项）。
+- **回归**：`mechanisms::pindian_requires_cards_on_both_sides`、
+  `mechanisms::pindian_start_is_noop_when_side_has_no_card`、
+  `b14::zhiba_other_wu_may_challenge_and_lord_gains_when_challenger_loses`（拼点不可取消 + 浮层 target）。

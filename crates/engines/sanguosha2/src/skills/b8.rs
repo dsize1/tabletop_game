@@ -1776,8 +1776,12 @@ fn zhuandui(g: &mut Game, a: &Ask) -> Result<Step, String> {
     if step == "ask" {
         match g.answer.take().as_deref() {
             None => {
+                let other = if owner == user { target } else { user };
                 let mut b = builder(owner, "choice").skill("zhuandui");
-                b = b.option("opt1", "拼点");
+                // 拼点前提（用户裁定 2026-11-11）：双方都必须有牌可出，否则不能发起。
+                if pindian::can_start(g, owner, other) {
+                    b = b.option("opt1", "拼点");
+                }
                 Ok(Step::Need(b.escape("不发动专对").build()))
             }
             Some("pass") => {

@@ -146,6 +146,11 @@ fn zhiba_other_wu_may_challenge_and_lord_gains_when_challenger_loses() {
         Some(Some("ce")),
         "拼点浮层要显示对手"
     );
+    // 用户裁定（2026-11-11）：拼点成立后双方都必须出牌，**不能取消**。
+    assert!(
+        g.pending.as_ref().map(|p| p.escape_hidden()).unwrap_or(false),
+        "拼点选牌不可放弃（出口只是占位）"
+    );
     answer(&mut g, 1, "choose:d1");
     answer(&mut g, 0, "choose:sp1");
     // 挑战者没赢（2 < 13）→ 孙策获得两张拼点牌
