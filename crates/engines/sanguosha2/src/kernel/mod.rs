@@ -933,10 +933,33 @@ impl Game {
         self.draw_with_cause(seat, n, None)
     }
 
+    /// 牌堆耗尽时把弃牌堆洗回牌堆（官方规则；唯一重洗点）。
+    ///
+    /// 历史缺陷（2026-11-11 自对弈 seed=1 抓到）：牌堆空了不重洗 → 双方无牌可摸/无牌可出，
+    /// 回合空转 2000 步不终局（AI 门禁 stalled）。
+    pub fn refill_draw_from_discard(&mut self) -> bool {
+        if !self.ids_in(|z| *z == Zone::Draw).is_empty() {
+            return false;
+        }
+        let discard = self.ids_in(|z| *z == Zone::Discard);
+        if discard.is_empty() {
+            return false;
+        }
+        let n = discard.len();
+        for id in discard {
+            let _ = self.move_card(&id, Zone::Draw);
+        }
+        self.shuffle_draw();
+        self.push_log(format!("牌堆耗尽：弃牌堆 {n} 张洗回牌堆"));
+        true
+    }
+
     /// 带原因的摸牌：传入 `Some("draw_phase")` 时奋激不触发（用户裁定）。
     pub fn draw_with_cause(&mut self, seat: usize, n: usize, cause: Option<&str>) -> Vec<CardId> {
         let mut out = Vec::new();
         for _ in 0..n {
+            // 摸牌前保证牌堆非空（弃牌堆洗回；两边都空则摸不到）。
+            self.refill_draw_from_discard();
             let Some(id) = (if crate::skills::draw_from_bottom(self, seat) {
                 self.ids_in(|z| *z == Zone::Draw).last().cloned()
             } else {

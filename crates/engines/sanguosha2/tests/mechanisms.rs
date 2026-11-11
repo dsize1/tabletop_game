@@ -381,3 +381,21 @@ fn discard_contract_discard_is_not_use() {
         "使用不是弃置"
     );
 }
+
+#[test]
+fn draw_refills_from_discard_when_deck_empty() {
+    // 机制（M14）：牌堆耗尽时必须把弃牌堆洗回牌堆；否则双方无牌可摸/可出 → 回合空转不终局。
+    let mut g = g();
+    // 夹具三张牌都在手牌 → 牌堆为空。先把一张手牌置入弃牌堆，再摸牌验证重洗。
+    let c3 = "c3".to_string();
+    g.to_discard(&c3, "test").unwrap();
+    assert!(g.ids_in(|z| *z == sanguosha2::kernel::Zone::Draw).is_empty());
+    let got = g.draw(1, 2);
+    assert_eq!(got.len(), 1, "弃牌堆只有 1 张：洗回后只能摸 1 张");
+    assert!(
+        g.log.iter().any(|l| l.text.contains("洗回牌堆")),
+        "应记录重洗事实：{:?}",
+        g.log.iter().map(|l| l.text.clone()).collect::<Vec<_>>()
+    );
+    assert!(g.ids_in(|z| *z == sanguosha2::kernel::Zone::Draw).is_empty(), "牌堆与弃牌堆都空");
+}
