@@ -230,7 +230,7 @@ fn jijiang_ally_may_let_lord_draw_after_out_of_turn_sha() {
     g.seats[0].hp = 4;
     g.turn = 0; // 蜀将打出的不是自己回合
     give(&mut g, 1, &["c1"]);
-    g.events.push(sanguosha2::kernel::event::Event::card(
+    g.emit(sanguosha2::kernel::event::Event::card(
         sanguosha2::kernel::event::EventKind::CardUsed,
         Some(1),
         "c1".to_string(),
@@ -404,7 +404,7 @@ fn yajiao_off_turn_play_reveals_top_and_same_type_gives_card() {
     g.turn = 1;
     give(&mut g, 0, &["c2"]);
     g.put_on_top(&"c9".to_string()).unwrap(); // 牌堆顶：杀（基本）
-    g.events.push(sanguosha2::kernel::event::Event::card(
+    g.emit(sanguosha2::kernel::event::Event::card(
         sanguosha2::kernel::event::EventKind::CardPlayed,
         Some(0),
         "c2".to_string(),
@@ -427,7 +427,7 @@ fn yajiao_different_type_lets_zhaoyun_pick_a_card() {
     g.put_on_top(&"c7".to_string()).unwrap(); // 无中生有（锦囊）
     give(&mut g, 1, &["c5"]);
     equip(&mut g, 1, "c11", Slot::Weapon);
-    g.events.push(sanguosha2::kernel::event::Event::card(
+    g.emit(sanguosha2::kernel::event::Event::card(
         sanguosha2::kernel::event::EventKind::CardPlayed,
         Some(0),
         "c2".to_string(),

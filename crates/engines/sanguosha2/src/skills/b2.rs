@@ -32,6 +32,7 @@ pub const WANGLIE: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 往烈（主动部分）：使用基本牌/普通锦囊时，可以令其不能被响应，然后本阶段不能再使用牌。
@@ -99,6 +100,7 @@ pub const FUYIN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 父荫（锁定）：每回合首次成为他人【杀】/【决斗】目标后，若其手牌数 ≥ 你，此牌对你无效。
@@ -156,6 +158,7 @@ pub const JUEYAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_jueyan(g: &Game, seat: usize) -> bool {
@@ -247,6 +250,7 @@ pub const POSHI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 破势（觉醒，窗口=准备阶段）：体力值为 1 时减 1 点体力上限并废除**全部**装备栏。
@@ -289,6 +293,7 @@ pub const XIONGLUAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_xiongluan(g: &Game, seat: usize) -> bool {
@@ -333,6 +338,7 @@ pub const QIANJIE: SkillDef = SkillDef {
     target_blocker: Some(qianjie_blocker),
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 谦节：不能成为 ①延时锦囊 ②铁索连环 的目标（拼点由 `skills::blocks_pindian` 拦截）。
@@ -369,6 +375,7 @@ pub const ZHENGU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_zhengu(g: &Game, seat: usize) -> bool {
@@ -468,6 +475,7 @@ pub const ZUILUN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 罪论（按官方原文）：结束阶段观看牌堆顶 3 张；你每满足一项条件，获得其中一张牌；
@@ -677,6 +685,7 @@ pub const HONGJU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 鸿举（觉醒，准备阶段）：荣 ≥ 3 → 减 1 点体力上限，然后由玩家选**等量**手牌替换「荣」
@@ -806,6 +815,7 @@ pub const ZHENGRONG: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn zhengrong(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -922,6 +932,7 @@ pub const CONGJIAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn congjian(g: &mut Game, a: &Ask) -> Result<Step, String> {

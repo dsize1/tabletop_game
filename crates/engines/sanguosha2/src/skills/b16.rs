@@ -129,6 +129,7 @@ pub const HUOSHOU: SkillDef = SkillDef {
     target_blocker: Some(huoshou_blocker),
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn huoshou_blocker(
@@ -174,6 +175,7 @@ pub const ZAIZHI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn zaizhi(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -276,6 +278,7 @@ pub const DUANLIANG: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 断粮：本回合未造成过伤害 → 【兵粮寸断】无距离限制。
@@ -302,6 +305,7 @@ pub const JIEZI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn zai(g: &Game, seat: usize) -> u32 {
@@ -418,6 +422,7 @@ pub const DUANCHANG: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 // ---------------------------------------------------------------------------
@@ -439,6 +444,7 @@ pub const BEIGE: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn beige(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -607,6 +613,7 @@ pub const QUHU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_quhu(g: &Game, seat: usize) -> bool {
@@ -737,6 +744,7 @@ pub const JIEMING: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn jieming(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -873,6 +881,7 @@ pub const QIANGXI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn qiangxi_mask(g: &Game) -> u32 {
@@ -991,6 +1000,7 @@ pub const NINGE: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn ninge(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -1069,6 +1079,7 @@ pub const SHUANGXIONG: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn shuangxiong(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -1167,6 +1178,7 @@ pub const ZHIJIAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn zhijian_equips(g: &Game, seat: usize) -> Vec<CardId> {
@@ -1285,6 +1297,7 @@ pub const GUZHENG: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn guzheng(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -1382,6 +1395,7 @@ pub const POJUN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 【杀】指定目标后：破军介入（移出至多 X 张牌直到回合结束）。

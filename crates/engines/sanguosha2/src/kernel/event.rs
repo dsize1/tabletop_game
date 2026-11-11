@@ -6,7 +6,15 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::CardId;
+use super::{CardId, Phase};
+
+/// 事件所属生命周期：`Setup` 阶段的系统事件（发牌/组牌堆）不触发技能。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum Lifecycle {
+    #[default]
+    Turn,
+    Setup,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum EventKind {
@@ -65,6 +73,22 @@ pub struct Event {
     /// 数值（伤害点数 / 失去体力数 / 上限变化量）。
     #[serde(default)]
     pub amount: Option<i32>,
+    /// **事件发生时刻**的回合座位（由 `Game::emit` 打点；旧快照缺省 0）。
+    /// 窗口判定与 handler 必须读它，不要读 live `g.turn`（会因路由晚于状态推进而失真）。
+    #[serde(default)]
+    pub turn: usize,
+    /// **事件发生时刻**的阶段（同上）。
+    #[serde(default)]
+    pub phase: Phase,
+    /// 生命周期：`Setup` = 开局/发牌，不路由给技能。
+    #[serde(default)]
+    pub lifecycle: Lifecycle,
+    /// 施动者（谁触发这次移动：弃置者/使用者/获得者），用于「被其他角色…」类判定。
+    #[serde(default)]
+    pub by: Option<usize>,
+    /// 来源座位（这张牌此前属于谁；牌堆/弃牌堆为 `None`）。
+    #[serde(default)]
+    pub from: Option<usize>,
 }
 
 impl Event {
@@ -80,6 +104,11 @@ impl Event {
             card: Some(card),
             cause,
             amount: None,
+            turn: 0,
+            phase: Phase::Prepare,
+            lifecycle: Lifecycle::Turn,
+            by: None,
+            from: None,
         }
     }
 
@@ -90,6 +119,11 @@ impl Event {
             card: None,
             cause: cause.map(|s| s.to_string()),
             amount: None,
+            turn: 0,
+            phase: Phase::Prepare,
+            lifecycle: Lifecycle::Turn,
+            by: None,
+            from: None,
         }
     }
 
@@ -143,8 +177,9 @@ pub struct Sub {
 }
 
 impl Sub {
-    pub fn accepts(&self, ev: &Event, turn: usize, phase: super::Phase) -> bool {
-        self.kind == ev.kind && self.window.allows(turn, phase, self.owner)
+    /// 窗口判定**只读事件快照**（`ev.turn/ev.phase`），不读 live 状态。
+    pub fn accepts(&self, ev: &Event) -> bool {
+        self.kind == ev.kind && self.window.allows(ev.turn, ev.phase, self.owner)
     }
 }
 

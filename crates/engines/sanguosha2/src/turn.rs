@@ -23,6 +23,8 @@ pub fn begin_game(g: &mut Game) -> Result<(), String> {
 
 /// 指定首回合角色的开局（身份局：主公先手）。
 pub fn begin_game_at(g: &mut Game, seat: usize) -> Result<(), String> {
+    // Setup 结束：此后产生的事件才允许触发技能。
+    g.lifecycle = crate::kernel::event::Lifecycle::Turn;
     // 让 `begin_phase` 认为阶段发生变化，从而发出 PhaseStart。
     g.phase = Phase::End;
     g.turn = seat;
@@ -104,7 +106,7 @@ pub fn tick(g: &mut Game) -> Result<(), String> {
             Phase::Discard => {
                 if crate::skills::skip_discard_phase(g, seat) {
                     g.push_log(format!("{} 跳过弃牌阶段", g.seats[seat].name));
-                    g.events.push(Event::simple(
+                    g.emit(Event::simple(
                         EventKind::PhaseEnd,
                         Some(seat),
                         Some("skip_discard_keji"),
@@ -135,7 +137,7 @@ pub fn tick(g: &mut Game) -> Result<(), String> {
                     g.used_this_turn.clear();
                     g.uncounted.clear();
                     g.turn_seq += 1;
-                    g.events.push(Event::simple(
+                    g.emit(Event::simple(
                         EventKind::TurnStart,
                         Some(seat),
                         Some("extra_turn"),

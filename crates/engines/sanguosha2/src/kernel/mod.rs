@@ -224,8 +224,9 @@ impl Seat {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum Phase {
+    #[default]
     Prepare,
     Judge,
     Draw,
@@ -265,6 +266,12 @@ pub struct Game {
     order: Vec<CardId>,
     pub turn: usize,
     pub phase: Phase,
+    /// 生命周期（`Setup` 期间产生的系统事件不触发技能；`begin_game_at` 切回 Turn）。
+    #[serde(default)]
+    pub lifecycle: crate::kernel::event::Lifecycle,
+    /// 当前动作的施动者（`begin_action_as` 打点）：给牌移动事件提供「被其他角色…」判据。
+    #[serde(default)]
+    pub action_actor: Option<usize>,
     pub round: u32,
     pub stack: Vec<Frame>,
     pub pending: Option<Pending>,
@@ -457,6 +464,18 @@ pub struct Game {
 }
 
 impl Game {
+    /// 唯一的事件入队出口：给事件打上「发生时刻」快照（turn/phase/lifecycle）。
+    ///
+    /// 为什么必须打点：事件路由晚于状态推进（例如摸牌阶段摸完立刻进入出牌阶段、
+    /// 回合结束时先切 turn 再路由 PhaseEnd），handler/window 若读 live `g.turn/g.phase`
+    /// 会把「事件发生时」误读成「路由时」，同类误判会在多个获得/阶段结束类技能上复现。
+    pub fn emit(&mut self, mut ev: Event) {
+        ev.turn = self.turn;
+        ev.phase = self.phase;
+        ev.lifecycle = self.lifecycle;
+        self.events.push(ev);
+    }
+
     pub fn new(seats: Vec<Seat>, cards: Vec<Card>) -> Self {
         let mut g = Self {
             seats,
@@ -465,6 +484,8 @@ impl Game {
             order: Vec::new(),
             turn: 0,
             phase: Phase::Prepare,
+            lifecycle: crate::kernel::event::Lifecycle::Turn,
+            action_actor: None,
             round: 1,
             stack: Vec::new(),
             pending: None,
@@ -744,7 +765,7 @@ impl Game {
             if matches!(from, Zone::Equip(_, _)) {
                 self.equip_lost_batch.push((owner, id.clone()));
             }
-            self.events.push(Event::card(
+            self.emit(Event::card(
                 event::EventKind::CardLost,
                 Some(owner),
                 id.clone(),
@@ -756,6 +777,17 @@ impl Game {
 
     /// 动作开始：重置「本动作内失去手牌数」的批次计数。
     pub fn begin_action(&mut self) {
+        self.action_actor = None;
+        self.clear_action_batches();
+    }
+
+    /// 带施动者的动作开始（`resolve::submit` / `card_play::start_use` 调用）。
+    pub fn begin_action_as(&mut self, actor: usize) {
+        self.action_actor = Some(actor);
+        self.clear_action_batches();
+    }
+
+    fn clear_action_batches(&mut self) {
         self.hand_loss_batch.clear();
         self.discard_batch.clear();
         self.lost_batch.clear();
@@ -774,7 +806,7 @@ impl Game {
             self.judge_order.retain(|(_, c)| c != id);
             // 离开判定区后不再按虚拟牌名生效（慎断的【兵粮寸断】）。
             self.clear_virtual(id);
-            self.events.push(Event::card(
+            self.emit(Event::card(
                 event::EventKind::JudgeZoneLeft,
                 Some(seat),
                 id.clone(),
@@ -802,19 +834,31 @@ impl Game {
         if self.cards.get(id).map(|c| c.suit.is_red()).unwrap_or(false) {
             self.bump("turn.red_discarded");
         }
-        self.events.push(Event::card(
+        let mut ev = Event::card(
             event::EventKind::CardDiscarded,
             seat,
             id.clone(),
             Some(cause.to_string()),
-        ));
+        );
+        ev.by = self.action_actor;
+        ev.from = seat;
+        self.emit(ev);
         Ok(())
+    }
+
+    /// 指定施动者的弃置（技能/测试用）：语义 = 「`by` 弃置了 `id`」。
+    pub fn to_discard_by(&mut self, by: usize, id: &CardId, cause: &str) -> Result<(), String> {
+        let prev = self.action_actor;
+        self.action_actor = Some(by);
+        let r = self.to_discard(id, cause);
+        self.action_actor = prev;
+        r
     }
 
     /// 移出游戏（**唯一**「移出/移入游戏」判定点）。
     pub fn to_void(&mut self, id: &CardId) -> Result<(), String> {
         self.move_card(id, Zone::Void)?;
-        self.events.push(Event::card(
+        self.emit(Event::card(
             event::EventKind::CardOutOfGame,
             None,
             id.clone(),
@@ -829,7 +873,7 @@ impl Game {
             return Err(format!("牌 {id} 不在移出游戏区"));
         }
         self.move_card(id, to)?;
-        self.events.push(Event::card(
+        self.emit(Event::card(
             event::EventKind::CardIntoGame,
             None,
             id.clone(),
@@ -859,7 +903,7 @@ impl Game {
             // 判定区移出：不算弃置，只发 `JudgeZoneLeft`。
             self.judge_order.retain(|(_, c)| c != id);
             self.clear_virtual(id);
-            self.events.push(Event::card(
+            self.emit(Event::card(
                 event::EventKind::JudgeZoneLeft,
                 Some(s),
                 id.clone(),
@@ -870,12 +914,10 @@ impl Game {
         if !self.suppress_gain_count {
             self.bump(&format!("turn.gained:{seat}"));
         }
-        self.events.push(Event::card(
-            event::EventKind::CardGained,
-            Some(seat),
-            id.clone(),
-            None,
-        ));
+        let mut ev = Event::card(event::EventKind::CardGained, Some(seat), id.clone(), None);
+        ev.from = from_seat;
+        ev.by = self.action_actor;
+        self.emit(ev);
         Ok(())
     }
 
@@ -940,7 +982,7 @@ impl Game {
         self.move_card(id, Zone::Judge(seat))?;
         self.judge_order.retain(|(_, c)| c != id);
         self.judge_order.push((seat, id.clone()));
-        self.events.push(Event::card(
+        self.emit(Event::card(
             event::EventKind::JudgeZoneEntered,
             Some(seat),
             id.clone(),
@@ -962,13 +1004,13 @@ impl Game {
         self.judge_order.retain(|(_, c)| c != id);
         self.judge_order.push((seat, id.clone()));
         self.move_card(id, Zone::Judge(seat))?;
-        self.events.push(Event::card(
+        self.emit(Event::card(
             event::EventKind::JudgeZoneLeft,
             Some(from),
             id.clone(),
             Some("lightning_move".to_string()),
         ));
-        self.events.push(Event::card(
+        self.emit(Event::card(
             event::EventKind::JudgeZoneEntered,
             Some(seat),
             id.clone(),
@@ -1092,7 +1134,7 @@ impl Game {
         if self.seats[seat].flags.contains("xiongluan_active") {
             self.mark_unresponsive(card);
         }
-        self.events.push(Event::card(
+        self.emit(Event::card(
             event::EventKind::CardUsed,
             Some(seat),
             card.clone(),
@@ -1100,7 +1142,7 @@ impl Game {
         ));
         self.used_this_turn.push((seat, card.clone()));
         if !targets.is_empty() {
-            self.events.push(Event::card(
+            self.emit(Event::card(
                 event::EventKind::TargetChosen,
                 Some(seat),
                 card.clone(),
@@ -1111,7 +1153,7 @@ impl Game {
 
     /// 结束当前阶段（发 PhaseEnd，供溃诛/掣政等「阶段结束时」技能）。
     pub fn end_phase(&mut self, cause: &str) -> Result<(), String> {
-        self.events.push(Event::simple(
+        self.emit(Event::simple(
             event::EventKind::PhaseEnd,
             Some(self.turn),
             Some(cause),
@@ -1236,7 +1278,7 @@ impl Game {
         for id in cards {
             self.seats[seat].frozen_phase.insert(id.clone());
         }
-        self.events.push(Event::simple(
+        self.emit(Event::simple(
             event::EventKind::HandFrozen,
             Some(seat),
             Some("until_phase_end"),
@@ -1249,7 +1291,7 @@ impl Game {
             return;
         }
         self.seats[seat].frozen_phase.clear();
-        self.events.push(Event::simple(
+        self.emit(Event::simple(
             event::EventKind::HandUnfrozen,
             Some(seat),
             Some("phase_end"),
@@ -1484,7 +1526,7 @@ impl Game {
             Some(cause.to_string()),
         );
         ev.amount = None;
-        self.events.push(ev);
+        self.emit(ev);
         self.push_log(format!("展示：{}（{cause}）", self.card_label(id)));
     }
 
@@ -1494,7 +1536,7 @@ impl Game {
             .entry(viewer)
             .or_default()
             .insert(id.clone());
-        self.events.push(Event::card(
+        self.emit(Event::card(
             event::EventKind::CardRevealed,
             Some(viewer),
             id.clone(),
@@ -1517,7 +1559,7 @@ impl Game {
         if !self.revealed.remove(id) {
             return;
         }
-        self.events.push(Event::card(
+        self.emit(Event::card(
             event::EventKind::CardConcealed,
             None,
             id.clone(),
@@ -1589,7 +1631,7 @@ impl Game {
         for id in self.hand(seat) {
             self.seats[seat].frozen.insert(id);
         }
-        self.events.push(Event::simple(
+        self.emit(Event::simple(
             event::EventKind::HandFrozen,
             Some(seat),
             Some("until_turn_end"),
@@ -1602,7 +1644,7 @@ impl Game {
             return;
         }
         self.seats[seat].frozen.clear();
-        self.events.push(Event::simple(
+        self.emit(Event::simple(
             event::EventKind::HandUnfrozen,
             Some(seat),
             Some("turn_end"),
@@ -1630,7 +1672,7 @@ impl Game {
             return;
         }
         self.seats[seat].armor = (self.seats[seat].armor + n).max(0);
-        self.events.push(Event::simple(
+        self.emit(Event::simple(
             event::EventKind::ArmorChanged,
             Some(seat),
             Some(if n > 0 { "gain" } else { "lose" }),

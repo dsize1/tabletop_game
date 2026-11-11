@@ -82,6 +82,7 @@ pub const RENDE: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn rende_targets(g: &Game, seat: usize) -> Vec<usize> {
@@ -296,6 +297,7 @@ pub const JIJIANG: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 界激将：代出【杀】的同势力角色（非主公、蜀势力、有手牌）。
@@ -507,6 +509,7 @@ pub const YIJUE: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_yijue(g: &Game, seat: usize) -> bool {
@@ -665,6 +668,7 @@ pub const WUSHENG: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 pub fn wusheng_conversions(g: &Game, seat: usize) -> Vec<super::Conversion> {
@@ -714,6 +718,7 @@ pub const TISHEN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn tishen(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -781,6 +786,7 @@ pub const PAOXIAO: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 pub fn sha_limit_override(g: &Game, seat: usize) -> Option<usize> {
@@ -849,6 +855,7 @@ pub const YAJIAO: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn yajiao(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -1042,6 +1049,7 @@ pub const LONGDAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 pub fn longdan_conversions(g: &Game, seat: usize) -> Vec<super::Conversion> {
@@ -1092,6 +1100,7 @@ pub const MASHU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 pub fn distance_delta(g: &Game, seat: usize) -> i32 {
@@ -1121,6 +1130,7 @@ pub const TIEQI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn tieqi(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -1237,6 +1247,7 @@ pub const KONGCHENG: SkillDef = SkillDef {
     target_blocker: Some(kongcheng_block),
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn kongcheng_block(
@@ -1272,6 +1283,7 @@ pub const GUANXING: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn guanxing_n(g: &Game) -> usize {
@@ -1400,6 +1412,7 @@ pub const JIZHI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn jizhi(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -1482,6 +1495,7 @@ pub const QICAI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 pub fn trick_no_distance(g: &Game, seat: usize) -> bool {

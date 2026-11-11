@@ -638,7 +638,7 @@ fn zuoding_lets_one_target_draw_for_spade_card() {
     answer(&mut g, 0, "target:2");
     assert!(g.hand(2).len() >= 1);
     // 同一张牌只触发一次
-    g.events.push(sanguosha2::kernel::event::Event::card(
+    g.emit(sanguosha2::kernel::event::Event::card(
         sanguosha2::kernel::event::EventKind::TargetChosen,
         Some(1),
         "c1".to_string(),

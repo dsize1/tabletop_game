@@ -80,7 +80,7 @@ fn fire(g: &mut Game, kind: EventKind, seat: usize, card: Option<&str>, cause: O
     let mut ev = Event::simple(kind, Some(seat), cause);
     ev.card = card.map(|c| c.to_string());
     ev.amount = Some(1);
-    g.events.push(ev);
+    g.emit(ev);
     advance(g).unwrap();
 }
 

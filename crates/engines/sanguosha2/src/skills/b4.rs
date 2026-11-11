@@ -90,6 +90,7 @@ pub const XIANSI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 陷嗣拥有者（第一个存活的）。
@@ -305,6 +306,7 @@ pub const DUODAO: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn weapon_of(g: &Game, seat: usize) -> Option<CardId> {
@@ -461,6 +463,7 @@ pub const ANJIAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 伤害数值加成（锁定技，无询问）：`flow::damage_now` 在扣血前调用。
@@ -503,6 +506,7 @@ pub const DANSHOU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn danshou_x(g: &Game) -> usize {
@@ -651,6 +655,7 @@ pub const SIDI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 司敌费用（裁定 Q1=B）：装备区所有装备 + 与装备**同色**的非基本手牌。
@@ -813,6 +818,7 @@ pub const SHENDUAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn shenduan(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -921,6 +927,7 @@ pub const YONGLUE: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn yonglue(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -1018,6 +1025,7 @@ pub const PINDI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn pindi_cards(g: &Game, seat: usize) -> Vec<CardId> {
@@ -1219,6 +1227,7 @@ pub const FAEN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn faen(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -1295,6 +1304,7 @@ pub const BENXI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 目标列表（`TargetChosen` 的 cause，逗号分隔）。
@@ -1473,6 +1483,7 @@ pub const ZHONGYONG: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 【杀】结算完毕的接入点（由 `skills::on_sha_finished` 调用；v2 的【杀】结算引擎接入这里）。

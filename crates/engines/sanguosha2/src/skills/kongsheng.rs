@@ -35,6 +35,7 @@ pub const DEF: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn handler(g: &mut Game, a: &Ask) -> Result<Step, String> {

@@ -35,6 +35,7 @@ pub const YONGSI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 弃牌阶段开始时先弃 X 张（摸牌加成在 `skills::draw_bonus` 里实现）。
@@ -74,6 +75,7 @@ pub const QIZHI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn qizhi(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -173,6 +175,7 @@ pub const JINZOU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn jinzou(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -262,6 +265,7 @@ pub const HUAJU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn noop(_g: &mut Game, _a: &Ask) -> Result<Step, String> {
@@ -287,4 +291,5 @@ pub const CUNMU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };

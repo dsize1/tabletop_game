@@ -108,7 +108,7 @@ fn qingjian_counts_card_kinds() {
     let mut g = game(&[("xiahou", &["qingjian"], 4), ("p1", &[], 4)]);
     give(&mut g, 0, &["c1", "c7"]);
     g.turn = 1;
-    g.events.push(sanguosha2::kernel::event::Event::card(
+    g.emit(sanguosha2::kernel::event::Event::card(
         sanguosha2::kernel::event::EventKind::CardGained, Some(0), "c3".to_string(), None));
     advance(&mut g).unwrap();
     assert_eq!(pend_skill(&g).as_deref(), Some("qingjian"));

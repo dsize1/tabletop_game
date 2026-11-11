@@ -94,6 +94,7 @@ pub const ZANHUI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn zanhui(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -427,6 +428,7 @@ pub const JIAOJIN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 「造成伤害时」受害者侧拦截：返回 true = 已压入询问帧。
@@ -556,6 +558,7 @@ pub const FENLI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 严格大于其他所有存活角色（裁定 Q1=B：并列不算）。
@@ -661,6 +664,7 @@ pub const PINGKOU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn pingkou(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -752,6 +756,7 @@ pub const SHENXING: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_shenxing(g: &Game, seat: usize) -> bool {
@@ -841,6 +846,7 @@ pub const BINGYI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn bingyi(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -992,6 +998,7 @@ pub const HUITUO: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn huituo(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -1094,6 +1101,7 @@ pub const MINGJIAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_mingjian(g: &Game, seat: usize) -> bool {
@@ -1177,6 +1185,7 @@ pub const XINGSHUAI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 兴衰是否可用：主公 + 拥有技 + 未用过 + 有存活魏势力其他人。
@@ -1299,6 +1308,7 @@ pub const QIANJU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 // ---------------------------------------------------------------------------
@@ -1320,6 +1330,7 @@ pub const QINGXI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn weapon_of(g: &Game, seat: usize) -> Option<CardId> {
@@ -1481,6 +1492,7 @@ pub const HUOMO: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 本回合用过的基本牌位图（sha=1 / tao=2 / jiu=4）。
@@ -1662,6 +1674,7 @@ pub const ZUODING: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn zuoding(g: &mut Game, a: &Ask) -> Result<Step, String> {

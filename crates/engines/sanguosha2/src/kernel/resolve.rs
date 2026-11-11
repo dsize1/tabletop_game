@@ -253,7 +253,7 @@ pub fn advance(g: &mut Game) -> Result<(), String> {
                         source,
                         Some(&format!("victim={victim}")),
                     );
-                    g.events.push(ev);
+                    g.emit(ev);
                     Step::Done
                 }
             };
@@ -362,8 +362,21 @@ fn run_deferred(g: &mut Game, d: Deferred) -> Result<(), String> {
             card,
             cause,
             amount,
+            turn,
+            phase,
+            by,
+            from,
         } => {
-            let mut data = json!({ "cause": cause, "event": event, "seat": seat });
+            // handler 一律从 `data` 读「发生时刻」：`turn` / `phase`。
+            let mut data = json!({
+                "cause": cause,
+                "event": event,
+                "seat": seat,
+                "turn": turn,
+                "phase": format!("{phase:?}"),
+                "by": by,
+                "from": from,
+            });
             if let Some(card) = card {
                 data["card"] = json!(card);
             }
@@ -412,13 +425,26 @@ fn route_one_event(g: &mut Game) {
         return;
     }
     let ev = g.events.remove(0);
+    // 开局/发牌等系统事件（Setup）不触发技能：发牌不是「获得」，组牌堆不是「移出游戏」。
+    if ev.lifecycle == super::event::Lifecycle::Setup {
+        return;
+    }
     let mut matched: Vec<super::event::Sub> = g
         .subs
         .iter()
-        .filter(|s| s.accepts(&ev, g.turn, g.phase))
+        .filter(|s| s.accepts(&ev))
         .cloned()
         .collect();
-    super::event::sort_subs(&mut matched, g.turn, g.seats.len());
+    // 「主体窗口」：客观判定（如奋激：受影响的角色必须在回合外）。
+    // 由技能声明，不写进 handler；判定同样用事件快照，避免回合切换后的误读。
+    matched.retain(|s| {
+        let Some(sw) = crate::skills::def(&s.skill).and_then(|d| d.subject_window) else {
+            return true;
+        };
+        let subject = ev.seat.unwrap_or(s.owner);
+        sw.allows(ev.turn, ev.phase, subject)
+    });
+    super::event::sort_subs(&mut matched, ev.turn, g.seats.len());
     for s in matched {
         g.deferred.push(Deferred {
             kind: super::deferred::DeferredKind::SkillTrigger,
@@ -430,6 +456,10 @@ fn route_one_event(g: &mut Game) {
                 card: ev.card.clone(),
                 cause: ev.cause.clone(),
                 amount: ev.amount,
+                turn: ev.turn,
+                phase: ev.phase,
+                by: ev.by,
+                from: ev.from,
             },
         });
     }
@@ -455,7 +485,7 @@ pub fn submit(g: &mut Game, actor: usize, action: &str) -> Result<String, String
         action = first.id.clone();
     }
     let action = action.as_str();
-    g.begin_action();
+    g.begin_action_as(actor);
     g.pending = None;
     g.answer = Some(action.to_string());
     g.answer_budget = 1;
@@ -520,7 +550,7 @@ pub fn begin_phase(g: &mut Game, seat: usize, phase: Phase) -> Result<(), String
         // 上一回合最后阶段结束（正常为 End）：emit PhaseEnd（阶段结束时技能的唯一事实源）。
         let old_turn = g.turn;
         let old_phase = g.phase;
-        g.events.push(super::event::Event::simple(
+        g.emit(super::event::Event::simple(
             EventKind::PhaseEnd,
             Some(old_turn),
             Some(&format!("{old_phase:?}")),
@@ -544,7 +574,7 @@ pub fn begin_phase(g: &mut Game, seat: usize, phase: Phase) -> Result<(), String
         }
         g.turn = seat;
         g.turn_seq += 1;
-        g.events.push(super::event::Event::simple(
+        g.emit(super::event::Event::simple(
             EventKind::TurnStart,
             Some(seat),
             None,
@@ -565,7 +595,7 @@ pub fn begin_phase(g: &mut Game, seat: usize, phase: Phase) -> Result<(), String
         // 阶段结束事件（供「阶段结束时」技能；cause = 旧阶段名）。
         if !turn_switched {
             let old_phase = g.phase;
-            g.events.push(super::event::Event::simple(
+            g.emit(super::event::Event::simple(
                 EventKind::PhaseEnd,
                 Some(seat),
                 Some(&format!("{old_phase:?}")),
@@ -578,7 +608,7 @@ pub fn begin_phase(g: &mut Game, seat: usize, phase: Phase) -> Result<(), String
         for i in 0..g.seats.len() {
             g.unfreeze_phase(i);
         }
-        g.events.push(super::event::Event::simple(
+        g.emit(super::event::Event::simple(
             EventKind::PhaseStart,
             Some(seat),
             Some(&format!("{phase:?}")),

@@ -610,6 +610,8 @@ fn maybe_finish(g: &mut Game) -> Result<(), String> {
 /// 选将完成：定体力/势力/技能 → 组牌堆 → 发初始手牌 → 进入主公回合。
 pub fn finish_setup(g: &mut Game) -> Result<(), String> {
     let setup = g.setup.clone().ok_or_else(|| "不在选将阶段".to_string())?;
+    // 选将收尾 + 组牌堆 + 发牌 + 开局技全部属于 Setup：期间产生的事件不触发技能。
+    g.lifecycle = crate::kernel::event::Lifecycle::Setup;
     if setup.picks.len() != g.seats.len() {
         return Err("选将未完成".into());
     }
@@ -656,15 +658,13 @@ pub fn finish_setup(g: &mut Game) -> Result<(), String> {
     }
     g.shuffle_draw();
 
-    // 初始手牌 4 张（逐个座位轮流摸）。
+    // 初始手牌 4 张（逐个座位轮流摸）。发牌属于 Setup 生命周期：事件会带
+    // `Lifecycle::Setup` 标记，路由层直接丢弃（发牌不是「获得」，见 engine-self-audit M2）。
     for _ in 0..INITIAL_HAND {
         for i in 0..g.seats.len() {
             g.draw(i, 1);
         }
     }
-    // 发牌不是「对局内动作」：丢弃该阶段产生的卡牌事件，避免开局就触发
-    // 获得/弃置类技能（周泰·奋激 / 清俭 / 直言等，2026-11-11 走查发现）。
-    g.events.clear();
 
     g.setup = None;
     g.identity_game = true;

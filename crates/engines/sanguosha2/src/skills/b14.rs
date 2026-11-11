@@ -222,6 +222,7 @@ pub const ZHIBA: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn wu_targets(g: &Game, owner: usize) -> Vec<usize> {
@@ -314,6 +315,7 @@ pub const JIANG: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn is_jiang_card(g: &Game, id: &CardId) -> bool {
@@ -411,6 +413,7 @@ pub const HUNZI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn hunzi(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -493,6 +496,7 @@ pub const SHENSU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn shensu(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -642,6 +646,7 @@ pub const SHEBIAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn shebian(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -753,6 +758,7 @@ pub const BAZHEN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 pub const CANGZHUO: SkillDef = SkillDef {
@@ -770,6 +776,7 @@ pub const CANGZHUO: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 // ---------------------------------------------------------------------------
@@ -791,6 +798,7 @@ pub const HONGYAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 pub fn hand_limit_override(g: &Game, seat: usize) -> Option<usize> {
@@ -826,6 +834,7 @@ pub const KUANGGU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn kuanggu(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -901,6 +910,7 @@ pub const QIMOU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_qimou(g: &Game, seat: usize) -> bool {
@@ -979,6 +989,7 @@ pub const PIAOLING: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn piaoling(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -1129,6 +1140,7 @@ pub const YINGHUN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn yinghun(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -1222,6 +1234,7 @@ pub const WULIE: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn wulie(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -1325,6 +1338,7 @@ pub const JIANDU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 pub fn sha_intercept(
@@ -1464,6 +1478,7 @@ pub const NIEPAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn niepan_pick(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -1513,6 +1528,7 @@ pub const HUOJI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 pub const KANPO: SkillDef = SkillDef {
@@ -1530,6 +1546,7 @@ pub const KANPO: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 pub const LIANHUAN: SkillDef = SkillDef {
@@ -1547,6 +1564,7 @@ pub const LIANHUAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 被动转化：火计（红色牌当【火攻】）、看破（黑色牌当【无懈可击】）、
@@ -1663,7 +1681,7 @@ fn lianhuan(g: &mut Game, a: &Ask) -> Result<Step, String> {
             }
             g.to_discard(&id, "lianhuan")?;
             // 重铸算「使用牌」（用户 2026-11-09 裁定）。
-            g.events.push(crate::kernel::event::Event::card(
+            g.emit(crate::kernel::event::Event::card(
                 EventKind::CardUsed,
                 Some(owner),
                 id.clone(),
@@ -1695,6 +1713,7 @@ pub const TIANXIANG: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn hearts(g: &Game, seat: usize) -> Vec<CardId> {

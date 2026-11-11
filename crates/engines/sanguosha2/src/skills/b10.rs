@@ -67,6 +67,7 @@ pub const QIXI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 pub fn qixi_conversions(g: &Game, seat: usize) -> Vec<super::Conversion> {
@@ -105,6 +106,7 @@ pub const FENWEI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn fenwei_owner(g: &Game) -> Option<usize> {
@@ -211,6 +213,7 @@ pub const KEJI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 pub fn skip_discard_phase(g: &Game, seat: usize) -> bool {
@@ -236,6 +239,7 @@ pub const QINXUE: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn qinxue_ready(g: &Game, seat: usize) -> bool {
@@ -303,6 +307,7 @@ pub const GONGXIN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_gongxin(g: &Game, seat: usize) -> bool {
@@ -434,6 +439,7 @@ pub const BOTU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 pub fn botu_maybe(g: &mut Game, seat: usize) {
@@ -476,6 +482,7 @@ pub const KUROU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_kurou(g: &Game, seat: usize) -> bool {
@@ -535,6 +542,7 @@ pub const ZHAXIANG: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn zhaxiang(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -606,6 +614,7 @@ pub const YINGZI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 pub fn hand_limit_override(g: &Game, seat: usize) -> Option<usize> {
@@ -635,6 +644,7 @@ pub const FANJIAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_fanjian(g: &Game, seat: usize) -> bool {
@@ -764,6 +774,7 @@ pub const LIULI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn liuli(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -869,6 +880,7 @@ pub const GUOSE: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn diamonds(g: &Game, seat: usize) -> Vec<CardId> {
@@ -1013,6 +1025,7 @@ pub const QIANXUN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 结算前钩子：普通锦囊仅以持有者为唯一目标（返回 true = 已压入询问帧）。
@@ -1096,6 +1109,7 @@ pub const LIANYING: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 栈空后由 `advance` 调用：压入连营询问（返回 true = 已压入）。
@@ -1201,6 +1215,7 @@ pub const ZHIHENG: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_zhiheng(g: &Game, seat: usize) -> bool {
@@ -1286,6 +1301,7 @@ pub const JIUYUAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// `flow::heal` 的前置钩子：满足条件时压入询问帧并返回 true（本次回复由技能接管）。
@@ -1336,7 +1352,7 @@ fn jiuyuan(g: &mut Game, a: &Ask) -> Result<Step, String> {
             let d = healed - g.seats[seat].hp;
             g.seats[seat].hp = healed;
             if d > 0 {
-                g.events.push(crate::kernel::event::Event::with_amount(
+                g.emit(crate::kernel::event::Event::with_amount(
                     crate::kernel::event::EventKind::Healed,
                     Some(seat),
                     Some("jiuyuan_self"),
@@ -1377,6 +1393,7 @@ pub const XIAOJI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 pub fn xiaoji_on_lose_equip(g: &mut Game, seat: usize) {
@@ -1406,6 +1423,7 @@ pub const JIEYIN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_jieyin(g: &Game, seat: usize) -> bool {

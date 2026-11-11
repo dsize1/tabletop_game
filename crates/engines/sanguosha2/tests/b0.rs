@@ -251,7 +251,7 @@ fn fenji_draws_after_leaving_dying() {
     g.seats[1].hp = 1; // 周泰濒死线
     begin_phase(&mut g, 0, Phase::Play).unwrap();
     let card = g.hand(2)[0].clone();
-    g.to_discard(&card, "test").unwrap(); // p2 手牌被弃置（回合外）
+    g.to_discard_by(0, &card, "test").unwrap(); // p2 手牌被 p0 弃置（口径 B：被其他角色弃置）
     advance(&mut g).unwrap();
     assert_eq!(pend(&g).skill(), Some("fenji"));
     let hand_p2_before = g.hand(2).len();
@@ -419,11 +419,40 @@ fn jushou_discard_step_is_mandatory() {
 }
 
 #[test]
-fn fenji_ignores_current_turn_player_hand_gain() {
-    // 走查发现：奋激未校验「受影响角色处于回合外」，当前回合玩家摸牌也会触发。
+fn fenji_triggers_on_other_discard_even_in_own_turn() {
+    // 口径 B（2026-11-11）：不按回合，按「被其他角色弃置」。自己回合内被他人弃手牌也要触发。
     let mut g = b0_game(); // 周泰在座位 1
     begin_phase(&mut g, 0, Phase::Play).unwrap();
-    g.draw(0, 2); // 当前回合玩家（座位 0）手牌增加
+    let card = g.hand(0)[0].clone();
+    g.to_discard_by(2, &card, "guohe").unwrap(); // p2 弃置回合玩家 p0 的手牌
     advance(&mut g).unwrap();
-    assert!(g.pending.is_none(), "回合内玩家手牌增加不得触发奋激");
+    assert_eq!(pend(&g).skill(), Some("fenji"));
+    assert!(pend(&g).options()[0].label.contains("p0"), "令手牌被弃置者摸 2");
+}
+
+#[test]
+fn fenji_ignores_self_discard_and_discard_phase() {
+    let mut g = b0_game();
+    begin_phase(&mut g, 0, Phase::Play).unwrap();
+    let card = g.hand(0)[0].clone();
+    g.to_discard_by(0, &card, "discard_phase").unwrap(); // 自己弃牌
+    advance(&mut g).unwrap();
+    assert!(g.pending.is_none(), "自己弃牌不触发奋激");
+}
+
+#[test]
+fn fenji_gain_from_other_targets_original_owner() {
+    // 口径 B：被其他角色获得手牌 → 令**原持有者**摸 2（不是获得者）。
+    let mut g = b0_game();
+    begin_phase(&mut g, 0, Phase::Play).unwrap();
+    let card = g.hand(2)[0].clone();
+    g.begin_action_as(0);
+    g.gain(&card, 0).unwrap();
+    advance(&mut g).unwrap();
+    assert_eq!(pend(&g).skill(), Some("fenji"));
+    assert!(
+        pend(&g).options()[0].label.contains("p2"),
+        "奋激对象应为原持有者：{:?}",
+        pend(&g).options()[0].label
+    );
 }

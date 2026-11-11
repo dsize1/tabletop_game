@@ -107,6 +107,7 @@ pub const MIEJI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_mieji(g: &Game, seat: usize) -> bool {
@@ -332,6 +333,7 @@ pub const FENCHENG: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_fencheng(g: &Game, seat: usize) -> bool {
@@ -566,6 +568,7 @@ pub const JUECE: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn juece_candidates(g: &Game, owner: usize) -> Vec<usize> {
@@ -635,6 +638,7 @@ pub const JINGCE: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn jingce_types(g: &Game) -> u32 {
@@ -717,6 +721,7 @@ pub const ZHUIKONG: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn zhuikong_ready(g: &Game, owner: usize, current: usize) -> bool {
@@ -828,6 +833,7 @@ pub const QIUYUAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn qiuyuan_helpers(g: &Game, owner: usize, user: usize) -> Vec<usize> {
@@ -1076,6 +1082,7 @@ pub const GONGQI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_gongqi(g: &Game, seat: usize) -> bool {
@@ -1274,6 +1281,7 @@ pub const JIEFAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_jiefan(g: &Game, seat: usize) -> bool {
@@ -1518,6 +1526,7 @@ pub const FUHEN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_fuhen(g: &Game, seat: usize) -> bool {
@@ -1697,6 +1706,7 @@ pub const QIANXI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn qianxi(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -1789,6 +1799,7 @@ pub const JIAZHAO: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 可「回合外发动」的主动技（矫诏 修改 1 起）。
@@ -2088,6 +2099,7 @@ pub const DANXIN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn danxin(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -2145,6 +2157,7 @@ pub const SHIBEI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn shibei(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -2205,6 +2218,7 @@ pub const JIANYING: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn jianying_basic_names() -> Vec<&'static str> {

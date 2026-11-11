@@ -68,6 +68,7 @@ pub const DULIANG: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_duliang(g: &Game, seat: usize) -> bool {
@@ -182,6 +183,7 @@ pub const FULIN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 // ---------------------------------------------------------------------------
@@ -203,6 +205,7 @@ pub const KUANGBI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn kuangbi_marks(g: &Game, seat: usize) -> Vec<CardId> {
@@ -379,6 +382,7 @@ pub const ZHIGE: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn zhige_targets(g: &Game, seat: usize) -> Vec<usize> {
@@ -560,6 +564,7 @@ pub const ZONGZUO: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 开局初始化（由 `skills::on_game_start` 调用）。
@@ -579,7 +584,7 @@ pub fn init_zongzuo(g: &mut Game) {
         if g.seats[seat].hp > 0 {
             g.seats[seat].hp = (g.seats[seat].hp + 1).min(new_max);
         }
-        g.events.push(
+        g.emit(
             crate::kernel::event::Event::with_amount(
                 EventKind::MaxHpChanged,
                 Some(seat),
@@ -632,6 +637,7 @@ pub const JISHE: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_jishe(g: &Game, seat: usize) -> bool {
@@ -726,6 +732,7 @@ pub const LIANHUO: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 链祸：火焰伤害 + 处于连环 + **是传导起点** → +1（裁定 Q1=A）。
@@ -760,6 +767,7 @@ pub const GUIZAO: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn guizao_ready(g: &Game, seat: usize) -> bool {
@@ -840,6 +848,7 @@ pub const JIYU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn jiyu_targets(g: &Game, seat: usize) -> Vec<usize> {
@@ -961,6 +970,7 @@ pub const QINQING: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn qinqing_lord(g: &Game) -> Option<usize> {
@@ -1113,6 +1123,7 @@ pub const HUISHENG: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 「造成伤害时」受害者侧拦截（返回 true = 已压帧）。
@@ -1369,6 +1380,7 @@ pub const TAOLUAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn taoluan_used(g: &Game, seat: usize, name: &str) -> bool {

@@ -231,7 +231,7 @@ fn zhenliang_yin_triggers_only_out_of_turn_and_same_color() {
         .into_iter()
         .find(|id| g.cards.get(id).map(|c| c.suit.is_red()).unwrap_or(false))
         .unwrap();
-    g.events.push(sanguosha2::kernel::event::Event::card(
+    g.emit(sanguosha2::kernel::event::Event::card(
         EventKind::CardPlayed,
         Some(2),
         same.clone(),
@@ -242,7 +242,7 @@ fn zhenliang_yin_triggers_only_out_of_turn_and_same_color() {
 
     // 回到周妃回合，卢植（p1）回合外打出同色 → 触发
     begin_phase(&mut g, 0, Phase::Play).unwrap();
-    g.events.push(sanguosha2::kernel::event::Event::card(
+    g.emit(sanguosha2::kernel::event::Event::card(
         EventKind::CardPlayed,
         Some(2),
         same,

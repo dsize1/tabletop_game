@@ -279,7 +279,7 @@ fn damage_now_impl(
         amount,
     );
     ev.card = card.cloned();
-    g.events.push(ev);
+    g.emit(ev);
     // 属性伤害 + 连环状态 → 解除连环并传导给其他连环角色（链祸等技能按 `chain_origin` 判定）。
     if dtype != crate::cards::DamageKind::Normal && g.seats[victim].chained && !chain_origin {
         chain_leave(g, victim);
@@ -363,7 +363,7 @@ pub fn heal(g: &mut Game, seat: usize, n: i32, cause: &str) {
     if healed <= 0 {
         return;
     }
-    g.events.push(Event::with_amount(
+    g.emit(Event::with_amount(
         EventKind::Healed,
         Some(seat),
         Some(cause),
@@ -392,7 +392,7 @@ pub fn lose_hp_by(g: &mut Game, seat: usize, n: i32, cause: &str, source: Option
         return;
     }
     g.seats[seat].hp -= n;
-    g.events.push(Event::with_amount(
+    g.emit(Event::with_amount(
         EventKind::HpLost,
         Some(seat),
         Some(cause),
@@ -414,7 +414,7 @@ pub fn revive_to(g: &mut Game, seat: usize, hp: i32, cause: &str) {
         return;
     }
     g.seats[seat].hp = target;
-    g.events.push(Event::with_amount(
+    g.emit(Event::with_amount(
         EventKind::Healed,
         Some(seat),
         Some(cause),
@@ -442,7 +442,7 @@ pub fn revive_add(g: &mut Game, seat: usize, n: i32, cause: &str) {
     if healed <= 0 {
         return;
     }
-    g.events.push(Event::with_amount(
+    g.emit(Event::with_amount(
         EventKind::Healed,
         Some(seat),
         Some(cause),
@@ -460,7 +460,7 @@ pub fn chain_enter(g: &mut Game, seat: usize) {
         return;
     }
     g.seats[seat].chained = true;
-    g.events.push(Event::simple(
+    g.emit(Event::simple(
         EventKind::ChainedEnter,
         Some(seat),
         Some("chain"),
@@ -487,7 +487,7 @@ pub fn lose_max_hp(g: &mut Game, seat: usize, n: i32, cause: &str) {
     if g.seats[seat].hp > max_hp {
         g.seats[seat].hp = max_hp;
     }
-    g.events.push(Event::with_amount(
+    g.emit(Event::with_amount(
         EventKind::MaxHpChanged,
         Some(seat),
         Some(cause),
@@ -930,7 +930,7 @@ pub fn step_wuxie(g: &mut Game, a: &Ask) -> Result<Step, String> {
 pub fn judge_card(g: &mut Game, owner: usize) -> Option<CardId> {
     let id = g.draw_top()?;
     g.to_frame(&id).ok()?;
-    g.events.push(Event::card(
+    g.emit(Event::card(
         EventKind::JudgeRevealed,
         Some(owner),
         id.clone(),
@@ -941,7 +941,7 @@ pub fn judge_card(g: &mut Game, owner: usize) -> Option<CardId> {
 
 /// 判定生效（发 `JudgeEffective`；颂威等订阅）。
 pub fn judge_effective(g: &mut Game, owner: usize, card: &CardId) {
-    g.events.push(Event::card(
+    g.emit(Event::card(
         EventKind::JudgeEffective,
         Some(owner),
         card.clone(),

@@ -83,6 +83,7 @@ pub const SANYAO: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 const MODES: [&str; 2] = ["hp", "hand"];
@@ -252,6 +253,7 @@ pub const ZHIMAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 「造成伤害时」拦截：返回 true = 已压入询问帧、本次伤害暂不结算。
@@ -370,6 +372,7 @@ pub const QICE: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_qice(g: &Game, seat: usize) -> bool {
@@ -557,6 +560,7 @@ pub const ZHIYU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn zhiyu(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -688,6 +692,7 @@ pub const QUANJI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn quanji(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -814,6 +819,7 @@ pub const ZILI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn zili(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -906,6 +912,7 @@ pub const JUNXING: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_junxing(g: &Game, seat: usize) -> bool {
@@ -1145,6 +1152,7 @@ pub const YUCE: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn yuce(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -1383,6 +1391,7 @@ pub const LONGYIN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 拥有「龙吟」的座位顺序（当前回合玩家优先，然后左手侧）——裁定 Q3=B：只问第一个。

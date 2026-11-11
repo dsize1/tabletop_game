@@ -24,6 +24,7 @@ pub const DEF: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 开局：摸 1 张并进入「必选一张作为任」的询问（由 `Game::new` 驱动）。

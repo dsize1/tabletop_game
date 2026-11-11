@@ -33,6 +33,7 @@ pub const JIANXIONG: SkillDef = SkillDef {
     code: "jianxiong", name: "奸雄", triggers: &[EventKind::DamageAfter], window: Window::AnyTime,
     priority: 0, can_active: None, handler: jianxiong, dying_hook: None, flip_hook: None,
     wuxie_opts: None, wuxie_use: None, target_blocker: None, yang_window: None, yin_window: None,
+    subject_window: None,
 };
 
 fn jianxiong(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -75,6 +76,7 @@ pub const HUJIA: SkillDef = SkillDef {
     code: "hujia", name: "护驾", triggers: &[EventKind::CardUsed, EventKind::CardPlayed], window: Window::AnyTime,
     priority: 0, can_active: None, handler: hujia, dying_hook: None, flip_hook: None,
     wuxie_opts: None, wuxie_use: None, target_blocker: None, yang_window: None, yin_window: None,
+    subject_window: None,
 };
 
 pub fn relay_order(g: &Game, lord: usize) -> Vec<usize> {
@@ -174,6 +176,7 @@ pub const FANKUI: SkillDef = SkillDef {
     code: "fankui", name: "反馈", triggers: &[EventKind::DamageAfter], window: Window::AnyTime,
     priority: 0, can_active: None, handler: fankui, dying_hook: None, flip_hook: None,
     wuxie_opts: None, wuxie_use: None, target_blocker: None, yang_window: None, yin_window: None,
+    subject_window: None,
 };
 
 fn fankui(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -221,6 +224,7 @@ pub const GUICAI: SkillDef = SkillDef {
     code: "guicai", name: "鬼才", triggers: &[], window: Window::AnyTime,
     priority: 0, can_active: None, handler: guicai, dying_hook: None, flip_hook: None,
     wuxie_opts: None, wuxie_use: None, target_blocker: None, yang_window: None, yin_window: None,
+    subject_window: None,
 };
 
 pub fn active_guicai(g: &Game, seat: usize) -> bool {
@@ -267,6 +271,7 @@ pub const GANGLIE: SkillDef = SkillDef {
     code: "ganglie", name: "刚烈", triggers: &[EventKind::DamageAfter], window: Window::AnyTime,
     priority: 0, can_active: None, handler: ganglie, dying_hook: None, flip_hook: None,
     wuxie_opts: None, wuxie_use: None, target_blocker: None, yang_window: None, yin_window: None,
+    subject_window: None,
 };
 
 fn ganglie(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -316,6 +321,7 @@ pub const QINGJIAN: SkillDef = SkillDef {
     code: "qingjian", name: "清俭", triggers: &[EventKind::CardGained], window: Window::AnyTime,
     priority: 0, can_active: None, handler: qingjian, dying_hook: None, flip_hook: None,
     wuxie_opts: None, wuxie_use: None, target_blocker: None, yang_window: None, yin_window: None,
+    subject_window: None,
 };
 
 fn qingjian(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -370,7 +376,9 @@ fn qingjian(g: &mut Game, a: &Ask) -> Result<Step, String> {
         if g.counter("turn.qingjian_used") > 0 || hand_and_equip(g, owner).is_empty() {
             return Ok(Step::Done);
         }
-        if g.turn == owner && g.phase == Phase::Draw {
+        // 「摸牌阶段外获得牌」：读事件 cause（发牌/摸牌阶段），不要读 live `g.phase`
+        // ——事件在摸牌阶段摸完后才路由，此时 phase 已是 Play（engine-self-audit M1）。
+        if a.data["cause"].as_str() == Some("draw_phase") {
             return Ok(Step::Done);
         }
         match g.answer.take().as_deref() {
@@ -402,6 +410,7 @@ pub const TUXI: SkillDef = SkillDef {
     code: "tuxi", name: "突袭", triggers: &[EventKind::PhaseStart], window: Window::OwnPhase(Phase::Draw),
     priority: 0, can_active: None, handler: tuxi, dying_hook: None, flip_hook: None,
     wuxie_opts: None, wuxie_use: None, target_blocker: None, yang_window: None, yin_window: None,
+    subject_window: None,
 };
 
 fn tuxi(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -479,6 +488,7 @@ pub const LUOYI: SkillDef = SkillDef {
     code: "luoyi", name: "裸衣", triggers: &[EventKind::PhaseStart], window: Window::OwnPhase(Phase::Draw),
     priority: 5, can_active: None, handler: luoyi, dying_hook: None, flip_hook: None,
     wuxie_opts: None, wuxie_use: None, target_blocker: None, yang_window: None, yin_window: None,
+    subject_window: None,
 };
 
 fn luoyi(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -555,6 +565,7 @@ pub const TIANDU: SkillDef = SkillDef {
     code: "tiandu", name: "天妒", triggers: &[], window: Window::AnyTime,
     priority: 0, can_active: None, handler: tiandu, dying_hook: None, flip_hook: None,
     wuxie_opts: None, wuxie_use: None, target_blocker: None, yang_window: None, yin_window: None,
+    subject_window: None,
 };
 
 pub fn start_tiandu(g: &mut Game, owner: usize, card: &CardId) -> bool {
@@ -590,6 +601,7 @@ pub const YIJI: SkillDef = SkillDef {
     code: "yiji", name: "遗计", triggers: &[EventKind::DamageAfter], window: Window::AnyTime,
     priority: 0, can_active: None, handler: yiji, dying_hook: None, flip_hook: None,
     wuxie_opts: None, wuxie_use: None, target_blocker: None, yang_window: None, yin_window: None,
+    subject_window: None,
 };
 
 fn yiji(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -652,6 +664,7 @@ pub const XUNXUN: SkillDef = SkillDef {
     code: "xunxun", name: "恂恂", triggers: &[EventKind::PhaseStart], window: Window::OwnPhase(Phase::Draw),
     priority: 10, can_active: None, handler: xunxun, dying_hook: None, flip_hook: None,
     wuxie_opts: None, wuxie_use: None, target_blocker: None, yang_window: None, yin_window: None,
+    subject_window: None,
 };
 
 fn xunxun(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -717,6 +730,7 @@ pub const WANGXI: SkillDef = SkillDef {
     code: "wangxi", name: "忘隙", triggers: &[EventKind::DamageAfter], window: Window::AnyTime,
     priority: 0, can_active: None, handler: wangxi, dying_hook: None, flip_hook: None,
     wuxie_opts: None, wuxie_use: None, target_blocker: None, yang_window: None, yin_window: None,
+    subject_window: None,
 };
 
 fn wangxi(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -779,6 +793,7 @@ pub const QINGGUO: SkillDef = SkillDef {
     code: "qingguo", name: "倾国", triggers: &[], window: Window::AnyTime,
     priority: 0, can_active: None, handler: noop, dying_hook: None, flip_hook: None,
     wuxie_opts: None, wuxie_use: None, target_blocker: None, yang_window: None, yin_window: None,
+    subject_window: None,
 };
 
 pub fn conversions(g: &Game, seat: usize) -> Vec<super::Conversion> {
@@ -797,6 +812,7 @@ pub const LUOSHEN: SkillDef = SkillDef {
     code: "luoshen", name: "洛神", triggers: &[EventKind::PhaseStart], window: Window::OwnPhase(Phase::Prepare),
     priority: 0, can_active: None, handler: luoshen, dying_hook: None, flip_hook: None,
     wuxie_opts: None, wuxie_use: None, target_blocker: None, yang_window: None, yin_window: None,
+    subject_window: None,
 };
 
 fn luoshen(g: &mut Game, a: &Ask) -> Result<Step, String> {

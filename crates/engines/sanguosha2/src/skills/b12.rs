@@ -96,6 +96,7 @@ pub const JIJIU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 被动转化技（只作濒死救援的【桃】；`usable=false`）。
@@ -135,6 +136,7 @@ pub const CHULI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn chuli_candidates(g: &Game, owner: usize, selected: &[usize]) -> Vec<usize> {
@@ -312,6 +314,7 @@ pub const WUSHUANG: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 响应张数：无双使「你使用的【杀】」需两张【闪】，「与你【决斗】的角色」每次需两张【杀】。
@@ -351,6 +354,7 @@ pub const LIYU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 伤害后事件的公共解析：`(来源, 受伤者, 伤害牌)`，只接受「自己用【杀】造成」的伤害。
@@ -563,6 +567,7 @@ pub const YICONG: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 「我 → 他人」距离 -1。
@@ -602,6 +607,7 @@ pub const QIAOMENG: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn qiaomeng(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -724,6 +730,7 @@ pub const LIJIAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn male_others(g: &Game, owner: usize) -> Vec<usize> {
@@ -897,6 +904,7 @@ pub const BIYUE: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn biyue(g: &mut Game, a: &Ask) -> Result<Step, String> {

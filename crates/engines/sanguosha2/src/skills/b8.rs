@@ -161,6 +161,7 @@ pub const ZHONGJIAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn zhongjian_limit(g: &Game) -> u32 {
@@ -443,6 +444,7 @@ pub const CAISHI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn caishi(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -500,6 +502,7 @@ pub const FUMIAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 本回合的福绵数值：切换选项时 +1，下一回合重置为 1（用户 2026-11-09 裁定）。
@@ -599,6 +602,7 @@ pub const DAIYAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn daiyan(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -688,6 +692,7 @@ pub const WENGUA: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn wengua_owner(g: &Game, seat: usize) -> Option<usize> {
@@ -802,6 +807,7 @@ pub const FUZHU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn fuzhu(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -918,6 +924,7 @@ pub const SHOUXI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn shouxi_names(g: &Game, seat: usize) -> Vec<&'static str> {
@@ -1082,6 +1089,7 @@ pub const HUIMIN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn huimin_x(g: &Game) -> usize {
@@ -1214,6 +1222,7 @@ pub const QINGXIAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 触发来源：受伤（伤害来源）/ 回复（一名其他角色，由嵇康选）。
@@ -1386,7 +1395,8 @@ macro_rules! xian_skill {
             target_blocker: None,
             yang_window: None,
             yin_window: None,
-        };
+    subject_window: None,
+};
         const _: (bool, &str) = ($from_source, $mode);
     };
 }
@@ -1564,6 +1574,7 @@ pub const JUEXIANG: SkillDef = SkillDef {
     target_blocker: Some(juexiang_block),
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn juexiang(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -1662,6 +1673,7 @@ pub const JIANZHENG: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn jianzheng(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -1753,6 +1765,7 @@ pub const ZHUANDUI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn zhuandui(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -1817,6 +1830,7 @@ pub const TIANBIAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 pub fn pindian_options(g: &Game, seat: usize) -> Vec<(String, String)> {
@@ -1884,6 +1898,7 @@ pub const FUNAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn funan_upgraded(g: &Game, seat: usize) -> bool {
@@ -2008,6 +2023,7 @@ pub const JIEXUN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 场上**公开**的方片牌数（装备区 + 判定区；不含手牌与武将牌上的牌）。
@@ -2148,6 +2164,7 @@ pub const BIZHUAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn bizhuan_trigger_ok(g: &Game, a: &Ask) -> bool {
@@ -2235,6 +2252,7 @@ pub const TONGBO: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn tongbo(g: &mut Game, a: &Ask) -> Result<Step, String> {

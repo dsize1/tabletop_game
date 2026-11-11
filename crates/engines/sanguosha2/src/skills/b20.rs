@@ -90,6 +90,7 @@ pub const QIAOSHI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn qiaoshi(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -150,6 +151,7 @@ pub const YANYU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_yanyu(g: &Game, seat: usize) -> bool {
@@ -286,6 +288,7 @@ pub const QIANGSHI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn qiangshi(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -426,6 +429,7 @@ pub const XIANTU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn xiantu(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -608,6 +612,7 @@ pub const ZHENJUN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn zhenjun_x(g: &Game, target: usize) -> usize {
@@ -881,6 +886,7 @@ pub const YIZHONG: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn yizhong(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -957,6 +963,7 @@ pub const ANXU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_anxu(g: &Game, seat: usize) -> bool {
@@ -1236,6 +1243,7 @@ pub const ZHUIXI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn zhuixi(g: &mut Game, a: &Ask) -> Result<Step, String> {

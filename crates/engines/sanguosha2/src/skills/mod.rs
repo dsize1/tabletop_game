@@ -41,6 +41,9 @@ pub struct SkillDef {
     pub name: &'static str,
     pub triggers: &'static [EventKind],
     pub window: Window,
+    /// 「事件主体」的生效窗口（客观判定，如奋激：手牌变化的角色必须在回合外）。
+    /// 由路由层统一校验（用事件快照），handler 不再各自判断。
+    pub subject_window: Option<Window>,
     pub priority: i32,
     /// 主动技的可发动判定（与 `execute_active` **同源**）。
     pub can_active: Option<fn(&Game, usize) -> bool>,

@@ -37,6 +37,7 @@ pub const JUSHOU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn jushou(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -147,6 +148,7 @@ pub const JIEWEI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn jiewei_wuxie_options(g: &Game, seat: usize) -> Vec<(String, String)> {
@@ -410,6 +412,7 @@ pub const BUQU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn buqu_noop(_g: &mut Game, _a: &Ask) -> Result<Step, String> {
@@ -458,7 +461,8 @@ pub const FENJI: SkillDef = SkillDef {
     code: "fenji",
     name: "奋激",
     triggers: &[EventKind::CardGained, EventKind::CardDiscarded],
-    window: Window::OtherTurn,
+    // 口径 B（2026-11-11 裁定修正）：不按回合，按「被其他角色弃置 / 从其他角色·区域获得」。
+    window: Window::AnyTime,
     priority: 30,
     can_active: None,
     handler: fenji,
@@ -469,6 +473,7 @@ pub const FENJI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn first_fenji_owner(g: &Game, seat: usize) -> Option<usize> {
@@ -477,20 +482,41 @@ fn first_fenji_owner(g: &Game, seat: usize) -> Option<usize> {
     order.into_iter().find(|i| active(g, *i, "fenji") && g.seats[*i].hp > 0)
 }
 
+/// 奋激的触发主体（2026-11-11 裁定 B）：
+/// - `CardDiscarded`：被**其他角色**弃置（`by != 受影响的座位`）；自己弃牌/弃牌阶段不触发；
+/// - `CardGained`：被其他角色获得（`from` 是牌的原持有者且不等于获得者）→ 主体 = 原持有者；
+///   其余来源的「获得」（含技能摸牌、五谷等）按「从区域获得」计入 → 主体 = 获得者；
+///   但**摸牌阶段的摸牌**不计（`cause == "draw_phase"`）。
+fn fenji_subject(a: &Ask) -> Option<usize> {
+    let event = a.data["event"].as_str().unwrap_or_default();
+    let seat = a.data["seat"].as_u64().map(|n| n as usize);
+    if event.starts_with("CardDiscarded") {
+        let victim = seat?;
+        let by = a.data["by"].as_u64().map(|n| n as usize);
+        return (by.is_some() && by != Some(victim)).then_some(victim);
+    }
+    if event.starts_with("CardGained") {
+        let gainer = seat?;
+        let from = a.data["from"].as_u64().map(|n| n as usize);
+        if let Some(src) = from {
+            if src != gainer {
+                return Some(src); // 被其他角色获得 → 主体是原持有者
+            }
+        }
+        if a.data["cause"].as_str() == Some("draw_phase") {
+            return None; // 摸牌阶段的摸牌不算「获得」
+        }
+        return Some(gainer); // 其他来源获得（技能摸牌/五谷/弃牌堆等）
+    }
+    None
+}
+
 fn fenji(g: &mut Game, a: &Ask) -> Result<Step, String> {
     match a.stage {
         Stage::Choose => {
-            // 排除摸牌阶段的摸牌（cause == "draw_phase"）。
-            if a.data["cause"].as_str() == Some("draw_phase") {
-                return Ok(Step::Done);
-            }
-            let Some(seat) = a.data["seat"].as_u64().map(|n| n as usize) else {
+            let Some(seat) = fenji_subject(a) else {
                 return Ok(Step::Done);
             };
-            // 复验 11：受影响的角色必须**处于回合外**（其回合内的摸牌/弃牌不触发）。
-            if g.turn == seat {
-                return Ok(Step::Done);
-            }
             if first_fenji_owner(g, seat) != Some(a.actor) {
                 return Ok(Step::Done); // 只问座位顺序第一个
             }
@@ -562,6 +588,7 @@ pub const XINGSHANG: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn xingshang(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -625,6 +652,7 @@ pub const FANGZHU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn fangzhu(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -699,6 +727,7 @@ pub const SONGWEI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn songwei(g: &mut Game, a: &Ask) -> Result<Step, String> {

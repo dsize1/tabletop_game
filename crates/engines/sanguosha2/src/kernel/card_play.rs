@@ -740,7 +740,7 @@ pub fn start_use(
         if g.seats[seat].flags.contains("xiongluan_active") {
             g.mark_unresponsive(card);
         }
-        g.events.push(Event::card(
+        g.emit(Event::card(
             EventKind::CardUsed,
             Some(seat),
             card.clone(),
@@ -748,7 +748,7 @@ pub fn start_use(
         ));
         g.used_this_turn.push((seat, card.clone()));
     } else {
-        g.events.push(Event::simple(
+        g.emit(Event::simple(
             EventKind::CardUsed,
             Some(seat),
             Some(name),
@@ -758,7 +758,7 @@ pub fn start_use(
             g.bump(&format!("turn.sha_virtual:{seat}"));
         }
     }
-    g.begin_action();
+    g.begin_action_as(seat);
     // 福绵②：本回合「可以多指定目标」的机会用掉一次（即便只指定了 1 个目标）。
     if crate::skills::extra_targets(g, seat, carrier, name) > 0 {
         crate::skills::consume_extra_targets(g, seat);
@@ -775,13 +775,13 @@ pub fn start_use(
             .collect::<Vec<_>>()
             .join(",");
         match carrier {
-            Some(card) => g.events.push(Event::card(
+            Some(card) => g.emit(Event::card(
                 EventKind::TargetChosen,
                 Some(seat),
                 card.clone(),
                 Some(targets_str),
             )),
-            None => g.events.push(Event::simple(
+            None => g.emit(Event::simple(
                 EventKind::TargetChosen,
                 Some(seat),
                 Some(&targets_str),
@@ -2253,7 +2253,7 @@ fn apply_response(
         g.bump(&format!("round.used:{}", g.name_of(&id)));
         g.to_discard(&id, "respond")?;
         let label = g.name_of(&id);
-        g.events.push(Event::card(
+        g.emit(Event::card(
             EventKind::CardPlayed,
             Some(actor),
             id.clone(),
@@ -2322,7 +2322,7 @@ fn apply_response(
         g.to_discard(&carrier, "respond")?;
         // 打出记账（转化牌按生效牌名）。
         g.bump(&format!("round.used:{label}"));
-        g.events.push(Event::card(
+        g.emit(Event::card(
             EventKind::CardPlayed,
             Some(actor),
             carrier.clone(),

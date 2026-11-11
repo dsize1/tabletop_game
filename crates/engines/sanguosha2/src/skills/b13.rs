@@ -78,6 +78,7 @@ pub const LIEGONG: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 【杀】的可达性覆盖：距离 ≤ 此【杀】点数（逐目标）。
@@ -196,6 +197,7 @@ pub const ZHUHAI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn zhuhai(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -305,6 +307,7 @@ pub const QIANXIN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn qianxin(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -354,6 +357,7 @@ pub const JIANYAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn male_alive(g: &Game) -> Vec<usize> {
@@ -502,6 +506,7 @@ pub const YAOWU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn yaowu(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -556,6 +561,7 @@ pub const SHIZHAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_shizhan(g: &Game, seat: usize) -> bool {
@@ -637,6 +643,7 @@ pub const LEIJI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn leiji(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -804,6 +811,7 @@ pub const GUIDAO: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 pub fn active_guidao(g: &Game, seat: usize) -> bool {
@@ -889,6 +897,7 @@ pub const HUANGTIAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn huangtian_lord(g: &Game, giver: usize) -> Option<usize> {
@@ -981,6 +990,7 @@ pub const XIANGLE: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn basic_hand(g: &Game, seat: usize) -> Vec<CardId> {
@@ -1099,6 +1109,7 @@ pub const LUANJI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn luanji_pairs(g: &Game, seat: usize) -> Vec<(CardId, CardId)> {
@@ -1228,6 +1239,7 @@ pub const XUEYI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 pub fn xueyi_marks(g: &Game, seat: usize) -> u32 {
@@ -1319,6 +1331,7 @@ pub const FANGQUAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_fangquan(g: &Game, seat: usize) -> bool {
@@ -1448,6 +1461,7 @@ pub const RUOYU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn ruoyu(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -1504,6 +1518,7 @@ pub const SISHU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 当前反转目标（`g.counters["sishu_target"]` 存 target+1，0 = 无）。
@@ -1600,6 +1615,7 @@ pub const HUASHEN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn huashen_state(g: &Game, seat: usize) -> crate::kernel::HuashenState {
@@ -1877,6 +1893,7 @@ pub const XINSHENG: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn xinsheng(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -1965,6 +1982,7 @@ pub const GUHUO: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 pub fn guhuo_available(g: &Game, seat: usize) -> bool {
@@ -2593,7 +2611,7 @@ fn guhuo_effect(
             return Ok(Step::Done);
         }
         g.to_discard(carrier, "respond")?;
-        g.events.push(crate::kernel::event::Event::card(
+        g.emit(crate::kernel::event::Event::card(
             crate::kernel::event::EventKind::CardPlayed,
             Some(owner),
             carrier.clone(),

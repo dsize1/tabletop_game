@@ -65,6 +65,7 @@ pub const WEIDI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 // ---------------------------------------------------------------------------
@@ -86,6 +87,7 @@ pub const JUZHAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: Some(Window::OtherTurn),
     yin_window: Some(Window::OwnTurn),
+    subject_window: None,
 };
 
 fn juzhan(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -198,6 +200,7 @@ pub const FEIJUN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 pub const BINGLUE: SkillDef = SkillDef {
@@ -215,6 +218,7 @@ pub const BINGLUE: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_feijun(g: &Game, seat: usize) -> bool {
@@ -359,6 +363,7 @@ pub const YILI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 pub const ZHENGLUN: SkillDef = SkillDef {
@@ -376,6 +381,7 @@ pub const ZHENGLUN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn yili(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -506,6 +512,7 @@ pub const KUIZHU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 pub const CHEZHENG: SkillDef = SkillDef {
@@ -523,6 +530,7 @@ pub const CHEZHENG: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 pub const LIJUN: SkillDef = SkillDef {
@@ -540,6 +548,7 @@ pub const LIJUN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn kuizhu(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -724,6 +733,7 @@ pub const JIANXIANG: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 pub const SHENSHI: SkillDef = SkillDef {
@@ -741,6 +751,7 @@ pub const SHENSHI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: Some(Window::OwnTurn),
     yin_window: Some(Window::OtherTurn),
+    subject_window: None,
 };
 
 fn jianxiang(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -940,6 +951,7 @@ pub const CHENGLUE: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: Some(Window::OwnTurn),
     yin_window: Some(Window::OwnTurn),
+    subject_window: None,
 };
 
 pub const SHICAI: SkillDef = SkillDef {
@@ -957,6 +969,7 @@ pub const SHICAI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_chenglue(g: &Game, seat: usize) -> bool {

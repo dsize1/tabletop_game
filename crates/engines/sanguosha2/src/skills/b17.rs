@@ -162,6 +162,7 @@ pub const XUANFENG: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn xuanfeng(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -314,6 +315,7 @@ pub const ZHICHI: SkillDef = SkillDef {
     target_blocker: Some(zhichi_blocker),
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn zhichi(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -372,6 +374,7 @@ pub const MINGCE: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn mingce_pool(g: &Game, seat: usize) -> Vec<CardId> {
@@ -623,6 +626,7 @@ pub const JIANGCHI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 摸牌阶段结束时询问（`skills::after_draw_phase`）。
@@ -739,6 +743,7 @@ pub const ZONGSHI_JIE: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 拼点结算后：纵适（界简雍）。
@@ -838,6 +843,7 @@ pub const QIAOSHUO: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_qiaoshuo(g: &Game, seat: usize) -> bool {
@@ -1021,6 +1027,7 @@ pub const ZONGXUAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn zongxuan(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -1165,6 +1172,7 @@ pub const ZHIYAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn zhiyan(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -1288,6 +1296,7 @@ pub const XIANZHEN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_xianzhen(g: &Game, seat: usize) -> bool {
@@ -1444,6 +1453,7 @@ pub const JINJIU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 禁酒：其他角色不能在高顺的回合使用【酒】；高顺自己不能把【酒】当【酒】。
@@ -1486,6 +1496,7 @@ pub const XUANHUO: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn xuanhuo(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -1782,6 +1793,7 @@ pub const ENYUAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn enyuan(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -1980,6 +1992,7 @@ pub const LIHUO: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 转化牌被使用（`lib.rs` 的 `convert:` 入口调用）。疠火记录「此牌是疠火火杀」。
@@ -2132,6 +2145,7 @@ pub const CHUNLAO: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn chun_count(g: &Game, seat: usize) -> usize {

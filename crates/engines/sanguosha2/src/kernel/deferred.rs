@@ -44,6 +44,18 @@ pub enum Payload {
         /// 事件数值（伤害点数 / 失去体力数 / 上限变化量）。
         #[serde(default)]
         amount: Option<i32>,
+        /// 事件发生时刻的回合座位（快照）。
+        #[serde(default)]
+        turn: usize,
+        /// 事件发生时刻的阶段（快照）。
+        #[serde(default)]
+        phase: crate::kernel::Phase,
+        /// 施动者（弃置者/使用者/获得者）。
+        #[serde(default)]
+        by: Option<usize>,
+        /// 来源座位（牌此前属于谁）。
+        #[serde(default)]
+        from: Option<usize>,
     },
     /// 通用「待栈空后询问」：技能名/阶段/数据均由调用方给定，内核不认识具体技能。
     Ask {

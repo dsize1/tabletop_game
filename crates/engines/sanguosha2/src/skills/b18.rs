@@ -85,6 +85,7 @@ pub const ZHENLIE: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn zhenlie(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -280,6 +281,7 @@ pub const MIJI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn miji(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -440,6 +442,7 @@ pub const JUEQING: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 pub fn damage_to_hp_loss(g: &Game, source: Option<usize>, victim: usize) -> bool {
@@ -480,6 +483,7 @@ pub const SHANGSHI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn shangshi(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -537,6 +541,7 @@ pub const JIANMIE: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_jianmie(g: &Game, seat: usize) -> bool {
@@ -679,6 +684,7 @@ pub const ZISHOU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 摸牌阶段开始前询问（`skills::before_phase`）。
@@ -858,6 +864,7 @@ pub const ZONGSHI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 手牌上限：全场每有一个势力 +1。
@@ -976,6 +983,7 @@ pub const XIANZHOU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_xianzhou(g: &Game, seat: usize) -> bool {
@@ -1151,6 +1159,7 @@ pub const QIETING: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 回合结束（在清空 `turn.` 计数之前调用）。
@@ -1327,6 +1336,7 @@ pub const CHENGXIANG: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn chengxiang(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -1540,6 +1550,7 @@ pub const RENXIN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn renxin(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -1636,6 +1647,7 @@ pub const LUOYING: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn luoying(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -1710,6 +1722,7 @@ pub const JIUSHI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_jiushi(g: &Game, seat: usize) -> bool {
@@ -1814,6 +1827,7 @@ pub const GANLU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_ganlu(g: &Game, seat: usize) -> bool {
@@ -1950,6 +1964,7 @@ pub const BUYI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn buyi(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -2047,6 +2062,7 @@ pub const DANGXIAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 准备阶段结束：执行额外出牌阶段（返回 true 表示已切换）。
@@ -2163,6 +2179,7 @@ pub const FULI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn fuli(g: &mut Game, a: &Ask) -> Result<Step, String> {

@@ -152,6 +152,7 @@ pub const TIANYI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_tianyi(g: &Game, seat: usize) -> bool {
@@ -271,6 +272,7 @@ pub const HANZHAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn hanzhan(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -350,6 +352,7 @@ pub const ROULIN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 肉林：本次【杀】额外需要几张【闪】（与无双相加，用户裁定 Q1=B）。
@@ -393,6 +396,7 @@ pub const BENGKUAI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn bengkuai(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -455,6 +459,7 @@ pub const JIUCHI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 pub fn conversions(g: &Game, seat: usize) -> Vec<super::Conversion> {
@@ -569,6 +574,7 @@ pub const BAONUE: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn baonue(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -663,6 +669,7 @@ pub const TUOTIAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn tuotian(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -758,6 +765,7 @@ pub const ZAOXIAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn zaoxian(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -807,6 +815,7 @@ pub const JIXI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 急袭是**纯转化技**（无主动/触发窗口）：handler 只作为注册占位。
@@ -833,6 +842,7 @@ pub const JUXIANG: SkillDef = SkillDef {
     target_blocker: Some(juxiang_blocker),
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn juxiang_blocker(_g: &Game, seat: usize, _source: usize, name: &str, _carrier: Option<&CardId>) -> bool {
@@ -904,6 +914,7 @@ pub const LIERENG: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn liereng(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -1007,6 +1018,7 @@ pub const CHANGBIAO: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_changbiao(g: &Game, seat: usize) -> bool {
@@ -1186,6 +1198,7 @@ pub const TIAOXIN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_tiaoxin(g: &Game, seat: usize) -> bool {
@@ -1361,6 +1374,7 @@ pub const ZHIJI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn zhiji(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -1428,6 +1442,7 @@ pub const WEIMU: SkillDef = SkillDef {
     target_blocker: Some(weimu_blocker),
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn weimu_blocker(
@@ -1485,6 +1500,7 @@ pub const LUANWU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_luanwu(g: &Game, seat: usize) -> bool {
@@ -1658,6 +1674,7 @@ pub const WANSHA: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 濒死开始：若当前回合角色有完杀 → 记录锁定状态（其他角色非锁定技失效）。
@@ -1713,6 +1730,7 @@ pub const HAOSHI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn haoshi(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -1951,6 +1969,7 @@ pub const DIMENG: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_dimeng(g: &Game, seat: usize) -> bool {
@@ -2100,6 +2119,7 @@ pub const QIAOBIAN: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 开局：巧变持有者获得 2 枚「变」。

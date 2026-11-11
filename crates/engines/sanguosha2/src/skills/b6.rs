@@ -72,6 +72,7 @@ pub const ZHANJUE: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_zhanjue(g: &Game, seat: usize) -> bool {
@@ -196,6 +197,7 @@ pub const QINWANG: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn qinwang_allies(g: &Game, seat: usize) -> Vec<usize> {
@@ -379,6 +381,7 @@ pub const WURONG: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_wurong(g: &Game, seat: usize) -> bool {
@@ -557,6 +560,7 @@ pub const SHIZHI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 矢志：该牌是否**不能**再当【闪】使用/打出（体力 1 时【闪】被替代为【杀】）。
@@ -583,6 +587,7 @@ pub const YANZHU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_yanzhu(g: &Game, seat: usize) -> bool {
@@ -721,6 +726,7 @@ pub const XINGXUE: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn xingxue(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -853,6 +859,7 @@ pub const ZHAOFU: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_zhaofu(g: &Game, seat: usize) -> bool {
@@ -944,6 +951,7 @@ pub const ANGUO: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_anguo(g: &Game, seat: usize) -> bool {
@@ -1098,6 +1106,7 @@ pub const YAOMING: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn yaoming(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -1242,6 +1251,7 @@ pub const HUAIYI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn can_huaiyi(g: &Game, seat: usize) -> bool {
@@ -1426,6 +1436,7 @@ pub const JIGONG: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 fn jigong(g: &mut Game, a: &Ask) -> Result<Step, String> {
@@ -1492,6 +1503,7 @@ pub const SHIFEI: SkillDef = SkillDef {
     target_blocker: None,
     yang_window: None,
     yin_window: None,
+    subject_window: None,
 };
 
 /// 「需要使用/打出【闪】」时可提供的替代选项（使用与打出共用）。

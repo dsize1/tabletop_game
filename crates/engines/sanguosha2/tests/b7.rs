@@ -187,7 +187,7 @@ fn zongzuo_adds_max_hp_by_kingdoms_and_drops_on_last_death() {
     // 某势力最后一人死亡 → 上限 -1
     let cur = g.seats[0].max_hp;
     g.seats[2].hp = 0;
-    g.events.push(sanguosha2::kernel::event::Event::simple(
+    g.emit(sanguosha2::kernel::event::Event::simple(
         EventKind::Death,
         Some(2),
         None,

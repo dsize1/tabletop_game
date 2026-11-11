@@ -77,7 +77,7 @@ fn play_phase(g: &mut Game, seat: usize) {
 fn fire(g: &mut Game, kind: EventKind, seat: usize, amount: i32, cause: Option<&str>) {
     let mut ev = Event::simple(kind, Some(seat), cause);
     ev.amount = Some(amount);
-    g.events.push(ev);
+    g.emit(ev);
     advance(g).unwrap();
 }
 
