@@ -221,9 +221,9 @@ B 的正确实现待改：在 `PhaseEnd` 事件里携带「本回合计数快照
 | B1 kind | 已修 | `SkillKind` + `lord_gate_ok` + catalog 类型列 |
 | B2 体力单出口 | 已修（26→0） | `flow::heal/lose_hp/revive_*/clamp_hp/heal_raw` |
 | B3 标记投影 | 已修 | `VISIBLE_COUNTER_MARKS` |
-| B4 内核技能名 | 门禁已拦（17 白名单） | `conventions-allowlist.json`；抽钩子排 V2.2 |
-| M9/M8 | 门禁已拦（23/10 白名单） | 空选项自动跳过、Scope 注册表待实现 |
-| M10 裁定↔用例 | **门禁已建，历史待回填** | `check:sgs-align` 要求新裁定带 `test`；775 条历史显式标 `legacy`（输出计数）；回填分批进行 |
+| B4 内核技能名 | **17→3** | 距离/咆哮/腹鳞/极奢/急攻/诏缚/往烈/兴衰/绝情 已收口为 `skills::*`；余 guhuo/jijiang/hanzhan（3，待设计） |
+| M9/M8 | 门禁已拦（21/10 白名单） | M9 自动提交出口试运行后回滚（与借刀/攻心流程冲突，需 pending 身份机制）；M8 Scope 待实现 |
+| M10 裁定↔用例 | **门禁已建 + B0 已回填 9 条** | `check:sgs-align`：锚点 9 / legacy 766；新裁定无 test 直接失败 |
 | M14 牌堆重洗 | **已修** | `refill_draw_from_discard`（摸牌前重洗）；用例 `mechanisms::draw_refills_from_discard_when_deck_empty` |
 | AI 自对弈（`check:sgs2-ai`） | **部分** | 已修：牌堆重洗（stalled 主因）、陈旧响应（`respond` 不在手牌视为未响应，seed2 已 0 illegal）；剩余 1 回环 + 1 长局 stalled 待查 |
 | 剩余 14 个 handler 读 live turn/phase | **未收口** | 清单见 §2-M1，按批迁移（优先 PhaseEnd 类） |
