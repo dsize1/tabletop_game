@@ -15,7 +15,7 @@
 | **M1** | **事件缺「发生时刻」快照**（turn/phase/lifecycle）——窗口与 handler 读 live 状态 | **已补**（ADR-0039） |
 | **M2** | **开局/发牌不是一等生命周期**——发牌事件进入技能触发通道 | **已补**（`Lifecycle::Setup`） |
 | **M13** | **牌移动缺「施动者/来源」**——无法表达「被其他角色弃置/获得」 | **已补**（`Event.by/from` + `Game.action_actor`） |
-| **M12** | **回合/阶段结束的结算时序**——`PhaseEnd` 在切 turn 后路由，`turn.*` 已清空 | **已补（用户选 B）**：`PhaseEnd` 先结算，`switch_to` 延迟切回合；`begin_game_at` 不再发伪 PhaseEnd |
+| **M12** | **回合/阶段结束的结算时序**——`PhaseEnd` 在切 turn 后路由，`turn.*` 已清空 | **部分**：`begin_game_at` 伪 PhaseEnd 已修；B（延迟切 turn）在自对弈 seed1 出现卡死/回环（stalled），已回滚为 A，B 需换「计数快照」实现（未收口） |
 | M9 | 「必选/可跳过」语义（`escape` vs `escape_mandatory`） | 门禁已拦（23 处显式白名单）；「空选项自动跳过」待实现 |
 | M8 | 计数器作用域无注册（非标准键手写清理） | 门禁已拦（10 处显式白名单）；`Scope` 注册表待实现 |
 | M11 | 开局「就绪」语义 | 探针已用「pending 分类」验证；`awaiting_input` API 待补 |
@@ -169,9 +169,9 @@
 - **B（维持现状）**：承认「结束阶段技能在下一回合开始结算」，只保证判定读事件快照；
   罪论的条件读 `turn.*` 仍会错（需要把这些计数改成跨回合留存或随事件快照携带）。
 
-**裁定（2026-11-11）**：B。实现：`Game.switch_to` + `resolve::complete_turn_switch`；`PhaseEnd` 先路由/结算，pending 清空后再切 turn；
-`begin_game_at` 不再补发伪 `PhaseEnd`（开局 pending 29→25）。回归：`setup_or_lobby::sandbox_start_does_not_trigger_gain_skills`（含诸葛瞻）、
-`b0::songwei_requires_lord`、`b16::pojun_voids_cards_until_turn_end`。
+**裁定（2026-11-11）**：B。尝试实现（`switch_to` 延迟切 turn）后在自对弈 `seed=1 game 0` 出现 `stalled`（2000 步未终局，
+pending 覆盖 11 种），为免拖垮 AI 门禁**已回滚为 A 运行**；`begin_game_at` 伪 `PhaseEnd` 的修复保留（开局 pending 29→25）。
+B 的正确实现待改：在 `PhaseEnd` 事件里携带「本回合计数快照」（`turn.*`），技能读快照而不是延迟切 turn。
 
 ### Q-spec-kit（再评估）
 
@@ -215,7 +215,7 @@
 | M1 事件快照 | 已修 | `Event.turn/phase/lifecycle` + `Game::emit` |
 | M2 开局生命周期 | 已修 | `Lifecycle::Setup` |
 | M13 牌移动来源 | 已修 | `action_actor` + `to_discard_by` |
-| M12 结束阶段时序（B） | 已修 | `switch_to` 延迟切回合 + 开局伪 PhaseEnd 修复 |
+| M12 结束阶段时序（B） | **回滚**（A 运行） | 延迟切回合导致自对弈 stalled；保留 `switch_to` 结构待改「计数快照」；伪 PhaseEnd 修复保留 |
 | B1 kind | 已修 | `SkillKind` + `lord_gate_ok` + catalog 类型列 |
 | B2 体力单出口 | 已修（26→0） | `flow::heal/lose_hp/revive_*/clamp_hp/heal_raw` |
 | B3 标记投影 | 已修 | `VISIBLE_COUNTER_MARKS` |

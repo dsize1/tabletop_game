@@ -275,6 +275,9 @@ pub struct Game {
     /// 待完成的回合切换（`(目标座位, 新回合首阶段)`）：结束阶段触发结算完再切（见 ADR-0039 / M12）。
     #[serde(default)]
     pub switch_to: Option<(usize, Phase)>,
+    /// 阶段开始询问（巧变）暂停后的重试目标（避免切 turn 后 `tick` 误判「回合已结束」）。
+    #[serde(default)]
+    pub retry_phase: Option<(usize, Phase)>,
     pub round: u32,
     pub stack: Vec<Frame>,
     pub pending: Option<Pending>,
@@ -490,6 +493,7 @@ impl Game {
             lifecycle: crate::kernel::event::Lifecycle::Turn,
             action_actor: None,
             switch_to: None,
+            retry_phase: None,
             round: 1,
             stack: Vec::new(),
             pending: None,

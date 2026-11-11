@@ -166,9 +166,9 @@ fn scenario_fenji() -> (String, String, Rec) {
     g.seats[0].hp = 1;
     let mut r = Rec::new();
     begin_phase(&mut g, 1, Phase::Play).unwrap();
-    // p2 手牌被弃置（回合外）→ 触发奋激
+    // p2 手牌被 p1 弃置（口径 B：被其他角色弃置）→ 触发奋激
     let card = g.hand(2)[0].clone();
-    g.to_discard(&card, "scene").unwrap();
+    g.to_discard_by(1, &card, "scene").unwrap();
     let p2_before = g.hand(2).len();
     r.act(&mut g, "回合外弃牌 → 奋激询问", None, None);
     r.check("奋激应询问", g.pending.as_ref().and_then(|p| p.skill()) == Some("fenji"));

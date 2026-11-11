@@ -50,7 +50,7 @@ live `g.turn/g.phase`；发牌与对局动作共用同一条事件通道；牌�
 - 16 个读 live `g.turn/g.phase` 的触发 handler：先由快照提供数据，按批迁移（本批已迁 fenji/qingjian；
   剩余清单见 `engine-self-audit.md` §2）。
 - 阶段结束类技能（罪论/兴学/寝情）仍存在**结算滞后到下一回合**的问题：快照让判定正确，但 `turn.*` 已被清空。
-  这是独立的「回合切换时序」机制（M12），需单独裁定是否把 `PhaseEnd` 在切 turn 前结算（见自检文档）。
+  M12 的 B 方案（延迟切 turn）实测导致自对弈 `stalled`（seed=1 game 0），已回滚为 A；待改「PhaseEnd 携带 turn.* 计数快照」实现。
 - 门禁：`gate_kernel_has_no_skill_branch` 仍覆盖 B0 七技；`tests/spike.rs` 等改用 `emit` 后通过。
 - 回归：`cargo test -p sanguosha2` 全绿（含新增 5 条奋激用例）。
 

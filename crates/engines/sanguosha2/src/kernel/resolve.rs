@@ -569,9 +569,10 @@ pub fn begin_phase(g: &mut Game, seat: usize, phase: Phase) -> Result<(), String
             Some(old_turn),
             Some(&format!("{old_phase:?}")),
         ));
-        g.switch_to = Some((seat, phase));
-        advance(g)?;
-        return Ok(());
+        // 2026-11-11 回滚：延迟切回合（switch_to）在自对弈中导致卡死/回环（见 engine-self-audit M12）。
+        // 暂按「先切回合、PhaseEnd 已带事件快照」的 A 口径运行；B 待用「计数快照」方案重做。
+        complete_turn_switch(g, seat);
+        return enter_phase(g, seat, phase, false);
     }
     enter_phase(g, seat, phase, true)
 }
