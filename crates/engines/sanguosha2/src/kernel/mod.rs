@@ -1192,6 +1192,11 @@ impl Game {
         crate::kernel::resolve::advance(self)
     }
 
+    /// 是否等待输入（开局/回合推进的「就绪」判定；审计/网关不要假设 phase=Play）。
+    pub fn awaiting_input(&self) -> bool {
+        self.pending.is_some() || !self.stack.is_empty()
+    }
+
     pub fn next_frame_seq(&mut self) -> u64 {
         self.frame_seq += 1;
         self.frame_seq
@@ -1433,18 +1438,8 @@ impl Game {
         if a != b {
             base += crate::skills::distance_to_delta(self, b);
         }
-        if crate::skills::active(self, a, "mashu") {
-            base -= 1;
-        }
-        // 奔袭（吴懿）第一段：回合内计算与其他角色的距离 -1（等价自带进攻马，可与进攻马叠加）。
-        if a != b && self.turn == a && crate::skills::active(self, a, "benxi") {
-            base -= 1;
-        }
-        // 千驹（曹休，锁定）：每损失 1 点体力，距离 -1（与进攻马叠加；统一距离入口）。
-        if a != b && crate::skills::active(self, a, "qianju") {
-            let lost = (self.seats[a].max_hp - self.seats[a].hp).max(0);
-            base -= lost;
-        }
+        // 距离来源修正（马术/奔袭/千驹）：统一由 skills 提供，内核不写技能名。
+        base += crate::skills::distance_from_delta(self, a);
         base.max(1) as usize
     }
 
@@ -1477,7 +1472,7 @@ impl Game {
             return n;
         }
         let mut n = 1usize;
-        if crate::skills::active(self, seat, "paoxiao") {
+        if crate::skills::sha_unlimited(self, seat) {
             return usize::MAX;
         }
         // 诸葛连弩：出牌阶段【杀】无次数限制。
@@ -1511,21 +1506,14 @@ impl Game {
     }
 
     fn hand_limit_base(&self, seat: usize) -> usize {
-        // 急攻：发动后本**出牌阶段**的手牌上限**等于**造成的伤害值（赋值，覆盖其它修正）。
-        if self.seats[seat].flags.contains("jigong") {
-            return self.counter("phase.damage_dealt") as usize;
+        // 急攻：赋值型上限（内核只读 skills 的事实）。
+        if let Some(n) = crate::skills::hand_limit_assign(self, seat) {
+            return n;
         }
-        // 腹鳞（李严，锁定）：本回合获得的牌不计入手牌上限（按张数加回）。
-        let gained = if crate::skills::active(self, seat, "fulin") {
-            self.counter(&format!("turn.gained:{seat}")) as usize
-        } else {
-            0
-        };
-        // 极奢（岑昏）：每次发动本回合手牌上限 -1。
-        if crate::skills::active(self, seat, "jishe") {
-            let used = self.counter("turn.jishe_used") as usize;
-            let base = (self.seats[seat].hp.max(0) as usize).saturating_sub(used);
-            return base + gained;
+        let gained = crate::skills::hand_limit_gained_bonus(self, seat);
+        // 极奢：每次发动本回合手牌上限 -1。
+        if let Some(n) = crate::skills::hand_limit_jishe(self, seat, gained) {
+            return n;
         }
         let hp = self.seats[seat].hp.max(0) as usize;
         // 明鉴：1 = 已交牌待生效，2 = 其下个回合生效中。
@@ -1607,12 +1595,7 @@ impl Game {
         if from == to {
             return false;
         }
-        if self
-            .seats
-            .get(to)
-            .is_some_and(|s| s.flags.contains("zhaofu"))
-            && self.seats.get(from).is_some_and(|s| s.kingdom == "wu")
-        {
+        if crate::skills::reach_override(self, from, to) {
             return true;
         }
         self.distance(from, to) <= self.attack_range(from)
@@ -1653,9 +1636,7 @@ impl Game {
 
     /// 出牌阶段首张牌是否无视距离（往烈锁定部分）——距离系统尚未落地，先提供判定入口。
     pub fn first_card_no_distance(&self, seat: usize, card: &CardId) -> bool {
-        crate::skills::active(self, seat, "wanglie")
-            && self.counter("turn.cards_used") <= 1
-            && self.hand(seat).contains(card)
+        crate::skills::first_card_no_distance(self, seat, card)
     }
 
     pub fn freeze_hand(&mut self, seat: usize) {

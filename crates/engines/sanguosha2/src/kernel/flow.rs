@@ -96,7 +96,13 @@ fn damage_impl(
     // 绝情（界张春华，锁定）：你即将造成的伤害视为失去体力（整次数值一次失去，自伤同样转化）。
     if crate::skills::damage_to_hp_loss(g, source, victim) && amount > 0 {
         crate::skills::on_damage_to_hp_loss(g, source, victim, amount, card);
-        lose_hp_by(g, victim, amount, "jueqing", source);
+        lose_hp_by(
+            g,
+            victim,
+            amount,
+            crate::skills::HP_LOSS_CAUSE_DAMAGE_CONVERSION,
+            source,
+        );
         return;
     }
     if armor_prevents(g, source, victim, def, card, dtype) {
@@ -603,9 +609,11 @@ pub fn step_dying(g: &mut Game, a: &Ask) -> Result<Step, String> {
     let mut b = skills::builder(asker, "dying").skill("dying");
     let mut has = false;
     // 求到自己时，若可发动兴衰，提供「发动兴衰」选项（自桃/自酒/兴衰三选一）。
-    if asker == victim && skills::xingshuai_available(g, victim) {
-        has = true;
-        b = b.option("xingshuai", "发动兴衰（其他魏势力角色施救）");
+    if asker == victim {
+        for (id, label) in skills::dying_support_options(g, victim) {
+            has = true;
+            b = b.option(id, label);
+        }
     }
     let peach_blocked = crate::skills::dying_peach_blocked(g, asker, victim);
     // 禁酒（界高顺）：其回合内其他角色（含自己）不能使用【酒】。
@@ -672,8 +680,7 @@ pub fn step_dying(g: &mut Game, a: &Ask) -> Result<Step, String> {
             next["cursor"] = json!(cursor + 1);
             Ok(Step::Next(Stage::DyingAsk, next))
         }
-        Some("xingshuai") => {
-            crate::skills::start_xingshuai(g, victim);
+        Some(act) if skills::dying_support_apply(g, victim, act) => {
             // 兴衰结算后重新检查体力（仍 <=0 则继续求桃）。
             Ok(Step::Next(Stage::DyingAsk, a.data.clone()))
         }

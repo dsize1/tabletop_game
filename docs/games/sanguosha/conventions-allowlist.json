@@ -1,12 +1,7 @@
 {
-  "generatedAt": "2026-11-11T04:25:02.984Z",
+  "generatedAt": "2026-11-11T08:34:46.724Z",
   "note": "显式白名单：新增违反必须补机制或登记理由（engine-self-audit B4/M8/M9）",
   "kernelLiterals": [
-    {
-      "reason": "V2.2（S6）待抽通用钩子：内核按技能名读取数值/窗口/接力（见 engine-self-audit B4）",
-      "file": "card_play.rs",
-      "code": "paoxiao"
-    },
     {
       "reason": "V2.2（S6）待抽通用钩子：内核按技能名读取数值/窗口/接力（见 engine-self-audit B4）",
       "file": "card_play.rs",
@@ -16,61 +11,6 @@
       "reason": "V2.2（S6）待抽通用钩子：内核按技能名读取数值/窗口/接力（见 engine-self-audit B4）",
       "file": "card_play.rs",
       "code": "jijiang"
-    },
-    {
-      "reason": "V2.2（S6）待抽通用钩子：内核按技能名读取数值/窗口/接力（见 engine-self-audit B4）",
-      "file": "flow.rs",
-      "code": "jueqing"
-    },
-    {
-      "reason": "V2.2（S6）待抽通用钩子：内核按技能名读取数值/窗口/接力（见 engine-self-audit B4）",
-      "file": "flow.rs",
-      "code": "xingshuai"
-    },
-    {
-      "reason": "V2.2（S6）待抽通用钩子：内核按技能名读取数值/窗口/接力（见 engine-self-audit B4）",
-      "file": "mod.rs",
-      "code": "mashu"
-    },
-    {
-      "reason": "V2.2（S6）待抽通用钩子：内核按技能名读取数值/窗口/接力（见 engine-self-audit B4）",
-      "file": "mod.rs",
-      "code": "benxi"
-    },
-    {
-      "reason": "V2.2（S6）待抽通用钩子：内核按技能名读取数值/窗口/接力（见 engine-self-audit B4）",
-      "file": "mod.rs",
-      "code": "qianju"
-    },
-    {
-      "reason": "V2.2（S6）待抽通用钩子：内核按技能名读取数值/窗口/接力（见 engine-self-audit B4）",
-      "file": "mod.rs",
-      "code": "paoxiao"
-    },
-    {
-      "reason": "V2.2（S6）待抽通用钩子：内核按技能名读取数值/窗口/接力（见 engine-self-audit B4）",
-      "file": "mod.rs",
-      "code": "jigong"
-    },
-    {
-      "reason": "V2.2（S6）待抽通用钩子：内核按技能名读取数值/窗口/接力（见 engine-self-audit B4）",
-      "file": "mod.rs",
-      "code": "fulin"
-    },
-    {
-      "reason": "V2.2（S6）待抽通用钩子：内核按技能名读取数值/窗口/接力（见 engine-self-audit B4）",
-      "file": "mod.rs",
-      "code": "jishe"
-    },
-    {
-      "reason": "V2.2（S6）待抽通用钩子：内核按技能名读取数值/窗口/接力（见 engine-self-audit B4）",
-      "file": "mod.rs",
-      "code": "zhaofu"
-    },
-    {
-      "reason": "V2.2（S6）待抽通用钩子：内核按技能名读取数值/窗口/接力（见 engine-self-audit B4）",
-      "file": "mod.rs",
-      "code": "wanglie"
     },
     {
       "reason": "V2.2（S6）待抽通用钩子：内核按技能名读取数值/窗口/接力（见 engine-self-audit B4）",
@@ -221,5 +161,6 @@
       "label": "不弃置（不能使用【闪】）"
     }
   ],
-  "kindWaivers": []
+  "kindWaivers": [],
+  "liveState": []
 }

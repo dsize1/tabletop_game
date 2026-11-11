@@ -1333,7 +1333,7 @@ fn sha_loop(
                     data["need"] = json!(0);
                     data["got"] = json!(0);
                     // 界咆哮：【杀】被抵消后，本回合下一次【杀】伤害 +1。
-                    if crate::skills::active(g, damage_source, "paoxiao") {
+                    if crate::skills::paoxiao_after_dodge_bonus(g, damage_source) {
                         g.counters.insert("turn.paoxiao_bonus".to_string(), 1);
                         g.push_log("咆哮：【杀】被抵消，本回合下一次【杀】伤害 +1".to_string());
                     }

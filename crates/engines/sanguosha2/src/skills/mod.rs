@@ -1405,6 +1405,97 @@ pub fn sha_limit_override(g: &Game, seat: usize) -> Option<usize> {
     b15::sha_limit_override(g, seat).or_else(|| b9::sha_limit_override(g, seat))
 }
 
+/// 距离来源修正（马术/奔袭/千驹）——内核唯一入口，避免 kernel 写技能名。
+pub fn distance_from_delta(g: &Game, seat: usize) -> i32 {
+    let mut d = 0;
+    if active(g, seat, "mashu") {
+        d -= 1;
+    }
+    // 奔袭（吴懿）第一段：回合内与其他角色距离 -1（可与进攻马叠加）。
+    if g.turn == seat && active(g, seat, "benxi") {
+        d -= 1;
+    }
+    // 千驹（曹休，锁定）：每损失 1 点体力，距离 -1。
+    if active(g, seat, "qianju") {
+        d -= (g.seats[seat].max_hp - g.seats[seat].hp).max(0);
+    }
+    d
+}
+
+/// 出牌阶段首张牌无视距离（往烈锁定部分）。
+pub fn first_card_no_distance(g: &Game, seat: usize, card: &crate::kernel::CardId) -> bool {
+    active(g, seat, "wanglie") && g.counter("turn.cards_used") <= 1 && g.hand(seat).contains(card)
+}
+
+/// 【杀】不限次数（咆哮）。
+pub fn sha_unlimited(g: &Game, seat: usize) -> bool {
+    active(g, seat, "paoxiao")
+}
+
+/// 界咆哮：【杀】被抵消后，本回合下一次【杀】伤害 +1（内核只读该布尔事实）。
+pub fn paoxiao_after_dodge_bonus(g: &Game, source: usize) -> bool {
+    active(g, source, "paoxiao")
+}
+
+/// 「伤害转失去体力」的 cause（绝情）：内核用常量，不写字面量。
+pub const HP_LOSS_CAUSE_DAMAGE_CONVERSION: &str = "jueqing";
+
+/// 手牌上限「赋值」型（急攻：本出牌阶段上限 = 造成的伤害值）。
+pub fn hand_limit_assign(g: &Game, seat: usize) -> Option<usize> {
+    g.seats[seat]
+        .flags
+        .contains("jigong")
+        .then(|| g.counter("phase.damage_dealt") as usize)
+}
+
+/// 腹鳞：本回合获得的牌不计入手牌上限（按张数加回）。
+pub fn hand_limit_gained_bonus(g: &Game, seat: usize) -> usize {
+    if active(g, seat, "fulin") {
+        g.counter(&format!("turn.gained:{seat}")) as usize
+    } else {
+        0
+    }
+}
+
+/// 极奢：每次发动本回合手牌上限 -1（带上一项已加的 gained）。
+pub fn hand_limit_jishe(g: &Game, seat: usize, gained: usize) -> Option<usize> {
+    if !active(g, seat, "jishe") {
+        return None;
+    }
+    let used = g.counter("turn.jishe_used") as usize;
+    Some((g.seats[seat].hp.max(0) as usize).saturating_sub(used) + gained)
+}
+
+/// 诏缚：「视为在所有吴势力攻击范围内」的统一距离入口。
+pub fn reach_override(g: &Game, from: usize, to: usize) -> bool {
+    g.seats
+        .get(to)
+        .is_some_and(|s| s.flags.contains("zhaofu"))
+        && g.seats.get(from).is_some_and(|s| s.kingdom == "wu")
+}
+
+/// 濒死救援「兴衰」的通用选项（空 = 不可发动）。
+pub fn dying_support_options(g: &Game, victim: usize) -> Vec<(String, String)> {
+    if b5::xingshuai_available(g, victim) {
+        vec![(
+            "xingshuai".to_string(),
+            "发动兴衰（其他魏势力角色施救）".to_string(),
+        )]
+    } else {
+        Vec::new()
+    }
+}
+
+/// 濒死救援选项的执行（返回 true = 已接管）。
+pub fn dying_support_apply(g: &mut Game, victim: usize, act: &str) -> bool {
+    if act == "xingshuai" && b5::xingshuai_available(g, victim) {
+        b5::start_xingshuai(g, victim);
+        true
+    } else {
+        false
+    }
+}
+
 /// 距离修正（马术 -1 / 义从 -1）。
 pub fn distance_delta(g: &Game, seat: usize) -> i32 {
     // 奇谋：本回合距离 -X（X = 以此法失去的体力值）。
