@@ -790,6 +790,85 @@ fn huogong_without_matching_suit_does_nothing() {
     assert_eq!(g.seats[1].hp, hp);
 }
 
+/// 回归（2026-11-11 真机）：火攻的「展示手牌」是强制步骤，目标不能取消整张火攻。
+#[test]
+fn huogong_reveal_is_mandatory() {
+    let mut g = new_game(3);
+    let card = give(&mut g, 0, "火攻");
+    let shown = give_suit(&mut g, 1, "桃", Suit::Heart);
+    give_suit(&mut g, 0, "桃", Suit::Heart);
+    let hp = g.seats[1].hp;
+    play(&mut g, 0, &card, vec![1], &mut |g| {
+        assert_eq!(pend(g).actor(), 1);
+        assert!(pend(g).escape_hidden(), "展示不是可放弃步骤（出口只能是占位）");
+        // 提交出口 = 自动展示第一张手牌（不是「火攻无效」）。
+        answer(g, 1, "pass");
+        assert_eq!(pend(g).actor(), 0, "展示后进入使用者弃同花色步骤");
+        let d = opt_with(g, "discard:");
+        answer(g, 0, &d);
+    });
+    assert_eq!(g.seats[1].hp, hp - 1, "火攻照常造成 1 点火焰伤害");
+    assert!(g.hand(1).contains(&shown));
+}
+
+/// 回归（2026-11-11 真机）：五谷的待办必须带上 `pool`（视图 `special_zones.wugu` 读 pending.data），
+/// 否则端侧五谷特殊区没有牌可点 → 对局卡住。
+#[test]
+fn harvest_pending_carries_pool_for_view() {
+    let mut g = new_game(3);
+    let card = give(&mut g, 0, "五谷丰登");
+    g.resolve_use(0, &card, vec![]).expect("使用五谷");
+    let pool: Vec<String> = pend(&g).data()["pool"]
+        .as_array()
+        .map(|a| a.iter().filter_map(|v| v.as_str().map(str::to_string)).collect())
+        .unwrap_or_default();
+    assert_eq!(pool.len(), 3, "三名角色 → 三张展示牌进入 pending.data.pool");
+    assert_eq!(pend(&g).data()["cursor"].as_u64(), Some(0));
+    assert_eq!(pend(&g).data()["pickers"].as_array().map(|a| a.len()), Some(3));
+    // 端侧特殊区投影：`special_zones.wugu.cards` 必须非空（否则五谷界面无按钮、对局卡住）。
+    let view = sanguosha2::view::player_view(&g, 0);
+    let wugu_cards = view["special_zones"]["wugu"]["cards"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    assert_eq!(wugu_cards.len(), 3, "五谷特殊区应展示 3 张候选：{view}");
+    assert_eq!(
+        view["special_zones"]["wugu"]["current"].as_str().is_some(),
+        true,
+        "五谷特殊区应标出当前选牌者"
+    );
+}
+
+/// 回归（2026-11-11 真机）：同一张【杀】对不同目标的合法动作，标签必须能区分目标
+/// （否则端侧「选择目标 / 用法」浮层里全是「使用【杀】」）。
+#[test]
+fn sha_action_labels_include_targets() {
+    let mut g = new_game(3);
+    g.seats[1].hp = 3;
+    give(&mut g, 0, "杀");
+    let acts = sanguosha2::kernel::card_play::legal_uses(&g, 0);
+    let sha: Vec<&str> = acts
+        .iter()
+        .filter(|(id, _)| id.starts_with("use:"))
+        .map(|(_, label)| label.as_str())
+        .collect();
+    assert!(!sha.is_empty(), "应能使用【杀】：{acts:?}");
+    assert!(
+        sha.iter().all(|l| l.contains("→")),
+        "【杀】的选项必须带目标名：{sha:?}"
+    );
+    assert_eq!(
+        sha.iter().filter(|l| l.contains("p1")).count(),
+        1,
+        "目标 p1 的选项唯一：{sha:?}"
+    );
+    assert_eq!(
+        sha.iter().filter(|l| l.contains("p2")).count(),
+        1,
+        "目标 p2 的选项唯一：{sha:?}"
+    );
+}
+
 #[test]
 fn jiedao_target_uses_sha_on_second_target() {
     let mut g = new_game(3);

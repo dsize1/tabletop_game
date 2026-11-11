@@ -1042,17 +1042,11 @@ fn huituo(g: &mut Game, a: &Ask) -> Result<Step, String> {
                     if g.is_red(&judge) {
                         // 裁定 Q2=B：满体力直接跳过红色分支
                         if g.seats[t].hp < g.seats[t].max_hp {
+                            // 日志/展示只由 `flow::heal` 出（含「回复 N 点体力（体力 X，原因：huituo）」）；
+                            // 技能侧**不再**重复记一条「回复 1 点体力」，也不重复 push Heal 展示
+                            // （2026-11-11 真机：一条恢拓看起来回了两次血）。
+                            g.push_log(format!("恢拓：判定【{label}】红色"));
                             flow::heal(g, t, 1, "huituo");
-                            g.presentation.push(
-                                Presentation::new("huituo", POutcome::Heal { amount: 1 })
-                                    .actor(a.actor)
-                                    .target(t)
-                                    .fx("huituo_red"),
-                            );
-                            g.push_log(format!(
-                                "恢拓：判定【{label}】红色，{} 回复 1 点体力（体力 {}）",
-                                g.seats[t].name, g.seats[t].hp
-                            ));
                         } else {
                             g.push_log(format!(
                                 "恢拓：判定【{label}】红色，但 {} 体力已满（不回复）",

@@ -2,12 +2,14 @@
 // 运行：cd apps/web && npx tsx test-sgs.mts
 import assert from "node:assert";
 import {
+  applyNames,
   cardLabel,
   judgeIcon,
   othersInSeatOrder,
   rankLabel,
   seatPlacements,
   splitSides,
+  withDisplayNames,
 } from "./src/view/sgs/format.js";
 import { renderPublicArea, renderSidePanel, renderSidePanelBody } from "./src/view/sgs/public.js";
 import { renderPersonalArea } from "./src/view/sgs/personal.js";
@@ -1196,3 +1198,24 @@ assert.ok(setupPublic.includes("选将中 2/5"), "选将进度");
 console.log("[sgs-web] 主公武将公示单测通过 ✅");
 
 console.log("[sgs-web] 观星纯函数/渲染单测通过 ✅");
+
+// 昵称替换（2026-11-11 真机：局内日志/选项显示 openid）
+const nickMap = { BE6B1438FD0256170B06B12F47EF2812: "曹叡" };
+assert.equal(
+  applyNames("bot:5 对 BE6B1438FD0256170B06B12F47EF2812 造成 1 点伤害（2）", nickMap),
+  "机器人5 对 曹叡 造成 1 点伤害（2）",
+);
+assert.equal(applyNames("bot:4 回复 1 点体力（体力 4，原因：huituo）", undefined), "机器人4 回复 1 点体力（体力 4，原因：huituo）");
+assert.equal(applyNames("没有 id", {}), "没有 id");
+const nickView = {
+  public_board: {
+    history: [{ seq: 1, turn: 1, text: "BE6B1438FD0256170B06B12F47EF2812 使用【杀】 → bot:3" }],
+    pending: { kind: "target", options: [{ id: "target:4", label: "令 bot:4 判定" }] },
+  },
+  player_area: { pending: { options: [{ id: "opt1", label: "交给 BE6B1438FD0256170B06B12F47EF2812" }] } },
+};
+assert.ok(withDisplayNames(nickView, nickMap).public_board.history[0].text.includes("曹叡 使用【杀】 → 机器人3"));
+assert.equal(nickView.public_board.pending.options[0].label, "令 机器人4 判定");
+assert.equal(nickView.player_area.pending.options[0].label, "交给 曹叡");
+assert.equal(nickView.public_board.history[0].text.includes("BE6B"), false, "日志里不应再出现 openid");
+console.log("[sgs-web] 昵称替换单测通过 ✅");

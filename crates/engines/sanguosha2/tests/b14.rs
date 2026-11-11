@@ -408,6 +408,42 @@ fn huoji_converts_red_only() {
     assert!(skills::fire_attack_color_mode(&g, 0));
 }
 
+/// 回归（2026-11-11 自对弈 seed=1 game 4）：界火计的合法动作含**装备区**牌，
+/// execute 必须同等放行（legal ≡ execute）。
+#[test]
+fn huoji_color_mode_may_discard_equipment() {
+    let mut g = game(&[
+        ("zg", &["huoji"], 3, "shu"),
+        ("p1", &[], 4, "wei"),
+    ]);
+    equip(&mut g, 0, "e1", Slot::HorseOffense); // 赤兔（方块，红）
+    give(&mut g, 0, &["hd"]); // 火攻（红桃）
+    give(&mut g, 1, &["h1"]); // 目标展示红牌
+    play_phase(&mut g, 0);
+    let hp = g.seats[1].hp;
+    g.resolve_use(0, &"hd".to_string(), vec![1])
+        .expect("使用【火攻】");
+    // 火攻是普通锦囊：先走无懈链（无人出无懈）。
+    while pend_skill(&g).as_deref() == Some("wuxie") {
+        let actor = g.pending.as_ref().map(|p| p.actor()).expect("wuxie 待办");
+        answer(&mut g, actor, "pass");
+    }
+    // 界火计：目标**随机**展示手牌（不问、不能拒绝）→ 直接进入使用者弃牌步骤。
+    assert_eq!(
+        g.pending.as_ref().map(|p| p.actor()),
+        Some(0),
+        "界火计自动展示，直接由使用者选弃牌"
+    );
+    let opts = options(&g);
+    assert!(
+        opts.iter().any(|o| o == "discard:e1"),
+        "界火计应允许弃装备区牌：{opts:?}"
+    );
+    answer(&mut g, 0, "discard:e1");
+    assert_eq!(g.seats[1].hp, hp - 1, "弃同颜色装备牌 → 1 点火焰伤害");
+    assert_eq!(g.zone_of(&"e1".to_string()), Some(&Zone::Discard));
+}
+
 #[test]
 fn kanpo_converts_black_and_is_uncounterable() {
     let mut g = game(&[

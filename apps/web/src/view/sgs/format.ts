@@ -171,6 +171,53 @@ export function playerName(names: Record<string, string> | undefined, id: string
   return names?.[id] ?? id;
 }
 
+/**
+ * 引擎文案里的玩家 id → 昵称（v2 引擎只认 openid/`bot:N`，昵称映射在 Redis `names:<群>`）。
+ *
+ * 用于日志/选项/动作描述等**引擎生成的字符串**：`BE6B1438… 对 bot:4 造成 1 点伤害`
+ * → `曹操 对 机器人4 造成 1 点伤害`。昵称不可用时原样回退（不破坏可读性）。
+ */
+export function applyNames(text: string, names?: Record<string, string>): string {
+  if (!text) return text;
+  let out = text;
+  // 先替换明确昵称（长 id 优先，避免前缀互相踩）。
+  const entries = Object.entries(names ?? {}).filter(([id, nick]) => id && nick && id !== nick);
+  entries.sort((a, b) => b[0].length - a[0].length);
+  for (const [id, nick] of entries) {
+    if (out.includes(id)) out = out.split(id).join(nick);
+  }
+  // 机器人：`bot:4` → `机器人4`。
+  out = out.replace(/bot:(\d+)/g, "机器人$1");
+  return out;
+}
+
+/**
+ * 把视图里**展示文案**字段里的玩家 id 换成昵称（日志/待响应选项）。
+ *
+ * 只在渲染前调用（客户端 `applyState`）：只改文案字段，不动任何 id 字段
+ * （`player_id` / `actor` / `data-action` 等必须保持原样，否则提交会失败）。
+ */
+export function withDisplayNames<T>(data: T, names?: Record<string, string>): T {
+  const d = data as unknown as {
+    public_board?: {
+      history?: Array<{ text?: string }>;
+      presentation?: Array<{ text?: string }>;
+      pending?: { options?: Array<{ label?: string }> } | null;
+    };
+    player_area?: { pending?: { options?: Array<{ label?: string }> } | null } | null;
+  };
+  if (!d) return data;
+  const fix = (v: unknown) => (typeof v === "string" ? applyNames(v, names) : v);
+  const board = d.public_board;
+  if (board) {
+    for (const h of board.history ?? []) if (h && "text" in h) h.text = fix(h.text) as string;
+    for (const p of board.presentation ?? []) if (p && "text" in p) p.text = fix(p.text) as string;
+    for (const o of board.pending?.options ?? []) o.label = fix(o.label) as string;
+  }
+  for (const o of d.player_area?.pending?.options ?? []) o.label = fix(o.label) as string;
+  return data;
+}
+
 export function hpPips(hp: number, maxHp: number): string {
   const total = Math.max(0, maxHp);
   let out = "";

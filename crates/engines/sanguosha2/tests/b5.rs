@@ -3,6 +3,7 @@
 
 use sanguosha2::kernel::resolve::{advance, begin_phase, submit};
 use sanguosha2::kernel::{flow, Card, Game, Phase, Seat, Slot, Suit, Zone};
+use sanguosha2::presentation::POutcome;
 use sanguosha2::skills;
 
 fn seat(name: &str, skills: &[&str], hp: i32) -> Seat {
@@ -361,6 +362,28 @@ fn huituo_red_judge_heals_target() {
     assert_eq!(pend(&g).skill(), Some("huituo"));
     answer(&mut g, 0, "target:1");
     assert_eq!(g.seats[1].hp, 4, "红色 → 回复 1 点体力");
+}
+
+/// 回归（2026-11-11 真机）：一条恢拓不能看起来回两次血。
+/// 口径：hp 只 +1，且 `Heal` 展示只有 1 条（技能侧不再重复 push），日志里「回复」只出现一次。
+#[test]
+fn huituo_heals_exactly_once() {
+    let mut g = game(&[("caorui", &["huituo"], 4), ("p1", &[], 4)]);
+    g.seats[1].hp = 3;
+    let top = g.ids_in(|z| *z == Zone::Draw).first().cloned().unwrap();
+    g.cards.get_mut(&top).unwrap().suit = Suit::Heart;
+    flow::damage(&mut g, Some(1), 0, 1);
+    advance(&mut g).unwrap();
+    answer(&mut g, 0, "target:1");
+    assert_eq!(g.seats[1].hp, 4, "红色判定只回 1 点体力");
+    let heals = g
+        .presentation
+        .iter()
+        .filter(|p| matches!(p.outcome, POutcome::Heal { .. }))
+        .count();
+    assert_eq!(heals, 1, "回复展示只允许 1 条（否则端侧看起来回了两次）");
+    let heal_logs = log_text(&g).matches("回复").count();
+    assert_eq!(heal_logs, 1, "日志里「回复」只允许出现 1 次：{}", log_text(&g));
 }
 
 #[test]

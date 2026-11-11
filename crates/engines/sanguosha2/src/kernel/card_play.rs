@@ -258,7 +258,11 @@ pub fn legal_uses(g: &Game, seat: usize) -> Vec<(String, String)> {
                 };
                 out.push((
                     format!("use:{id}{suffix}"),
-                    format!("使用【{}】", g.card_label(&id)),
+                    format!(
+                        "使用【{}】{}",
+                        g.card_label(&id),
+                        target_suffix(g, &targets)
+                    ),
                 ));
             }
         }
@@ -306,12 +310,36 @@ pub fn legal_uses(g: &Game, seat: usize) -> Vec<(String, String)> {
                 };
                 out.push((
                     format!("convert:{}:{}:{}{suffix}", conv.skill, conv.from, conv.to),
-                    format!("【{}】当【{}】", g.card_label(&conv.from), conv.to),
+                    format!(
+                        "【{}】当【{}】{}",
+                        g.card_label(&conv.from),
+                        conv.to,
+                        target_suffix(g, &targets)
+                    ),
                 ));
             }
         }
     }
     out
+}
+
+/// 选项标签里的目标后缀：` → 张飞、机器人4`（无目标时为空串）。
+///
+/// 为什么必须带目标：端侧（Web 浮层 `选择目标 / 用法`、QQ 清单）直接用 `description` 渲染按钮，
+/// 同一张【杀】对 N 个目标就有 N 个**完全相同**的 `使用【杀】` → 玩家无法区分（真机反馈）。
+fn target_suffix(g: &Game, targets: &[usize]) -> String {
+    if targets.is_empty() {
+        return String::new();
+    }
+    let names: Vec<&str> = targets
+        .iter()
+        .filter_map(|t| g.seats.get(*t).map(|s| s.name.as_str()))
+        .collect();
+    if names.is_empty() {
+        String::new()
+    } else {
+        format!(" → {}", names.join("、"))
+    }
 }
 
 /// 某个牌定义的目标候选集（legal 枚举与转化牌共用）。
@@ -1879,11 +1907,15 @@ fn harvest(
             );
         }
         data["asked"] = json!(true);
+        // 投影所需数据必须进 pending：`special_zones.wugu` 读的是 `pending.data`（不是帧数据）。
+        // 2026-11-11 真机：缺这段 → 五谷特殊区没有牌可点，对局卡住。
         return need_at(
             g,
             Stage::CardOpt,
             data.clone(),
-            b.escape("放弃（不取）").build(),
+            b.data(json!({ "pool": pool, "pickers": pickers, "cursor": cursor }))
+                .escape("放弃（不取）")
+                .build(),
         );
     }
     // 剩余牌进弃牌堆。
@@ -1958,11 +1990,14 @@ fn fire_attack(
             );
         }
         data["asked"] = json!(true);
+        // 展示手牌是**强制步骤**（目标只能选展示哪一张，不能拒绝）：出口用 `escape_mandatory`
+        // （端侧不展示，提交出口 = 自动选第一张）。2026-11-11 真机：旧实现给了「放弃展示」，
+        // 目标可以取消整张【火攻】（v1 无此问题）。
         return need_at(
             g,
             Stage::CardOpt,
             data.clone(),
-            b.escape("放弃展示（火攻无效）").build(),
+            b.escape_mandatory("必须展示一张手牌").build(),
         );
     }
 
@@ -1975,8 +2010,16 @@ fn fire_attack(
                 .strip_prefix("discard:")
                 .ok_or_else(|| format!("火攻：未知选项 {ans}"))?
                 .to_string();
-            if !g.hand(source).contains(&id) {
-                return Err("火攻：弃置的牌不在手牌".into());
+            // legal 与 execute **同源**：`color_mode`（界火计）的候选含装备区牌，
+            // 这里必须一并放行（否则 AI 会拿到 legal 里的 `discard:<装备>` 却被拒：
+            // 2026-11-11 自对弈 seed=1 game 4 抓到 illegal）。
+            let in_hand = g.hand(source).contains(&id);
+            let in_equip = color_mode
+                && g
+                    .ids_in(|z| matches!(z, crate::kernel::Zone::Equip(s, _) if *s == source))
+                    .contains(&id);
+            if !(in_hand || in_equip) {
+                return Err("火攻：弃置的牌不在手牌/装备区".into());
             }
             let same = if color_mode {
                 let base = crate::skills::effective_suit(g, source, &shown).map(|s| s.is_red());

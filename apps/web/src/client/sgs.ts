@@ -6,7 +6,7 @@
 import { escapeHtml } from "../view/format.js";
 import { renderSgsApp } from "../view/sgs/page.js";
 import { renderSidePanelBody } from "../view/sgs/public.js";
-import { cardLabel } from "../view/sgs/format.js";
+import { applyNames, cardLabel, withDisplayNames } from "../view/sgs/format.js";
 import { renderCardDetail, renderDiscardList, renderGeneralDetail } from "../view/sgs/detail.js";
 import type { SgsAssetMap, SgsCard, SgsViewData } from "../view/sgs/types.js";
 import { buildFxCues } from "../view/sgs/fx.js";
@@ -734,10 +734,16 @@ async function fetchState(boot: Bootstrap): Promise<StateResponse> {
 }
 
 function applyState(res: StateResponse): void {
-  const data = res.player?.data ?? res.public?.data;
-  if (!data) return;
+  const raw = res.player?.data ?? res.public?.data;
+  if (!raw) return;
+  // 引擎只认 openid/`bot:N`；渲染前把**文案字段**换成群昵称（日志/待响应选项）；
+  // 动作描述（legal_actions.description）同理——否则端侧会出现 `BE6B1438… 造成 1 点伤害`。
+  const data = withDisplayNames(raw, res.names);
   const prev = currentData;
-  const nextActions = res.actions ?? [];
+  const nextActions = (res.actions ?? []).map((a) => ({
+    ...a,
+    description: applyNames(a.description, res.names),
+  }));
   const nextAppSig = stateSignature(data, nextActions, res.names);
   const nextSideSig = sideSignature(data, res.names);
   currentData = data;

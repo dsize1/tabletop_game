@@ -443,7 +443,11 @@ fn pending_choice(g: &Game, seat: usize, kind: &str, ids: &[&str], skill: Option
             }
         }
         "fire_attack" => {
-            let any = first("card:").or_else(|| first("choose:")).or_else(|| first("pick:"));
+            let any = first("reveal:")
+                .or_else(|| first("discard:"))
+                .or_else(|| first("card:"))
+                .or_else(|| first("choose:"))
+                .or_else(|| first("pick:"));
             match any {
                 Some(id) => (75, id),
                 None => (10, pass().unwrap_or_else(|| "pass".into())),
@@ -552,6 +556,7 @@ pub fn decide_action(g: &Game, seat: usize, legal: &[Action]) -> Option<(String,
     if let Some(p) = &g.pending {
         let ids: Vec<&str> = legal.iter().map(|a| a.id.as_str()).collect();
         let (score, action) = pending_choice(g, seat, p.kind(), &ids, p.skill());
+        let action = sanitize_action(legal, action);
         return Some((action, 80, score as f64, format!("pending:{}", p.kind())));
     }
     let mut best: Option<(i32, f64, String, String)> = None;
@@ -566,6 +571,21 @@ pub fn decide_action(g: &Game, seat: usize, legal: &[Action]) -> Option<(String,
         }
     }
     best.map(|(p, s, id, reason)| (id, p, s, reason))
+}
+
+/// 决策落地前的**兜底校验**：返回的动作必须在 `legal` 内。
+///
+/// 为什么会漂移：`pending_choice` 的某些分支会直接给出 `pass`（历史写法），
+/// 而强制待办（`escape_mandatory`，如火攻展示）的出口已被 `legal_actions` 隐藏 →
+/// 决策日志出现「chosen 不在 legal 内」。这里统一收敛到第一个合法动作。
+fn sanitize_action(legal: &[Action], action: String) -> String {
+    if legal.iter().any(|a| a.id == action) {
+        return action;
+    }
+    legal
+        .first()
+        .map(|a| a.id.clone())
+        .unwrap_or_else(|| action)
 }
 
 /// `EnginePlugin` 侧兼容：给 MCP/决策日志返回轨迹。
