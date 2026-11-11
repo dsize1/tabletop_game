@@ -1306,3 +1306,56 @@
   `b0::fenji_triggers_on_other_discard_even_in_own_turn`、`b0::fenji_ignores_self_discard_and_discard_phase`、
   `b0::fenji_gain_from_other_targets_original_owner`。
 - **连带**：清俭改用 `cause == "draw_phase"` 排除摸牌阶段（`b11`）；开局发牌走 `Lifecycle::Setup` 不触发任何技能。
+
+## 45. 终局房规（2026-11-11 用户裁定：第 100 轮后回血限制）
+
+> 背景：`check:sgs2-ai` 的 `seed=3` 出现 179+ 回合的僵局（两名角色已死，剩余三人血量
+> 在 2–5 之间往复、互相杀不死，无 illegal、无死循环）。用户裁定**用规则收束**，不引入平局、
+> 不以「提高 AI 进攻性」当门禁依据。
+
+- **生效条件**：`round > 100`（第 101 轮起）。常数 `kernel::ENDGAME_ROUND = 100`，
+  唯一判定入口 `Game::endgame_no_heal()`（禁止各处手写 `round` 比较）。
+- **受限**：【桃】与【桃园结义】**不再回复体力**。
+  - 牌**仍然可以正常使用/结算/被无懈**（口径是「使用后无效」，不是「不可使用」）；
+  - 结算时写日志「终局（第 N 轮，已过 100 轮）：X 使用【桃】回血无效」，端侧视图带 `endgame.no_heal = true`；
+  - 其它回血源（青囊/仁德/白银狮子/兴衰/救援/遗计…）**不受本房规限制**（用户裁定只限这两张牌）。
+- **不受限**：**濒死阶段**的救援（【桃】/【酒】/急救/酒池/兴衰等）完全照旧。
+- **AI**：终局后【桃】/【桃园结义】不再打正分（不空耗手牌）。
+- **门禁效果**：`check:sgs2-ai` 由 `seed=3` 的 9/10 终局 → **30/30 终局**
+  （seeds 1,2,3；loops/stalled 0，步数 10794）。
+- **回归**：`mechanisms::endgame_round_100_still_heals`、
+  `mechanisms::endgame_tao_heal_is_void_after_round_100`、
+  `mechanisms::endgame_peach_garden_heal_is_void_after_round_100`、
+  `mechanisms::endgame_dying_tao_still_saves_after_round_100`。
+
+## 46. 主公技「他人侧」统一口径（2026-11-11 用户裁定）
+
+> 背景：用户指出「主公技不止制霸 —— 其他同势力角色也**有**该主公技」。
+> 旧实现只有硬编码白名单 `LORD_SKILLS_USED_BY_OTHERS = ["huangtian"]`，导致制霸的他人挑战没有入口。
+
+- **四种模式**（唯一注册表 `skills::lord::TABLE`，每个 `kind: Lord` 技能必须声明，漏声明 `cargo test` 红）：
+
+  | 模式 | 含义 | 技能 |
+  |---|---|---|
+  | `OthersActive` | 同势力他人**自己出牌阶段**主动发动 | 黄天、制霸（挑战） |
+  | `OthersTrigger` | 同势力他人满足条件时触发，持有者是结算对象 | 颂威、暴虐、立军、兴衰 |
+  | `HolderRequest` | 持有者发起、同势力他人响应（relay） | 激将、护驾 |
+  | `HolderOnly` | 只看持有者 | 救援、勤王、诏缚、血裔、若愚 |
+
+- **闸门**：`skills::lord_gate_ok` = 主公本人（或伪帝借用）**或**（该技能允许他人侧 ∧ 存在真实持有者 ∧
+  持有者存活 ∧ `same_kingdom(使用者, 持有者)`）。
+- **伪帝（袁术）**：借用的主公技**不开放他人侧**（只认真实持有者）。
+- **制霸（界孙策）被动挑战**：
+  - 吴势力角色**自己出牌阶段限一次**，可对制霸持有者（主公）发起拼点，消耗
+    `turn.zhiba_challenge:{座位}`（**拒绝也计次**）；
+  - 持有者被询问「接受拼点 / 拒绝」，**可无条件拒绝**（界制霸口径；标准孙策标的已下线，不做魂姿兼容）；
+  - 接受 → 双方拼点；挑战者**没赢**（点数 ≤ 持有者，平局算没赢）→ 持有者从弃牌堆获得两张拼点牌
+    （已被其他效果取走则少拿）；
+  - 拼点前提：双方都必须有手牌；持有者必须存活且当主公（否则主公技不生效）。
+- **回归**：`b14::zhiba_other_wu_may_challenge_and_lord_gains_when_challenger_loses`、
+  `b14::zhiba_lord_can_refuse_challenge`、`b14::zhiba_challenge_tie_means_challenger_did_not_win`、
+  `b14::zhiba_challenge_requires_wu_challenger`、`b14::zhiba_challenge_requires_cards_on_both_sides`、
+  `b14::zhiba_challenge_requires_lord_holder`、`b14::zhiba_listed_for_wu_play_actions`；
+  闸门：`m2_wiring::lord_others_side_gate_allows_same_kingdom_only`、
+  `m2_wiring::lord_others_side_requires_live_holder`；
+  覆盖校验：`skills::lord::tests::every_lord_skill_declares_others_side`。

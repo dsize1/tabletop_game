@@ -231,32 +231,128 @@ fn wu_targets(g: &Game, owner: usize) -> Vec<usize> {
         .collect()
 }
 
-fn can_zhiba(g: &Game, seat: usize) -> bool {
-    active(g, seat, "zhiba")
+/// 制霸的**真实持有者**（界孙策当主公；伪帝借用不开放他人侧）。
+fn zhiba_holder(g: &Game, seat: usize) -> Option<usize> {
+    (0..g.seats.len()).find(|h| {
+        *h != seat
+            && g.seats[*h].hp > 0
+            && is_lord(g, *h)
+            && g.seats[*h].kingdom == "wu"
+            && active(g, *h, "zhiba")
+    })
+}
+
+/// 他人侧（吴势力角色出牌阶段挑战孙策）：双方均需有手牌（拼点前提）。
+fn zhiba_challengeable(g: &Game, seat: usize) -> bool {
+    g.seats.get(seat).map(|s| s.kingdom.as_str()) == Some("wu")
         && play_phase(g, seat)
-        && !cancelled(g, "zhiba")
-        && g.counter("turn.zhiba_used") == 0
-        && !wu_targets(g, seat).is_empty()
+        && g.counter(&format!("turn.zhiba_challenge:{seat}")) == 0
+        && !g.hand(seat).is_empty()
+        && zhiba_holder(g, seat).is_some_and(|h| !g.hand(h).is_empty())
+}
+
+fn can_zhiba(g: &Game, seat: usize) -> bool {
+    if active(g, seat, "zhiba") {
+        return play_phase(g, seat)
+            && !cancelled(g, "zhiba")
+            && g.counter("turn.zhiba_used") == 0
+            && !wu_targets(g, seat).is_empty();
+    }
+    zhiba_challengeable(g, seat)
+}
+
+/// 拼点结算（持有者视角）：**对手方**没赢（含平局）→ 持有者从弃牌堆获得两张拼点牌。
+fn zhiba_settle(g: &mut Game, owner: usize) -> Result<Step, String> {
+    let Some(res) = g.pindian_result.take() else {
+        return Ok(Step::Done);
+    };
+    let opponent = if res.initiator == owner {
+        res.target
+    } else {
+        res.initiator
+    };
+    if res.winner != Some(opponent) {
+        let mut got = 0;
+        for id in [&res.a, &res.b] {
+            if matches!(g.zone_of(id), Some(Zone::Discard)) {
+                g.gain(id, owner)?;
+                got += 1;
+            }
+        }
+        g.push_log(format!(
+            "制霸：挑战者没赢，{} 获得 {got} 张拼点牌",
+            g.seats[owner].name
+        ));
+    }
+    Ok(Step::Done)
+}
+
+/// 他在出牌阶段发起挑战：只压一个「持有者接受/拒绝」帧。
+fn zhiba_challenge(g: &mut Game, owner: usize) -> Result<Step, String> {
+    let Some(holder) = zhiba_holder(g, owner) else {
+        return Ok(Step::Done);
+    };
+    g.bump(&format!("turn.zhiba_challenge:{owner}"));
+    g.push_log(format!(
+        "制霸：{} 向 {} 发起拼点挑战",
+        g.seats[owner].name, g.seats[holder].name
+    ));
+    push(
+        g,
+        "zhiba",
+        holder,
+        json!({ "stage": "challenge", "challenger": owner }),
+    );
+    Ok(Step::Done)
+}
+
+/// 持有者响应挑战：**界制霸口径** —— 可无条件拒绝（2026-11-11 裁定）。
+fn zhiba_challenge_accept(g: &mut Game, a: &Ask) -> Result<Step, String> {
+    let owner = a.actor;
+    let challenger = a.data["challenger"].as_u64().unwrap_or(0) as usize;
+    if g.seats.get(owner).map(|s| s.hp <= 0).unwrap_or(true)
+        || g.seats.get(challenger).map(|s| s.hp <= 0).unwrap_or(true)
+        || g.hand(owner).is_empty()
+        || g.hand(challenger).is_empty()
+    {
+        return Ok(Step::Done);
+    }
+    match g.answer.take().as_deref() {
+        None => {
+            let b = builder(owner, "choice").skill("zhiba").option(
+                "opt1",
+                format!("制霸：接受 {} 的拼点挑战", g.seats[challenger].name),
+            );
+            Ok(Step::Need(b.escape("拒绝挑战（不拼点）").build()))
+        }
+        Some("pass") => {
+            g.push_log(format!(
+                "制霸：{} 拒绝了 {} 的拼点挑战",
+                g.seats[owner].name, g.seats[challenger].name
+            ));
+            Ok(Step::Done)
+        }
+        Some(_) => {
+            g.push_log(format!(
+                "制霸：{} 接受了 {} 的拼点挑战",
+                g.seats[owner].name, g.seats[challenger].name
+            ));
+            push(g, "zhiba", owner, json!({ "stage": "after" }));
+            crate::kernel::pindian::start(g, challenger, owner, "zhiba");
+            Ok(Step::Done)
+        }
+    }
 }
 
 fn zhiba(g: &mut Game, a: &Ask) -> Result<Step, String> {
     let owner = a.actor;
-    if a.data["stage"].as_str() == Some("after") {
-        let Some(res) = g.pindian_result.take() else {
-            return Ok(Step::Done);
-        };
-        // 挑战者没赢（含平局）→ 孙策获得两张拼点牌。
-        if res.winner != Some(res.target) {
-            let mut got = 0;
-            for id in [&res.a, &res.b] {
-                if matches!(g.zone_of(id), Some(Zone::Discard)) {
-                    g.gain(id, owner)?;
-                    got += 1;
-                }
-            }
-            g.push_log(format!("制霸：挑战者没赢，{} 获得 {got} 张拼点牌", g.seats[owner].name));
-        }
-        return Ok(Step::Done);
+    match a.data["stage"].as_str() {
+        Some("after") => return zhiba_settle(g, owner),
+        Some("challenge") => return zhiba_challenge_accept(g, a),
+        _ => {}
+    }
+    if !active(g, owner, "zhiba") {
+        return zhiba_challenge(g, owner);
     }
     let cands = wu_targets(g, owner);
     match g.answer.take().as_deref() {

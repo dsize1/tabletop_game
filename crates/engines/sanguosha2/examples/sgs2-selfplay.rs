@@ -46,6 +46,10 @@ struct Summary {
     illegal: u32,
     loops: u32,
     stalled: u32,
+    /// 跨过终局阈值（`round > ENDGAME_ROUND`）的局数：**信息项**，不是失败。
+    long: u32,
+    /// 全场最大轮次（诊断「长局」用）。
+    max_round: u32,
     steps: u64,
     max_steps: u32,
     winners: BTreeMap<String, u32>,
@@ -70,6 +74,8 @@ fn main() {
         illegal: 0,
         loops: 0,
         stalled: 0,
+        long: 0,
+        max_round: 0,
         steps: 0,
         max_steps,
         winners: BTreeMap::new(),
@@ -91,6 +97,7 @@ fn main() {
         let mut brain = BotBrain::new();
         let mut steps = 0u32;
         let mut done = false;
+        let mut long_game = false;
 
         while steps < max_steps {
             let g = parse_state(&state);
@@ -99,6 +106,12 @@ fn main() {
                 let w = g.winner.clone().unwrap_or_else(|| "unknown".to_string());
                 *s.winners.entry(w).or_insert(0) += 1;
                 break;
+            }
+            if g.round > s.max_round {
+                s.max_round = g.round;
+            }
+            if g.round > sanguosha2::kernel::ENDGAME_ROUND {
+                long_game = true;
             }
             if let Some(p) = &g.pending {
                 s.pending_kinds.insert(p.kind().to_string());
@@ -132,10 +145,14 @@ fn main() {
                 Some(kind) if !matches!(kind, "wuxie" | "harvest")
             );
             if trackable {
+                // 签名含 `round`：跨轮重复（如每轮结束阶段都可发动的技能）不算死循环，
+                // 只有**同一轮内**状态完全重复 13 次才判环（长局/僵局由终局房规收束，ADR-0040）。
                 let sig = format!(
                     "{:?}",
                     (
+                        g.round,
                         g.turn,
+                        g.turn_seq,
                         g.phase,
                         g.pending.as_ref().map(|p| p.kind()),
                         g.pending.as_ref().and_then(|p| p.skill()),
@@ -232,6 +249,9 @@ fn main() {
                 }
             }
         }
+        if long_game {
+            s.long += 1;
+        }
         if !done {
             s.stalled += 1;
         } else {
@@ -262,6 +282,9 @@ fn main() {
             "illegal": s.illegal,
             "loops": s.loops,
             "stalled": s.stalled,
+            "long": s.long,
+            "max_round": s.max_round,
+            "endgame_round": sanguosha2::kernel::ENDGAME_ROUND,
             "steps": s.steps,
             "max_steps": s.max_steps,
             "winners": s.winners,
@@ -271,8 +294,8 @@ fn main() {
         println!("{}", serde_json::to_string(&out).unwrap());
     } else {
         println!(
-            "[sgs2-selfplay] {} 局 / 终局 {} / illegal {} / loops {} / stalled {} / 步数 {}",
-            s.games, s.finished, s.illegal, s.loops, s.stalled, s.steps
+            "[sgs2-selfplay] {} 局 / 终局 {} / illegal {} / loops {} / stalled {} / long {} / 最大轮次 {} / 步数 {}",
+            s.games, s.finished, s.illegal, s.loops, s.stalled, s.long, s.max_round, s.steps
         );
         println!("  winners: {:?}", s.winners);
         println!("  pending kinds: {:?}", s.pending_kinds);

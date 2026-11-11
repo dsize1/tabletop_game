@@ -385,3 +385,45 @@ fn gate_active_skills_only_offered_to_owner() {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// 主公技「他人侧」闸门（2026-11-11 裁定：同势力共享，按 skills::lord 注册表）
+// ---------------------------------------------------------------------------
+
+fn lord_game() -> Game {
+    use sanguosha2::kernel::Card;
+    let seats = vec![
+        Seat::new("lord", "gen", &["huangtian", "xueyi"], 4),
+        Seat::new("same", "gen", &[], 4),
+        Seat::new("other", "gen", &[], 4),
+    ];
+    let mut g = Game::new(seats, vec![Card::new("c1", "杀", sanguosha2::kernel::Suit::Spade, 7)]);
+    g.seats[0].flags.insert("lord".to_string());
+    g.seats[0].kingdom = "qun".to_string();
+    g.seats[1].kingdom = "qun".to_string();
+    g.seats[2].kingdom = "wei".to_string();
+    g
+}
+
+#[test]
+fn lord_others_side_gate_allows_same_kingdom_only() {
+    let g = lord_game();
+    // 黄天 = 他人主动 → 同势力（群）可用，非群不可。
+    assert!(skills::lord_gate_ok(&g, 1, "huangtian"), "同势力他人应可用【黄天】");
+    assert!(!skills::lord_gate_ok(&g, 2, "huangtian"), "非本势力不可用【黄天】");
+    // 血裔 = 仅持有者 → 同势力他人也不可用。
+    assert!(!skills::lord_gate_ok(&g, 1, "xueyi"), "【血裔】只有持有者可用");
+    // 主公本人仍然全开（与旧行为一致）。
+    assert!(skills::lord_gate_ok(&g, 0, "huangtian"));
+    assert!(skills::lord_gate_ok(&g, 0, "xueyi"));
+}
+
+#[test]
+fn lord_others_side_requires_live_holder() {
+    let mut g = lord_game();
+    g.seats[0].hp = 0;
+    assert!(
+        !skills::lord_gate_ok(&g, 1, "huangtian"),
+        "持有者已死亡 → 他人侧不可用"
+    );
+}

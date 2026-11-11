@@ -170,6 +170,20 @@ for (const code of reg.transform_skills) {
   if (!seen.has(code)) fail(`TRANSFORM_SKILLS 中的 ${code} 不在注册表`);
 }
 
+// 主公技「他人侧」可见性（权威门禁是 Rust 的
+// `skills::lord::tests::every_lord_skill_declares_others_side`；这里保证导出可审计）。
+const LORD_SIDES = new Set(["others-active", "others-trigger", "holder-request", "holder-only"]);
+const lordSideCount = new Map();
+for (const s of reg.skills) {
+  if (s.kind !== "lord") {
+    if (s.lord_side) fail(`${s.code} 不是主公技，却声明了 lord_side=${s.lord_side}`);
+    continue;
+  }
+  if (!s.lord_side) fail(`主公技 ${s.code} 缺少 lord_side（应在 skills/lord.rs 声明）`);
+  else if (!LORD_SIDES.has(s.lord_side)) fail(`主公技 ${s.code} 的 lord_side 非法：${s.lord_side}`);
+  else lordSideCount.set(s.lord_side, (lordSideCount.get(s.lord_side) ?? 0) + 1);
+}
+
 // ---------------------------------------------------------------------------
 // 3) 对齐单覆盖（已迁移批次 ↔ 注册表精确一致）
 // ---------------------------------------------------------------------------
@@ -313,8 +327,11 @@ for (const s of reg.skills) {
 // 汇总
 // ---------------------------------------------------------------------------
 
+const lordTotal = [...lordSideCount.values()].reduce((a, b) => a + b, 0);
+const lordDist = [...lordSideCount.entries()].map(([k, v]) => `${k}=${v}`).join(" ");
 console.log(
   `[sgs2-registry] 注册 ${reg.skills.length} 个技能 / 转换技 ${reg.transform_skills.length} / ` +
+    `主公技他人侧 ${lordTotal}（${lordDist}）/ ` +
     `已迁移批次 B${V2_BATCHES.join("、B")}（对齐单 ${alignCodes.size} 个 code）/ 用例块 ${testBlocks.length}`,
 );
 if (problems.length) {

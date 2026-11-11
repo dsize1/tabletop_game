@@ -236,6 +236,9 @@ export interface SgsViewData {
   schema_version: number;
   game: string;
   phase: string;
+  round?: number;
+  /** 终局房规（第 100 轮后【桃】/【桃园结义】回血无效；濒死救援不限）。 */
+  endgame?: { no_heal: boolean; round: number; since: number };
   public_board: SgsPublicBoard;
   player_area?: SgsPlayerArea | null;
   special_zones?: SgsSpecialZones;

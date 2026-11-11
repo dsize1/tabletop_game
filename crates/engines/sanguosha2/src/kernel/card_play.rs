@@ -613,6 +613,24 @@ fn same_effect_in_judge(g: &Game, seat: usize, effect: Effect) -> bool {
         .any(|id| g.def_of(id).effect == effect)
 }
 
+/// 终局回血无效（房规，2026-11-11 裁定）：`round > 100` 后【桃】/【桃园结义】仍可
+/// 正常使用、结算、被无懈，但**不再回复体力**。
+///
+/// 返回 `true` 表示本次已判为「无效」并已记日志，调用方直接收尾。
+fn endgame_void_heal(g: &mut Game, source: usize, card_name: &str) -> bool {
+    if !g.endgame_no_heal() {
+        return false;
+    }
+    g.push_log(format!(
+        "终局（第 {} 轮，已过 {} 轮）：{} 使用【{}】回血无效",
+        g.round,
+        crate::kernel::ENDGAME_ROUND,
+        g.seats[source].name,
+        card_name
+    ));
+    true
+}
+
 // ---------------------------------------------------------------------------
 // 使用入口
 // ---------------------------------------------------------------------------
@@ -1019,6 +1037,10 @@ pub fn step_card(g: &mut Game, a: &Ask) -> Result<Step, String> {
         CardKind::Basic => match def.effect {
             Effect::Sha => sha_effect(g, source, card_ref, &def, &mut data),
             Effect::Tao => {
+                if endgame_void_heal(g, source, "桃") {
+                    finish(g, card_ref, "use")?;
+                    return Ok(Step::Done);
+                }
                 flow::heal(g, source, 1, "tao");
                 finish(g, card_ref, "use")?;
                 Ok(Step::Done)
@@ -1048,6 +1070,10 @@ pub fn step_card(g: &mut Game, a: &Ask) -> Result<Step, String> {
                 aoe(g, source, card_ref, &def, &mut data)
             }
             Effect::PeachGarden => {
+                if endgame_void_heal(g, source, "桃园结义") {
+                    finish(g, card_ref, "use")?;
+                    return Ok(Step::Done);
+                }
                 for t in target_list(&data) {
                     flow::heal(g, t, 1, "taoyuan");
                 }

@@ -314,3 +314,27 @@
 | 死亡后的亡语 | `skills::on_death`（`flow::die` 在死亡清理前调用） | 用户口径：亡语统一走该钩子，「在濒死后、离开游戏前」执行；可压入询问（如追忆对被选目标再次发动）。 |
 | 无法响应【闪】 | `Game::response_source` + `skills::shan_blocked_for` → `response_pending` / `apply_response` | 毅重②：按（响应者, 来源, 此牌）逐张判定，legal 与 execute 同源；与 `unresponsive`（整张牌不能响应）不同。 |
 | 【杀】无效（逐目标） | `ShaIntercept::Immune`（`skills::sha_intercept_skills` 增补） | 毅重①：该【杀】对该目标不结算，牌正常进弃牌堆。 |
+
+## 24. 注册表即数据 + 覆盖校验（2026-11-11，模板）
+
+**问题形状**：某个「类别」的规则需要跨技能共享，但又不能把每个技能的特殊逻辑写进内核。
+历史教训：主公技的「他人可用」曾是一条硬编码白名单 `LORD_SKILLS_USED_BY_OTHERS = ["huangtian"]`
+→ 新主公技（制霸）永远拿不到他人侧入口，也没人能发现漏了。
+
+**模板**（`skills/lord.rs` 是第一份完整实现，ADR-0041）：
+
+1. **枚举模式**：`pub enum X { ... }` 把「类别内的参与方式」显式化
+   （例：`LordSide { OthersActive, OthersTrigger, HolderRequest, HolderOnly }`）；
+2. **单一注册表**：`pub const TABLE: &[(&str, X)]`，以 skill code 为键；
+3. **派生闸门**：内核/注册表只查表（`others_side(code)` / `others_may_act(code)`），**不写 `match code`**；
+4. **覆盖校验测试**（关键，防漏声明）：
+   - 每个 `kind` 属于该类的注册技能**必须**在表里；
+   - 表里不得有非该类技能；
+   - 条数一致（表项数 == 该类技能数）；
+   - 失败信息写清「去哪个文件补声明」；
+5. **可见性**：注册表模式同时进 `sgs2-registry --json`（`kind` / `lord_side`），
+   `check:sgs2-registry` 打印分布（`主公技他人侧 13（others-trigger=4 …）`）；
+6. **不要**给 `SkillDef` 加字段来承载（~296 个字面量要改，机械噪音且无额外收益）。
+
+**适用对象（已排期）**：M8 计数器 `Scope` 注册表（`Action/Phase/Turn/Round/Game`）、
+M9 pending 身份（window id）——都按本模板落地（枚举 + 表 + 覆盖测试 + 导出可见性）。

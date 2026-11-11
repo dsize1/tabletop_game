@@ -108,6 +108,8 @@ const d = {
   illegal: runs.reduce((n, r) => n + r.d.illegal, 0),
   loops: runs.reduce((n, r) => n + r.d.loops, 0),
   stalled: runs.reduce((n, r) => n + r.d.stalled, 0),
+  long: runs.reduce((n, r) => n + (r.d.long ?? 0), 0),
+  max_round: runs.reduce((n, r) => Math.max(n, r.d.max_round ?? 0), 0),
   steps: runs.reduce((n, r) => n + r.d.steps, 0),
   pending_kinds: [...new Set(runs.flatMap((r) => r.d.pending_kinds ?? []))],
   winners: runs.reduce((acc, r) => {
@@ -130,11 +132,19 @@ if (strict) {
 }
 
 const elapsed = ((Date.now() - started) / 1000).toFixed(1);
+// `long`：跨过终局阈值（round > ENDGAME_ROUND）的局数 —— 信息项（ADR-0040 房规收束长局），
+// 不参与 strict 判定；`max_round` 用来观察「僵局是否又被房规绑住」。
 console.log(
   `[sgs2-ai] seeds=${seeds.join(",")} · ${d.games} 局 / 终局 ${d.finished} / illegal ${d.illegal} / ` +
-    `loops ${d.loops} / stalled ${d.stalled} / 步数 ${d.steps} / kinds ${kinds.length} / ` +
+    `loops ${d.loops} / stalled ${d.stalled} / long ${d.long} / maxRound ${d.max_round} / ` +
+    `步数 ${d.steps} / kinds ${kinds.length} / ` +
     `胜方 ${JSON.stringify(d.winners)} / ${elapsed}s`,
 );
+if (d.long > 0) {
+  console.log(
+    `[sgs2-ai] 提示：${d.long} 局跨过终局阈值（长局，已由房规收束）；最大轮次 ${d.max_round}`,
+  );
+}
 if ((d.errors ?? []).length) {
   console.log(`[sgs2-ai] 明细（${d.errors.length}）：`);
   for (const e of d.errors.slice(0, 20)) console.log(`  - ${e}`);

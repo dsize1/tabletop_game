@@ -439,6 +439,12 @@ fn root(g: &Game, seat: Option<usize>) -> Value {
         "turn": g.turn,
         "phase": stage,
         "round": g.round,
+        // 终局房规（2026-11-11）：第 100 轮后【桃】/【桃园结义】回血无效（濒死救援不限）。
+        "endgame": {
+            "no_heal": g.endgame_no_heal(),
+            "round": g.round,
+            "since": crate::kernel::ENDGAME_ROUND,
+        },
         "public_board": {
             "phase": stage,
             "round": g.round,

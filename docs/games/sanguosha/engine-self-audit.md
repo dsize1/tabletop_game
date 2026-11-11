@@ -225,9 +225,9 @@ B 的正确实现待改：在 `PhaseEnd` 事件里携带「本回合计数快照
 | M9/M8 | 门禁已拦（21/10 白名单） | M9 自动提交出口试运行后回滚（与借刀/攻心流程冲突，需 pending 身份机制）；M8 Scope 待实现 |
 | M10 裁定↔用例 | **门禁已建 + B0 已回填 9 条** | `check:sgs-align`：锚点 9 / legacy 766；新裁定无 test 直接失败 |
 | M14 牌堆重洗 | **已修** | `refill_draw_from_discard`（摸牌前重洗）；用例 `mechanisms::draw_refills_from_discard_when_deck_empty` |
-| AI 自对弈（`check:sgs2-ai`） | **部分** | 已修：牌堆重洗（stalled 主因）、陈旧响应（`respond` 不在手牌视为未响应，seed2 已 0 illegal）；剩余 1 回环 + 1 长局 stalled 待查 |
+| AI 自对弈（`check:sgs2-ai`） | **全绿（2026-11-11）** | 长局由终局房规收束（ADR-0040：`round > 100` 后桃/桃园回血无效）；seeds 1,2,3 → 30/30 终局、loops/stalled 0 |
 | 剩余 14 个 handler 读 live turn/phase | **未收口** | 清单见 §2-M1，按批迁移（优先 PhaseEnd 类） |
-| 制霸被动挑战 | **未实现**（功能缺失，非机制） | `align/B14.md §7` 有、§2 无 |
+| 制霸被动挑战 | **已实现（2026-11-11）** | `b14::ZHIBA` 双路径 + `skills::lord::TABLE`（ADR-0041、`rules-rulings §46`） |
 | `awaiting_input` API | 未补 | 探针已用 pending 分类替代 |
 
 > 剩余项均已在门禁/白名单/台账显式登记，不再是「沉默实现」；但 M10、14 handler、制霸被动仍需在 V2 收口批次完成。

@@ -19,6 +19,13 @@ fn main() {
         rows.push(serde_json::json!({
             "code": d.code,
             "name": d.name,
+            // 技能类型（normal/locked/limited/awaken/lord）与主公技的「他人侧」模式。
+            "kind": format!("{:?}", d.kind).to_lowercase(),
+            "lord_side": if d.kind == skills::SkillKind::Lord {
+                Some(skills::lord::others_side(d.code).label())
+            } else {
+                None
+            },
             "triggers": d.triggers.iter().map(|k| format!("{k:?}")).collect::<Vec<_>>(),
             "window": window_label(&d.window),
             "priority": d.priority,

@@ -14,6 +14,13 @@ use serde::{Deserialize, Serialize};
 
 pub type CardId = String;
 
+/// 终局轮次阈值（房规，2026-11-11 用户裁定）：`round > ENDGAME_ROUND` 起
+/// 【桃】/【桃园结义】的回血效果无效（牌仍可使用），**濒死救援不受影响**。
+///
+/// 目的：收束 AI 自对弈的长期僵局（`check:sgs2-ai` seed=3 曾 179+ 回合互不回血
+/// 也打不出结果）。判定只允许走 `Game::endgame_no_heal()`（单出口）。
+pub const ENDGAME_ROUND: u32 = 100;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Suit {
     Spade,
@@ -1275,6 +1282,13 @@ impl Game {
 
     pub fn bump(&mut self, key: &str) {
         *self.counters.entry(key.to_string()).or_insert(0) += 1;
+    }
+
+    /// 终局阶段：`round > ENDGAME_ROUND`（第 101 轮起）→【桃】/【桃园结义】回血无效。
+    ///
+    /// 唯一判定入口：内核与技能都读这里，禁止各自比较 `round`。
+    pub fn endgame_no_heal(&self) -> bool {
+        self.round > ENDGAME_ROUND
     }
 
     pub fn clear_prefix(&mut self, prefix: &str) {

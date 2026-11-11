@@ -159,6 +159,11 @@ export function renderPublicArea(
         playerName(names, actorPid as string),
       )} 行动中…（服务器自动推进，无需操作）</div>`
     : "";
+  // 终局房规提示（第 100 轮后桃/桃园回血无效；濒死救援不受限）。
+  const endgameBadge =
+    data.endgame?.no_heal === true
+      ? `<span class="sgs-endgame" title="第 ${data.endgame.since} 轮后：【桃】【桃园结义】回血无效（濒死救援不受限）">终局·回血无效</span>`
+      : "";
   const winner = board.winner
     ? `<div class="sgs-winner">${escapeHtml(board.winner.team)} 阵营胜利</div>`
     : board.aborted
@@ -172,7 +177,7 @@ export function renderPublicArea(
     `<section class="sgs-public" aria-label="公共局面区">` +
     `<div class="sgs-seats">${seatsHtml}</div>` +
     `<div class="sgs-center">` +
-    `<div class="sgs-round">第 ${board.round} 轮 · ${escapeHtml(phase)} · ${currentName}${setupProgress}</div>` +
+    `<div class="sgs-round">第 ${board.round} 轮 · ${escapeHtml(phase)} · ${currentName}${setupProgress}${endgameBadge}</div>` +
     `<div class="sgs-deck-row">` +
     `<div class="sgs-deck"><span class="sgs-deck-label">牌堆</span>${board.deck.draw}</div>` +
     `<button type="button" class="sgs-deck sgs-deck-btn" data-press="discard" aria-label="查看弃牌堆">` +

@@ -226,7 +226,10 @@ fn score_play_action(g: &Game, seat: usize, action: &str) -> (i32, String) {
         let tgt_ok = !targets.is_empty() && targets.iter().all(|t| g.seats.get(*t).is_some_and(|s| s.hp > 0));
         let base = match def.effect {
             Effect::Tao => {
-                if g.seats[seat].hp < g.seats[seat].max_hp {
+                // 终局房规：第 100 轮后桃不回血 → 不再打正分（别空耗手牌）。
+                if g.endgame_no_heal() {
+                    0
+                } else if g.seats[seat].hp < g.seats[seat].max_hp {
                     120 + (g.seats[seat].max_hp - g.seats[seat].hp) * 5
                 } else {
                     0
@@ -247,7 +250,15 @@ fn score_play_action(g: &Game, seat: usize, action: &str) -> (i32, String) {
                 60 + if has_equip { 10 } else { 0 }
             }
             Effect::Indulgence | Effect::SupplyShortage => 62,
-            Effect::Harvest | Effect::PeachGarden => 58,
+            // 终局房规：桃园结义只剩回血 → 第 100 轮后无效，不给分。
+            Effect::PeachGarden => {
+                if g.endgame_no_heal() {
+                    0
+                } else {
+                    58
+                }
+            }
+            Effect::Harvest => 58,
             Effect::SavageAssault | Effect::ArcheryAttack => {
                 // 自己血少时不放 AOE（怕被反噬）。
                 if g.seats[seat].hp <= 2 {
@@ -450,6 +461,15 @@ fn pending_choice(g: &Game, seat: usize, kind: &str, ids: &[&str], skill: Option
                 }
                 if let Some(p) = pass() {
                     return (60, p);
+                }
+            }
+            // 制霸（他人挑战）：手牌太少（≤1）时拒绝，别为了 1 张牌把拼点牌搭进去。
+            if skill == Some("zhiba") {
+                let hand = g.hand(seat).len();
+                if hand <= 1 {
+                    if let Some(p) = pass() {
+                        return (60, p);
+                    }
                 }
             }
             // 二选一：作者顺序通常「收益优先」，取 opt1。

@@ -99,6 +99,7 @@ button { font: inherit; color: inherit; }
 .sgs-dead-mark { position:absolute; inset:auto 6px 4px auto; color:#ff7b72; font-weight:700; }
 .sgs-center { position:absolute; left:50%; top:44%; transform:translate(-50%,-50%); text-align:center; width:min(46%, 360px); }
 .sgs-round { font-size:12px; color:#c9d1d9; margin-bottom:6px; }
+.sgs-endgame { margin-left:8px; font-size:10px; padding:1px 6px; border-radius:999px; background:#5a1f1f; color:#ffb3b3; border:1px solid #7a2a2a; }
 .sgs-deck-row { display:flex; gap:12px; justify-content:center; }
 .sgs-deck { background:var(--sgs-panel); border:1px solid var(--sgs-line); border-radius:10px; padding:6px 10px; font-size:12px; min-width:86px; }
 .sgs-deck-label { display:block; color:var(--sgs-muted); font-size:10px; }

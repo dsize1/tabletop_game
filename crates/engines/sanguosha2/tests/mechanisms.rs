@@ -399,3 +399,84 @@ fn draw_refills_from_discard_when_deck_empty() {
     );
     assert!(g.ids_in(|z| *z == sanguosha2::kernel::Zone::Draw).is_empty(), "牌堆与弃牌堆都空");
 }
+
+// ---------------------------------------------------------------------------
+// 终局房规（2026-11-11 裁定）：round > 100 起【桃】/【桃园结义】回血无效
+// ---------------------------------------------------------------------------
+
+fn endgame_game() -> Game {
+    let mut g = Game::new(
+        vec![
+            Seat::new("p0", "a", &[], 4),
+            Seat::new("p1", "b", &[], 4),
+        ],
+        vec![
+            Card::new("t1", "桃", Suit::Heart, 3),
+            Card::new("t2", "桃园结义", Suit::Heart, 1),
+            Card::new("t3", "桃", Suit::Heart, 4),
+            Card::new("d1", "闪", Suit::Diamond, 2),
+        ],
+    );
+    g.turn = 0;
+    g.phase = Phase::Play;
+    g.seats[0].hp = 2;
+    g
+}
+
+#[test]
+fn endgame_round_100_still_heals() {
+    let mut g = endgame_game();
+    g.round = 100;
+    g.to_hand(&"t1".to_string(), 0).unwrap();
+    g.resolve_use(0, &"t1".to_string(), vec![0]).unwrap();
+    assert_eq!(g.seats[0].hp, 3, "第 100 轮仍可正常回血（阈值是 round > 100）");
+}
+
+#[test]
+fn endgame_tao_heal_is_void_after_round_100() {
+    let mut g = endgame_game();
+    g.round = 101;
+    g.to_hand(&"t1".to_string(), 0).unwrap();
+    g.resolve_use(0, &"t1".to_string(), vec![0]).unwrap();
+    assert_eq!(g.seats[0].hp, 2, "第 101 轮起【桃】回血无效");
+    assert!(
+        g.discard_pile().iter().any(|c| c == "t1"),
+        "牌仍然正常使用并进弃牌堆（不是非法动作）"
+    );
+    assert!(
+        g.log.iter().any(|l| l.text.contains("回血无效")),
+        "必须给出明确的日志（端侧/复盘可读）"
+    );
+}
+
+#[test]
+fn endgame_peach_garden_heal_is_void_after_round_100() {
+    let mut g = endgame_game();
+    g.round = 101;
+    g.seats[1].hp = 3;
+    g.to_hand(&"t2".to_string(), 0).unwrap();
+    g.resolve_use(0, &"t2".to_string(), vec![0, 1]).unwrap();
+    assert_eq!(g.seats[0].hp, 2, "桃园结义：自己也不回血");
+    assert_eq!(g.seats[1].hp, 3, "桃园结义：他人也不回血");
+}
+
+#[test]
+fn endgame_dying_tao_still_saves_after_round_100() {
+    use sanguosha2::kernel::flow;
+    use sanguosha2::kernel::resolve::advance;
+    let mut g = endgame_game();
+    g.round = 150;
+    g.to_hand(&"t3".to_string(), 0).unwrap();
+    g.seats[0].hp = 0;
+    flow::start_dying(&mut g, 0, None);
+    advance(&mut g).unwrap();
+    // 濒死救援不受房规限制：用【桃】自救。
+    let heal = g
+        .pending
+        .as_ref()
+        .and_then(|p| p.options().iter().find(|o| o.id.starts_with("respond:")).map(|o| o.id.clone()))
+        .expect("濒死应有【桃】救援选项");
+    let actor = g.pending.as_ref().map(|p| p.actor()).unwrap_or(0);
+    sanguosha2::kernel::resolve::submit(&mut g, actor, &heal).unwrap();
+    assert_eq!(g.seats[0].hp, 1, "濒死阶段【桃】仍然有效");
+}

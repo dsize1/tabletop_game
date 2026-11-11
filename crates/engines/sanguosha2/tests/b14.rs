@@ -115,6 +115,116 @@ fn zhiba_requires_wu_target() {
     assert!(skills::execute_active(&mut g, 0, "skill:zhiba").is_err());
 }
 
+// ---------------------------------------------------------------- 制霸（他人侧挑战）
+
+/// 界孙策当主公 + 一名吴势力角色（挑战者）+ 一名魏势力角色。
+fn zhiba_setup() -> Game {
+    let mut g = game(&[
+        ("ce", &["zhiba"], 4, "wu"),
+        ("wu1", &[], 4, "wu"),
+        ("p2", &[], 4, "wei"),
+    ]);
+    g.seats[0].flags.insert("lord".to_string());
+    g
+}
+
+#[test]
+fn zhiba_other_wu_may_challenge_and_lord_gains_when_challenger_loses() {
+    let mut g = zhiba_setup();
+    play_phase(&mut g, 1);
+    give(&mut g, 1, &["d1"]); // 挑战者：闪（点数 2）
+    give(&mut g, 0, &["sp1"]); // 孙策：杀（点数 13）
+    skills::execute_active(&mut g, 1, "skill:zhiba").unwrap();
+    // 孙策（回合外）被询问「接受/拒绝」
+    assert_eq!(g.pending.as_ref().map(|p| p.actor()), Some(0));
+    assert_eq!(pend_skill(&g).as_deref(), Some("zhiba"));
+    answer(&mut g, 0, "opt1");
+    answer(&mut g, 1, "choose:d1");
+    answer(&mut g, 0, "choose:sp1");
+    // 挑战者没赢（2 < 13）→ 孙策获得两张拼点牌
+    assert!(g.hand(0).iter().any(|c| c == "d1"), "获得对手拼点牌");
+    assert!(g.hand(0).iter().any(|c| c == "sp1"), "获得自己的拼点牌");
+}
+
+#[test]
+fn zhiba_lord_can_refuse_challenge() {
+    let mut g = zhiba_setup();
+    play_phase(&mut g, 1);
+    give(&mut g, 1, &["d1"]);
+    give(&mut g, 0, &["sp1"]);
+    skills::execute_active(&mut g, 1, "skill:zhiba").unwrap();
+    let before = (g.hand(0).len(), g.hand(1).len());
+    answer(&mut g, 0, "pass"); // 界制霸：无条件可拒绝
+    assert_eq!((g.hand(0).len(), g.hand(1).len()), before, "拒绝 → 双方都不拼点");
+    assert_eq!(g.counter("turn.zhiba_challenge:1"), 1, "拒绝也计入限一次");
+    assert!(
+        skills::execute_active(&mut g, 1, "skill:zhiba").is_err(),
+        "同一挑战者本阶段限一次"
+    );
+}
+
+#[test]
+fn zhiba_challenge_tie_means_challenger_did_not_win() {
+    let mut g = zhiba_setup();
+    play_phase(&mut g, 1);
+    give(&mut g, 1, &["d1"]); // 点数 2
+    give(&mut g, 0, &["c20"]); // 闪 红桃 2（点数 2，平局）
+    skills::execute_active(&mut g, 1, "skill:zhiba").unwrap();
+    answer(&mut g, 0, "opt1");
+    answer(&mut g, 1, "choose:d1");
+    answer(&mut g, 0, "choose:c20");
+    assert!(g.hand(0).iter().any(|c| c == "d1"), "平局算挑战者没赢");
+}
+
+#[test]
+fn zhiba_challenge_requires_wu_challenger() {
+    let mut g = zhiba_setup();
+    play_phase(&mut g, 2); // 魏势力
+    give(&mut g, 2, &["d1"]);
+    give(&mut g, 0, &["sp1"]);
+    assert!(
+        skills::execute_active(&mut g, 2, "skill:zhiba").is_err(),
+        "非吴势力不能挑战"
+    );
+}
+
+#[test]
+fn zhiba_challenge_requires_cards_on_both_sides() {
+    let mut g = zhiba_setup();
+    play_phase(&mut g, 1);
+    give(&mut g, 1, &["d1"]); // 孙策无手牌 → 拼点前提不成立
+    assert!(skills::execute_active(&mut g, 1, "skill:zhiba").is_err());
+}
+
+#[test]
+fn zhiba_challenge_requires_lord_holder() {
+    // 界孙策没当主公：主公技不生效，他人不能挑战。
+    let mut g = game(&[("ce", &["zhiba"], 4, "wu"), ("wu1", &[], 4, "wu")]);
+    play_phase(&mut g, 1);
+    give(&mut g, 1, &["d1"]);
+    give(&mut g, 0, &["sp1"]);
+    assert!(skills::execute_active(&mut g, 1, "skill:zhiba").is_err());
+}
+
+#[test]
+fn zhiba_listed_for_wu_play_actions() {
+    let mut g = zhiba_setup();
+    play_phase(&mut g, 1);
+    give(&mut g, 1, &["d1"]);
+    give(&mut g, 0, &["sp1"]);
+    let ids: Vec<String> = skills::legal_actions(&g, 1)
+        .into_iter()
+        .map(|(id, _)| id)
+        .collect();
+    assert!(ids.iter().any(|id| id == "skill:zhiba"), "吴势力应看到制霸：{ids:?}");
+    // 魏势力不应看到
+    let ids2: Vec<String> = skills::legal_actions(&g, 2)
+        .into_iter()
+        .map(|(id, _)| id)
+        .collect();
+    assert!(!ids2.iter().any(|id| id == "skill:zhiba"));
+}
+
 // ---------------------------------------------------------------- 激昂
 #[test]
 fn jiang_draws_once_per_card() {

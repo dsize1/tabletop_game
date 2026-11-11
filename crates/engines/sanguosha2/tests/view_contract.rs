@@ -18,6 +18,8 @@ const ROOT_KEYS: &[&str] = &[
     "turn",
     "phase",
     "round",
+    // 终局房规：第 100 轮后桃/桃园回血无效（端侧提示用）。
+    "endgame",
     "public_board",
     "player_area",
     "special_zones",

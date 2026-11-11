@@ -30,6 +30,7 @@ pub mod mingren;
 pub mod kongsheng;
 pub mod liangyin;
 pub mod zhenliang;
+pub mod lord;
 
 use crate::kernel::event::{EventKind, Sub, Window};
 use crate::kernel::pending::PendingBuilder;
@@ -416,12 +417,18 @@ pub fn may_use_lord_skill(g: &Game, seat: usize) -> bool {
     g.seats.get(seat).is_some_and(|s| s.flags.contains("lord")) || active(g, seat, "weidi")
 }
 
-/// 设计上由**其他角色**使用的主公技（不是持有者发起）：黄天（群势力给张角牌）；制霸被动（未实现）。
-pub const LORD_SKILLS_USED_BY_OTHERS: &[&str] = &["huangtian"];
-
-/// 主公技闸门：`owner` 是技能持有者（路由/主动技都按持有者判定）。
+/// 主公技闸门：`owner` 是技能提交入口的角色（持有者，或主公技的「他人侧」使用者）。
+///
+/// 规则（2026-11-11 裁定）：
+/// 1. 主公本人（或伪帝借用）→ 可用（与旧行为一致）；
+/// 2. 同势力他人 → 仅当该主公技声明了 `OthersActive` / `OthersTrigger`（见 `skills::lord`），
+///    且存在**真实持有者**、持有者存活、势力相同；
+/// 3. 伪帝借用的主公技不开放他人侧。
 pub fn lord_gate_ok(g: &Game, owner: usize, code: &str) -> bool {
-    LORD_SKILLS_USED_BY_OTHERS.contains(&code) || may_use_lord_skill(g, owner)
+    if may_use_lord_skill(g, owner) {
+        return true;
+    }
+    lord::others_may_act(code) && lord::shared_with(g, owner, code)
 }
 
 /// **唯一**技能状态查询入口。
