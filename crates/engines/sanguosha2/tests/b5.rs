@@ -366,6 +366,20 @@ fn huituo_red_judge_heals_target() {
 
 /// 回归（2026-11-11 真机）：一条恢拓不能看起来回两次血。
 /// 口径：hp 只 +1，且 `Heal` 展示只有 1 条（技能侧不再重复 push），日志里「回复」只出现一次。
+/// 回归（2026-11-11 同类排查）：濒死浮层读 `pending.data.victim/hp`。
+#[test]
+fn dying_pending_carries_victim_and_hp() {
+    let mut g = game(&[("a", &[], 4), ("b", &[], 4)]);
+    give(&mut g, 1, &["c3"]); // 让 p1 有【桃】→ 濒死询问一定产生 pending
+    g.seats[0].hp = 0;
+    flow::start_dying(&mut g, 0, None);
+    advance(&mut g).unwrap();
+    let p = pend(&g);
+    assert_eq!(p.kind(), "dying");
+    assert_eq!(p.data()["victim"].as_str(), Some("a"), "濒死浮层要显示濒死者");
+    assert_eq!(p.data()["hp"].as_i64(), Some(0), "濒死浮层要显示体力");
+}
+
 #[test]
 fn huituo_heals_exactly_once() {
     let mut g = game(&[("caorui", &["huituo"], 4), ("p1", &[], 4)]);

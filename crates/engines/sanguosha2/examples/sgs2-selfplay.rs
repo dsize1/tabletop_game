@@ -40,6 +40,34 @@ fn parse_state(state: &GameState) -> Game {
     serde_json::from_value(state.data.clone()).expect("状态解析失败")
 }
 
+/// 动作 id 去掉「实体牌 id」后的签名：同面牌的不同实体 id 视为等价。
+///
+/// `use:c100:1` → `use:1`；`convert:huoji:c12:火攻:2` → `convert:huoji:火攻:2`；
+/// `discard:c7` → `discard`；其它（`target:3` / `skill:x` …）原样返回。
+fn action_signature(id: &str) -> String {
+    let parts: Vec<&str> = id.split(':').collect();
+    match parts.first().copied() {
+        Some("use") => {
+            let mut out = vec!["use"];
+            out.extend(parts.iter().skip(2));
+            out.join(":")
+        }
+        Some("convert") if parts.len() >= 4 => {
+            let mut out: Vec<&str> = parts.iter().take(2).copied().collect();
+            out.extend(parts.iter().skip(3));
+            out.join(":")
+        }
+        // 单牌/双牌作用域：同面牌的不同实体 id 视为等价（文案已含牌面，选哪张效果一样）。
+        Some("discard") | Some("pick") | Some("respond") | Some("recast") | Some("choose")
+        | Some("card") | Some("reveal") | Some("pair") => {
+            parts.first().copied().unwrap_or_default().to_string()
+        }
+        Some("vrespond") if parts.len() >= 2 => format!("vrespond:{}", parts[1]),
+        Some("trim") if parts.len() >= 3 => format!("trim:{}", parts[2]),
+        _ => id.to_string(),
+    }
+}
+
 struct Summary {
     games: u32,
     finished: u32,
@@ -50,6 +78,8 @@ struct Summary {
     long: u32,
     /// 全场最大轮次（诊断「长局」用）。
     max_round: u32,
+    /// 选项文案重复（相同文案 + 不同后果）的次数：端侧无法区分的交互缺陷。
+    label_dups: u32,
     steps: u64,
     max_steps: u32,
     winners: BTreeMap<String, u32>,
@@ -76,6 +106,7 @@ fn main() {
         stalled: 0,
         long: 0,
         max_round: 0,
+        label_dups: 0,
         steps: 0,
         max_steps,
         winners: BTreeMap::new(),
@@ -121,6 +152,33 @@ fn main() {
                 None => g.seats[g.turn].name.clone(),
             };
             let actions = engine.legal_actions(&state, &actor);
+            // 门禁：**文案相同但后果不同**的选项 → 端侧无法区分（Web 按钮/QQ 清单同源）。
+            // 2026-11-11 真机：「使用【杀】」对所有目标都一样。允许「同面牌」的重复文案
+            // （两张一模一样的红桃2闪，弃哪张都一样）——按「去掉实体牌 id 后的动作签名」比对。
+            if !actions.is_empty() {
+                let mut by_label: std::collections::HashMap<&str, String> =
+                    std::collections::HashMap::new();
+                for a in &actions {
+                    let sig = action_signature(&a.id);
+                    match by_label.get(a.description.as_str()) {
+                        Some(prev) if *prev != sig => {
+                            s.label_dups += 1;
+                            s.errors.push(format!(
+                                "game {game_idx}: 选项文案相同但后果不同（pending={:?} skill={:?}）：{} | {} vs {}",
+                                g.pending.as_ref().map(|p| p.kind()),
+                                g.pending.as_ref().and_then(|p| p.skill()),
+                                a.description,
+                                prev,
+                                sig
+                            ));
+                            break;
+                        }
+                        _ => {
+                            by_label.insert(a.description.as_str(), sig);
+                        }
+                    }
+                }
+            }
             let Some(seat) = sanguosha2::view::seat_of(&g, &actor) else {
                 s.stalled += 1;
                 s.errors.push(format!("game {game_idx}: {actor} 不在座"));
@@ -285,6 +343,7 @@ fn main() {
             "long": s.long,
             "max_round": s.max_round,
             "endgame_round": sanguosha2::kernel::ENDGAME_ROUND,
+            "label_dups": s.label_dups,
             "steps": s.steps,
             "max_steps": s.max_steps,
             "winners": s.winners,
@@ -294,8 +353,8 @@ fn main() {
         println!("{}", serde_json::to_string(&out).unwrap());
     } else {
         println!(
-            "[sgs2-selfplay] {} 局 / 终局 {} / illegal {} / loops {} / stalled {} / long {} / 最大轮次 {} / 步数 {}",
-            s.games, s.finished, s.illegal, s.loops, s.stalled, s.long, s.max_round, s.steps
+            "[sgs2-selfplay] {} 局 / 终局 {} / illegal {} / loops {} / stalled {} / long {} / 最大轮次 {} / 文案重复 {} / 步数 {}",
+            s.games, s.finished, s.illegal, s.loops, s.stalled, s.long, s.max_round, s.label_dups, s.steps
         );
         println!("  winners: {:?}", s.winners);
         println!("  pending kinds: {:?}", s.pending_kinds);

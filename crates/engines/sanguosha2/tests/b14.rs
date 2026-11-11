@@ -139,6 +139,13 @@ fn zhiba_other_wu_may_challenge_and_lord_gains_when_challenger_loses() {
     assert_eq!(g.pending.as_ref().map(|p| p.actor()), Some(0));
     assert_eq!(pend_skill(&g).as_deref(), Some("zhiba"));
     answer(&mut g, 0, "opt1");
+    // 拼点浮层依赖 pending.data.target（对方 player_id）
+    assert_eq!(g.pending.as_ref().map(|p| p.kind()), Some("pindian"));
+    assert_eq!(
+        g.pending.as_ref().map(|p| p.data()["target"].as_str()),
+        Some(Some("ce")),
+        "拼点浮层要显示对手"
+    );
     answer(&mut g, 1, "choose:d1");
     answer(&mut g, 0, "choose:sp1");
     // 挑战者没赢（2 < 13）→ 孙策获得两张拼点牌

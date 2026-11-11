@@ -674,7 +674,15 @@ pub fn step_dying(g: &mut Game, a: &Ask) -> Result<Step, String> {
         return Ok(Step::Next(Stage::DyingAsk, next));
     }
     match g.answer.take().as_deref() {
-        None => Ok(Step::Need(b.escape("放弃救援").build())),
+        // 视图（web 濒死浮层）读 `pending.data.victim/hp`：缺失会显示「（-）进入濒死」。
+        None => Ok(Step::Need(
+            b.data(json!({
+                "victim": g.seats[victim].name,
+                "hp": g.seats[victim].hp,
+            }))
+            .escape("放弃救援")
+            .build(),
+        )),
         Some("pass") => {
             let mut next = a.data.clone();
             next["cursor"] = json!(cursor + 1);
@@ -892,7 +900,19 @@ pub fn step_wuxie(g: &mut Game, a: &Ask) -> Result<Step, String> {
         return Ok(Step::Next(Stage::WuxieAsk, next));
     }
     match g.answer.take().as_deref() {
-        None => Ok(Step::Need(b.escape("不使用无懈").build())),
+        // 视图（web 无懈浮层）读 `pending.data.root/layers`：缺失会显示「被抵消的效果：（空）、0 层」。
+        None => {
+            let root = if g.cards.contains_key(&card) {
+                g.card_label(&card)
+            } else {
+                card.clone()
+            };
+            Ok(Step::Need(
+                b.data(json!({ "root": root, "layers": count, "count": count }))
+                    .escape("不使用无懈")
+                    .build(),
+            ))
+        }
         Some("pass") => {
             let mut next = a.data.clone();
             next["cursor"] = json!(cursor + 1);

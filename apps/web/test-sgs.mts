@@ -1219,3 +1219,42 @@ assert.equal(nickView.public_board.pending.options[0].label, "令 机器人4 判
 assert.equal(nickView.player_area.pending.options[0].label, "交给 曹叡");
 assert.equal(nickView.public_board.history[0].text.includes("BE6B"), false, "日志里不应再出现 openid");
 console.log("[sgs-web] 昵称替换单测通过 ✅");
+
+// v2 取牌浮层（拆/顺）：引擎给的是 `pick:<实体牌 id>`，v1 前缀分组会全空 →
+// 必须回退成「全量按钮」，否则浮层没有可点项（2026-11-11 五谷同类的卡死）。
+const pickView = {
+  phase: "turn",
+  public_board: {
+    phase: "play",
+    round: 3,
+    turn_index: 2,
+    turn: { seat: 0, phase: "play", player_id: "p0" },
+    seat_count: 2,
+    seats: [
+      { seat: 0, player_id: "p0", hp: 4, max_hp: 4, hand_count: 2, equips: {}, judge_zone: [], marks: [] },
+      { seat: 1, player_id: "p1", hp: 4, max_hp: 4, hand_count: 1, equips: { weapon: { id: "w1", name: "青釭剑", suit: "spade", rank: 6 } }, judge_zone: [], marks: [] },
+    ],
+    deck: { draw: 10, discard: 1, processing: 0, void: 0 },
+    pending: {
+      kind: "card_pick",
+      actor: "p0",
+      options: [
+        { id: "pick:w1", label: "武器【黑桃6青釭剑】" },
+        { id: "pick:hand", label: "随机一张手牌" },
+      ],
+    },
+  },
+  player_area: null,
+  special_zones: {},
+} as never;
+const pickOverlay = renderPickCardOverlay(
+  { kind: "card_pick", actor: "p0", skill: "__card", options: [
+    { id: "pick:w1", label: "武器【黑桃6青釭剑】" },
+    { id: "pick:hand", label: "随机一张手牌" },
+  ] } as never,
+  (pickView as { public_board: never }).public_board,
+  names,
+);
+assert.ok(pickOverlay.includes('data-action="pick:w1"'), "取牌浮层必须渲染实体牌按钮");
+assert.ok(!pickOverlay.includes("没有可选牌"), "取牌浮层不得退化成空列表");
+console.log("[sgs-web] 取牌浮层回退单测通过 ✅");

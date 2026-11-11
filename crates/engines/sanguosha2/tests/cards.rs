@@ -545,6 +545,15 @@ fn wuzhong_negated_by_wuxie() {
     let before = g.hand(0).len();
     play(&mut g, 0, &card, vec![], &mut |g| {
         assert_eq!(pend(g).actor(), 1);
+        // 无懈浮层依赖 `pending.data.root/layers`（缺失会显示「被抵消的效果：（空）、0 层」）。
+        assert!(
+            pend(g).data()["root"]
+                .as_str()
+                .is_some_and(|r| r.contains("无中生有")),
+            "浮层要显示被无懈的牌：{:?}",
+            pend(g).data()["root"]
+        );
+        assert_eq!(pend(g).data()["layers"].as_u64(), Some(0));
         let w = opt_with(g, "respond:");
         answer(g, 1, &w);
     });
@@ -801,6 +810,8 @@ fn huogong_reveal_is_mandatory() {
     play(&mut g, 0, &card, vec![1], &mut |g| {
         assert_eq!(pend(g).actor(), 1);
         assert!(pend(g).escape_hidden(), "展示不是可放弃步骤（出口只能是占位）");
+        assert_eq!(pend(g).data()["target"].as_str(), Some("p1"), "浮层显示目标");
+        assert_eq!(pend(g).data()["stage"].as_str(), Some("reveal"));
         // 提交出口 = 自动展示第一张手牌（不是「火攻无效」）。
         answer(g, 1, "pass");
         assert_eq!(pend(g).actor(), 0, "展示后进入使用者弃同花色步骤");
@@ -879,6 +890,97 @@ fn sha_action_labels_include_targets() {
         1,
         "目标 p2 的选项唯一：{sha:?}"
     );
+}
+
+/// 回归（2026-11-11 同类排查）：五谷取牌是**强制**的（每名目标角色依次获得一张），
+/// 提交出口 = 自动取第一张（不是「放弃不取」）。
+#[test]
+fn harvest_pick_is_mandatory() {
+    let mut g = new_game(3);
+    let card = give(&mut g, 0, "五谷丰登");
+    g.resolve_use(0, &card, vec![]).expect("使用五谷");
+    let mut guard = 0;
+    while pend(&g).kind() != "harvest" && guard < 8 {
+        let actor = pend(&g).actor();
+        answer(&mut g, actor, "pass");
+        guard += 1;
+    }
+    assert_eq!(pend(&g).kind(), "harvest");
+    let picker = pend(&g).actor();
+    assert!(pend(&g).escape_hidden(), "五谷取牌不可拒绝（出口只是占位）");
+    let before = g.hand(picker).len();
+    answer(&mut g, picker, "pass"); // 占位提交 = 取第一张
+    assert_eq!(g.hand(picker).len(), before + 1, "占位提交应真的取到一张牌");
+}
+
+/// 回归（2026-11-11 同类排查）：拆/顺的取牌浮层依赖 `pending.data`（目标/牌名），
+/// 且选牌是**强制**步骤（出口只能是占位）。
+#[test]
+fn dismantle_pending_carries_data_and_is_mandatory() {
+    let mut g = new_game(3);
+    let card = give(&mut g, 0, "过河拆桥");
+    let weapon = equip(&mut g, 1, "青龙偃月刀");
+    play(&mut g, 0, &card, vec![1], &mut |g| {
+        assert_eq!(pend(g).kind(), "card_pick");
+        assert!(pend(g).escape_hidden(), "拆/顺选牌不可取消（出口只是占位）");
+        assert_eq!(pend(g).data()["target"].as_str(), Some("p1"), "浮层要显示目标");
+        assert_eq!(pend(g).data()["card"].as_str(), Some("过河拆桥"));
+        // 提交出口 = 自动选第一张（= 武器），不会「取消整张牌」。
+        answer(g, 0, "pass");
+    });
+    assert_eq!(
+        g.zone_of(&weapon),
+        Some(&Zone::Discard),
+        "占位提交应真的弃掉一张牌（不是让整张拆无效）"
+    );
+}
+
+/// 回归（2026-11-11 同类排查）：**同一张牌对不同目标的选项标签必须可区分**。
+///
+/// 端侧（Web「选择目标 / 用法」浮层、QQ 清单）直接渲染 `description`；
+/// 若两个选项文案相同，玩家无法判断会打谁（真机：一屏「使用【杀】」）。
+#[test]
+fn legal_use_labels_are_unique_and_name_targets() {
+    let mut g = new_game(4);
+    g.seats[0].hp = 3; // 让【桃】可选
+    for seat in 1..4 {
+        give(&mut g, seat, "闪");
+    }
+    for name in [
+        "杀", "桃", "决斗", "过河拆桥", "顺手牵羊", "火攻", "借刀杀人", "五谷丰登", "铁索连环",
+        "无中生有", "万箭齐发", "桃园结义",
+    ] {
+        give(&mut g, 0, name);
+    }
+    equip(&mut g, 0, "青龙偃月刀");
+    let acts = sanguosha2::kernel::card_play::legal_uses(&g, 0);
+    let mut seen: std::collections::HashMap<&str, &str> = std::collections::HashMap::new();
+    for (id, label) in &acts {
+        if let Some(prev) = seen.insert(label.as_str(), id.as_str()) {
+            panic!(
+                "选项文案重复，端侧无法区分：
+  {label}
+   ← {prev}
+   ← {id}"
+            );
+        }
+    }
+    // 同一张牌产生多个选项时（= 有多种目标组合），每个标签都必须带目标名。
+    let mut by_card: std::collections::HashMap<String, Vec<&str>> = std::collections::HashMap::new();
+    for (id, label) in &acts {
+        let base = id.split(':').take(2).collect::<Vec<_>>().join(":");
+        by_card.entry(base).or_default().push(label.as_str());
+    }
+    for (base, labels) in by_card {
+        if labels.len() > 1 {
+            let missing = labels.iter().filter(|l| !l.contains("→")).count();
+            assert_eq!(
+                missing, 0,
+                "同一张牌有 {} 种用法，但有 {missing} 个选项没写目标名：{base} → {labels:?}",
+                labels.len()
+            );
+        }
+    }
 }
 
 #[test]

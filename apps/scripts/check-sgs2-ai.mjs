@@ -110,6 +110,7 @@ const d = {
   stalled: runs.reduce((n, r) => n + r.d.stalled, 0),
   long: runs.reduce((n, r) => n + (r.d.long ?? 0), 0),
   max_round: runs.reduce((n, r) => Math.max(n, r.d.max_round ?? 0), 0),
+  label_dups: runs.reduce((n, r) => n + (r.d.label_dups ?? 0), 0),
   steps: runs.reduce((n, r) => n + r.d.steps, 0),
   pending_kinds: [...new Set(runs.flatMap((r) => r.d.pending_kinds ?? []))],
   winners: runs.reduce((acc, r) => {
@@ -126,6 +127,8 @@ if (strict) {
   if (d.illegal > 0) problems.push(`非法动作 ${d.illegal} 次`);
   if (d.loops > 0) problems.push(`状态回环 ${d.loops} 次`);
   if (d.stalled > 0) problems.push(`卡死 ${d.stalled} 次`);
+  // 选项文案重复（相同文案 + 不同后果）→ 端侧无法区分（2026-11-11「使用【杀】」事故的门禁化）。
+  if (d.label_dups > 0) problems.push(`选项文案重复 ${d.label_dups} 次`);
   if (kinds.length < MIN_KINDS) {
     problems.push(`pending 覆盖 ${kinds.length} 种（要求 ≥ ${MIN_KINDS}）：${kinds.join(",")}`);
   }
@@ -137,6 +140,7 @@ const elapsed = ((Date.now() - started) / 1000).toFixed(1);
 console.log(
   `[sgs2-ai] seeds=${seeds.join(",")} · ${d.games} 局 / 终局 ${d.finished} / illegal ${d.illegal} / ` +
     `loops ${d.loops} / stalled ${d.stalled} / long ${d.long} / maxRound ${d.max_round} / ` +
+    `labelDups ${d.label_dups} / ` +
     `步数 ${d.steps} / kinds ${kinds.length} / ` +
     `胜方 ${JSON.stringify(d.winners)} / ${elapsed}s`,
 );

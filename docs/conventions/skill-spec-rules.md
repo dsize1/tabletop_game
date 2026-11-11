@@ -338,3 +338,38 @@
 
 **适用对象（已排期）**：M8 计数器 `Scope` 注册表（`Action/Phase/Turn/Round/Game`）、
 M9 pending 身份（window id）——都按本模板落地（枚举 + 表 + 覆盖测试 + 导出可见性）。
+
+## 25. 交互三不变量（2026-11-11 真机事故后固化）
+
+2026-11-11 真机（room 70c91b27 / 五项反馈）暴露出三类**同一症状**的缺陷：端侧「点不了 / 看不懂 / 卡住」。
+根因都不在 UI，而在引擎侧产出的待办（pending）与合法动作（legal actions）：
+
+### 25.1 强制步骤不得使用普通出口
+
+- 规则上「必须做」的步骤（展示手牌、选牌、弃至上限、取五谷牌）必须用 `escape_mandatory`
+  （出口只作类型占位，端侧不展示，提交出口 = 自动选第一个实质选项）；
+- 只有规则明确**可以选择不做**的步骤才用 `escape`（濒死救援、无懈、火攻弃牌、借刀交武器、响应闪）；
+- 事故：火攻「展示手牌」用了 `escape("放弃展示（火攻无效）")`（v2 M1 移植引入，v1 无此问题）
+  → 目标可以取消整张火攻；拆/顺「取消（不选牌）」、五谷「放弃（不取）」同类。
+- 门禁：`check:sgs2-conventions` C5（`跳过/不弃置` 类文案）+ 代码评审；用例
+  `cards::huogong_reveal_is_mandatory`、`cards::dismantle_pending_carries_data_and_is_mandatory`、
+  `cards::harvest_pick_is_mandatory`。
+
+### 25.2 选项文案必须能区分「后果」
+
+- 同一张牌对不同目标 = N 个选项，文案必须带目标（`使用【杀】 → 张飞`）；同一技能的多分支同理；
+- 允许「同面牌」的重复文案（两张一模一样的红桃2闪，效果等价）；
+- 禁止「同一个文案对应不同动作 id / 不同后果」（如燕语曾同时给 `done` 与 `pass` 两个「结束重铸」）；
+- 门禁：`sgs2-selfplay` 每步校验（相同文案 + 不同动作签名 → `label_dups`），
+  `check:sgs2-ai` 在 strict 下**红灯**。2026-11-11 全 12 seed × 120 局实测 `labelDups 0`。
+
+### 25.3 `pending.data` 必须覆盖端侧读取的字段
+
+- 端侧（Web 浮层/个人区）通过 `pending.data` 读取上下文：五谷 `pool`、无懈 `root/layers`、
+  濒死 `victim/hp`、拼点 `target`、火攻 `target/stage`、拆顺 `card/target`、借刀 `step`；
+- 引擎侧**凡是端侧要读的字段都必须写进 `pending.data`**（帧数据不会被投影到视图！）；
+- 兼容：`view::special_zones` 对五谷做「选项反推」兜底（旧存档 `pending.data` 为 null 时不至于卡死）；
+- 用例：`cards::harvest_pending_carries_pool_for_view`（含 data=null 的旧存档兜底）、
+  `cards::wuzhong_negated_by_wuxie`（无懈 root/layers）、`b5::dying_pending_carries_victim_and_hp`、
+  `b14::zhiba_other_wu_may_challenge_and_lord_gains_when_challenger_loses`（拼点 target）、
+  `cards::huogong_reveal_is_mandatory`（火攻 target/stage）。

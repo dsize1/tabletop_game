@@ -238,8 +238,9 @@ fn yanyu(g: &mut Game, a: &Ask) -> Result<Step, String> {
                     format!("燕语：重铸【{}】（摸一张）", label(g, id)),
                 );
             }
-            b = b.option("done", "结束重铸");
-            Ok(Step::Need(b.escape("结束重铸").build()))
+            // 出口即「结束重铸」（`escape_with` 让出口就是 done 本身）：
+            // 之前同时给 `done` 选项和 `pass` 出口、文案还都一样 → 端侧两个一模一样的按钮。
+            Ok(Step::Need(b.escape_with("done", "结束重铸").build()))
         }
         Some("done") | Some("pass") => Ok(Step::Done),
         Some(act) => {
@@ -263,8 +264,10 @@ fn yanyu(g: &mut Game, a: &Ask) -> Result<Step, String> {
                     format!("燕语：重铸【{}】（摸一张）", label(g, &c)),
                 );
             }
-            b = b.option("done", "结束重铸");
-            Ok(Step::NeedAt(Stage::Choose, b.escape("结束重铸").build()))
+            Ok(Step::NeedAt(
+                Stage::Choose,
+                b.escape_with("done", "结束重铸").build(),
+            ))
         }
     }
 }

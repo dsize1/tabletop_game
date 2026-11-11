@@ -82,6 +82,16 @@ fn ask_card(g: &mut Game, actor: usize, stage: Stage, data: serde_json::Value) -
     for (id, label) in skills::pindian_options(g, actor) {
         b = b.option(id, label);
     }
+    // 视图（web 拼点浮层）读 `pending.data.target`（对方 player_id）——在移走 `data` 前取好。
+    let initiator = data["initiator"].as_u64().unwrap_or(0) as usize;
+    let target = data["target"].as_u64().unwrap_or(0) as usize;
+    let other = if actor == initiator { target } else { initiator };
+    let other_name = g.seats.get(other).map(|s| s.name.clone()).unwrap_or_default();
+    let initiator_name = g
+        .seats
+        .get(initiator)
+        .map(|s| s.name.clone())
+        .unwrap_or_default();
     match g.stack.last_mut() {
         Some(Frame::Flow(f)) => {
             f.stage = stage;
@@ -89,7 +99,15 @@ fn ask_card(g: &mut Game, actor: usize, stage: Stage, data: serde_json::Value) -
         }
         _ => return Err("拼点：当前结算帧不可保存进度".into()),
     }
-    Ok(Step::Need(b.escape("取消拼点（视为未赢）").build()))
+    Ok(Step::Need(
+        b.data(json!({
+            "target": other_name,
+            "initiator": initiator_name,
+            "stage": if actor == initiator { "init" } else { "resp" },
+        }))
+        .escape("取消拼点（视为未赢）")
+        .build(),
+    ))
 }
 
 /// 酣战：随机取一张手牌（不询问）。

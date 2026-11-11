@@ -323,6 +323,15 @@ pub fn legal_uses(g: &Game, seat: usize) -> Vec<(String, String)> {
     out
 }
 
+/// 展示用牌名（视图 `pending.data.card`）：帧数据 → 实体牌 → 兜底「牌」。
+fn pending_card_name(g: &Game, data: &Value, card: Option<&CardId>) -> String {
+    data["name"]
+        .as_str()
+        .map(str::to_string)
+        .or_else(|| card.map(|c| g.name_of(c)))
+        .unwrap_or_else(|| "牌".to_string())
+}
+
 /// 选项标签里的目标后缀：` → 张飞、机器人4`（无目标时为空串）。
 ///
 /// 为什么必须带目标：端侧（Web 浮层 `选择目标 / 用法`、QQ 清单）直接用 `description` 渲染按钮，
@@ -1832,7 +1841,14 @@ fn pick_card(
         g,
         Stage::CardPick,
         data.clone(),
-        b.escape("取消（不选牌）").build(),
+        b.data(json!({
+            "card": pending_card_name(g, data, card),
+            "target": g.seats[target].name,
+            "stage": "single",
+        }))
+        // 拆/顺**必须**选一张（不能取消整张牌）：出口只作类型占位，端侧不展示。
+        .escape_mandatory("必须选择一张牌")
+        .build(),
     )
 }
 
@@ -1914,7 +1930,8 @@ fn harvest(
             Stage::CardOpt,
             data.clone(),
             b.data(json!({ "pool": pool, "pickers": pickers, "cursor": cursor }))
-                .escape("放弃（不取）")
+                // 规则：每名目标角色**依次获得其中一张**（不能拒绝）→ 出口只作类型占位。
+                .escape_mandatory("必须取一张")
                 .build(),
         );
     }
@@ -1997,7 +2014,13 @@ fn fire_attack(
             g,
             Stage::CardOpt,
             data.clone(),
-            b.escape_mandatory("必须展示一张手牌").build(),
+            b.data(json!({
+                "card": pending_card_name(g, data, card),
+                "target": g.seats[target].name,
+                "stage": "reveal",
+            }))
+            .escape_mandatory("必须展示一张手牌")
+            .build(),
         );
     }
 
@@ -2072,7 +2095,13 @@ fn fire_attack(
         g,
         Stage::CardOpt,
         data.clone(),
-        b.escape("不弃置（火攻无效）").build(),
+        b.data(json!({
+            "card": pending_card_name(g, data, card),
+            "target": g.seats[target].name,
+            "stage": "discard",
+        }))
+        .escape("不弃置（火攻无效）")
+        .build(),
     )
 }
 
@@ -2164,7 +2193,13 @@ fn collateral(
         g,
         Stage::CardOpt,
         data.clone(),
-        p.escape("不打出【杀】（交出武器）").build(),
+        p.data(json!({
+            "step": "sha",
+            "target": g.seats[b].name,
+            "card": pending_card_name(g, data, card),
+        }))
+        .escape("不打出【杀】（交出武器）")
+        .build(),
     )
 }
 

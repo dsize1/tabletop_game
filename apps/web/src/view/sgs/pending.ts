@@ -119,23 +119,40 @@ export function renderPickCardOverlay(
   ];
   const cardName = typeof p.data?.card === "string" ? p.data.card : "";
   const target = typeof p.data?.target === "string" ? p.data.target : null;
-  const sections = groups
-    .map((g) => {
-      const btns = p.options
-        .filter((o) => g.filter(o.id))
-        .map(
-          (o) =>
-            `<button type="button" class="btn small" data-action="${escapeHtml(o.id)}">` +
-            `${escapeHtml(o.label)}</button>`,
-        )
-        .join("");
-      return btns ? `<div class="sgs-zone-group"><h3>${g.title}</h3><div class="sgs-zone-actions">${btns}</div></div>` : "";
-    })
+  const used = new Set<string>();
+  const buttonsHtml = (list: Array<{ id: string; label: string }>) =>
+    list
+      .map(
+        (o) =>
+          `<button type="button" class="btn small" data-action="${escapeHtml(o.id)}">` +
+          `${escapeHtml(o.label)}</button>`,
+      )
+      .join("");
+  const groupHtml = (title: string, list: Array<{ id: string; label: string }>) => {
+    if (list.length === 0) return "";
+    for (const o of list) used.add(o.id);
+    return (
+      `<div class="sgs-zone-group"><h3>${title}</h3>` +
+      `<div class="sgs-zone-actions">${buttonsHtml(list)}</div></div>`
+    );
+  };
+  let sections = groups
+    .map((g) => groupHtml(g.title, p.options.filter((o) => g.filter(o.id))))
     .join("");
+  // v2 的装备/判定区选项是 `pick:<实体牌 id>`（无分组前缀）→ 归到「可选牌」，
+  // 绝不能丢（否则玩家只能随机摸手牌、无法弃装备；2026-11-11 同五谷的「选项消失」类缺陷）。
+  const rest = p.options.filter((o) => !used.has(o.id) && o.id !== "pass" && o.id !== "cancel");
+  sections += groupHtml("可选牌", rest);
+  const escaped = p.options.filter((o) => o.id === "pass" || o.id === "cancel");
+  const body = sections || `<div class="sgs-zone-actions">${optionButtons(p)}</div>`;
+  const tail = escaped.length
+    ? `<div class="sgs-zone-actions">${buttonsHtml(escaped)}</div>`
+    : "";
   return (
     `<p class="muted">目标：${escapeHtml(seatLabel(board, target, names))}` +
     `${cardName ? ` · 牌：${escapeHtml(cardName)}` : ""}</p>` +
-    (sections || `<p class="muted">目标没有可选牌，将直接结算。</p>`)
+    body +
+    tail
   );
 }
 
