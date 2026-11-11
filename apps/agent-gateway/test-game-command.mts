@@ -8,6 +8,8 @@ import {
   formatActionList,
   GAME_ACTION_HINT,
   GAME_ACTION_CHOICE_LIMIT,
+  gameCommandHint,
+  ADD_BOT_MAX,
 } from "./src/game-command.js";
 
 // —— 命令解析（显式前缀） ——
@@ -33,6 +35,10 @@ assert.deepEqual(parseGameCommand("  #加入  "), { cmd: "join" });
 assert.deepEqual(parseGameCommand("#加机器人"), { cmd: "addbot", n: 1 });
 assert.deepEqual(parseGameCommand("#加机器人 2"), { cmd: "addbot", n: 2 });
 assert.deepEqual(parseGameCommand("#机器人 3"), { cmd: "addbot", n: 3 });
+// 三国杀 8 人局：房主 + 7 机器人（旧上限 5 导致「#加机器人 7」落进闲聊，2026-11-11 线上反馈）
+assert.equal(ADD_BOT_MAX, 7);
+assert.deepEqual(parseGameCommand("#加机器人 7"), { cmd: "addbot", n: 7 });
+assert.equal(parseGameCommand("#加机器人 8"), null);
 assert.deepEqual(parseGameCommand("#单人"), { cmd: "solo", n: 3 });
 assert.deepEqual(parseGameCommand("#单人 2"), { cmd: "solo", n: 2 });
 // 单人开局直接指定小游戏（调试用）
@@ -106,3 +112,13 @@ assert.ok(list.includes("#放 3"), list);
 assert.equal(GAME_ACTION_CHOICE_LIMIT, 26);
 
 console.log("✅ test-game-command 通过");
+
+// —— 已知命令 + 非法参数：确定性提示（不落闲聊） ——
+assert.equal(gameCommandHint("#加机器人 2"), null, "合法命令不提示");
+assert.equal(gameCommandHint("随便聊聊"), null, "非命令不提示");
+assert.match(gameCommandHint("#加机器人 8") ?? "", /最多加 7 个/);
+assert.match(gameCommandHint("#放 9") ?? "", /1~6/);
+assert.match(gameCommandHint("#小游戏 9") ?? "", /3~6/);
+assert.match(gameCommandHint("#单人 9") ?? "", /1~5/);
+assert.match(gameCommandHint("#选") ?? "", /编号或加密选项代码/);
+console.log("[game-command] 提示用例通过（#加机器人 7 生效 / 越界给明确提示）");

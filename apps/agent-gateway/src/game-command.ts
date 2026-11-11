@@ -67,6 +67,41 @@ const COMMAND_WORDS: Record<string, GameCommand["cmd"]> = {
   牌面: "board",
 };
 
+/** `#加机器人 N` 的上限（三国杀 8 人局 = 房主 + 7 机器人）。 */
+export const ADD_BOT_MAX = 7;
+
+/**
+ * 「看起来是游戏命令、但参数不合法」时的确定性提示。
+ *
+ * 背景（2026-11-11 线上反馈「加机器人 Q 群失效」）：群里发「#加机器人 7」→ 旧上限 5 →
+ * `parseGameCommand` 返回 null → 落到 LLM 闲聊（回复「我没太看懂」）。
+ * 已知命令的非法参数必须由规则层给出明确提示，不能落进闲聊模型。
+ *
+ * 返回 `null` = 不是已知命令 / 参数合法（无需提示）。
+ */
+export function gameCommandHint(content: string): string | null {
+  const trimmed = content.trim();
+  const m = trimmed.match(/^#([^\s0-9]+)(?:[\s０-９]*(.*))?$/);
+  if (!m) return null;
+  const cmd = COMMAND_WORDS[m[1]];
+  if (!cmd) return null;
+  if (parseGameCommand(trimmed)) return null;
+  switch (cmd) {
+    case "addbot":
+      return `「${trimmed}」超出范围：一次最多加 ${ADD_BOT_MAX} 个机器人（三国杀 8 人局）。例：「#加机器人 4」。`;
+    case "smallgames":
+      return "小游戏数量要 3~6：「#小游戏 4」。";
+    case "place":
+      return "下注点数要 1~6：「#放 3」。";
+    case "solo":
+      return "单人局机器人数要 1~5，可附小游戏列表：「#单人 3 H1,G1,F1」。";
+    case "pick":
+      return "「#选」需要一个编号或加密选项代码：「#选 2」。";
+    default:
+      return null;
+  }
+}
+
 /**
  * 解析显式游戏命令；非命令返回 null（交回决策模型）。
  * 支持三种写法：`#命令 参数`（空格分隔）、`#命令<数字>`（如 `#放3`）、`#命令`（无参）。
@@ -109,8 +144,9 @@ export function parseGameCommand(content: string): GameCommand | null {
       return Number.isInteger(n) && n >= 1 && n <= 6 ? { cmd, point: n } : null;
     }
     case "addbot": {
+      // 上限 7：三国杀 8 人局（1 人 + 7 机器人）；拉斯维加斯 6 人、引擎侧会按房间容量再拒。
       const n = arg ? Number(arg) : 1;
-      return Number.isInteger(n) && n >= 1 && n <= 5 ? { cmd, n } : null;
+      return Number.isInteger(n) && n >= 1 && n <= ADD_BOT_MAX ? { cmd, n } : null;
     }
     case "solo": {
       // #单人 [机器人数] [小游戏列表]（如 #单人 3 H1,G1,F1 / #单人 H1,G1,F1）

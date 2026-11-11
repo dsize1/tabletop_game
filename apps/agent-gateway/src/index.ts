@@ -63,6 +63,7 @@ import {
 } from "./dev-command.js";
 import {
   parseGameCommand,
+  gameCommandHint,
   gameActionId,
   lobbyPrompt,
   formatActionList,
@@ -2078,6 +2079,17 @@ async function handle(
       `[agent-gateway] intent=game via=prefix cmd=${gameCmd.cmd} model=- cid=${event.message_id} ← ${event.content}`,
     );
     await handleGameCommand(redis, engine, event, gameCmd);
+    return;
+  }
+  // 1.6) 已知命令但参数不合法：确定性提示（**不得**落入闲聊模型）
+  //      线上案例：「#加机器人 7」曾被当成闲聊，回复「我没太看懂」。
+  const gameHint = gameCommandHint(event.content);
+  if (gameHint) {
+    await clearPending(redis, event.group_id, event.sender_id);
+    console.log(
+      `[agent-gateway] intent=game-hint via=prefix model=- cid=${event.message_id} ← ${event.content}`,
+    );
+    await pushReply(redis, event, gameHint);
     return;
   }
 
