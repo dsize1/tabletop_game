@@ -50,6 +50,14 @@ pub fn tick(g: &mut Game) -> Result<(), String> {
         if g.pending.is_some() || !g.stack.is_empty() {
             return Ok(());
         }
+        if let Some((seat, phase)) = g.retry_phase.take() {
+            resolve::enter_phase(g, seat, phase, true)?;
+            continue;
+        }
+        if g.switch_to.is_some() {
+            resolve::advance(g)?;
+            return Ok(());
+        }
         check_finished(g);
         if g.finished {
             return Ok(());

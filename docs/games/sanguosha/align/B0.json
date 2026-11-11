@@ -47,7 +47,8 @@
               "lean": "A",
               "why": "现实现为置位；且「翻面」在多数结算里是取反，此处需你统一口径",
               "impact": "影响与放逐/解围②的联动顺序与翻面类触发",
-              "answer": "B"
+              "answer": "B",
+              "legacy": true
             },
             {
               "id": "Q2",
@@ -59,7 +60,8 @@
               "lean": "A",
               "why": "原文「你改为使用之」读作强制",
               "impact": "影响弃置类触发（如需要弃牌数）",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -127,7 +129,8 @@
               "lean": "A",
               "why": "三国杀通用规则禁止同名延时锦囊在判定区叠加",
               "impact": "影响判定区可叠加性与后续判定顺序",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q2",
@@ -139,7 +142,8 @@
               "lean": "A",
               "why": "原文是「当你从背面翻至正面时」，未限定翻面来源",
               "impact": "与放逐的交互顺序",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -213,7 +217,8 @@
               "lean": "A",
               "why": "原文「移去此牌」通常按置入弃牌堆处理",
               "impact": "影响弃置/失去牌类技能是否触发",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q2",
@@ -225,7 +230,8 @@
               "lean": "A",
               "why": "原文为「你的手牌上限为创的数量」",
               "impact": "影响弃牌阶段弃牌数",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -292,7 +298,8 @@
               "lean": "A",
               "why": "A 可实现为动作差分，覆盖稳；B 语义更贴字面但要枚举来源",
               "impact": "直接决定触发频率与 AI 估值；影响 148 将里所有「弃置/获得」类交互",
-              "answer": "A（仅排除摸牌阶段摸牌；其他来源摸牌计入）"
+              "answer": "A（仅排除摸牌阶段摸牌；其他来源摸牌计入）",
+              "legacy": true
             },
             {
               "id": "Q2",
@@ -304,7 +311,8 @@
               "lean": "A",
               "why": "现实现如此，且与「每名角色只能发动一次」的常见裁定一致",
               "impact": "多人局（如双奋激）的结算差异",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q3",
@@ -316,7 +324,8 @@
               "lean": "A",
               "why": "原文无禁止，失去体力可致死",
               "impact": "濒死链与 AI 风险偏好",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -389,7 +398,8 @@
               "lean": "A",
               "why": "原文「所有牌」，且判定区牌归属该角色",
               "impact": "影响延时锦囊归属与弃牌堆数量",
-              "answer": "B"
+              "answer": "B",
+              "legacy": true
             },
             {
               "id": "Q2",
@@ -402,7 +412,8 @@
               "lean": "A",
               "why": "统一顺序表可验证",
               "impact": "死亡链结算稳定性",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -467,7 +478,8 @@
               "lean": "B",
               "why": "原文无上限；上限 5 无出处（疑似历史遗留）",
               "impact": "体力上限被提高的场景（觉醒/加体力上限）会差 1–N 张",
-              "answer": "B"
+              "answer": "B",
+              "legacy": true
             },
             {
               "id": "Q2",
@@ -479,7 +491,8 @@
               "lean": "A",
               "why": "原文语序「翻面，并令其摸X张牌」",
               "impact": "与解围②/设变等翻面钩子的插入顺序",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -542,7 +555,8 @@
               "lean": "A",
               "why": "原文明确「可以」，且这是可选收益（可能不想让主公摸牌）",
               "impact": "多一次交互；AI/群侧交互量",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q2",
@@ -554,7 +568,8 @@
               "lean": "A",
               "why": "「生效」与「牌的去向」是两件事",
               "impact": "与天妒/鬼才的交互",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             }
           ],
           "mechanics": [

@@ -430,3 +430,37 @@ fn hongju_awaken_requires_equal_count_swap() {
         "选中的手牌应成为新的「荣」（移出游戏）"
     );
 }
+
+#[test]
+fn zuilun_phase_end_settles_before_turn_switch() {
+    // M12=B：结束阶段技能在**当回合**结算（读 turn.* 计数），结算完再切 turn。
+    let mut g = game(&[
+        ("p0", "zhugzhan", &["zuilun"]),
+        ("p1", "other", &[]),
+    ]);
+    begin_phase(&mut g, 0, Phase::Play).unwrap();
+    sanguosha2::kernel::flow::damage(&mut g, Some(0), 1, 1);
+    g.to_hand(&"c19".to_string(), 0).unwrap();
+    g.to_hand(&"c20".to_string(), 0).unwrap();
+    // 进入自己的结束阶段（只切阶段，不换人）。
+    begin_phase(&mut g, 0, Phase::End).unwrap();
+    // 切人：PhaseEnd(End) 先结算 → 罪论在当前回合 End 询问。
+    begin_phase(&mut g, 1, Phase::Prepare).unwrap();
+    assert_eq!(pend(&g).skill(), Some("zuilun"));
+    assert_eq!(g.phase, Phase::End, "结束阶段技能应在当前回合的 End 阶段结算");
+    assert_eq!(g.turn, 0, "结算前不得切换回合");
+    assert!(
+        g.counter("turn.damage_by:0") > 0,
+        "结算时本回合计数仍有效（未被提前清空）"
+    );
+    for _ in 0..4 {
+        if g.pending.as_ref().and_then(|p| p.skill()) != Some("zuilun") {
+            break;
+        }
+        let opt = pend(&g).options()[0].id.clone();
+        answer(&mut g, 0, &opt);
+    }
+    assert!(g.pending.is_none());
+    assert_eq!(g.turn, 1, "结算完才切换到下一名角色");
+    assert_eq!(g.counter("turn.damage_by:0"), 0, "切 turn 后本回合计数清空");
+}

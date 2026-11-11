@@ -43,7 +43,8 @@
               "lean": "A",
               "why": "原文「与当前回合角色各摸一张」隐含两个不同角色；含自己会产生「自己与自己各摸」的歧义。",
               "impact": "触发窗口 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q2",
@@ -55,7 +56,8 @@
               "lean": "A",
               "why": "原文「然后若…此技能本轮失效」= 紧跟摸牌结算之后。",
               "impact": "标记时机 + 用例。",
-              "answer": "A**"
+              "answer": "A**",
+              "legacy": true
             },
             {
               "id": "Q3",
@@ -67,7 +69,8 @@
               "lean": "A",
               "why": "《三国杀》「本轮」= 从当前回合角色起所有角色各行动一次。",
               "impact": "失效标记键 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -130,7 +133,8 @@
               "lean": "A",
               "why": "原文是「失去过」，mechanics `lose-vs-discard`：使用/弃置/被获得都属于失去。",
               "impact": "计数来源 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q2",
@@ -142,7 +146,8 @@
               "lean": "A",
               "why": "原文「你可以重铸【杀】」未写限一次；重铸本身即消耗该牌。",
               "impact": "主动技入口 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q3",
@@ -154,7 +159,8 @@
               "lean": "A",
               "why": "原文「一名男性角色」未排除自己。",
               "impact": "候选集合 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q4",
@@ -166,7 +172,8 @@
               "lean": "A",
               "why": "原文明确「出牌阶段结束时」。",
               "impact": "触发窗口 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -236,7 +243,8 @@
               "lean": "A",
               "why": "原文「观看…并展示其中一张」把选择权交给张松。",
               "impact": "私密展示 + 选牌交互 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q2",
@@ -248,7 +256,8 @@
               "lean": "A",
               "why": "原文「可摸一张牌」。",
               "impact": "询问 + AI + 用例。",
-              "answer": "A**"
+              "answer": "A**",
+              "legacy": true
             },
             {
               "id": "Q3",
@@ -260,7 +269,8 @@
               "lean": "A",
               "why": "mechanics `reveal`：「展示」即立即公共可见。",
               "impact": "视图投影 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q4",
@@ -272,7 +282,8 @@
               "lean": "A",
               "why": "与精策同口径（类型 = 基本/锦囊/装备）。",
               "impact": "同类判定 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -337,7 +348,8 @@
               "lean": "A",
               "why": "原文「至多两张」是可选数量，且交给张数与之等量。",
               "impact": "选数量交互 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q2",
@@ -349,7 +361,8 @@
               "lean": "A",
               "why": "原文「交给其等量牌」应由交出者选择。",
               "impact": "选牌交互 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q3",
@@ -361,7 +374,8 @@
               "lean": "A",
               "why": "原文「造成伤害小于…牌数」，《三国杀》「造成伤害」按点数比较。",
               "impact": "计数 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q4",
@@ -373,7 +387,8 @@
               "lean": "A",
               "why": "严格按「小于」比较。",
               "impact": "边界用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q5",
@@ -385,7 +400,8 @@
               "lean": "A",
               "why": "原文以「其他角色出牌阶段开始时」为触发点，未写每轮限制。",
               "impact": "触发计数键 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -457,7 +473,8 @@
               "lean": "A",
               "why": "原文「你可以弃置一名角色 X 张牌」应给发动者选择；mechanics `discard-contract`。",
               "impact": "选牌交互 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q2",
@@ -469,7 +486,8 @@
               "lean": "A",
               "why": "弃置自己的牌应由自己选择。",
               "impact": "选牌交互 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q3",
@@ -481,7 +499,8 @@
               "lean": "A",
               "why": "「弃置 X 张牌」中的牌含装备区（discard-contract），X 本身按手牌数算。",
               "impact": "X 计算与边界 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q4",
@@ -493,7 +512,8 @@
               "lean": "A",
               "why": "镇军在自己的准备阶段发动，原文「结束阶段」指本回合结束阶段。",
               "impact": "延迟结算键 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q5",
@@ -505,7 +525,8 @@
               "lean": "A",
               "why": "原文「一名角色」未排除自己；X 至少为 1 保证可发动。",
               "impact": "候选集合 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -570,7 +591,8 @@
               "lean": "A",
               "why": "原文「大于等于」。",
               "impact": "条件判定 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q2",
@@ -582,7 +604,8 @@
               "lean": "A",
               "why": "「无效」= 对该目标不结算，不是把牌吞掉；mechanics `sha-intercept` 有 `Immune` 通道。",
               "impact": "内核介入通道 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q3",
@@ -594,7 +617,8 @@
               "lean": "A",
               "why": "【杀】的响应只有【闪】；与「不能被响应」（unresponsive）不是同一事实。",
               "impact": "响应窗口 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q4",
@@ -606,7 +630,8 @@
               "lean": "A",
               "why": "mechanics `card-attributes`：颜色读实体牌花色。",
               "impact": "颜色入口 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -676,7 +701,8 @@
               "lean": "A",
               "why": "「获得一张牌」应给发动者选择；mechanics `discard-contract`/`card-gained`。",
               "impact": "选牌交互 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q2",
@@ -688,7 +714,8 @@
               "lean": "A",
               "why": "原文「两名角色」+界版语义（安恤他人）；含自己会与「手牌较少者」冲突。",
               "impact": "候选集合 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q3",
@@ -700,7 +727,8 @@
               "lean": "A",
               "why": "「然后」表示获得之后再比较。",
               "impact": "比较时点 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q4",
@@ -712,7 +740,8 @@
               "lean": "A",
               "why": "原文「然后你展示一张牌并交给其中手牌较少的角色」——「其中」指两名角色之间，展示牌应是刚获得的牌。",
               "impact": "选牌 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q5",
@@ -724,7 +753,8 @@
               "lean": "A",
               "why": "展示的是交出的那张；花色读取统一入口（红颜等覆盖同样生效）。",
               "impact": "花色入口 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -789,7 +819,8 @@
               "lean": "A",
               "why": "原文「对其」指首次选定的角色。",
               "impact": "状态记忆 + 死亡钩子 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q2",
@@ -801,7 +832,8 @@
               "lean": "A",
               "why": "原文「再次发动本技能」明确给了第二段，若受同一限制则该句无意义。",
               "impact": "flags/计数 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q3",
@@ -813,7 +845,8 @@
               "lean": "A",
               "why": "「你死亡时」即死亡事件发生时；mechanics `dying-resolution` 之外需要死亡钩子。",
               "impact": "死亡钩子入口 + 用例。",
-              "answer": "A 此类技能称之为亡语，使用统一钩子，在濒死后死亡的角色在离开游戏前执行该技能"
+              "answer": "A 此类技能称之为亡语，使用统一钩子，在濒死后死亡的角色在离开游戏前执行该技能",
+              "legacy": true
             },
             {
               "id": "Q4",
@@ -825,7 +858,8 @@
               "lean": "A",
               "why": "原文仅写「对其」，未排除；v1 的 killer 过滤来自标准版文本。",
               "impact": "候选集合 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q5",
@@ -837,7 +871,8 @@
               "lean": "A",
               "why": "统一回复入口口径。",
               "impact": "回血入口 + 用例。",
-              "answer": "A 仅摸牌"
+              "answer": "A 仅摸牌",
+              "legacy": true
             }
           ],
           "mechanics": [

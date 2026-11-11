@@ -131,3 +131,10 @@ node apps/scripts/sgs-align-sheet.mjs --batch B7 --check
 | W4 | 荐言/思蜀等授予技的技能详情文案 | B13 | ⏳ 移到 **S6**（`skills.md` 的事实源仍是 v1 `skills.rs`，随门禁去 v1 一起改，避免两处漂移） | `check:sgs-skill-docs` 数据源切 v2 后补 §4.1 |
 | W5 | **v2 pending 新 kinds 的专用浮层** | S4 | ✅ **S4-b**：`pindian` / `fire_attack` / `collateral` / `qinwang_sha` 专用浮层 + `overlayKindFor` 映射；`discard_phase` 走通用按钮（附文案） | — |
 | W6 | **五谷/观星细节** | S4 | ✅ **S4-b**：五谷复用 v1 `wugu` 浮层；观星面板显示私密牌 + 「第 N/M 张」进度 + 当前牌高亮（逐张顶/底按钮）。v1 拖拽 arrange 网格不适用于 v2 语义（保留 v1 兼容代码） | — |
+
+
+## 裁定 ↔ 用例锚点（2026-11-11）
+
+- 每个 `questions[].answer`（已裁定）应带 `"test": "<用例函数名>"`，由 `check:sgs-align` 校验该函数存在；
+- 历史 775 条裁定已批量标 `"legacy": true`（显式欠账，非沉默），计入 `check:sgs-align` 输出的「legacy N 条待回填」；
+- **新裁定**不得再标 legacy：必须写 `test`，否则门禁失败（防「裁定了但没人守」，奋激 A/B 漂移即此类）。

@@ -43,7 +43,8 @@
               "lean": "A",
               "why": "原文把「选择一项」交给目标，选项内的牌也应由目标决定。",
               "impact": "交互（单选+多选）+ 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q2",
@@ -55,7 +56,8 @@
               "lean": "A",
               "why": "原文只说「锦囊牌」；灭计本身就可以把延时锦囊置于牌堆顶。",
               "impact": "候选集合 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -120,7 +122,8 @@
               "lean": "A",
               "why": "原文明确「你可以选择一名其他角色开始」。",
               "impact": "交互（选起点）+ 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q2",
@@ -132,7 +135,8 @@
               "lean": "A",
               "why": "「任意张」是多选而非固定值；mechanics discard-contract 里弃置含装备区。",
               "impact": "多选交互 + 计数 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -195,7 +199,8 @@
               "lean": "A",
               "why": "原文「你可以」，且目标选择需要人/AI 决策。",
               "impact": "询问与 AI 决策。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -264,7 +269,8 @@
               "lean": "A",
               "why": "原文「你可以摸 X 张牌」。",
               "impact": "询问 + AI 决策 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q2",
@@ -276,7 +282,8 @@
               "lean": "A",
               "why": "原文「你每于回合内使用一种花色的手牌」。",
               "impact": "计数口径 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q3",
@@ -288,7 +295,8 @@
               "lean": "A",
               "why": "《三国杀》「类型」按基本牌/锦囊牌/装备牌三分（v1 同口径）。",
               "impact": "X 计算 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -358,7 +366,8 @@
               "lean": "A",
               "why": "原文「你获得其拼点牌」，「其」= 对方。",
               "impact": "获得事件 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q2",
@@ -370,7 +379,8 @@
               "lean": "A",
               "why": "「视为使用一张【杀】」走正常【杀】结算，才能与响应/防具/父魂等交互。",
               "impact": "use_virtual + 响应窗口 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q3",
@@ -382,7 +392,8 @@
               "lean": "A",
               "why": "原文是「不能对除其以外的角色使用牌」，按目标属性判定（mechanics target-list）。",
               "impact": "统一入口拦截 + 用例。",
-              "answer": "C 所有「对其他角色使用」的牌（含锦囊/【杀】）；技能视为使用不被封锁；对自己使用不受限"
+              "answer": "C 所有「对其他角色使用」的牌（含锦囊/【杀】）；技能视为使用不被封锁；对自己使用不受限",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -449,7 +460,8 @@
               "lean": "A",
               "why": "mechanics card-attributes：类型 = 基本/锦囊/装备；「不同牌名」= 不是同一张牌名。",
               "impact": "候选集合 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q2",
@@ -462,7 +474,8 @@
               "lean": "A",
               "why": "「交给你一张…牌」应给出牌者选择；原文未含装备区。",
               "impact": "交互 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q3",
@@ -475,7 +488,8 @@
               "lean": "A",
               "why": "原文含伤害锦囊；群体锦囊本来就指定全体，追加无意义。",
               "impact": "内核时序（追加目标）+ 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -547,7 +561,8 @@
               "lean": "A",
               "why": "原文与「若弃置的牌为装备牌」分支都指向装备区可用；mechanics discard-contract。",
               "impact": "选牌交互 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q2",
@@ -559,7 +574,8 @@
               "lean": "A",
               "why": "原文是「攻击范围」而非「使用牌无距离」。",
               "impact": "距离入口 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q3",
@@ -571,7 +587,8 @@
               "lean": "A",
               "why": "原文限定「与弃置的牌花色相同」。",
               "impact": "sha_limit 入口 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q4",
@@ -583,7 +600,8 @@
               "lean": "A",
               "why": "「弃置一张牌」应给发动者选择；判定区离开不算弃置（discard-contract）。",
               "impact": "交互 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -648,7 +666,8 @@
               "lean": "A",
               "why": "原文「令所有…角色选择一项」。",
               "impact": "逐个询问 + AI + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q2",
@@ -661,7 +680,8 @@
               "lean": "A",
               "why": "原文未限定区域；mechanics discard-contract 弃置含手牌/装备区。",
               "impact": "候选集合 + 用例。",
-              "answer": "A 如果手牌和装备区都没有武器不能选1"
+              "answer": "A 如果手牌和装备区都没有武器不能选1",
+              "legacy": true
             },
             {
               "id": "Q3",
@@ -673,7 +693,8 @@
               "lean": "A",
               "why": "原文是「视为未发动过」，重置后可在后续回合再次发动。",
               "impact": "标记清理时机 + 用例。",
-              "answer": "C 限定技的含义是1场游戏只能用一次检查下之前所有批次的限定技是不是都是只能用一次，如果不是呈报并约定修改范围和方案，该问题的口径是第一轮（即所有角色的第一个回合）解烦在回合结束时无论出牌阶段有没有用过，后面的所有回合都可以用（仅一次）"
+              "answer": "C 限定技的含义是1场游戏只能用一次检查下之前所有批次的限定技是不是都是只能用一次，如果不是呈报并约定修改范围和方案，该问题的口径是第一轮（即所有角色的第一个回合）解烦在回合结束时无论出牌阶段有没有用过，后面的所有回合都可以用（仅一次）",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -745,7 +766,8 @@
               "lean": "A",
               "why": "原文该句未限定「以此法使用的」，前一句已单列转化【杀】的响应限制。",
               "impact": "伤害后钩子条件 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q2",
@@ -758,7 +780,8 @@
               "lean": "A",
               "why": "转化牌无固定颜色时按「无色」处理（mechanics card-attributes / virtual-card）。",
               "impact": "响应过滤 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q3",
@@ -770,7 +793,8 @@
               "lean": "A",
               "why": "原文针对「使用【杀】后目标角色的响应」。",
               "impact": "响应窗口过滤 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -888,7 +912,8 @@
               "lean": "A",
               "why": "原文「出牌阶段开始时，你可以展示一张牌」。",
               "impact": "触发窗口 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q2",
@@ -901,7 +926,8 @@
               "lean": "A",
               "why": "「距离为 1 的其他角色」在发动时确定集合，避免中途距离变化反复变化。",
               "impact": "受限集合 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q3",
@@ -913,7 +939,8 @@
               "lean": "A",
               "why": "原文是「本回合不能使用或打出手牌」，是持续状态而非一次快照。",
               "impact": "统一入口（hand-freeze 语义）+ 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q4",
@@ -926,7 +953,8 @@
               "lean": "A",
               "why": "「『潜袭』牌」指被展示的那张牌（v1 无此实现，需新建）。",
               "impact": "伤害加成入口 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -998,7 +1026,8 @@
               "lean": "A",
               "why": "原文限定「基本或普通锦囊牌」，且矫诏是出牌阶段主动使用。",
               "impact": "候选集合（复用 `cards::non_delayed_tricks`）+ 用例。",
-              "answer": "B"
+              "answer": "B",
+              "legacy": true
             },
             {
               "id": "Q2",
@@ -1011,7 +1040,8 @@
               "lean": "A",
               "why": "原文「未有角色使用过」。",
               "impact": "新增每轮用牌名集合（内核状态）+ 用例。",
-              "answer": "C 本轮内使用 + 打出都算"
+              "answer": "C 本轮内使用 + 打出都算",
+              "legacy": true
             },
             {
               "id": "Q3",
@@ -1023,7 +1053,8 @@
               "lean": "A",
               "why": "「将一张牌当…使用」走真实使用结算（mechanics virtual-card / use-vs-play）。",
               "impact": "use_as 入口 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q4",
@@ -1036,7 +1067,8 @@
               "lean": "C",
               "why": "你没有给出修改后的文本；C 不引入未定义行为，后续可再补。",
               "impact": "矫诏 handler 分支 + 用例；影响殚心 X。",
-              "answer": "修改1，每轮限一次（回合外也可以使用），你可将一张牌当【任意】基本或普通锦囊牌使用；修改2，每轮限一次，你可使用（虚拟牌不需要出牌）【任意】基本或普通锦囊牌；另外界面上需要同步修改技能描述，技能名称也要修改 修改1为『矫诏plus』修改2为『矫诏plusplus』"
+              "answer": "修改1，每轮限一次（回合外也可以使用），你可将一张牌当【任意】基本或普通锦囊牌使用；修改2，每轮限一次，你可使用（虚拟牌不需要出牌）【任意】基本或普通锦囊牌；另外界面上需要同步修改技能描述，技能名称也要修改 修改1为『矫诏plus』修改2为『矫诏plusplus』",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -1103,7 +1135,8 @@
               "lean": "A",
               "why": "原文「你可以摸 X 张牌，然后修改…（X 为你修改『矫诏』的次数）」：摸牌在修改之前，故不含本次。",
               "impact": "handler 顺序 + 用例。",
-              "answer": "A 最多修改2次，修改后的矫诏持续到游戏结束，满2次仅摸牌不再修改"
+              "answer": "A 最多修改2次，修改后的矫诏持续到游戏结束，满2次仅摸牌不再修改",
+              "legacy": true
             },
             {
               "id": "Q2",
@@ -1115,7 +1148,8 @@
               "lean": "A",
               "why": "原文未设上限。",
               "impact": "计数 + 与矫诏修改表的分档。",
-              "answer": "B"
+              "answer": "B",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -1186,7 +1220,8 @@
               "lean": "A",
               "why": "《三国杀OL》护甲是「先扣护甲、溢出扣体力」的防护值。",
               "impact": "内核伤害入口（`flow::damage` 前置扣护甲）+ 守恒 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q2",
@@ -1198,7 +1233,8 @@
               "lean": "A",
               "why": "护甲是吸收数值而不是「防止伤害」。",
               "impact": "受伤事件与技能触发 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q3",
@@ -1210,7 +1246,8 @@
               "lean": "A",
               "why": "回归 `flow::heal` 的既有口径（不能超过上限）。",
               "impact": "回血入口 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q4",
@@ -1222,7 +1259,8 @@
               "lean": "A",
               "why": "护甲是可见资源，不展示会让玩家误判体力。",
               "impact": "view 投影 + 契约用例。",
-              "answer": "A 复用标记区 护N"
+              "answer": "A 复用标记区 护N",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -1287,7 +1325,8 @@
               "lean": "A",
               "why": "原文「则你可以摸一张牌」。",
               "impact": "询问 + AI + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q2",
@@ -1299,7 +1338,8 @@
               "lean": "A",
               "why": "原文两处都写「于此阶段」。",
               "impact": "阶段级计数 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             },
             {
               "id": "Q3",
@@ -1311,7 +1351,8 @@
               "lean": "A",
               "why": "【闪】没有主动使用入口；允许声明也只会产生无效选项。",
               "impact": "候选集合 + 用例。",
-              "answer": "A 同刘备仁德，区分杀，雷杀，火杀"
+              "answer": "A 同刘备仁德，区分杀，雷杀，火杀",
+              "legacy": true
             },
             {
               "id": "Q4",
@@ -1323,7 +1364,8 @@
               "lean": "A",
               "why": "原文只改花色，不改使用规则；mechanics virtual-card。",
               "impact": "use_as + 花色覆盖 + 用例。",
-              "answer": "A"
+              "answer": "A",
+              "legacy": true
             }
           ],
           "mechanics": [

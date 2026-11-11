@@ -10,7 +10,9 @@
 //
 // 用法：node apps/scripts/check-sgs-align.mjs [--require-all] [--verbose]
 
-import { loadCatalog } from "./lib/sgs-catalog.mjs";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
+import { loadCatalog, projectRoot } from "./lib/sgs-catalog.mjs";
 import { BATCHES } from "./lib/sgs-batches.mjs";
 import {
   detectTermConflicts,
@@ -65,6 +67,36 @@ for (const spec of specs) {
   }
 }
 
+// 4.5 裁定 ↔ 用例锚点（M10）：已答疑点要么带 `test`（必须真实存在），要么显式 `legacy: true`。
+// 历史 775 条裁定已批量标 legacy（见 align/README）；新裁定必须写 test，防「裁定漂移无人守」。
+const testsDir = join(projectRoot, "crates/engines/sanguosha2/tests");
+const testsText = readdirSync(testsDir)
+  .filter((f) => f.endsWith(".rs"))
+  .map((f) => readFileSync(join(testsDir, f), "utf8"))
+  .join(String.fromCharCode(10));
+let anchored = 0;
+let legacy = 0;
+for (const spec of specs) {
+  for (const g of spec.generals ?? []) {
+    for (const sk of g.skills ?? []) {
+      for (const q of sk.questions ?? []) {
+        if (!q.answer) continue;
+        if (q.test) {
+          if (!testsText.includes(`fn ${q.test}(`)) {
+            errors.push(`[${spec.batch}] ${sk.code} ${q.id}: 用例 ${q.test} 不存在`);
+          } else anchored += 1;
+        } else if (q.legacy === true) {
+          legacy += 1;
+        } else {
+          errors.push(
+            `[${spec.batch}] ${sk.code} ${q.id}: 已裁定但缺 test 锚点（历史项须显式 legacy: true）`,
+          );
+        }
+      }
+    }
+  }
+}
+
 // 5. 跨批术语
 conflicts.push(...detectTermConflicts(specs));
 
@@ -112,5 +144,5 @@ if (errors.length) {
 }
 console.log(
   `[align] OK：批次 ${specs.length}/${BATCHES.length}，覆盖 ${covered.size}/${catalog.audited.length} 将，` +
-    `警告 ${warnings.length}`,
+    `警告 ${warnings.length}；裁定用例锚点 ${anchored} 条（legacy ${legacy} 条待回填）`,
 );

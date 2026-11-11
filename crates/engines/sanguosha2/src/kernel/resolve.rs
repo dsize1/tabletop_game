@@ -569,10 +569,10 @@ pub fn begin_phase(g: &mut Game, seat: usize, phase: Phase) -> Result<(), String
             Some(old_turn),
             Some(&format!("{old_phase:?}")),
         ));
-        // 2026-11-11 回滚：延迟切回合（switch_to）在自对弈中导致卡死/回环（见 engine-self-audit M12）。
-        // 暂按「先切回合、PhaseEnd 已带事件快照」的 A 口径运行；B 待用「计数快照」方案重做。
-        complete_turn_switch(g, seat);
-        return enter_phase(g, seat, phase, false);
+        // B 口径：PhaseEnd 先结算（读事件快照/当回合计数），结算完再切 turn（M12）。
+        g.switch_to = Some((seat, phase));
+        advance(g)?;
+        return Ok(());
     }
     enter_phase(g, seat, phase, true)
 }
@@ -621,6 +621,8 @@ pub(crate) fn enter_phase(
     }
     // 阶段开始前的技能询问（巧变）：可暂停切换（返回后由驱动器重试同一目标阶段）。
     if phase != g.phase && crate::skills::before_phase(g, seat, phase) {
+        // 暂停后重试同一阶段（切 turn 后若停在旧 phase，tick 会误判「回合已结束」）。
+        g.retry_phase = Some((seat, phase));
         advance(g)?;
         return Ok(());
     }

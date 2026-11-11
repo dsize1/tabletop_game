@@ -42,7 +42,8 @@
               "lean": "A",
               "why": "现实现与多数移植一致，但原文「可以」",
               "impact": "影响交互量；锁定则玩家无法放弃",
-              "answer": "A（锁定，不询问）"
+              "answer": "A（锁定，不询问）",
+              "legacy": true
             },
             {
               "id": "Q2",
@@ -54,7 +55,8 @@
               "lean": "A",
               "why": "现实现如此",
               "impact": "孙亮同局时的溃诛强度",
-              "answer": "A（计入本阶段弃牌数）"
+              "answer": "A（计入本阶段弃牌数）",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -113,7 +115,8 @@
               "lean": "A",
               "why": "原文「视为拥有当前主公的主公技」",
               "impact": "袁术可用技能集合与 UI 显示",
-              "answer": "A（仅借当前主公的主公技；**视为拥有但不可主动使用**，只参与联动判定）"
+              "answer": "A（仅借当前主公的主公技；**视为拥有但不可主动使用**，只参与联动判定）",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -179,7 +182,8 @@
               "lean": "A",
               "why": "现实现如此；且进趋按奇制次数结算",
               "impact": "强度差异大，且直接决定进趋弃牌数",
-              "answer": "A（不限次）"
+              "answer": "A（不限次）",
+              "legacy": true
             },
             {
               "id": "Q2",
@@ -191,7 +195,8 @@
               "lean": "A",
               "why": "原文「使用」≠「打出」",
               "impact": "触发频率",
-              "answer": "A（不包含响应打出）"
+              "answer": "A（不包含响应打出）",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -250,7 +255,8 @@
               "lean": "B",
               "why": "A 是自杀式效果，通常不是设计意图",
               "impact": "玩家/ AI 误发动风险",
-              "answer": "B（奇制次数为 0 时不允许发动）"
+              "answer": "B（奇制次数为 0 时不允许发动）",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -319,7 +325,8 @@
               "lean": "A",
               "why": "原文「不能再对你使用牌」，未限定杀",
               "impact": "限制强度",
-              "answer": "A（阳=他人回合内/严颜回合外；阴=严颜回合内/他人回合外）"
+              "answer": "A（阳=他人回合内/严颜回合外；阴=严颜回合内/他人回合外）",
+              "legacy": true
             },
             {
               "id": "Q2",
@@ -331,7 +338,8 @@
               "lean": "A",
               "why": "原 文「获得其一张牌」",
               "impact": "延时锦囊归属",
-              "answer": "B（只手牌与装备区）"
+              "answer": "B（只手牌与装备区）",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -400,7 +408,8 @@
               "lean": "A",
               "why": "现实现随机，避免信息泄露",
               "impact": "信息量与强度",
-              "answer": "B（目标自选一张交给你）"
+              "answer": "B（目标自选一张交给你）",
+              "legacy": true
             },
             {
               "id": "Q2",
@@ -412,7 +421,8 @@
               "lean": "B",
               "why": "通常由被指定角色选择",
               "impact": "强度与交互",
-              "answer": "A（王平选择）"
+              "answer": "A（王平选择）",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -469,7 +479,8 @@
               "lean": "A",
               "why": "现实现永久",
               "impact": "长期收益",
-              "answer": "A（本局对每个目标各一次，永久）"
+              "answer": "A（本局对每个目标各一次，永久）",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -533,7 +544,8 @@
               "lean": "A",
               "why": "现实现为计数；原文用「橘」标记",
               "impact": "与拆牌类技能的交互",
-              "answer": "A（计数标记，不可被拆顺）"
+              "answer": "A（计数标记，不可被拆顺）",
+              "legacy": true
             },
             {
               "id": "Q2",
@@ -545,7 +557,8 @@
               "lean": "A",
               "why": "锁定技",
               "impact": "濒死保护强度",
-              "answer": "A（自动防伤）"
+              "answer": "A（自动防伤）",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -603,7 +616,8 @@
               "lean": "A",
               "why": "原文无禁止",
               "impact": "濒死链",
-              "answer": "A + 细化：若失去体力导致濒死，**必须先完成濒死并救回**，之后才令目标获得 1 枚「橘」"
+              "answer": "A + 细化：若失去体力导致濒死，**必须先完成濒死并救回**，之后才令目标获得 1 枚「橘」",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -660,7 +674,8 @@
               "lean": "A",
               "why": "「跳过摸牌阶段」通常整体跳过",
               "impact": "与庸肆同队时的收益",
-              "answer": "A（整段跳过摸牌阶段）"
+              "answer": "A（整段跳过摸牌阶段）",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -725,7 +740,8 @@
               "lean": "A",
               "why": "复验 20 已裁定只算弃牌阶段",
               "impact": "强度",
-              "answer": "A（只算弃牌阶段）"
+              "answer": "A（只算弃牌阶段）",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -782,7 +798,8 @@
               "lean": "A",
               "why": "现实现按出牌阶段使用计数",
               "impact": "触发频率",
-              "answer": "B（含装备与响应打出）"
+              "answer": "B（含装备与响应打出）",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -841,7 +858,8 @@
               "lean": "A",
               "why": "原文「交给」",
               "impact": "孙亮手牌与后续输出",
-              "answer": "A + 细化：交杀后**仍需孙亮选择**是否让该角色摸 1 且杀次数 +1"
+              "answer": "A + 细化：交杀后**仍需孙亮选择**是否让该角色摸 1 且杀次数 +1",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -905,7 +923,8 @@
               "lean": "B",
               "why": "通常由技能拥有者选择",
               "impact": "策略性",
-              "answer": "B（并列时由蒯越蒯良选择）"
+              "answer": "B（并列时由蒯越蒯良选择）",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -968,7 +987,8 @@
               "lean": "A",
               "why": "现实现挂在受害者侧",
               "impact": "触发频率",
-              "answer": "A（阴=回合外窗口；阳=回合内窗口）"
+              "answer": "A（阴=回合外窗口；阳=回合内窗口）",
+              "legacy": true
             },
             {
               "id": "Q2",
@@ -980,7 +1000,8 @@
               "lean": "A",
               "why": "现实现给出全部并列候选",
               "impact": "选择自由度",
-              "answer": "A（并列者全部可选）"
+              "answer": "A（并列者全部可选）",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -1047,7 +1068,8 @@
               "lean": "A",
               "why": "现实现写入 cl_<suit>",
               "impact": "爆发强度",
-              "answer": "A + 细化：阴阳两面都是**回合内且出牌阶段**，每阶段限一次"
+              "answer": "A + 细化：阴阳两面都是**回合内且出牌阶段**，每阶段限一次",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -1106,7 +1128,8 @@
               "lean": "A",
               "why": "现实现按 kind 划分",
               "impact": "摸牌量",
-              "answer": "A（基本牌/锦囊牌两类各一次）"
+              "answer": "A（基本牌/锦囊牌两类各一次）",
+              "legacy": true
             }
           ],
           "mechanics": [
@@ -1163,7 +1186,8 @@
               "lean": "A",
               "why": "现实现在 draw_cards 统一处理",
               "impact": "与恃才（置于牌堆顶）等互动",
-              "answer": "A（影响所有摸牌）"
+              "answer": "A（影响所有摸牌）",
+              "legacy": true
             }
           ],
           "mechanics": [
