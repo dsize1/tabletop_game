@@ -2229,7 +2229,10 @@ fn apply_response(
     if let Some(id) = ans.strip_prefix("respond:") {
         let id = id.to_string();
         if !g.hand(actor).contains(&id) {
-            return Err("响应：该牌不在手牌".into());
+            // 并发响应窗口：回答可能来自已关闭的旧窗口（牌已被消费/移走）。
+            // 视为「未响应」而不是非法动作（合法集只描述当前一步，见 legal-actions.md §2）。
+            g.push_log(format!("响应窗口已变化：{id} 不在手牌，按未响应处理"));
+            return Ok(None);
         }
         if !cards::responds_as(&g.name_of(&id), kind) {
             return Err("响应：该牌不能作为此环节的响应牌".into());

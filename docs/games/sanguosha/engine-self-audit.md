@@ -16,6 +16,7 @@
 | **M2** | **开局/发牌不是一等生命周期**——发牌事件进入技能触发通道 | **已补**（`Lifecycle::Setup`） |
 | **M13** | **牌移动缺「施动者/来源」**——无法表达「被其他角色弃置/获得」 | **已补**（`Event.by/from` + `Game.action_actor`） |
 | **M14** | **牌堆耗尽未把弃牌堆洗回**——双方无牌可摸/可出，回合空转不终局 | **已补**（`Game::refill_draw_from_discard`；自对弈 seed1 game0 由 stalled 2000 步 → 351 步终局） |
+| **M15** | **并发响应窗口的陈旧回答**——旧窗口的 `respond:<牌>` 落到新窗口 → 非法动作 | **已补**（不持有该牌时按「未响应」处理并记日志；合法集只描述当前一步） |
 | **M12** | **回合/阶段结束的结算时序**——`PhaseEnd` 在切 turn 后路由，`turn.*` 已清空 | **部分**：`begin_game_at` 伪 PhaseEnd 已修；B（延迟切 turn）在自对弈 seed1 出现卡死/回环（stalled），已回滚为 A，B 需换「计数快照」实现（未收口） |
 | M9 | 「必选/可跳过」语义（`escape` vs `escape_mandatory`） | 门禁已拦（23 处显式白名单）；「空选项自动跳过」待实现 |
 | M8 | 计数器作用域无注册（非标准键手写清理） | 门禁已拦（10 处显式白名单）；`Scope` 注册表待实现 |
@@ -224,7 +225,7 @@ B 的正确实现待改：在 `PhaseEnd` 事件里携带「本回合计数快照
 | M9/M8 | 门禁已拦（23/10 白名单） | 空选项自动跳过、Scope 注册表待实现 |
 | M10 裁定↔用例 | **未收口** | 775 裁定 / 610 用例无绑定；需 schema 字段 + 分批补锚点 |
 | M14 牌堆重洗 | **已修** | `refill_draw_from_discard`（摸牌前重洗）；用例 `mechanisms::draw_refills_from_discard_when_deck_empty` |
-| AI 自对弈（`check:sgs2-ai`） | **红（29/30 终局）** | 剩余：`seed=2/3` 的 `respond:<牌> 不在手牌`（2 次）、`seed=3 game0` `opt1` 回环（1 次）、1 例 stalled；下一步专项修驱动器/响应窗口 |
+| AI 自对弈（`check:sgs2-ai`） | **部分** | 已修：牌堆重洗（stalled 主因）、陈旧响应（`respond` 不在手牌视为未响应，seed2 已 0 illegal）；剩余 1 回环 + 1 长局 stalled 待查 |
 | 剩余 14 个 handler 读 live turn/phase | **未收口** | 清单见 §2-M1，按批迁移（优先 PhaseEnd 类） |
 | 制霸被动挑战 | **未实现**（功能缺失，非机制） | `align/B14.md §7` 有、§2 无 |
 | `awaiting_input` API | 未补 | 探针已用 pending 分类替代 |
