@@ -111,7 +111,7 @@ fn hujia(g: &mut Game, a: &Ask) -> Result<Step, String> {
             .unwrap_or_default();
         let cursor = a.data["cursor"].as_u64().unwrap_or(0) as usize;
         if cursor >= order.len() {
-            g.relay_none = true;
+            g.relay_result = Some(crate::kernel::RelayOutcome::Declined);
             return Ok(Step::Done);
         }
         let by = order[cursor];
@@ -138,7 +138,10 @@ fn hujia(g: &mut Game, a: &Ask) -> Result<Step, String> {
                 }
                 g.to_discard(&id, "hujia")?;
                 g.push_log(format!("护驾：{} 代替主公打出【{}】", g.seats[by].name, label(g, &id)));
-                g.relay_played = Some((id, by));
+                g.relay_result = Some(crate::kernel::RelayOutcome::Played {
+                    card: id.clone(),
+                    by,
+                });
                 Ok(Step::Done)
             }
         }

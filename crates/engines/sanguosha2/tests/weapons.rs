@@ -33,11 +33,28 @@ fn equip(g: &mut Game, seat: usize, name: &str, slot: Slot) -> CardId {
     id
 }
 
+/// I1 询问完整性（v1 口径 2026-10-28）：有手牌就必须显式询问。
+/// 这里把「无牌可打」的三类响应询问（闪/杀、无懈、濒死）按唯一出口放弃。
+fn drain_forced(g: &mut Game) {
+    while let Some(p) = g.pending.clone() {
+        if !matches!(p.kind(), "card_response" | "wuxie" | "dying") {
+            break;
+        }
+        if p.options().iter().any(|o| o.id != p.escape_id()) {
+            break;
+        }
+        let (actor, escape) = (p.actor(), p.escape_id().to_string());
+        submit(g, actor, &escape).expect("放弃唯一出口");
+    }
+}
+
 fn pass_pending(g: &mut Game, expect_skill: &str, action: &str) {
     let p = g.pending.clone().expect("应有待办");
     assert_eq!(p.skill(), Some(expect_skill), "待办技能不符");
     let actor = p.actor();
     submit(g, actor, action).unwrap_or_else(|e| panic!("提交 {action} 失败：{e}"));
+    // I1：作答后可能立刻产生新的「无牌可打」礼貌询问（如锦囊的无懈窗口）→ 继续排空。
+    drain_forced(g);
 }
 
 // ---------------------------------------------------------------------------
@@ -156,6 +173,7 @@ fn hanbing_prevents_damage_and_discards_two_cards() {
     let c2 = give(&mut g, 1, "桃");
     let before = g.seats[1].hp;
     g.resolve_use(0, &sha, vec![1]).expect("使用杀");
+    drain_forced(&mut g); // I1：p1 无【闪】但有手牌 → 仍被显式询问（唯一出口=放弃）
     // p1 不出闪 → 造成伤害前，攻击者选择寒冰剑。
     let p = g.pending.clone().expect("应有装备窗口");
     assert_eq!(p.skill(), Some("__gear"), "寒冰剑窗口");

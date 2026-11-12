@@ -12,6 +12,7 @@
 //   C4 全局计数器必须有作用域前缀（turn./phase./round./total.）或白名单
 //   C5 「跳过/不弃置」类出口必须用 escape_mandatory 或显式白名单
 //   C6 kind 一致性：locked 不得有主动入口；limited/awaken 必须有 used 守卫
+//   C7 询问完整性（I1）：内核「不询问」分支必须走 must_ask（只有合法集为空才允许不问）
 import fs from "node:fs";
 import path from "node:path";
 
@@ -80,6 +81,22 @@ for (const [f, text] of src) {
   });
 }
 
+// ---- C7 询问完整性（I1：只有合法动作集为空才允许不询问） ----
+// v1 口径（用户 2026-10-28 裁定）：无手牌 → 跳过；有手牌 → 即使没有对应牌也显式询问。
+// 内核里任何「没有可选项就不问」的分支必须由 `g.must_ask(seat, has)` 统一判定。
+const NL = String.fromCharCode(10);
+for (const f of ["card_play.rs", "flow.rs"]) {
+  const p = path.join(KERNEL, f);
+  if (!fs.existsSync(p)) continue;
+  const lines = fs.readFileSync(p, "utf8").split(NL);
+  lines.forEach((ln, i) => {
+    const skip = /^\s*if\s+(?:!has|options\.is_empty\(\))\s*\{/.test(ln);
+    if (!skip) return;
+    const window = lines.slice(Math.max(0, i - 6), i + 1).join(NL);
+    if (!window.includes("must_ask")) add("C7-ask", f, ln.trim(), `第 ${i + 1} 行`);
+  });
+}
+
 // ---- C6 kind 一致性 ----
 for (const [f, text] of src) {
   for (const m of text.matchAll(/SkillDef \{([\s\S]*?)\};/g)) {
@@ -102,6 +119,7 @@ if (WRITE) {
     "C3-mark": "内部标记（不面向 UI）：思蜀指定 / 烈弓内部 / 醇醪计数（UI 只播报数量）",
     "C4-counter": "跨回合/整局累计计数器：思蜀指定、醇醪轮次、诫训累计（需显式作用域 registry）",
     "C5-escape": "候选为空/技能明文可选时的放弃出口（评审保留；空选项自动跳过待 M9 落地）",
+    "C7-ask": "历史「没有可选项就不询问」分支（已由 must_ask 收口；新增即失败）",
     "C6-kind": "kind 一致性豁免",
   };
   const out = { generatedAt: new Date().toISOString(), note: "显式白名单：新增违反必须补机制或登记理由（engine-self-audit B4/M8/M9）" };

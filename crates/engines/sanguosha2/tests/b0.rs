@@ -76,8 +76,34 @@ fn opt_prefix(g: &Game, prefix: &str) -> String {
         .clone()
 }
 
+/// I1 询问完整性（v1 口径 2026-10-28）：有手牌就必须显式询问。
+/// 这里把「无牌可打」的三类响应询问（闪/杀、无懈、濒死）按唯一出口放弃，
+/// 避免每个用例重复处理（引擎的询问本身仍会产生，见 cards.rs::ask_* 用例）。
+fn drain_forced(g: &mut Game) {
+    while let Some(p) = g.pending.clone() {
+        if !matches!(p.kind(), "card_response" | "wuxie" | "dying") {
+            break;
+        }
+        if p.options().iter().any(|o| o.id != p.escape_id()) {
+            break;
+        }
+        let (actor, escape) = (p.actor(), p.escape_id().to_string());
+        submit(g, actor, &escape).expect("放弃唯一出口");
+    }
+}
+
 fn answer(g: &mut Game, actor: usize, action: &str) {
+    // 该询问若只剩出口（有手牌但无对应牌），drain 已按唯一出口处理 → 只允许放弃类动作。
+    if g.pending.is_none() {
+        assert!(
+            matches!(action, "pass" | "cancel"),
+            "没有待办却提交了实质动作：{action}"
+        );
+        return;
+    }
     submit(g, actor, action).unwrap_or_else(|e| panic!("提交 {action} 失败：{e}"));
+    // I1：作答后可能立刻产生新的「无牌可打」礼貌询问（如锦囊的无懈窗口）→ 继续排空。
+    drain_forced(g);
     g.check_conservation().expect("守恒");
     g.check_no_orphan_frames().expect("无帧遗留");
 }
@@ -426,7 +452,16 @@ fn jushou_discard_step_is_mandatory() {
     assert_eq!(pend(&g).skill(), Some("jushou"));
     assert!(pend(&g).escape_hidden(), "弃置步骤应为强制（出口不下发）");
     let before = g.hand(0).len();
-    answer(&mut g, 0, "pass");
+    // I1：占位出口不得代选 → 提交出口必须被拒绝，必须显式弃一张。
+    let err = submit(&mut g, 0, "pass").unwrap_err();
+    assert!(err.contains("必须选择"), "{err}");
+    let pick = pend(&g)
+        .options()
+        .iter()
+        .find(|o| o.id != pend(&g).escape_id())
+        .map(|o| o.id.clone())
+        .expect("应有可弃的牌");
+    answer(&mut g, 0, &pick);
     assert!(g.hand(0).len() < before, "不能跳过弃置");
 }
 

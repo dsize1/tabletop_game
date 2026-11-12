@@ -64,8 +64,34 @@ fn options(g: &Game) -> Vec<String> {
         .map(|p| p.options().iter().map(|o| o.id.clone()).collect())
         .unwrap_or_default()
 }
+/// I1 询问完整性（v1 口径 2026-10-28）：有手牌就必须显式询问。
+/// 这里把「无牌可打」的三类响应询问（闪/杀、无懈、濒死）按唯一出口放弃，
+/// 避免每个用例重复处理（引擎的询问本身仍会产生，见 cards.rs::ask_* 用例）。
+fn drain_forced(g: &mut Game) {
+    while let Some(p) = g.pending.clone() {
+        if !matches!(p.kind(), "card_response" | "wuxie" | "dying") {
+            break;
+        }
+        if p.options().iter().any(|o| o.id != p.escape_id()) {
+            break;
+        }
+        let (actor, escape) = (p.actor(), p.escape_id().to_string());
+        submit(g, actor, &escape).expect("放弃唯一出口");
+    }
+}
+
 fn answer(g: &mut Game, actor: usize, action: &str) {
+    // 该询问若只剩出口（有手牌但无对应牌），drain 已按唯一出口处理 → 只允许放弃类动作。
+    if g.pending.is_none() {
+        assert!(
+            matches!(action, "pass" | "cancel"),
+            "没有待办却提交了实质动作：{action}"
+        );
+        return;
+    }
     submit(g, actor, action).unwrap_or_else(|e| panic!("提交 {action} 失败：{e}"));
+    // I1：作答后可能立刻产生新的「无牌可打」礼貌询问（如锦囊的无懈窗口）→ 继续排空。
+    drain_forced(g);
 }
 fn play_phase(g: &mut Game, seat: usize) {
     g.turn = seat;
@@ -267,6 +293,7 @@ fn wushuang_duel_applies_from_both_sides() {
     give(&mut g, 1, &["j1", "s2", "s3"]);
     give(&mut g, 0, &["s1"]);
     g.resolve_use(1, &"j1".to_string(), vec![0]).unwrap();
+    drain_forced(&mut g); // I1：决斗的无懈询问先排空
     assert_eq!(pend_actor(&g), Some(0), "吕布先响应");
     answer(&mut g, 0, "respond:s1");
     assert_eq!(pend_actor(&g), Some(1), "轮到发起者");
@@ -327,6 +354,7 @@ fn liyu_non_equip_makes_victim_draw() {
     let mut g = liyu_setup();
     give(&mut g, 1, &["t1"]);
     g.resolve_use(0, &"s1".to_string(), vec![1]).unwrap();
+    drain_forced(&mut g); // I1：无懈等礼貌询问先排空
     answer(&mut g, 0, "opt1");
     let before = g.hand(1).len();
     answer(&mut g, 0, "pick:hand");
@@ -405,6 +433,7 @@ fn qiaomeng_discards_non_mount_card() {
     give(&mut g, 0, &["s1"]);
     give(&mut g, 1, &["w1"]);
     g.resolve_use(0, &"s1".to_string(), vec![1]).unwrap();
+    drain_forced(&mut g); // I1：无懈等礼貌询问先排空
     answer(&mut g, 0, "opt1");
     answer(&mut g, 0, "pick:hand");
     assert!(!g.hand(0).iter().any(|c| c == "w1"), "非坐骑 → 弃置");

@@ -86,10 +86,54 @@ fn options(g: &Game) -> Vec<String> {
         .map(|p| p.options().iter().map(|o| o.id.clone()).collect())
         .unwrap_or_default()
 }
-fn answer(g: &mut Game, actor: usize, action: &str) {
-    submit(g, actor, action).unwrap_or_else(|e| panic!("提交 {action} 失败：{e}"));
+/// I1 询问完整性（v1 口径 2026-10-28）：有手牌就必须显式询问。
+/// 这里把「无牌可打」的三类响应询问（闪/杀、无懈、濒死）按唯一出口放弃，
+/// 避免每个用例重复处理（引擎的询问本身仍会产生，见 cards.rs::ask_* 用例）。
+fn drain_forced(g: &mut Game) {
+    while let Some(p) = g.pending.clone() {
+        if !matches!(p.kind(), "card_response" | "wuxie" | "dying") {
+            break;
+        }
+        if p.options().iter().any(|o| o.id != p.escape_id()) {
+            break;
+        }
+        let (actor, escape) = (p.actor(), p.escape_id().to_string());
+        submit(g, actor, &escape).expect("放弃唯一出口");
+    }
 }
+
+fn answer(g: &mut Game, actor: usize, action: &str) {
+    // 该询问若只剩出口（有手牌但无对应牌），drain 已按唯一出口处理 → 只允许放弃类动作。
+    if g.pending.is_none() {
+        assert!(
+            matches!(action, "pass" | "cancel"),
+            "没有待办却提交了实质动作：{action}"
+        );
+        return;
+    }
+    submit(g, actor, action).unwrap_or_else(|e| panic!("提交 {action} 失败：{e}"));
+    // I1：作答后可能立刻产生新的「无牌可打」礼貌询问（如锦囊的无懈窗口）→ 继续排空。
+    drain_forced(g);
+}
+/// 通用作答（测试推进用）：**优先选第一个实质选项**，只有「只剩出口」时才放弃。
+///
+/// 不能反过来（默认放弃）：会把「激将」「拆牌」这类真实决策静默拒掉，
+/// 让用例看起来通过但实际没走目标分支。
+fn answer_any(g: &mut Game) {
+    drain_forced(g);
+    let Some(p) = g.pending.clone() else { return };
+    let action = p
+        .options()
+        .iter()
+        .find(|o| o.id != p.escape_id())
+        .map(|o| o.id.clone())
+        .unwrap_or_else(|| p.escape_id().to_string());
+    answer(g, p.actor(), &action);
+}
+
 fn answer_cur(g: &mut Game, action: &str) {
+    // I1：先把「无牌可打」的礼貌询问排空，再取当前被询问者（排空会推进流程）。
+    drain_forced(g);
     let actor = pend_actor(g);
     answer(g, actor, action);
 }
@@ -366,6 +410,7 @@ fn juxiang_immune_and_gains_after_other_nanman() {
     g.use_as(1, &"nm1".to_string(), "南蛮入侵", vec![0, 2], false, None)
         .unwrap();
     advance(&mut g).unwrap();
+    drain_forced(&mut g); // I1：南蛮的无懈/响应询问先排空
     // 巨象免疫：跳过 0；2 号无【杀】→ 直接受伤。
     assert_eq!(g.seats[0].hp, 4, "巨象对【南蛮入侵】免疫");
     assert_eq!(pend_skill(&g).as_deref(), Some("juxiang"), "结算结束后询问巨象");
@@ -382,6 +427,7 @@ fn juxiang_does_not_gain_own_nanman() {
     g.use_as(0, &"nm1".to_string(), "南蛮入侵", vec![1], false, None)
         .unwrap();
     advance(&mut g).unwrap();
+    drain_forced(&mut g); // I1：南蛮的响应询问先排空
     assert!(g.discard_pile().iter().any(|c| c == "nm1"), "自己使用的南蛮不获得");
 }
 
@@ -597,6 +643,8 @@ fn wansha_blocks_others_tao_and_nonlocked_skills() {
     assert!(opts.iter().any(|o| o.starts_with("respond:j2")));
     // 放弃自救 → 其他角色被封锁 → 轮到贾诩（可用【桃】）。
     answer_cur(&mut g, "pass");
+    // I1：完杀只封锁其可用牌；被封锁者仍有手牌 → 仍被显式询问（唯一出口=放弃）。
+    drain_forced(&mut g);
     assert_eq!(pend_actor(&g), 0, "完杀：其他角色被跳过，轮到贾诩");
     let opts = options(&g);
     assert!(

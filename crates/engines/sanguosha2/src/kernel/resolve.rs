@@ -512,13 +512,10 @@ pub fn submit(g: &mut Game, actor: usize, action: &str) -> Result<String, String
     if !p.has_option(action) {
         return Err(format!("非法选项：{action}"));
     }
-    // 强制选择类待办：出口只是类型系统占位 → 自动改选第一个实质选项（不能放弃）。
+    // 强制选择类待办：出口只是类型系统占位 → 服务端**拒绝**提交出口（I1：引擎不得代玩家选）。
     let mut action = action.to_string();
     if p.escape_hidden() && action == p.escape_id() {
-        let Some(first) = p.options().iter().find(|o| o.id != p.escape_id()) else {
-            return Err("该待办必须选择，但没有可选项".into());
-        };
-        action = first.id.clone();
+        return Err("该待办必须选择一项（不能由引擎代选）".into());
     }
     let action = action.as_str();
     g.begin_action_as(actor);

@@ -179,6 +179,18 @@ pub struct Seat {
     pub bot: bool,
 }
 
+/// 主公技接力（激将/护驾）子流程的**唯一结果通道**（单次消费，不参与流程排序）。
+///
+/// 2026-11-12 纠偏：旧实现用 `relay_played` + `relay_none` + `data["relay_wait"]`
+/// 三个状态做「前置帧 → 响应流程」的回传，同一语义出现两条入口，互相覆盖。
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum RelayOutcome {
+    /// 有同势力角色代出（牌已进弃牌堆）。
+    Played { card: CardId, by: usize },
+    /// 全部拒绝 → 回到主公本人的响应窗口（**不是**「未响应」）。
+    Declined,
+}
+
 /// 结算前钩子的结果（谮毁：代用 / 额外目标）。
 ///
 /// 由技能在「使用瞬间」写入，`card_play::step_pre_use` 读取后清空；
@@ -333,6 +345,10 @@ pub struct Game {
     /// 正在询问响应的来源（毅重②：「无法响应你的黑色【杀】」按来源判定）。
     #[serde(default)]
     pub response_source: Option<usize>,
+    /// 并发响应窗口里出现的「过期回答」标记：结算侧看到它必须**重新询问**，
+    /// 不得把过期回答当成「未响应」（I1 询问完整性）。
+    #[serde(default)]
+    pub response_stale: bool,
     /// 虚拟牌：承载牌 → 生效牌名（奇策等）。颜色/点数仍读物理牌。
     #[serde(default)]
     pub virtual_defs: BTreeMap<CardId, String>,
@@ -381,10 +397,9 @@ pub struct Game {
     pub rand_state: u64,
     /// 主公技接力结果：代出的牌与代出者（响应流程消费后清空）。
     #[serde(default)]
-    pub relay_played: Option<(CardId, usize)>,
+    pub relay_result: Option<RelayOutcome>,
     /// 主公技接力：所有同势力角色都放弃（响应流程消费后清空）。
-    #[serde(default)]
-    pub relay_none: bool,
+
     /// 额外回合（博图）：本回合结束后由该角色再执行一个回合。
     #[serde(default)]
     pub extra_turn: Option<usize>,
@@ -522,6 +537,7 @@ impl Game {
             extra_targets_mid: Vec::new(),
             response_color_lock: None,
             response_source: None,
+            response_stale: false,
             virtual_defs: BTreeMap::new(),
             origins: BTreeMap::new(),
             void_tags: BTreeMap::new(),
@@ -537,8 +553,7 @@ impl Game {
             sha_intercept: None,
             turn_seq: 0,
             rand_state: 0x5EED_2026_1109_0001,
-            relay_played: None,
-            relay_none: false,
+            relay_result: None,
             extra_turn: None,
             extra_turn_active: false,
             fenwei_void: BTreeSet::new(),
@@ -1690,6 +1705,15 @@ impl Game {
             return false;
         }
         !self.seats[seat].frozen.contains(id) && !self.seats[seat].frozen_phase.contains(id)
+    }
+
+    /// I1 询问完整性（v1 口径，用户 2026-10-28 裁定）：**只有「合法动作集为空」才允许不询问**。
+    ///
+    /// - `has_option == false` 且手牌为空 → 无法打出任何牌（合法集为空）→ 不询问；
+    /// - 其余一律必须显式询问：即使手里没有对应的牌，也要给出「不出」的询问
+    ///   （保留犹豫博弈；引擎不得代放弃、代选择）。
+    pub fn must_ask(&self, seat: usize, has_option: bool) -> bool {
+        has_option || !self.hand(seat).is_empty()
     }
 
     /// 获得护甲（mechanics `armor-points`；护甲变化必须有事件与视图投影）。

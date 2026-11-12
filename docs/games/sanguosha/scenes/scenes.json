@@ -71,7 +71,9 @@
           "actor": 0,
           "error": null,
           "label": "发动据守（翻面）",
-          "log": [],
+          "log": [
+            "p0 选择：choose:jushou"
+          ],
           "pending_after": {
             "actor": 0,
             "escape": "pass",
@@ -111,7 +113,10 @@
           "actor": 0,
           "error": null,
           "label": "不发动解围",
-          "log": [],
+          "log": [
+            "p0 选择：放弃",
+            "p0 选择：choose:jushou"
+          ],
           "pending_after": {
             "actor": 0,
             "escape": "pass",
@@ -178,11 +183,13 @@
           "error": null,
           "label": "进入濒死（不屈自动判定）",
           "log": [
-            "不屈：判定牌点数 7，作为「创」移出游戏，回复至 1 点体力"
+            "不屈：判定牌点数 7，作为「创」移出游戏，回复至 1 点体力",
+            "p0 回复至 1 点体力（原因：buqu）"
           ],
           "pending_after": null,
           "pending_before": null,
           "presentation": [
+            "回复 1 点体力",
             "回复 1 点体力"
           ],
           "state": {
@@ -266,7 +273,9 @@
           "actor": 0,
           "error": null,
           "label": "发动奋激（失去 1 点体力）",
-          "log": [],
+          "log": [
+            "p0 失去 1 点体力（体力 0，原因：fenji）"
+          ],
           "pending_after": {
             "actor": 0,
             "escape": "pass",
@@ -309,7 +318,8 @@
           "error": null,
           "label": "濒死求桃",
           "log": [
-            "p0 救援 p0（体力 1）"
+            "p0 救援 p0（体力 1）",
+            "p0 失去 1 点体力（体力 0，原因：fenji）"
           ],
           "pending_after": {
             "actor": 0,
@@ -409,7 +419,9 @@
           "actor": 0,
           "error": null,
           "label": "不发动（pass）",
-          "log": [],
+          "log": [
+            "p0 选择：放弃"
+          ],
           "pending_after": null,
           "pending_before": {
             "actor": 0,
@@ -443,7 +455,9 @@
           "actor": null,
           "error": null,
           "label": "自己回合：用杀指定他人 → 阴面",
-          "log": [],
+          "log": [
+            "p0 选择：放弃"
+          ],
           "pending_after": {
             "actor": 0,
             "escape": "pass",
@@ -543,7 +557,9 @@
           "actor": 0,
           "error": null,
           "label": "选择失去 1 点体力",
-          "log": [],
+          "log": [
+            "p0 失去 1 点体力（体力 0，原因：yili）"
+          ],
           "pending_after": {
             "actor": 0,
             "escape": "pass",
@@ -584,7 +600,8 @@
           "error": null,
           "label": "濒死求桃",
           "log": [
-            "p0 救援 p0（体力 1）"
+            "p0 救援 p0（体力 1）",
+            "p0 失去 1 点体力（体力 0，原因：yili）"
           ],
           "pending_after": {
             "actor": 0,
@@ -689,7 +706,9 @@
           "actor": 1,
           "error": null,
           "label": "交杀给孙亮",
-          "log": [],
+          "log": [
+            "p1 选择：choose:lijun"
+          ],
           "pending_after": {
             "actor": 0,
             "escape": "pass",
@@ -729,7 +748,10 @@
           "actor": 0,
           "error": null,
           "label": "孙亮选择：摸 1 + 杀次数 +1",
-          "log": [],
+          "log": [
+            "p0 选择：choose:lijun_bonus",
+            "p1 选择：choose:lijun"
+          ],
           "pending_after": null,
           "pending_before": {
             "actor": 0,
@@ -828,7 +850,9 @@
           "actor": 0,
           "error": null,
           "label": "选择「体力值最大」模式",
-          "log": [],
+          "log": [
+            "p0 选择：choose:hp"
+          ],
           "pending_after": {
             "actor": 0,
             "escape": "pass",
@@ -871,7 +895,10 @@
           "actor": 0,
           "error": null,
           "label": "弃置成本",
-          "log": [],
+          "log": [
+            "p0 选择：choose:c1",
+            "p0 选择：choose:hp"
+          ],
           "pending_after": {
             "actor": 0,
             "escape": "pass",
@@ -914,7 +941,8 @@
           "error": null,
           "label": "选定目标（p1 体力最大）",
           "log": [
-            "散谣（体力值最大）：对 p1 造成 1 点伤害"
+            "散谣（体力值最大）：对 p1 造成 1 点伤害",
+            "p0 选择：choose:c1"
           ],
           "pending_after": {
             "actor": 0,
@@ -958,6 +986,7 @@
           "error": null,
           "label": "发动制蛮（防止伤害）",
           "log": [
+            "p0 选择：choose:zhiman",
             "散谣（体力值最大）：对 p1 造成 1 点伤害"
           ],
           "pending_after": {
@@ -1005,7 +1034,7 @@
           "label": "获得其区域里一张牌",
           "log": [
             "制蛮：防止伤害并获得 p1 一张牌（伤害不再发生）",
-            "散谣（体力值最大）：对 p1 造成 1 点伤害"
+            "p0 选择：choose:zhiman"
           ],
           "pending_after": null,
           "pending_before": {
@@ -1112,7 +1141,9 @@
           "actor": 0,
           "error": null,
           "label": "弃置 1 张手牌",
-          "log": [],
+          "log": [
+            "p0 选择：choose:c1"
+          ],
           "pending_after": {
             "actor": 0,
             "escape": "pass",
@@ -1158,7 +1189,8 @@
           "error": null,
           "label": "确认弃置",
           "log": [
-            "峻刑：弃置 1 张手牌"
+            "峻刑：弃置 1 张手牌",
+            "p0 选择：choose:c1"
           ],
           "pending_after": {
             "actor": 0,
@@ -1205,6 +1237,7 @@
           "error": null,
           "label": "选定无手牌目标",
           "log": [
+            "p0 选择：target:1",
             "峻刑：弃置 1 张手牌"
           ],
           "pending_after": {
@@ -1249,7 +1282,7 @@
           "label": "翻面并摸 1 张",
           "log": [
             "峻刑：p1 翻面并摸 1 张牌",
-            "峻刑：弃置 1 张手牌"
+            "p0 选择：target:1"
           ],
           "pending_after": null,
           "pending_before": {
@@ -1442,7 +1475,9 @@
           "actor": 0,
           "error": null,
           "label": "选择一名角色",
-          "log": [],
+          "log": [
+            "p0 选择：target:1"
+          ],
           "pending_after": {
             "actor": 0,
             "escape": "pass",
@@ -1483,7 +1518,10 @@
           "actor": 0,
           "error": null,
           "label": "确认",
-          "log": [],
+          "log": [
+            "p0 选择：confirm",
+            "p0 选择：target:1"
+          ],
           "pending_after": {
             "actor": 0,
             "escape": "pass",
@@ -1527,7 +1565,8 @@
           "error": null,
           "label": "取走其一张牌为「逆」",
           "log": [
-            "陷嗣：将 p1 的【红桃4杀】置于武将牌上为「逆」（共 1 张，移出游戏）"
+            "陷嗣：将 p1 的【红桃4杀】置于武将牌上为「逆」（共 1 张，移出游戏）",
+            "p0 选择：confirm"
           ],
           "pending_after": null,
           "pending_before": {
@@ -1593,10 +1632,9 @@
             "p2 对 p0 造成 1 点伤害（0）"
           ],
           "pending_after": {
-            "actor": 2,
+            "actor": 1,
             "escape": "pass",
             "options": [
-              "respond:c8",
               "pass"
             ],
             "skill": "dying"
@@ -1625,26 +1663,25 @@
         },
         {
           "action": "pass",
-          "actor": 2,
+          "actor": 1,
           "error": null,
           "label": "其他角色放弃救援",
           "log": [
+            "p1 选择：放弃",
             "p2 对 p0 造成 1 点伤害（0）"
           ],
           "pending_after": {
-            "actor": 0,
+            "actor": 2,
             "escape": "pass",
             "options": [
-              "xingshuai",
-              "respond:c3",
+              "respond:c8",
               "pass"
             ],
             "skill": "dying"
           },
           "pending_before": {
-            "actor": 2,
+            "actor": 1,
             "options": [
-              "respond:c8",
               "pass"
             ],
             "skill": "dying"
@@ -1672,12 +1709,62 @@
           }
         },
         {
+          "action": "pass",
+          "actor": 2,
+          "error": null,
+          "label": "其他角色放弃救援",
+          "log": [
+            "p2 选择：放弃",
+            "p1 选择：放弃"
+          ],
+          "pending_after": {
+            "actor": 0,
+            "escape": "pass",
+            "options": [
+              "xingshuai",
+              "respond:c3",
+              "pass"
+            ],
+            "skill": "dying"
+          },
+          "pending_before": {
+            "actor": 2,
+            "options": [
+              "respond:c8",
+              "pass"
+            ],
+            "skill": "dying"
+          },
+          "presentation": [
+            "【dying】未发动",
+            "【dying】未发动"
+          ],
+          "state": {
+            "discard": 0,
+            "hands": [
+              3,
+              3,
+              3
+            ],
+            "hp": [
+              0,
+              4,
+              4
+            ],
+            "kongsheng": 0,
+            "phase": "Prepare",
+            "turn": 0,
+            "void": 0
+          }
+        },
+        {
           "action": "xingshuai",
           "actor": 0,
           "error": null,
           "label": "发动兴衰",
           "log": [
-            "p2 对 p0 造成 1 点伤害（0）"
+            "p0 选择：xingshuai",
+            "p2 选择：放弃"
           ],
           "pending_after": {
             "actor": 1,
@@ -1699,7 +1786,7 @@
           },
           "presentation": [
             "【dying】未发动",
-            "造成 1 点伤害"
+            "【dying】未发动"
           ],
           "state": {
             "discard": 0,
@@ -1820,7 +1907,9 @@
           "actor": 0,
           "error": null,
           "label": "选择协助者",
-          "log": [],
+          "log": [
+            "p0 选择：target:2"
+          ],
           "pending_after": {
             "actor": 2,
             "escape": "opt2",
@@ -1863,7 +1952,8 @@
           "error": null,
           "label": "成为额外目标",
           "log": [
-            "谮毁：p2 成为【杀】的额外目标"
+            "谮毁：p2 成为【杀】的额外目标",
+            "p0 选择：target:2"
           ],
           "pending_after": null,
           "pending_before": {

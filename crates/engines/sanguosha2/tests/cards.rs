@@ -82,8 +82,28 @@ fn opt_with(g: &Game, prefix: &str) -> String {
         .unwrap_or_else(|| panic!("缺少选项 {prefix}：{:?}", options(g)))
 }
 
+/// I1 询问完整性（v1 口径 2026-10-28）：有手牌就必须显式询问。
+///
+/// 三类响应询问（闪/杀、无懈、滨死救援）在「手里没有对应的牌」时只剩出口；
+/// 测试里直接放弃即可（它不是玩家的决筴）。其它 kind（如借刀拒绝）虽然也可能只剩出口，
+/// 但属于真实决筴，不在此处自动处理。
+fn drain_forced(g: &mut Game) {
+    while let Some(p) = g.pending.clone() {
+        if !matches!(p.kind(), "card_response" | "wuxie" | "dying") {
+            break;
+        }
+        if p.options().iter().any(|o| o.id != p.escape_id()) {
+            break;
+        }
+        let (actor, escape) = (p.actor(), p.escape_id().to_string());
+        submit(g, actor, &escape).expect("放弃唯一出口");
+    }
+}
+
 fn answer(g: &mut Game, actor: usize, action: &str) {
     submit(g, actor, action).unwrap_or_else(|e| panic!("提交 {action} 失败：{e}"));
+    // I1：作答后可能立刻产生新的「无牌可打」礼貌询问（如锦囊的无懈窗口）→ 继续排空。
+    drain_forced(g);
     invariant(g);
 }
 
@@ -93,16 +113,20 @@ fn invariant(g: &Game) {
 }
 
 /// 结算一张牌；有 pending 时由 `script` 逐次作答。
+///
+/// 先排空「只有出口」的询问（无牌可打时的礼貌询问，见 I1），再交给脚本作答。
 fn play(g: &mut Game, seat: usize, card: &CardId, targets: Vec<usize>, script: &mut dyn FnMut(&mut Game)) {
     g.resolve_use(seat, card, targets)
         .unwrap_or_else(|e| panic!("使用【{}】失败：{e}", g.name_of(card)));
     invariant(g);
+    drain_forced(g);
     script(g);
+    drain_forced(g);
     invariant(g);
     assert!(g.stack.is_empty(), "结算栈应已清空：{:?} / pending={:?}", g.stack, g.pending);
 }
 
-/// 无 pending 的简单牌：直接结算。
+/// 无可选牌时的简单牌：直接结算（只有出口的询问自动放弃）。
 fn play_simple(g: &mut Game, seat: usize, card: &CardId, targets: Vec<usize>) {
     play(g, seat, card, targets, &mut |g| {
         assert!(g.pending.is_none(), "不应询问：{:?}", g.pending);
@@ -812,8 +836,11 @@ fn huogong_reveal_is_mandatory() {
         assert!(pend(g).escape_hidden(), "展示不是可放弃步骤（出口只能是占位）");
         assert_eq!(pend(g).data()["target"].as_str(), Some("p1"), "浮层显示目标");
         assert_eq!(pend(g).data()["stage"].as_str(), Some("reveal"));
-        // 提交出口 = 自动展示第一张手牌（不是「火攻无效」）。
-        answer(g, 1, "pass");
+        // I1：占位出口不得代选 → 必须显式展示一张。
+        let err = submit(g, 1, "pass").unwrap_err();
+        assert!(err.contains("必须选择"), "{err}");
+        let show = opt_with(g, "reveal:");
+        answer(g, 1, &show);
         assert_eq!(pend(g).actor(), 0, "展示后进入使用者弃同花色步骤");
         let d = opt_with(g, "discard:");
         answer(g, 0, &d);
@@ -900,17 +927,35 @@ fn harvest_pick_is_mandatory() {
     let card = give(&mut g, 0, "五谷丰登");
     g.resolve_use(0, &card, vec![]).expect("使用五谷");
     let mut guard = 0;
-    while pend(&g).kind() != "harvest" && guard < 8 {
-        let actor = pend(&g).actor();
-        answer(&mut g, actor, "pass");
+    while g.pending.is_some() && pend(&g).kind() != "harvest" && guard < 12 {
+        let p = pend(&g).clone();
+        let action = if p.escape_hidden() {
+            p.options()
+                .iter()
+                .find(|o| o.id != p.escape_id())
+                .map(|o| o.id.clone())
+                .expect("强制选择应有实质选项")
+        } else {
+            p.escape_id().to_string()
+        };
+        answer(&mut g, p.actor(), &action);
         guard += 1;
     }
     assert_eq!(pend(&g).kind(), "harvest");
     let picker = pend(&g).actor();
     assert!(pend(&g).escape_hidden(), "五谷取牌不可拒绝（出口只是占位）");
     let before = g.hand(picker).len();
-    answer(&mut g, picker, "pass"); // 占位提交 = 取第一张
-    assert_eq!(g.hand(picker).len(), before + 1, "占位提交应真的取到一张牌");
+    // I1：占位出口不得代选 → 提交出口必须被拒绝。
+    let err = submit(&mut g, picker, "pass").unwrap_err();
+    assert!(err.contains("必须选择"), "{err}");
+    let pick = pend(&g)
+        .options()
+        .iter()
+        .find(|o| o.id != pend(&g).escape_id())
+        .map(|o| o.id.clone())
+        .expect("五谷应有可取的牌");
+    answer(&mut g, picker, &pick);
+    assert_eq!(g.hand(picker).len(), before + 1, "取到一张牌");
 }
 
 /// 回归（2026-11-11 同类排查）：拆/顺的取牌浮层依赖 `pending.data`（目标/牌名），
@@ -925,8 +970,10 @@ fn dismantle_pending_carries_data_and_is_mandatory() {
         assert!(pend(g).escape_hidden(), "拆/顺选牌不可取消（出口只是占位）");
         assert_eq!(pend(g).data()["target"].as_str(), Some("p1"), "浮层要显示目标");
         assert_eq!(pend(g).data()["card"].as_str(), Some("过河拆桥"));
-        // 提交出口 = 自动选第一张（= 武器），不会「取消整张牌」。
-        answer(g, 0, "pass");
+        // I1：占位出口不得代选 → 提交出口必须被拒绝，必须显式选一张。
+        let err = submit(g, 0, "pass").unwrap_err();
+        assert!(err.contains("必须选择"), "{err}");
+        answer(g, 0, &format!("pick:{weapon}"));
     });
     assert_eq!(
         g.zone_of(&weapon),
@@ -1229,8 +1276,18 @@ fn every_resolution_keeps_conservation_and_no_orphan_frames() {
         while let Some(p) = g.pending.clone() {
             guard += 1;
             assert!(guard < 50, "pending 未收敛");
-            let escape = p.escape_id().to_string();
-            answer(&mut g, p.actor(), &escape);
+            // 强制选择类（占位出口）：测试里取第一个实质选项；其余提交出口。
+            let action = if p.escape_hidden() {
+                p.options()
+                    .iter()
+                    .find(|o| o.id != p.escape_id())
+                    .map(|o| o.id.clone())
+                    .expect("强制选择应有实质选项")
+            } else {
+                p.escape_id().to_string()
+            };
+            let actor = p.actor();
+            answer(&mut g, actor, &action);
         }
         invariant(&g);
         // 清掉可能阻塞下张牌的 pending（如五谷放弃、决斗放弃）。

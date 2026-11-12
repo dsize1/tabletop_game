@@ -668,7 +668,8 @@ pub fn step_dying(g: &mut Game, a: &Ask) -> Result<Step, String> {
         has = true;
         b = b.option(id, label);
     }
-    if !has {
+    // I1 询问完整性：只有「无牌可出」才不问；有手牌必须显式询问（可放弃）。
+    if !g.must_ask(asker, has) {
         let mut next = a.data.clone();
         next["cursor"] = json!(cursor + 1);
         return Ok(Step::Next(Stage::DyingAsk, next));
@@ -893,7 +894,8 @@ pub fn step_wuxie(g: &mut Game, a: &Ask) -> Result<Step, String> {
             );
         }
     }
-    if !has {
+    // I1 询问完整性：只有「无无懈可打」才不问；有手牌必须显式询问（可放弃）。
+    if !g.must_ask(asker, has) {
         cursor += 1;
         let mut next = a.data.clone();
         next["cursor"] = json!(cursor);

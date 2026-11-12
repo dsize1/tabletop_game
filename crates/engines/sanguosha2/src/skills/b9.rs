@@ -286,9 +286,10 @@ pub const JIJIANG: SkillDef = SkillDef { kind: SkillKind::Lord,
     code: "jijiang",
     name: "激将",
     triggers: &[EventKind::CardUsed, EventKind::CardPlayed],
+    // 触发钩子（界激将摸牌）需要 AnyTime；「主动使用」的时机由 `can_active` 自己把关。
     window: Window::AnyTime,
     priority: 0,
-    can_active: None,
+    can_active: Some(can_jijiang),
     handler: jijiang,
     dying_hook: None,
     flip_hook: None,
@@ -332,6 +333,17 @@ pub fn start_relay(
     _kind: ResponseKind,
     used: Option<&CardId>,
 ) {
+    start_relay_for(g, lord, used, false);
+}
+
+/// `for_use = true`：出牌阶段主动发动（代出的【杀】视为**主公使用**，牌不转手）；
+/// `for_use = false`：响应窗口内发动（代出的【杀】视为**主公打出**，牌直接进弃牌堆）。
+pub fn start_relay_for(
+    g: &mut Game,
+    lord: usize,
+    used: Option<&CardId>,
+    for_use: bool,
+) {
     let order = relay_order(g, lord);
     crate::kernel::resolve::push_ask(
         g,
@@ -343,35 +355,145 @@ pub fn start_relay(
             "order": order,
             "cursor": 0,
             "used": used.cloned(),
+            "for_use": for_use,
         }),
     );
 }
 
-/// 响应窗口前置：主公需要打出【杀】时可先问接力（由 `card_play` 调用）。
-pub fn relay_before(
-    g: &mut Game,
-    responder: usize,
-    kind: ResponseKind,
-    used: Option<&CardId>,
-) -> bool {
-    if kind != ResponseKind::Sha {
-        return false;
-    }
-    if g.counter(&format!("turn.relay_offer:{responder}")) > 0 {
-        return false;
-    }
-    if relay_options(g, responder, kind).is_empty() {
-        return false;
-    }
-    g.bump(&format!("turn.relay_offer:{responder}"));
-    start_relay(g, responder, kind, used);
-    true
+/// 合法【杀】目标集（技能侧给出牌名与牌定义，内核只做统一复核）。
+pub fn sha_target_sets(
+    g: &crate::kernel::Game,
+    seat: usize,
+    carrier: Option<&CardId>,
+) -> Vec<Vec<usize>> {
+    let def = crate::cards::def("杀");
+    crate::kernel::card_play::target_sets_for_skill(g, seat, "杀", &def, carrier)
+}
+
+/// 主动激将的合法入口：出牌阶段、主公、有可代出的同势力角色、且【杀】有合法目标。
+pub fn can_jijiang(g: &crate::kernel::Game, seat: usize) -> bool {
+    g.turn == seat
+        && g.phase == Phase::Play
+        && active(g, seat, "jijiang")
+        && g.seats[seat].identity == "lord"
+        && !relay_order(g, seat).is_empty()
+        && !sha_target_sets(g, seat, None).is_empty()
 }
 
 fn jijiang(g: &mut Game, a: &Ask) -> Result<Step, String> {
     let ev = a.data["event"].as_str().unwrap_or_default();
-    let step = a.data["step"].as_str().unwrap_or("draw").to_string();
-    if step == "draw" {
+    // 三种入口：主动（无 step/event）/ 事件触发（有 event）/ 响应接力（step=relay）。
+    let step = a.data["step"].as_str().unwrap_or("").to_string();
+
+    // ---- 主动形态首次发动（execute_active：无 step、无 event、无 seat）----
+    if step.is_empty() && a.data.get("seat").is_none() && ev.is_empty() {
+        let lord = a.actor;
+        if !can_jijiang(g, lord) {
+            return Ok(Step::Done);
+        }
+        start_relay_for(g, lord, None, true);
+        return Ok(Step::Next(Stage::Choose, json!({ "step": "active" })));
+    }
+
+    // ---- 主动形态（出牌阶段「需要使用【杀】」）：代出 → 主公选目标 → 视为主公使用 ----
+    if step == "active" {
+        let lord = a.actor;
+        // ① 子流程结果（唯一通道）：先于读回答检查。
+        if let Some(r) = g.relay_result.take() {
+            match r {
+                crate::kernel::RelayOutcome::Played { card, by } => {
+                    // `Step::Need` 不带 pending.data → 用 Step::Next 持久化帧数据。
+                    return Ok(Step::Next(
+                        Stage::Choose,
+                        json!({
+                            "step": "active",
+                            "phase": "pick_target",
+                            "card": card,
+                            "by": by,
+                        }),
+                    ));
+                }
+                crate::kernel::RelayOutcome::Declined => {
+                    g.push_log("激将：无人代出【杀】".to_string());
+                    return Ok(Step::Done);
+                }
+            }
+        }
+        // ② 选目标
+        if a.data["phase"].as_str() == Some("pick_target") {
+            let card = a.data["card"].as_str().unwrap_or_default().to_string();
+            let by = a.data["by"].as_u64().map(|n| n as usize);
+            if let Some(ans) = g.answer.take() {
+                let targets: Vec<usize> = ans
+                    .strip_prefix("target:")
+                    .ok_or_else(|| format!("激将：未知选项 {ans}"))?
+                    .split(',')
+                    .filter_map(|t| t.parse::<usize>().ok())
+                    .collect();
+                if targets.is_empty() {
+                    return Err("激将：缺少目标".into());
+                }
+                // 视为**主公**使用【杀】：次数/攻击范围按主公算，承载牌来自代出者。
+                crate::kernel::card_play::start_use(
+                    g,
+                    lord,
+                    Some(&card),
+                    "杀",
+                    targets,
+                    crate::kernel::card_play::UseOpts::relay(),
+                )?;
+                let by_name = by
+                    .and_then(|b| g.seats.get(b).map(|s| s.name.clone()))
+                    .unwrap_or_default();
+                g.push_log(format!(
+                    "激将：{by_name} 代出【{}】，视为 {} 使用",
+                    g.card_label(&card),
+                    g.seats[lord].name
+                ));
+                return Ok(Step::Done);
+            }
+            let sets = sha_target_sets(g, lord, Some(&card));
+            if sets.is_empty() {
+                g.push_log("激将：无合法目标（视为使用【杀】取消）".to_string());
+                return Ok(Step::Done);
+            }
+            let mut b = builder(lord, "target").skill("jijiang");
+            for ts in sets {
+                b = b.option(
+                    format!(
+                        "target:{}",
+                        ts.iter().map(|t| t.to_string()).collect::<Vec<_>>().join(",")
+                    ),
+                    format!(
+                        "视为对 {} 使用【杀】",
+                        ts.iter()
+                            .map(|t| g.seats[*t].name.clone())
+                            .collect::<Vec<_>>()
+                            .join("、")
+                    ),
+                );
+            }
+            return Ok(Step::Need(
+                b.data(json!({
+                    "step": "active",
+                    "phase": "pick_target",
+                    "card": card,
+                    "by": by,
+                }))
+                .escape_mandatory("（必须选择目标）")
+                .build(),
+            ));
+        }
+        // ③ 首次：起子流程（回到本入口读结果）
+        if !can_jijiang(g, lord) {
+            return Ok(Step::Done);
+        }
+        start_relay_for(g, lord, None, true);
+        return Ok(Step::Next(Stage::Choose, json!({ "step": "active" })));
+    }
+
+
+    if step.is_empty() && (a.data.get("seat").is_some() || !ev.is_empty()) {
         // 界激将摸牌：其他蜀势力角色**于其回合外**使用/打出【杀】时，其可令主公摸 1（每回合限一次）。
         let lord = a.actor;
         let by = a.data["seat"].as_u64().map(|n| n as usize);
@@ -413,7 +535,7 @@ fn jijiang(g: &mut Game, a: &Ask) -> Result<Step, String> {
             }
             Some(other) => Err(format!("激将：未知选项 {other}")),
         }
-    } else {
+    } else if step == "relay" {
         // 接力：按座位顺序询问同势力角色代出【杀】。
         let lord = a.actor;
         let mut order: Vec<usize> = a.data["order"]
@@ -422,17 +544,12 @@ fn jijiang(g: &mut Game, a: &Ask) -> Result<Step, String> {
             .unwrap_or_default();
         let mut cursor = a.data["cursor"].as_u64().unwrap_or(0) as usize;
         let used = a.data["used"].as_str().map(|s| s.to_string());
+        let for_use = a.data["for_use"].as_bool().unwrap_or(false);
         while cursor < order.len() {
             let by = order[cursor];
             if g.seats[by].hp <= 0 || g.hand(by).is_empty() {
                 cursor += 1;
                 continue;
-            }
-            // 已打出 → 交给响应流程
-            if let Some((card, seat)) = g.relay_played.clone() {
-                let _ = seat;
-                let _ = card;
-                return Ok(Step::Done);
             }
             match g.answer.take().as_deref() {
                 None => {
@@ -463,10 +580,14 @@ fn jijiang(g: &mut Game, a: &Ask) -> Result<Step, String> {
                     if !g.hand(by).contains(&id) || !g.def_of(&id).tags.sha {
                         return Err("激将：只能代出【杀】".into());
                     }
-                    g.to_discard(&id, "jijiang")?;
+                    // 响应形态：牌直接进弃牌堆（视为打出）；使用形态：牌作为承载牌交给主公使用。
+                    if !for_use {
+                        g.to_discard(&id, "jijiang")?;
+                    }
                     g.push_log(format!(
-                        "激将：{} 代替主公打出【{}】",
+                        "激将：{} 代替主公{}【{}】",
                         g.seats[by].name,
+                        if for_use { "使用" } else { "打出" },
                         label(g, &id)
                     ));
                     g.presentation.push(
@@ -478,14 +599,20 @@ fn jijiang(g: &mut Game, a: &Ask) -> Result<Step, String> {
                         .cards(vec![id.clone()])
                         .fx("jijiang"),
                     );
-                    g.relay_played = Some((id, by));
+                    // 唯一结果通道：响应流程消费后视为本次响应已成立。
+                    g.relay_result = Some(crate::kernel::RelayOutcome::Played {
+                        card: id.clone(),
+                        by,
+                    });
                     let _ = lord;
                     return Ok(Step::Done);
                 }
             }
         }
-        // 全部放弃
-        g.relay_none = true;
+        // 全部放弃 → 回到主公本人的响应窗口（不是「未响应」）。
+        g.relay_result = Some(crate::kernel::RelayOutcome::Declined);
+        Ok(Step::Done)
+    } else {
         Ok(Step::Done)
     }
 }

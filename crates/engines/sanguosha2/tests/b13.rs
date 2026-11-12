@@ -65,12 +65,54 @@ fn options(g: &Game) -> Vec<String> {
         .map(|p| p.options().iter().map(|o| o.id.clone()).collect())
         .unwrap_or_default()
 }
+/// 通用作答（测试推进用）：**优先选第一个实质选项**，只有「只剩出口」时才放弃。
+///
+/// 不能反过来（默认放弃）：会把「激将」「拆牌」这类真实决策静默拒掉，
+/// 让用例看起来通过但实际没走目标分支。
+fn answer_any(g: &mut Game) {
+    drain_forced(g);
+    let Some(p) = g.pending.clone() else { return };
+    let action = p
+        .options()
+        .iter()
+        .find(|o| o.id != p.escape_id())
+        .map(|o| o.id.clone())
+        .unwrap_or_else(|| p.escape_id().to_string());
+    answer(g, p.actor(), &action);
+}
+
 fn answer_cur(g: &mut Game, action: &str) {
     let actor = g.pending.as_ref().map(|p| p.actor()).expect("没有待办");
     answer(g, actor, action);
 }
+/// I1 询问完整性（v1 口径 2026-10-28）：有手牌就必须显式询问。
+/// 这里把「无牌可打」的三类响应询问（闪/杀、无懈、濒死）按唯一出口放弃，
+/// 避免每个用例重复处理（引擎的询问本身仍会产生，见 cards.rs::ask_* 用例）。
+fn drain_forced(g: &mut Game) {
+    while let Some(p) = g.pending.clone() {
+        if !matches!(p.kind(), "card_response" | "wuxie" | "dying") {
+            break;
+        }
+        if p.options().iter().any(|o| o.id != p.escape_id()) {
+            break;
+        }
+        let (actor, escape) = (p.actor(), p.escape_id().to_string());
+        submit(g, actor, &escape).expect("放弃唯一出口");
+    }
+}
+
 fn answer(g: &mut Game, actor: usize, action: &str) {
+    // 该询问若只剩出口（有手牌但无对应牌），drain 已按唯一出口处理 → 只允许放弃类动作。
+    if g.pending.is_none() {
+        assert!(
+            matches!(action, "pass" | "cancel"),
+            "没有待办却提交了实质动作：{action}"
+        );
+        return;
+    }
     submit(g, actor, action).unwrap_or_else(|e| panic!("提交 {action} 失败：{e}"));
+    // I1：作答后可能立刻产生新的「无牌可打」礼貌询问（如锦囊的无懈窗口）→ 继续排空。
+    drain_forced(g);
 }
 fn play_phase(g: &mut Game, seat: usize) {
     g.turn = seat;
@@ -257,6 +299,7 @@ fn shizhan_two_duels_per_phase() {
     give(&mut g, 0, &["s1"]);
     skills::execute_active(&mut g, 0, "skill:shizhan").unwrap();
     answer(&mut g, 0, "target:1");
+    drain_forced(&mut g); // I1：决斗是无懈窗口内的锦囊，先排空「无牌可打」的礼貌询问
     assert_eq!(pend_skill(&g).as_deref(), Some("__card"), "决斗开始（华雄先出【杀】）");
     answer(&mut g, 0, "respond:s1");
     advance(&mut g).unwrap();
@@ -495,6 +538,7 @@ fn luanji_two_same_suit_arrows() {
     // 可少选一个目标
     assert_eq!(pend_skill(&g).as_deref(), Some("luanji"));
     answer(&mut g, 0, "drop:2");
+    drain_forced(&mut g); // I1：p1 无【闪】但有手牌 → 仍要显式询问（唯一出口=放弃）
     // 少选 p2 → 只有 p1 结算；双方都没有【闪】→ 直接受伤
     assert_eq!(g.seats[1].hp, 3);
     assert_eq!(g.seats[2].hp, 4, "被少选的目标不受影响");

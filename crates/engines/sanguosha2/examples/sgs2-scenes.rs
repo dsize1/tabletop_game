@@ -459,9 +459,12 @@ fn scenario_xingshuai() -> (String, String, Rec) {
     let mut r = Rec::new();
     flow::damage(&mut g, Some(2), 0, 1); // 1 → 0 濒死
     r.act(&mut g, "曹叡濒死（求桃从左手方开始）", None, None);
-    // 其他角色（有【桃】但不救）放弃 → 轮到曹叡自己，此时可选 自桃/自酒/兴衰
-    let actor = g.pending.as_ref().map(|p| p.actor()).unwrap_or(0);
-    if actor != 0 {
+    // 其他角色（有手牌）逐个被询问「救不救」——I1：有手牌就必须显式询问（唯一实质动作=放弃）。
+    // v1 口径：无手牌才自动跳过，所以这里要按座位顺序把非濒死者的询问全部回应掉。
+    let mut guard = 0;
+    while g.pending.as_ref().map(|p| p.actor()).is_some_and(|a| a != 0) && guard < 8 {
+        guard += 1;
+        let actor = g.pending.as_ref().map(|p| p.actor()).unwrap_or(0);
         r.act(&mut g, "其他角色放弃救援", Some(actor), Some("pass"));
     }
     r.check(

@@ -1384,15 +1384,6 @@ pub fn relay_options(g: &Game, seat: usize, kind: crate::cards::ResponseKind) ->
 }
 
 /// 是否可以在该响应窗口发起主公技接力（激将：替主公打出【杀】）。
-pub fn relay_before(
-    g: &mut Game,
-    responder: usize,
-    kind: crate::cards::ResponseKind,
-    used: Option<&crate::kernel::CardId>,
-) -> bool {
-    b9::relay_before(g, responder, kind, used)
-}
-
 /// 发起主公技接力（激将：替主公打出【杀】）。
 pub fn start_relay(
     g: &mut Game,

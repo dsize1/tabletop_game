@@ -39,6 +39,8 @@ pub struct UseOpts {
     /// 不能被【无懈可击】抵消（机制 `no-wuxie`；如离间「不能被无懈可击抵消」）。
     /// 只关无懈窗口，不影响该牌的其它响应（【决斗】仍需出【杀】）。
     pub no_wuxie: bool,
+    /// 承载牌可以来自他人手牌（主公技接力：代出的【杀】视为主公使用，牌不转手）。
+    pub foreign_carrier: bool,
 }
 
 impl UseOpts {
@@ -48,6 +50,7 @@ impl UseOpts {
             strict: true,
             damage_source: None,
             no_wuxie: false,
+            foreign_carrier: false,
         }
     }
 
@@ -57,6 +60,7 @@ impl UseOpts {
             strict: false,
             damage_source: None,
             no_wuxie: false,
+            foreign_carrier: false,
         }
     }
 
@@ -66,6 +70,17 @@ impl UseOpts {
             strict: true,
             damage_source: None,
             no_wuxie: false,
+            foreign_carrier: false,
+        }
+    }
+
+    /// 主公技接力（激将/护驾）：严格校验（次数/范围按主公），承载牌可来自他人手牌。
+    pub fn relay() -> Self {
+        Self {
+            strict: true,
+            damage_source: None,
+            no_wuxie: false,
+            foreign_carrier: true,
         }
     }
 
@@ -123,6 +138,8 @@ fn plan_use(
         };
         match g.zone_of(card) {
             Some(Zone::Hand(s)) if *s == seat => {}
+            // 主公技接力：代出者的手牌直接作为承载牌（不转手主公）；次数/范围仍按主公算。
+            Some(Zone::Hand(_)) if opts.foreign_carrier => {}
             _ => return Err("只能使用自己的手牌".into()),
         }
         if !g.can_use_card(seat, card) {
@@ -174,6 +191,32 @@ fn plan_use(
 /// 枚举「本阶段可主动使用的牌」的具体动作（`use:{id}` / `use:{id}:{t1,t2}`）。
 ///
 /// legal 与 execute 同源：每个候选都用 `plan_use` 复核。
+/// 技能视角的合法目标集（激将主动形态：代出后由主公选目标）。
+///
+/// 与 `legal_uses` 同一口径：候选来自 `target_sets_for`，再用 `can_target` + `plan_use`
+/// 逐组复核（strict=true + `foreign_carrier`），保证 legal ≡ execute。
+/// 牌名/牌定义由技能侧给出（内核不按牌名分支）。
+pub fn target_sets_for_skill(
+    g: &Game,
+    seat: usize,
+    name: &str,
+    def: &cards::CardDef,
+    carrier: Option<&CardId>,
+) -> Vec<Vec<usize>> {
+    // 尚未有承载牌时（发起前判断「是否可用」）用非严格校验；有承载牌时用接力口径
+    // （严格：次数/攻击范围按使用者，承载牌允许来自他人手牌）。
+    let opts = if carrier.is_some() {
+        UseOpts::relay()
+    } else {
+        UseOpts::skill()
+    };
+    target_sets_for(g, seat, def)
+        .into_iter()
+        .filter(|ts| ts.iter().all(|t| skills::can_target(g, seat, name, *t, carrier)))
+        .filter(|ts| plan_use(g, seat, carrier, name, ts, opts).is_ok())
+        .collect()
+}
+
 pub fn legal_uses(g: &Game, seat: usize) -> Vec<(String, String)> {
     let mut out = Vec::new();
     let alive: Vec<usize> = (0..g.seats.len())
@@ -726,6 +769,7 @@ pub fn step_pre_use(g: &mut Game, a: &Ask) -> Result<Step, String> {
         strict: true,
         damage_source: switch_user,
         no_wuxie: false,
+        foreign_carrier: false,
     };
     // 使用者身份：代用时记账在**原使用者**（牌在其实体区域），伤害来源改为协助者。
     start_use(g, user, card.as_ref(), &name, final_targets, opts)?;
@@ -1378,6 +1422,12 @@ fn sha_loop(
             gear::start(g, gear::GearTag::TargetChosen, source, t, card);
             return Ok(Some(Step::Next(Stage::CardOpt, data.clone())));
         }
+        // I1：并发窗口的过期回答 → 丢弃并**重新询问**（不得代判「未响应」）。
+        if std::mem::take(&mut g.response_stale) {
+            data["asked"] = json!(false);
+            data["need"] = json!(0);
+            data["got"] = json!(0);
+        }
         if data["asked"].as_bool().unwrap_or(false) {
             // 蛊惑延后结果优先；未就绪则保持 asked，等待流程结束重入。
             let outcome = match g.guhuo_result.take() {
@@ -1552,15 +1602,11 @@ fn aoe(
             data["cursor"] = json!(cursor);
             continue;
         }
-        if data["relay_wait"].as_bool().unwrap_or(false) {
-            data["relay_wait"] = json!(false);
-            let relayed = g.relay_played.take().is_some();
-            g.relay_none = false;
-            if relayed {
-                cursor += 1;
-                data["cursor"] = json!(cursor);
-                continue;
-            }
+        // I1：并发窗口的过期回答 → 丢弃并重新询问。
+        if std::mem::take(&mut g.response_stale) {
+            data["asked"] = json!(false);
+            data["need"] = json!(0);
+            data["got"] = json!(0);
         }
         if data["asked"].as_bool().unwrap_or(false) {
             let outcome = match g.guhuo_result.take() {
@@ -1579,11 +1625,6 @@ fn aoe(
             continue;
         }
         if !unresponsive {
-            if crate::skills::relay_before(g, t, kind, card) {
-                data["relay_wait"] = json!(true);
-                data["cursor"] = json!(cursor);
-                return Ok(Step::Next(Stage::CardOpt, data.clone()));
-            }
             if let Some(p) =
                 response_pending(g, t, kind, Some(damage_source), card)
             {
@@ -1630,14 +1671,11 @@ fn duel(
         return advance_target(g, card, data);
     }
 
-    if data["relay_wait"].as_bool().unwrap_or(false) {
-        data["relay_wait"] = json!(false);
-        let relayed = g.relay_played.take().is_some();
-        g.relay_none = false;
-        if relayed {
-            data["responder"] = json!(opponent);
-            return Ok(Step::Next(Stage::CardOpt, data.clone()));
-        }
+    // I1：并发窗口的过期回答 → 丢弃并重新询问。
+    if std::mem::take(&mut g.response_stale) {
+        data["asked"] = json!(false);
+        data["need"] = json!(0);
+        data["got"] = json!(0);
     }
     if data["asked"].as_bool().unwrap_or(false) {
         let outcome = match g.guhuo_result.take() {
@@ -1674,11 +1712,6 @@ fn duel(
     }
 
     if !unresponsive {
-        if crate::skills::relay_before(g, responder, ResponseKind::Sha, card) {
-            data["responder"] = json!(responder);
-            data["relay_wait"] = json!(true);
-            return Ok(Step::Next(Stage::CardOpt, data.clone()));
-        }
         if let Some(p) =
             response_pending(g, responder, ResponseKind::Sha, Some(opponent), card)
         {
@@ -1783,12 +1816,16 @@ fn pick_card(
     if !g.hand(target).is_empty() {
         options.push(("pick:hand".to_string(), "随机一张手牌".to_string()));
     }
-    if options.is_empty() {
+    if !g.must_ask(target, !options.is_empty()) {
         return advance_target(g, card, data);
     }
 
     if data["asked"].as_bool().unwrap_or(false) {
-        let ans = read_answer(g)?;
+        // I1：回答缺失（被嵌套流程消费）→ 重新询问，不得代玩家放弃。
+        let Some(ans) = read_answer(g)? else {
+            data["asked"] = json!(false);
+            return Ok(Step::Next(Stage::CardPick, data.clone()));
+        };
         data["asked"] = json!(false);
         if ans == "pass" {
             return advance_target(g, card, data);
@@ -1797,7 +1834,15 @@ fn pick_card(
             return Err(format!("非法选牌：{ans}"));
         }
         let picked = if ans == "pick:hand" {
-            g.hand(target).first().cloned()
+            // 目标手牌不可见，应由**随机**一张决定（v1 `next_index(n)` 语义；
+            // 取第一张会变成可预测的固定位置，属于引擎代选，见 I1）。
+            let n = g.hand(target).len();
+            if n == 0 {
+                None
+            } else {
+                let idx = g.rand_below(n);
+                g.hand(target).get(idx).cloned()
+            }
         } else {
             ans.strip_prefix("pick:").map(|s| s.to_string())
         };
@@ -1891,7 +1936,11 @@ fn harvest(
     while cursor < pickers.len() && !pool.is_empty() {
         let actor = pickers[cursor];
         if data["asked"].as_bool().unwrap_or(false) {
-            let ans = read_answer(g)?;
+            // I1：回答缺失（被嵌套流程消费）→ 重新询问，不得代玩家放弃。
+            let Some(ans) = read_answer(g)? else {
+                data["asked"] = json!(false);
+                return Ok(Step::Next(Stage::CardOpt, data.clone()));
+            };
             data["asked"] = json!(false);
             if ans != "pass" {
                 let id = ans
@@ -1978,7 +2027,11 @@ fn fire_attack(
             return Ok(Step::Next(Stage::CardOpt, data.clone()));
         }
         if data["asked"].as_bool().unwrap_or(false) {
-            let ans = read_answer(g)?;
+            // I1：回答缺失（被嵌套流程消费）→ 重新询问，不得代玩家放弃。
+            let Some(ans) = read_answer(g)? else {
+                data["asked"] = json!(false);
+                return Ok(Step::Next(Stage::CardOpt, data.clone()));
+            };
             data["asked"] = json!(false);
             if ans == "pass" {
                 return advance_target(g, card, data);
@@ -2026,7 +2079,11 @@ fn fire_attack(
 
     let shown = data["shown"].as_str().unwrap_or_default().to_string();
     if data["asked"].as_bool().unwrap_or(false) {
-        let ans = read_answer(g)?;
+        // I1：回答缺失（被嵌套流程消费）→ 重新询问，不得代玩家放弃。
+        let Some(ans) = read_answer(g)? else {
+            data["asked"] = json!(false);
+            return Ok(Step::Next(Stage::CardOpt, data.clone()));
+        };
         data["asked"] = json!(false);
         if ans != "pass" {
             let id = ans
@@ -2135,7 +2192,11 @@ fn collateral(
     }
 
     if data["asked"].as_bool().unwrap_or(false) {
-        let ans = read_answer(g)?;
+        // I1：回答缺失（被嵌套流程消费）→ 重新询问，不得代玩家放弃。
+        let Some(ans) = read_answer(g)? else {
+            data["asked"] = json!(false);
+            return Ok(Step::Next(Stage::CardOpt, data.clone()));
+        };
         data["asked"] = json!(false);
         if ans == "pass" {
             if let Some(weapon) = g.equip_in(a, Slot::Weapon) {
@@ -2247,7 +2308,7 @@ fn response_options(g: &Game, target: usize, kind: ResponseKind) -> Vec<(String,
             format!("【{}】当【{}】打出", g.card_label(&conv.from), conv.to),
         ));
     }
-    // 主公技接力（激将：蜀势力替主公打出【杀】）
+    // 主公技接力（激将/护驾）：响应窗口里的**唯一入口**（选中后进入子流程）。
     for (id, label) in skills::relay_options(g, target, kind) {
         out.push((id, label));
     }
@@ -2294,14 +2355,23 @@ fn response_pending(
 ) -> Option<super::pending::Pending> {
     g.response_source = source;
     let mut options = response_options(g, target, kind);
+    // 规则层面「不能响应」（诈降红【杀】/ 毅重②）：这不是「没牌可打」，
+    // 而是合法集为空 —— 与 v1 的 `no_shan` 同口径，直接不询问。
+    let mut forbidden = false;
     if kind == ResponseKind::Shan && crate::skills::block_real_shan(g, target) {
         options.retain(|(id, _)| !id.starts_with("respond:"));
+        forbidden = true;
     }
     // 毅重②（及其他「无法响应」类）：按（响应者, 使用者, 此牌）逐张判定。
     if kind == ResponseKind::Shan && crate::skills::shan_blocked_for(g, target, source, card) {
         options.retain(|(id, _)| !id.starts_with("respond:") && !id.starts_with("armor:"));
+        forbidden = true;
     }
-    if options.is_empty() {
+    if options.is_empty() && forbidden {
+        return None;
+    }
+    // I1 询问完整性：只有「合法动作集为空」（无牌可打）才不询问；有手牌必须显式询问。
+    if !g.must_ask(target, !options.is_empty()) {
         return None;
     }
     let mut b = skills::builder(target, "card_response").skill("__card");
@@ -2320,7 +2390,23 @@ fn apply_response(
     kind: ResponseKind,
     used: Option<&CardId>,
 ) -> Result<Option<bool>, String> {
-    let ans = read_answer(g)?;
+    // 主公技接力子流程的结果（唯一通道，单次消费）：必须在读回答之前检查——
+    // 子流程结束时本次响应窗口并没有新的 `answer`。
+    if let Some(r) = g.relay_result.take() {
+        match r {
+            crate::kernel::RelayOutcome::Played { .. } => return Ok(Some(true)),
+            crate::kernel::RelayOutcome::Declined => {
+                // 全部拒绝 → 回到主公本人的响应窗口（不是「未响应」）。
+                g.response_stale = true;
+                return Ok(None);
+            }
+        }
+    }
+    // I1：回答缺失（被嵌套流程消费）→ 标记后由调用方重新询问；不得代玩家放弃。
+    let Some(ans) = read_answer(g)? else {
+        g.response_stale = true;
+        return Ok(None);
+    };
     // 蛊惑：扣置声明 + 质疑链，结果延后回传（内核对「响应是否成立」只认结果通道）。
     if ans == "guhuo" {
         crate::skills::start_guhuo_response(g, actor, kind)?;
@@ -2334,8 +2420,9 @@ fn apply_response(
         let id = id.to_string();
         if !g.hand(actor).contains(&id) {
             // 并发响应窗口：回答可能来自已关闭的旧窗口（牌已被消费/移走）。
-            // 视为「未响应」而不是非法动作（合法集只描述当前一步，见 legal-actions.md §2）。
-            g.push_log(format!("响应窗口已变化：{id} 不在手牌，按未响应处理"));
+            // I1：不得把过期回答当作「未响应」代玩家放弃 → 标记后由调用方**重新询问**。
+            g.push_log(format!("响应窗口已变化：{id} 不在手牌，重新询问"));
+            g.response_stale = true;
             return Ok(None);
         }
         if !cards::responds_as(&g.name_of(&id), kind) {
@@ -2479,9 +2566,9 @@ fn apply_response(
         return Ok(Some(true));
     }
     if ans == "jijiang" {
-        // 主公技接力：压入激将帧（响应流程在下一轮读取 `relay_played` / `relay_none`）。
+        // 主公技接力：压入子流程，等它把结果写进 `relay_result` 后由本函数消费。
         crate::skills::start_relay(g, actor, kind, used);
-        return Ok(Some(false));
+        return Ok(None);
     }
     if kind == ResponseKind::Shan && skills::dodge_use(g, actor, &ans)? {
         return Ok(Some(true));
@@ -2827,14 +2914,10 @@ fn need_at(
     Ok(Step::Need(p))
 }
 
-fn read_answer(g: &mut Game) -> Result<String, String> {
-    match g.answer.take() {
-        Some(a) => Ok(a),
-        None => {
-            // 嵌套流程（濒死/接力/蛊惑）可能先把回答消费掉：此时把本次响应按「放弃」处理，
-            // 并留下日志排障；不把整局打断（历史上这是 AI 自对弈的唯一硬错误来源）。
-            g.push_log("（结算：回答丢失，按放弃处理）".to_string());
-            Ok("pass".to_string())
-        }
-    }
+/// 读取当前回答。`None` = 尚未作答（嵌套流程已把它消费/窗口已变化）。
+///
+/// I1 询问完整性：**不得**把「没有回答」当成「放弃」——调用方必须标记
+/// `response_stale` 并重新询问（`Some("pass")` 只能来自玩家的显式放弃）。
+fn read_answer(g: &mut Game) -> Result<Option<String>, String> {
+    Ok(g.answer.take())
 }

@@ -83,10 +83,54 @@ fn options(g: &Game) -> Vec<String> {
         .map(|p| p.options().iter().map(|o| o.id.clone()).collect())
         .unwrap_or_default()
 }
-fn answer(g: &mut Game, actor: usize, action: &str) {
-    submit(g, actor, action).unwrap_or_else(|e| panic!("提交 {action} 失败：{e}"));
+/// I1 询问完整性（v1 口径 2026-10-28）：有手牌就必须显式询问。
+/// 这里把「无牌可打」的三类响应询问（闪/杀、无懈、濒死）按唯一出口放弃，
+/// 避免每个用例重复处理（引擎的询问本身仍会产生，见 cards.rs::ask_* 用例）。
+fn drain_forced(g: &mut Game) {
+    while let Some(p) = g.pending.clone() {
+        if !matches!(p.kind(), "card_response" | "wuxie" | "dying") {
+            break;
+        }
+        if p.options().iter().any(|o| o.id != p.escape_id()) {
+            break;
+        }
+        let (actor, escape) = (p.actor(), p.escape_id().to_string());
+        submit(g, actor, &escape).expect("放弃唯一出口");
+    }
 }
+
+fn answer(g: &mut Game, actor: usize, action: &str) {
+    // 该询问若只剩出口（有手牌但无对应牌），drain 已按唯一出口处理 → 只允许放弃类动作。
+    if g.pending.is_none() {
+        assert!(
+            matches!(action, "pass" | "cancel"),
+            "没有待办却提交了实质动作：{action}"
+        );
+        return;
+    }
+    submit(g, actor, action).unwrap_or_else(|e| panic!("提交 {action} 失败：{e}"));
+    // I1：作答后可能立刻产生新的「无牌可打」礼貌询问（如锦囊的无懈窗口）→ 继续排空。
+    drain_forced(g);
+}
+/// 通用作答（测试推进用）：**优先选第一个实质选项**，只有「只剩出口」时才放弃。
+///
+/// 不能反过来（默认放弃）：会把「激将」「拆牌」这类真实决策静默拒掉，
+/// 让用例看起来通过但实际没走目标分支。
+fn answer_any(g: &mut Game) {
+    drain_forced(g);
+    let Some(p) = g.pending.clone() else { return };
+    let action = p
+        .options()
+        .iter()
+        .find(|o| o.id != p.escape_id())
+        .map(|o| o.id.clone())
+        .unwrap_or_else(|| p.escape_id().to_string());
+    answer(g, p.actor(), &action);
+}
+
 fn answer_cur(g: &mut Game, action: &str) {
+    // I1：先把「无牌可打」的礼貌询问排空，再取当前被询问者（排空会推进流程）。
+    drain_forced(g);
     let actor = pend_actor(g);
     answer(g, actor, action);
 }
@@ -242,7 +286,7 @@ fn jingce_hand_limit_and_optional_draw_at_play_end() {
     g.resolve_use(0, &"gh1".to_string(), vec![1]).unwrap();
     advance(&mut g).unwrap();
     while g.pending.is_some() {
-        answer_cur(&mut g, "pass");
+        answer_any(&mut g);
     }
     assert_eq!(g.hand_limit(0), base + 1, "使用一种花色的手牌 → 上限 +1");
     // 出牌阶段结束触发（内核在阶段结束时按注册表压入询问；此处直接压入同一入口）。
@@ -319,6 +363,7 @@ fn zhuikong_lose_gains_pindian_card_and_virtual_sha() {
         g.hand(0).iter().any(|c| c == "sp1"),
         "没赢：获得其拼点牌"
     );
+    drain_forced(&mut g); // I1：视为使用的【杀】仍要显式询问（唯一出口=放弃）
     assert_eq!(g.seats[0].hp, 2, "视为使用【杀】并命中");
 }
 
@@ -390,11 +435,11 @@ fn gongqi_discards_equip_then_unlimited_sha_of_same_suit() {
     give(&mut g, 1, &["d1", "d2", "d3"]);
     g.resolve_use(0, &"sp1".to_string(), vec![1]).unwrap();
     while g.pending.is_some() {
-        answer_cur(&mut g, "pass");
+        answer_any(&mut g);
     }
     g.resolve_use(0, &"sp2".to_string(), vec![2]).unwrap();
     while g.pending.is_some() {
-        answer_cur(&mut g, "pass");
+        answer_any(&mut g);
     }
     assert!(g.sha_used(0) >= 2);
 }
@@ -497,6 +542,7 @@ fn fuhen_two_card_sha_response_option_exists() {
     give(&mut g, 1, &["nm1"]);
     play_phase(&mut g, 1);
     g.resolve_use(1, &"nm1".to_string(), vec![0]).unwrap();
+    drain_forced(&mut g); // I1：先排空无懈等礼貌询问
     assert_eq!(pend_actor(&g), 0);
     assert!(
         options(&g).iter().any(|o| o.starts_with("pair:")),
@@ -523,7 +569,7 @@ fn qianxi_locks_distance_one_color_and_boosts_revealed_card() {
     assert!(!skills::hand_color_blocked(&g, 2, &"t1".to_string()), "距离 2 不受限");
     g.resolve_use(0, &"h1".to_string(), vec![1]).unwrap();
     while g.pending.is_some() {
-        answer_cur(&mut g, "pass");
+        answer_any(&mut g);
     }
     assert_eq!(g.seats[1].hp, 2, "展示牌造成伤害 +1");
 }
@@ -585,7 +631,7 @@ fn jiazhao_uses_card_as_trick_and_plus_works_out_of_turn() {
         answer_cur(&mut g, &pick);
     }
     while g.pending.is_some() {
-        answer_cur(&mut g, "pass");
+        answer_any(&mut g);
     }
     assert_eq!(g.hand(1).len(), 1, "过河拆桥生效");
     // 修改 1：回合外也可以使用（每轮限一次）。
@@ -678,7 +724,7 @@ fn jianying_draws_on_same_suit_in_play_phase() {
     play_phase(&mut g, 0);
     g.resolve_use(0, &"t1".to_string(), vec![]).unwrap();
     while g.pending.is_some() {
-        answer_cur(&mut g, "pass");
+        answer_any(&mut g);
     }
     advance(&mut g).unwrap();
     // 第二张同花色（红桃）→ 触发摸牌询问。
@@ -701,7 +747,7 @@ fn jianying_converts_to_basic_with_suit_inheritance() {
     play_phase(&mut g, 0);
     g.resolve_use(0, &"t1".to_string(), vec![]).unwrap();
     while g.pending.is_some() {
-        answer_cur(&mut g, "pass");
+        answer_any(&mut g);
     }
     advance(&mut g).unwrap();
     skills::execute_active(&mut g, 0, "skill:jianying").unwrap();
@@ -729,12 +775,12 @@ fn jianying_no_draw_when_suit_and_rank_differ() {
     play_phase(&mut g, 0);
     g.resolve_use(0, &"t1".to_string(), vec![]).unwrap();
     while g.pending.is_some() {
-        answer_cur(&mut g, "pass");
+        answer_any(&mut g);
     }
     advance(&mut g).unwrap();
     g.resolve_use(0, &"j1".to_string(), vec![]).unwrap();
     while g.pending.is_some() {
-        answer_cur(&mut g, "pass");
+        answer_any(&mut g);
     }
     advance(&mut g).unwrap();
     assert_ne!(pend_skill(&g).as_deref(), Some("jianying"));

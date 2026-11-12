@@ -130,7 +130,8 @@ impl PendingBuilder<NoEscape> {
         }
     }
 
-    /// 强制选择类待办：出口仅满足类型状态（端侧不展示；提交出口 = 自动选第一个实质选项）。
+    /// 强制选择类待办：出口仅满足类型状态（端侧不展示；**提交出口被拒绝**，由引擎报非法，
+    /// 不再「自动选第一个实质选项」——那是代玩家决策，见 I1 询问完整性）。
     pub fn escape_mandatory(mut self, label: impl Into<String>) -> PendingBuilder<HasEscape> {
         let id = "pass".to_string();
         self.options.push(PendingOption {

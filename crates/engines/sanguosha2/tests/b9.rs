@@ -71,8 +71,50 @@ fn pend_skill(g: &Game) -> Option<String> {
     g.pending.as_ref().and_then(|p| p.skill().map(|s| s.to_string()))
 }
 
+/// I1 询问完整性（v1 口径 2026-10-28）：有手牌就必须显式询问。
+/// 这里把「无牌可打」的三类响应询问（闪/杀、无懈、濒死）按唯一出口放弃，
+/// 避免每个用例重复处理（引擎的询问本身仍会产生，见 cards.rs::ask_* 用例）。
+fn drain_forced(g: &mut Game) {
+    while let Some(p) = g.pending.clone() {
+        if !matches!(p.kind(), "card_response" | "wuxie" | "dying") {
+            break;
+        }
+        if p.options().iter().any(|o| o.id != p.escape_id()) {
+            break;
+        }
+        let (actor, escape) = (p.actor(), p.escape_id().to_string());
+        submit(g, actor, &escape).expect("放弃唯一出口");
+    }
+}
+
+/// 通用作答（测试推进用）：**优先选第一个实质选项**，只有「只剩出口」时才放弃。
+///
+/// 不能反过来（默认放弃）：会把「激将」「拆牌」这类真实决策静默拒掉，
+/// 让用例看起来通过但实际没走目标分支。
+fn answer_any(g: &mut Game) {
+    drain_forced(g);
+    let Some(p) = g.pending.clone() else { return };
+    let action = p
+        .options()
+        .iter()
+        .find(|o| o.id != p.escape_id())
+        .map(|o| o.id.clone())
+        .unwrap_or_else(|| p.escape_id().to_string());
+    answer(g, p.actor(), &action);
+}
+
 fn answer(g: &mut Game, actor: usize, action: &str) {
+    // 该询问若只剩出口（有手牌但无对应牌），drain 已按唯一出口处理 → 只允许放弃类动作。
+    if g.pending.is_none() {
+        assert!(
+            matches!(action, "pass" | "cancel"),
+            "没有待办却提交了实质动作：{action}"
+        );
+        return;
+    }
     submit(g, actor, action).unwrap_or_else(|e| panic!("提交 {action} 失败：{e}"));
+    // I1：作答后可能立刻产生新的「无牌可打」礼貌询问（如锦囊的无懈窗口）→ 继续排空。
+    drain_forced(g);
 }
 
 fn options(g: &Game) -> Vec<String> {
@@ -164,6 +206,22 @@ fn rende_cannot_target_same_character_twice() {
 // 激将（界刘备·主公技）
 // ---------------------------------------------------------------------------
 
+/// 激将夹具：刘备（主公、蜀）+ 蜀将 + 魏将。
+fn jijiang_setup() -> Game {
+    let mut g = game(&[("liubei", &["jijiang"], 4), ("shu1", &[], 4), ("p2", &[], 4)]);
+    g.seats[0].identity = "lord".to_string();
+    g.seats[0].flags.insert("lord".to_string());
+    g.seats[1].kingdom = "shu".to_string();
+    g.seats[2].kingdom = "wei".to_string();
+    g
+}
+
+fn give_one(g: &mut Game, seat: usize, id: &str) -> String {
+    give(g, seat, &[id]);
+    id.to_string()
+}
+
+
 #[test]
 fn jijiang_relay_lets_shu_ally_play_sha_for_lord() {
     let mut g = game(&[
@@ -180,43 +238,133 @@ fn jijiang_relay_lets_shu_ally_play_sha_for_lord() {
     play(&mut g, 2);
     give(&mut g, 2, &["c18"]);
     g.resolve_use(2, &"c18".to_string(), vec![]).unwrap();
-    // 询问顺序：主公先（有激将选项）→ 选择后接力
-    let mut saw_jijiang = false;
-    while g.pending.is_some() {
+    // 显式驱动：先排空「无牌可打」的礼貌询问，再按选项内容分派。
+    let mut saw_option = false; // 响应窗口里出现「激将」选项
+    let mut saw_relay = false; // 激将子流程里蜀将可代出【杀】
+    let mut guard = 0;
+    while g.pending.is_some() && guard < 20 {
+        guard += 1;
+        drain_forced(&mut g);
+        if g.pending.is_none() {
+            break;
+        }
         let actor = pend(&g).actor();
         let opts = options(&g);
-        if pend_skill(&g).as_deref() == Some("jijiang") {
-            saw_jijiang = true;
-            // 蜀将代出【杀】（或主公放弃）
-            if let Some(card) = opts.iter().find(|o| o.starts_with("respond:")).cloned() {
-                answer(&mut g, actor, &card);
-            } else {
-                answer(&mut g, actor, "pass");
-            }
-            continue;
-        }
         if opts.contains(&"jijiang".to_string()) {
-            saw_jijiang = true;
+            saw_option = true;
             answer(&mut g, actor, "jijiang");
             continue;
         }
-        if opts.iter().any(|o| o.starts_with("respond:")) {
+        if pend_skill(&g).as_deref() == Some("jijiang")
+            && opts.iter().any(|o| o.starts_with("respond:"))
+        {
+            saw_relay = true;
             let card = opts
-                .into_iter()
+                .iter()
                 .find(|o| o.starts_with("respond:"))
-                .unwrap();
+                .cloned()
+                .expect("代出选项");
+            answer(&mut g, actor, &card);
+            continue;
+        }
+        if let Some(card) = opts.iter().find(|o| o.starts_with("respond:")).cloned() {
             answer(&mut g, actor, &card);
             continue;
         }
         answer(&mut g, actor, "pass");
     }
-    assert!(saw_jijiang, "主公应可发动激将");
+    assert!(saw_option, "刘备的响应窗口应提供「激将」选项");
+    assert!(saw_relay, "激将子流程应提供蜀将代出的【杀】");
     assert!(
         log_text(&g).contains("激将"),
         "应出现代出记录：{}",
         log_text(&g)
     );
     g.check_conservation().expect("守恒");
+}
+
+/// 响应形态：激将全部拒绝 → **回到主公本人的响应窗口**（不是「未响应」）。
+#[test]
+fn jijiang_declined_returns_to_lord_response_window() {
+    let mut g = jijiang_setup();
+    let sha = give_one(&mut g, 0, "c1"); // 主公自己也有【杀】
+    give(&mut g, 1, &["c2"]); // 蜀将也有牌 → 才提供「激将」选项
+    let hp = g.seats[0].hp;
+    // p2（座位 2）使用【南蛮入侵】→ 刘备需要打出【杀】
+    give(&mut g, 2, &["c18"]);
+    play(&mut g, 2);
+    g.resolve_use(2, &"c18".to_string(), vec![]).unwrap();
+    drain_forced(&mut g);
+    // 刘备的响应窗口提供激将
+    assert!(options(&g).contains(&"jijiang".to_string()), "{:?}", options(&g));
+    answer(&mut g, 0, "jijiang");
+    // 蜀将拒绝 → 回到刘备本人的响应窗口（仍可自己出【杀】）
+    answer(&mut g, 1, "pass");
+    let opts = options(&g);
+    assert!(
+        opts.iter().any(|o| o == &format!("respond:{sha}")),
+        "激将无人代出后应能自己出【杀】：{opts:?}"
+    );
+    answer(&mut g, 0, &format!("respond:{sha}"));
+    assert_eq!(g.seats[0].hp, hp, "自己出【杀】响应 → 不受伤害");
+}
+
+/// 响应形态：激将全部拒绝 → 主公也放弃 → 正常受伤（不是「激将失败=直接伤害」之外的额外伤害）。
+#[test]
+fn jijiang_declined_then_lord_gives_up_takes_damage() {
+    let mut g = jijiang_setup();
+    give(&mut g, 1, &["c2"]); // 蜀将有牌 → 提供「激将」；主公自己没有牌
+    let hp = g.seats[0].hp;
+    give(&mut g, 2, &["c18"]);
+    play(&mut g, 2);
+    g.resolve_use(2, &"c18".to_string(), vec![]).unwrap();
+    drain_forced(&mut g);
+    answer(&mut g, 0, "jijiang");
+    answer(&mut g, 1, "pass"); // 蜀将拒绝
+    // 回到主公窗口：主公没有手牌 → 只能再放弃激将
+    assert!(options(&g).contains(&"jijiang".to_string()));
+    answer(&mut g, 0, "pass");
+    assert_eq!(g.seats[0].hp, hp - 1, "放弃响应 → 受 1 点伤害");
+}
+
+/// 主动形态：出牌阶段发动激将 → 蜀将代出 → 主公选目标 → 视为**主公**使用【杀】。
+#[test]
+fn jijiang_active_use_ally_provides_sha_and_lord_picks_target() {
+    let mut g = jijiang_setup();
+    let sha = give_one(&mut g, 1, "c1"); // 蜀将的【杀】作为承载牌
+    play(&mut g, 0);
+    skills::execute_active(&mut g, 0, "skill:jijiang").unwrap();
+    // 子流程：蜀将代出
+    assert_eq!(pend_skill(&g).as_deref(), Some("jijiang"));
+    answer(&mut g, 1, &format!("respond:{sha}"));
+    // 主公选目标（合法目标集来自 sha_target_sets）
+    let target = options(&g)
+        .into_iter()
+        .find(|o| o == "target:2")
+        .unwrap_or_else(|| panic!("应能选择目标 2：{:?}", options(&g)));
+    answer(&mut g, 0, &target);
+    drain_forced(&mut g);
+    // 视为主公使用：计入主公本回合【杀】次数
+    assert_eq!(g.sha_used(0), 1, "视为主公使用【杀】");
+    // 目标（座位 2，无手牌）直接受伤
+    assert_eq!(g.seats[2].hp, 3, "视为使用【杀】并命中");
+}
+
+/// 主动形态：无人代出 → 不消耗任何资源，本阶段仍可再次发动。
+#[test]
+fn jijiang_active_with_no_ally_is_free_and_retryable() {
+    let mut g = jijiang_setup();
+    let sha = give_one(&mut g, 1, "c1");
+    play(&mut g, 0);
+    skills::execute_active(&mut g, 0, "skill:jijiang").unwrap();
+    answer(&mut g, 1, "pass"); // 蜀将拒绝
+    assert!(g.pending.is_none(), "无人代出 → 技能结束：{:?}", g.pending);
+    assert_eq!(g.sha_used(0), 0, "未使用【杀】");
+    assert!(g.hand(1).contains(&sha), "代出者的牌未被动过");
+    assert!(!g.log.iter().any(|e| e.text.contains("视为")), "不应产生使用记录");
+    // 可再次发动（激将无限次）
+    skills::execute_active(&mut g, 0, "skill:jijiang").expect("可再次发动");
+    assert_eq!(pend_skill(&g).as_deref(), Some("jijiang"));
 }
 
 #[test]

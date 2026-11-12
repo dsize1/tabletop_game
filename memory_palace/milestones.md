@@ -2,6 +2,35 @@
 
 > 记录项目关键节点与验证结果，按时间倒序。重大技术决策见 `decisions/`。
 
+## M93：I1 询问完整性（V2.1-fix C1 · 交互口径回归修复）🚧
+
+- **日期**：2026-11-12
+- **背景**：真机（room 179dd320）出现「出【杀】目标直接受伤、从未被询问」；对照 v1 发现
+  v1 有明确口径与用例（`tests/p25.rs::hand_without_matching_card_still_gets_prompt`，
+  用户 2026-10-28 裁定：无手牌→跳过；有手牌→即使没有对应牌也显式询问），v2 迁移时丢失。
+- **口径**：新增引擎不变量 I1（写入 `docs/conventions/skill-spec-rules.md §25.0`）：
+  **只有合法动作集为空才允许不询问**；引擎不得代放弃/代选择/代发动。
+- **实现**：
+  - `Game::must_ask(seat, has_option)` 单一判定；三条响应路径（闪/杀 `response_pending`、
+    无懈 `step_wuxie`、濒死 `step_dying`）与拆/顺取牌统一走它；
+  - 「规则层面不能响应」（毅重②/诈降红【杀】）显式 `forbidden` → 不询问（v1 `no_shan` 同口径）；
+  - `escape_mandatory` 提交占位出口由「自动选第一个实质选项」改为**拒绝**（`resolve::submit`）；
+    灭计「放弃目标=自动选第一名」改为强制选择；
+  - 拆/顺 `pick:hand` 由「固定第一张」改为 `rand_below`（v1 `next_index` 口径）；
+  - 回答缺失（被嵌套流程消费）不再静默按 `pass` → `response_stale` + **重新询问**；
+  - 激将接力：已发过接力询问的响应窗口不再提供「激将」选项（重复发起会误判「未响应」→ 直接伤害）。
+- **门禁**：`check:sgs2-conventions` 新增 **C7 询问完整性**（内核「不询问」分支必须走 `must_ask`）；
+  新增 `tests/ask_completeness.rs`（7 条：有/无手牌 × 闪/无懈/濒死 + 强制出口拒绝 + 随机取牌）。
+- **测试系统改造**：36 条旧用例断言的是「引擎代判」行为，逐条改到新口径（强制出口改断言拒绝、
+  无匹配牌仍被询问、随机取牌）；测试夹具统一 `drain_forced`（只对三类响应窗口的「唯一出口」礼貌询问）。
+- **收尾（同日）**：主公技接力按用户裁定重构为**单入口 + 单结果通道**——
+  删除 `relay_before` / `data["relay_wait"]` / `g.relay_played` / `g.relay_none` / `relay_offer`，
+  新增 `Game::relay_result`（`Played`/`Declined`）；全拒绝 = 回到主公本人的响应窗口；
+  并补齐**主动激将**（出牌阶段 `skill:jijiang`：代出 → 主公选目标 → 视为主公使用，
+  `UseOpts::relay()` + `foreign_carrier`；无人代出不消耗、可再发）。
+- **度量**：`cargo test -p sanguosha2` **777 通过 / 0 失败**；`check:sgs2` 全绿（registry/decision-log/
+  scenes 12/12/ai/conventions）；`check:sgs2-ai` 30/30 终局、步数 7079→11669；`sgs:check:fast` 24/24。
+
 ## M92：B20 界标·J8 八技能落地（v2 迁移批次第 13 批 · 验证批次收官）✅
 
 - **日期**：2026-11-10

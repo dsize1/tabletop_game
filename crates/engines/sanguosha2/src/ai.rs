@@ -1031,7 +1031,7 @@ mod tests {
     fn drive_can_finish_game_with_human_passing() {
         let mgr = manager(9003);
         let room = human_plus_bots(&mgr);
-        for _ in 0..400 {
+        for _ in 0..4000 {
             let report = drive_bots(&mgr, &room, MAX_STEPS, |_, _| 0);
             assert_eq!(report.illegal, 0, "非法：{report:?} {:?}", report.errors);
             if report.finished {
@@ -1050,7 +1050,17 @@ mod tests {
             mgr.execute_action(&room, &actor, &pick)
                 .expect("human action");
         }
-        panic!("400 轮未终局");
+        let st = mgr.get_state(&room).expect("state");
+        let g: Game = serde_json::from_value(st.data).expect("parse");
+        panic!(
+            "未终局：round={} turn={} phase={:?} pending={:?} finished={} hp={:?}",
+            g.round,
+            g.turn,
+            g.phase,
+            g.pending.as_ref().map(|p| (p.kind().to_string(), p.actor())),
+            g.finished,
+            g.seats.iter().map(|s| s.hp).collect::<Vec<_>>()
+        );
     }
 
     #[test]

@@ -182,21 +182,11 @@ fn mieji(g: &mut Game, a: &Ask) -> Result<Step, String> {
                         format!("令 {} 选择", g.seats[*t].name),
                     );
                 }
-                Ok(Step::Need(
-                    b.escape("放弃选择目标（自动选择第一名）").build(),
-                ))
+                // 灭计已在前面把锦囊牌置于牌堆顶，此处**必须**选目标（有候选时）：
+                // 强制选择，不得代选（旧实现用「放弃=自动选第一名」，见 I1）。
+                Ok(Step::Need(b.escape_mandatory("（必须选择目标）").build()))
             }
-            Some("pass") => {
-                // 强制选择：自动选第一名候选（保持 pending 出口不变量）。
-                let t = cands[0];
-                push(
-                    g,
-                    "mieji",
-                    t,
-                    json!({ "stage": "choice", "card": card, "user": owner }),
-                );
-                Ok(Step::Done)
-            }
+            Some("pass") => Err("灭计：必须选择一名目标（不能放弃）".into()),
             Some(act) => {
                 let t = act
                     .strip_prefix("target:")
