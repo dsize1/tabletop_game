@@ -2,6 +2,23 @@
 
 > 记录项目关键节点与验证结果，按时间倒序。重大技术决策见 `decisions/`。
 
+## M99：终局后群活跃登记不解除（`#开局` 仍要求「#中断」）✅
+
+- **日期**：2026-11-12
+- **现象**（真机）：对局已终局，群里 `#开局` 仍提示「本群已有进行中的对局，先打完或先「#中断」」。
+- **根因**：`active_by_group` 只在**执行动作的进程**里清除。
+  - 终局通常由 **server** 推进（`drive_bots` / Web 动作）→ server 清了自己的登记；
+  - `agent-gateway` 的「有没有进行中的对局」走 **game-engine-mcp 进程**的 `get_active_game`，
+    它内存里还是 Active；而 `GameManager::restore()` 恢复**终局快照**时**只处理 Active**，不解除登记。
+- **修复**：
+  - `GameManager::restore()`：终局/非 Active 快照 → `release_group()` 解除登记（新增该 API）；
+  - `GameManager::active_game_fresh(group_id, sync)`：先与 SQLite 快照对齐（MCP 的 `sync_room`），
+    若已终局 → 解除登记并返回 `None`；
+  - MCP 的 `get_active_game` / `create_game` / `start_game` 统一走 `fresh_active()`（先对齐再判断）。
+- **用例**：`game-engine-core` 新增 2 条（终局快照 restore 解除登记 / `active_game_fresh` 对齐后清除）。
+- **度量**：`cargo test -p game-engine-core` 11 通过；`cargo test -p game-engine-mcp` 3 通过；
+  `cargo check --workspace` 通过；`check:sgs2` 全绿；`sgs:check:fast` 24/24。
+
 ## M98：约定门禁规格化 + B2 对齐单文案收尾 ✅
 
 - **日期**：2026-11-12

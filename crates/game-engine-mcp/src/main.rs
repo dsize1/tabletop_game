@@ -121,6 +121,13 @@ impl EngineServer {
         tracing::debug!("已按快照对齐内存态 room={room_id} version={db}");
     }
 
+    /// 群内活跃对局：**先与 SQLite 快照对齐**（MCP 与 server 交替写状态）。
+    /// 快照已终局 → 解除群登记并返回 None（否则终局后群里仍要求「#中断」）。
+    fn fresh_active(&self, group_id: &str) -> Option<GameState> {
+        self.manager
+            .active_game_fresh(group_id, |room_id| self.sync_room(room_id))
+    }
+
     /// 把引擎产出的事件逐条写入 `game_events`，快照 version 对齐最后 seq。
     /// 返回最后一条事件的 seq（写失败返回 -1，仅告警）。
     fn persist(&self, state: &GameState, events: &[EngineEvent]) -> i64 {
@@ -273,6 +280,8 @@ impl EngineServer {
         description = "创建对局（进入 lobby，发起人自动入局；群内已有 Active 则拒绝）"
     )]
     async fn create_game(&self, Parameters(p): Parameters<CreateGameRequest>) -> String {
+        // 先对齐快照：若上一局已终局（server 侧打完），解除登记后再建局。
+        let _ = self.fresh_active(&p.group_id);
         match self
             .manager
             .create_game(&p.game_id, &p.group_id, &p.host_id)
@@ -290,6 +299,7 @@ impl EngineServer {
         description = "直接开桌（无 lobby 的简单引擎），返回对局状态"
     )]
     async fn start_game(&self, Parameters(p): Parameters<StartGameRequest>) -> String {
+        let _ = self.fresh_active(&p.group_id);
         match self.manager.start_game(&p.game_id, &p.group_id, p.players) {
             Ok((state, events)) => {
                 self.persist(&state, &events);
@@ -304,7 +314,7 @@ impl EngineServer {
         description = "查询群内当前活跃对局（含 lobby；无则返回 null）"
     )]
     async fn get_active_game(&self, Parameters(p): Parameters<GroupRequest>) -> String {
-        match self.manager.get_active_game(&p.group_id) {
+        match self.fresh_active(&p.group_id) {
             Some(s) => serde_json::to_string(&s).unwrap_or_default(),
             None => "null".to_string(),
         }

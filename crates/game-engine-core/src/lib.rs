@@ -416,17 +416,48 @@ impl GameManager {
     }
 
     /// 从快照恢复一个对局（引擎重启后调用）。
+    ///
+    /// 终局快照会**解除**群活跃登记：否则「server 打完 → MCP 内存里仍是 Active」
+    /// 会让群里一直认为有进行中的对局（真机 2026-11-12：终局后仍要求「#中断」）。
     pub fn restore(&self, state: GameState) {
         if state.status == GameStatus::Active {
             self.active_by_group
                 .write()
                 .unwrap()
                 .insert(state.group_id.clone(), state.room_id.clone());
+        } else {
+            self.release_group(&state.group_id, &state.room_id);
         }
         self.rooms
             .write()
             .unwrap()
             .insert(state.room_id.clone(), state);
+    }
+
+    /// 解除群活跃登记（仅当登记的正是该房间；终局/中止后调用）。
+    pub fn release_group(&self, group_id: &str, room_id: &str) {
+        let mut map = self.active_by_group.write().unwrap();
+        if map.get(group_id).is_some_and(|r| r == room_id) {
+            map.remove(group_id);
+        }
+    }
+
+    /// 群内活跃对局，但**先与 SQLite 快照对齐**：快照已终局则解除登记并返回 `None`。
+    ///
+    /// 由 MCP 侧调用（MCP 与 server 交替写状态，内存里的 Active 可能已过期）。
+    pub fn active_game_fresh(
+        &self,
+        group_id: &str,
+        sync: impl FnOnce(&str),
+    ) -> Option<GameState> {
+        let room = self.get_active_game(group_id)?;
+        sync(&room.room_id);
+        let fresh = self.get_active_game(group_id)?;
+        if fresh.status == GameStatus::Finished {
+            self.release_group(group_id, &fresh.room_id);
+            return None;
+        }
+        Some(fresh)
     }
 
     pub fn get_active_game(&self, group_id: &str) -> Option<GameState> {
@@ -594,6 +625,35 @@ mod tests {
         assert_eq!(events.len(), 1);
         // 同一群再次创建被拒绝
         assert!(mgr.create_game("long", "g", "host2").is_err());
+    }
+
+    /// 真机 2026-11-12：对局已终局，但群里 `#开局` 仍提示「已有进行中的对局」。
+    /// 根因：终局是 server 侧推进的，MCP 内存里 `active_by_group` 还停在 Active，
+    /// 且 `restore()` 恢复终局快照时**不解除**登记。
+    #[test]
+    fn restore_finished_snapshot_releases_group() {
+        let mgr = long_manager();
+        let (st, _) = mgr.start_game("long", "g", vec!["p1".into()]).unwrap();
+        assert!(mgr.get_active_game("g").is_some());
+        let mut finished = st.clone();
+        finished.status = GameStatus::Finished;
+        mgr.restore(finished);
+        assert!(mgr.get_active_game("g").is_none(), "终局快照应解除群登记");
+    }
+
+    /// `active_game_fresh`：对齐回调把状态改成终局后，应解除登记并返回 None。
+    #[test]
+    fn active_game_fresh_clears_when_snapshot_finished() {
+        let mgr = long_manager();
+        let (st, _) = mgr.start_game("long", "g", vec!["p1".into()]).unwrap();
+        let fresh = mgr.active_game_fresh("g", |room_id| {
+            assert_eq!(room_id, st.room_id);
+            let mut finished = st.clone();
+            finished.status = GameStatus::Finished;
+            mgr.restore(finished);
+        });
+        assert!(fresh.is_none(), "快照已终局 → 视为无活跃对局");
+        assert!(mgr.get_active_game("g").is_none());
     }
 
     #[test]
