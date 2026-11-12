@@ -2105,11 +2105,29 @@ fn jiexun(g: &mut Game, a: &Ask) -> Result<Step, String> {
                 if ids.is_empty() {
                     return finish_jiexun(g, owner, target);
                 }
+                // 端侧提示要能说明「为什么在你（目标）的界面里弹弃牌」：这是薛综的结束阶段，
+                // 诫训的结算步骤（pending 落在目标身上）。
                 let mut b = builder(target, "choice").skill("jiexun");
                 for id in &ids {
-                    b = b.option(format!("pick:{id}"), format!("弃置【{}】", label(g, id)));
+                    b = b.option(
+                        format!("pick:{id}"),
+                        format!(
+                            "诫训：弃置【{}】（由 {} 发动，还需 {} 张）",
+                            label(g, id),
+                            g.seats[owner].name,
+                            left
+                        ),
+                    );
                 }
-                Ok(Step::Need(b.escape("停止弃置（没有更多牌）").build()))
+                Ok(Step::Need(
+                    b.data(json!({
+                        "step": "discard",
+                        "source": owner,
+                        "left": left,
+                    }))
+                    .escape("停止弃置（没有更多牌）")
+                    .build(),
+                ))
             }
             Some("pass") => finish_jiexun(g, owner, target),
             Some(act) => {

@@ -844,6 +844,27 @@ fn jiexun_loses_skill_only_when_target_ends_empty() {
     assert!(g.seats[0].flags.contains("funan_upgraded"));
 }
 
+/// 诫训的时机：**自己的结束阶段**才询问；其他角色的结束阶段不询问
+/// （真机 2026-11-12 复核：「结束阶段」默认指自己的结束阶段）。
+#[test]
+fn jiexun_only_in_own_end_phase() {
+    // 自己的结束阶段 → 询问
+    let mut g = game(&[("xuezong", &["jiexun"], 4), ("p1", &[], 4), ("p2", &[], 4)]);
+    give(&mut g, 1, &["c3"]);
+    start_phase(&mut g, 0, Phase::End);
+    assert_eq!(pend_skill(&g).as_deref(), Some("jiexun"), "自己结束阶段应询问诫训");
+    assert_eq!(g.pending.as_ref().map(|p| p.actor()), Some(0));
+    // 其他角色的结束阶段 → 不询问
+    let mut g2 = game(&[("xuezong", &["jiexun"], 4), ("p1", &[], 4), ("p2", &[], 4)]);
+    give(&mut g2, 1, &["c3"]);
+    start_phase(&mut g2, 1, Phase::End);
+    assert!(
+        !g2.pending.as_ref().is_some_and(|p| p.skill() == Some("jiexun")),
+        "其他角色的结束阶段不得询问诫训：{:?}",
+        g2.pending.as_ref().map(|p| p.skill())
+    );
+}
+
 // ---------------------------------------------------------------------------
 // 辟撰 / 通博（蔡邕）
 // ---------------------------------------------------------------------------
