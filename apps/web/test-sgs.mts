@@ -10,6 +10,8 @@ import {
   seatPlacements,
   splitSides,
   withDisplayNames,
+  displayNames,
+  playerName,
 } from "./src/view/sgs/format.js";
 import { renderPublicArea, renderSidePanel, renderSidePanelBody } from "./src/view/sgs/public.js";
 import { renderPersonalArea } from "./src/view/sgs/personal.js";
@@ -1219,6 +1221,29 @@ assert.equal(nickView.public_board.pending.options[0].label, "令 机器人4 判
 assert.equal(nickView.player_area.pending.options[0].label, "交给 曹叡");
 assert.equal(nickView.public_board.history[0].text.includes("BE6B"), false, "日志里不应再出现 openid");
 console.log("[sgs-web] 昵称替换单测通过 ✅");
+
+// 显示名口径（用户 2026-11-12 裁定）：**武将名优先** → 昵称 → 机器人N → id。
+const generalView = {
+  public_board: {
+    seats: [
+      { player_id: "BE6B1438FD0256170B06B12F47EF2812", general_name: "孙策" },
+      { player_id: "bot:3", general_name: "张飞" },
+      { player_id: "bot:4", general_name: "" }, // 未选将 → 回退昵称/机器人N
+    ],
+  },
+};
+const dm = displayNames(generalView, { "bot:4": "小明" });
+assert.equal(dm["BE6B1438FD0256170B06B12F47EF2812"], "孙策", "武将名优先于昵称");
+assert.equal(dm["bot:3"], "张飞");
+assert.equal(dm["bot:4"], "小明", "未选将回退昵称");
+assert.equal(
+  applyNames("bot:3 对 BE6B1438FD0256170B06B12F47EF2812 造成 1 点伤害", dm),
+  "张飞 对 孙策 造成 1 点伤害",
+  "日志用武将名",
+);
+assert.equal(playerName(dm, "bot:3"), "张飞", "座位卡用武将名");
+assert.equal(playerName(dm, "bot:5"), "bot:5", "无映射时回退 id");
+console.log("[sgs-web] 武将名显示单测通过 ✅");
 
 // v2 取牌浮层（拆/顺）：引擎给的是 `pick:<实体牌 id>`，v1 前缀分组会全空 →
 // 必须回退成「全量按钮」，否则浮层没有可点项（2026-11-11 五谷同类的卡死）。

@@ -389,9 +389,22 @@ pub fn heal_raw(g: &mut Game, seat: usize, n: i32, cause: &str) {
             .fx("heal"),
     );
     g.push_log(format!(
-        "{} 回复 {healed} 点体力（体力 {}，原因：{cause}）",
-        g.seats[seat].name, g.seats[seat].hp
+        "{} 回复 {healed} 点体力（体力 {}，原因：{}）",
+        g.seats[seat].name,
+        g.seats[seat].hp,
+        cause_label(cause)
     ));
+}
+
+/// 把 `cause`（技能 code / 内部标签）渲染成玩家可读文案。
+///
+/// 真机事故：日志出现「失去 1 点体力（原因：jiang）」——内部技能 code 直接暴露给玩家。
+/// 规则：技能 code → 技能名；内部标签（draw_phase / respond / guohe …）保持原样。
+pub fn cause_label(cause: &str) -> String {
+    if let Some(d) = crate::skills::def(cause) {
+        return d.name.to_string();
+    }
+    cause.to_string()
 }
 
 /// 失去（流失）体力：**不产生伤害事件**（mechanics `damage-vs-hp-loss`，2026-11-06 用户裁定）。
@@ -413,8 +426,10 @@ pub fn lose_hp_by(g: &mut Game, seat: usize, n: i32, cause: &str, source: Option
         n,
     ));
     g.push_log(format!(
-        "{} 失去 {n} 点体力（体力 {}，原因：{cause}）",
-        g.seats[seat].name, g.seats[seat].hp
+        "{} 失去 {n} 点体力（体力 {}，原因：{}）",
+        g.seats[seat].name,
+        g.seats[seat].hp,
+        cause_label(cause)
     ));
     if g.seats[seat].hp <= 0 {
         start_dying(g, seat, source);
@@ -476,8 +491,10 @@ pub fn revive_add(g: &mut Game, seat: usize, n: i32, cause: &str) {
         healed,
     ));
     g.push_log(format!(
-        "{} 回复 {healed} 点体力（体力 {}，原因：{cause}）",
-        g.seats[seat].name, g.seats[seat].hp
+        "{} 回复 {healed} 点体力（体力 {}，原因：{}）",
+        g.seats[seat].name,
+        g.seats[seat].hp,
+        cause_label(cause)
     ));
 }
 

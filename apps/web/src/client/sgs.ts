@@ -6,7 +6,7 @@
 import { escapeHtml } from "../view/format.js";
 import { renderSgsApp } from "../view/sgs/page.js";
 import { renderSidePanelBody } from "../view/sgs/public.js";
-import { applyNames, cardLabel, withDisplayNames } from "../view/sgs/format.js";
+import { applyNames, cardLabel, displayNames, withDisplayNames } from "../view/sgs/format.js";
 import { renderCardDetail, renderDiscardList, renderGeneralDetail } from "../view/sgs/detail.js";
 import type { SgsAssetMap, SgsCard, SgsViewData } from "../view/sgs/types.js";
 import { buildFxCues } from "../view/sgs/fx.js";
@@ -736,19 +736,20 @@ async function fetchState(boot: Bootstrap): Promise<StateResponse> {
 function applyState(res: StateResponse): void {
   const raw = res.player?.data ?? res.public?.data;
   if (!raw) return;
-  // 引擎只认 openid/`bot:N`；渲染前把**文案字段**换成群昵称（日志/待响应选项）；
-  // 动作描述（legal_actions.description）同理——否则端侧会出现 `BE6B1438… 造成 1 点伤害`。
-  const data = withDisplayNames(raw, res.names);
+  // 引擎只认 openid/`bot:N`；渲染前把**文案字段**换成显示名。
+  // 显示名口径（用户 2026-11-12 裁定）：**武将名优先** → 群昵称 → 机器人N → id。
+  const names = displayNames(raw, res.names);
+  const data = withDisplayNames(raw, names);
   const prev = currentData;
   const nextActions = (res.actions ?? []).map((a) => ({
     ...a,
-    description: applyNames(a.description, res.names),
+    description: applyNames(a.description, names),
   }));
-  const nextAppSig = stateSignature(data, nextActions, res.names);
-  const nextSideSig = sideSignature(data, res.names);
+  const nextAppSig = stateSignature(data, nextActions, names);
+  const nextSideSig = sideSignature(data, names);
   currentData = data;
   currentActions = nextActions;
-  lastNames = res.names;
+  lastNames = names;
   // 弃牌草稿：pending 变化/结束时清空；仍为弃牌则保留仍在手牌的选中项。
   if (data.player_area?.pending?.kind === "discard") {
     const hand = new Set((data.player_area.hand ?? []).map((c) => c.id));
@@ -764,7 +765,7 @@ function applyState(res: StateResponse): void {
   const app = q<HTMLElement>("#sgs-app");
   if (app && nextAppSig !== appSig) {
     appSig = nextAppSig;
-    app.innerHTML = renderSgsApp(data, res.names, currentActions, boot?.assets, discardSel);
+    app.innerHTML = renderSgsApp(data, names, currentActions, boot?.assets, discardSel);
     bindInteractions();
     syncSelection();
   }
@@ -777,7 +778,7 @@ function applyState(res: StateResponse): void {
     sideSig = nextSideSig;
     const oldList = side.querySelector<HTMLElement>(".sgs-history");
     const keepScroll = oldList?.scrollTop ?? 0;
-    side.innerHTML = renderSidePanelBody(data, res.names);
+    side.innerHTML = renderSidePanelBody(data, names);
     const newList = side.querySelector<HTMLElement>(".sgs-history");
     if (newList && keepScroll > 0) newList.scrollTop = keepScroll;
   }

@@ -166,9 +166,29 @@ export function avatarHtml(
   );
 }
 
-/** 显示名（群昵称优先，缺失回退 openid）。 */
+/** 显示名（**武将名优先** → 群昵称 → openid）。 */
 export function playerName(names: Record<string, string> | undefined, id: string): string {
   return names?.[id] ?? id;
+}
+
+/**
+ * 构造「玩家 id → 显示名」映射：**武将名优先**，其次昵称/机器人N，最后回退 id。
+ *
+ * 用户 2026-11-12 裁定：界面用**武将名称**替代玩家昵称（身份局里武将名是公共信息，
+ * 昵称属于群隐私；同时避免「机器人N」这种占位名）。
+ * 未选将（`general_name` 为空）→ 回退昵称；再回退 `机器人N` / 原 id。
+ */
+export function displayNames(
+  data: { public_board?: { seats?: Array<{ player_id?: string; general_name?: string | null }> } } | undefined,
+  names?: Record<string, string>,
+): Record<string, string> {
+  const out: Record<string, string> = { ...(names ?? {}) };
+  for (const seat of data?.public_board?.seats ?? []) {
+    const id = seat?.player_id;
+    const general = seat?.general_name;
+    if (id && general && general.trim()) out[id] = general.trim();
+  }
+  return out;
 }
 
 /**
