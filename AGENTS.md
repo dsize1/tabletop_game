@@ -41,6 +41,7 @@
 | 三国杀规则裁定 / 特殊交互区 | `docs/games/sanguosha/rules-rulings.md`、`docs/games/sanguosha/special-zones.md` |
 | 三国杀技能对齐单（147 将 / 7 段 / 疑点裁定） | `docs/games/sanguosha/align/README.md`、`align/B0.md`、`align/mechanics.json` |
 | **引擎规格层（spec-kit：宪法/状态/交互/合法集 + 契约门禁）** | `specs/sanguosha/README.md`、`constitution.md`、`contracts/*.json`、`npm run check:spec-conformance` |
+| **V3 引擎重构（v2 已冻结）** | `memory_palace/plan/next-v3-rebuild.md`、`memory_palace/decisions/ADR-0042-v3-rebuild.md` |
 | 内核 v2 spike 结论（6 类缺陷对策 / 度量 / 迁移条件） | `docs/games/sanguosha/spike-report.md`、ADR-0038 |
 | 三国杀武将抓取数据（696 位） | `docs/games/sanguosha/data/README.md`、`docs/games/sanguosha/data/heroes.json` |
 | 三国杀武将表（自动生成） | `docs/games/sanguosha/generals.md` |
