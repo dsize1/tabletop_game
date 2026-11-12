@@ -7,6 +7,7 @@
 
 import type { GameView } from "../types.js";
 import { escapeHtml } from "../format.js";
+import { playerName } from "./format.js";
 import { renderPersonalArea } from "./personal.js";
 import { renderPublicArea, renderSidePanel } from "./public.js";
 import { renderSgsTextBody } from "./text.js";
@@ -301,6 +302,7 @@ export function renderSgsApp(
   assets?: SgsAssetMap,
   discardSelected: string[] = [],
   pairPicked: string[] = [],
+  dropPicked: number | null = null,
 ): string {
   const mySeat = data.player_area?.seat ?? data.public_board.turn.seat;
   return (
@@ -315,6 +317,8 @@ export function renderSgsApp(
       assets,
       discardSelected,
       pairPicked,
+      dropPicked,
+      (data.public_board.seats ?? []).map((s) => ({ seat: s.seat, label: playerName(names, s.player_id) })),
     ) +
     `</div>`
   );

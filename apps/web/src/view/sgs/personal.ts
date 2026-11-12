@@ -4,7 +4,7 @@
 // 交互在 P3.2/P3.3 接线（`client/sgs.ts`）。
 
 import { escapeHtml } from "../format.js";
-import { renderPairPicker } from "./targetPicker.js";
+import { renderDropPicker, renderPairPicker } from "./targetPicker.js";
 import {
   MARK_LABEL,
   EQUIP_SLOT_LABEL,
@@ -29,10 +29,17 @@ import type {
   SgsSpecialZones,
 } from "./types.js";
 
+/** 待办选项 → 动作列表（targetPicker 的入参形状）。 */
+function dropActs(options: Array<{ id: string; label: string }>): Array<{ id: string; description: string }> {
+  return options.map((o) => ({ id: o.id, description: o.label }));
+}
+
 function pendingSummary(
   area: SgsPlayerArea,
   discardSelected: string[] = [],
   pairPicked: string[] = [],
+  dropPicked: number | null = null,
+  seats: Array<{ seat: number; label: string }> = [],
 ): string {
   const p = area.pending;
   if (!p) return "";
@@ -89,16 +96,27 @@ function pendingSummary(
           : p.skill === "yijue" && p.data?.stage === "heal"
             ? "（义绝：是否令其回复 1 点体力）"
             : "";
-  // 两张手牌当【杀】（父魂/丈八）：把 C(n,2) 个 `pair:` 按钮折叠成「选两张 → 确认」。
-  const pairPanel =
-    p.kind === "card_response" && p.options.some((o) => o.id.startsWith("pair:"))
-      ? renderPairPicker(
-          p.options.map((o) => ({ id: o.id, description: o.label })),
-          (area.hand ?? []).map((c) => ({ id: c.id, label: cardLabel(c) })),
-          pairPicked,
-        )
-      : "";
-  const escapeOnly = p.options.filter((o) => !o.id.startsWith("pair:"));
+  // 两张牌当群体牌/【杀】：把 C(n,2) 个 `pair:` 按钮折叠成「选两张 → 确认」。
+  // 父魂/丈八 → 两张手牌当【杀】；乱击 → 两张同花色手牌当【万箭齐发】。
+  const pairActs = p.options.map((o) => ({ id: o.id, description: o.label }));
+  const hasPair = p.options.some((o) => o.id.startsWith("pair:"));
+  const pairPanel = hasPair
+    ? renderPairPicker(
+        pairActs,
+        (area.hand ?? []).map((c) => ({ id: c.id, label: cardLabel(c) })),
+        pairPicked,
+        p.skill === "luanji"
+          ? { title: "两张同花色手牌当【万箭齐发】", stateText: "可以确认（发动乱击）" }
+          : {},
+      )
+    : "";
+  // 乱击第二步「少选一个目标」：drop:<t> 折叠成单选角色 + 确认（「不减少目标」仍走按钮）。
+  const dropPanel = p.options.some((o) => o.id.startsWith("drop:"))
+    ? renderDropPicker(dropActs(p.options), seats, dropPicked)
+    : "";
+  const escapeOnly = p.options.filter(
+    (o) => !o.id.startsWith("pair:") && !o.id.startsWith("drop:"),
+  );
   const buttons = escapeOnly
     .map(
       (o) =>
@@ -109,7 +127,7 @@ function pendingSummary(
   return (
     `<div class="sgs-pending" data-kind="${escapeHtml(p.kind)}">` +
     `<div class="sgs-pending-head">待办：${escapeHtml(p.kind)}${extra}</div>` +
-    `${pairPanel}` +
+    `${pairPanel}${dropPanel}` +
     `<div class="sgs-pending-actions">${buttons}</div>` +
     `</div>`
   );
@@ -319,6 +337,8 @@ export function renderPersonalArea(
   assets?: SgsAssetMap,
   discardSelected: string[] = [],
   pairPicked: string[] = [],
+  dropPicked: number | null = null,
+  seatOptions: Array<{ seat: number; label: string }> = [],
 ): string {
   if (!area) return `<section class="sgs-personal muted">个人资源区不可见（未坐下或已阵亡）</section>`;
   const acts = actions ?? [];
@@ -496,7 +516,7 @@ export function renderPersonalArea(
     setupPanel(area, board, assets) +
     `<div class="sgs-hand-head"><span class="sgs-equip-label">手牌</span> ${(area.hand ?? []).length}/${handLimitLabel(area.hand_limit)}</div>` +
     `<div class="sgs-hand" role="list">${hand || `<span class="muted">无手牌</span>`}</div>` +
-    pendingSummary(area, discardSelected, pairPicked) +
+    pendingSummary(area, discardSelected, pairPicked, dropPicked, seatOptions) +
     guanxingPanel(area, zones) +
     guhuoPanel(area) +
     huashenPanel(zones) +

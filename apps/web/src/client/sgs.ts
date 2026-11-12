@@ -82,8 +82,10 @@ let afterRefreshNow: ((res: StateResponse) => void) | null = null;
 let selectedCard: string | null = null;
 /** 端侧多段交互状态（选牌 → 选目标 → 确认）。 */
 let pickState: { group: UseGroup; picked: number[] } | null = null;
-/** 两张手牌当【杀】（父魂/丈八）的已选两张。 */
+/** 两张牌当【杀】/【万箭齐发】（父魂/丈八/乱击）的已选两张。 */
 let pairPick: string[] = [];
+/** 乱击「少选一个目标」的已选角色。 */
+let dropPick: number | null = null;
 let unbindPress: (() => void) | null = null;
 let submitting = false;
 let boot: Bootstrap | null = null;
@@ -208,7 +210,7 @@ function syncSelection(): void {
 function rerenderApp(): void {
   const app = q<HTMLElement>("#sgs-app");
   if (!app || !currentData) return;
-  app.innerHTML = renderSgsApp(currentData, lastNames, currentActions, boot?.assets, discardSel, pairPick);
+  app.innerHTML = renderSgsApp(currentData, lastNames, currentActions, boot?.assets, discardSel, pairPick, dropPick);
   bindInteractions();
   syncSelection();
 }
@@ -662,6 +664,26 @@ function onClick(ev: MouseEvent): void {
   }
   const target = ev.target as HTMLElement | null;
   // 端侧多段交互（选牌 → 选目标 → 确认）：浮层内的目标/确认/取消/用法按钮。
+  const dropEl = target?.closest?.("[data-drop-seat], [data-drop-confirm]") as HTMLElement | null;
+  if (dropEl) {
+    const pend = currentData?.player_area?.pending;
+    const opts = (pend?.options ?? []).map((o) => ({ id: o.id, description: o.label }));
+    if (dropEl.dataset.dropSeat !== undefined) {
+      dropPick = Number(dropEl.dataset.dropSeat);
+      rerenderApp();
+      return;
+    }
+    if (dropEl.dataset.dropConfirm !== undefined) {
+      const hit = opts.find((o) => o.id === `drop:${dropPick}`);
+      if (!hit) {
+        message("请先选择要少打的目标", true);
+        return;
+      }
+      dropPick = null;
+      void submitAction(hit.id);
+      return;
+    }
+  }
   const pairEl = target?.closest?.("[data-pair-card], [data-pair-confirm]") as HTMLElement | null;
   if (pairEl) {
     const pend = currentData?.player_area?.pending;
@@ -886,6 +908,11 @@ function applyState(res: StateResponse): void {
   currentData = data;
   currentActions = nextActions;
   lastNames = names;
+  // 待办变化：清空两张牌/少选目标的草稿（避免把上一次选择带到新窗口）。
+  if (prev?.player_area?.pending?.kind !== data.player_area?.pending?.kind) {
+    pairPick = [];
+    dropPick = null;
+  }
   // 弃牌草稿：pending 变化/结束时清空；仍为弃牌则保留仍在手牌的选中项。
   if (data.player_area?.pending?.kind === "discard") {
     const hand = new Set((data.player_area.hand ?? []).map((c) => c.id));
@@ -901,7 +928,7 @@ function applyState(res: StateResponse): void {
   const app = q<HTMLElement>("#sgs-app");
   if (app && nextAppSig !== appSig) {
     appSig = nextAppSig;
-    app.innerHTML = renderSgsApp(data, names, currentActions, boot?.assets, discardSel, pairPick);
+    app.innerHTML = renderSgsApp(data, names, currentActions, boot?.assets, discardSel, pairPick, dropPick);
     bindInteractions();
     syncSelection();
   }

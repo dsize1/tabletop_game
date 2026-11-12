@@ -24,6 +24,8 @@ import {
   pairOptions,
   matchPair,
   renderPairPicker,
+  dropOptions,
+  renderDropPicker,
 } from "./src/view/sgs/targetPicker.js";
 import { renderPublicArea, renderSidePanel, renderSidePanelBody } from "./src/view/sgs/public.js";
 import { renderPersonalArea } from "./src/view/sgs/personal.js";
@@ -1351,6 +1353,46 @@ const pairViewOk = renderPairPicker(pairActs, [
 ], ["c1", "c2"]);
 assert.ok(/data-pair-confirm="1">确认/.test(pairViewOk), "选满合法组合 → 确认可用");
 console.log("[sgs-web] 两张手牌当杀单测通过 ✅");
+
+// 乱击：① 同花色对子（复用 pair 面板，文案换成万箭）② 少选一个目标（单选角色）
+const luanjiPairs = [
+  { id: "pair:c1,c2", description: "【红桃7杀】【红桃3闪】当【万箭齐发】" },
+  { id: "pair:c3,c4", description: "【梅花9杀】【梅花2闪】当【万箭齐发】" },
+  { id: "pass", description: "取消乱击" },
+];
+const luanjiPairView = renderPairPicker(
+  luanjiPairs,
+  [
+    { id: "c1", label: "红桃7杀" },
+    { id: "c2", label: "红桃3闪" },
+    { id: "c3", label: "梅花9杀" },
+  ],
+  [],
+  { title: "两张同花色手牌当【万箭齐发】", stateText: "可以确认（发动乱击）" },
+);
+assert.ok(luanjiPairView.includes("两张同花色手牌当【万箭齐发】"), "乱击第一步文案");
+assert.ok(/data-pair-confirm="1" disabled/.test(luanjiPairView), "未选满 → 禁用");
+const hit = matchPair(luanjiPairs, ["c2", "c1"]);
+assert.equal(hit, "pair:c1,c2");
+assert.equal(matchPair(luanjiPairs, ["c1", "c3"]), null, "不同花色的对子不在合法集");
+
+const drops = [
+  { id: "drop:1", description: "少选 张飞" },
+  { id: "drop:3", description: "少选 赵云" },
+  { id: "pass", description: "不减少目标" },
+];
+assert.equal(dropOptions(drops).length, 2);
+const dropSeats = [
+  { seat: 1, label: "张飞" },
+  { seat: 3, label: "赵云" },
+];
+const dropNone = renderDropPicker(drops, dropSeats, null);
+assert.ok(dropNone.includes("可少选一个目标"), "第二步提示");
+assert.ok(dropNone.includes("少打 张飞"), "用武将名显示");
+assert.ok(/data-drop-confirm="1" disabled/.test(dropNone), "未选 → 禁用");
+const dropOk = renderDropPicker(drops, dropSeats, 3);
+assert.ok(/data-drop-confirm="1">确认/.test(dropOk), "已选 → 可用");
+console.log("[sgs-web] 乱击两步交互单测通过 ✅");
 
 // v2 取牌浮层（拆/顺）：引擎给的是 `pick:<实体牌 id>`，v1 前缀分组会全空 →
 // 必须回退成「全量按钮」，否则浮层没有可点项（2026-11-11 五谷同类的卡死）。

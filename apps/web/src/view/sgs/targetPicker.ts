@@ -221,6 +221,7 @@ export function renderPairPicker(
   options: ActionLike[],
   hand: PairPickerCard[],
   picked: string[],
+  opts: { title?: string; stateText?: string } = {},
 ): string {
   const legal = pairOptions(options);
   const usable = new Set(legal.flatMap((p) => p.cards));
@@ -235,19 +236,64 @@ export function renderPairPicker(
     })
     .join("");
   const matched = matchPair(options, picked);
+  const title = opts.title ?? "两张手牌当【杀】打出";
   const state = matched
-    ? "可以确认（视为打出【杀】）"
+    ? (opts.stateText ?? "可以确认（视为打出【杀】）")
     : picked.length === 0
       ? "请选择两张手牌"
       : picked.length === 1
         ? "再选一张"
         : "该组合不可用（换两张试试）";
   return (
-    `<p class="muted">两张手牌当【杀】打出 · 合法组合 ${legal.length} 种</p>` +
+    `<p class="muted">${escapeHtml(title)} · 合法组合 ${legal.length} 种</p>` +
     `<div class="sgs-zone-actions sgs-pick-targets">${rows || '<span class="muted">没有可选的两张牌</span>'}</div>` +
     `<p class="muted" data-pick-state="1">${escapeHtml(state)}</p>` +
     `<div class="sgs-zone-actions">` +
     `<button type="button" class="btn small" data-pair-confirm="1"${matched ? "" : " disabled"}>确认</button>` +
+    `</div>`
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 乱击（界袁绍）第二步「少选一个目标」：drop:<t> 折叠成「选择不打的目标 → 确认」
+// ---------------------------------------------------------------------------
+
+/** 解析 `drop:<seat>`（少选目标）。 */
+export function dropOptions(options: ActionLike[]): Array<{ id: string; seat: number }> {
+  const out: Array<{ id: string; seat: number }> = [];
+  for (const o of options) {
+    const m = /^drop:(\d+)$/.exec(o.id);
+    if (m) out.push({ id: o.id, seat: Number(m[1]) });
+  }
+  return out;
+}
+
+/** 渲染「选择要少打的目标」（单选）面板；「不减少目标」等出口仍由外层按钮渲染。 */
+export function renderDropPicker(
+  options: ActionLike[],
+  seats: Array<{ seat: number; label: string }>,
+  picked: number | null,
+): string {
+  const legal = dropOptions(options);
+  const bySeat = new Map(seats.map((s) => [s.seat, s.label]));
+  const rows = legal
+    .map((o) => {
+      const on = picked === o.seat;
+      const label = bySeat.get(o.seat) ?? `#${o.seat}`;
+      return (
+        `<button type="button" class="btn small sgs-pick-target${on ? " selected" : ""}" ` +
+        `data-drop-seat="${o.seat}">少打 ${escapeHtml(label)}</button>`
+      );
+    })
+    .join("");
+  const matched = picked !== null && legal.some((o) => o.seat === picked);
+  const state = matched ? "可以确认（本次万箭不打该角色）" : "请选择要少打的目标（或选择「不减少目标」）";
+  return (
+    `<p class="muted">乱击 · 可少选一个目标（剩余 ${legal.length} 名可选）</p>` +
+    `<div class="sgs-zone-actions sgs-pick-targets">${rows || '<span class="muted">没有可少选的目标</span>'}</div>` +
+    `<p class="muted" data-pick-state="1">${escapeHtml(state)}</p>` +
+    `<div class="sgs-zone-actions">` +
+    `<button type="button" class="btn small" data-drop-confirm="1"${matched ? "" : " disabled"}>确认</button>` +
     `</div>`
   );
 }
