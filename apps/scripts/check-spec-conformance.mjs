@@ -277,6 +277,12 @@ for (const f of contractFiles) {
   const spec = JSON.parse(readFileSync(path.join(CONTRACTS, f), "utf8"));
   for (const rule of spec.rules ?? []) {
     ruleCount += 1;
+    if (spec.kind === "conventions") {
+      // 约定类规则（C1–C6）：由 check:sgs2-conventions 的检测实现执行，
+      // 本门禁只保证「声明存在」（id ↔ 实现的双向校验在那边做），不要求用例锚点。
+      if (VERBOSE) console.log(`  ✓ ${spec.id}/${rule.id}（约定类，见 check:sgs2-conventions）`);
+      continue;
+    }
     if (rule.anchor) checkAnchor(fns, rule.id, rule.anchor);
     else fail(`[${rule.id}] 缺少 anchor（每条规格规则都必须有用例锚点）`);
     checkForbid(rule.id, rule.forbid ?? []);

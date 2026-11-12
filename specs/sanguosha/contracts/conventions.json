@@ -1,0 +1,54 @@
+{
+  "id": "conventions",
+  "title": "开发约定门禁（C1–C6：迁移欠账 / 白名单类）",
+  "note": "规则声明在 data，检测实现在 apps/scripts/check-sgs2-conventions.mjs；两边 id 必须一一对应（少一个即红）。语义不变量（I1/I2）不在这里，见 interaction/state 契约。",
+  "moved": {
+    "C7 询问完整性": "interaction.json#I1-ask-anyway（100% 由 spec 契约覆盖，勿在此重复实现）",
+    "C8 存活语义": "state.json#I2-alive-single-exit（100% 由 spec 契约覆盖，勿在此重复实现）"
+  },
+  "rules": [
+    {
+      "id": "C1-hp",
+      "desc": "技能层不得直写体力（必须走 flow::heal / lose_hp / revive_* / clamp_hp）",
+      "scope": "skills",
+      "allowlist": null,
+      "reason": "体力单出口（engine-self-audit B2）：直写会绕过濒死/事件/视图"
+    },
+    {
+      "id": "C2-kernel-skill",
+      "desc": "内核不得出现技能 code 字面量（按技能名分支 = 内核认识技能）",
+      "scope": "kernel",
+      "allowlist": "kernelLiterals",
+      "reason": "V2.2（S6）待抽通用钩子：内核按技能名读取数值/窗口/接力（engine-self-audit B4）"
+    },
+    {
+      "id": "C3-mark",
+      "desc": "座位计数标记（marks/counters）必须进视图投影或在内部白名单",
+      "scope": "skills",
+      "allowlist": "internalMarks",
+      "reason": "内部标记（不面向 UI）：思蜀指定 / 烈弓内部 / 醇醪计数（UI 只播报数量）"
+    },
+    {
+      "id": "C4-counter",
+      "desc": "全局计数器必须有作用域前缀 turn./phase./round./total.",
+      "scope": "skills",
+      "allowlist": "internalCounters",
+      "reason": "跨回合/整局累计计数器：思蜀指定、醇醪轮次、诫训累计（需显式作用域 registry）"
+    },
+    {
+      "id": "C5-escape",
+      "desc": "「跳过/不弃置」类出口必须用 escape_mandatory（可放弃的要用别的文案）",
+      "scope": "skills",
+      "allowlist": "escapes",
+      "reason": "候选为空/技能明文可选时的放弃出口（评审保留；M9「空选项自动跳过」未落地）"
+    },
+    {
+      "id": "C6-kind",
+      "desc": "kind 一致性：locked 不得有主动入口；limited/awaken 必须有 used 守卫",
+      "scope": "skills",
+      "allowlist": "kindWaivers",
+      "reason": "kind 一致性豁免（迁移期遗留，修完即删白名单）"
+    }
+  ],
+  "kind": "conventions"
+}

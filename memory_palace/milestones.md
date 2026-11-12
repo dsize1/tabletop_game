@@ -2,6 +2,20 @@
 
 > 记录项目关键节点与验证结果，按时间倒序。重大技术决策见 `decisions/`。
 
+## M98：约定门禁规格化 + B2 对齐单文案收尾 ✅
+
+- **日期**：2026-11-12
+- **规则单一事实源**（消除双重实现）：
+  - 新增 `specs/sanguosha/contracts/conventions.json`：C1–C6（体力直写 / 内核技能名 / 标记投影 /
+    计数器作用域 / 跳过出口 / kind 一致性）的**规则声明**（id / desc / 白名单桶 / 理由）；
+  - `check:sgs2-conventions.mjs` 重写为「脚本只提供检测实现 + **id ↔ 实现双向校验**」（少一边即红）；
+  - **C7（询问完整性）/ C8（存活语义）从约定脚本移除** → 100% 由 `contracts/interaction.json` /
+    `contracts/state.json` 执行（`check:spec-conformance`），不再各写一遍。
+- **B2 对齐单文案**：补齐 5 条「原文限定语未复述」（贞良「然后」、罪论「可以/然后」、
+  箜声「然后」、鸿举「准备阶段」）→ `check:sgs-align` **警告 5 → 0**。
+- **度量**：`check:sgs-align` 警告 0 / 锚点 775 / legacy 0；`check:spec-conformance` 4 契约 23 规则全绿；
+  `cargo test -p sanguosha2` 784 通过 / 0 失败；`check:sgs2` 全绿；`sgs:check:fast` 24/24；`test:sgs-web` 通过。
+
 ## M97：M10 裁定↔用例锚点全量回填（775 条 / legacy 0）✅
 
 - **日期**：2026-11-12

@@ -12,13 +12,26 @@
 | `interaction/spec.md` | 询问原语（always-ask 判据、出口语义、pending.data 契约、文案唯一） |
 | `legality/spec.md` | 合法动作集契约（legal_actions ≡ execute、空集语义、条件 ≠ 跳过） |
 | `skills/README.md` | 技能契约模板与分批落地方式（296 技能） |
-| `contracts/*.json` | **机器可校验**的规格片段：规则 id / 用例锚点 / 禁止模式 |
+| `contracts/*.json` | **机器可校验**的规格片段：规则 id / 用例锚点 / 禁止模式 / 约定规则声明 |
+| `contracts/conventions.json` | C1–C6「迁移欠账/白名单类」约定的**规则声明**（检测实现在脚本；id 必须一一对应） |
 
 ## 校验
 
 ```
 npm run check:spec-conformance     # 规格 ↔ 代码 ↔ 用例
 ```
+
+## 一个规则只有一个事实源
+
+| 规则 | 事实源 | 执行者 |
+|---|---|---|
+| I1 询问完整性（有手牌必问 / 不得代判） | `contracts/interaction.json` | `check:spec-conformance` |
+| I2 状态语义（存活/死亡/身份公开/未选将不展示） | `contracts/state.json` | `check:spec-conformance` |
+| L1/L2 合法动作集（legal ≡ execute / 空集语义） | `contracts/legality.json` | `check:spec-conformance` |
+| C1–C6 迁移欠账（体力直写 / 内核技能名 / 标记 / 计数器 / 跳过出口 / kind） | `contracts/conventions.json` | `check:sgs2-conventions`（脚本只提供检测实现，id 双向校验） |
+
+> 2026-11-12：C7（询问完整性）/ C8（存活语义）已从约定脚本**移入** spec 契约（I1 / I2），
+> 脚本与契约不再各写一遍；两边 id 少一个即红。
 
 校验项（当前）：
 
