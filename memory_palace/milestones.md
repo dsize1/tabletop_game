@@ -2,6 +2,24 @@
 
 > 记录项目关键节点与验证结果，按时间倒序。重大技术决策见 `decisions/`。
 
+## M95：spec-kit 规格层（V3-spec 第一切片）✅
+
+- **日期**：2026-11-12
+- **目的**：把「引擎语义」从实现约定升级为可校验规格（治「口径只活在代码注释里」的根因）。
+- **产物**：`specs/sanguosha/`
+  - `constitution.md`：**语义宪法**（I1 询问完整性 / I2 状态语义 / I3 视图不判业务）
+    + 两条硬约束（**一个语义只能一个入口**、**帧数据只能写发起帧**）+ 例外表；
+  - `state/spec.md`（体力/存活/死亡/身份/开局/区域）、`interaction/spec.md`（询问判据、出口语义、
+    pending.data 契约、文案、并发陈旧回答、主公技接力）、`legality/spec.md`（legal≡execute、空集语义）；
+  - `contracts/{interaction,state,legality,skills}.json`：机器可校验片段（规则 id / 用例锚点 / 禁止模式 / 注册表快照 296 条）。
+- **门禁**：`npm run check:spec-conformance`（已并入 `check:sgs2`）
+  1. 每条规则必须有存在的用例锚点（`tests/x.rs::fn`）；
+  2. 每条 `forbid`（glob + 正则）在源码内 0 命中（注释行不计）；
+  3. `contracts/skills.json` 与 Rust 注册表导出逐条一致（code + kind）。
+  实测：**3 契约 / 17 规则全绿**（其中 `B-frame-data-owner` 直接锁住 C2 修掉的帧数据 bug）。
+- **度量**：`cargo test -p sanguosha2` **784 通过 / 0 失败**；`check:sgs2` 全绿；`sgs:check:fast` 24/24。
+- **后续**：`skills/` 分批契约（B0–B20，`status: draft → implemented`）+ 把 C1–C8 约定门禁逐步改为读 `contracts/*.json`。
+
 ## M94：I2 状态语义（V2.1-fix C2 · 存活/死亡显式化）✅
 
 - **日期**：2026-11-12

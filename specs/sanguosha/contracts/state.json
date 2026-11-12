@@ -1,0 +1,65 @@
+{
+  "id": "state",
+  "title": "状态语义（I2 存活/死亡显式化）",
+  "rules": [
+    {
+      "id": "I2-alive-single-exit",
+      "desc": "存活只由 flow::die（死亡确认结算）置 false；濒死仍是存活",
+      "anchor": "tests/state_semantics.rs::dying_seat_is_alive_and_identity_hidden",
+      "forbid": [
+        {
+          "glob": "src/view.rs",
+          "pattern": "hp\\s*(<=|<|>=|>)\\s*0",
+          "note": "视图不得用 hp 推导存活/身份公开"
+        },
+        {
+          "glob": "src/identity.rs",
+          "pattern": "hp\\s*(<=|<|>=|>)\\s*0",
+          "note": "身份/胜负不得用 hp 推导存活"
+        }
+      ]
+    },
+    {
+      "id": "I2-identity-public-on-death",
+      "desc": "身份仅主公或 alive==false 后公开",
+      "anchor": "tests/state_semantics.rs::dead_seat_identity_becomes_public",
+      "forbid": []
+    },
+    {
+      "id": "I2-unpicked-hides-hp",
+      "desc": "未选武将：hp/max_hp/alive 一律 null",
+      "anchor": "tests/state_semantics.rs::unpicked_seat_hides_hp_and_alive",
+      "forbid": []
+    },
+    {
+      "id": "I2-full-hp-start",
+      "desc": "开局按武将表满血（主公 +1）",
+      "anchor": "tests/state_semantics.rs::sandbox_game_starts_at_full_hp",
+      "forbid": []
+    },
+    {
+      "id": "I2-lord-dying-not-lost",
+      "desc": "主公濒死不判负，死亡确认才判负",
+      "anchor": "tests/state_semantics.rs::lord_dying_does_not_end_game_but_death_does",
+      "forbid": []
+    },
+    {
+      "id": "I2-no-zombies",
+      "desc": "alive && hp<=0 且不在濒死 = 僵尸座位（动作后校验）",
+      "anchor": "tests/state_semantics.rs::zombie_seat_is_detected",
+      "forbid": []
+    },
+    {
+      "id": "B-frame-data-owner",
+      "desc": "帧数据只能写发起帧（need_at 不得写 stack.last_mut）",
+      "anchor": "tests/state_semantics.rs::lord_dying_does_not_end_game_but_death_does",
+      "forbid": [
+        {
+          "glob": "src/kernel/card_play.rs",
+          "pattern": "fn need_at[\\s\\S]{0,600}match g\\.stack\\.last_mut\\(\\)",
+          "note": "牌结算帧不得把 data 写到栈顶子帧（濒死帧被覆盖 → 僵尸座位）"
+        }
+      ]
+    }
+  ]
+}

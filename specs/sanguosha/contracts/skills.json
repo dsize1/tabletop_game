@@ -1,0 +1,1192 @@
+{
+ "id": "skills",
+ "title": "技能注册表快照（296 条：code + kind）",
+ "generated": true,
+ "note": "由 `node apps/scripts/check-spec-conformance.mjs --write` 从 Rust 注册表生成；不得手改。",
+ "skills": [
+  {
+   "code": "anguo",
+   "kind": "normal"
+  },
+  {
+   "code": "anjian",
+   "kind": "locked"
+  },
+  {
+   "code": "anxu",
+   "kind": "normal"
+  },
+  {
+   "code": "baonue",
+   "kind": "lord"
+  },
+  {
+   "code": "bazhen",
+   "kind": "locked"
+  },
+  {
+   "code": "beige",
+   "kind": "normal"
+  },
+  {
+   "code": "bengkuai",
+   "kind": "locked"
+  },
+  {
+   "code": "benxi",
+   "kind": "locked"
+  },
+  {
+   "code": "binglue",
+   "kind": "locked"
+  },
+  {
+   "code": "bingyi",
+   "kind": "normal"
+  },
+  {
+   "code": "biyue",
+   "kind": "normal"
+  },
+  {
+   "code": "bizhuan",
+   "kind": "normal"
+  },
+  {
+   "code": "botu",
+   "kind": "normal"
+  },
+  {
+   "code": "buqu",
+   "kind": "locked"
+  },
+  {
+   "code": "buyi",
+   "kind": "normal"
+  },
+  {
+   "code": "caishi",
+   "kind": "normal"
+  },
+  {
+   "code": "cangzhuo",
+   "kind": "locked"
+  },
+  {
+   "code": "changbiao",
+   "kind": "normal"
+  },
+  {
+   "code": "chenglue",
+   "kind": "normal"
+  },
+  {
+   "code": "chengxiang",
+   "kind": "normal"
+  },
+  {
+   "code": "chezheng",
+   "kind": "locked"
+  },
+  {
+   "code": "chuli",
+   "kind": "normal"
+  },
+  {
+   "code": "chunlao",
+   "kind": "normal"
+  },
+  {
+   "code": "congjian",
+   "kind": "locked"
+  },
+  {
+   "code": "cunmu",
+   "kind": "locked"
+  },
+  {
+   "code": "daiyan",
+   "kind": "normal"
+  },
+  {
+   "code": "dangxian",
+   "kind": "normal"
+  },
+  {
+   "code": "danshou",
+   "kind": "normal"
+  },
+  {
+   "code": "danxin",
+   "kind": "normal"
+  },
+  {
+   "code": "dimeng",
+   "kind": "normal"
+  },
+  {
+   "code": "duanchang",
+   "kind": "locked"
+  },
+  {
+   "code": "duanliang",
+   "kind": "normal"
+  },
+  {
+   "code": "duliang",
+   "kind": "normal"
+  },
+  {
+   "code": "duodao",
+   "kind": "normal"
+  },
+  {
+   "code": "enyuan",
+   "kind": "locked"
+  },
+  {
+   "code": "faen",
+   "kind": "normal"
+  },
+  {
+   "code": "fangquan",
+   "kind": "normal"
+  },
+  {
+   "code": "fangzhu",
+   "kind": "normal"
+  },
+  {
+   "code": "fanjian",
+   "kind": "normal"
+  },
+  {
+   "code": "fankui",
+   "kind": "normal"
+  },
+  {
+   "code": "feijun",
+   "kind": "normal"
+  },
+  {
+   "code": "fencheng",
+   "kind": "limited"
+  },
+  {
+   "code": "fenji",
+   "kind": "normal"
+  },
+  {
+   "code": "fenli",
+   "kind": "normal"
+  },
+  {
+   "code": "fenwei",
+   "kind": "limited"
+  },
+  {
+   "code": "fuhen",
+   "kind": "normal"
+  },
+  {
+   "code": "fuli",
+   "kind": "limited"
+  },
+  {
+   "code": "fulin",
+   "kind": "locked"
+  },
+  {
+   "code": "fumian",
+   "kind": "normal"
+  },
+  {
+   "code": "funan",
+   "kind": "normal"
+  },
+  {
+   "code": "fuyin",
+   "kind": "locked"
+  },
+  {
+   "code": "fuzhu",
+   "kind": "normal"
+  },
+  {
+   "code": "ganglie",
+   "kind": "normal"
+  },
+  {
+   "code": "ganlu",
+   "kind": "normal"
+  },
+  {
+   "code": "gongqi",
+   "kind": "normal"
+  },
+  {
+   "code": "gongxin",
+   "kind": "normal"
+  },
+  {
+   "code": "guanxing",
+   "kind": "normal"
+  },
+  {
+   "code": "guhuo",
+   "kind": "normal"
+  },
+  {
+   "code": "guicai",
+   "kind": "normal"
+  },
+  {
+   "code": "guidao",
+   "kind": "normal"
+  },
+  {
+   "code": "guizao",
+   "kind": "normal"
+  },
+  {
+   "code": "guose",
+   "kind": "normal"
+  },
+  {
+   "code": "guzheng",
+   "kind": "normal"
+  },
+  {
+   "code": "hanzhan",
+   "kind": "normal"
+  },
+  {
+   "code": "haoshi",
+   "kind": "normal"
+  },
+  {
+   "code": "hexian",
+   "kind": "normal"
+  },
+  {
+   "code": "hongju",
+   "kind": "awaken"
+  },
+  {
+   "code": "hongyan",
+   "kind": "locked"
+  },
+  {
+   "code": "huaiju",
+   "kind": "locked"
+  },
+  {
+   "code": "huaiyi",
+   "kind": "normal"
+  },
+  {
+   "code": "huangtian",
+   "kind": "lord"
+  },
+  {
+   "code": "huashen",
+   "kind": "normal"
+  },
+  {
+   "code": "huimin",
+   "kind": "normal"
+  },
+  {
+   "code": "huisheng",
+   "kind": "normal"
+  },
+  {
+   "code": "huituo",
+   "kind": "normal"
+  },
+  {
+   "code": "hujia",
+   "kind": "lord"
+  },
+  {
+   "code": "hunzi",
+   "kind": "awaken"
+  },
+  {
+   "code": "huoji",
+   "kind": "normal"
+  },
+  {
+   "code": "huomo",
+   "kind": "normal"
+  },
+  {
+   "code": "huoshou",
+   "kind": "locked"
+  },
+  {
+   "code": "jiandu",
+   "kind": "normal"
+  },
+  {
+   "code": "jiang",
+   "kind": "normal"
+  },
+  {
+   "code": "jiangchi",
+   "kind": "normal"
+  },
+  {
+   "code": "jianmie",
+   "kind": "normal"
+  },
+  {
+   "code": "jianxiang",
+   "kind": "normal"
+  },
+  {
+   "code": "jianxiong",
+   "kind": "normal"
+  },
+  {
+   "code": "jianyan",
+   "kind": "normal"
+  },
+  {
+   "code": "jianying",
+   "kind": "normal"
+  },
+  {
+   "code": "jianzheng",
+   "kind": "normal"
+  },
+  {
+   "code": "jiaojin",
+   "kind": "normal"
+  },
+  {
+   "code": "jiazhao",
+   "kind": "normal"
+  },
+  {
+   "code": "jiefan",
+   "kind": "limited"
+  },
+  {
+   "code": "jieming",
+   "kind": "normal"
+  },
+  {
+   "code": "jiewei",
+   "kind": "normal"
+  },
+  {
+   "code": "jiexun",
+   "kind": "normal"
+  },
+  {
+   "code": "jieyin",
+   "kind": "normal"
+  },
+  {
+   "code": "jiezi",
+   "kind": "normal"
+  },
+  {
+   "code": "jigong",
+   "kind": "normal"
+  },
+  {
+   "code": "jijiang",
+   "kind": "lord"
+  },
+  {
+   "code": "jijiu",
+   "kind": "normal"
+  },
+  {
+   "code": "jingce",
+   "kind": "normal"
+  },
+  {
+   "code": "jinjiu",
+   "kind": "locked"
+  },
+  {
+   "code": "jinzou",
+   "kind": "normal"
+  },
+  {
+   "code": "jishe",
+   "kind": "normal"
+  },
+  {
+   "code": "jiuchi",
+   "kind": "normal"
+  },
+  {
+   "code": "jiushi",
+   "kind": "normal"
+  },
+  {
+   "code": "jiuyuan",
+   "kind": "lord"
+  },
+  {
+   "code": "jixi",
+   "kind": "normal"
+  },
+  {
+   "code": "jixian",
+   "kind": "normal"
+  },
+  {
+   "code": "jiyu",
+   "kind": "normal"
+  },
+  {
+   "code": "jizhi",
+   "kind": "normal"
+  },
+  {
+   "code": "juece",
+   "kind": "normal"
+  },
+  {
+   "code": "jueqing",
+   "kind": "locked"
+  },
+  {
+   "code": "juexiang",
+   "kind": "normal"
+  },
+  {
+   "code": "jueyan",
+   "kind": "normal"
+  },
+  {
+   "code": "junxing",
+   "kind": "normal"
+  },
+  {
+   "code": "jushou",
+   "kind": "normal"
+  },
+  {
+   "code": "juxiang",
+   "kind": "locked"
+  },
+  {
+   "code": "juzhan",
+   "kind": "normal"
+  },
+  {
+   "code": "kanpo",
+   "kind": "normal"
+  },
+  {
+   "code": "keji",
+   "kind": "locked"
+  },
+  {
+   "code": "kongcheng",
+   "kind": "locked"
+  },
+  {
+   "code": "kongsheng",
+   "kind": "normal"
+  },
+  {
+   "code": "kuangbi",
+   "kind": "normal"
+  },
+  {
+   "code": "kuanggu",
+   "kind": "locked"
+  },
+  {
+   "code": "kuizhu",
+   "kind": "normal"
+  },
+  {
+   "code": "kurou",
+   "kind": "normal"
+  },
+  {
+   "code": "leiji",
+   "kind": "normal"
+  },
+  {
+   "code": "liangyin",
+   "kind": "normal"
+  },
+  {
+   "code": "lianhuan",
+   "kind": "normal"
+  },
+  {
+   "code": "lianhuo",
+   "kind": "locked"
+  },
+  {
+   "code": "lianying",
+   "kind": "normal"
+  },
+  {
+   "code": "liegong",
+   "kind": "normal"
+  },
+  {
+   "code": "liereng",
+   "kind": "normal"
+  },
+  {
+   "code": "liexian",
+   "kind": "normal"
+  },
+  {
+   "code": "lihuo",
+   "kind": "normal"
+  },
+  {
+   "code": "lijian",
+   "kind": "normal"
+  },
+  {
+   "code": "lijun",
+   "kind": "lord"
+  },
+  {
+   "code": "liuli",
+   "kind": "normal"
+  },
+  {
+   "code": "liyu",
+   "kind": "normal"
+  },
+  {
+   "code": "longdan",
+   "kind": "normal"
+  },
+  {
+   "code": "longyin",
+   "kind": "normal"
+  },
+  {
+   "code": "luanji",
+   "kind": "normal"
+  },
+  {
+   "code": "luanwu",
+   "kind": "limited"
+  },
+  {
+   "code": "luoshen",
+   "kind": "normal"
+  },
+  {
+   "code": "luoyi",
+   "kind": "normal"
+  },
+  {
+   "code": "luoying",
+   "kind": "normal"
+  },
+  {
+   "code": "mashu",
+   "kind": "locked"
+  },
+  {
+   "code": "mieji",
+   "kind": "normal"
+  },
+  {
+   "code": "miji",
+   "kind": "normal"
+  },
+  {
+   "code": "mingce",
+   "kind": "normal"
+  },
+  {
+   "code": "mingjian",
+   "kind": "normal"
+  },
+  {
+   "code": "mingren",
+   "kind": "normal"
+  },
+  {
+   "code": "niepan",
+   "kind": "limited"
+  },
+  {
+   "code": "ninge",
+   "kind": "locked"
+  },
+  {
+   "code": "paoxiao",
+   "kind": "locked"
+  },
+  {
+   "code": "piaoling",
+   "kind": "normal"
+  },
+  {
+   "code": "pindi",
+   "kind": "normal"
+  },
+  {
+   "code": "pingkou",
+   "kind": "normal"
+  },
+  {
+   "code": "pojun",
+   "kind": "normal"
+  },
+  {
+   "code": "poshi",
+   "kind": "awaken"
+  },
+  {
+   "code": "qiangshi",
+   "kind": "normal"
+  },
+  {
+   "code": "qiangxi",
+   "kind": "normal"
+  },
+  {
+   "code": "qianjie",
+   "kind": "locked"
+  },
+  {
+   "code": "qianju",
+   "kind": "locked"
+  },
+  {
+   "code": "qianxi",
+   "kind": "normal"
+  },
+  {
+   "code": "qianxin",
+   "kind": "awaken"
+  },
+  {
+   "code": "qianxun",
+   "kind": "locked"
+  },
+  {
+   "code": "qiaobian",
+   "kind": "normal"
+  },
+  {
+   "code": "qiaomeng",
+   "kind": "normal"
+  },
+  {
+   "code": "qiaoshi",
+   "kind": "normal"
+  },
+  {
+   "code": "qiaoshuo",
+   "kind": "normal"
+  },
+  {
+   "code": "qicai",
+   "kind": "locked"
+  },
+  {
+   "code": "qice",
+   "kind": "normal"
+  },
+  {
+   "code": "qieting",
+   "kind": "normal"
+  },
+  {
+   "code": "qimou",
+   "kind": "limited"
+  },
+  {
+   "code": "qingguo",
+   "kind": "normal"
+  },
+  {
+   "code": "qingjian",
+   "kind": "normal"
+  },
+  {
+   "code": "qingxi",
+   "kind": "normal"
+  },
+  {
+   "code": "qingxian",
+   "kind": "normal"
+  },
+  {
+   "code": "qinqing",
+   "kind": "normal"
+  },
+  {
+   "code": "qinwang",
+   "kind": "lord"
+  },
+  {
+   "code": "qinxue",
+   "kind": "awaken"
+  },
+  {
+   "code": "qiuyuan",
+   "kind": "normal"
+  },
+  {
+   "code": "qixi",
+   "kind": "normal"
+  },
+  {
+   "code": "qizhi",
+   "kind": "normal"
+  },
+  {
+   "code": "quanji",
+   "kind": "normal"
+  },
+  {
+   "code": "quhu",
+   "kind": "normal"
+  },
+  {
+   "code": "rende",
+   "kind": "normal"
+  },
+  {
+   "code": "renxin",
+   "kind": "normal"
+  },
+  {
+   "code": "roulin",
+   "kind": "locked"
+  },
+  {
+   "code": "rouxian",
+   "kind": "normal"
+  },
+  {
+   "code": "ruoyu",
+   "kind": "lord"
+  },
+  {
+   "code": "sanyao",
+   "kind": "normal"
+  },
+  {
+   "code": "shangshi",
+   "kind": "normal"
+  },
+  {
+   "code": "shebian",
+   "kind": "normal"
+  },
+  {
+   "code": "shenduan",
+   "kind": "normal"
+  },
+  {
+   "code": "shenshi",
+   "kind": "normal"
+  },
+  {
+   "code": "shensu",
+   "kind": "normal"
+  },
+  {
+   "code": "shenxing",
+   "kind": "normal"
+  },
+  {
+   "code": "shibei",
+   "kind": "locked"
+  },
+  {
+   "code": "shicai",
+   "kind": "normal"
+  },
+  {
+   "code": "shifei",
+   "kind": "normal"
+  },
+  {
+   "code": "shizhan",
+   "kind": "normal"
+  },
+  {
+   "code": "shizhi",
+   "kind": "locked"
+  },
+  {
+   "code": "shouxi",
+   "kind": "normal"
+  },
+  {
+   "code": "shuangxiong",
+   "kind": "normal"
+  },
+  {
+   "code": "sidi",
+   "kind": "normal"
+  },
+  {
+   "code": "sishu",
+   "kind": "normal"
+  },
+  {
+   "code": "songwei",
+   "kind": "lord"
+  },
+  {
+   "code": "taoluan",
+   "kind": "normal"
+  },
+  {
+   "code": "tianbian",
+   "kind": "normal"
+  },
+  {
+   "code": "tiandu",
+   "kind": "normal"
+  },
+  {
+   "code": "tianxiang",
+   "kind": "normal"
+  },
+  {
+   "code": "tianyi",
+   "kind": "normal"
+  },
+  {
+   "code": "tiaoxin",
+   "kind": "normal"
+  },
+  {
+   "code": "tieqi",
+   "kind": "normal"
+  },
+  {
+   "code": "tishen",
+   "kind": "limited"
+  },
+  {
+   "code": "tongbo",
+   "kind": "normal"
+  },
+  {
+   "code": "tuotian",
+   "kind": "normal"
+  },
+  {
+   "code": "tuxi",
+   "kind": "normal"
+  },
+  {
+   "code": "wanglie",
+   "kind": "normal"
+  },
+  {
+   "code": "wangxi",
+   "kind": "normal"
+  },
+  {
+   "code": "wansha",
+   "kind": "locked"
+  },
+  {
+   "code": "weidi",
+   "kind": "normal"
+  },
+  {
+   "code": "weimu",
+   "kind": "locked"
+  },
+  {
+   "code": "wengua",
+   "kind": "normal"
+  },
+  {
+   "code": "wulie",
+   "kind": "limited"
+  },
+  {
+   "code": "wurong",
+   "kind": "normal"
+  },
+  {
+   "code": "wusheng",
+   "kind": "normal"
+  },
+  {
+   "code": "wushuang",
+   "kind": "locked"
+  },
+  {
+   "code": "xiangle",
+   "kind": "locked"
+  },
+  {
+   "code": "xiansi",
+   "kind": "normal"
+  },
+  {
+   "code": "xiantu",
+   "kind": "normal"
+  },
+  {
+   "code": "xianzhen",
+   "kind": "normal"
+  },
+  {
+   "code": "xianzhou",
+   "kind": "limited"
+  },
+  {
+   "code": "xiaoji",
+   "kind": "normal"
+  },
+  {
+   "code": "xingshang",
+   "kind": "normal"
+  },
+  {
+   "code": "xingshuai",
+   "kind": "lord"
+  },
+  {
+   "code": "xingxue",
+   "kind": "normal"
+  },
+  {
+   "code": "xinsheng",
+   "kind": "normal"
+  },
+  {
+   "code": "xiongluan",
+   "kind": "limited"
+  },
+  {
+   "code": "xuanfeng",
+   "kind": "normal"
+  },
+  {
+   "code": "xuanhuo",
+   "kind": "normal"
+  },
+  {
+   "code": "xueyi",
+   "kind": "lord"
+  },
+  {
+   "code": "xunxun",
+   "kind": "normal"
+  },
+  {
+   "code": "yajiao",
+   "kind": "normal"
+  },
+  {
+   "code": "yanyu",
+   "kind": "normal"
+  },
+  {
+   "code": "yanzhu",
+   "kind": "normal"
+  },
+  {
+   "code": "yaoming",
+   "kind": "normal"
+  },
+  {
+   "code": "yaowu",
+   "kind": "locked"
+  },
+  {
+   "code": "yicong",
+   "kind": "locked"
+  },
+  {
+   "code": "yiji",
+   "kind": "normal"
+  },
+  {
+   "code": "yijue",
+   "kind": "normal"
+  },
+  {
+   "code": "yili",
+   "kind": "normal"
+  },
+  {
+   "code": "yinghun",
+   "kind": "normal"
+  },
+  {
+   "code": "yingzi",
+   "kind": "locked"
+  },
+  {
+   "code": "yizhong",
+   "kind": "locked"
+  },
+  {
+   "code": "yonglue",
+   "kind": "normal"
+  },
+  {
+   "code": "yongsi",
+   "kind": "locked"
+  },
+  {
+   "code": "yuce",
+   "kind": "normal"
+  },
+  {
+   "code": "zaizhi",
+   "kind": "normal"
+  },
+  {
+   "code": "zanhui",
+   "kind": "normal"
+  },
+  {
+   "code": "zaoxian",
+   "kind": "awaken"
+  },
+  {
+   "code": "zhanjue",
+   "kind": "normal"
+  },
+  {
+   "code": "zhaofu",
+   "kind": "lord"
+  },
+  {
+   "code": "zhaxiang",
+   "kind": "locked"
+  },
+  {
+   "code": "zhenglun",
+   "kind": "normal"
+  },
+  {
+   "code": "zhengrong",
+   "kind": "normal"
+  },
+  {
+   "code": "zhengu",
+   "kind": "normal"
+  },
+  {
+   "code": "zhenjun",
+   "kind": "normal"
+  },
+  {
+   "code": "zhenliang",
+   "kind": "normal"
+  },
+  {
+   "code": "zhenlie",
+   "kind": "normal"
+  },
+  {
+   "code": "zhiba",
+   "kind": "lord"
+  },
+  {
+   "code": "zhichi",
+   "kind": "locked"
+  },
+  {
+   "code": "zhige",
+   "kind": "normal"
+  },
+  {
+   "code": "zhiheng",
+   "kind": "normal"
+  },
+  {
+   "code": "zhiji",
+   "kind": "awaken"
+  },
+  {
+   "code": "zhijian",
+   "kind": "normal"
+  },
+  {
+   "code": "zhiman",
+   "kind": "normal"
+  },
+  {
+   "code": "zhiyan",
+   "kind": "normal"
+  },
+  {
+   "code": "zhiyu",
+   "kind": "normal"
+  },
+  {
+   "code": "zhongjian",
+   "kind": "normal"
+  },
+  {
+   "code": "zhongyong",
+   "kind": "normal"
+  },
+  {
+   "code": "zhuandui",
+   "kind": "normal"
+  },
+  {
+   "code": "zhuhai",
+   "kind": "normal"
+  },
+  {
+   "code": "zhuikong",
+   "kind": "normal"
+  },
+  {
+   "code": "zhuixi",
+   "kind": "limited"
+  },
+  {
+   "code": "zili",
+   "kind": "awaken"
+  },
+  {
+   "code": "zishou",
+   "kind": "normal"
+  },
+  {
+   "code": "zongshi",
+   "kind": "locked"
+  },
+  {
+   "code": "zongshi_jie",
+   "kind": "normal"
+  },
+  {
+   "code": "zongxuan",
+   "kind": "normal"
+  },
+  {
+   "code": "zongzuo",
+   "kind": "locked"
+  },
+  {
+   "code": "zuilun",
+   "kind": "normal"
+  },
+  {
+   "code": "zuoding",
+   "kind": "normal"
+  }
+ ]
+}

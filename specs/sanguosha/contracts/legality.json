@@ -1,0 +1,24 @@
+{
+  "id": "legality",
+  "title": "合法动作集契约",
+  "rules": [
+    {
+      "id": "L1-legal-equals-execute",
+      "desc": "legal_actions 枚举的动作必须可执行；技能不得走事件模拟入口（legal 与 execute 会分叉）",
+      "anchor": "tests/m2_wiring.rs::gate_skills_use_real_resolution_only",
+      "forbid": [
+        {
+          "glob": "src/skills/**",
+          "pattern": "\\.use_card\\(",
+          "note": "技能不得调用事件模拟入口"
+        }
+      ]
+    },
+    {
+      "id": "L2-empty-set-only-reason",
+      "desc": "只有合法集为空才允许不询问/不枚举（条件应表达为合法集，不得静默跳过）",
+      "anchor": "tests/ask_completeness.rs::empty_hand_target_is_not_asked",
+      "forbid": []
+    }
+  ]
+}

@@ -144,3 +144,20 @@ fn sandbox_game_starts_at_full_hp() {
     // `Phase` 引用避免未使用告警（该用例只关心状态语义）。
     let _ = Phase::Play;
 }
+
+/// I2 不变量：`alive == true` 且 `hp <= 0` 且不在濒死 = 僵尸座位（引擎必须能检出来）。
+#[test]
+fn zombie_seat_is_detected() {
+    let mut g = game();
+    g.seats[1].general = "sgs_hero_1".into();
+    g.seats[1].hp = 0;
+    g.seats[1].alive = true;
+    let err = g.check_no_zombies().unwrap_err();
+    assert!(err.contains("僵尸座位"), "{err}");
+    // 正常濒死（栈里有 Dying 帧）不算僵尸。
+    let mut g2 = game();
+    g2.seats[1].general = "sgs_hero_1".into();
+    g2.seats[1].hp = 0;
+    flow::start_dying(&mut g2, 1, Some(0));
+    assert!(g2.check_no_zombies().is_ok(), "濒死不算僵尸");
+}

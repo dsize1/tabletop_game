@@ -1,0 +1,104 @@
+{
+  "id": "interaction",
+  "title": "交互原语（I1 询问完整性）",
+  "rules": [
+    {
+      "id": "I1-ask-anyway",
+      "desc": "有手牌就必须显式询问（即使没有对应的牌）；只有合法集为空才能不问",
+      "anchor": "tests/ask_completeness.rs::target_with_hand_without_shan_is_still_asked",
+      "forbid": [
+        {
+          "glob": "src/kernel/card_play.rs",
+          "pattern": "^\\s*if !has \\{$",
+          "note": "必须走 Game::must_ask"
+        },
+        {
+          "glob": "src/kernel/flow.rs",
+          "pattern": "^\\s*if !has \\{$",
+          "note": "必须走 Game::must_ask"
+        },
+        {
+          "glob": "src/kernel/card_play.rs",
+          "pattern": "^\\s*if options\\.is_empty\\(\\) \\{$",
+          "note": "必须走 Game::must_ask（手牌非空时不得跳过）"
+        }
+      ]
+    },
+    {
+      "id": "I1-no-silent-pass",
+      "desc": "回答缺失/陈旧回答不得按「放弃」继续（必须重新询问）",
+      "anchor": "tests/ask_completeness.rs::target_with_hand_without_shan_is_still_asked",
+      "forbid": [
+        {
+          "glob": "src/kernel/card_play.rs",
+          "pattern": "按放弃处理",
+          "note": "history: read_answer 曾静默 pass"
+        }
+      ]
+    },
+    {
+      "id": "I1-no-auto-pick",
+      "desc": "强制选择类的占位出口不得代玩家选（提交出口必须被拒绝）",
+      "anchor": "tests/ask_completeness.rs::mandatory_pending_rejects_escape",
+      "forbid": [
+        {
+          "glob": "src/kernel/resolve.rs",
+          "pattern": "let Some\\(first\\) = p\\.options\\(\\)\\.iter\\(\\)\\.find",
+          "note": "submit 不得自动改选实质选项"
+        }
+      ]
+    },
+    {
+      "id": "I1-random-hand-pick",
+      "desc": "拆/顺手牌必须随机（不得固定取第一张）",
+      "anchor": "tests/ask_completeness.rs::pick_hand_is_random_not_first",
+      "forbid": [
+        {
+          "glob": "src/kernel/card_play.rs",
+          "pattern": "g\\.hand\\(target\\)\\.first\\(\\)\\.cloned\\(\\)",
+          "note": "取第一张 = 引擎代选且可被利用"
+        }
+      ]
+    },
+    {
+      "id": "relay-single-channel",
+      "desc": "主公技接力只有一个入口 + 一个结果通道（relay_result）；全拒绝回主公响应窗口",
+      "anchor": "tests/b9.rs::jijiang_declined_returns_to_lord_response_window",
+      "forbid": [
+        {
+          "glob": "src/kernel/card_play.rs",
+          "pattern": "relay_wait",
+          "note": "前置帧双通道已删除"
+        },
+        {
+          "glob": "src/kernel/card_play.rs",
+          "pattern": "relay_before",
+          "note": "响应前压接力帧已删除"
+        },
+        {
+          "glob": "src/kernel/mod.rs",
+          "pattern": "pub relay_played|pub relay_none",
+          "note": "接力结果只允许 relay_result 单通道"
+        }
+      ]
+    },
+    {
+      "id": "relay-active-use",
+      "desc": "主动激将：代出→主公选目标→视为主公使用；无人代出零消耗可再发",
+      "anchor": "tests/b9.rs::jijiang_active_use_ally_provides_sha_and_lord_picks_target",
+      "forbid": []
+    },
+    {
+      "id": "relay-declined-free",
+      "desc": "主动激将无人代出：零消耗、可再次发动",
+      "anchor": "tests/b9.rs::jijiang_active_with_no_ally_is_free_and_retryable",
+      "forbid": []
+    },
+    {
+      "id": "pending-data-contract",
+      "desc": "端侧要读的字段必须写进 pending.data（wuxie.root/layers、dying.victim/hp、pindian.target…）",
+      "anchor": "tests/cards.rs::dismantle_pending_carries_data_and_is_mandatory",
+      "forbid": []
+    }
+  ]
+}
