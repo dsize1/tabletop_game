@@ -696,6 +696,11 @@ fn tuotian(g: &mut Game, a: &Ask) -> Result<Step, String> {
         }
         return Ok(Step::Done);
     }
+    // 归属守卫（真机 2026-11-12）：屯田只认「**自己**于回合外失去牌」。
+    // 缺少这一步会让任何角色失去牌都触发邓艾判定（孙休出牌 → 邓艾连判 4 次）。
+    if a.data["seat"].as_u64().map(|n| n as usize) != Some(owner) {
+        return Ok(Step::Done);
+    }
     let lost_card = a.data["card"].as_str().map(str::to_string);
     let cause = a.data["cause"].as_str().unwrap_or_default().to_string();
     let own_turn = g.turn == owner;

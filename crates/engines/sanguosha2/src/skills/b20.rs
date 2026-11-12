@@ -165,9 +165,13 @@ fn can_yanyu(g: &Game, seat: usize) -> bool {
 fn yanyu(g: &mut Game, a: &Ask) -> Result<Step, String> {
     let owner = a.actor;
 
-    // ① 本阶段失去【杀】计数（任何离开手牌的方式）。
+    // ① 本阶段失去【杀】计数（任何离开手牌的方式）——只算**自己**失去的牌。
     if event_is(a, "CardLost") {
         if !active(g, owner, "yanyu") || !play_phase(g, owner) {
+            return Ok(Step::Done);
+        }
+        // 归属守卫（同类缺陷排查）：他人的失去牌不计入「你失去的【杀】」。
+        if a.data["seat"].as_u64().map(|n| n as usize) != Some(owner) {
             return Ok(Step::Done);
         }
         let Some(card) = a.data["card"].as_str().map(|c| c.to_string()) else {

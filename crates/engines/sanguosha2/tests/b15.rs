@@ -387,6 +387,57 @@ fn zaoxian_awaken_and_extra_turn() {
     assert_eq!(g.extra_turn, Some(0), "本回合后额外回合");
 }
 
+/// 真机 2026-11-12：孙休（他人）出牌时，界邓艾连续 4 次触发屯田判定。
+/// 屯田只认「自己于回合外失去牌」——他人失去牌不得触发。
+#[test]
+fn tuotian_ignores_other_players_card_loss() {
+    let mut g = game(&[
+        ("dengai", &["tuotian"], 4, "wei"),
+        ("other", &[], 4, "qun"),
+    ]);
+    // 他人回合：other 使用装备（失去手牌）→ 邓艾不得判定
+    play_phase(&mut g, 1);
+    let equip = g
+        .ids_in(|z| *z == sanguosha2::kernel::Zone::Draw)
+        .into_iter()
+        .find(|id| g.def_of(id).kind == sanguosha2::cards::CardKind::Equip)
+        .expect("装备牌");
+    g.to_hand(&equip, 1).unwrap();
+    g.resolve_use(1, &equip, vec![]).unwrap();
+    advance(&mut g).unwrap();
+    assert!(
+        !g.pending.as_ref().is_some_and(|p| p.skill() == Some("tuotian")),
+        "他人失去牌不得触发屯田：{:?}",
+        g.pending.as_ref().map(|p| p.skill())
+    );
+    assert_eq!(g.counter("turn.tuotian_count"), 0);
+    // 自己回合外失去手牌 → 触发
+    let hand = g
+        .ids_in(|z| *z == sanguosha2::kernel::Zone::Hand(0))
+        .into_iter()
+        .next();
+    if hand.is_none() {
+        let id = g
+            .ids_in(|z| *z == sanguosha2::kernel::Zone::Draw)
+            .into_iter()
+            .next()
+            .unwrap();
+        g.to_hand(&id, 0).unwrap();
+    }
+    let id = g
+        .ids_in(|z| *z == sanguosha2::kernel::Zone::Hand(0))
+        .into_iter()
+        .next()
+        .unwrap();
+    g.to_discard_by(1, &id, "guohe").unwrap();
+    advance(&mut g).unwrap();
+    assert!(
+        g.pending.as_ref().is_some_and(|p| p.skill() == Some("tuotian")),
+        "自己回合外失去牌应触发屯田：{:?}",
+        g.pending.as_ref().map(|p| p.skill())
+    );
+}
+
 #[test]
 fn zaoxian_needs_three_tian() {
     let mut g = game(&[("dengai", &["zaoxian"], 4, "wei"), ("p1", &[], 4, "wei")]);

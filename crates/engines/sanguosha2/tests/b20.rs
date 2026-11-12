@@ -248,6 +248,27 @@ fn qiangshi_no_prompt_for_other_type() {
 }
 
 // ---------------------------------------------------------------- 献图
+/// 同类排查（真机 2026-11-12 屯田）：燕语只统计**自己**失去的【杀】。
+#[test]
+fn yanyu_ignores_other_players_lost_sha() {
+    let mut g = game(&[("buy", &["yanyu"], 4, "wu"), ("p1", &[], 4, "qun")]);
+    // 界步练师出牌阶段
+    g.turn = 0;
+    g.phase = sanguosha2::kernel::Phase::Play;
+    // 他人（p1）失去两张【杀】（模拟：直接发事件）
+    for _ in 0..2 {
+        let sha = g
+            .ids_in(|z| *z == sanguosha2::kernel::Zone::Draw)
+            .into_iter()
+            .find(|id| g.name_of(id) == "杀")
+            .unwrap();
+        g.to_hand(&sha, 1).unwrap();
+        g.to_discard_by(1, &sha, "discard_phase").unwrap();
+    }
+    advance(&mut g).unwrap();
+    assert_eq!(g.counter("turn.yanyu_lost:0"), 0, "他人失去【杀】不计入");
+}
+
 #[test]
 fn xiantu_gives_and_loses_hp_when_damage_less() {
     let mut g = game(&[
