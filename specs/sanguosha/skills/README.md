@@ -47,12 +47,16 @@ npm run check:spec-conformance              # 覆盖 + 锚点存在性 + 注册�
 
 技能级锚点：没有裁定项（questions 为空）的技能用 align 的 `test` 字段（由 `spec:anchors` 回填）。
 
+**锚点质量口径**（2026-11-12 回填时收紧）：`spec:anchors` 只接受**强匹配**——
+测试函数名含 skill code，或函数体含 `"<code>"` 字面量；否则留空并标 `legacy: true`（显式欠账）。
+`--redo` 可重新评估全部锚点（保留已满足强匹配的）。
+
 ## 当前进度（2026-11-12）
 
 | 项 | 数量 |
 |---|---|
 | 注册技能 | 296 |
 | 契约覆盖 | 296（B0–B20 + granted） |
-| `verified`（B0–B2 已完成回填） | **40**（B0 7 / B1 18 / B2 15） |
-| `implemented`（待回填锚点） | 256 |
+| `verified`（全批次已回填，锚点均为强匹配） | **296**（B0–B20）+ 授予技 8 |
+| `implemented`（待回填锚点） | 0 |
 | 授予技 / 无对齐单条目 | 8（`granted.md`） |

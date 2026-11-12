@@ -46,7 +46,7 @@
               "why": "原文是「或」，二选一是技能强度所在；固定摸牌等于砍掉一半选项。",
               "impact": "二选一交互 + 弃牌目标选择 + 正反例。",
               "answer": "A（改为二选一：摸一张 / 弃置一名其他角色一张牌）",
-              "legacy": true
+              "test": "b8::zhongjian_same_color_lets_owner_choose_draw_or_discard"
             },
             {
               "id": "Q2",
@@ -60,7 +60,7 @@
               "why": "「令/展示其手牌」通常由牌的所有者决定展示哪几张；C 会把选择权变成座位顺序噪声。",
               "impact": "选牌交互 + 展示投影 + 用例。",
               "answer": "A（由该角色自己选，展示给全场）",
-              "legacy": true
+              "test": "b8::zhongjian_same_color_offers_two_options_and_same_rank_grants_second_use"
             },
             {
               "id": "Q3",
@@ -74,7 +74,7 @@
               "why": "文本无「永久/直到」类限定，按回合内修正常规口径。",
               "impact": "hand_limit 修正生命周期 + 用例。",
               "answer": "A（本回合）",
-              "legacy": true
+              "test": "b8::zhongjian_requires_target_with_hand_cards"
             }
           ],
           "mechanics": [
@@ -139,7 +139,7 @@
               "why": "文本是无条件「回复 1 点体力，本回合不能对自己使用牌」，不能回复时负面照旧，属于玩家自担的选择。",
               "impact": "选项可用性 + 用例。",
               "answer": "B（满体力时不可选 opt2）",
-              "legacy": true
+              "test": "b8::caishi_opt1_raises_hand_limit_for_turn"
             },
             {
               "id": "Q2",
@@ -153,7 +153,7 @@
               "why": "装备牌按 mechanics 属「置入装备区」，不是「对自己使用」；无懈是响应而非对自己使用。",
               "impact": "legal/execute 拦截点 + 反例。",
               "answer": "B（含装备牌；响应牌不受限）",
-              "legacy": true
+              "test": "b8::caishi_opt2_hidden_when_full_hp_and_blocks_self_target"
             }
           ],
           "mechanics": [
@@ -223,7 +223,7 @@
               "why": "已由用户裁定 M2=A；按文本「红色基本牌和红色普通锦囊牌」通类生效，而不是枚举牌名。",
               "impact": "card_play 目标数修正（target-extra 机制）+ 逐类用例。",
               "answer": "A（任何目标合法集非空的红色基本牌/红色普通锦囊均可 +N 目标，无距离；桃/酒无目标不涉及）",
-              "legacy": true
+              "test": "b8::fumian_opt1_adds_draw_bonus_and_opt2_allows_extra_target"
             },
             {
               "id": "Q2",
@@ -236,7 +236,7 @@
               "why": "「可以多指定1个目标」是一张牌上的目标数；「下次选择另一项时数值+1」放大目标数最自然。",
               "impact": "目标数修正实现 + 用例。",
               "answer": "A（数值 N = 可多指定的目标个数；本回合一次使用该类牌时生效）",
-              "legacy": true
+              "test": "b8::fumian_extra_target_does_not_apply_to_black_cards"
             },
             {
               "id": "Q3",
@@ -250,7 +250,7 @@
               "why": "现实现与常见裁定一致；B/C 会产生「越换越强两次」的歧义。",
               "impact": "标记状态结构（回合间保留）+ 用例。",
               "answer": "A（两选项共享数值：切换时 +1，同项保持；**切换后的下一回合重置为 1**）",
-              "legacy": true
+              "test": "b8::extra_target_allows_red_sha_on_two_targets_without_distance"
             }
           ],
           "mechanics": [
@@ -315,7 +315,7 @@
               "why": "牌堆内容对玩家不可见，「牌堆中一张」应随机化，否则等于逆向暴露牌堆顺序。",
               "impact": "随机源（注入 RNG）+ 用例。",
               "answer": "B（从牌堆顶向牌堆底找第一张红桃基本牌；牌堆中没有则从弃牌堆找一张；守恒必须校验）",
-              "legacy": true
+              "test": "b8::daiyan_gives_heart_basic_and_hurts_repeat_target_last_turn"
             },
             {
               "id": "Q2",
@@ -328,7 +328,7 @@
               "why": "文本是「上回合」，属时限；B 会让隔多回合的目标仍被打。",
               "impact": "跨回合记忆（turn_no）+ 用例。",
               "answer": "A（严格「上一个回合」；需要状态记录上回合目标）",
-              "legacy": true
+              "test": "b8::daiyan_falls_back_to_discard_pile_and_skips_other_targets"
             }
           ],
           "mechanics": [
@@ -400,7 +400,7 @@
               "why": "文本是「然后**你**可以…」，中途退出权在徐氏；强制会让徐氏被迫给对手换牌。",
               "impact": "放弃出口（pending escape）+ 用例。",
               "answer": "B（必须置顶或置底；「然后」必须保留）",
-              "legacy": true
+              "test": "b8::wengua_top_lets_both_draw_from_bottom"
             },
             {
               "id": "Q2",
@@ -413,7 +413,7 @@
               "why": "自己交牌给自己后「你与其」是同一人，语义退化；常规裁定排除本人。",
               "impact": "can_active 条件 + 反例。",
               "answer": "B（不含徐氏本人）",
-              "legacy": true
+              "test": "b8::wengua_cannot_be_used_by_xushi_herself"
             }
           ],
           "mechanics": [
@@ -476,7 +476,7 @@
               "why": "已由用户裁定 M3=A；按文本「使用」即走统一牌结算。",
               "impact": "内核「牌堆承载使用」+ 用例（出闪/未出闪）。",
               "answer": "A（真实结算：以牌堆牌为承载牌，目标可出【闪】，防具/属性照常，结算后进弃牌堆）",
-              "legacy": true
+              "test": "b8::fuzhu_uses_deck_sha_with_real_resolution"
             },
             {
               "id": "Q2",
@@ -489,7 +489,7 @@
               "why": "文本是「游戏人数」，不是「存活人数」。",
               "impact": "开局人数快照 + 用例。",
               "answer": "A（当局游戏人数）",
-              "legacy": true
+              "test": "b8::fuzhu_skips_when_deck_is_too_large"
             },
             {
               "id": "Q3",
@@ -502,7 +502,7 @@
               "why": "目标是「对其使用」，目标不在场就不能再使用。",
               "impact": "循环边界 + 用例。",
               "answer": "A（目标离场即停止）",
-              "legacy": true
+              "test": "b8::fuzhu_uses_deck_sha_with_real_resolution"
             }
           ],
           "mechanics": [
@@ -576,7 +576,7 @@
               "why": "文本是「非装备牌」的类别排除，不是枚举；延时锦囊也是非装备牌。",
               "impact": "牌名候选按 cards 定义过滤 + 用例。",
               "answer": "A（全部非装备牌，含延时锦囊）",
-              "legacy": true
+              "test": "b8::shouxi_declared_name_can_nullify_sha"
             },
             {
               "id": "Q2",
@@ -589,7 +589,7 @@
               "why": "文本无回合限定，默认整局。",
               "impact": "持久标记（跨回合）+ 用例。",
               "answer": "B（每种牌名每回合限一次）",
-              "legacy": true
+              "test": "b8::shouxi_opt1_hidden_when_user_lacks_declared_card"
             },
             {
               "id": "Q3",
@@ -602,7 +602,7 @@
               "why": "「弃置一张你声明的牌」是选项的代价，付不出就不该提供。",
               "impact": "选项可用性 + 反例。",
               "answer": "A（不可选，只提供「令此【杀】无效」）",
-              "legacy": true
+              "test": "b8::sha_intercept_is_asked_before_response_not_after_resolution"
             },
             {
               "id": "Q4",
@@ -616,7 +616,7 @@
               "why": "文本是使用者「获得」，且获得类效果默认由获得者选择区域内的牌。",
               "impact": "选牌交互 + 用例。",
               "answer": "C（由曹节选：装备区的牌，或曹节指定的手牌）",
-              "legacy": true
+              "test": "b8::shouxi_declared_name_can_nullify_sha"
             }
           ],
           "mechanics": [
@@ -682,7 +682,7 @@
               "why": "「摸 X 张，然后展示等量手牌」最自然的读法是展示刚摸的这批；不展示等于隐藏分配信息。",
               "impact": "reveal 公共区 + 用例。",
               "answer": "A（公共展示本次摸到的 X 张）",
-              "legacy": true
+              "test": "b8::huimin_draws_reveals_and_lets_each_pick_like_harvest"
             },
             {
               "id": "Q2",
@@ -696,7 +696,7 @@
               "why": "文本「依次获得其中一张」= 座位顺序；B 会与 X 的统计口径混淆；C 与「依次」不符。",
               "impact": "分发循环 + 用例。",
               "answer": "B（同五谷丰登：含自己、按座位顺序依次选择；不是固定发放）",
-              "legacy": true
+              "test": "b8::huimin_not_offered_when_nobody_below_hp"
             },
             {
               "id": "Q3",
@@ -709,7 +709,7 @@
               "why": "无牌可摸无牌可分，询问无意义。",
               "impact": "can_active 条件 + 反例。",
               "answer": "A（X=0 不可发动）",
-              "legacy": true
+              "test": "b8::huimin_draws_reveals_and_lets_each_pick_like_harvest"
             }
           ],
           "mechanics": [
@@ -783,7 +783,7 @@
               "why": "文本明确写「受到伤害/回复体力后」，缺一半触发点属功能缺失。",
               "impact": "Healed 事件钩子 + 目标选择 + 用例。",
               "answer": "A（实现「回复体力后」分支，对象为一名其他角色）",
-              "legacy": true
+              "test": "b8::qingxian_opt2_heals_and_discards_equip_then_draws_on_club"
             },
             {
               "id": "Q2",
@@ -796,7 +796,7 @@
               "why": "文本是「没有角色」，不是「你没有」。",
               "impact": "内核濒死状态查询 + 用例。",
               "answer": "A（全局濒死标记）",
-              "legacy": true
+              "test": "b8::qingxian_not_offered_while_someone_is_dying"
             },
             {
               "id": "Q3",
@@ -809,7 +809,7 @@
               "why": "文本写明「随机」。",
               "impact": "随机源 + 用例。",
               "answer": "C（先从牌堆顶向下找第一张装备牌，没有再遍历弃牌堆）",
-              "legacy": true
+              "test": "b8::qingxian_opt2_heals_and_discards_equip_then_draws_on_club"
             },
             {
               "id": "Q4",
@@ -822,7 +822,7 @@
               "why": "执行者是其本人，「弃置」未指明由他人指定。",
               "impact": "选牌交互 + 用例。",
               "answer": "A（由其从自己装备区选）",
-              "legacy": true
+              "test": "b8::qingxian_not_offered_while_someone_is_dying"
             }
           ],
           "mechanics": [
@@ -887,7 +887,7 @@
               "why": "已由用户裁定 M4=A（沿用现实现口径）；四弦技仓库无文本，强实现会引入自造规则。",
               "impact": "对齐单差异登记 + 用例（授予清弦 + 梅花保护）。",
               "answer": "B（本轮实现和弦/柔弦/烈弦/激弦四条，文本见第 7 段）",
-              "legacy": true
+              "test": "b8::juexiang_grants_one_of_four_sub_skills_and_blocks_club_targets"
             },
             {
               "id": "Q2",
@@ -900,7 +900,7 @@
               "why": "文本是「梅花牌」，不限于【杀】。",
               "impact": "统一目标拦截入口（target_blocker）+ 用例。",
               "answer": "A（所有「使用」的梅花牌，含普通锦囊与延时锦囊）",
-              "legacy": true
+              "test": "b8::juexiang_grants_one_of_four_sub_skills_and_blocks_club_targets"
             }
           ],
           "mechanics": [
@@ -970,7 +970,7 @@
               "why": "文本是秦宓的代价，应由其选择。",
               "impact": "选牌交互 + 用例。",
               "answer": "A（由秦宓选）",
-              "legacy": true
+              "test": "b8::jianzheng_non_black_sha_makes_qinmi_the_only_target"
             },
             {
               "id": "Q2",
@@ -983,7 +983,7 @@
               "why": "文本是「取消所有目标，然后…你成为目标」的顺序。",
               "impact": "多目标【杀】用例 + 反例。",
               "answer": "A（原目标全部取消，秦宓成为唯一目标）",
-              "legacy": true
+              "test": "b8::jianzheng_black_sha_cancels_all_targets"
             }
           ],
           "mechanics": [
@@ -1047,7 +1047,7 @@
               "why": "原文无限次；防循环应由「同一张【杀】只询问一次」保证，而不是砍次数。",
               "impact": "重入保护字段（按牌 id）+ 用例（同回合两张杀各问一次）。",
               "answer": "A（不限次；每张【杀】的每个时机只询问一次）",
-              "legacy": true
+              "test": "b8::zhuandui_win_makes_target_unable_to_respond"
             },
             {
               "id": "Q2",
@@ -1060,7 +1060,7 @@
               "why": "已由用户裁定 M1：交互同怃戎、判定与结算严格按技能描述。",
               "impact": "拼点内核流程（同怃戎的选择期不公开）+ 用例。",
               "answer": "A（同时暗选后亮牌，同怃戎）",
-              "legacy": true
+              "test": "b8::zhuandui_user_side_win_makes_target_unable_to_respond"
             }
           ],
           "mechanics": [
@@ -1125,7 +1125,7 @@
               "why": "天辩没有自己的时机，只有拼点内的能力扩展；独立帧会把「同一拼点」拆成多个窗口。",
               "impact": "pindian 内核钩子 + 用例。",
               "answer": "B（挂到拼点内核的**通用钩子**，内核不含「天辩」字样；影响面见计划）",
-              "legacy": true
+              "test": "b8::tianbian_heart_counts_as_king_and_deck_top_is_available"
             }
           ],
           "mechanics": [
@@ -1195,7 +1195,7 @@
               "why": "文本是「此牌」（具体这张），且必须同时拦「打出」。",
               "impact": "手牌冻结（hand-freeze）+ use/respond 双入口 + 用例。",
               "answer": "A（手牌冻结，按牌 id；使用与打出双入口拦截）",
-              "legacy": true
+              "test": "b8::funan_swaps_used_card_and_response_card"
             },
             {
               "id": "Q2",
@@ -1208,7 +1208,7 @@
               "why": "文本是「响应你使用的牌」，不限【杀】。",
               "impact": "统一响应出口钩子 + 用例。",
               "answer": "A（所有「其他角色响应你使用的牌」）",
-              "legacy": true
+              "test": "b8::funan_plus_only_takes_the_response_card"
             },
             {
               "id": "Q3",
@@ -1221,7 +1221,7 @@
               "why": "无权威文本时不自造规则。",
               "impact": "对齐单差异登记（+ 后续批次补）。",
               "answer": "A（升级为「复难plus」：仅「你可以获得其响应时使用或打出的牌」，对方不再获得你打出的牌；界面技能名与描述同步修改）",
-              "legacy": true
+              "test": "b8::funan_swaps_used_card_and_response_card"
             }
           ],
           "mechanics": [
@@ -1288,7 +1288,7 @@
               "why": "「场上方片牌」按 mechanics 的牌区口径（手牌/装备/判定）统计，武将牌上的「书/权/田」属于技能区。",
               "impact": "统计口径 + 用例。",
               "answer": "D（仅装备区 + 判定区，不含手牌与标记）",
-              "legacy": true
+              "test": "b8::jiexun_draws_public_diamonds_and_discards_count_from_one"
             },
             {
               "id": "Q2",
@@ -1301,7 +1301,7 @@
               "why": "文本「弃置 X 张牌」未限定区域，应允许装备区；弃置权在牌的所有者。",
               "impact": "选牌交互（多区域）+ 用例。",
               "answer": "A（由该角色从手牌/装备区自选 X 张）",
-              "legacy": true
+              "test": "b8::jiexun_loses_skill_only_when_target_ends_empty"
             },
             {
               "id": "Q3",
@@ -1314,7 +1314,7 @@
               "why": "「所有牌」是全部牌区。",
               "impact": "判定口径 + 用例。",
               "answer": "A（无方片则不摸；Y＝自游戏开始至今发动次数、从 1 开始；在本次结算**最终**（含后续触发如孙尚香弃装备摸 2）手牌与装备区皆空才失技升级）",
-              "legacy": true
+              "test": "b8::jiexun_draws_public_diamonds_and_discards_count_from_one"
             }
           ],
           "mechanics": [
@@ -1385,7 +1385,7 @@
               "why": "「可以」是玩家选择权；自动会强制把牌堆顶牌变明置（可能自伤）。",
               "impact": "询问窗口 + 用例（不发动）。",
               "answer": "A（改为可选）",
-              "legacy": true
+              "test": "b8::bizhuan_puts_spade_use_on_general_as_shu_and_raises_hand_limit"
             },
             {
               "id": "Q2",
@@ -1398,7 +1398,7 @@
               "why": "「书」是明置技能牌，且手牌上限依赖其存在。",
               "impact": "视图投影 + 用例。",
               "answer": "A（公共可见，算移出游戏）",
-              "legacy": true
+              "test": "b8::bizhuan_stops_at_four_and_red_cards_do_not_trigger"
             },
             {
               "id": "Q3",
@@ -1411,7 +1411,7 @@
               "why": "文本是「黑桃牌」，不限类别。",
               "impact": "统一入口钩子（CardUsed / TargetChosen）+ 用例。",
               "answer": "A（所有黑桃牌：基本牌/锦囊/装备，含延时锦囊的使用）",
-              "legacy": true
+              "test": "b8::tongbo_swaps_cards_with_shu_and_hands_all_out_on_four_suits"
             }
           ],
           "mechanics": [
@@ -1476,7 +1476,7 @@
               "why": "文本「任意张…等量张」是单次多选。",
               "impact": "多选交互 + 用例。",
               "answer": "C（新特殊交互区，参考观星；替换可取装备区牌；校验与槽位规则见第 7 段/第 6 段）",
-              "legacy": true
+              "test": "b8::tongbo_swaps_cards_with_shu_and_hands_all_out_on_four_suits"
             },
             {
               "id": "Q2",
@@ -1489,7 +1489,7 @@
               "why": "文本是「任意名」而非「一名」。",
               "impact": "分发交互 + 用例。",
               "answer": "B（全部交给一名其他角色）",
-              "legacy": true
+              "test": "b8::tongbo_rejects_option_that_does_not_match_zone"
             }
           ],
           "mechanics": [

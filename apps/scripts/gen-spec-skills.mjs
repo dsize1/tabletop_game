@@ -234,7 +234,7 @@ for (const code of uncovered.sort()) {
     batch: "granted",
     file: "specs/sanguosha/skills/granted.md",
     kind: regByCode.get(code)?.kind ?? "",
-    status: a.length ? "implemented" : "draft",
+    status: a.length ? "verified" : "draft",
     anchors: a,
   });
 }

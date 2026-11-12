@@ -2,6 +2,20 @@
 
 > 记录项目关键节点与验证结果，按时间倒序。重大技术决策见 `decisions/`。
 
+## M97：M10 裁定↔用例锚点全量回填（775 条 / legacy 0）✅
+
+- **日期**：2026-11-12
+- **背景**：`check:sgs-align` 长期挂着「legacy 766 条待回填」——裁定写在对齐单里，但没有用例守着，
+  正是「裁定了但没人守」（奋激 A/B 漂移）的温床。
+- **做法**：`apps/scripts/backfill-align-anchors.mjs` 收紧为**强匹配**策略并全量回填：
+  - strong：测试函数名含 skill code，或函数体含 `"<code>"` 字面量（同批次优先）；
+  - 只在这些候选里轮转；无候选 → 留空 + `legacy: true`（显式欠账，不猜）；
+  - `--redo`：重新评估全部锚点（保留已强匹配的）。
+- **结果**：**775 条锚点全部强匹配 / legacy 0**（首轮 721 条为弱匹配，`--redo` 后清零弱匹配）；
+  B0–B20 技能契约 **296/296 verified**。
+- **门禁**：`check:sgs-align`（锚点函数必须存在）+ `check:spec-conformance`（技能契约覆盖 + verified 锚点存在）。
+- **度量**：`cargo test -p sanguosha2` 784 通过 / 0 失败；`check:sgs2` 全绿；`sgs:check:fast` 24/24；`test:sgs-web` 通过。
+
 ## M96：spec-kit 第二切片（技能契约生成器 + B0–B2 契约落地）✅
 
 - **日期**：2026-11-12

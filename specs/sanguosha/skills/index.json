@@ -9,64 +9,92 @@
    "batch": "B6",
    "file": "specs/sanguosha/skills/B6.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b6.rs::anguo_applies_minimum_effects_for_target",
+    "tests/b6.rs::anguo_uses_equip_from_draw_pile_when_equip_min"
+   ]
   },
   {
    "code": "anjian",
    "batch": "B4",
    "file": "specs/sanguosha/skills/B4.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b10.rs::fanjian_lets_target_choose_lose_hp_or_discard_same_suit",
+    "tests/b4.rs::anjian_adds_one_damage_when_out_of_attack_range"
+   ]
   },
   {
    "code": "anxu",
    "batch": "B20",
    "file": "specs/sanguosha/skills/B20.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b10.rs::qianxun_moves_all_hand_out_for_single_target_trick",
+    "tests/b20.rs::anxu_gains_two_cards_and_spade_rule",
+    "tests/b20.rs::anxu_non_spade_draws_one",
+    "tests/b20.rs::anxu_cannot_activate_twice"
+   ]
   },
   {
    "code": "baonue",
    "batch": "B15",
    "file": "specs/sanguosha/skills/B15.md",
    "kind": "lord",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b15.rs::baonue_triggers_per_point_for_qun_damage",
+    "tests/b15.rs::baonue_ignores_non_qun_or_self"
+   ]
   },
   {
    "code": "bazhen",
    "batch": "B14",
    "file": "specs/sanguosha/skills/B14.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b14.rs::bazhen_virtual_armor",
+    "tests/b14.rs::bazhen_loses_with_real_armor",
+    "tests/b14.rs::niepan_rescues_and_grants_skill"
+   ]
   },
   {
    "code": "beige",
    "batch": "B16",
    "file": "specs/sanguosha/skills/B16.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b16.rs::beige_discard_judge_and_gain_same_suit",
+    "tests/b16.rs::beige_needs_cards_to_trigger"
+   ]
   },
   {
    "code": "bengkuai",
    "batch": "B15",
    "file": "specs/sanguosha/skills/B15.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b15.rs::bengkuai_triggers_and_loses_hp",
+    "tests/b15.rs::bengkuai_tie_triggers_unique_minimum_skips"
+   ]
   },
   {
    "code": "benxi",
    "batch": "B4",
    "file": "specs/sanguosha/skills/B4.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b4.rs::benxi_distance_is_minus_one_not_per_card",
+    "tests/b4.rs::benxi_offers_options_for_single_target_sha",
+    "tests/b4.rs::benxi_skipped_for_multi_target_or_other_player"
+   ]
   },
   {
    "code": "binglue",
@@ -83,32 +111,45 @@
    "batch": "B5",
    "file": "specs/sanguosha/skills/B5.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b5.rs::bingyi_reveals_and_lets_chosen_targets_draw",
+    "tests/b5.rs::bingyi_not_triggered_for_judge_zone_discard_or_twice_per_phase"
+   ]
   },
   {
    "code": "biyue",
    "batch": "B12",
    "file": "specs/sanguosha/skills/B12.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b12.rs::biyue_draws_two_without_hand",
+    "tests/b12.rs::biyue_draws_one_with_hand_and_can_decline",
+    "tests/m2_wiring.rs::gate_active_skills_only_offered_to_owner"
+   ]
   },
   {
    "code": "bizhuan",
    "batch": "B8",
    "file": "specs/sanguosha/skills/B8.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b8.rs::bizhuan_puts_spade_use_on_general_as_shu_and_raises_hand_limit",
+    "tests/b8.rs::bizhuan_stops_at_four_and_red_cards_do_not_trigger",
+    "tests/b8.rs::tongbo_swaps_cards_with_shu_and_hands_all_out_on_four_suits"
+   ]
   },
   {
    "code": "botu",
    "batch": "B10",
    "file": "specs/sanguosha/skills/B10.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b10.rs::botu_grants_extra_turn_after_four_suits"
+   ]
   },
   {
    "code": "buqu",
@@ -126,32 +167,43 @@
    "batch": "B18",
    "file": "specs/sanguosha/skills/B18.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b18.rs::buyi_reveals_non_basic_and_heals_dying",
+    "tests/b18.rs::buyi_skips_when_victim_has_no_card"
+   ]
   },
   {
    "code": "caishi",
    "batch": "B8",
    "file": "specs/sanguosha/skills/B8.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b8.rs::caishi_opt1_raises_hand_limit_for_turn",
+    "tests/b8.rs::caishi_opt2_hidden_when_full_hp_and_blocks_self_target"
+   ]
   },
   {
    "code": "cangzhuo",
    "batch": "B14",
    "file": "specs/sanguosha/skills/B14.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b14.rs::cangzhuo_exempts_tricks_from_hand_count"
+   ]
   },
   {
    "code": "changbiao",
    "batch": "B15",
    "file": "specs/sanguosha/skills/B15.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b15.rs::changbiao_uses_cards_as_no_distance_sha_and_draws_x",
+    "tests/b15.rs::changbiao_once_per_phase"
+   ]
   },
   {
    "code": "chenglue",
@@ -168,8 +220,11 @@
    "batch": "B18",
    "file": "specs/sanguosha/skills/B18.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b18.rs::chengxiang_reveals_gains_and_stacks_bonus",
+    "tests/b18.rs::chengxiang_triggers_per_damage_point"
+   ]
   },
   {
    "code": "chezheng",
@@ -186,16 +241,23 @@
    "batch": "B12",
    "file": "specs/sanguosha/skills/B12.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b12.rs::chuli_distinct_kingdoms_discard_and_spade_draw",
+    "tests/b12.rs::chuli_requires_own_card_and_skips_judge_zone",
+    "tests/m2_wiring.rs::gate_active_skills_only_offered_to_owner"
+   ]
   },
   {
    "code": "chunlao",
    "batch": "B17",
    "file": "specs/sanguosha/skills/B17.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b17.rs::chunlao_places_adjacent_discarded_sha",
+    "tests/b17.rs::chunlao_dying_uses_x_chun_as_jiu"
+   ]
   },
   {
    "code": "congjian",
@@ -222,96 +284,133 @@
    "batch": "B8",
    "file": "specs/sanguosha/skills/B8.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b8.rs::daiyan_gives_heart_basic_and_hurts_repeat_target_last_turn",
+    "tests/b8.rs::daiyan_falls_back_to_discard_pile_and_skips_other_targets"
+   ]
   },
   {
    "code": "dangxian",
    "batch": "B18",
    "file": "specs/sanguosha/skills/B18.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b18.rs::dangxian_extra_play_phase_and_self_damage"
+   ]
   },
   {
    "code": "danshou",
    "batch": "B4",
    "file": "specs/sanguosha/skills/B4.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b4.rs::danshou_x_costs_and_effects",
+    "tests/b4.rs::danshou_needs_target_in_range"
+   ]
   },
   {
    "code": "danxin",
    "batch": "B19",
    "file": "specs/sanguosha/skills/B19.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b19.rs::danxin_draws_x_then_modifies_jiazhao",
+    "tests/b19.rs::danxin_not_triggered_while_dying"
+   ]
   },
   {
    "code": "dimeng",
    "batch": "B15",
    "file": "specs/sanguosha/skills/B15.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b15.rs::dimeng_swaps_hands_and_pays_at_play_end",
+    "tests/b15.rs::dimeng_excludes_unaffordable_second_target"
+   ]
   },
   {
    "code": "duanchang",
    "batch": "B16",
    "file": "specs/sanguosha/skills/B16.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b16.rs::duanchang_killer_loses_all_skills",
+    "tests/b16.rs::duanchang_no_source_no_trigger"
+   ]
   },
   {
    "code": "duanliang",
    "batch": "B16",
    "file": "specs/sanguosha/skills/B16.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b10.rs::delayed_trick_conversion_supports_duanliang_style_bingliang",
+    "tests/b16.rs::duanliang_converts_black_cards_and_ignores_distance",
+    "tests/b16.rs::duanliang_loses_no_distance_after_damage"
+   ]
   },
   {
    "code": "duliang",
    "batch": "B7",
    "file": "specs/sanguosha/skills/B7.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b7.rs::duliang_gains_hidden_hand_then_lets_target_watch_top_two"
+   ]
   },
   {
    "code": "duodao",
    "batch": "B4",
    "file": "specs/sanguosha/skills/B4.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b4.rs::duodao_gains_weapon_with_equipment_cost",
+    "tests/b4.rs::duodao_triggers_on_virtual_sha_damage_not_on_hp_loss",
+    "tests/b4.rs::duodao_dropped_when_weapon_gone_before_activation"
+   ]
   },
   {
    "code": "enyuan",
    "batch": "B17",
    "file": "specs/sanguosha/skills/B17.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b17.rs::enyuan_gain_two_cards_lets_owner_draw",
+    "tests/b17.rs::enyuan_single_gain_and_damage_choice"
+   ]
   },
   {
    "code": "faen",
    "batch": "B4",
    "file": "specs/sanguosha/skills/B4.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b4.rs::faen_asks_owner_when_other_character_chains",
+    "tests/b4.rs::faen_declined_or_without_skill_does_nothing",
+    "tests/b4.rs::faen_triggers_on_flip_to_face_up"
+   ]
   },
   {
    "code": "fangquan",
    "batch": "B13",
    "file": "specs/sanguosha/skills/B13.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b13.rs::fangquan_skips_play_and_grants_extra_turn",
+    "tests/b13.rs::fangquan_without_hand_no_extra_turn"
+   ]
   },
   {
    "code": "fangzhu",
@@ -329,16 +428,20 @@
    "batch": "B10",
    "file": "specs/sanguosha/skills/B10.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b10.rs::fanjian_lets_target_choose_lose_hp_or_discard_same_suit"
+   ]
   },
   {
    "code": "fankui",
    "batch": "B11",
    "file": "specs/sanguosha/skills/B11.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b11.rs::fankui_takes_one_per_damage_point"
+   ]
   },
   {
    "code": "feijun",
@@ -355,8 +458,11 @@
    "batch": "B19",
    "file": "specs/sanguosha/skills/B19.md",
    "kind": "limited",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b19.rs::fencheng_start_target_and_discard_more_than_last",
+    "tests/b19.rs::fencheng_is_limited_and_needs_start_target"
+   ]
   },
   {
    "code": "fenji",
@@ -375,56 +481,77 @@
    "batch": "B5",
    "file": "specs/sanguosha/skills/B5.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b5.rs::fenli_skips_draw_phase_when_strictly_most_hand",
+    "tests/b5.rs::fenli_not_offered_when_tied"
+   ]
   },
   {
    "code": "fenwei",
    "batch": "B10",
    "file": "specs/sanguosha/skills/B10.md",
    "kind": "limited",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b10.rs::fenwei_nullifies_chosen_targets_of_multi_target_card"
+   ]
   },
   {
    "code": "fuhen",
    "batch": "B19",
    "file": "specs/sanguosha/skills/B19.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b19.rs::fuhen_same_color_restricts_shan_response",
+    "tests/b19.rs::fuhen_grants_wusheng_paoxiao_until_turn_end",
+    "tests/b19.rs::fuhen_two_card_sha_response_option_exists"
+   ]
   },
   {
    "code": "fuli",
    "batch": "B18",
    "file": "specs/sanguosha/skills/B18.md",
    "kind": "limited",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b18.rs::fuli_heals_draws_and_flips_when_x_gt_damage",
+    "tests/b7.rs::fulin_counts_gained_but_not_draw_phase"
+   ]
   },
   {
    "code": "fulin",
    "batch": "B7",
    "file": "specs/sanguosha/skills/B7.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b7.rs::fulin_counts_gained_but_not_draw_phase"
+   ]
   },
   {
    "code": "fumian",
    "batch": "B8",
    "file": "specs/sanguosha/skills/B8.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b8.rs::fumian_opt1_adds_draw_bonus_and_opt2_allows_extra_target",
+    "tests/b8.rs::fumian_extra_target_does_not_apply_to_black_cards",
+    "tests/b8.rs::extra_target_allows_red_sha_on_two_targets_without_distance"
+   ]
   },
   {
    "code": "funan",
    "batch": "B8",
    "file": "specs/sanguosha/skills/B8.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b8.rs::funan_swaps_used_card_and_response_card",
+    "tests/b8.rs::funan_plus_only_takes_the_response_card"
+   ]
   },
   {
    "code": "fuyin",
@@ -441,39 +568,49 @@
    "batch": "B8",
    "file": "specs/sanguosha/skills/B8.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b8.rs::fuzhu_uses_deck_sha_with_real_resolution",
+    "tests/b8.rs::fuzhu_skips_when_deck_is_too_large"
+   ]
   },
   {
    "code": "ganglie",
    "batch": "B11",
    "file": "specs/sanguosha/skills/B11.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b11.rs::ganglie_black_judge_discards_source_card"
+   ]
   },
   {
    "code": "ganlu",
    "batch": "B18",
    "file": "specs/sanguosha/skills/B18.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b18.rs::ganlu_swaps_equips_and_pays_diff_when_needed"
+   ]
   },
   {
    "code": "gongqi",
    "batch": "B19",
    "file": "specs/sanguosha/skills/B19.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b19.rs::gongqi_discards_equip_then_unlimited_sha_of_same_suit",
+    "tests/b19.rs::gongqi_once_per_play_phase"
+   ]
   },
   {
    "code": "gongxin",
    "batch": "granted",
    "file": "specs/sanguosha/skills/granted.md",
    "kind": "normal",
-   "status": "implemented",
+   "status": "verified",
    "anchors": [
     "tests/b10.rs::qinxue_grants_gongxin_and_gongxin_handles_heart_cards",
     "tests/b10.rs::gongxin_can_put_heart_on_top_and_not_offered_without_heart"
@@ -484,79 +621,106 @@
    "batch": "B9",
    "file": "specs/sanguosha/skills/B9.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b9.rs::guanxing_prepare_places_cards_and_all_bottom_allows_end_rerun"
+   ]
   },
   {
    "code": "guhuo",
    "batch": "B13",
    "file": "specs/sanguosha/skills/B13.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b13.rs::guhuo_fake_is_void_and_questioner_draws",
+    "tests/b13.rs::guhuo_real_causes_chanyuan_and_penalty_choice",
+    "tests/b13.rs::guhuo_works_in_wuxie_window",
+    "tests/b13.rs::guhuo_works_in_dying_window",
+    "tests/b13.rs::guhuo_can_declare_collateral",
+    "tests/b13.rs::guhuo_can_declare_iron_chain_with_two_targets"
+   ]
   },
   {
    "code": "guicai",
    "batch": "B11",
    "file": "specs/sanguosha/skills/B11.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b11.rs::guicai_rewrites_judge"
+   ]
   },
   {
    "code": "guidao",
    "batch": "B13",
    "file": "specs/sanguosha/skills/B13.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b13.rs::guidao_rewrites_with_black_card_and_draws_on_spade_2_9",
+    "tests/b13.rs::guidao_offers_black_only"
+   ]
   },
   {
    "code": "guizao",
    "batch": "B7",
    "file": "specs/sanguosha/skills/B7.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b7.rs::guizao_triggers_with_two_distinct_suit_discards"
+   ]
   },
   {
    "code": "guose",
    "batch": "B10",
    "file": "specs/sanguosha/skills/B10.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b10.rs::guose_diamond_as_indulgence_draws_one_and_opt2_needs_full_field"
+   ]
   },
   {
    "code": "guzheng",
    "batch": "B16",
    "file": "specs/sanguosha/skills/B16.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b16.rs::guzheng_single_action_two_discards",
+    "tests/b16.rs::guzheng_single_card_does_not_trigger"
+   ]
   },
   {
    "code": "hanzhan",
    "batch": "B15",
    "file": "specs/sanguosha/skills/B15.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b15.rs::hanzhan_forces_random_and_gains_biggest_sha",
+    "tests/b15.rs::hanzhan_without_skill_lets_opponent_choose"
+   ]
   },
   {
    "code": "haoshi",
    "batch": "B15",
    "file": "specs/sanguosha/skills/B15.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b15.rs::haoshi_draws_two_more_and_gives_half",
+    "tests/b15.rs::haoshi_no_give_when_five_or_less"
+   ]
   },
   {
    "code": "hexian",
    "batch": "granted",
    "file": "specs/sanguosha/skills/granted.md",
    "kind": "normal",
-   "status": "implemented",
+   "status": "verified",
    "anchors": [
     "tests/b8.rs::juexiang_grants_one_of_four_sub_skills_and_blocks_club_targets",
     "tests/b8.rs::hexian_after_heal_heals_other_and_discards_their_equip"
@@ -577,8 +741,11 @@
    "batch": "B14",
    "file": "specs/sanguosha/skills/B14.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b14.rs::hongyan_spade_is_heart",
+    "tests/b14.rs::piaoling_judges_and_places"
+   ]
   },
   {
    "code": "huaiju",
@@ -595,120 +762,168 @@
    "batch": "B6",
    "file": "specs/sanguosha/skills/B6.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b6.rs::huaiyi_reveals_and_loses_hp_after_gaining_two",
+    "tests/b6.rs::huaiyi_gaining_one_does_not_lose_hp"
+   ]
   },
   {
    "code": "huangtian",
    "batch": "B13",
    "file": "specs/sanguosha/skills/B13.md",
    "kind": "lord",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b13.rs::huangtian_gives_shan_to_lord",
+    "tests/b13.rs::huangtian_requires_qun_and_lord",
+    "tests/m2_wiring.rs::gate_active_skills_only_offered_to_owner"
+   ]
   },
   {
    "code": "huashen",
    "batch": "B13",
    "file": "specs/sanguosha/skills/B13.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b13.rs::huashen_gets_three_cards_and_skill",
+    "tests/b13.rs::huashen_exchange_is_two_for_one"
+   ]
   },
   {
    "code": "huimin",
    "batch": "B8",
    "file": "specs/sanguosha/skills/B8.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b8.rs::huimin_draws_reveals_and_lets_each_pick_like_harvest",
+    "tests/b8.rs::huimin_not_offered_when_nobody_below_hp"
+   ]
   },
   {
    "code": "huisheng",
    "batch": "B7",
    "file": "specs/sanguosha/skills/B7.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b7.rs::huisheng_privately_shows_cards_and_source_chooses",
+    "tests/b7.rs::huisheng_opt2_requires_enough_hand"
+   ]
   },
   {
    "code": "huituo",
    "batch": "B5",
    "file": "specs/sanguosha/skills/B5.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b5.rs::huituo_red_judge_heals_target",
+    "tests/b5.rs::huituo_heals_exactly_once"
+   ]
   },
   {
    "code": "hujia",
    "batch": "B11",
    "file": "specs/sanguosha/skills/B11.md",
    "kind": "lord",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b11.rs::hujia_offers_relay_for_shan_only"
+   ]
   },
   {
    "code": "hunzi",
    "batch": "B14",
    "file": "specs/sanguosha/skills/B14.md",
    "kind": "awaken",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b14.rs::hunzi_awaken_at_one_hp",
+    "tests/b14.rs::hunzi_needs_exactly_one_hp"
+   ]
   },
   {
    "code": "huoji",
    "batch": "B14",
    "file": "specs/sanguosha/skills/B14.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b14.rs::huoji_converts_red_only",
+    "tests/b14.rs::huoji_color_mode_may_discard_equipment"
+   ]
   },
   {
    "code": "huomo",
    "batch": "B5",
    "file": "specs/sanguosha/skills/B5.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b5.rs::huomo_places_black_trick_on_top_and_uses_missing_basic",
+    "tests/b5.rs::huomo_excludes_used_basic_names_and_red_cards",
+    "tests/m2_wiring.rs::huomo_sha_selects_target_and_deals_damage"
+   ]
   },
   {
    "code": "huoshou",
    "batch": "B16",
    "file": "specs/sanguosha/skills/B16.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b16.rs::huoshou_immune_and_replaces_damage_source",
+    "tests/b16.rs::huoshou_own_nanman_keeps_source",
+    "tests/b16.rs::b16_mechanism_anchors"
+   ]
   },
   {
    "code": "jiandu",
    "batch": "B14",
    "file": "specs/sanguosha/skills/B14.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b14.rs::jiandu_basic_branch_target_gains_sha_and_continues",
+    "tests/b14.rs::jiandu_non_basic_branch_blocks_shan_and_bumps_limit"
+   ]
   },
   {
    "code": "jiang",
    "batch": "B14",
    "file": "specs/sanguosha/skills/B14.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b14.rs::jiang_draws_once_per_card",
+    "tests/b14.rs::jiang_ignores_black_sha",
+    "tests/b17.rs::jiangchi_option1_penalty_and_hand_limit"
+   ]
   },
   {
    "code": "jiangchi",
    "batch": "B17",
    "file": "specs/sanguosha/skills/B17.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b17.rs::jiangchi_option1_penalty_and_hand_limit",
+    "tests/b17.rs::jiangchi_option2_recast_and_no_distance"
+   ]
   },
   {
    "code": "jianmie",
    "batch": "B18",
    "file": "specs/sanguosha/skills/B18.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b18.rs::jianmie_more_discards_triggers_duel",
+    "tests/b18.rs::jianmie_tie_does_not_duel"
+   ]
   },
   {
    "code": "jianxiang",
@@ -725,15 +940,17 @@
    "batch": "B11",
    "file": "specs/sanguosha/skills/B11.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b11.rs::jianxiong_draws_one_and_can_gain_damage_card"
+   ]
   },
   {
    "code": "jianyan",
    "batch": "granted",
    "file": "specs/sanguosha/skills/granted.md",
    "kind": "normal",
-   "status": "implemented",
+   "status": "verified",
    "anchors": [
     "tests/b13.rs::qianxin_awaken_grants_jianyan",
     "tests/b13.rs::jianyan_reveals_and_gives_to_male",
@@ -745,48 +962,68 @@
    "batch": "B19",
    "file": "specs/sanguosha/skills/B19.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b19.rs::jianying_draws_on_same_suit_in_play_phase",
+    "tests/b19.rs::jianying_converts_to_basic_with_suit_inheritance",
+    "tests/b19.rs::jianying_no_draw_when_suit_and_rank_differ"
+   ]
   },
   {
    "code": "jianzheng",
    "batch": "B8",
    "file": "specs/sanguosha/skills/B8.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b8.rs::jianzheng_non_black_sha_makes_qinmi_the_only_target",
+    "tests/b8.rs::jianzheng_black_sha_cancels_all_targets"
+   ]
   },
   {
    "code": "jiaojin",
    "batch": "B5",
    "file": "specs/sanguosha/skills/B5.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b5.rs::jiaojin_reduces_damage_by_one_with_equip_cost",
+    "tests/b5.rs::jiaojin_not_triggered_by_female_source"
+   ]
   },
   {
    "code": "jiazhao",
    "batch": "B19",
    "file": "specs/sanguosha/skills/B19.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b19.rs::jiazhao_excludes_names_used_this_round",
+    "tests/b19.rs::jiazhao_uses_card_as_trick_and_plus_works_out_of_turn",
+    "tests/b19.rs::danxin_draws_x_then_modifies_jiazhao"
+   ]
   },
   {
    "code": "jiefan",
    "batch": "B19",
    "file": "specs/sanguosha/skills/B19.md",
    "kind": "limited",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b19.rs::jiefan_voters_choose_and_round_one_resets",
+    "tests/b19.rs::jiefan_after_round_one_is_once_per_game"
+   ]
   },
   {
    "code": "jieming",
    "batch": "B16",
    "file": "specs/sanguosha/skills/B16.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b16.rs::jieming_draws_x_then_discards_to_x",
+    "tests/b16.rs::jieming_triggers_on_death"
+   ]
   },
   {
    "code": "jiewei",
@@ -804,64 +1041,88 @@
    "batch": "B8",
    "file": "specs/sanguosha/skills/B8.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b8.rs::jiexun_draws_public_diamonds_and_discards_count_from_one",
+    "tests/b8.rs::jiexun_loses_skill_only_when_target_ends_empty"
+   ]
   },
   {
    "code": "jieyin",
    "batch": "B10",
    "file": "specs/sanguosha/skills/B10.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b10.rs::jieyin_equal_hp_draws_and_heals_both",
+    "tests/b10.rs::jieyin_equip_from_own_zone_triggers_xiaoji"
+   ]
   },
   {
    "code": "jiezi",
    "batch": "B16",
    "file": "specs/sanguosha/skills/B16.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b16.rs::jiezi_gives_mark_then_extra_draw_phase",
+    "tests/b16.rs::jiezi_non_min_hand_draws_one"
+   ]
   },
   {
    "code": "jigong",
    "batch": "B6",
    "file": "specs/sanguosha/skills/B6.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b6.rs::jigong_draws_two_and_sets_hand_limit_to_damage",
+    "tests/b6.rs::jigong_can_be_declined"
+   ]
   },
   {
    "code": "jijiang",
    "batch": "B9",
    "file": "specs/sanguosha/skills/B9.md",
    "kind": "lord",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b9.rs::jijiang_relay_lets_shu_ally_play_sha_for_lord",
+    "tests/b9.rs::jijiang_declined_returns_to_lord_response_window"
+   ]
   },
   {
    "code": "jijiu",
    "batch": "B12",
    "file": "specs/sanguosha/skills/B12.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b12.rs::jijiu_rescues_with_red_hand_and_equip",
+    "tests/b12.rs::jijiu_is_off_outside_turn_and_red_only"
+   ]
   },
   {
    "code": "jingce",
    "batch": "B19",
    "file": "specs/sanguosha/skills/B19.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b19.rs::jingce_hand_limit_and_optional_draw_at_play_end",
+    "tests/b19.rs::jingce_no_prompt_when_no_card_used"
+   ]
   },
   {
    "code": "jinjiu",
    "batch": "B17",
    "file": "specs/sanguosha/skills/B17.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b17.rs::jinjiu_converts_jiu_to_sha_with_rank_k",
+    "tests/b17.rs::jinjiu_blocks_others_jiu_during_own_turn"
+   ]
   },
   {
    "code": "jinzou",
@@ -878,39 +1139,49 @@
    "batch": "B7",
    "file": "specs/sanguosha/skills/B7.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b7.rs::jishe_draws_and_reduces_hand_limit"
+   ]
   },
   {
    "code": "jiuchi",
    "batch": "B15",
    "file": "specs/sanguosha/skills/B15.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b15.rs::jiuchi_converts_and_stacks",
+    "tests/b15.rs::jiuchi_does_not_convert_heart"
+   ]
   },
   {
    "code": "jiushi",
    "batch": "B18",
    "file": "specs/sanguosha/skills/B18.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b18.rs::jiushi_flips_for_jiu_and_back_after_damage",
+    "tests/b18.rs::jiushi_luoying_card_has_no_distance_while_flipped"
+   ]
   },
   {
    "code": "jiuyuan",
    "batch": "B10",
    "file": "specs/sanguosha/skills/B10.md",
    "kind": "lord",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b10.rs::jiuyuan_asks_wu_ally_to_redirect_heal_to_lord"
+   ]
   },
   {
    "code": "jixi",
    "batch": "granted",
    "file": "specs/sanguosha/skills/granted.md",
    "kind": "normal",
-   "status": "implemented",
+   "status": "verified",
    "anchors": [
     "tests/b15.rs::zaoxian_awaken_and_extra_turn",
     "tests/b15.rs::zaoxian_grants_jixi_and_equipment_becomes_sha",
@@ -922,7 +1193,7 @@
    "batch": "granted",
    "file": "specs/sanguosha/skills/granted.md",
    "kind": "normal",
-   "status": "implemented",
+   "status": "verified",
    "anchors": [
     "tests/b8.rs::juexiang_grants_one_of_four_sub_skills_and_blocks_club_targets",
     "tests/b8.rs::jixian_after_damage_makes_source_lose_hp_and_use_equip"
@@ -933,40 +1204,50 @@
    "batch": "B7",
    "file": "specs/sanguosha/skills/B7.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b7.rs::jiyu_target_chooses_card_and_suit_gets_frozen"
+   ]
   },
   {
    "code": "jizhi",
    "batch": "B9",
    "file": "specs/sanguosha/skills/B9.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b9.rs::jizhi_draws_on_trick_and_asks_about_basic_card"
+   ]
   },
   {
    "code": "juece",
    "batch": "B19",
    "file": "specs/sanguosha/skills/B19.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b19.rs::juece_hits_target_with_fewer_or_equal_hand"
+   ]
   },
   {
    "code": "jueqing",
    "batch": "B18",
    "file": "specs/sanguosha/skills/B18.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b18.rs::jueqing_turns_damage_into_hp_loss"
+   ]
   },
   {
    "code": "juexiang",
    "batch": "B8",
    "file": "specs/sanguosha/skills/B8.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b8.rs::juexiang_grants_one_of_four_sub_skills_and_blocks_club_targets"
+   ]
   },
   {
    "code": "jueyan",
@@ -983,8 +1264,12 @@
    "batch": "B3",
    "file": "specs/sanguosha/skills/B3.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b3.rs::junxing_forces_target_to_discard_other_type_or_flip",
+    "tests/b3.rs::junxing_target_without_hand_can_only_flip_and_draw",
+    "tests/b3.rs::b3_flows_keep_conservation_and_leave_no_orphan_frames"
+   ]
   },
   {
    "code": "jushou",
@@ -1002,8 +1287,11 @@
    "batch": "B15",
    "file": "specs/sanguosha/skills/B15.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b15.rs::juxiang_immune_and_gains_after_other_nanman",
+    "tests/b15.rs::juxiang_does_not_gain_own_nanman"
+   ]
   },
   {
    "code": "juzhan",
@@ -1021,24 +1309,30 @@
    "batch": "B14",
    "file": "specs/sanguosha/skills/B14.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b14.rs::kanpo_converts_black_and_is_uncounterable"
+   ]
   },
   {
    "code": "keji",
    "batch": "B10",
    "file": "specs/sanguosha/skills/B10.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b10.rs::keji_skips_discard_phase_without_sha"
+   ]
   },
   {
    "code": "kongcheng",
    "batch": "B9",
    "file": "specs/sanguosha/skills/B9.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b9.rs::kongcheng_blocks_sha_and_duel_when_handless"
+   ]
   },
   {
    "code": "kongsheng",
@@ -1055,16 +1349,21 @@
    "batch": "B7",
    "file": "specs/sanguosha/skills/B7.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b7.rs::kuangbi_moves_cards_out_of_game_then_returns_next_turn"
+   ]
   },
   {
    "code": "kuanggu",
    "batch": "B14",
    "file": "specs/sanguosha/skills/B14.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b14.rs::kuanggu_heals_or_draws_within_one",
+    "tests/b14.rs::kuanggu_needs_distance_one"
+   ]
   },
   {
    "code": "kuizhu",
@@ -1081,16 +1380,21 @@
    "batch": "B10",
    "file": "specs/sanguosha/skills/B10.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b10.rs::kurou_discards_card_then_loses_hp"
+   ]
   },
   {
    "code": "leiji",
    "batch": "B13",
    "file": "specs/sanguosha/skills/B13.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b13.rs::leiji_judge_spade_deals_two_thunder",
+    "tests/b13.rs::leiji_can_decline"
+   ]
   },
   {
    "code": "liangyin",
@@ -1107,47 +1411,61 @@
    "batch": "B14",
    "file": "specs/sanguosha/skills/B14.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b14.rs::lianhuan_converts_plum_and_extra_target",
+    "tests/b14.rs::lianhuan_recasts_plum",
+    "tests/cards.rs::non_lianhuan_cannot_be_recast"
+   ]
   },
   {
    "code": "lianhuo",
    "batch": "B7",
    "file": "specs/sanguosha/skills/B7.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b7.rs::lianhuo_bonus_only_when_fire_and_chain_origin"
+   ]
   },
   {
    "code": "lianying",
    "batch": "B10",
    "file": "specs/sanguosha/skills/B10.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b10.rs::lianying_lets_up_to_x_characters_draw"
+   ]
   },
   {
    "code": "liegong",
    "batch": "B13",
    "file": "specs/sanguosha/skills/B13.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b13.rs::liegong_blocks_shan_and_adds_damage",
+    "tests/b13.rs::liegong_can_decline"
+   ]
   },
   {
    "code": "liereng",
    "batch": "B15",
    "file": "specs/sanguosha/skills/B15.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b15.rs::liereng_pindian_and_gain_card",
+    "tests/b15.rs::liereng_ignores_non_sha_damage"
+   ]
   },
   {
    "code": "liexian",
    "batch": "granted",
    "file": "specs/sanguosha/skills/granted.md",
    "kind": "normal",
-   "status": "implemented",
+   "status": "verified",
    "anchors": [
     "tests/b8.rs::juexiang_grants_one_of_four_sub_skills_and_blocks_club_targets",
     "tests/b8.rs::liexian_after_heal_makes_other_lose_hp_and_use_equip"
@@ -1158,16 +1476,23 @@
    "batch": "B17",
    "file": "specs/sanguosha/skills/B17.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b17.rs::lihuo_converts_sha_to_fire_and_pays_cost",
+    "tests/b17.rs::lihuo_real_fire_sha_has_no_cost_and_extra_target"
+   ]
   },
   {
    "code": "lijian",
    "batch": "B12",
    "file": "specs/sanguosha/skills/B12.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b12.rs::lijian_discards_equip_and_duel_cannot_be_wuxied",
+    "tests/b12.rs::lijian_needs_two_male_targets",
+    "tests/m2_wiring.rs::gate_active_skills_only_offered_to_owner"
+   ]
   },
   {
    "code": "lijun",
@@ -1184,128 +1509,175 @@
    "batch": "B10",
    "file": "specs/sanguosha/skills/B10.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b10.rs::liuli_discards_and_transfers_sha"
+   ]
   },
   {
    "code": "liyu",
    "batch": "B12",
    "file": "specs/sanguosha/skills/B12.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b12.rs::liyu_equip_card_lets_victim_designate_duel",
+    "tests/b12.rs::liyu_non_equip_makes_victim_draw",
+    "tests/b12.rs::liyu_ignores_judge_zone_only_victim",
+    "tests/b12.rs::wushuang_duel_applies_from_both_sides"
+   ]
   },
   {
    "code": "longdan",
    "batch": "B9",
    "file": "specs/sanguosha/skills/B9.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b9.rs::longdan_converts_sha_to_shan_and_jiu_to_tao"
+   ]
   },
   {
    "code": "longyin",
    "batch": "B3",
    "file": "specs/sanguosha/skills/B3.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b3.rs::longyin_marks_sha_uncounted_without_touching_global_counter",
+    "tests/b3.rs::longyin_does_not_trigger_on_non_sha_or_outside_play_phase",
+    "tests/b3.rs::b3_flows_keep_conservation_and_leave_no_orphan_frames"
+   ]
   },
   {
    "code": "luanji",
    "batch": "B13",
    "file": "specs/sanguosha/skills/B13.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b13.rs::luanji_two_same_suit_arrows",
+    "tests/b13.rs::luanji_needs_same_suit"
+   ]
   },
   {
    "code": "luanwu",
    "batch": "B15",
    "file": "specs/sanguosha/skills/B15.md",
    "kind": "limited",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b15.rs::luanwu_each_other_chooses_then_final_sha",
+    "tests/b15.rs::luanwu_once_per_game"
+   ]
   },
   {
    "code": "luoshen",
    "batch": "B11",
    "file": "specs/sanguosha/skills/B11.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b11.rs::luoshen_gains_black_and_stops_on_red"
+   ]
   },
   {
    "code": "luoyi",
    "batch": "B11",
    "file": "specs/sanguosha/skills/B11.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b11.rs::luoyi_may_give_up_and_draw_two",
+    "tests/b18.rs::luoying_gains_other_players_club_discard"
+   ]
   },
   {
    "code": "luoying",
    "batch": "B18",
    "file": "specs/sanguosha/skills/B18.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b18.rs::luoying_gains_other_players_club_discard",
+    "tests/b18.rs::jiushi_luoying_card_has_no_distance_while_flipped"
+   ]
   },
   {
    "code": "mashu",
    "batch": "B9",
    "file": "specs/sanguosha/skills/B9.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b19.rs::mashu_reduces_distance_for_jie_madai"
+   ]
   },
   {
    "code": "mashu",
    "batch": "B14",
    "file": "specs/sanguosha/skills/B14.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b19.rs::mashu_reduces_distance_for_jie_madai"
+   ]
   },
   {
    "code": "mashu",
    "batch": "B19",
    "file": "specs/sanguosha/skills/B19.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b19.rs::mashu_reduces_distance_for_jie_madai"
+   ]
   },
   {
    "code": "mieji",
    "batch": "B19",
    "file": "specs/sanguosha/skills/B19.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b19.rs::mieji_puts_trick_on_top_and_target_discards_two",
+    "tests/b19.rs::mieji_requires_trick_and_is_once_per_play_phase"
+   ]
   },
   {
    "code": "miji",
    "batch": "B18",
    "file": "specs/sanguosha/skills/B18.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b18.rs::zhenlie_cancels_sha_and_grants_miji",
+    "tests/b18.rs::miji_fires_once_in_own_end_phase_even_without_grant",
+    "tests/b18.rs::miji_triggers_at_other_players_end_phase_when_granted"
+   ]
   },
   {
    "code": "mingce",
    "batch": "B17",
    "file": "specs/sanguosha/skills/B17.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b17.rs::mingce_gives_card_and_helper_chooses_draw",
+    "tests/b17.rs::mingce_virtual_sha_damage_draws_for_both",
+    "tests/b17.rs::mingce_requires_sha_or_equip_in_hand"
+   ]
   },
   {
    "code": "mingjian",
    "batch": "B5",
    "file": "specs/sanguosha/skills/B5.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b5.rs::mingjian_gives_all_hand_and_buffs_next_turn",
+    "tests/b5.rs::mingjian_not_available_without_hand"
+   ]
   },
   {
    "code": "mingren",
@@ -1322,56 +1694,76 @@
    "batch": "B14",
    "file": "specs/sanguosha/skills/B14.md",
    "kind": "limited",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b14.rs::niepan_rescues_and_grants_skill"
+   ]
   },
   {
    "code": "ninge",
    "batch": "B16",
    "file": "specs/sanguosha/skills/B16.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b16.rs::ninge_second_damage_draws_and_discards",
+    "tests/b16.rs::ninge_ignores_unrelated_damage"
+   ]
   },
   {
    "code": "paoxiao",
    "batch": "B9",
    "file": "specs/sanguosha/skills/B9.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b19.rs::fuhen_grants_wusheng_paoxiao_until_turn_end",
+    "tests/b9.rs::paoxiao_removes_sha_limit_and_adds_bonus_after_nullified"
+   ]
   },
   {
    "code": "piaoling",
    "batch": "B14",
    "file": "specs/sanguosha/skills/B14.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b14.rs::piaoling_judges_and_places"
+   ]
   },
   {
    "code": "pindi",
    "batch": "B4",
    "file": "specs/sanguosha/skills/B4.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b14.rs::zhiba_lord_pindian_and_gains_cards",
+    "tests/b15.rs::liereng_pindian_and_gain_card",
+    "tests/b17.rs::zongshi_jie_win_gains_smaller_pindian_card"
+   ]
   },
   {
    "code": "pingkou",
    "batch": "B5",
    "file": "specs/sanguosha/skills/B5.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b5.rs::pingkou_deals_damage_per_skipped_phase",
+    "tests/b5.rs::pingkou_not_offered_without_skipped_phase"
+   ]
   },
   {
    "code": "pojun",
    "batch": "B16",
    "file": "specs/sanguosha/skills/B16.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b16.rs::pojun_voids_cards_until_turn_end",
+    "tests/b16.rs::pojun_bonus_when_card_counts_not_higher"
+   ]
   },
   {
    "code": "poshi",
@@ -1388,16 +1780,22 @@
    "batch": "B20",
    "file": "specs/sanguosha/skills/B20.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b20.rs::qiangshi_reveals_chosen_card_and_draws_on_same_type",
+    "tests/b20.rs::qiangshi_no_prompt_for_other_type"
+   ]
   },
   {
    "code": "qiangxi",
    "batch": "B16",
    "file": "specs/sanguosha/skills/B16.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b16.rs::qiangxi_cost_hp_then_damage_once_per_target",
+    "tests/b16.rs::qiangxi_discards_weapon_as_cost"
+   ]
   },
   {
    "code": "qianjie",
@@ -1414,168 +1812,233 @@
    "batch": "B5",
    "file": "specs/sanguosha/skills/B5.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b5.rs::qianju_reduces_distance_per_lost_hp"
+   ]
   },
   {
    "code": "qianxi",
    "batch": "B19",
    "file": "specs/sanguosha/skills/B19.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b13.rs::qianxin_awaken_grants_jianyan",
+    "tests/b13.rs::qianxin_requires_wounded",
+    "tests/b19.rs::qianxi_locks_distance_one_color_and_boosts_revealed_card",
+    "tests/b19.rs::qianxi_does_not_lock_without_reveal"
+   ]
   },
   {
    "code": "qianxin",
    "batch": "B13",
    "file": "specs/sanguosha/skills/B13.md",
    "kind": "awaken",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b13.rs::qianxin_awaken_grants_jianyan",
+    "tests/b13.rs::qianxin_requires_wounded"
+   ]
   },
   {
    "code": "qianxun",
    "batch": "B10",
    "file": "specs/sanguosha/skills/B10.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b10.rs::qianxun_moves_all_hand_out_for_single_target_trick"
+   ]
   },
   {
    "code": "qiaobian",
    "batch": "B15",
    "file": "specs/sanguosha/skills/B15.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b15.rs::qiaobian_starts_with_two_marks",
+    "tests/b15.rs::qiaobian_asks_at_phase_start_and_skips",
+    "tests/b15.rs::qiaobian_no_ask_without_payment",
+    "tests/b15.rs::qiaobian_skip_judge_keeps_judge_zone"
+   ]
   },
   {
    "code": "qiaomeng",
    "batch": "B12",
    "file": "specs/sanguosha/skills/B12.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b12.rs::qiaomeng_gains_mount_card",
+    "tests/b12.rs::qiaomeng_discards_non_mount_card"
+   ]
   },
   {
    "code": "qiaoshi",
    "batch": "B20",
    "file": "specs/sanguosha/skills/B20.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b20.rs::qiaoshi_other_end_phase_draws_and_offs_round",
+    "tests/b20.rs::qiaoshi_not_on_own_end_phase"
+   ]
   },
   {
    "code": "qiaoshuo",
    "batch": "B17",
    "file": "specs/sanguosha/skills/B17.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b17.rs::qiaoshuo_win_allows_extra_target_then_consumes",
+    "tests/b17.rs::qiaoshuo_lose_blocks_tricks_and_invalidates_skill",
+    "tests/b17.rs::qiaoshuo_consecutive_wins_stack_marks_one_per_card",
+    "tests/b17.rs::qiaoshuo_marks_exposed_in_view_and_cleared_on_loss",
+    "tests/b17.rs::qiaoshuo_delayed_trick_gets_no_extra_target"
+   ]
   },
   {
    "code": "qicai",
    "batch": "B9",
    "file": "specs/sanguosha/skills/B9.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b9.rs::qicai_prevents_others_discarding_armor_but_allows_own"
+   ]
   },
   {
    "code": "qice",
    "batch": "B3",
    "file": "specs/sanguosha/skills/B3.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b3.rs::qice_uses_all_hand_cards_as_one_virtual_card",
+    "tests/b3.rs::qice_without_resolution_does_not_count_as_used",
+    "tests/b3.rs::qice_cannot_declare_delayed_trick"
+   ]
   },
   {
    "code": "qieting",
    "batch": "B18",
    "file": "specs/sanguosha/skills/B18.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b18.rs::qieting_triggers_after_other_turn_end"
+   ]
   },
   {
    "code": "qimou",
    "batch": "B14",
    "file": "specs/sanguosha/skills/B14.md",
    "kind": "limited",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b14.rs::qimou_loses_hp_draws_and_buffs",
+    "tests/b14.rs::qimou_limited_once"
+   ]
   },
   {
    "code": "qingguo",
    "batch": "B11",
    "file": "specs/sanguosha/skills/B11.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b11.rs::qingguo_converts_black_cards_including_equip"
+   ]
   },
   {
    "code": "qingjian",
    "batch": "B11",
    "file": "specs/sanguosha/skills/B11.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b11.rs::qingjian_counts_card_kinds"
+   ]
   },
   {
    "code": "qingxi",
    "batch": "B5",
    "file": "specs/sanguosha/skills/B5.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b5.rs::qingxi_lets_target_discard_cards_and_weapon",
+    "tests/b5.rs::qingxi_opt2_increases_damage_and_no_weapon_no_trigger"
+   ]
   },
   {
    "code": "qingxian",
    "batch": "B8",
    "file": "specs/sanguosha/skills/B8.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b8.rs::qingxian_opt2_heals_and_discards_equip_then_draws_on_club",
+    "tests/b8.rs::qingxian_not_offered_while_someone_is_dying"
+   ]
   },
   {
    "code": "qinqing",
    "batch": "B7",
    "file": "specs/sanguosha/skills/B7.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b7.rs::qinqing_discards_then_draws_and_rewards_extra"
+   ]
   },
   {
    "code": "qinwang",
    "batch": "B6",
    "file": "specs/sanguosha/skills/B6.md",
    "kind": "lord",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b6.rs::qinwang_costs_equipment_and_ally_draws",
+    "tests/b6.rs::qinwang_needs_lord_and_other_same_kingdom",
+    "tests/m2_wiring.rs::qinwang_ally_sha_damage_source_is_lord"
+   ]
   },
   {
    "code": "qinxue",
    "batch": "B10",
    "file": "specs/sanguosha/skills/B10.md",
    "kind": "awaken",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b10.rs::qinxue_awakens_on_prepare_and_end",
+    "tests/b10.rs::qinxue_grants_gongxin_and_gongxin_handles_heart_cards"
+   ]
   },
   {
    "code": "qiuyuan",
    "batch": "B19",
    "file": "specs/sanguosha/skills/B19.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b19.rs::qiuyuan_helper_gives_same_kind_card",
+    "tests/b19.rs::qiuyuan_not_triggered_without_helper_or_for_non_damage_trick",
+    "tests/b19.rs::zhuikong_win_blocks_targeting_others"
+   ]
   },
   {
    "code": "qixi",
    "batch": "B10",
    "file": "specs/sanguosha/skills/B10.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b10.rs::qixi_converts_black_cards_including_equip_zone"
+   ]
   },
   {
    "code": "qizhi",
@@ -1593,47 +2056,61 @@
    "batch": "B3",
    "file": "specs/sanguosha/skills/B3.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b3.rs::quanji_triggers_per_damage_point_and_moves_card_out_of_game",
+    "tests/b3.rs::quanji_survives_losing_hp_without_trigger",
+    "tests/b3.rs::b3_flows_keep_conservation_and_leave_no_orphan_frames"
+   ]
   },
   {
    "code": "quhu",
    "batch": "B16",
    "file": "specs/sanguosha/skills/B16.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b16.rs::quhu_win_lets_target_damage_chosen_role",
+    "tests/b16.rs::quhu_requires_higher_hp_and_hand"
+   ]
   },
   {
    "code": "rende",
    "batch": "B9",
    "file": "specs/sanguosha/skills/B9.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b9.rs::rende_gives_many_and_second_card_offers_basic_virtual",
+    "tests/b9.rs::rende_second_basic_can_be_fire_sha_and_resolves_really"
+   ]
   },
   {
    "code": "renxin",
    "batch": "B18",
    "file": "specs/sanguosha/skills/B18.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b18.rs::renxin_flips_and_heals_dying_other"
+   ]
   },
   {
    "code": "roulin",
    "batch": "B15",
    "file": "specs/sanguosha/skills/B15.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b15.rs::roulin_adds_flash_requirement_and_stacks_with_wushuang"
+   ]
   },
   {
    "code": "rouxian",
    "batch": "granted",
    "file": "specs/sanguosha/skills/granted.md",
    "kind": "normal",
-   "status": "implemented",
+   "status": "verified",
    "anchors": [
     "tests/b8.rs::juexiang_grants_one_of_four_sub_skills_and_blocks_club_targets",
     "tests/b8.rs::rouxian_after_damage_heals_source_and_discards_their_equip"
@@ -1644,40 +2121,55 @@
    "batch": "B13",
    "file": "specs/sanguosha/skills/B13.md",
    "kind": "lord",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b13.rs::ruoyu_awaken_strict_min_hp",
+    "tests/b13.rs::ruoyu_tied_min_does_not_awaken"
+   ]
   },
   {
    "code": "sanyao",
    "batch": "B3",
    "file": "specs/sanguosha/skills/B3.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b3.rs::sanyao_hp_mode_hits_max_hp_and_counts_once",
+    "tests/b3.rs::sanyao_can_target_self_and_second_use_is_limited",
+    "tests/b3.rs::sanyao_cost_can_be_equipment"
+   ]
   },
   {
    "code": "shangshi",
    "batch": "B18",
    "file": "specs/sanguosha/skills/B18.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b18.rs::shangshi_draws_to_lost_hp_but_not_in_discard_phase"
+   ]
   },
   {
    "code": "shebian",
    "batch": "B14",
    "file": "specs/sanguosha/skills/B14.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b14.rs::shebian_moves_equip_on_flip",
+    "tests/b14.rs::shebian_no_movable_equip"
+   ]
   },
   {
    "code": "shenduan",
    "batch": "B4",
    "file": "specs/sanguosha/skills/B4.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b4.rs::shenduan_uses_discarded_black_basic_as_bingliang",
+    "tests/b4.rs::shenduan_not_triggered_for_red_or_trick"
+   ]
   },
   {
    "code": "shenshi",
@@ -1694,24 +2186,32 @@
    "batch": "B14",
    "file": "specs/sanguosha/skills/B14.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b14.rs::shensu_skip_judge_and_draw",
+    "tests/b14.rs::shensu_each_item_once"
+   ]
   },
   {
    "code": "shenxing",
    "batch": "B5",
    "file": "specs/sanguosha/skills/B5.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b5.rs::shenxing_discards_two_including_equipment_and_draws_one"
+   ]
   },
   {
    "code": "shibei",
    "batch": "B19",
    "file": "specs/sanguosha/skills/B19.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b19.rs::shibei_armor_absorbs_then_heals_and_loses_hp",
+    "tests/b19.rs::shibei_armor_is_projected_in_marks_count"
+   ]
   },
   {
    "code": "shicai",
@@ -1728,55 +2228,75 @@
    "batch": "B6",
    "file": "specs/sanguosha/skills/B6.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b6.rs::shifei_lets_current_player_draw_then_discards_from_most",
+    "tests/b6.rs::shifei_discards_when_current_player_not_unique_most",
+    "tests/b6.rs::shifei_absent_without_skill"
+   ]
   },
   {
    "code": "shizhan",
    "batch": "B13",
    "file": "specs/sanguosha/skills/B13.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b13.rs::shizhan_two_duels_per_phase",
+    "tests/b13.rs::shizhan_cannot_use_self"
+   ]
   },
   {
    "code": "shizhi",
    "batch": "B6",
    "file": "specs/sanguosha/skills/B6.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b6.rs::shizhi_blocks_shan_only_at_one_hp"
+   ]
   },
   {
    "code": "shouxi",
    "batch": "B8",
    "file": "specs/sanguosha/skills/B8.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b8.rs::shouxi_declared_name_can_nullify_sha",
+    "tests/b8.rs::shouxi_opt1_hidden_when_user_lacks_declared_card",
+    "tests/b8.rs::sha_intercept_is_asked_before_response_not_after_resolution"
+   ]
   },
   {
    "code": "shuangxiong",
    "batch": "B16",
    "file": "specs/sanguosha/skills/B16.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b16.rs::shuangxiong_discards_color_then_converts_opposite",
+    "tests/b16.rs::shuangxiong_gains_damage_cards_at_end"
+   ]
   },
   {
    "code": "sidi",
    "batch": "B4",
    "file": "specs/sanguosha/skills/B4.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b4.rs::sidi_freezes_hand_color_for_phase",
+    "tests/b4.rs::sidi_end_of_phase_virtual_sha_when_no_sha_used",
+    "tests/b4.rs::sidi_no_sha_when_player_used_sha"
+   ]
   },
   {
    "code": "sishu",
    "batch": "granted",
    "file": "specs/sanguosha/skills/granted.md",
    "kind": "normal",
-   "status": "implemented",
+   "status": "verified",
    "anchors": [
     "tests/b13.rs::ruoyu_awaken_strict_min_hp",
     "tests/b13.rs::sishu_toggles_indulgence_judgement"
@@ -1797,88 +2317,118 @@
    "batch": "B7",
    "file": "specs/sanguosha/skills/B7.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b7.rs::taoluan_uses_card_as_trick_and_each_name_once",
+    "tests/b7.rs::taoluan_response_context_only_offers_response_card",
+    "tests/b7.rs::taoluan_blocked_while_someone_is_dying"
+   ]
   },
   {
    "code": "tianbian",
    "batch": "B8",
    "file": "specs/sanguosha/skills/B8.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b8.rs::tianbian_heart_counts_as_king_and_deck_top_is_available"
+   ]
   },
   {
    "code": "tiandu",
    "batch": "B11",
    "file": "specs/sanguosha/skills/B11.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b11.rs::tiandu_gains_judge_card"
+   ]
   },
   {
    "code": "tianxiang",
    "batch": "B14",
    "file": "specs/sanguosha/skills/B14.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b14.rs::tianxiang_transfers_damage_or_hp_loss",
+    "tests/b14.rs::tianxiang_needs_heart"
+   ]
   },
   {
    "code": "tianyi",
    "batch": "B15",
    "file": "specs/sanguosha/skills/B15.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b15.rs::tianyi_win_grants_bonus_and_extra_target",
+    "tests/b15.rs::tianyi_lose_blocks_sha_use",
+    "tests/b15.rs::hanzhan_forces_random_and_gains_biggest_sha"
+   ]
   },
   {
    "code": "tiaoxin",
    "batch": "B15",
    "file": "specs/sanguosha/skills/B15.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b15.rs::tiaoxin_target_declines_discards_card",
+    "tests/b15.rs::tiaoxin_requires_range"
+   ]
   },
   {
    "code": "tieqi",
    "batch": "B9",
    "file": "specs/sanguosha/skills/B9.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b9.rs::tieqi_judges_and_blocks_shan_when_target_cannot_discard"
+   ]
   },
   {
    "code": "tishen",
    "batch": "B9",
    "file": "specs/sanguosha/skills/B9.md",
    "kind": "limited",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b9.rs::tishen_heals_to_max_and_draws_equal"
+   ]
   },
   {
    "code": "tongbo",
    "batch": "B8",
    "file": "specs/sanguosha/skills/B8.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b8.rs::tongbo_swaps_cards_with_shu_and_hands_all_out_on_four_suits",
+    "tests/b8.rs::tongbo_rejects_option_that_does_not_match_zone"
+   ]
   },
   {
    "code": "tuotian",
    "batch": "B15",
    "file": "specs/sanguosha/skills/B15.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b15.rs::tuotian_judges_after_losing_card_outside_turn",
+    "tests/b15.rs::tuotian_own_turn_only_counts_discarded_sha"
+   ]
   },
   {
    "code": "tuxi",
    "batch": "B11",
    "file": "specs/sanguosha/skills/B11.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b11.rs::tuxi_draws_x_and_takes_from_rest"
+   ]
   },
   {
    "code": "wanglie",
@@ -1896,16 +2446,21 @@
    "batch": "B11",
    "file": "specs/sanguosha/skills/B11.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b11.rs::wangxi_draws_two_and_gives_one"
+   ]
   },
   {
    "code": "wansha",
    "batch": "B15",
    "file": "specs/sanguosha/skills/B15.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b15.rs::wansha_blocks_others_tao_and_nonlocked_skills",
+    "tests/b15.rs::wansha_not_active_outside_own_turn"
+   ]
   },
   {
    "code": "weidi",
@@ -1922,96 +2477,132 @@
    "batch": "B15",
    "file": "specs/sanguosha/skills/B15.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b15.rs::weimu_blocks_black_trick_and_prevents_own_turn_damage",
+    "tests/b15.rs::weimu_does_not_prevent_other_turn_damage"
+   ]
   },
   {
    "code": "wengua",
    "batch": "B8",
    "file": "specs/sanguosha/skills/B8.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b8.rs::wengua_top_lets_both_draw_from_bottom",
+    "tests/b8.rs::wengua_cannot_be_used_by_xushi_herself"
+   ]
   },
   {
    "code": "wulie",
    "batch": "B14",
    "file": "specs/sanguosha/skills/B14.md",
    "kind": "limited",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b14.rs::wulie_grants_lie_that_prevents_damage"
+   ]
   },
   {
    "code": "wurong",
    "batch": "B6",
    "file": "specs/sanguosha/skills/B6.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b6.rs::wurong_sha_vs_non_shan_deals_damage",
+    "tests/b6.rs::wurong_non_sha_vs_shan_gains_card",
+    "tests/b6.rs::wurong_other_combinations_do_nothing"
+   ]
   },
   {
    "code": "wusheng",
    "batch": "B9",
    "file": "specs/sanguosha/skills/B9.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b19.rs::fuhen_grants_wusheng_paoxiao_until_turn_end"
+   ]
   },
   {
    "code": "wushuang",
    "batch": "B12",
    "file": "specs/sanguosha/skills/B12.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b12.rs::wushuang_sha_needs_two_shan",
+    "tests/b12.rs::wushuang_single_shan_does_not_cancel",
+    "tests/b12.rs::wushuang_duel_applies_from_both_sides"
+   ]
   },
   {
    "code": "xiangle",
    "batch": "B13",
    "file": "specs/sanguosha/skills/B13.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b13.rs::xiangle_discard_basic_or_immune",
+    "tests/b13.rs::xiangle_without_basic_makes_sha_void"
+   ]
   },
   {
    "code": "xiansi",
    "batch": "B4",
    "file": "specs/sanguosha/skills/B4.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b4.rs::xiansi_takes_card_to_void_as_ni",
+    "tests/b4.rs::xiansi_other_player_can_use_two_ni_without_phase_limit",
+    "tests/b4.rs::xiansi_not_offered_without_targets"
+   ]
   },
   {
    "code": "xiantu",
    "batch": "B20",
    "file": "specs/sanguosha/skills/B20.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b20.rs::xiantu_gives_and_loses_hp_when_damage_less",
+    "tests/b20.rs::xiantu_no_hp_loss_when_not_activated",
+    "tests/b20.rs::qiangshi_reveals_chosen_card_and_draws_on_same_type"
+   ]
   },
   {
    "code": "xianzhen",
    "batch": "B17",
    "file": "specs/sanguosha/skills/B17.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b17.rs::xianzhen_win_grants_distance_limit_and_extra_target",
+    "tests/b17.rs::xianzhen_lose_blocks_sha_only_vs_target"
+   ]
   },
   {
    "code": "xianzhou",
    "batch": "B18",
    "file": "specs/sanguosha/skills/B18.md",
    "kind": "limited",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b18.rs::xianzhou_gives_equips_then_heals"
+   ]
   },
   {
    "code": "xiaoji",
    "batch": "B10",
    "file": "specs/sanguosha/skills/B10.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b10.rs::xiaoji_draws_two_when_losing_equip"
+   ]
   },
   {
    "code": "xingshang",
@@ -2028,24 +2619,32 @@
    "batch": "B5",
    "file": "specs/sanguosha/skills/B5.md",
    "kind": "lord",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b5.rs::xingshuai_asks_wei_allies_then_hurts_them_after_dying",
+    "tests/b5.rs::xingshuai_not_available_without_lord_or_wei_allies"
+   ]
   },
   {
    "code": "xingxue",
    "batch": "B6",
    "file": "specs/sanguosha/skills/B6.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b6.rs::yanzhu_option1_gains_equips_and_upgrades_xingxue",
+    "tests/b6.rs::xingxue_lets_target_choose_card_to_top"
+   ]
   },
   {
    "code": "xinsheng",
    "batch": "B13",
    "file": "specs/sanguosha/skills/B13.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b13.rs::xinsheng_gains_per_damage_point"
+   ]
   },
   {
    "code": "xiongluan",
@@ -2062,96 +2661,132 @@
    "batch": "B17",
    "file": "specs/sanguosha/skills/B17.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b17.rs::xuanfeng_triggers_on_two_cards_lost_in_one_action",
+    "tests/b17.rs::xuanfeng_ignores_single_card_loss_and_lost_equip_triggers"
+   ]
   },
   {
    "code": "xuanhuo",
    "batch": "B17",
    "file": "specs/sanguosha/skills/B17.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b17.rs::xuanhuo_gives_two_cards_and_views_hand",
+    "tests/b17.rs::xuanhuo_requires_two_hand_cards"
+   ]
   },
   {
    "code": "xueyi",
    "batch": "B13",
    "file": "specs/sanguosha/skills/B13.md",
    "kind": "lord",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b13.rs::xueyi_marks_and_phase_draw",
+    "tests/b13.rs::xueyi_no_marks_no_ask",
+    "tests/m2_wiring.rs::gate_active_skills_only_offered_to_owner"
+   ]
   },
   {
    "code": "xunxun",
    "batch": "B11",
    "file": "specs/sanguosha/skills/B11.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b11.rs::xunxun_places_top_and_bottom"
+   ]
   },
   {
    "code": "yajiao",
    "batch": "B9",
    "file": "specs/sanguosha/skills/B9.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b9.rs::yajiao_off_turn_play_reveals_top_and_same_type_gives_card",
+    "tests/b9.rs::yajiao_different_type_lets_zhaoyun_pick_a_card"
+   ]
   },
   {
    "code": "yanyu",
    "batch": "B20",
    "file": "specs/sanguosha/skills/B20.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b20.rs::yanyu_recasts_sha_then_gifts_male",
+    "tests/b20.rs::yanyu_no_gift_without_two_sha_lost",
+    "tests/b20.rs::qiaoshi_other_end_phase_draws_and_offs_round"
+   ]
   },
   {
    "code": "yanzhu",
    "batch": "B6",
    "file": "specs/sanguosha/skills/B6.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b6.rs::yanzhu_option1_gains_equips_and_upgrades_xingxue",
+    "tests/b6.rs::yanzhu_option2_target_chooses_card_from_hand_or_equip"
+   ]
   },
   {
    "code": "yaoming",
    "batch": "B6",
    "file": "specs/sanguosha/skills/B6.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b6.rs::yaoming_after_dealing_damage_discards_target_hand",
+    "tests/b6.rs::yaoming_dealt_and_taken_each_once_per_turn"
+   ]
   },
   {
    "code": "yaowu",
    "batch": "B13",
    "file": "specs/sanguosha/skills/B13.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b13.rs::yaowu_red_card_source_draws",
+    "tests/b13.rs::yaowu_non_red_victim_draws_and_self_source_no_draw"
+   ]
   },
   {
    "code": "yicong",
    "batch": "B12",
    "file": "specs/sanguosha/skills/B12.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b12.rs::yicong_modifies_distance_both_ways",
+    "tests/b12.rs::yicong_distance_never_below_one"
+   ]
   },
   {
    "code": "yiji",
    "batch": "B11",
    "file": "specs/sanguosha/skills/B11.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b11.rs::yiji_gives_cards_to_others"
+   ]
   },
   {
    "code": "yijue",
    "batch": "B9",
    "file": "specs/sanguosha/skills/B9.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b9.rs::yijue_red_card_owner_chooses_and_guanyu_may_heal",
+    "tests/b9.rs::yijue_black_card_seals_hand_and_boosts_heart_sha"
+   ]
   },
   {
    "code": "yili",
@@ -2168,32 +2803,45 @@
    "batch": "B14",
    "file": "specs/sanguosha/skills/B14.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b14.rs::yinghun_draws_x_then_discard_one",
+    "tests/b14.rs::hunzi_awaken_at_one_hp"
+   ]
   },
   {
    "code": "yingzi",
    "batch": "B10",
    "file": "specs/sanguosha/skills/B10.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b10.rs::yingzi_hand_limit_equals_max_hp_and_draws_one_more"
+   ]
   },
   {
    "code": "yizhong",
    "batch": "B20",
    "file": "specs/sanguosha/skills/B20.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b20.rs::yizhong_black_sha_is_immune_when_hp_ge",
+    "tests/b20.rs::yizhong_blocks_shan_when_hand_le",
+    "tests/b20.rs::yizhong_red_sha_is_normal",
+    "tests/b20.rs::zhenjun_discards_x_then_end_phase_draw"
+   ]
   },
   {
    "code": "yonglue",
    "batch": "B4",
    "file": "specs/sanguosha/skills/B4.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b4.rs::yonglue_uses_judge_card_then_draws_when_no_damage",
+    "tests/b4.rs::yonglue_no_draw_when_damage_happened"
+   ]
   },
   {
    "code": "yongsi",
@@ -2211,56 +2859,80 @@
    "batch": "B3",
    "file": "specs/sanguosha/skills/B3.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b3.rs::yuce_reveals_and_source_chooses_heal_or_discard",
+    "tests/b3.rs::yuce_auto_heals_when_source_has_no_hand",
+    "tests/b3.rs::yuce_not_available_without_hand_card_to_reveal"
+   ]
   },
   {
    "code": "zaizhi",
    "batch": "B16",
    "file": "specs/sanguosha/skills/B16.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b16.rs::zaizhi_settles_per_red_card_in_discard",
+    "tests/b16.rs::zaizhi_needs_red_cards_in_discard"
+   ]
   },
   {
    "code": "zanhui",
    "batch": "B5",
    "file": "specs/sanguosha/skills/B5.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b5.rs::zanhui_helper_becomes_extra_target",
+    "tests/b5.rs::zanhui_black_trick_triggers_but_multi_target_does_not",
+    "tests/b5.rs::zanhui_helper_gives_card_and_becomes_user",
+    "tests/pre_use.rs::extra_target_is_really_added_before_settlement"
+   ]
   },
   {
    "code": "zaoxian",
    "batch": "B15",
    "file": "specs/sanguosha/skills/B15.md",
    "kind": "awaken",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b15.rs::zaoxian_awaken_and_extra_turn",
+    "tests/b15.rs::zaoxian_needs_three_tian",
+    "tests/b15.rs::zaoxian_grants_jixi_and_equipment_becomes_sha"
+   ]
   },
   {
    "code": "zhanjue",
    "batch": "B6",
    "file": "specs/sanguosha/skills/B6.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b6.rs::zhanjue_uses_all_hand_and_limits_to_two_activations",
+    "tests/b6.rs::zhanjue_damage_draws_once_per_character"
+   ]
   },
   {
    "code": "zhaofu",
    "batch": "B6",
    "file": "specs/sanguosha/skills/B6.md",
    "kind": "lord",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b6.rs::zhaofu_marks_targets_and_affects_attack_range",
+    "tests/b6.rs::zhaofu_requires_lord_and_once_per_game"
+   ]
   },
   {
    "code": "zhaxiang",
    "batch": "B10",
    "file": "specs/sanguosha/skills/B10.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b10.rs::zhaxiang_draws_three_and_boosts_sha_limit_in_play_phase"
+   ]
   },
   {
    "code": "zhenglun",
@@ -2298,8 +2970,11 @@
    "batch": "B20",
    "file": "specs/sanguosha/skills/B20.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b20.rs::zhenjun_discards_x_then_end_phase_draw",
+    "tests/b20.rs::zhenjun_skips_target_without_cards"
+   ]
   },
   {
    "code": "zhenliang",
@@ -2317,176 +2992,250 @@
    "batch": "B18",
    "file": "specs/sanguosha/skills/B18.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b18.rs::zhenlie_cancels_sha_and_grants_miji",
+    "tests/b18.rs::zhenlie_cancels_normal_trick_but_not_delayed",
+    "tests/b18.rs::miji_fires_once_in_own_end_phase_even_without_grant",
+    "tests/b18.rs::miji_triggers_at_other_players_end_phase_when_granted"
+   ]
   },
   {
    "code": "zhiba",
    "batch": "B14",
    "file": "specs/sanguosha/skills/B14.md",
    "kind": "lord",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b14.rs::zhiba_lord_pindian_and_gains_cards",
+    "tests/b14.rs::zhiba_requires_wu_target",
+    "tests/b14.rs::zhiba_other_wu_may_challenge_and_lord_gains_when_challenger_loses"
+   ]
   },
   {
    "code": "zhichi",
    "batch": "B17",
    "file": "specs/sanguosha/skills/B17.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b17.rs::zhichi_blocks_sha_and_normal_tricks_outside_own_turn",
+    "tests/b17.rs::zhichi_not_triggered_in_own_turn"
+   ]
   },
   {
    "code": "zhige",
    "batch": "B7",
    "file": "specs/sanguosha/skills/B7.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b7.rs::zhige_requires_hand_over_hp_and_target_with_sha_or_equip"
+   ]
   },
   {
    "code": "zhiheng",
    "batch": "B10",
    "file": "specs/sanguosha/skills/B10.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b10.rs::zhiheng_discards_hand_and_equip_then_extra_draw_when_hand_empty",
+    "tests/m2_wiring.rs::gate_active_skills_only_offered_to_owner"
+   ]
   },
   {
    "code": "zhiji",
    "batch": "B15",
    "file": "specs/sanguosha/skills/B15.md",
    "kind": "awaken",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b15.rs::zhiji_awaken_at_end_phase_without_hand",
+    "tests/b15.rs::zhiji_requires_empty_hand",
+    "tests/b16.rs::zhijian_moves_equip_and_draws"
+   ]
   },
   {
    "code": "zhijian",
    "batch": "B16",
    "file": "specs/sanguosha/skills/B16.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b16.rs::zhijian_moves_equip_and_draws",
+    "tests/b16.rs::zhijian_needs_equip_in_hand"
+   ]
   },
   {
    "code": "zhiman",
    "batch": "B3",
    "file": "specs/sanguosha/skills/B3.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b3.rs::zhiman_prevents_damage_and_gains_a_card",
+    "tests/b3.rs::zhiman_not_offered_when_target_has_no_hand_or_equip",
+    "tests/b3.rs::zhiman_can_take_judge_zone_card"
+   ]
   },
   {
    "code": "zhiyan",
    "batch": "B17",
    "file": "specs/sanguosha/skills/B17.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b17.rs::zhiyan_uses_equip_and_heals",
+    "tests/b17.rs::zhiyan_non_equip_hp_diff_loses_hp",
+    "tests/b17.rs::zhiyan_upper_seat_end_phase_triggers"
+   ]
   },
   {
    "code": "zhiyu",
    "batch": "B3",
    "file": "specs/sanguosha/skills/B3.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b3.rs::zhiyu_draws_reveals_and_source_discards_when_same_color",
+    "tests/b3.rs::zhiyu_does_not_trigger_on_losing_hp",
+    "tests/b3.rs::zhiyu_declined_by_player_does_not_draw"
+   ]
   },
   {
    "code": "zhongjian",
    "batch": "B8",
    "file": "specs/sanguosha/skills/B8.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b8.rs::zhongjian_same_color_lets_owner_choose_draw_or_discard",
+    "tests/b8.rs::zhongjian_same_color_offers_two_options_and_same_rank_grants_second_use",
+    "tests/b8.rs::zhongjian_requires_target_with_hand_cards"
+   ]
   },
   {
    "code": "zhongyong",
    "batch": "B4",
    "file": "specs/sanguosha/skills/B4.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b4.rs::zhongyong_gives_sha_and_asks_receiver_for_red_card",
+    "tests/b4.rs::zhongyong_not_offered_when_card_gone"
+   ]
   },
   {
    "code": "zhuandui",
    "batch": "B8",
    "file": "specs/sanguosha/skills/B8.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b8.rs::zhuandui_win_makes_target_unable_to_respond",
+    "tests/b8.rs::zhuandui_user_side_win_makes_target_unable_to_respond"
+   ]
   },
   {
    "code": "zhuhai",
    "batch": "B13",
    "file": "specs/sanguosha/skills/B13.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b13.rs::zhuhai_uses_real_sha_at_other_end_phase",
+    "tests/b13.rs::zhuhai_needs_sha_in_hand"
+   ]
   },
   {
    "code": "zhuikong",
    "batch": "B19",
    "file": "specs/sanguosha/skills/B19.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b19.rs::zhuikong_win_blocks_targeting_others",
+    "tests/b19.rs::zhuikong_lose_gains_pindian_card_and_virtual_sha",
+    "tests/b19.rs::zhuikong_needs_wounded_and_hand"
+   ]
   },
   {
    "code": "zhuixi",
    "batch": "B20",
    "file": "specs/sanguosha/skills/B20.md",
    "kind": "limited",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b20.rs::zhuixi_end_phase_then_death_again",
+    "tests/b20.rs::zhuixi_death_only_after_used",
+    "tests/b20.rs::anxu_gains_two_cards_and_spade_rule"
+   ]
   },
   {
    "code": "zili",
    "batch": "B3",
    "file": "specs/sanguosha/skills/B3.md",
    "kind": "awaken",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b3.rs::zili_awaken_at_prepare_phase",
+    "tests/b3.rs::zili_not_triggered_below_three_quan_and_hides_heal_at_full_hp"
+   ]
   },
   {
    "code": "zishou",
    "batch": "B18",
    "file": "specs/sanguosha/skills/B18.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b18.rs::zishou_draw_bonus_and_end_phase_cost"
+   ]
   },
   {
    "code": "zongshi",
    "batch": "B18",
    "file": "specs/sanguosha/skills/B18.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b17.rs::zongshi_jie_win_gains_smaller_pindian_card",
+    "tests/b17.rs::zongshi_jie_lose_gains_own_and_requires_skill",
+    "tests/b18.rs::zongshi_guards_damage_once_per_kingdom_per_turn"
+   ]
   },
   {
    "code": "zongshi_jie",
    "batch": "B17",
    "file": "specs/sanguosha/skills/B17.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b17.rs::zongshi_jie_win_gains_smaller_pindian_card",
+    "tests/b17.rs::zongshi_jie_lose_gains_own_and_requires_skill"
+   ]
   },
   {
    "code": "zongxuan",
    "batch": "B17",
    "file": "specs/sanguosha/skills/B17.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b17.rs::zongxuan_puts_own_discards_on_top",
+    "tests/b17.rs::zongxuan_upper_seat_first_discard_only"
+   ]
   },
   {
    "code": "zongzuo",
    "batch": "B7",
    "file": "specs/sanguosha/skills/B7.md",
    "kind": "locked",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b7.rs::zongzuo_adds_max_hp_by_kingdoms_and_drops_on_last_death"
+   ]
   },
   {
    "code": "zuilun",
@@ -2503,8 +3252,11 @@
    "batch": "B5",
    "file": "specs/sanguosha/skills/B5.md",
    "kind": "normal",
-   "status": "implemented",
-   "anchors": []
+   "status": "verified",
+   "anchors": [
+    "tests/b5.rs::zuoding_lets_one_target_draw_for_spade_card",
+    "tests/b5.rs::zuoding_skipped_after_damage_or_for_heart"
+   ]
   }
  ]
 }

@@ -41,7 +41,7 @@
               "why": "A 不改变全局攻击范围，只影响本张【杀】的可达性，语义最贴近文本且实现面最小。",
               "impact": "距离/范围入口 + 用例。",
               "answer": "A（逐目标：距离 ≤ 此【杀】点数即可达）",
-              "legacy": true
+              "test": "b13::liegong_blocks_shan_and_adds_damage"
             },
             {
               "id": "Q2",
@@ -54,7 +54,7 @@
               "why": "文本写「你可以执行以下效果」；给一次询问更贴合「可以」，且便于玩家在不想加伤/不想封闪时放弃。",
               "impact": "pending 出口 + 用例。",
               "answer": "B（询问一次「是否发动烈弓」，发动后按条件分别生效）",
-              "legacy": true
+              "test": "b13::liegong_can_decline"
             },
             {
               "id": "Q3",
@@ -67,7 +67,7 @@
               "why": "保持 v2 既有数值链（机制 `damage-attributes`），不新增特例。",
               "impact": "数值链 + 用例。",
               "answer": "A（与其他加成累加，白银狮子最后压回 1）",
-              "legacy": true
+              "test": "b13::liegong_can_decline"
             }
           ],
           "mechanics": [
@@ -138,7 +138,7 @@
               "why": "文本与界徐庶官方口径都是「使用一张【杀】」，属于真实使用；虚拟杀会让「没有【杀】也能发动」偏离技能成本。",
               "impact": "候选集合 + 反例（无【杀】不可发动）。",
               "answer": "B（必须真实使用一张手牌【杀】；没有【杀】不能发动）",
-              "legacy": true
+              "test": "b13::zhuhai_uses_real_sha_at_other_end_phase"
             },
             {
               "id": "Q2",
@@ -151,7 +151,7 @@
               "why": "原文没有任何「无距离限制」字样；真实使用【杀】本就要判距离。",
               "impact": "候选集合 + 反例。",
               "answer": "B（**无距离限制**）",
-              "legacy": true
+              "test": "b13::zhuhai_needs_sha_in_hand"
             },
             {
               "id": "Q3",
@@ -164,7 +164,7 @@
               "why": "结算点是「其他角色的结束阶段」，每个结束阶段独立结算；同一回合内只有一个结束阶段，A 与 B 在单挑/多回合外等价，但多回合（放权/博图）下 A 更一致。",
               "impact": "计数 + 用例（额外回合）。",
               "answer": "A（每个结束阶段各一次）",
-              "legacy": true
+              "test": "b13::zhuhai_uses_real_sha_at_other_end_phase"
             }
           ],
           "mechanics": [
@@ -227,7 +227,7 @@
               "why": "觉醒技按触发时机立即结算；v1 同口径。",
               "impact": "触发钩子 + 用例。",
               "answer": "A（造成伤害后立即觉醒，终身一次）",
-              "legacy": true
+              "test": "b13::qianxin_awaken_grants_jianyan"
             },
             {
               "id": "Q2",
@@ -240,7 +240,7 @@
               "why": "体力值不能超过上限（内核既有不变量），压到上限是唯一自洽口径。",
               "impact": "体力/上限 + 用例。",
               "answer": "A（上限 -1；体力高于新上限则压到新上限）",
-              "legacy": true
+              "test": "b13::qianxin_requires_wounded"
             },
             {
               "id": "Q3",
@@ -253,7 +253,7 @@
               "why": "沿 v1 已落地的行为，且与「牌堆承载/展示」机制一致。",
               "impact": "新增授予技实现 + 用例；注册表需登记 GRANT_ONLY。",
               "answer": "B（其余按 A 的流程，但**没有存活男性角色时不能发动荐言**）；备注：用户补充：无存活男性角色时不能发动「荐言」（不是亮牌后弃置）。",
-              "legacy": true
+              "test": "b13::qianxin_awaken_grants_jianyan"
             }
           ],
           "mechanics": [
@@ -326,7 +326,7 @@
               "why": "文本是二分（红色 / 不为红色），无花色自然落入「不为红色」。",
               "impact": "用例（虚拟牌伤害）。",
               "answer": "A（虚拟牌/无花色视为「不为红色」→ 华雄摸 1）",
-              "legacy": true
+              "test": "b13::yaowu_red_card_source_draws"
             },
             {
               "id": "Q2",
@@ -339,7 +339,7 @@
               "why": "保持「有收益不落空」的既有实现，避免自伤/无来源伤害让锁定技变负收益。",
               "impact": "用例（自伤/无来源）。",
               "answer": "B（红色牌但来源为自己/无来源时**不摸牌**）",
-              "legacy": true
+              "test": "b13::yaowu_non_red_victim_draws_and_self_source_no_draw"
             },
             {
               "id": "Q3",
@@ -352,7 +352,7 @@
               "why": "文本主语是「受到伤害时」这一次事件，未写「每 1 点」（对比反馈/遗计明确写「1 点伤害后」）。",
               "impact": "触发计数 + 用例。",
               "answer": "A（每次伤害事件结算一次）",
-              "legacy": true
+              "test": "b13::yaowu_red_card_source_draws"
             }
           ],
           "mechanics": [
@@ -415,7 +415,7 @@
               "why": "标准决斗规则：目标先响应；v1 同口径。",
               "impact": "用例。",
               "answer": "A（华雄先出【杀】）",
-              "legacy": true
+              "test": "b13::shizhan_two_duels_per_phase"
             },
             {
               "id": "Q2",
@@ -428,7 +428,7 @@
               "why": "原文没有「不能被无懈可击抵消」（对比离间明确写了），按普通锦囊处理。",
               "impact": "无懈链 + 用例。",
               "answer": "A（可被【无懈可击】抵消）",
-              "legacy": true
+              "test": "b13::shizhan_cannot_use_self"
             },
             {
               "id": "Q3",
@@ -441,7 +441,7 @@
               "why": "文本写「出牌阶段限两次」。",
               "impact": "计数 + 用例。",
               "answer": "A（每个出牌阶段限两次）",
-              "legacy": true
+              "test": "b13::shizhan_two_duels_per_phase"
             }
           ],
           "mechanics": [
@@ -511,7 +511,7 @@
               "why": "化身/新生/选将都需要武将名录；生成物与 `cards_generated.rs` 同源同风格，也是注册前置（阻塞 B1 选将）的一部分。",
               "impact": "新增生成物 + 门禁 `engine-data` + 用例。",
               "answer": "C（用中台武将列表的 status：仅「上线」武将入池；见 Q16 的实施口径）；备注：用户补充：中台武将列表带 status；仅 status=live 的武将入化身池。实施口径：`import_engine` 不再一律写 live —— 147 审计池写 live、去重被排除的同名原版写 offline、技能未完成（不在 标准/风林火山/一将成名/界限突破 四包内）写 review（待审批）。生成物 `engine-catalog.json` 与 `generals_generated.rs` 带同一状态，v2 池只取 live。",
-              "legacy": true
+              "test": "b13::huashen_gets_three_cards_and_skill"
             },
             {
               "id": "Q2",
@@ -524,7 +524,7 @@
               "why": "文本是「一个技能」（选择权在左慈）；只有单技能武将时不询问。",
               "impact": "交互 + 用例。",
               "answer": "A（由左慈选择该化身牌上的一个已注册技能）",
-              "legacy": true
+              "test": "b13::huashen_exchange_is_two_for_one"
             },
             {
               "id": "Q3",
@@ -537,7 +537,7 @@
               "why": "内核大量位置直接读 `Seat.kingdom/male`；只读钩子需要改所有读取点，成本更高且易漏。",
               "impact": "状态一致性 + 用例（势力技/性别技）。",
               "answer": "A（切换时改写 Seat.kingdom/male 并保存原值）",
-              "legacy": true
+              "test": "b13::huashen_gets_three_cards_and_skill"
             },
             {
               "id": "Q4",
@@ -550,7 +550,7 @@
               "why": "原文「回合开始时和回合结束后，你可以选择一项」= 两个时机各一次。",
               "impact": "触发窗口 + 用例。",
               "answer": "A（回合开始、结束各一次，各可放弃）",
-              "legacy": true
+              "test": "b13::huashen_exchange_is_two_for_one"
             },
             {
               "id": "Q5",
@@ -563,7 +563,7 @@
               "why": "v1 口径；B 会在同一时机引入「展示为空」的中间态，收益低。",
               "impact": "交互 + 用例。",
               "answer": "A（只能移去非展示的化身牌，至多两张）；备注：用户补充：第 ② 项是 **2 换 1**（移去至多两张 → 获得**一张**新化身牌），不是等量交换。",
-              "legacy": true
+              "test": "b13::huashen_exchange_is_two_for_one"
             },
             {
               "id": "Q6",
@@ -576,7 +576,7 @@
               "why": "未注册技能无法授予（`skills::active` 查注册表），B 会产生「有化身无技能」的坏状态。",
               "impact": "池过滤 + 反例。",
               "answer": "C（同 Q16：以中台武将列表 status=live 为准）",
-              "legacy": true
+              "test": "b13::huashen_exchange_is_two_for_one"
             }
           ],
           "mechanics": [
@@ -641,7 +641,7 @@
               "why": "文本明确「1 点伤害后」（与反馈/遗计同口径）。",
               "impact": "触发计数 + 用例。",
               "answer": "A（每 1 点伤害各获得 1 张）",
-              "legacy": true
+              "test": "b13::xinsheng_gains_per_damage_point"
             },
             {
               "id": "Q2",
@@ -654,7 +654,7 @@
               "why": "机制 `wording-can`：「可以」必须给放弃出口。",
               "impact": "pending 出口 + 用例。",
               "answer": "A（询问可放弃）",
-              "legacy": true
+              "test": "b13::xinsheng_gains_per_damage_point"
             },
             {
               "id": "Q3",
@@ -667,7 +667,7 @@
               "why": "化身牌按「不重复」管理（v1 一致）。",
               "impact": "反例。",
               "answer": "A（池空不触发）",
-              "legacy": true
+              "test": "b13::xinsheng_gains_per_damage_point"
             }
           ],
           "mechanics": [
@@ -735,7 +735,7 @@
               "why": "文本「你可以判定」；机制 `wording-can`。",
               "impact": "pending 出口 + 用例。",
               "answer": "A（询问可放弃判定）",
-              "legacy": true
+              "test": "b13::leiji_judge_spade_deals_two_thunder"
             },
             {
               "id": "Q2",
@@ -748,7 +748,7 @@
               "why": "文本「一名角色」不排除自己；v1 同口径。",
               "impact": "候选集合 + 用例。",
               "answer": "A（任意一名角色，可含张角自己）",
-              "legacy": true
+              "test": "b13::leiji_can_decline"
             },
             {
               "id": "Q3",
@@ -761,7 +761,7 @@
               "why": "文本是「你回复1点体力并可以…造成1点伤害」；回复不是可选项。",
               "impact": "结算顺序 + 用例。",
               "answer": "A（先强制回复 1，再可选 1 点雷电伤害）",
-              "legacy": true
+              "test": "b13::leiji_judge_spade_deals_two_thunder"
             }
           ],
           "mechanics": [
@@ -824,7 +824,7 @@
               "why": "文本未限定区域，且 B11 已把界鬼才的承载范围定为手牌 + 装备区；同为改判技能应同口径。",
               "impact": "候选集合 + 用例。",
               "answer": "B（黑色手牌 + 装备区）",
-              "legacy": true
+              "test": "b13::guidao_rewrites_with_black_card_and_draws_on_spade_2_9"
             },
             {
               "id": "Q2",
@@ -837,7 +837,7 @@
               "why": "文本是「若此黑色牌为黑桃2~9，你摸一张牌」，与替换同时结算；A 也避免与天妒等后续窗口争牌。",
               "impact": "结算顺序 + 用例。",
               "answer": "A（替换后立即摸 1）；备注：用户补充：鬼道与雷击有互动——若鬼道改判的是**张角自己的判定**（如自己判定区的【乐不思蜀】），改判牌生效后可以发动界雷击的「判定后」效果：黑桃→可对一名角色造成 2 点雷电伤害；梅花→回复 1 点体力并可对一名角色造成 1 点雷电伤害。示例：张角判定区有乐，判定阶段用手中黑桃 2 改判 → 先按鬼道摸一张牌 → 若无人再改判，则判定生效后可发动雷击造成 2 点雷电伤害。",
-              "legacy": true
+              "test": "b13::guidao_offers_black_only"
             },
             {
               "id": "Q3",
@@ -850,7 +850,7 @@
               "why": "机制 `trigger-order`；v1 同口径。",
               "impact": "顺序 + 用例。",
               "answer": "A（按座位链式改判）",
-              "legacy": true
+              "test": "b13::guidao_rewrites_with_black_card_and_draws_on_spade_2_9"
             }
           ],
           "mechanics": [
@@ -911,7 +911,7 @@
               "why": "文本限定「手牌」。",
               "impact": "候选集合 + 反例。",
               "answer": "A（仅黑桃手牌）",
-              "legacy": true
+              "test": "b13::huangtian_gives_shan_to_lord"
             },
             {
               "id": "Q2",
@@ -924,7 +924,7 @@
               "why": "文本「其他群势力角色的出牌阶段限一次」指各自。",
               "impact": "计数 + 用例。",
               "answer": "A（每名给牌者各自每出牌阶段限一次）",
-              "legacy": true
+              "test": "b13::huangtian_requires_qun_and_lord"
             },
             {
               "id": "Q3",
@@ -937,7 +937,7 @@
               "why": "机制 `card-gained`：获得是事件链，禁止静默移动。",
               "impact": "事件 + 用例。",
               "answer": "A（走统一「获得」事件）",
-              "legacy": true
+              "test": "m2_wiring::gate_active_skills_only_offered_to_owner"
             }
           ],
           "mechanics": [
@@ -1009,7 +1009,7 @@
               "why": "原文「任意基本牌或普通锦囊牌」；v2 牌定义是生成物，可以按属性枚举，不需要白名单。",
               "impact": "声明候选 + 反例（延时锦囊不可）。",
               "answer": "A（任意基本牌 + 任意普通锦囊，按牌属性筛选）",
-              "legacy": true
+              "test": "b13::guhuo_fake_is_void_and_questioner_draws"
             },
             {
               "id": "Q2",
@@ -1022,7 +1022,7 @@
               "why": "原文「其他角色可以同时质疑并翻开此牌」；同时口径也避免「谁先被问谁吃亏」。",
               "impact": "新增质疑链流程 + 用例（多人质疑）。",
               "answer": "A（同时质疑：一次性收集所有选择，多名质疑者都参与结算）",
-              "legacy": true
+              "test": "b13::guhuo_real_causes_chanyuan_and_penalty_choice"
             },
             {
               "id": "Q3",
@@ -1035,7 +1035,7 @@
               "why": "文本是「然后弃置一张牌或失去1点体力」，选择权在质疑者。",
               "impact": "新增 pending（质疑者）+ 用例。",
               "answer": "A（由质疑者自己选择弃一张牌或失去 1 点体力）",
-              "legacy": true
+              "test": "b13::guhuo_works_in_wuxie_window"
             },
             {
               "id": "Q4",
@@ -1048,7 +1048,7 @@
               "why": "v1 已按此实现，且与官方「缠怨」描述一致。",
               "impact": "技能失效闸门 + 用例。",
               "answer": "A（不能质疑 + 体力为 1 时技能失效）",
-              "legacy": true
+              "test": "b13::guhuo_works_in_dying_window"
             },
             {
               "id": "Q5",
@@ -1061,7 +1061,7 @@
               "why": "原文写「使用或**打出**」，打出即响应；v1 也支持濒死自救。",
               "impact": "触发窗口 + 用例。",
               "answer": "A（每回合限一次；出牌阶段/响应/濒死自救均可）；备注：用户补充：每回合限一次是「任一玩家的回合内限一次，包含自己的回合」。",
-              "legacy": true
+              "test": "b13::guhuo_can_declare_collateral"
             },
             {
               "id": "Q6",
@@ -1074,7 +1074,7 @@
               "why": "原文「扣置一张手牌」；公开会破坏质疑机制的意义。",
               "impact": "视图脱敏 + 用例。",
               "answer": "B（**先收集质疑/不质疑的选择，之后公开翻开**）；备注：用户补充：扣置期间不公开；先收集所有角色的「质疑/不质疑」选择，**之后**公开翻开并统一结算。",
-              "legacy": true
+              "test": "b13::guhuo_can_declare_iron_chain_with_two_targets"
             }
           ],
           "mechanics": [
@@ -1151,7 +1151,7 @@
               "why": "统一走 `set_virtual/use_as`，避免「一张在手、一张在弃牌堆」的双口径；对结果无影响。",
               "impact": "牌区守恒 + 用例。",
               "answer": "A（两张都作承载牌，结算后一并进弃牌堆）",
-              "legacy": true
+              "test": "b13::luanji_two_same_suit_arrows"
             },
             {
               "id": "Q2",
@@ -1164,7 +1164,7 @@
               "why": "少选目标属于「指定目标」阶段的事实，应在无懈/响应前确定（否则无懈与响应次数会不一致）。",
               "impact": "目标列表 + 用例。",
               "answer": "A（目标确定阶段、无懈/响应之前裁剪一个）",
-              "legacy": true
+              "test": "b13::luanji_needs_same_suit"
             },
             {
               "id": "Q3",
@@ -1177,7 +1177,7 @@
               "why": "原文无「不能被无懈」字样。",
               "impact": "无懈链 + 用例。",
               "answer": "A（可被无懈可击抵消）",
-              "legacy": true
+              "test": "b13::luanji_two_same_suit_arrows"
             }
           ],
           "mechanics": [
@@ -1240,7 +1240,7 @@
               "why": "文本「全场每有一名群势力角色」；v1 含自己。",
               "impact": "开局初始化 + 用例。",
               "answer": "A（含袁绍自己）× 2",
-              "legacy": true
+              "test": "b13::xueyi_marks_and_phase_draw"
             },
             {
               "id": "Q2",
@@ -1253,7 +1253,7 @@
               "why": "文本是阶段时机；额外回合也有出牌阶段。",
               "impact": "触发窗口 + 用例。",
               "answer": "A（每个出牌阶段开始各一次）",
-              "legacy": true
+              "test": "b13::xueyi_no_marks_no_ask"
             },
             {
               "id": "Q3",
@@ -1266,7 +1266,7 @@
               "why": "与 v2 既有手牌上限钩子（叠加）一致。",
               "impact": "手牌上限 + 用例。",
               "answer": "A（与其他加成叠加）",
-              "legacy": true
+              "test": "m2_wiring::gate_active_skills_only_offered_to_owner"
             }
           ],
           "mechanics": [
@@ -1333,7 +1333,7 @@
               "why": "文本「其弃置一张基本牌」= 使用者自选。",
               "impact": "交互 + 用例。",
               "answer": "A（由使用者自选一张基本牌弃置）",
-              "legacy": true
+              "test": "b13::xiangle_discard_basic_or_immune"
             },
             {
               "id": "Q2",
@@ -1346,7 +1346,7 @@
               "why": "没有可选项时不产生空 pending（v1 同口径）。",
               "impact": "反例 + 用例。",
               "answer": "A（没有基本牌 → 直接无效，不发 pending）",
-              "legacy": true
+              "test": "b13::xiangle_without_basic_makes_sha_void"
             },
             {
               "id": "Q3",
@@ -1359,7 +1359,7 @@
               "why": "「成为目标后」先于响应窗口；v1 同口径。",
               "impact": "结算顺序 + 用例。",
               "answer": "A（先享乐（可能无效），再进【闪】响应计数）",
-              "legacy": true
+              "test": "b13::xiangle_discard_basic_or_immune"
             }
           ],
           "mechanics": [
@@ -1421,7 +1421,7 @@
               "why": "文本「弃置一张手牌」；选择权应在发动者。",
               "impact": "交互 + 用例。",
               "answer": "A（由刘禅选择一张手牌弃置）",
-              "legacy": true
+              "test": "b13::fangquan_skips_play_and_grants_extra_turn"
             },
             {
               "id": "Q2",
@@ -1434,7 +1434,7 @@
               "why": "文本要求「弃置一张手牌并令…」；无手牌则后半句不成立。",
               "impact": "边界 + 用例。",
               "answer": "A（没有手牌 → 不能授予额外回合）",
-              "legacy": true
+              "test": "b13::fangquan_without_hand_no_extra_turn"
             },
             {
               "id": "Q3",
@@ -1447,7 +1447,7 @@
               "why": "机制 `deferred-timing`/B10 已定「单一队列」；不新增 per-skill 队列。",
               "impact": "额外回合 + 用例（与博图叠加顺序）。",
               "answer": "A（复用 B10 的 Game.extra_turn）",
-              "legacy": true
+              "test": "b13::fangquan_skips_play_and_grants_extra_turn"
             }
           ],
           "mechanics": [
@@ -1508,7 +1508,7 @@
               "why": "文本「若你是全场体力值最小的角色」，并列时仍是「最小」。",
               "impact": "条件 + 用例（并列）。",
               "answer": "B（必须**严格小于**全场其他角色；并列最小不算）；备注：用户裁定：并列最小不算，必须严格小于全场。",
-              "legacy": true
+              "test": "b13::ruoyu_awaken_strict_min_hp"
             },
             {
               "id": "Q2",
@@ -1521,7 +1521,7 @@
               "why": "体力不能超过上限（内核不变量）。",
               "impact": "体力/上限 + 用例。",
               "answer": "A（min(3, 上限)）；备注：用户补充：若当前体力 < 3 → 体力直接设为 3；若体力 ≥ 3 → 体力不变；两种情况下都只增加 1 点体力上限并获得「激将」「思蜀」。",
-              "legacy": true
+              "test": "b13::ruoyu_tied_min_does_not_awaken"
             },
             {
               "id": "Q3",
@@ -1534,7 +1534,7 @@
               "why": "沿 v1 已落地行为；覆盖口径避免出现多名角色同时反转。",
               "impact": "新增授予技 + 判定反转机制 + 用例。",
               "answer": "B（见下方第 7 段与说明：toggle 口径）；备注：用户补充：思蜀＝出牌阶段开始时（每回合限一次）选择一名角色：若其未反转 → 反转（红桃→跳过出牌阶段，非红桃→不跳过）；若已反转 → 恢复常规（红桃→不跳过，非红桃→跳过）；可以改指不同角色，切换时旧目标恢复常规。",
-              "legacy": true
+              "test": "b13::ruoyu_awaken_strict_min_hp"
             }
           ],
           "mechanics": [

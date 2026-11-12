@@ -7,11 +7,12 @@
 //   node apps/scripts/backfill-align-anchors.mjs --batch all             # 全部批次（766 条欠账）
 //
 // 选锚点策略（保守，宁可留空也不乱指）：
-//   1) 测试函数名包含 skill code → 最高优先；
-//   2) 测试函数体包含 `"<code>"` 字面量；
-//   3) 否则跳过（打印「未找到候选」，留给人走查时补）。
+//   strong：函数名含 skill code，或函数体含 `"<code>"` 字面量 —— 只在这些里轮转；
+//   medium：函数体含**中文技能名**且位于同批次测试文件 —— 只在没有任何 strong 候选时兜底，
+//           且同一技能的所有 question 共用同一锚点（不轮转，避免指到别的技能用例）；
+//   都没有 → 留空并标 `legacy: true`（显式欠账，交人工走查补）。
 //
-// 同一技能的多个 question 共用同一个锚点是允许的（锚点语义 = 「这条裁定由该用例守着」）。
+// `--redo`：重新评估所有锚点（保留 strong 的既有锚点，重算其余）。
 
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -25,6 +26,7 @@ const arg = (name, dflt) => {
   return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : dflt;
 };
 const DRY = process.argv.includes("--dry-run");
+const REDO = process.argv.includes("--redo");
 const batchArg = arg("batch", "B0,B1,B2");
 
 /** 收集 tests/*.rs 里所有 `#[test]` 函数（file / fn / body）。 */
@@ -63,48 +65,60 @@ for (const f of files) {
   for (const g of data.generals ?? []) {
     for (const s of g.skills ?? []) {
       const qs = s.questions ?? [];
-      // 候选优先级：函数名含 code（同批次优先）> 函数体含 "code" > 函数体含中文技能名
+      // strong 候选：函数名含 code（同批次优先）> 函数体含 "code" 字面量
       const sameBatch = (t) => t.file === `${batch}.rs`;
       const named = fns.filter((t) => t.fn.includes(s.code));
-      const mentioned = fns.filter((t) => t.body.includes(`"${s.code}"`));
-      const byName = fns.filter((t) => s.name && t.body.includes(s.name));
-      const ordered = [
+      const literal = fns.filter((t) => t.body.includes(`"${s.code}"`));
+      const strong = [
         ...named.filter(sameBatch),
         ...named.filter((t) => !sameBatch(t)),
-        ...mentioned.filter((t) => !named.includes(t) && sameBatch(t)),
-        ...mentioned.filter((t) => !named.includes(t) && !sameBatch(t)),
-        ...byName.filter((t) => !named.includes(t) && !mentioned.includes(t)),
+        ...literal.filter((t) => !named.includes(t) && sameBatch(t)),
+        ...literal.filter((t) => !named.includes(t) && !sameBatch(t)),
       ];
+      // medium 兜底：同批次测试里出现中文技能名（只取第一个，全部 question 共用）
+      const medium = s.name
+        ? fns.filter((t) => sameBatch(t) && t.body.includes(s.name))
+        : [];
+      const pool = strong.length > 0 ? strong : medium;
+      const isStrong = (ref) => {
+        if (!ref) return false;
+        const [file, fn] = ref.split("::");
+        const t = fns.find((x) => x.file === `${file}.rs` && x.fn === fn);
+        if (!t) return false;
+        return t.fn.includes(s.code) || t.body.includes(`"${s.code}"`);
+      };
+
       let pick = 0;
-      if (qs.length === 0 && !s.test) {
-        // 无裁定项的技能：补一个「技能级」锚点（contract 里也算 covered）
-        const cand = ordered[0];
+      const assign = (holder) => {
+        if (holder.test && isStrong(holder.test) && !REDO) return false;
+        if (holder.test && isStrong(holder.test) && REDO) return false;
+        const cand = pool[Math.min(pick, Math.max(0, pool.length - 1))];
         if (!cand) {
+          if (holder.test) {
+            delete holder.test;
+            if (holder.legacy === undefined) holder.legacy = true;
+            missing += 1;
+            report.push(`  ✗ ${batch}/${s.code}${holder.id ? `#${holder.id}` : "（技能级）"}：无候选，已清空并标 legacy`);
+            return true;
+          }
           missing += 1;
-          report.push(`  ✗ ${batch}/${s.code}：无候选用例（需人工补）`);
-          continue;
+          report.push(`  ✗ ${batch}/${s.code}${holder.id ? `#${holder.id}` : "（技能级）"}：无候选用例（需人工补）`);
+          if (holder.legacy === undefined) holder.legacy = true;
+          return true;
         }
         const ref = `${cand.file.replace(/\.rs$/, "")}::${cand.fn}`;
-        s.test = ref;
-        changed = true;
+        holder.test = ref;
+        if (holder.legacy) delete holder.legacy;
         filled += 1;
-        report.push(`  ✓ ${batch}/${s.code}（技能级） → ${ref}`);
-        continue;
-      }
-      for (const q of qs) {
-        if (q.test) continue;
-        const cand = ordered[pick] ?? ordered[0];
-        if (!cand) {
-          missing += 1;
-          report.push(`  ✗ ${batch}/${s.code}#${q.id}：无候选用例（需人工补）`);
-          continue;
-        }
-        const ref = `${cand.file.replace(/\.rs$/, "")}::${cand.fn}`;
-        q.test = ref;
-        changed = true;
-        filled += 1;
-        report.push(`  ✓ ${batch}/${s.code}#${q.id} → ${ref}`);
-        pick = Math.min(pick + 1, Math.max(0, ordered.length - 1));
+        report.push(`  ✓ ${batch}/${s.code}${holder.id ? `#${holder.id}` : "（技能级）"} → ${ref}`);
+        pick = Math.min(pick + 1, Math.max(0, pool.length - 1));
+        return true;
+      };
+
+      if (qs.length === 0) {
+        changed = assign(s) || changed;
+      } else {
+        for (const q of qs) changed = assign(q) || changed;
       }
     }
   }

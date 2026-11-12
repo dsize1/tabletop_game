@@ -44,7 +44,7 @@
               "why": "文本写「不能使用」；三国杀口径里「使用」与「打出」是两个动词（`use-vs-play`）。",
               "impact": "响应窗口 + 反例用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b15::tianyi_win_grants_bonus_and_extra_target"
             },
             {
               "id": "Q2",
@@ -57,7 +57,7 @@
               "why": "v1 把「无距离限制」与「多指定一个目标」同时挂在同一张【杀】上。",
               "impact": "目标枚举 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b15::tianyi_lose_blocks_sha_use"
             },
             {
               "id": "Q3",
@@ -70,7 +70,7 @@
               "why": "v1 在这些技能里各自构造 `ShaFrame`，不读 `tianyi` 计数；改动会影响既有回归。",
               "impact": "跨技能交互 + 用例。",
               "answer": "B（视为使用的【杀】同样享受天义加成）",
-              "legacy": true
+              "test": "b15::hanzhan_forces_random_and_gains_biggest_sha"
             }
           ],
           "mechanics": [
@@ -142,7 +142,7 @@
               "why": "仓内习惯「能自动就自动 + 文档写边界」（batch-playbook §5），但此技能是「获得牌」收益，非强制。",
               "impact": "pending 出口 + 用例。",
               "answer": "A（询问是否获得）",
-              "legacy": true
+              "test": "b15::hanzhan_forces_random_and_gains_biggest_sha"
             },
             {
               "id": "Q2",
@@ -155,7 +155,7 @@
               "why": "v1 用 `cards[].def`（实体牌名）；扩展需要虚拟牌投影接口。",
               "impact": "识别口径 + 用例。",
               "answer": "A（只认实体【杀】）",
-              "legacy": true
+              "test": "b15::hanzhan_without_skill_lets_opponent_choose"
             },
             {
               "id": "Q3",
@@ -168,7 +168,7 @@
               "why": "v1 `max_by_key` 返回首个最大值；避免新增交互。",
               "impact": "边界 + 用例。",
               "answer": "A（由酣战者选择）",
-              "legacy": true
+              "test": "b15::hanzhan_forces_random_and_gains_biggest_sha"
             }
           ],
           "mechanics": [
@@ -240,7 +240,7 @@
               "why": "v1 `need.max(2)`；官方两技能都写「需要两张【闪】」，相加会变成三张，缺少文本依据。",
               "impact": "响应计数 + 用例。",
               "answer": "B（无双 + 肉林 = 3 张【闪】，相加）",
-              "legacy": true
+              "test": "b15::roulin_adds_flash_requirement_and_stacks_with_wushuang"
             },
             {
               "id": "Q2",
@@ -253,7 +253,7 @@
               "why": "v1 复用 B12 的 `multi-response` 连续响应窗口。",
               "impact": "交互窗口 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b15::roulin_adds_flash_requirement_and_stacks_with_wushuang"
             },
             {
               "id": "Q3",
@@ -266,7 +266,7 @@
               "why": "v2 响应窗口对虚拟【闪】不做区分；v1 同。",
               "impact": "虚拟牌交互 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b15::roulin_adds_flash_requirement_and_stacks_with_wushuang"
             }
           ],
           "mechanics": [
@@ -330,7 +330,7 @@
               "why": "文本是「不是体力值最小的角色」，并列最小仍是最小角色。",
               "impact": "条件判定 + 反例用例。",
               "answer": "B（并列最小也触发）",
-              "legacy": true
+              "test": "b15::bengkuai_triggers_and_loses_hp"
             },
             {
               "id": "Q2",
@@ -343,7 +343,7 @@
               "why": "v1 `.max(1)`；官方无「上限为 0」的结算定义。",
               "impact": "上限/体力结算 + 用例。",
               "answer": "A（最低到 1）",
-              "legacy": true
+              "test": "b15::bengkuai_tie_triggers_unique_minimum_skips"
             },
             {
               "id": "Q3",
@@ -356,7 +356,7 @@
               "why": "文本是「失去」不是「受到伤害」（`damage-vs-hp-loss`）。",
               "impact": "伤害/濒死出口 + 用例。",
               "answer": "A（走 flow::lose_hp）",
-              "legacy": true
+              "test": "b15::bengkuai_triggers_and_loses_hp"
             }
           ],
           "mechanics": [
@@ -423,7 +423,7 @@
               "why": "官方【酒】是状态而非可叠加层数；v1 `take_jiu_for` 只消费一次。",
               "impact": "伤害结算 + 用例。",
               "answer": "B（多杯叠加伤害）",
-              "legacy": true
+              "test": "b15::jiuchi_converts_and_stacks"
             },
             {
               "id": "Q2",
@@ -436,7 +436,7 @@
               "why": "原文写「黑桃手牌」；B14 的装备区放开是各自文本明写「牌」的结果。",
               "impact": "转化候选 + 用例。",
               "answer": "A（仅手牌）",
-              "legacy": true
+              "test": "b15::jiuchi_does_not_convert_heart"
             },
             {
               "id": "Q3",
@@ -449,7 +449,7 @@
               "why": "【酒】本身可在濒死时对自己使用；转化不改变牌的可用时机。",
               "impact": "濒死窗口 + 用例。",
               "answer": "A（可自救）",
-              "legacy": true
+              "test": "b15::jiuchi_converts_and_stacks"
             }
           ],
           "mechanics": [
@@ -518,7 +518,7 @@
               "why": "v1 在伤害结算处一次性触发；逐点会显著放大收益。",
               "impact": "触发计数 + 用例。",
               "answer": "B（按点数逐点触发）",
-              "legacy": true
+              "test": "b15::baonue_triggers_per_point_for_qun_damage"
             },
             {
               "id": "Q2",
@@ -531,7 +531,7 @@
               "why": "仓内自动口径习惯；但判定可能翻出非黑桃，可选性对玩家有意义。",
               "impact": "pending 出口 + 用例。",
               "answer": "A（询问是否发动）",
-              "legacy": true
+              "test": "b15::baonue_ignores_non_qun_or_self"
             },
             {
               "id": "Q3",
@@ -544,7 +544,7 @@
               "why": "对齐单通用口径：获得 = 事件链（`card-gained`）。",
               "impact": "事件链 + 用例。",
               "answer": "A（走 Game::gain）",
-              "legacy": true
+              "test": "b15::baonue_triggers_per_point_for_qun_damage"
             }
           ],
           "mechanics": [
@@ -619,7 +619,7 @@
               "why": "文本写「失去牌」不是「失去手牌」；v1 是覆盖不全而非口径。",
               "impact": "触发口径 + 用例。",
               "answer": "C 仅手牌和装备区牌（不含判定区）",
-              "legacy": true
+              "test": "b15::tuotian_judges_after_losing_card_outside_turn"
             },
             {
               "id": "Q2",
@@ -632,7 +632,7 @@
               "why": "文本只写「弃置【杀】」，未限来源；v1 走 `discard_by` 记账，弃牌阶段同路径。",
               "impact": "触发口径 + 用例。",
               "answer": "A（含弃牌阶段）",
-              "legacy": true
+              "test": "b15::tuotian_own_turn_only_counts_discarded_sha"
             },
             {
               "id": "Q3",
@@ -645,7 +645,7 @@
               "why": "v2 距离入口统一 `clamp(1)`（与马术/义从一致）。",
               "impact": "距离结算 + 用例。",
               "answer": "A（最低到 1）",
-              "legacy": true
+              "test": "b15::tuotian_judges_after_losing_card_outside_turn"
             }
           ],
           "mechanics": [
@@ -712,7 +712,7 @@
               "why": "三国杀通用结算：体力不能超过体力上限。",
               "impact": "体力/上限 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b15::zaoxian_awaken_and_extra_turn"
             },
             {
               "id": "Q2",
@@ -725,7 +725,7 @@
               "why": "v2 `begin_phase` 在回合开始统一清 `turn.*` 状态（与 v1 `turn_counters.clear()` 一致）。",
               "impact": "回合窗口 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b15::zaoxian_needs_three_tian"
             },
             {
               "id": "Q3",
@@ -738,7 +738,7 @@
               "why": "v1 `next_turn` 在推进时优先消费 `extra_turn`。",
               "impact": "回合顺序 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b15::zaoxian_grants_jixi_and_equipment_becomes_sha"
             }
           ],
           "mechanics": [
@@ -809,7 +809,7 @@
               "why": "v2 已有 `aoe_trim_target`/`target_blocker` 两类入口，需明确选一个以免与祸首/奋威冲突。",
               "impact": "AOE 目标裁剪 + 用例。",
               "answer": "A（不能成为目标）",
-              "legacy": true
+              "test": "b15::juxiang_immune_and_gains_after_other_nanman"
             },
             {
               "id": "Q2",
@@ -822,7 +822,7 @@
               "why": "v1 `advance_trick_target` 在 cancelled 分支仍会收尾到 `trick_done`，因此现状是「仍获得」；改动需明确口径。",
               "impact": "无懈链 + 用例。",
               "answer": "A（被无懈仍获得）",
-              "legacy": true
+              "test": "b15::juxiang_does_not_gain_own_nanman"
             },
             {
               "id": "Q3",
@@ -835,7 +835,7 @@
               "why": "v1 `find` 取座位序；单挑/身份局通常只有一名。",
               "impact": "边界 + 用例。",
               "answer": "A（座位序最先）",
-              "legacy": true
+              "test": "b15::juxiang_immune_and_gains_after_other_nanman"
             }
           ],
           "mechanics": [
@@ -901,7 +901,7 @@
               "why": "ADR-0024 规定同名技能复用 code；当前 `liereng` 未接线即该规则未执行的后果。",
               "impact": "注册表/对拍/对齐单（改名需同步 `data.rs` 与门禁）。",
               "answer": "B（保留独立 code `liereng`，钩子里同时识别 liereng/liewen）",
-              "legacy": true
+              "test": "b15::liereng_pindian_and_gain_card"
             },
             {
               "id": "Q2",
@@ -914,7 +914,7 @@
               "why": "原文「你可以与其拼点」；且拼点会消耗双方手牌，玩家应可放弃。",
               "impact": "pending 出口 + 用例。",
               "answer": "A（询问是否拼点）",
-              "legacy": true
+              "test": "b15::liereng_ignores_non_sha_damage"
             },
             {
               "id": "Q3",
@@ -927,7 +927,7 @@
               "why": "文本「当你使用【杀】对目标角色造成伤害后」（对每名目标分别结算）。",
               "impact": "触发计数 + 用例。",
               "answer": "A（每个受伤目标各一次）",
-              "legacy": true
+              "test": "b15::liereng_pindian_and_gain_card"
             }
           ],
           "mechanics": [
@@ -992,7 +992,7 @@
               "why": "原文写「手牌」。",
               "impact": "候选集合 + 用例。",
               "answer": "A（仅手牌）",
-              "legacy": true
+              "test": "b15::changbiao_uses_cards_as_no_distance_sha_and_draws_x"
             },
             {
               "id": "Q2",
@@ -1006,7 +1006,7 @@
               "why": "v1 实现与 rules-rulings §32 一致；改为「无花色」会影响铁索传导与属性判定。",
               "impact": "卡牌属性 + 用例。",
               "answer": "B（无花色、无点数）",
-              "legacy": true
+              "test": "b15::changbiao_once_per_phase"
             },
             {
               "id": "Q3",
@@ -1019,7 +1019,7 @@
               "why": "「等量」指此【杀】造成的伤害量；但 v1 代码与裁定不一致，必须先裁定再改实现。",
               "impact": "摸牌数量 + 用例。",
               "answer": "C 摸牌数量 = 长标发动时作为【杀】使用的张数 X（另外：烈刃获得范围仅随机手牌或装备区，不含判定区）",
-              "legacy": true
+              "test": "b15::changbiao_uses_cards_as_no_distance_sha_and_draws_x"
             },
             {
               "id": "Q4",
@@ -1032,7 +1032,7 @@
               "why": "文本触发条件是「造成伤害」。",
               "impact": "反例 + 用例。",
               "answer": "A（被【闪】抵消不摸牌）",
-              "legacy": true
+              "test": "b15::changbiao_once_per_phase"
             }
           ],
           "mechanics": [
@@ -1105,7 +1105,7 @@
               "why": "文本限定「此【杀】」；v1 用旗标近似，若目标随后用别的牌造成伤害会误判。",
               "impact": "伤害事件识别 + 用例。",
               "answer": "A（必须校验伤害来自这张【杀】）",
-              "legacy": true
+              "test": "b15::tiaoxin_target_declines_discards_card"
             },
             {
               "id": "Q2",
@@ -1118,7 +1118,7 @@
               "why": "同一句「你弃置其一张牌」，交互应一致；v1 差异是历史实现。",
               "impact": "交互 + 用例。",
               "answer": "C 统一由姜维选：随机手牌或装备区，不含判定区",
-              "legacy": true
+              "test": "b15::tiaoxin_requires_range"
             },
             {
               "id": "Q3",
@@ -1131,7 +1131,7 @@
               "why": "文本是固定上限「限两次」。",
               "impact": "计数 + 用例。",
               "answer": "A 最多两次，且第一次已出【杀】并造成伤害后不能发动第二次",
-              "legacy": true
+              "test": "b15::tiaoxin_target_declines_discards_card"
             }
           ],
           "mechanics": [
@@ -1197,7 +1197,7 @@
               "why": "文本明写两个时点；v1 缺结束阶段属实现缺口。",
               "impact": "窗口 + 用例。",
               "answer": "A（准备 + 结束两处都检查）",
-              "legacy": true
+              "test": "b15::zhiji_awaken_at_end_phase_without_hand"
             },
             {
               "id": "Q2",
@@ -1210,7 +1210,7 @@
               "why": "文本是「你回复 1 点体力或摸两张牌」，未写「可以」；且觉醒本身强制。",
               "impact": "pending 出口 + 用例。",
               "answer": "A（必须二选一）",
-              "legacy": true
+              "test": "b15::zhiji_requires_empty_hand"
             },
             {
               "id": "Q3",
@@ -1223,7 +1223,7 @@
               "why": "满体力时回复无意义，容易造成误操作；但需与既有觉醒（魂姿）口径一致。",
               "impact": "选项枚举 + 用例。",
               "answer": "B（满体力只显示摸 2）",
-              "legacy": true
+              "test": "b16::zhijian_moves_equip_and_draws"
             }
           ],
           "mechanics": [
@@ -1297,7 +1297,7 @@
               "why": "文本「回合内」是相对于贾诩的回合；B 等于永久锁定免疫，明显过强。",
               "impact": "窗口 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b15::weimu_blocks_black_trick_and_prevents_own_turn_damage"
             },
             {
               "id": "Q2",
@@ -1310,7 +1310,7 @@
               "why": "文本写「伤害」；失去体力不是伤害（`damage-vs-hp-loss`）。",
               "impact": "伤害/失去出口 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b15::weimu_does_not_prevent_other_turn_damage"
             },
             {
               "id": "Q3",
@@ -1323,7 +1323,7 @@
               "why": "v1 `weimu_blocks` 读 `st.cards[card].suit`；「锦囊牌的颜色」在转化时仍有争议，需明确。",
               "impact": "目标枚举 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b15::weimu_blocks_black_trick_and_prevents_own_turn_damage"
             },
             {
               "id": "Q4",
@@ -1336,7 +1336,7 @@
               "why": "v1 在 `apply_damage_inner` 入口一次性按 `amount × 2` 摸牌。",
               "impact": "数值 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b15::weimu_does_not_prevent_other_turn_damage"
             }
           ],
           "mechanics": [
@@ -1404,7 +1404,7 @@
               "why": "文本是「对其距离最小的另一名角色使用一张【杀】」，选择权在该角色。",
               "impact": "交互 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b15::luanwu_each_other_chooses_then_final_sha"
             },
             {
               "id": "Q2",
@@ -1417,7 +1417,7 @@
               "why": "「你可以」；且贾诩可能不想浪费【杀】次数外的伤害（例如为控场）。",
               "impact": "pending 出口 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b15::luanwu_once_per_game"
             },
             {
               "id": "Q3",
@@ -1431,7 +1431,7 @@
               "why": "文本只说「无距离限制」，未写「不计次数」或「不能被响应」。",
               "impact": "次数/响应 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b15::luanwu_each_other_chooses_then_final_sha"
             },
             {
               "id": "Q4",
@@ -1444,7 +1444,7 @@
               "why": "扣到 0 即濒死是通用结算。",
               "impact": "濒死 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b15::luanwu_once_per_game"
             }
           ],
           "mechanics": [
@@ -1512,7 +1512,7 @@
               "why": "这是界完杀与标准的差异；不实现等于界版少一条锁定效果。",
               "impact": "技能失效钩子 + 用例（新机制）。",
               "answer": "A（实现「非锁定技失效」）",
-              "legacy": true
+              "test": "b15::wansha_blocks_others_tao_and_nonlocked_skills"
             },
             {
               "id": "Q2",
@@ -1525,7 +1525,7 @@
               "why": "文本「只有你（贾诩）和濒死角色」明确允许贾诩。",
               "impact": "濒死选项 + 用例。",
               "answer": "A（贾诩本人可以使用【桃】救援）",
-              "legacy": true
+              "test": "b15::wansha_not_active_outside_own_turn"
             },
             {
               "id": "Q3",
@@ -1538,7 +1538,7 @@
               "why": "完杀文本只写【桃】。",
               "impact": "濒死选项 + 用例。",
               "answer": "A（【酒】不受限）",
-              "legacy": true
+              "test": "b15::wansha_blocks_others_tao_and_nonlocked_skills"
             }
           ],
           "mechanics": [
@@ -1612,7 +1612,7 @@
               "why": "「可以」表示由该角色决定；自动会强制其交牌。",
               "impact": "pending 出口 + 用例。",
               "answer": "A（询问回礼者）",
-              "legacy": true
+              "test": "b15::haoshi_draws_two_more_and_gives_half"
             },
             {
               "id": "Q2",
@@ -1625,7 +1625,7 @@
               "why": "文本有明确失效时点。",
               "impact": "回合窗口 + 用例。",
               "answer": "A（下回合开始时清除）",
-              "legacy": true
+              "test": "b15::haoshi_no_give_when_five_or_less"
             },
             {
               "id": "Q3",
@@ -1638,7 +1638,7 @@
               "why": "文本「其」指本次交给的那名角色，单数。",
               "impact": "状态维护 + 用例。",
               "answer": "A（覆盖为最新一名回礼者）",
-              "legacy": true
+              "test": "b15::haoshi_draws_two_more_and_gives_half"
             },
             {
               "id": "Q4",
@@ -1651,7 +1651,7 @@
               "why": "文本「将一半的手牌」以当前手牌为基数。",
               "impact": "数值 + 用例。",
               "answer": "A（当前手牌 ÷2 向下取整）",
-              "legacy": true
+              "test": "b15::haoshi_no_give_when_five_or_less"
             }
           ],
           "mechanics": [
@@ -1719,7 +1719,7 @@
               "why": "界版文本明写「若如此做，出牌阶段结束时，你弃置 X 张牌」。",
               "impact": "延迟结算 + 支付顺序 + 用例。",
               "answer": "A（出牌阶段结束时弃 X）",
-              "legacy": true
+              "test": "b15::dimeng_swaps_hands_and_pays_at_play_end"
             },
             {
               "id": "Q2",
@@ -1732,7 +1732,7 @@
               "why": "延迟支付时已无法回退；文本未写取消条款。",
               "impact": "边界 + 用例。",
               "answer": "A（弃光为止）",
-              "legacy": true
+              "test": "b15::dimeng_excludes_unaffordable_second_target"
             },
             {
               "id": "Q3",
@@ -1745,7 +1745,7 @@
               "why": "v1 以手牌支付，预算与手牌一致；若改为「牌数量」需同时改支付源。",
               "impact": "预算 + 用例。",
               "answer": "A（手牌数）",
-              "legacy": true
+              "test": "b15::dimeng_swaps_hands_and_pays_at_play_end"
             },
             {
               "id": "Q4",
@@ -1758,7 +1758,7 @@
               "why": "v1 `std::mem::take` 互换不走事件；改走事件会影响大量联动。",
               "impact": "事件链 + 用例。",
               "answer": "B（触发获得/失去牌事件）",
-              "legacy": true
+              "test": "b15::dimeng_excludes_unaffordable_second_target"
             }
           ],
           "mechanics": [
@@ -1833,7 +1833,7 @@
               "why": "文本「跳过你的一个阶段」不限定准备阶段；B 是 v1 的简化。改动会影响交互与 AI。",
               "impact": "阶段窗口 + 交互 + 用例。",
               "answer": "A（判定/摸牌/出牌/弃牌各阶段开始时分别询问；**可以跳过判定阶段**：跳过时判定区的牌保留、不结算不弃置，直接进入摸牌阶段——用户 2026-11-09 补充）",
-              "legacy": true
+              "test": "b15::qiaobian_starts_with_two_marks"
             },
             {
               "id": "Q2",
@@ -1846,7 +1846,7 @@
               "why": "文本写「一张牌」；B 会使无手牌时只能靠「变」。",
               "impact": "候选集合 + 用例。",
               "answer": "A（手牌 + 装备区）",
-              "legacy": true
+              "test": "b15::qiaobian_asks_at_phase_start_and_skips"
             },
             {
               "id": "Q3",
@@ -1859,7 +1859,7 @@
               "why": "v1 随机；改为查看需新增展示/私密展示交互。",
               "impact": "交互 + 用例。",
               "answer": "A（随机获得）",
-              "legacy": true
+              "test": "b15::qiaobian_no_ask_without_payment"
             },
             {
               "id": "Q4",
@@ -1872,7 +1872,7 @@
               "why": "官方「移动到另一个合理的位置」；v1 `Jiewei` 已按 A 实现（rules-rulings 复验 3）。",
               "impact": "移动入口 + 用例。",
               "answer": "A（落点同曹仁·解围的移动交互/效果：任意其他角色的合理区域）",
-              "legacy": true
+              "test": "b15::qiaobian_skip_judge_keeps_judge_zone"
             }
           ],
           "mechanics": [

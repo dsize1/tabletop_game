@@ -43,7 +43,7 @@
               "why": "文本分别写「出牌阶段限一次」与「其他吴势力角色出牌阶段限一次」，各自计数。",
               "impact": "计数 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::zhiba_lord_pindian_and_gains_cards"
             },
             {
               "id": "Q2",
@@ -56,7 +56,7 @@
               "why": "v1 与官方拼点口径：平局无赢家。",
               "impact": "拼点分支 + 用例（平局）。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::zhiba_requires_wu_target"
             },
             {
               "id": "Q3",
@@ -69,7 +69,7 @@
               "why": "「获得两张拼点牌」指向实体牌；v1 同口径。",
               "impact": "边界 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::zhiba_other_wu_may_challenge_and_lord_gains_when_challenger_loses"
             }
           ],
           "mechanics": [
@@ -132,7 +132,7 @@
               "why": "文本两个时机并列、且「指定目标后」按目标结算；v1 同口径。",
               "impact": "触发计数 + 用例。",
               "answer": "B（同一张牌只触发一次）",
-              "legacy": true
+              "test": "b14::jiang_draws_once_per_card"
             },
             {
               "id": "Q2",
@@ -145,7 +145,7 @@
               "why": "机制 `lose-vs-discard`：弃置与失去是不同事实。",
               "impact": "事件订阅 + 反例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::jiang_ignores_black_sha"
             },
             {
               "id": "Q3",
@@ -158,7 +158,7 @@
               "why": "机制 `card-gained`。",
               "impact": "事件 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b17::jiangchi_option1_penalty_and_hand_limit"
             }
           ],
           "mechanics": [
@@ -223,7 +223,7 @@
               "why": "文本「若你的体力值为1」；准备阶段正常不会 ≤0。",
               "impact": "条件 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::hunzi_awaken_at_one_hp"
             },
             {
               "id": "Q2",
@@ -236,7 +236,7 @@
               "why": "文本「本回合结束阶段」= 觉醒当回合。",
               "impact": "flag 清理 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::hunzi_needs_exactly_one_hp"
             },
             {
               "id": "Q3",
@@ -249,7 +249,7 @@
               "why": "内核不变量。",
               "impact": "体力/上限 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::hunzi_awaken_at_one_hp"
             }
           ],
           "mechanics": [
@@ -320,7 +320,7 @@
               "why": "文本未限定区域；B 更贴近「弃置一张装备牌」，但会与「跳过出牌阶段」形成装备区流失。",
               "impact": "候选集合 + 用例。",
               "answer": "B",
-              "legacy": true
+              "test": "b14::shensu_skip_judge_and_draw"
             },
             {
               "id": "Q2",
@@ -333,7 +333,7 @@
               "why": "文本「至多三项」；v1 同口径。",
               "impact": "交互 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::shensu_each_item_once"
             },
             {
               "id": "Q3",
@@ -346,7 +346,7 @@
               "why": "B13 起设变依赖翻面钩子；必须走统一入口。",
               "impact": "钩子 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::shensu_skip_judge_and_draw"
             }
           ],
           "mechanics": [
@@ -409,7 +409,7 @@
               "why": "v1 口径；B 会与神速③叠加成多次移动。",
               "impact": "计数 + 用例。",
               "answer": "B（每次翻面都可发动，不限每回合次数）",
-              "legacy": true
+              "test": "b14::shebian_moves_equip_on_flip"
             },
             {
               "id": "Q2",
@@ -422,7 +422,7 @@
               "why": "机制 `lose-vs-discard`：装备离开装备区就是失去；A 会让枭姬等漏触发。",
               "impact": "移动入口 + 用例。",
               "answer": "B",
-              "legacy": true
+              "test": "b14::shebian_no_movable_equip"
             },
             {
               "id": "Q3",
@@ -435,7 +435,7 @@
               "why": "「移动场上一张装备牌」在官方口径为移动到其他角色的装备区；B 无实际收益。",
               "impact": "候选集合 + 反例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::shebian_moves_equip_on_flip"
             }
           ],
           "mechanics": [
@@ -504,7 +504,7 @@
               "why": "机制 `virtual-equip`：单一入口，避免「读防具」散落多处。",
               "impact": "防具入口 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::bazhen_virtual_armor"
             },
             {
               "id": "Q2",
@@ -517,7 +517,7 @@
               "why": "文本「若你的装备区里没有防具牌」；v1 同口径。",
               "impact": "反例 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::bazhen_loses_with_real_armor"
             },
             {
               "id": "Q3",
@@ -530,7 +530,7 @@
               "why": "v2 既有八卦阵判定在响应里直接 `judge_card`；B13 后应统一到可改判口径。",
               "impact": "判定入口 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::niepan_rescues_and_grants_skill"
             }
           ],
           "mechanics": [
@@ -592,7 +592,7 @@
               "why": "机制 `card-attributes`：按类别字段判定；v1 同口径。",
               "impact": "手牌上限 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::cangzhuo_exempts_tricks_from_hand_count"
             },
             {
               "id": "Q2",
@@ -605,7 +605,7 @@
               "why": "与文本一致，且避免弃牌阶段内变化。",
               "impact": "窗口 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::cangzhuo_exempts_tricks_from_hand_count"
             },
             {
               "id": "Q3",
@@ -618,7 +618,7 @@
               "why": "复用 v2 `hand_limit_delta`，实现简单且与界红颜/血裔一致。",
               "impact": "上限钩子 + 用例。",
               "answer": "C（手牌上限保持原值；锦囊牌在弃牌阶段不计入手牌数）；备注：用户补充：手牌上限仍是原值，但**锦囊牌在弃牌阶段不计入手牌数**——单纯 +N 会让玩家弃锦囊保其他牌，与技能描述不符。",
-              "legacy": true
+              "test": "b14::cangzhuo_exempts_tricks_from_hand_count"
             }
           ],
           "mechanics": [
@@ -679,7 +679,7 @@
               "why": "与 B11 界鬼才/B13 急救同口径：文本未限定区域。",
               "impact": "候选集合 + 用例。",
               "answer": "B",
-              "legacy": true
+              "test": "b14::huoji_converts_red_only"
             },
             {
               "id": "Q2",
@@ -692,7 +692,7 @@
               "why": "火攻的展示本就是公开；且 v2 的 `reveal` 是公共可见。",
               "impact": "视图 + 用例。",
               "answer": "A；备注：用户补充：就是【火攻】的标准流程（目标公开展示随机手牌）。",
-              "legacy": true
+              "test": "b14::huoji_color_mode_may_discard_equipment"
             },
             {
               "id": "Q3",
@@ -705,7 +705,7 @@
               "why": "文本「弃置一张…牌」未限定区域，但火攻历来用手牌；保持 v1。",
               "impact": "候选集合 + 反例。",
               "answer": "B（手牌 + 装备区）",
-              "legacy": true
+              "test": "b14::huoji_converts_red_only"
             }
           ],
           "mechanics": [
@@ -766,7 +766,7 @@
               "why": "文本明确；复用 B12 的 `no-wuxie` 机制。",
               "impact": "无懈链 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::kanpo_converts_black_and_is_uncounterable"
             },
             {
               "id": "Q2",
@@ -779,7 +779,7 @@
               "why": "机制 `lose-vs-discard`/统一移动。",
               "impact": "移动 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::kanpo_converts_black_and_is_uncounterable"
             },
             {
               "id": "Q3",
@@ -792,7 +792,7 @@
               "why": "机制 `zone-ownership`。",
               "impact": "反例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::kanpo_converts_black_and_is_uncounterable"
             }
           ],
           "mechanics": [
@@ -861,7 +861,7 @@
               "why": "与 B11/B13 同口径：文本未限定区域。",
               "impact": "候选集合 + 用例。",
               "answer": "B",
-              "legacy": true
+              "test": "b14::lianhuan_converts_plum_and_extra_target"
             },
             {
               "id": "Q2",
@@ -874,7 +874,7 @@
               "why": "文本是「**你**使用…可以多指定一个目标」。",
               "impact": "目标数 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::lianhuan_recasts_plum"
             },
             {
               "id": "Q3",
@@ -887,7 +887,7 @@
               "why": "机制 `discard-contract`：弃置 ≠ 使用。",
               "impact": "反例 + 用例。",
               "answer": "B（重铸算「使用牌」，触发使用类技能）",
-              "legacy": true
+              "test": "cards::non_lianhuan_cannot_be_recast"
             }
           ],
           "mechanics": [
@@ -950,7 +950,7 @@
               "why": "文本「复原你的武将牌」在官方口径包含翻面与废除类状态。",
               "impact": "状态清理 + 用例。",
               "answer": "C（正面朝上 / 无横置 / 判定区为空 / 装备区为空 / 摸 3 / 回复至 3 / 失去「涅槃」/ 获得八阵·火计·看破其一）；备注：用户补充：正面上、无横置、判定区空、装备已丢弃所以为空、摸 3、回复到 3 点体力、失去「涅槃」、获得「八阵/火计/看破」其一。",
-              "legacy": true
+              "test": "b14::niepan_rescues_and_grants_skill"
             },
             {
               "id": "Q2",
@@ -963,7 +963,7 @@
               "why": "文本「所有牌」；标记牌也是实体牌。",
               "impact": "牌区守恒 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::niepan_rescues_and_grants_skill"
             },
             {
               "id": "Q3",
@@ -976,7 +976,7 @@
               "why": "文本无时限；与 v1 一致。",
               "impact": "技能状态 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::niepan_rescues_and_grants_skill"
             }
           ],
           "mechanics": [
@@ -1045,7 +1045,7 @@
               "why": "文本明确「造成1点伤害后」。",
               "impact": "触发计数 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::kuanggu_heals_or_draws_within_one"
             },
             {
               "id": "Q2",
@@ -1058,7 +1058,7 @@
               "why": "机制 `distance-modifier`。",
               "impact": "距离入口 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::kuanggu_needs_distance_one"
             },
             {
               "id": "Q3",
@@ -1071,7 +1071,7 @@
               "why": "机制 `wording-can`。",
               "impact": "pending 出口 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::kuanggu_heals_or_draws_within_one"
             }
           ],
           "mechanics": [
@@ -1134,7 +1134,7 @@
               "why": "「失去体力」以当前体力为界；B 会自杀。",
               "impact": "候选 + 用例。",
               "answer": "C（可失去到 0 进入濒死；可自桃自酒、求桃求酒；救起后再摸牌并生效距离/次数加成）；备注：用户补充：可以扣到 0 濒死（可自桃自酒、也可向他人求桃求酒），救回后再摸牌，并增加距离与出杀次数。",
-              "legacy": true
+              "test": "b14::qimou_loses_hp_draws_and_buffs"
             },
             {
               "id": "Q2",
@@ -1147,7 +1147,7 @@
               "why": "机制 `damage-vs-hp-loss`：失去体力必须独立入口。",
               "impact": "入口 + 用例（濒死）。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::qimou_limited_once"
             },
             {
               "id": "Q3",
@@ -1160,7 +1160,7 @@
               "why": "文本「本回合」。",
               "impact": "计数清理 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::qimou_loses_hp_draws_and_buffs"
             }
           ],
           "mechanics": [
@@ -1230,7 +1230,7 @@
               "why": "机制 `card-attributes`：禁止散落。",
               "impact": "入口 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::hongyan_spade_is_heart"
             },
             {
               "id": "Q2",
@@ -1243,7 +1243,7 @@
               "why": "红颜是锁定技，先于其它判定。",
               "impact": "反例 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::piaoling_judges_and_places"
             },
             {
               "id": "Q3",
@@ -1256,7 +1256,7 @@
               "why": "与 B10 界英姿口径一致（赋值型上限）。",
               "impact": "上限钩子 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::hongyan_spade_is_heart"
             }
           ],
           "mechanics": [
@@ -1317,7 +1317,7 @@
               "why": "v1 界版已含装备区。",
               "impact": "候选集合 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::tianxiang_transfers_damage_or_hp_loss"
             },
             {
               "id": "Q2",
@@ -1330,7 +1330,7 @@
               "why": "文本「X为其已损失体力值」（其=目标）。",
               "impact": "数值 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::tianxiang_needs_heart"
             },
             {
               "id": "Q3",
@@ -1343,7 +1343,7 @@
               "why": "机制 `damage-vs-hp-loss`。",
               "impact": "入口 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::tianxiang_transfers_damage_or_hp_loss"
             }
           ],
           "mechanics": [
@@ -1406,7 +1406,7 @@
               "why": "文本「结束阶段」（阶段开始触发）；与洛神等一致。",
               "impact": "窗口 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::piaoling_judges_and_places"
             },
             {
               "id": "Q2",
@@ -1419,7 +1419,7 @@
               "why": "文本「你弃置一张牌」。",
               "impact": "交互 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::piaoling_judges_and_places"
             },
             {
               "id": "Q3",
@@ -1432,7 +1432,7 @@
               "why": "v1 的口径；避免重复移动。",
               "impact": "交互 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::piaoling_judges_and_places"
             }
           ],
           "mechanics": [
@@ -1500,7 +1500,7 @@
               "why": "文本「一名其他角色」。",
               "impact": "候选集合 + 反例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::yinghun_draws_x_then_discard_one"
             },
             {
               "id": "Q2",
@@ -1513,7 +1513,7 @@
               "why": "文本未设上限（对比天香明确写最多 5）。",
               "impact": "数值 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::hunzi_awaken_at_one_hp"
             },
             {
               "id": "Q3",
@@ -1526,7 +1526,7 @@
               "why": "与既有弃牌流程一致。",
               "impact": "边界 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::yinghun_draws_x_then_discard_one"
             }
           ],
           "mechanics": [
@@ -1588,7 +1588,7 @@
               "why": "文本「令一名其他角色获得」逐点选择，选择权在发动者。",
               "impact": "交互 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::wulie_grants_lie_that_prevents_damage"
             },
             {
               "id": "Q2",
@@ -1601,7 +1601,7 @@
               "why": "文本「受到伤害时…防止此伤害」不设类型限制。",
               "impact": "判定点 + 用例。",
               "answer": "A；备注：用户补充：任意伤害点数都可以抵消（一枚「烈」抵消该次全部伤害）。",
-              "legacy": true
+              "test": "b14::wulie_grants_lie_that_prevents_damage"
             },
             {
               "id": "Q3",
@@ -1614,7 +1614,7 @@
               "why": "文本「失去任意点体力」；A 与奇谋同口径。",
               "impact": "濒死 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::wulie_grants_lie_that_prevents_damage"
             }
           ],
           "mechanics": [
@@ -1682,7 +1682,7 @@
               "why": "既有约定：同名技能复用 code。",
               "impact": "注册/对拍。",
               "answer": "A",
-              "legacy": true
+              "test": "b19::mashu_reduces_distance_for_jie_madai"
             }
           ],
           "mechanics": [
@@ -1742,7 +1742,7 @@
               "why": "既有口径。",
               "impact": "交互 + 用例。",
               "answer": "A",
-              "legacy": true
+              "test": "b14::jiandu_basic_branch_target_gains_sha_and_continues"
             },
             {
               "id": "Q2",
@@ -1755,7 +1755,7 @@
               "why": "官方口径：弃到基本牌则目标获得此【杀】，杀不再生效。",
               "impact": "结算 + 用例。",
               "answer": "B（继续结算伤害，同时目标得到一张【杀】牌）；备注：用户补充：弃到基本牌时此【杀】仍继续结算，同时目标得到一张【杀】牌。",
-              "legacy": true
+              "test": "b14::jiandu_non_basic_branch_blocks_shan_and_bumps_limit"
             },
             {
               "id": "Q3",
@@ -1768,7 +1768,7 @@
               "why": "文本未设上限。",
               "impact": "次数钩子 + 用例。",
               "answer": "B（每回合最多 +1）",
-              "legacy": true
+              "test": "b14::jiandu_basic_branch_target_gains_sha_and_continues"
             }
           ],
           "mechanics": [

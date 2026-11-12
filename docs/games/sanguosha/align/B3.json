@@ -47,7 +47,7 @@
               "why": "自伤无收益，且「最大的角色」在实战口径里指对手；但字面「角色」含自己，需你定口径。",
               "impact": "目标池计算 / AI 评估 / 与制蛮（自己造成伤害才可发动）的联动。",
               "answer": "B（目标可以是马谡自己：自己也算「最大的角色」，可自伤）",
-              "legacy": true
+              "test": "b3::sanyao_hp_mode_hits_max_hp_and_counts_once"
             },
             {
               "id": "Q2",
@@ -60,7 +60,7 @@
               "why": "原文写「出牌阶段限一次」，同类技能（如龙吟之外的出牌阶段技）普遍按阶段计。",
               "impact": "计数器作用域改造（阶段计数 vs 回合计数）+ 额外出牌阶段用例。",
               "answer": "A（每回合的出牌阶段各一次；实现用回合内计数器）",
-              "legacy": true
+              "test": "b3::sanyao_can_target_self_and_second_use_is_limited"
             },
             {
               "id": "Q3",
@@ -73,7 +73,7 @@
               "why": "原文未限定「手牌」；三国杀「弃置一张牌」通常含装备区。",
               "impact": "成本入口需支持装备区选牌（影响视图可选牌集合）。",
               "answer": "B（手牌或装备区；判定区的牌不可作为弃置成本）",
-              "legacy": true
+              "test": "b3::sanyao_cost_can_be_equipment"
             }
           ],
           "mechanics": [
@@ -142,7 +142,7 @@
               "why": "「区域」在规则中明确含判定区；同类「获得区域里一张牌」按惯例可拿判定区。",
               "impact": "判定区进出事件（judge_zone_leave）/ 牌区守恒 / 目标池计算。",
               "answer": "A（目标只有判定区有牌时不能发动；但发动时可获得的范围**含判定区的延时锦囊**）",
-              "legacy": true
+              "test": "b3::zhiman_prevents_damage_and_gains_a_card"
             },
             {
               "id": "Q2",
@@ -155,7 +155,7 @@
               "why": "原文「获得其区域里的一张牌」= 发动者指定；随机是旧引擎的通用简化。",
               "impact": "需要新的「从目标多区域选牌」交互；视图需列出对方手牌（背面）+ 装备 + 判定区。",
               "answer": "A（马谡选牌）",
-              "legacy": true
+              "test": "b3::zhiman_not_offered_when_target_has_no_hand_or_equip"
             },
             {
               "id": "Q3",
@@ -168,7 +168,7 @@
               "why": "防止伤害 = 伤害未发生，与天香 / 仁心口径一致。",
               "impact": "若你选 B，需引入「伤害被防止」独立事件，且逐个复核一刀系技能。",
               "answer": "A（在结算伤害前发动；伤害被防止 = 未造成伤害）",
-              "legacy": true
+              "test": "b3::zhiman_can_take_judge_zone_card"
             }
           ],
           "mechanics": [
@@ -244,7 +244,7 @@
               "why": "原文「任意普通锦囊牌」，无懈可击属普通锦囊；官方 FAQ 口径支持。",
               "impact": "白名单属性化 + 无懈可击响应窗口接入（`use-vs-play` 两条入口）。",
               "answer": "A（任意非延迟锦囊都可；【无懈可击】只能在自己出牌阶段的无懈链里多一个奇策选项）",
-              "legacy": true
+              "test": "b3::qice_uses_all_hand_cards_as_one_virtual_card"
             },
             {
               "id": "Q2",
@@ -257,7 +257,7 @@
               "why": "`virtual-card` 不变量要求 origin cards 可追溯；奇策的「当…使用」也意味着这些牌是同一张虚拟牌。",
               "impact": "牌区守恒断言 / 落英·旋风等进弃牌堆钩子 / 回放。",
               "answer": "A（全部手牌作为该虚拟牌的 origin，可追溯）",
-              "legacy": true
+              "test": "b3::qice_without_resolution_does_not_count_as_used"
             },
             {
               "id": "Q3",
@@ -270,7 +270,7 @@
               "why": "消耗手牌已完成，属于「已发动」；与「出牌阶段限一次」一致。",
               "impact": "计数器时机 + 反例用例。",
               "answer": "B（只有真实进入结算才计入「已使用」）",
-              "legacy": true
+              "test": "b3::qice_cannot_declare_delayed_trick"
             }
           ],
           "mechanics": [
@@ -338,7 +338,7 @@
               "why": "skill-spec-rules 强制「可以」= 必须给两选项；自动发动会让玩家在不想亮牌时被迫亮牌。",
               "impact": "Pending 交互 + 挂机默认行为 + 反例用例（放弃 → 不摸牌）。",
               "answer": "A（提供发动/放弃出口）",
-              "legacy": true
+              "test": "b3::zhiyu_draws_reveals_and_source_discards_when_same_color"
             },
             {
               "id": "Q2",
@@ -351,7 +351,7 @@
               "why": "展示是公开信息动作，对手依赖它判断后续（影响博弈与 AI）。",
               "impact": "视图契约 / 群侧播报文案 / 反作弊（前端隐藏牌面则信息不对等）。",
               "answer": "B（不做浮层亮牌，但**历史记录中要体现**展示的手牌牌面）",
-              "legacy": true
+              "test": "b3::zhiyu_does_not_trigger_on_losing_hp"
             },
             {
               "id": "Q3",
@@ -364,7 +364,7 @@
               "why": "「来源弃置一张手牌」是来源的自主行为，随机会让来源无法保护关键牌。",
               "impact": "来源侧 pending 交互（非当前回合玩家）与超时默认。",
               "answer": "A（伤害来源自己选牌）",
-              "legacy": true
+              "test": "b3::zhiyu_declined_by_player_does_not_draw"
             }
           ],
           "mechanics": [
@@ -440,7 +440,7 @@
               "why": "原文含「可以」；强制摸牌在某些局面是负收益（手牌上限压力），需玩家决定。",
               "impact": "Pending 交互 + 逐点多次询问的超时默认 + 反例用例。",
               "answer": "A（提供发动/放弃出口，每 1 点各一次）",
-              "legacy": true
+              "test": "b3::quanji_triggers_per_damage_point_and_moves_card_out_of_game"
             },
             {
               "id": "Q2",
@@ -453,7 +453,7 @@
               "why": "「将一张手牌置于」是玩家自主选择；随机等价于强制弃掉随机牌。",
               "impact": "交互 + 视图（自己手牌可选）+ AI 决策。",
               "answer": "A（先摸「然后」由钟会选择一张手牌置为「权」）",
-              "legacy": true
+              "test": "b3::quanji_survives_losing_hp_without_trigger"
             },
             {
               "id": "Q3",
@@ -466,7 +466,7 @@
               "why": "「权」可以被技能移去并获得/置入弃牌堆（排异），属可追溯持牌，不是移出游戏。",
               "impact": "牌区守恒断言 + 排异结算 + 不屈口径对照。",
               "answer": "B（「权」按移出游戏处理，与不屈「创」同口径）",
-              "legacy": true
+              "test": "b3::b3_flows_keep_conservation_and_leave_no_orphan_frames"
             }
           ],
           "mechanics": [
@@ -535,7 +535,7 @@
               "why": "原文是固定二选一；隐藏会让「回复」在满体力时自动消失，玩家无法按原文选择。",
               "impact": "交互选项集合 + 反例用例。",
               "answer": "B（满体力时隐藏「回复」项，只剩摸 2 张）",
-              "legacy": true
+              "test": "b3::zili_awaken_at_prepare_phase"
             },
             {
               "id": "Q2",
@@ -548,7 +548,7 @@
               "why": "两处重复实现，且视图/播报拿不到结构化原因。",
               "impact": "事件协议 + 视图 + 群侧播报 + 跨批次（恃勇）。",
               "answer": "A（与恃勇共用「体力上限变化」事件）",
-              "legacy": true
+              "test": "b3::zili_not_triggered_below_three_quan_and_hides_heal_at_full_hp"
             }
           ],
           "mechanics": [
@@ -623,7 +623,7 @@
               "why": "原文只写「一名其他角色」；选项 2 不依赖目标手牌。",
               "impact": "目标池 + 目标无牌时的选项集合。",
               "answer": "A（不要求目标有手牌；无手牌时直接翻面并摸弃置数相同的手牌）",
-              "legacy": true
+              "test": "b3::junxing_forces_target_to_discard_other_type_or_flip"
             },
             {
               "id": "Q2",
@@ -636,7 +636,7 @@
               "why": "规则里「翻面」即翻至另一面，官方同族技能（如翻面类）都按字面。",
               "impact": "目标选项集合 + 与「翻面状态」类技能（解围等）的联动。",
               "answer": "A（翻面；本就背面朝上则翻回正面朝上）",
-              "legacy": true
+              "test": "b3::junxing_target_without_hand_can_only_flip_and_draw"
             },
             {
               "id": "Q3",
@@ -649,7 +649,7 @@
               "why": "「弃置」是发动成本，已支付不回退；但需要可见提示而不是静默弹出。",
               "impact": "pending 弹出文案 + 守恒断言。",
               "answer": "A（代价已付不回退，空结算）",
-              "legacy": true
+              "test": "b3::b3_flows_keep_conservation_and_leave_no_orphan_frames"
             }
           ],
           "mechanics": [
@@ -717,7 +717,7 @@
               "why": "原文含「可以」，自动回复等于替玩家做决定（且会暴露「我愿意发动」的信息）。",
               "impact": "Pending 交互 + 特例删除 + 反例用例。",
               "answer": "B（来源无手牌时不询问，直接回复 1 点）",
-              "legacy": true
+              "test": "b3::yuce_reveals_and_source_chooses_heal_or_discard"
             },
             {
               "id": "Q2",
@@ -730,7 +730,7 @@
               "why": "展示是公开信息动作，来源需要据此判断选项 1 是否可执行。",
               "impact": "视图契约 + 群侧播报 + 与智愚（展示所有手牌）共用同一 reveal 机制。",
               "answer": "B（不做浮层亮牌，但**历史记录中要体现**展示的手牌牌面，同智愚）",
-              "legacy": true
+              "test": "b3::yuce_auto_heals_when_source_has_no_hand"
             },
             {
               "id": "Q3",
@@ -743,7 +743,7 @@
               "why": "原文是二选一固定项；是否空过由来源自己承担。",
               "impact": "选项集合 + 文案。",
               "answer": "B（对方没有手牌且你体力已满时，御策不能发动）",
-              "legacy": true
+              "test": "b3::yuce_not_available_without_hand_card_to_reveal"
             }
           ],
           "mechanics": [
@@ -821,7 +821,7 @@
               "why": "原文「弃置一张牌」未限定手牌；关平手上没牌但有装备时理应能发动。",
               "impact": "成本入口（可选牌集合）+ 是否要允许弃装备（影响失去装备钩子）。",
               "answer": "A（手牌或装备区的牌）",
-              "legacy": true
+              "test": "b3::longyin_marks_sha_uncounted_without_touching_global_counter"
             },
             {
               "id": "Q2",
@@ -834,7 +834,7 @@
               "why": "回退全局计数会污染其它读 `sha_used` 的技能（克己 / 界当先等），也允许重复抵扣。",
               "impact": "`sha_used` 语义（阶段计数 vs 标记）+ 交叉技能回归 + 跨批次影响面。",
               "answer": "A（给该【杀】打「不计次数」标记，不回退全局计数）",
-              "legacy": true
+              "test": "b3::longyin_does_not_trigger_on_non_sha_or_outside_play_phase"
             },
             {
               "id": "Q3",
@@ -847,7 +847,7 @@
               "why": "`trigger-order` 机制要求同一时机多个技能逐个询问、不代选。",
               "impact": "触发派发逻辑（同一时机多拥有者）+ 用例。",
               "answer": "B（只询问第一个「龙吟」拥有者）",
-              "legacy": true
+              "test": "b3::b3_flows_keep_conservation_and_leave_no_orphan_frames"
             }
           ],
           "mechanics": [

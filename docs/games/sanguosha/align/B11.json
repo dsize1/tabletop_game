@@ -42,7 +42,7 @@
               "why": "文本是并列的两句；v1 的耦合会让「虚拟牌伤害」少摸一张。",
               "impact": "钩子 + 用例。",
               "answer": "A（解耦：受到伤害即可摸 1；获得伤害牌是独立的可选动作）",
-              "legacy": true
+              "test": "b11::jianxiong_draws_one_and_can_gain_damage_card"
             }
           ],
           "mechanics": [
@@ -102,7 +102,7 @@
               "why": "与 B9 激将裁定保持一致（同一模板）。",
               "impact": "触发点 + 用例。",
               "answer": "A（与 B9 激将一致：扩到「其自己回合外使用/打出/替主公使用或打出【闪】」，并由该角色选择是否令主公摸牌）",
-              "legacy": true
+              "test": "b11::hujia_offers_relay_for_shan_only"
             }
           ],
           "mechanics": [
@@ -170,7 +170,7 @@
               "why": "v1 行为；B 会让 2 点伤害抢 2 张牌，强度差异大。",
               "impact": "触发次数 + 用例。",
               "answer": "B（按「每受到 1 点伤害」触发一次；多点伤害触发多次）",
-              "legacy": true
+              "test": "b11::fankui_takes_one_per_damage_point"
             },
             {
               "id": "Q2",
@@ -183,7 +183,7 @@
               "why": "v1 口径；B 需要展示来源手牌。",
               "impact": "选牌交互 + 用例。",
               "answer": "A（手牌随机、装备区由司马懿选）",
-              "legacy": true
+              "test": "b11::fankui_takes_one_per_damage_point"
             }
           ],
           "mechanics": [
@@ -243,7 +243,7 @@
               "why": "界版强化点就是「任意牌」。",
               "impact": "选牌范围 + 用例。",
               "answer": "A（手牌 + 装备区）",
-              "legacy": true
+              "test": "b11::guicai_rewrites_judge"
             },
             {
               "id": "Q2",
@@ -256,7 +256,7 @@
               "why": "v1 口径。",
               "impact": "牌区守恒 + 用例。",
               "answer": "A（原判定牌进弃牌堆）",
-              "legacy": true
+              "test": "b11::guicai_rewrites_judge"
             }
           ],
           "mechanics": [
@@ -323,7 +323,7 @@
               "why": "标将已废弃，界版才是 B11 的目标语义；v1 未实现界版。",
               "impact": "判定分支 + 用例（红/黑各一）。",
               "answer": "A（改按界版：判定红→对来源造成 1 点伤害；黑→弃置来源一张牌）",
-              "legacy": true
+              "test": "b11::ganglie_black_judge_discards_source_card"
             }
           ],
           "mechanics": [
@@ -384,7 +384,7 @@
               "why": "v1 是简化实现，界版的核心收益是「多类型叠加」。",
               "impact": "多选 + 类型统计 + 用例。",
               "answer": "A（改按界版：任意张 + 每给出一种类型 +1 手牌上限）",
-              "legacy": true
+              "test": "b11::qingjian_counts_card_kinds"
             },
             {
               "id": "Q2",
@@ -397,7 +397,7 @@
               "why": "文本「展示…牌」在 v1 只手牌；B 需要额外的装备流失钩子。",
               "impact": "选牌范围 + 用例。",
               "answer": "B（手牌 + 装备区）；另：给出的牌需要**公示**",
-              "legacy": true
+              "test": "b11::qingjian_counts_card_kinds"
             }
           ],
           "mechanics": [
@@ -464,7 +464,7 @@
               "why": "文本是「任意张」，界版强化点即灵活度。",
               "impact": "交互 + 用例。",
               "answer": "A（实现「少摸任意张」）。**交互口径**：设本阶段正常摸牌数为 N（含其他技能加成），先选摸 X 张（0 ≤ X ≤ N）；抽 X 张后，可向 **N−X 名**非自己的任意角色各获得其一张手牌；X = N 即正常摸牌阶段（不拿牌）；X = 0 则可拿 N 名角色的手牌。",
-              "legacy": true
+              "test": "b11::tuxi_draws_x_and_takes_from_rest"
             },
             {
               "id": "Q2",
@@ -477,7 +477,7 @@
               "why": "v1 口径；B 会额外暴露手牌。",
               "impact": "取牌方式 + 用例。",
               "answer": "A（随机取一张）",
-              "legacy": true
+              "test": "b11::tuxi_draws_x_and_takes_from_rest"
             }
           ],
           "mechanics": [
@@ -545,7 +545,7 @@
               "why": "v1 口径；B 需要两段窗口。",
               "impact": "交互 + 用例。",
               "answer": "B（亮出后可**放弃**：放弃则 3 张展示牌进弃牌堆，然后正常摸 2 张）",
-              "legacy": true
+              "test": "b11::luoyi_may_give_up_and_draw_two"
             },
             {
               "id": "Q2",
@@ -558,7 +558,7 @@
               "why": "文本明确「直到你的下回合开始」。",
               "impact": "flag 清理 + 用例。",
               "answer": "A（直到自己的下回合开始）",
-              "legacy": true
+              "test": "b18::luoying_gains_other_players_club_discard"
             }
           ],
           "mechanics": [
@@ -625,7 +625,7 @@
               "why": "v1 口径；「此牌」指生效的那张。",
               "impact": "判定窗口 + 用例。",
               "answer": "A（获得改判后**生效**的那张判定牌）",
-              "legacy": true
+              "test": "b11::tiandu_gains_judge_card"
             }
           ],
           "mechanics": [
@@ -684,7 +684,7 @@
               "why": "文本明确「至多两名其他角色」。",
               "impact": "分配交互 + 用例。",
               "answer": "A（最多两名**其他**角色、合计至多两张）。**交互**：①先选是否发动 ②摸 2 张 ③按这 2 张在牌堆顶的原始顺序逐张选择交给场上任意**其他**角色（可选「不交出」= 自己保留）；同一名角色最多收两张。",
-              "legacy": true
+              "test": "b11::yiji_gives_cards_to_others"
             }
           ],
           "mechanics": [
@@ -750,7 +750,7 @@
               "why": "v1 口径；顺序是恂恂的核心操作空间。",
               "impact": "选牌顺序 + 用例。",
               "answer": "A（置顶顺序可调；本质是「小观星」）",
-              "legacy": true
+              "test": "b11::xunxun_places_top_and_bottom"
             }
           ],
           "mechanics": [
@@ -810,7 +810,7 @@
               "why": "文本是「交给该角色」，无对象则不成立。",
               "impact": "触发条件 + 反例。",
               "answer": "B（对方已死亡/离场仍可发动：只摸 2 不交牌；若对方因此进入濒死并死亡，两张牌都归李典）",
-              "legacy": true
+              "test": "b11::wangxi_draws_two_and_gives_one"
             },
             {
               "id": "Q2",
@@ -823,7 +823,7 @@
               "why": "「交给…其中一张」= 由给出者选。",
               "impact": "选牌交互 + 用例。",
               "answer": "A（由李典选交出的那张）",
-              "legacy": true
+              "test": "b11::wangxi_draws_two_and_gives_one"
             }
           ],
           "mechanics": [
@@ -890,7 +890,7 @@
               "why": "文本明确「黑色手牌」。",
               "impact": "候选集合 + 反例。",
               "answer": "B（黑色手牌 + 装备区）",
-              "legacy": true
+              "test": "b11::qingguo_converts_black_cards_including_equip"
             }
           ],
           "mechanics": [
@@ -951,7 +951,7 @@
               "why": "文本无上限。",
               "impact": "循环保护 + 用例。",
               "answer": "A（无上限，直到玩家停止或判定为红色）",
-              "legacy": true
+              "test": "b11::luoshen_gains_black_and_stops_on_red"
             },
             {
               "id": "Q2",
@@ -964,7 +964,7 @@
               "why": "v1 口径。",
               "impact": "牌区守恒 + 用例。",
               "answer": "A（红色判定牌进弃牌堆并结束本次洛神）",
-              "legacy": true
+              "test": "b11::luoshen_gains_black_and_stops_on_red"
             }
           ],
           "mechanics": [

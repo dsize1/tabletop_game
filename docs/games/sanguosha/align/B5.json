@@ -48,7 +48,7 @@
               "why": "原文明确写「【杀】或黑色普通锦囊牌」。",
               "impact": "锦囊使用入口 + 「唯一目标」判定 + 使用者/目标改写。",
               "answer": "A（黑色普通锦囊也接）",
-              "legacy": true
+              "test": "b5::zanhui_helper_becomes_extra_target"
             },
             {
               "id": "Q2",
@@ -61,7 +61,7 @@
               "why": "目标列表已是单一事实源；多目标牌不应触发「唯一目标」类技能。",
               "impact": "目标列表机制 + 反例用例（多目标【杀】）。",
               "answer": "A（读目标列表长度 = 1）",
-              "legacy": true
+              "test": "b5::zanhui_black_trick_triggers_but_multi_target_does_not"
             },
             {
               "id": "Q3",
@@ -74,7 +74,7 @@
               "why": "交出哪张牌影响协助者自己的手牌质量，属于其决策。",
               "impact": "协助者侧选牌交互 + 超时默认。",
               "answer": "A（协助者自己选）",
-              "legacy": true
+              "test": "b5::zanhui_helper_gives_card_and_becomes_user"
             },
             {
               "id": "Q4",
@@ -87,7 +87,7 @@
               "why": "官方口径多为阶段一次；原文未写明。",
               "impact": "计数器 + 动作生成。",
               "answer": "A（每个出牌阶段一次）",
-              "legacy": true
+              "test": "pre_use::extra_target_is_really_added_before_settlement"
             }
           ],
           "mechanics": [
@@ -156,7 +156,7 @@
               "why": "与 B3 制蛮同口径：伤害为 0 = 未造成伤害；否则勇略/佐定的「本阶段是否受过伤害」会误判。",
               "impact": "伤害事件口径 + 与佐定/勇略的联动。",
               "answer": "A（伤害被减为 0 = 未造成伤害，不产生伤害事件）",
-              "legacy": true
+              "test": "b5::jiaojin_reduces_damage_by_one_with_equip_cost"
             },
             {
               "id": "Q2",
@@ -169,7 +169,7 @@
               "why": "「一张装备牌」按牌的类型判定，不限于装备区。",
               "impact": "成本入口 + 失去装备钩子（只对装备区触发）。",
               "answer": "A（含手牌中的装备牌）",
-              "legacy": true
+              "test": "b5::jiaojin_not_triggered_by_female_source"
             }
           ],
           "mechanics": [
@@ -243,7 +243,7 @@
               "why": "「最多」通常含并列。",
               "impact": "条件判定 + 用例。",
               "answer": "B（并列**不算**「全场最多」，必须严格大于其他所有人）",
-              "legacy": true
+              "test": "b5::fenli_skips_draw_phase_when_strictly_most_hand"
             },
             {
               "id": "Q2",
@@ -256,7 +256,7 @@
               "why": "原文是三条独立条件，没有「每回合一次」的限制。",
               "impact": "平寇伤害次数上限（最多 3）+ 用例。",
               "answer": "A（同一回合可连跳多个阶段）",
-              "legacy": true
+              "test": "b5::fenli_not_offered_when_tied"
             }
           ],
           "mechanics": [
@@ -321,7 +321,7 @@
               "why": "原文是逐次「可以」，每次都可独立决定。",
               "impact": "交互（每次询问的出口语义）+ 反例用例。",
               "answer": "B（放弃本次；之后仍可继续对别人造成伤害）",
-              "legacy": true
+              "test": "b5::pingkou_deals_damage_per_skipped_phase"
             },
             {
               "id": "Q2",
@@ -334,7 +334,7 @@
               "why": "原文未限制目标不能重复；「一名其他角色」每次独立。",
               "impact": "目标池 + 用例。",
               "answer": "A（同一角色可被连续选为目标）",
-              "legacy": true
+              "test": "b5::pingkou_not_offered_without_skipped_phase"
             }
           ],
           "mechanics": [
@@ -404,7 +404,7 @@
               "why": "原文未限定手牌；同类成本口径统一。",
               "impact": "成本入口 + 失去装备钩子。",
               "answer": "A（手牌或装备区，任选两张）",
-              "legacy": true
+              "test": "b5::shenxing_discards_two_including_equipment_and_draws_one"
             }
           ],
           "mechanics": [
@@ -467,7 +467,7 @@
               "why": "「至多」意味着可少选；且帮谁摸牌是策略决定（会影响对方手牌上限）。",
               "impact": "多选目标交互 + 反例用例（选 0 名）。",
               "answer": "A（由顾雍选 0..X 名，**不大于 X**，可放弃）",
-              "legacy": true
+              "test": "b5::bingyi_reveals_and_lets_chosen_targets_draw"
             },
             {
               "id": "Q2",
@@ -480,7 +480,7 @@
               "why": "与 B3 已裁定的智愚/御策口径保持一致。",
               "impact": "历史记录/播报 + 视图契约。",
               "answer": "B（展示仅日志摘要，不做浮层亮牌）；**另需讨论「弃置」的实现方式**（见备注）",
-              "legacy": true
+              "test": "b5::bingyi_not_triggered_for_judge_zone_discard_or_twice_per_phase"
             }
           ],
           "mechanics": [
@@ -553,7 +553,7 @@
               "why": "原文「若结果为：红色/黑色」。",
               "impact": "判定结果读取 + 用例。",
               "answer": "A（红桃/方块=红，黑桃/梅花=黑）",
-              "legacy": true
+              "test": "b5::huituo_red_judge_heals_target"
             },
             {
               "id": "Q2",
@@ -566,7 +566,7 @@
               "why": "与其它「回复」类技能口径一致（不禁止选择，只是无效果），但文案必须如实。",
               "impact": "文案表 + 用例。",
               "answer": "B（满体力时红色分支直接跳过，不执行「回复」）",
-              "legacy": true
+              "test": "b5::huituo_heals_exactly_once"
             }
           ],
           "mechanics": [
@@ -630,7 +630,7 @@
               "why": "「交给…所有手牌」在 0 张时等价于无条件送增益，偏离技能设计。",
               "impact": "can_active 条件 + 反例用例。",
               "answer": "B（手牌为 0 时不能发动）",
-              "legacy": true
+              "test": "b5::mingjian_gives_all_hand_and_buffs_next_turn"
             },
             {
               "id": "Q2",
@@ -643,7 +643,7 @@
               "why": "「交给」= 获得动作；视图与牌区事件应一致（与 B4 忠勇同口径）。",
               "impact": "牌区事件链 + 相关钩子。",
               "answer": "A（走「获得」语义）",
-              "legacy": true
+              "test": "b5::mingjian_not_available_without_hand"
             }
           ],
           "mechanics": [
@@ -709,7 +709,7 @@
               "why": "原文「依次选择是否」，且放弃无代价、支援有代价，必须由玩家决定。",
               "impact": "多角色顺序询问（trigger-order）+ 交互。",
               "answer": "A（逐个询问魏势力角色）",
-              "legacy": true
+              "test": "b5::xingshuai_asks_wei_allies_then_hurts_them_after_dying"
             },
             {
               "id": "Q2",
@@ -722,7 +722,7 @@
               "why": "原文写「受到 1 点伤害」；`damage-vs-hp-loss` 要求区分。",
               "impact": "伤害事件 + 受伤类技能联动（骄矜/恢拓…）。",
               "answer": "A（代价是**受到 1 点伤害**）",
-              "legacy": true
+              "test": "b5::xingshuai_not_available_without_lord_or_wei_allies"
             },
             {
               "id": "Q3",
@@ -735,7 +735,7 @@
               "why": "原文明确「在此次濒死结算结束后」。",
               "impact": "濒死流程改造（脱困后再结算代价）+ 与不屈/濒死类技能顺序。",
               "answer": "A（**濒死结算结束后**才结算支援者的 1 点伤害）",
-              "legacy": true
+              "test": "b5::xingshuai_asks_wei_allies_then_hurts_them_after_dying"
             },
             {
               "id": "Q4",
@@ -748,7 +748,7 @@
               "why": "各支援者是独立选择与独立代价，不应互相中断。",
               "impact": "顺序表 + 用例。",
               "answer": "A（继续，各自独立结算）；补充：曹叡先脱离濒死，支援者再受 1 点伤害；若 1 体力受到 2 点以上伤害，需要多名支援者都施救、**脱离濒死后**再结算支援者的伤害；求桃从曹叡**左手方开始**，求到曹叡自己时可选择 自桃 / 自酒 / 发动兴衰",
-              "legacy": true
+              "test": "b5::xingshuai_not_available_without_lord_or_wei_allies"
             }
           ],
           "mechanics": [
@@ -821,7 +821,7 @@
               "why": "距离是全局规则量；两套距离函数必然漂移（已知缺陷 D 类）。",
               "impact": "距离系统统一（跨批次） + 用例。",
               "answer": "A（统一距离入口）；距离 = 已损失体力 X + 叠加进攻马（如有）",
-              "legacy": true
+              "test": "b5::qianju_reduces_distance_per_lost_hp"
             }
           ],
           "mechanics": [
@@ -884,7 +884,7 @@
               "why": "弃自己的手牌通常是牌主选择。",
               "impact": "目标侧选牌交互 + 超时默认。",
               "answer": "A（目标自己选弃哪张）",
-              "legacy": true
+              "test": "b5::qingxi_lets_target_discard_cards_and_weapon"
             },
             {
               "id": "Q2",
@@ -897,7 +897,7 @@
               "why": "同一时机多个技能应逐个询问（trigger-order），不能由先结算的技能吞掉后面的。",
               "impact": "伤害前置钩子链 + 与 B3/B4 技能的顺序。",
               "answer": "A（仍触发其它「造成伤害时」技能）",
-              "legacy": true
+              "test": "b5::qingxi_opt2_increases_damage_and_no_weapon_no_trigger"
             }
           ],
           "mechanics": [
@@ -971,7 +971,7 @@
               "why": "原文写「牌名」，未限定基本牌。",
               "impact": "本回合使用牌名的记录（需内核支持按牌名记录）。",
               "answer": "B（只统计基本牌名）",
-              "legacy": true
+              "test": "b5::huomo_places_black_trick_on_top_and_uses_missing_basic"
             },
             {
               "id": "Q2",
@@ -984,7 +984,7 @@
               "why": "牌定义上是不同牌名；按属性聚合会与「牌名」措辞冲突。",
               "impact": "牌名集合 + 用例。",
               "answer": "B（【杀】/火【杀】/雷【杀】统一按【杀】）",
-              "legacy": true
+              "test": "b5::huomo_excludes_used_basic_names_and_red_cards"
             },
             {
               "id": "Q3",
@@ -997,7 +997,7 @@
               "why": "旧引擎收口是为了避免非法动作；但与原文有偏差，需要你确认。",
               "impact": "选项集合 + 用例。",
               "answer": "A（保留桃/酒的额外限制）",
-              "legacy": true
+              "test": "m2_wiring::huomo_sha_selects_target_and_deals_damage"
             }
           ],
           "mechanics": [
@@ -1063,7 +1063,7 @@
               "why": "原文「令**其中一个**目标摸一张牌」。",
               "impact": "触发去重 + 目标选择交互 + 用例。",
               "answer": "A（一张牌只触发一次，由钟繇选其中一个目标）",
-              "legacy": true
+              "test": "b5::zuoding_lets_one_target_draw_for_spade_card"
             },
             {
               "id": "Q2",
@@ -1076,7 +1076,7 @@
               "why": "原文写「使用黑桃牌指定目标后」，不限牌型。",
               "impact": "目标指定事件统一接线（TargetChosen）。",
               "answer": "A（覆盖所有指定目标的牌，含锦囊）",
-              "legacy": true
+              "test": "b5::zuoding_skipped_after_damage_or_for_heart"
             },
             {
               "id": "Q3",
@@ -1089,7 +1089,7 @@
               "why": "原文「其他角色在其出牌阶段」。",
               "impact": "窗口声明 + 用例。",
               "answer": "A（其他角色 + 其出牌阶段）",
-              "legacy": true
+              "test": "b5::zuoding_lets_one_target_draw_for_spade_card"
             }
           ],
           "mechanics": [

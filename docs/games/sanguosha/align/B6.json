@@ -46,7 +46,7 @@
               "why": "「各摸一张」指两个不同角色各一张；同一人重复摸属于实现副作用。",
               "impact": "摸牌数与失效计数（影响本阶段能用几次）。",
               "answer": "B（自己因该【决斗】受伤时，同一角色只摸 1 张）",
-              "legacy": true
+              "test": "b6::zhanjue_uses_all_hand_and_limits_to_two_activations"
             },
             {
               "id": "Q2",
@@ -59,7 +59,7 @@
               "why": "原文写「摸过至少两张牌」，按张数更贴字面。",
               "impact": "失效时机 + 用例。",
               "answer": "B（按**发动次数**：第 2 次发动后本阶段失效）",
-              "legacy": true
+              "test": "b6::zhanjue_damage_draws_once_per_character"
             }
           ],
           "mechanics": [
@@ -124,7 +124,7 @@
               "why": "「弃置一张牌」是玩家决策。",
               "impact": "交互 + 成本入口（手牌/装备区）。",
               "answer": "A（由刘谌选；范围 = **装备区装备或手牌**）",
-              "legacy": true
+              "test": "b6::qinwang_costs_equipment_and_ally_draws"
             },
             {
               "id": "Q2",
@@ -137,7 +137,7 @@
               "why": "标记只服务于「此激将」的响应者。",
               "impact": "跨行动残留 bug + 用例。",
               "answer": "A（本次激将结算完即清零）",
-              "legacy": true
+              "test": "b6::qinwang_needs_lord_and_other_same_kingdom"
             },
             {
               "id": "Q3",
@@ -150,7 +150,7 @@
               "why": "原文「响应此激将使用或打出【杀】的角色」不排除自己。",
               "impact": "收益判定。",
               "answer": "B（**刘谌自己不能响应**）；另：激将代出的【杀】其**伤害来源视为刘谌**（例：代出【杀】造成伤害后，司马懿【反馈】的目标是刘谌）",
-              "legacy": true
+              "test": "m2_wiring::qinwang_ally_sha_damage_source_is_lord"
             }
           ],
           "mechanics": [
@@ -223,7 +223,7 @@
               "why": "同时展示是技能的关键信息约束，顺序展示会让目标获得额外信息。",
               "impact": "交互（盲选阶段）+ 日志/视图。",
               "answer": "A（真正同时：张嶷先选、目标再选，但**先选的手牌不能出现在日志里**，最后一起亮）",
-              "legacy": true
+              "test": "b6::wurong_sha_vs_non_shan_deals_damage"
             },
             {
               "id": "Q2",
@@ -236,7 +236,7 @@
               "why": "「获得其一张牌」是发动者指定。",
               "impact": "选牌交互 + 用例。",
               "answer": "A（由张嶷选）",
-              "legacy": true
+              "test": "b6::wurong_non_sha_vs_shan_gains_card"
             },
             {
               "id": "Q3",
@@ -249,7 +249,7 @@
               "why": "展示是公开信息动作。",
               "impact": "视图契约 + 群侧播报。",
               "answer": "A（结算时**同时亮牌**，公共可见）",
-              "legacy": true
+              "test": "b6::wurong_other_combinations_do_nothing"
             }
           ],
           "mechanics": [
@@ -311,7 +311,7 @@
               "why": "「视为」类转化通常是替代（如龙胆），否则等价于白送一个用法。",
               "impact": "转化表 + 防御能力削弱（强度差异大）。",
               "answer": "A（**替代**：体力 1 时【闪】不能再当【闪】，只能作为【杀】使用/打出）；交互：自己交互区里「闪」文本置灰，下面显示一条同花色的【杀】",
-              "legacy": true
+              "test": "b6::shizhi_blocks_shan_only_at_one_hp"
             }
           ],
           "mechanics": [
@@ -382,7 +382,7 @@
               "why": "原文写「弃置一张牌」，未限定手牌；且由目标选择更符合「选择一项」的自主性。",
               "impact": "成本入口 + 选牌交互。",
               "answer": "A（手牌或装备区，由目标自己选）",
-              "legacy": true
+              "test": "b6::yanzhu_option1_gains_equips_and_upgrades_xingxue"
             },
             {
               "id": "Q2",
@@ -395,7 +395,7 @@
               "why": "旧引擎按「只结算一次」实现，需要你确认官方口径。",
               "impact": "兴学实现（次数与效果）。",
               "answer": "A（用户 2026-11-06 二次确认：修改后的【兴学】= 结束阶段，你可以令一名角色摸一张牌，然后该角色将一张手牌置于牌堆顶；**只结算 1 次**）",
-              "legacy": true
+              "test": "b6::yanzhu_option2_target_chooses_card_from_hand_or_equip"
             }
           ],
           "mechanics": [
@@ -460,7 +460,7 @@
               "why": "「将一张牌置于牌堆顶」的主语是被令摸牌的角色。",
               "impact": "选牌交互 + 用例。",
               "answer": "A（由该角色自己选其手牌置顶）",
-              "legacy": true
+              "test": "b6::yanzhu_option1_gains_equips_and_upgrades_xingxue"
             },
             {
               "id": "Q2",
@@ -473,7 +473,7 @@
               "why": "原文「当前每有 1 点体力」。",
               "impact": "次数计算 + 用例。",
               "answer": "A（严格 = 当前体力值；1 点体力 = 1 次）",
-              "legacy": true
+              "test": "b6::xingxue_lets_target_choose_card_to_top"
             }
           ],
           "mechanics": [
@@ -536,7 +536,7 @@
               "why": "原文未写「其他角色」。",
               "impact": "目标池 + 用例。",
               "answer": "A（可以选自己）",
-              "legacy": true
+              "test": "b6::zhaofu_marks_targets_and_affects_attack_range"
             },
             {
               "id": "Q2",
@@ -549,7 +549,7 @@
               "why": "「视为在攻击范围内」是全局事实；两套判定会漂移（与距离统一入口同族问题）。",
               "impact": "距离/攻击范围统一入口 + 跨技能联动。",
               "answer": "B（统一距离入口：所有「能否打到」判定都生效）",
-              "legacy": true
+              "test": "b6::zhaofu_requires_lord_and_once_per_game"
             }
           ],
           "mechanics": [
@@ -621,7 +621,7 @@
               "why": "原文是「未满足」，指条件判定。",
               "impact": "补做判定 + 用例（满血目标）。",
               "answer": "A（按**条件**判定：目标不满足的三项，由朱治再判定一次自己是否满足）",
-              "legacy": true
+              "test": "b6::anguo_applies_minimum_effects_for_target"
             },
             {
               "id": "Q2",
@@ -634,7 +634,7 @@
               "why": "「随机使用一张装备牌」的位置默认是手牌；没有则不发生。",
               "impact": "边界用例。",
               "answer": "C（从**牌堆**随机找一件装备牌使用，牌堆没有则从**弃牌堆**找；都没有则无事发生但仍算其**满足**，朱治不补做；随机取牌堆首张装备牌；需守恒校验）",
-              "legacy": true
+              "test": "b6::anguo_uses_equip_from_draw_pile_when_equip_min"
             }
           ],
           "mechanics": [
@@ -705,7 +705,7 @@
               "why": "「弃置…一张手牌」是发动者指定。",
               "impact": "选牌交互 + 用例。",
               "answer": "A（由全琮选那张牌）",
-              "legacy": true
+              "test": "b6::yaoming_after_dealing_damage_discards_target_hand"
             },
             {
               "id": "Q2",
@@ -718,7 +718,7 @@
               "why": "原文「每回合限一次」修饰整个技能。",
               "impact": "计数器 + 用例。",
               "answer": "B（「造成」与「受到」**各限一次**；窗口包含回合外其他武将的回合）",
-              "legacy": true
+              "test": "b6::yaoming_dealt_and_taken_each_once_per_turn"
             }
           ],
           "mechanics": [
@@ -789,7 +789,7 @@
               "why": "`damage-vs-hp-loss` 契约已裁定；直接扣血会让相关技能漏触发。",
               "impact": "伤害/失去体力事件链 + 用例。",
               "answer": "A（走统一 `lose_hp`，产生 HpLost 事件）",
-              "legacy": true
+              "test": "b6::huaiyi_reveals_and_loses_hp_after_gaining_two"
             },
             {
               "id": "Q2",
@@ -802,7 +802,7 @@
               "why": "展示是公开信息动作（与智愚/御策/秉壹口径统一）。",
               "impact": "视图契约 + 群侧播报。",
               "answer": "A（亮牌，公共可见；见下「展示时机」口径）",
-              "legacy": true
+              "test": "b6::huaiyi_gaining_one_does_not_lose_hp"
             },
             {
               "id": "Q3",
@@ -815,7 +815,7 @@
               "why": "原文未限制对象不可重复。",
               "impact": "目标池 + 用例。",
               "answer": "A（可以重复同一角色）；目标是**一名角色**，可获得的张数 = min(弃置牌数, 该角色手牌数 + 装备区牌数)；交互上**一张一张选**",
-              "legacy": true
+              "test": "b6::huaiyi_reveals_and_loses_hp_after_gaining_two"
             }
           ],
           "mechanics": [
@@ -886,7 +886,7 @@
               "why": "原文写「本阶段」。",
               "impact": "计数窗口 + 额外出牌阶段用例。",
               "answer": "A（本**出牌阶段**内造成的伤害）",
-              "legacy": true
+              "test": "b6::jigong_draws_two_and_sets_hand_limit_to_damage"
             },
             {
               "id": "Q2",
@@ -899,7 +899,7 @@
               "why": "原文「等于」是赋值语义。",
               "impact": "手牌上限计算顺序（跨技能）。",
               "answer": "A（赋值为伤害值，覆盖其它 +N 修正）",
-              "legacy": true
+              "test": "b6::jigong_can_be_declined"
             },
             {
               "id": "Q3",
@@ -912,7 +912,7 @@
               "why": "「等于伤害值」在 0 伤害时就是 0。",
               "impact": "弃牌阶段边界 + 用例。",
               "answer": "是（0 伤害 → 手牌上限 0）；但**可以选择不摸那 2 张牌**（即不发动急攻），此时按体力值 + 修正",
-              "legacy": true
+              "test": "b6::jigong_draws_two_and_sets_hand_limit_to_damage"
             }
           ],
           "mechanics": [
@@ -976,7 +976,7 @@
               "why": "原文写「一张牌」；「弃置」由发动者指定更符合技能设计。",
               "impact": "成本/弃置入口 + 交互。",
               "answer": "A（手牌或装备区，由饰非发动者选）",
-              "legacy": true
+              "test": "b6::shifei_lets_current_player_draw_then_discards_from_most"
             },
             {
               "id": "Q2",
@@ -989,7 +989,7 @@
               "why": "并列时选择权应属发动者。",
               "impact": "目标选择 + 用例。",
               "answer": "A（并列最多时由饰非发动者选一名）",
-              "legacy": true
+              "test": "b6::shifei_discards_when_current_player_not_unique_most"
             },
             {
               "id": "Q3",
@@ -1002,7 +1002,7 @@
               "why": "正常流程里【闪】只在响应时使用/打出。",
               "impact": "响应入口覆盖范围。",
               "answer": "B（也覆盖主动「使用【闪】」的场景，例如自己回合的火攻里需要打出/使用【闪】时）",
-              "legacy": true
+              "test": "b6::shifei_absent_without_skill"
             }
           ],
           "mechanics": [
