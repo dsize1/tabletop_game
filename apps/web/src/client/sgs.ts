@@ -6,8 +6,16 @@
 import { escapeHtml } from "../view/format.js";
 import { renderSgsApp } from "../view/sgs/page.js";
 import { renderSidePanelBody } from "../view/sgs/public.js";
-import { applyNames, cardLabel, displayNames, withDisplayNames } from "../view/sgs/format.js";
+import { applyNames, cardLabel, displayNames, playerName, withDisplayNames } from "../view/sgs/format.js";
 import { renderCardDetail, renderDiscardList, renderGeneralDetail } from "../view/sgs/detail.js";
+import {
+  groupUseActions,
+  isSingleTarget,
+  matchTargets,
+  renderTargetPicker,
+  renderUsagePicker,
+  type UseGroup,
+} from "../view/sgs/targetPicker.js";
 import type { SgsAssetMap, SgsCard, SgsViewData } from "../view/sgs/types.js";
 import { buildFxCues } from "../view/sgs/fx.js";
 import { awaitingLocal, nextPollDelay, sideSignature, stateSignature } from "../view/sgs/poll.js";
@@ -71,6 +79,8 @@ let sideSig = "";
 /** `refreshNow`（提交动作后）完成时更新轮询节奏；由 start() 注入。 */
 let afterRefreshNow: ((res: StateResponse) => void) | null = null;
 let selectedCard: string | null = null;
+/** 端侧多段交互状态（选牌 → 选目标 → 确认）。 */
+let pickState: { group: UseGroup; picked: number[] } | null = null;
 let unbindPress: (() => void) | null = null;
 let submitting = false;
 let boot: Bootstrap | null = null;
@@ -184,6 +194,77 @@ function syncSelection(): void {
   const cancel = document.querySelector<HTMLButtonElement>('[data-op="cancel"]');
   if (cancel) cancel.disabled = !selectedCard;
   updateOpsSummary();
+}
+
+// ---------------------------------------------------------------------------
+// 端侧多段交互：选牌 → （多选目标）→ 确认（业务合法集仍以引擎动作为准）
+// ---------------------------------------------------------------------------
+
+/** 座位显示名（武将名优先，已在 names 里映射）。 */
+function pickerSeats(): Array<{ seat: number; label: string; alive?: boolean | null }> {
+  const board = currentData?.public_board;
+  return (board?.seats ?? []).map((s) => ({
+    seat: s.seat,
+    label: playerName(lastNames, s.player_id),
+    alive: s.alive,
+  }));
+}
+
+function renderPickOverlay(): void {
+  if (!pickState) return;
+  openOverlay(
+    "选择目标",
+    renderTargetPicker(pickState.group, pickerSeats(), pickState.picked),
+  );
+}
+
+function openTargetStep(group: UseGroup): void {
+  // 无目标（无中生有 / 桃 / 装备…）→ 直接提交
+  if (group.max === 0) {
+    const only = group.options[0];
+    if (only) void submitAction(only.id);
+    return;
+  }
+  pickState = { group, picked: [] };
+  renderPickOverlay();
+}
+
+function togglePickTarget(seat: number): void {
+  if (!pickState) return;
+  const { group } = pickState;
+  const has = pickState.picked.includes(seat);
+  const next = has ? pickState.picked.filter((t) => t !== seat) : [...pickState.picked, seat];
+  // 单目标：点一下就提交（保持出杀速度；仍可在「用法」层看到目标提示）
+  if (isSingleTarget(group)) {
+    const id = matchTargets(group, next);
+    if (id) {
+      pickState = null;
+      closeOverlay();
+      void submitAction(id);
+      return;
+    }
+  }
+  pickState.picked = next;
+  renderPickOverlay();
+}
+
+function confirmPick(): void {
+  if (!pickState) return;
+  const id = matchTargets(pickState.group, pickState.picked);
+  if (!id) {
+    message("该组合不合法（看看目标数要求）", true);
+    return;
+  }
+  pickState = null;
+  closeOverlay();
+  void submitAction(id);
+}
+
+function cancelPick(): void {
+  pickState = null;
+  selectedCard = null;
+  closeOverlay();
+  syncSelection();
 }
 
 function toggleSelect(cardId: string): void {
@@ -568,6 +649,28 @@ function onClick(ev: MouseEvent): void {
     return;
   }
   const target = ev.target as HTMLElement | null;
+  // 端侧多段交互（选牌 → 选目标 → 确认）：浮层内的目标/确认/取消/用法按钮。
+  const pickEl = target?.closest?.("[data-pick-target], [data-pick-confirm], [data-pick-cancel], [data-pick-group]") as HTMLElement | null;
+  if (pickEl) {
+    if (pickEl.dataset.pickTarget !== undefined) {
+      togglePickTarget(Number(pickEl.dataset.pickTarget));
+      return;
+    }
+    if (pickEl.dataset.pickConfirm !== undefined) {
+      confirmPick();
+      return;
+    }
+    if (pickEl.dataset.pickCancel !== undefined) {
+      cancelPick();
+      return;
+    }
+    if (pickEl.dataset.pickGroup) {
+      const groups = selectedCard ? groupUseActions(selectedCard, actionsForCard(selectedCard)) : [];
+      const g = groups.find((x) => x.key === pickEl.dataset.pickGroup);
+      if (g) openTargetStep(g);
+      return;
+    }
+  }
   const opEl = target?.closest?.("[data-op]") as HTMLElement | null;
   if (opEl) {
     const op = opEl.dataset.op;
@@ -620,18 +723,18 @@ function onClick(ev: MouseEvent): void {
         void submitAction(candidates[0].id);
         return;
       }
-      // v2：需要目标 / 转化方式有多选 → 弹选择层（按钮都是可直接提交的 action id）。
-      const buttons = candidates
-        .map(
-          (a) =>
-            `<button type="button" class="btn small" data-action="${escapeHtml(a.id)}">` +
-            `${escapeHtml(a.description)}</button>`,
-        )
-        .join("");
-      openOverlay(
-        "选择目标 / 用法",
-        `<p class="muted">这张牌有多种用法：</p><div class="sgs-zone-actions">${buttons}</div>`,
-      );
+      // v2：合法动作集是「牌 + 目标」平铺（便于 AI/回放）；端侧折叠成多段交互：
+      //   多种用法 → 先选用法；单目标 → 点目标即提交；多目标 → 多选 + 确认。
+      const groups = groupUseActions(selectedCard, candidates);
+      if (groups.length === 0) {
+        message("该牌当前不可打出", true);
+        return;
+      }
+      if (groups.length > 1) {
+        openOverlay("选择用法", renderUsagePicker(groups));
+        return;
+      }
+      openTargetStep(groups[0]);
     } else if (op === "cancel") {
       selectedCard = null;
       syncSelection();

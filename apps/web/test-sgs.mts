@@ -13,6 +13,15 @@ import {
   displayNames,
   playerName,
 } from "./src/view/sgs/format.js";
+import {
+  candidateTargets,
+  groupUseActions,
+  isSingleTarget,
+  matchTargets,
+  renderTargetPicker,
+  renderUsagePicker,
+  targetHint,
+} from "./src/view/sgs/targetPicker.js";
 import { renderPublicArea, renderSidePanel, renderSidePanelBody } from "./src/view/sgs/public.js";
 import { renderPersonalArea } from "./src/view/sgs/personal.js";
 import { renderSgsTextBody } from "./src/view/sgs/text.js";
@@ -1244,6 +1253,73 @@ assert.equal(
 assert.equal(playerName(dm, "bot:3"), "张飞", "座位卡用武将名");
 assert.equal(playerName(dm, "bot:5"), "bot:5", "无映射时回退 id");
 console.log("[sgs-web] 武将名显示单测通过 ✅");
+
+// 端侧多段交互（2026-11-12 用户裁定：仅 B —— 合法集保持平铺，端侧折叠成 选牌→多选目标→确认）
+const tieGroup = groupUseActions("c1", [
+  { id: "use:c1:1", description: "使用【铁索连环】 → p1" },
+  { id: "use:c1:2", description: "使用【铁索连环】 → p2" },
+  { id: "use:c1:1,2", description: "使用【铁索连环】 → p1、p2" },
+]);
+assert.equal(tieGroup.length, 1);
+assert.equal(tieGroup[0].min, 1);
+assert.equal(tieGroup[0].max, 2);
+assert.equal(tieGroup[0].label, "使用【铁索连环】", "用法名去掉目标后缀");
+assert.equal(targetHint(tieGroup[0]), "可选择 1–2 名目标");
+assert.deepEqual(candidateTargets(tieGroup[0]), [1, 2]);
+assert.equal(matchTargets(tieGroup[0], [1]), "use:c1:1");
+assert.equal(matchTargets(tieGroup[0], [2, 1]), "use:c1:1,2", "集合语义：顺序无关");
+assert.equal(matchTargets(tieGroup[0], [1, 2, 3]), null, "超出上限 → 不合法");
+assert.equal(matchTargets(tieGroup[0], []), null, "少于下限 → 不合法");
+
+// 借刀杀人：必须 2 名（A 有武器 → B），且有序语义靠「唯一合法集合」保证
+const jd = groupUseActions("c2", [
+  { id: "use:c2:3,5", description: "使用【借刀杀人】 → p3、p5" },
+  { id: "use:c2:3,6", description: "使用【借刀杀人】 → p3、p6" },
+])[0];
+assert.equal(jd.min, 2);
+assert.equal(jd.max, 2);
+assert.equal(targetHint(jd), "必须选择 2 名目标");
+assert.equal(matchTargets(jd, [5, 3]), "use:c2:3,5", "反向集合也命中唯一合法顺序");
+assert.equal(matchTargets(jd, [5, 6]), null, "非法组合");
+assert.equal(isSingleTarget(jd), false);
+
+// 方天画戟【杀】：1–3 名
+const sha = groupUseActions("c3", [
+  { id: "use:c3:1", description: "使用【杀】 → p1" },
+  { id: "use:c3:1,2", description: "使用【杀】 → p1、p2" },
+  { id: "use:c3:1,2,3", description: "使用【杀】 → p1、p2、p3" },
+])[0];
+assert.equal(targetHint(sha), "可选择 1–3 名目标");
+
+// 转化技：同一张实体牌先选牌，再按「用法」分组
+const conv = groupUseActions("c9", [
+  { id: "convert:wusheng:c9:杀:2", description: "【红桃9桃】当【杀】 → p2" },
+  { id: "convert:wusheng:c9:杀:3", description: "【红桃9桃】当【杀】 → p3" },
+  { id: "use:c9", description: "使用【桃】" },
+]);
+assert.equal(conv.length, 2, "普通使用 + 武圣当杀 = 两种用法");
+const ws = conv.find((g) => g.key.startsWith("convert:"))!;
+assert.equal(ws.label, "【红桃9桃】当【杀】");
+assert.equal(ws.max, 1);
+assert.equal(isSingleTarget(ws), true, "单目标 → 点目标即提交");
+
+// 渲染：未匹配时「确认」禁用；匹配后可用
+const pickerSeats = [
+  { seat: 1, label: "张飞" },
+  { seat: 2, label: "关羽" },
+  { seat: 3, label: "赵云" },
+];
+const htmlNone = renderTargetPicker(tieGroup[0], pickerSeats, []);
+assert.ok(htmlNone.includes("可选择 1–2 名目标"), "展示目标数提示");
+assert.ok(/data-pick-confirm="1" disabled/.test(htmlNone), "未匹配 → 确认禁用");
+assert.ok(htmlNone.includes("该组合不合法") === false);
+const htmlBad = renderTargetPicker(tieGroup[0], pickerSeats, [1, 2, 3]);
+assert.ok(htmlBad.includes("该组合不合法"), "非法组合给出原因");
+const htmlOk = renderTargetPicker(tieGroup[0], pickerSeats, [1, 2]);
+assert.ok(/data-pick-confirm="1">确认/.test(htmlOk), "匹配 → 确认可用");
+const usageHtml = renderUsagePicker(conv);
+assert.ok(usageHtml.includes('data-pick-group="convert:wusheng:c9:杀"'), "用法选择按钮");
+console.log("[sgs-web] 端侧多段目标选择单测通过 ✅");
 
 // v2 取牌浮层（拆/顺）：引擎给的是 `pick:<实体牌 id>`，v1 前缀分组会全空 →
 // 必须回退成「全量按钮」，否则浮层没有可点项（2026-11-11 五谷同类的卡死）。
