@@ -1,0 +1,2510 @@
+{
+ "id": "skill-contracts",
+ "generated": true,
+ "note": "由 `npm run gen:spec-skills` 生成；不得手改。reg=技能注册表，覆盖与锚点由 check:spec-conformance 校验。",
+ "count": 298,
+ "skills": [
+  {
+   "code": "anguo",
+   "batch": "B6",
+   "file": "specs/sanguosha/skills/B6.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "anjian",
+   "batch": "B4",
+   "file": "specs/sanguosha/skills/B4.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "anxu",
+   "batch": "B20",
+   "file": "specs/sanguosha/skills/B20.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "baonue",
+   "batch": "B15",
+   "file": "specs/sanguosha/skills/B15.md",
+   "kind": "lord",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "bazhen",
+   "batch": "B14",
+   "file": "specs/sanguosha/skills/B14.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "beige",
+   "batch": "B16",
+   "file": "specs/sanguosha/skills/B16.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "bengkuai",
+   "batch": "B15",
+   "file": "specs/sanguosha/skills/B15.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "benxi",
+   "batch": "B4",
+   "file": "specs/sanguosha/skills/B4.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "binglue",
+   "batch": "B1",
+   "file": "specs/sanguosha/skills/B1.md",
+   "kind": "locked",
+   "status": "verified",
+   "anchors": [
+    "tests/b1b.rs::feijun_takes_card_and_binglue_draws_two"
+   ]
+  },
+  {
+   "code": "bingyi",
+   "batch": "B5",
+   "file": "specs/sanguosha/skills/B5.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "biyue",
+   "batch": "B12",
+   "file": "specs/sanguosha/skills/B12.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "bizhuan",
+   "batch": "B8",
+   "file": "specs/sanguosha/skills/B8.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "botu",
+   "batch": "B10",
+   "file": "specs/sanguosha/skills/B10.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "buqu",
+   "batch": "B0",
+   "file": "specs/sanguosha/skills/B0.md",
+   "kind": "locked",
+   "status": "verified",
+   "anchors": [
+    "tests/b0.rs::buqu_duplicate_rank_goes_to_discard_not_void",
+    "tests/b0.rs::buqu_moves_chuang_out_of_game"
+   ]
+  },
+  {
+   "code": "buyi",
+   "batch": "B18",
+   "file": "specs/sanguosha/skills/B18.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "caishi",
+   "batch": "B8",
+   "file": "specs/sanguosha/skills/B8.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "cangzhuo",
+   "batch": "B14",
+   "file": "specs/sanguosha/skills/B14.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "changbiao",
+   "batch": "B15",
+   "file": "specs/sanguosha/skills/B15.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "chenglue",
+   "batch": "B1",
+   "file": "specs/sanguosha/skills/B1.md",
+   "kind": "normal",
+   "status": "verified",
+   "anchors": [
+    "tests/b1b.rs::chenglue_discard_suits_become_free"
+   ]
+  },
+  {
+   "code": "chengxiang",
+   "batch": "B18",
+   "file": "specs/sanguosha/skills/B18.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "chezheng",
+   "batch": "B1",
+   "file": "specs/sanguosha/skills/B1.md",
+   "kind": "locked",
+   "status": "verified",
+   "anchors": [
+    "tests/b1b.rs::chezheng_triggers_when_few_cards_used"
+   ]
+  },
+  {
+   "code": "chuli",
+   "batch": "B12",
+   "file": "specs/sanguosha/skills/B12.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "chunlao",
+   "batch": "B17",
+   "file": "specs/sanguosha/skills/B17.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "congjian",
+   "batch": "B2",
+   "file": "specs/sanguosha/skills/B2.md",
+   "kind": "locked",
+   "status": "verified",
+   "anchors": [
+    "tests/b2.rs::congjian_gives_own_card_then_draws"
+   ]
+  },
+  {
+   "code": "cunmu",
+   "batch": "B1",
+   "file": "specs/sanguosha/skills/B1.md",
+   "kind": "locked",
+   "status": "verified",
+   "anchors": [
+    "tests/b1.rs::cunmu_draws_from_bottom_of_deck"
+   ]
+  },
+  {
+   "code": "daiyan",
+   "batch": "B8",
+   "file": "specs/sanguosha/skills/B8.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "dangxian",
+   "batch": "B18",
+   "file": "specs/sanguosha/skills/B18.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "danshou",
+   "batch": "B4",
+   "file": "specs/sanguosha/skills/B4.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "danxin",
+   "batch": "B19",
+   "file": "specs/sanguosha/skills/B19.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "dimeng",
+   "batch": "B15",
+   "file": "specs/sanguosha/skills/B15.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "duanchang",
+   "batch": "B16",
+   "file": "specs/sanguosha/skills/B16.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "duanliang",
+   "batch": "B16",
+   "file": "specs/sanguosha/skills/B16.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "duliang",
+   "batch": "B7",
+   "file": "specs/sanguosha/skills/B7.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "duodao",
+   "batch": "B4",
+   "file": "specs/sanguosha/skills/B4.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "enyuan",
+   "batch": "B17",
+   "file": "specs/sanguosha/skills/B17.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "faen",
+   "batch": "B4",
+   "file": "specs/sanguosha/skills/B4.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "fangquan",
+   "batch": "B13",
+   "file": "specs/sanguosha/skills/B13.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "fangzhu",
+   "batch": "B0",
+   "file": "specs/sanguosha/skills/B0.md",
+   "kind": "normal",
+   "status": "verified",
+   "anchors": [
+    "tests/b0.rs::fangzhu_x_has_no_cap",
+    "tests/b0.rs::fangzhu_flips_before_drawing_and_can_trigger_jiewei"
+   ]
+  },
+  {
+   "code": "fanjian",
+   "batch": "B10",
+   "file": "specs/sanguosha/skills/B10.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "fankui",
+   "batch": "B11",
+   "file": "specs/sanguosha/skills/B11.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "feijun",
+   "batch": "B1",
+   "file": "specs/sanguosha/skills/B1.md",
+   "kind": "normal",
+   "status": "verified",
+   "anchors": [
+    "tests/b1b.rs::feijun_takes_card_and_binglue_draws_two"
+   ]
+  },
+  {
+   "code": "fencheng",
+   "batch": "B19",
+   "file": "specs/sanguosha/skills/B19.md",
+   "kind": "limited",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "fenji",
+   "batch": "B0",
+   "file": "specs/sanguosha/skills/B0.md",
+   "kind": "normal",
+   "status": "verified",
+   "anchors": [
+    "tests/b0.rs::fenji_triggers_on_other_discard_even_in_own_turn",
+    "tests/b0.rs::fenji_ignores_draw_phase_draws",
+    "tests/b0.rs::fenji_draws_after_leaving_dying"
+   ]
+  },
+  {
+   "code": "fenli",
+   "batch": "B5",
+   "file": "specs/sanguosha/skills/B5.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "fenwei",
+   "batch": "B10",
+   "file": "specs/sanguosha/skills/B10.md",
+   "kind": "limited",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "fuhen",
+   "batch": "B19",
+   "file": "specs/sanguosha/skills/B19.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "fuli",
+   "batch": "B18",
+   "file": "specs/sanguosha/skills/B18.md",
+   "kind": "limited",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "fulin",
+   "batch": "B7",
+   "file": "specs/sanguosha/skills/B7.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "fumian",
+   "batch": "B8",
+   "file": "specs/sanguosha/skills/B8.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "funan",
+   "batch": "B8",
+   "file": "specs/sanguosha/skills/B8.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "fuyin",
+   "batch": "B2",
+   "file": "specs/sanguosha/skills/B2.md",
+   "kind": "locked",
+   "status": "verified",
+   "anchors": [
+    "tests/b2.rs::fuyin_marks_unresponsive_when_qualifying"
+   ]
+  },
+  {
+   "code": "fuzhu",
+   "batch": "B8",
+   "file": "specs/sanguosha/skills/B8.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "ganglie",
+   "batch": "B11",
+   "file": "specs/sanguosha/skills/B11.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "ganlu",
+   "batch": "B18",
+   "file": "specs/sanguosha/skills/B18.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "gongqi",
+   "batch": "B19",
+   "file": "specs/sanguosha/skills/B19.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "gongxin",
+   "batch": "granted",
+   "file": "specs/sanguosha/skills/granted.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": [
+    "tests/b10.rs::qinxue_grants_gongxin_and_gongxin_handles_heart_cards",
+    "tests/b10.rs::gongxin_can_put_heart_on_top_and_not_offered_without_heart"
+   ]
+  },
+  {
+   "code": "guanxing",
+   "batch": "B9",
+   "file": "specs/sanguosha/skills/B9.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "guhuo",
+   "batch": "B13",
+   "file": "specs/sanguosha/skills/B13.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "guicai",
+   "batch": "B11",
+   "file": "specs/sanguosha/skills/B11.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "guidao",
+   "batch": "B13",
+   "file": "specs/sanguosha/skills/B13.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "guizao",
+   "batch": "B7",
+   "file": "specs/sanguosha/skills/B7.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "guose",
+   "batch": "B10",
+   "file": "specs/sanguosha/skills/B10.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "guzheng",
+   "batch": "B16",
+   "file": "specs/sanguosha/skills/B16.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "hanzhan",
+   "batch": "B15",
+   "file": "specs/sanguosha/skills/B15.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "haoshi",
+   "batch": "B15",
+   "file": "specs/sanguosha/skills/B15.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "hexian",
+   "batch": "granted",
+   "file": "specs/sanguosha/skills/granted.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": [
+    "tests/b8.rs::juexiang_grants_one_of_four_sub_skills_and_blocks_club_targets",
+    "tests/b8.rs::hexian_after_heal_heals_other_and_discards_their_equip"
+   ]
+  },
+  {
+   "code": "hongju",
+   "batch": "B2",
+   "file": "specs/sanguosha/skills/B2.md",
+   "kind": "awaken",
+   "status": "verified",
+   "anchors": [
+    "tests/b2.rs::hongju_awaken_requires_equal_count_swap"
+   ]
+  },
+  {
+   "code": "hongyan",
+   "batch": "B14",
+   "file": "specs/sanguosha/skills/B14.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "huaiju",
+   "batch": "B1",
+   "file": "specs/sanguosha/skills/B1.md",
+   "kind": "locked",
+   "status": "verified",
+   "anchors": [
+    "tests/b1.rs::huaiju_gives_three_ju_and_extra_draw_and_prevents_damage"
+   ]
+  },
+  {
+   "code": "huaiyi",
+   "batch": "B6",
+   "file": "specs/sanguosha/skills/B6.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "huangtian",
+   "batch": "B13",
+   "file": "specs/sanguosha/skills/B13.md",
+   "kind": "lord",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "huashen",
+   "batch": "B13",
+   "file": "specs/sanguosha/skills/B13.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "huimin",
+   "batch": "B8",
+   "file": "specs/sanguosha/skills/B8.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "huisheng",
+   "batch": "B7",
+   "file": "specs/sanguosha/skills/B7.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "huituo",
+   "batch": "B5",
+   "file": "specs/sanguosha/skills/B5.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "hujia",
+   "batch": "B11",
+   "file": "specs/sanguosha/skills/B11.md",
+   "kind": "lord",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "hunzi",
+   "batch": "B14",
+   "file": "specs/sanguosha/skills/B14.md",
+   "kind": "awaken",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "huoji",
+   "batch": "B14",
+   "file": "specs/sanguosha/skills/B14.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "huomo",
+   "batch": "B5",
+   "file": "specs/sanguosha/skills/B5.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "huoshou",
+   "batch": "B16",
+   "file": "specs/sanguosha/skills/B16.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "jiandu",
+   "batch": "B14",
+   "file": "specs/sanguosha/skills/B14.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "jiang",
+   "batch": "B14",
+   "file": "specs/sanguosha/skills/B14.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "jiangchi",
+   "batch": "B17",
+   "file": "specs/sanguosha/skills/B17.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "jianmie",
+   "batch": "B18",
+   "file": "specs/sanguosha/skills/B18.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "jianxiang",
+   "batch": "B1",
+   "file": "specs/sanguosha/skills/B1.md",
+   "kind": "normal",
+   "status": "verified",
+   "anchors": [
+    "tests/b1b.rs::jianxiang_triggers_only_when_becoming_target"
+   ]
+  },
+  {
+   "code": "jianxiong",
+   "batch": "B11",
+   "file": "specs/sanguosha/skills/B11.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "jianyan",
+   "batch": "granted",
+   "file": "specs/sanguosha/skills/granted.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": [
+    "tests/b13.rs::qianxin_awaken_grants_jianyan",
+    "tests/b13.rs::jianyan_reveals_and_gives_to_male",
+    "tests/b13.rs::jianyan_needs_male"
+   ]
+  },
+  {
+   "code": "jianying",
+   "batch": "B19",
+   "file": "specs/sanguosha/skills/B19.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "jianzheng",
+   "batch": "B8",
+   "file": "specs/sanguosha/skills/B8.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "jiaojin",
+   "batch": "B5",
+   "file": "specs/sanguosha/skills/B5.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "jiazhao",
+   "batch": "B19",
+   "file": "specs/sanguosha/skills/B19.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "jiefan",
+   "batch": "B19",
+   "file": "specs/sanguosha/skills/B19.md",
+   "kind": "limited",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "jieming",
+   "batch": "B16",
+   "file": "specs/sanguosha/skills/B16.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "jiewei",
+   "batch": "B0",
+   "file": "specs/sanguosha/skills/B0.md",
+   "kind": "normal",
+   "status": "verified",
+   "anchors": [
+    "tests/b0.rs::jushou_flips_back_to_face_up_and_triggers_jiewei_first",
+    "tests/b0.rs::jushou_face_up_flips_to_back_and_does_not_trigger_jiewei"
+   ]
+  },
+  {
+   "code": "jiexun",
+   "batch": "B8",
+   "file": "specs/sanguosha/skills/B8.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "jieyin",
+   "batch": "B10",
+   "file": "specs/sanguosha/skills/B10.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "jiezi",
+   "batch": "B16",
+   "file": "specs/sanguosha/skills/B16.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "jigong",
+   "batch": "B6",
+   "file": "specs/sanguosha/skills/B6.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "jijiang",
+   "batch": "B9",
+   "file": "specs/sanguosha/skills/B9.md",
+   "kind": "lord",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "jijiu",
+   "batch": "B12",
+   "file": "specs/sanguosha/skills/B12.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "jingce",
+   "batch": "B19",
+   "file": "specs/sanguosha/skills/B19.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "jinjiu",
+   "batch": "B17",
+   "file": "specs/sanguosha/skills/B17.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "jinzou",
+   "batch": "B1",
+   "file": "specs/sanguosha/skills/B1.md",
+   "kind": "normal",
+   "status": "verified",
+   "anchors": [
+    "tests/b1.rs::jinzou_not_allowed_when_qizhi_count_is_zero"
+   ]
+  },
+  {
+   "code": "jishe",
+   "batch": "B7",
+   "file": "specs/sanguosha/skills/B7.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "jiuchi",
+   "batch": "B15",
+   "file": "specs/sanguosha/skills/B15.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "jiushi",
+   "batch": "B18",
+   "file": "specs/sanguosha/skills/B18.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "jiuyuan",
+   "batch": "B10",
+   "file": "specs/sanguosha/skills/B10.md",
+   "kind": "lord",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "jixi",
+   "batch": "granted",
+   "file": "specs/sanguosha/skills/granted.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": [
+    "tests/b15.rs::zaoxian_awaken_and_extra_turn",
+    "tests/b15.rs::zaoxian_grants_jixi_and_equipment_becomes_sha",
+    "tests/b15.rs::jixi_is_registered_and_grant_only"
+   ]
+  },
+  {
+   "code": "jixian",
+   "batch": "granted",
+   "file": "specs/sanguosha/skills/granted.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": [
+    "tests/b8.rs::juexiang_grants_one_of_four_sub_skills_and_blocks_club_targets",
+    "tests/b8.rs::jixian_after_damage_makes_source_lose_hp_and_use_equip"
+   ]
+  },
+  {
+   "code": "jiyu",
+   "batch": "B7",
+   "file": "specs/sanguosha/skills/B7.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "jizhi",
+   "batch": "B9",
+   "file": "specs/sanguosha/skills/B9.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "juece",
+   "batch": "B19",
+   "file": "specs/sanguosha/skills/B19.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "jueqing",
+   "batch": "B18",
+   "file": "specs/sanguosha/skills/B18.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "juexiang",
+   "batch": "B8",
+   "file": "specs/sanguosha/skills/B8.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "jueyan",
+   "batch": "B2",
+   "file": "specs/sanguosha/skills/B2.md",
+   "kind": "normal",
+   "status": "verified",
+   "anchors": [
+    "tests/b2.rs::jueyan_abolishes_slot_and_grants_effect"
+   ]
+  },
+  {
+   "code": "junxing",
+   "batch": "B3",
+   "file": "specs/sanguosha/skills/B3.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "jushou",
+   "batch": "B0",
+   "file": "specs/sanguosha/skills/B0.md",
+   "kind": "normal",
+   "status": "verified",
+   "anchors": [
+    "tests/b0.rs::jushou_flips_back_to_face_up_and_triggers_jiewei_first",
+    "tests/b0.rs::jushou_equip_card_must_be_used_not_discarded"
+   ]
+  },
+  {
+   "code": "juxiang",
+   "batch": "B15",
+   "file": "specs/sanguosha/skills/B15.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "juzhan",
+   "batch": "B1",
+   "file": "specs/sanguosha/skills/B1.md",
+   "kind": "normal",
+   "status": "verified",
+   "anchors": [
+    "tests/b1b.rs::juzhan_yang_only_on_others_turn",
+    "tests/b1b.rs::juzhan_yin_only_on_own_turn"
+   ]
+  },
+  {
+   "code": "kanpo",
+   "batch": "B14",
+   "file": "specs/sanguosha/skills/B14.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "keji",
+   "batch": "B10",
+   "file": "specs/sanguosha/skills/B10.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "kongcheng",
+   "batch": "B9",
+   "file": "specs/sanguosha/skills/B9.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "kongsheng",
+   "batch": "B2",
+   "file": "specs/sanguosha/skills/B2.md",
+   "kind": "normal",
+   "status": "verified",
+   "anchors": [
+    "tests/spike.rs::kongsheng_places_on_prepare_and_uses_equip_on_end"
+   ]
+  },
+  {
+   "code": "kuangbi",
+   "batch": "B7",
+   "file": "specs/sanguosha/skills/B7.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "kuanggu",
+   "batch": "B14",
+   "file": "specs/sanguosha/skills/B14.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "kuizhu",
+   "batch": "B1",
+   "file": "specs/sanguosha/skills/B1.md",
+   "kind": "normal",
+   "status": "verified",
+   "anchors": [
+    "tests/b1b.rs::kuizhu_only_on_discard_phase"
+   ]
+  },
+  {
+   "code": "kurou",
+   "batch": "B10",
+   "file": "specs/sanguosha/skills/B10.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "leiji",
+   "batch": "B13",
+   "file": "specs/sanguosha/skills/B13.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "liangyin",
+   "batch": "B2",
+   "file": "specs/sanguosha/skills/B2.md",
+   "kind": "normal",
+   "status": "verified",
+   "anchors": [
+    "tests/spike.rs::liangyin_asks_on_first_out_of_game_in_own_turn"
+   ]
+  },
+  {
+   "code": "lianhuan",
+   "batch": "B14",
+   "file": "specs/sanguosha/skills/B14.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "lianhuo",
+   "batch": "B7",
+   "file": "specs/sanguosha/skills/B7.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "lianying",
+   "batch": "B10",
+   "file": "specs/sanguosha/skills/B10.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "liegong",
+   "batch": "B13",
+   "file": "specs/sanguosha/skills/B13.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "liereng",
+   "batch": "B15",
+   "file": "specs/sanguosha/skills/B15.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "liexian",
+   "batch": "granted",
+   "file": "specs/sanguosha/skills/granted.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": [
+    "tests/b8.rs::juexiang_grants_one_of_four_sub_skills_and_blocks_club_targets",
+    "tests/b8.rs::liexian_after_heal_makes_other_lose_hp_and_use_equip"
+   ]
+  },
+  {
+   "code": "lihuo",
+   "batch": "B17",
+   "file": "specs/sanguosha/skills/B17.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "lijian",
+   "batch": "B12",
+   "file": "specs/sanguosha/skills/B12.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "lijun",
+   "batch": "B1",
+   "file": "specs/sanguosha/skills/B1.md",
+   "kind": "lord",
+   "status": "verified",
+   "anchors": [
+    "tests/b1b.rs::lijun_requires_second_choice_by_lord"
+   ]
+  },
+  {
+   "code": "liuli",
+   "batch": "B10",
+   "file": "specs/sanguosha/skills/B10.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "liyu",
+   "batch": "B12",
+   "file": "specs/sanguosha/skills/B12.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "longdan",
+   "batch": "B9",
+   "file": "specs/sanguosha/skills/B9.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "longyin",
+   "batch": "B3",
+   "file": "specs/sanguosha/skills/B3.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "luanji",
+   "batch": "B13",
+   "file": "specs/sanguosha/skills/B13.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "luanwu",
+   "batch": "B15",
+   "file": "specs/sanguosha/skills/B15.md",
+   "kind": "limited",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "luoshen",
+   "batch": "B11",
+   "file": "specs/sanguosha/skills/B11.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "luoyi",
+   "batch": "B11",
+   "file": "specs/sanguosha/skills/B11.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "luoying",
+   "batch": "B18",
+   "file": "specs/sanguosha/skills/B18.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "mashu",
+   "batch": "B9",
+   "file": "specs/sanguosha/skills/B9.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "mashu",
+   "batch": "B14",
+   "file": "specs/sanguosha/skills/B14.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "mashu",
+   "batch": "B19",
+   "file": "specs/sanguosha/skills/B19.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "mieji",
+   "batch": "B19",
+   "file": "specs/sanguosha/skills/B19.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "miji",
+   "batch": "B18",
+   "file": "specs/sanguosha/skills/B18.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "mingce",
+   "batch": "B17",
+   "file": "specs/sanguosha/skills/B17.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "mingjian",
+   "batch": "B5",
+   "file": "specs/sanguosha/skills/B5.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "mingren",
+   "batch": "B2",
+   "file": "specs/sanguosha/skills/B2.md",
+   "kind": "normal",
+   "status": "verified",
+   "anchors": [
+    "tests/mingren.rs::mingren_draws_one_then_forces_pick"
+   ]
+  },
+  {
+   "code": "niepan",
+   "batch": "B14",
+   "file": "specs/sanguosha/skills/B14.md",
+   "kind": "limited",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "ninge",
+   "batch": "B16",
+   "file": "specs/sanguosha/skills/B16.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "paoxiao",
+   "batch": "B9",
+   "file": "specs/sanguosha/skills/B9.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "piaoling",
+   "batch": "B14",
+   "file": "specs/sanguosha/skills/B14.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "pindi",
+   "batch": "B4",
+   "file": "specs/sanguosha/skills/B4.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "pingkou",
+   "batch": "B5",
+   "file": "specs/sanguosha/skills/B5.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "pojun",
+   "batch": "B16",
+   "file": "specs/sanguosha/skills/B16.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "poshi",
+   "batch": "B2",
+   "file": "specs/sanguosha/skills/B2.md",
+   "kind": "awaken",
+   "status": "verified",
+   "anchors": [
+    "tests/b2.rs::poshi_awaken_abolishes_all_slots_at_prepare"
+   ]
+  },
+  {
+   "code": "qiangshi",
+   "batch": "B20",
+   "file": "specs/sanguosha/skills/B20.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "qiangxi",
+   "batch": "B16",
+   "file": "specs/sanguosha/skills/B16.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "qianjie",
+   "batch": "B2",
+   "file": "specs/sanguosha/skills/B2.md",
+   "kind": "locked",
+   "status": "verified",
+   "anchors": [
+    "tests/b2.rs::qianjie_blocks_delayed_tricks_and_chains"
+   ]
+  },
+  {
+   "code": "qianju",
+   "batch": "B5",
+   "file": "specs/sanguosha/skills/B5.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "qianxi",
+   "batch": "B19",
+   "file": "specs/sanguosha/skills/B19.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "qianxin",
+   "batch": "B13",
+   "file": "specs/sanguosha/skills/B13.md",
+   "kind": "awaken",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "qianxun",
+   "batch": "B10",
+   "file": "specs/sanguosha/skills/B10.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "qiaobian",
+   "batch": "B15",
+   "file": "specs/sanguosha/skills/B15.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "qiaomeng",
+   "batch": "B12",
+   "file": "specs/sanguosha/skills/B12.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "qiaoshi",
+   "batch": "B20",
+   "file": "specs/sanguosha/skills/B20.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "qiaoshuo",
+   "batch": "B17",
+   "file": "specs/sanguosha/skills/B17.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "qicai",
+   "batch": "B9",
+   "file": "specs/sanguosha/skills/B9.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "qice",
+   "batch": "B3",
+   "file": "specs/sanguosha/skills/B3.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "qieting",
+   "batch": "B18",
+   "file": "specs/sanguosha/skills/B18.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "qimou",
+   "batch": "B14",
+   "file": "specs/sanguosha/skills/B14.md",
+   "kind": "limited",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "qingguo",
+   "batch": "B11",
+   "file": "specs/sanguosha/skills/B11.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "qingjian",
+   "batch": "B11",
+   "file": "specs/sanguosha/skills/B11.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "qingxi",
+   "batch": "B5",
+   "file": "specs/sanguosha/skills/B5.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "qingxian",
+   "batch": "B8",
+   "file": "specs/sanguosha/skills/B8.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "qinqing",
+   "batch": "B7",
+   "file": "specs/sanguosha/skills/B7.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "qinwang",
+   "batch": "B6",
+   "file": "specs/sanguosha/skills/B6.md",
+   "kind": "lord",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "qinxue",
+   "batch": "B10",
+   "file": "specs/sanguosha/skills/B10.md",
+   "kind": "awaken",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "qiuyuan",
+   "batch": "B19",
+   "file": "specs/sanguosha/skills/B19.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "qixi",
+   "batch": "B10",
+   "file": "specs/sanguosha/skills/B10.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "qizhi",
+   "batch": "B1",
+   "file": "specs/sanguosha/skills/B1.md",
+   "kind": "normal",
+   "status": "verified",
+   "anchors": [
+    "tests/b1.rs::qizhi_triggers_on_targeted_card_use",
+    "tests/b1.rs::qizhi_does_not_trigger_without_target"
+   ]
+  },
+  {
+   "code": "quanji",
+   "batch": "B3",
+   "file": "specs/sanguosha/skills/B3.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "quhu",
+   "batch": "B16",
+   "file": "specs/sanguosha/skills/B16.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "rende",
+   "batch": "B9",
+   "file": "specs/sanguosha/skills/B9.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "renxin",
+   "batch": "B18",
+   "file": "specs/sanguosha/skills/B18.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "roulin",
+   "batch": "B15",
+   "file": "specs/sanguosha/skills/B15.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "rouxian",
+   "batch": "granted",
+   "file": "specs/sanguosha/skills/granted.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": [
+    "tests/b8.rs::juexiang_grants_one_of_four_sub_skills_and_blocks_club_targets",
+    "tests/b8.rs::rouxian_after_damage_heals_source_and_discards_their_equip"
+   ]
+  },
+  {
+   "code": "ruoyu",
+   "batch": "B13",
+   "file": "specs/sanguosha/skills/B13.md",
+   "kind": "lord",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "sanyao",
+   "batch": "B3",
+   "file": "specs/sanguosha/skills/B3.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "shangshi",
+   "batch": "B18",
+   "file": "specs/sanguosha/skills/B18.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "shebian",
+   "batch": "B14",
+   "file": "specs/sanguosha/skills/B14.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "shenduan",
+   "batch": "B4",
+   "file": "specs/sanguosha/skills/B4.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "shenshi",
+   "batch": "B1",
+   "file": "specs/sanguosha/skills/B1.md",
+   "kind": "normal",
+   "status": "verified",
+   "anchors": [
+    "tests/b1b.rs::shenshi_yang_gives_card_then_damages"
+   ]
+  },
+  {
+   "code": "shensu",
+   "batch": "B14",
+   "file": "specs/sanguosha/skills/B14.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "shenxing",
+   "batch": "B5",
+   "file": "specs/sanguosha/skills/B5.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "shibei",
+   "batch": "B19",
+   "file": "specs/sanguosha/skills/B19.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "shicai",
+   "batch": "B1",
+   "file": "specs/sanguosha/skills/B1.md",
+   "kind": "normal",
+   "status": "verified",
+   "anchors": [
+    "tests/b1b.rs::shicai_is_optional_and_puts_card_on_top"
+   ]
+  },
+  {
+   "code": "shifei",
+   "batch": "B6",
+   "file": "specs/sanguosha/skills/B6.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "shizhan",
+   "batch": "B13",
+   "file": "specs/sanguosha/skills/B13.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "shizhi",
+   "batch": "B6",
+   "file": "specs/sanguosha/skills/B6.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "shouxi",
+   "batch": "B8",
+   "file": "specs/sanguosha/skills/B8.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "shuangxiong",
+   "batch": "B16",
+   "file": "specs/sanguosha/skills/B16.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "sidi",
+   "batch": "B4",
+   "file": "specs/sanguosha/skills/B4.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "sishu",
+   "batch": "granted",
+   "file": "specs/sanguosha/skills/granted.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": [
+    "tests/b13.rs::ruoyu_awaken_strict_min_hp",
+    "tests/b13.rs::sishu_toggles_indulgence_judgement"
+   ]
+  },
+  {
+   "code": "songwei",
+   "batch": "B0",
+   "file": "specs/sanguosha/skills/B0.md",
+   "kind": "lord",
+   "status": "verified",
+   "anchors": [
+    "tests/b0.rs::songwei_asks_the_judging_player"
+   ]
+  },
+  {
+   "code": "taoluan",
+   "batch": "B7",
+   "file": "specs/sanguosha/skills/B7.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "tianbian",
+   "batch": "B8",
+   "file": "specs/sanguosha/skills/B8.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "tiandu",
+   "batch": "B11",
+   "file": "specs/sanguosha/skills/B11.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "tianxiang",
+   "batch": "B14",
+   "file": "specs/sanguosha/skills/B14.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "tianyi",
+   "batch": "B15",
+   "file": "specs/sanguosha/skills/B15.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "tiaoxin",
+   "batch": "B15",
+   "file": "specs/sanguosha/skills/B15.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "tieqi",
+   "batch": "B9",
+   "file": "specs/sanguosha/skills/B9.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "tishen",
+   "batch": "B9",
+   "file": "specs/sanguosha/skills/B9.md",
+   "kind": "limited",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "tongbo",
+   "batch": "B8",
+   "file": "specs/sanguosha/skills/B8.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "tuotian",
+   "batch": "B15",
+   "file": "specs/sanguosha/skills/B15.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "tuxi",
+   "batch": "B11",
+   "file": "specs/sanguosha/skills/B11.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "wanglie",
+   "batch": "B2",
+   "file": "specs/sanguosha/skills/B2.md",
+   "kind": "normal",
+   "status": "verified",
+   "anchors": [
+    "tests/b2.rs::wanglie_marks_unresponsive_and_freezes_hand",
+    "tests/b2.rs::wanglie_declining_does_not_freeze"
+   ]
+  },
+  {
+   "code": "wangxi",
+   "batch": "B11",
+   "file": "specs/sanguosha/skills/B11.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "wansha",
+   "batch": "B15",
+   "file": "specs/sanguosha/skills/B15.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "weidi",
+   "batch": "B1",
+   "file": "specs/sanguosha/skills/B1.md",
+   "kind": "normal",
+   "status": "verified",
+   "anchors": [
+    "tests/b1b.rs::weidi_sees_lord_skill_but_is_not_usable"
+   ]
+  },
+  {
+   "code": "weimu",
+   "batch": "B15",
+   "file": "specs/sanguosha/skills/B15.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "wengua",
+   "batch": "B8",
+   "file": "specs/sanguosha/skills/B8.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "wulie",
+   "batch": "B14",
+   "file": "specs/sanguosha/skills/B14.md",
+   "kind": "limited",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "wurong",
+   "batch": "B6",
+   "file": "specs/sanguosha/skills/B6.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "wusheng",
+   "batch": "B9",
+   "file": "specs/sanguosha/skills/B9.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "wushuang",
+   "batch": "B12",
+   "file": "specs/sanguosha/skills/B12.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "xiangle",
+   "batch": "B13",
+   "file": "specs/sanguosha/skills/B13.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "xiansi",
+   "batch": "B4",
+   "file": "specs/sanguosha/skills/B4.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "xiantu",
+   "batch": "B20",
+   "file": "specs/sanguosha/skills/B20.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "xianzhen",
+   "batch": "B17",
+   "file": "specs/sanguosha/skills/B17.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "xianzhou",
+   "batch": "B18",
+   "file": "specs/sanguosha/skills/B18.md",
+   "kind": "limited",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "xiaoji",
+   "batch": "B10",
+   "file": "specs/sanguosha/skills/B10.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "xingshang",
+   "batch": "B0",
+   "file": "specs/sanguosha/skills/B0.md",
+   "kind": "normal",
+   "status": "verified",
+   "anchors": [
+    "tests/b0.rs::xingshang_excludes_judge_zone"
+   ]
+  },
+  {
+   "code": "xingshuai",
+   "batch": "B5",
+   "file": "specs/sanguosha/skills/B5.md",
+   "kind": "lord",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "xingxue",
+   "batch": "B6",
+   "file": "specs/sanguosha/skills/B6.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "xinsheng",
+   "batch": "B13",
+   "file": "specs/sanguosha/skills/B13.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "xiongluan",
+   "batch": "B2",
+   "file": "specs/sanguosha/skills/B2.md",
+   "kind": "limited",
+   "status": "verified",
+   "anchors": [
+    "tests/b2.rs::xiongluan_abolishes_equip_and_judge_zones"
+   ]
+  },
+  {
+   "code": "xuanfeng",
+   "batch": "B17",
+   "file": "specs/sanguosha/skills/B17.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "xuanhuo",
+   "batch": "B17",
+   "file": "specs/sanguosha/skills/B17.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "xueyi",
+   "batch": "B13",
+   "file": "specs/sanguosha/skills/B13.md",
+   "kind": "lord",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "xunxun",
+   "batch": "B11",
+   "file": "specs/sanguosha/skills/B11.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "yajiao",
+   "batch": "B9",
+   "file": "specs/sanguosha/skills/B9.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "yanyu",
+   "batch": "B20",
+   "file": "specs/sanguosha/skills/B20.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "yanzhu",
+   "batch": "B6",
+   "file": "specs/sanguosha/skills/B6.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "yaoming",
+   "batch": "B6",
+   "file": "specs/sanguosha/skills/B6.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "yaowu",
+   "batch": "B13",
+   "file": "specs/sanguosha/skills/B13.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "yicong",
+   "batch": "B12",
+   "file": "specs/sanguosha/skills/B12.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "yiji",
+   "batch": "B11",
+   "file": "specs/sanguosha/skills/B11.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "yijue",
+   "batch": "B9",
+   "file": "specs/sanguosha/skills/B9.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "yili",
+   "batch": "B1",
+   "file": "specs/sanguosha/skills/B1.md",
+   "kind": "normal",
+   "status": "verified",
+   "anchors": [
+    "tests/b1b.rs::yili_gives_ju_only_after_leaving_dying"
+   ]
+  },
+  {
+   "code": "yinghun",
+   "batch": "B14",
+   "file": "specs/sanguosha/skills/B14.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "yingzi",
+   "batch": "B10",
+   "file": "specs/sanguosha/skills/B10.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "yizhong",
+   "batch": "B20",
+   "file": "specs/sanguosha/skills/B20.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "yonglue",
+   "batch": "B4",
+   "file": "specs/sanguosha/skills/B4.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "yongsi",
+   "batch": "B1",
+   "file": "specs/sanguosha/skills/B1.md",
+   "kind": "locked",
+   "status": "verified",
+   "anchors": [
+    "tests/b1.rs::yongsi_draws_2_plus_kingdom_count",
+    "tests/b1.rs::yongsi_discard_phase_discards_x_and_counts_them"
+   ]
+  },
+  {
+   "code": "yuce",
+   "batch": "B3",
+   "file": "specs/sanguosha/skills/B3.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "zaizhi",
+   "batch": "B16",
+   "file": "specs/sanguosha/skills/B16.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "zanhui",
+   "batch": "B5",
+   "file": "specs/sanguosha/skills/B5.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "zaoxian",
+   "batch": "B15",
+   "file": "specs/sanguosha/skills/B15.md",
+   "kind": "awaken",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "zhanjue",
+   "batch": "B6",
+   "file": "specs/sanguosha/skills/B6.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "zhaofu",
+   "batch": "B6",
+   "file": "specs/sanguosha/skills/B6.md",
+   "kind": "lord",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "zhaxiang",
+   "batch": "B10",
+   "file": "specs/sanguosha/skills/B10.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "zhenglun",
+   "batch": "B1",
+   "file": "specs/sanguosha/skills/B1.md",
+   "kind": "normal",
+   "status": "verified",
+   "anchors": [
+    "tests/b1b.rs::zhenglun_skips_draw_phase"
+   ]
+  },
+  {
+   "code": "zhengrong",
+   "batch": "B2",
+   "file": "specs/sanguosha/skills/B2.md",
+   "kind": "normal",
+   "status": "verified",
+   "anchors": [
+    "tests/b2.rs::zhengrong_takes_card_out_of_game_when_using_damage_trick",
+    "tests/b2.rs::zhengrong_does_not_trigger_on_non_damage_trick"
+   ]
+  },
+  {
+   "code": "zhengu",
+   "batch": "B2",
+   "file": "specs/sanguosha/skills/B2.md",
+   "kind": "normal",
+   "status": "verified",
+   "anchors": [
+    "tests/b2.rs::zhengu_resolves_now_and_at_target_turn_end"
+   ]
+  },
+  {
+   "code": "zhenjun",
+   "batch": "B20",
+   "file": "specs/sanguosha/skills/B20.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "zhenliang",
+   "batch": "B2",
+   "file": "specs/sanguosha/skills/B2.md",
+   "kind": "normal",
+   "status": "verified",
+   "anchors": [
+    "tests/spike.rs::zhenliang_yang_is_legal_and_executable",
+    "tests/spike.rs::zhenliang_yin_triggers_only_out_of_turn_and_same_color"
+   ]
+  },
+  {
+   "code": "zhenlie",
+   "batch": "B18",
+   "file": "specs/sanguosha/skills/B18.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "zhiba",
+   "batch": "B14",
+   "file": "specs/sanguosha/skills/B14.md",
+   "kind": "lord",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "zhichi",
+   "batch": "B17",
+   "file": "specs/sanguosha/skills/B17.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "zhige",
+   "batch": "B7",
+   "file": "specs/sanguosha/skills/B7.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "zhiheng",
+   "batch": "B10",
+   "file": "specs/sanguosha/skills/B10.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "zhiji",
+   "batch": "B15",
+   "file": "specs/sanguosha/skills/B15.md",
+   "kind": "awaken",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "zhijian",
+   "batch": "B16",
+   "file": "specs/sanguosha/skills/B16.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "zhiman",
+   "batch": "B3",
+   "file": "specs/sanguosha/skills/B3.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "zhiyan",
+   "batch": "B17",
+   "file": "specs/sanguosha/skills/B17.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "zhiyu",
+   "batch": "B3",
+   "file": "specs/sanguosha/skills/B3.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "zhongjian",
+   "batch": "B8",
+   "file": "specs/sanguosha/skills/B8.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "zhongyong",
+   "batch": "B4",
+   "file": "specs/sanguosha/skills/B4.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "zhuandui",
+   "batch": "B8",
+   "file": "specs/sanguosha/skills/B8.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "zhuhai",
+   "batch": "B13",
+   "file": "specs/sanguosha/skills/B13.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "zhuikong",
+   "batch": "B19",
+   "file": "specs/sanguosha/skills/B19.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "zhuixi",
+   "batch": "B20",
+   "file": "specs/sanguosha/skills/B20.md",
+   "kind": "limited",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "zili",
+   "batch": "B3",
+   "file": "specs/sanguosha/skills/B3.md",
+   "kind": "awaken",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "zishou",
+   "batch": "B18",
+   "file": "specs/sanguosha/skills/B18.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "zongshi",
+   "batch": "B18",
+   "file": "specs/sanguosha/skills/B18.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "zongshi_jie",
+   "batch": "B17",
+   "file": "specs/sanguosha/skills/B17.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "zongxuan",
+   "batch": "B17",
+   "file": "specs/sanguosha/skills/B17.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "zongzuo",
+   "batch": "B7",
+   "file": "specs/sanguosha/skills/B7.md",
+   "kind": "locked",
+   "status": "implemented",
+   "anchors": []
+  },
+  {
+   "code": "zuilun",
+   "batch": "B2",
+   "file": "specs/sanguosha/skills/B2.md",
+   "kind": "normal",
+   "status": "verified",
+   "anchors": [
+    "tests/b2.rs::zuilun_one_condition_then_two_card_order"
+   ]
+  },
+  {
+   "code": "zuoding",
+   "batch": "B5",
+   "file": "specs/sanguosha/skills/B5.md",
+   "kind": "normal",
+   "status": "implemented",
+   "anchors": []
+  }
+ ]
+}

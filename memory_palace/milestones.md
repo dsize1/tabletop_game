@@ -2,6 +2,24 @@
 
 > 记录项目关键节点与验证结果，按时间倒序。重大技术决策见 `decisions/`。
 
+## M96：spec-kit 第二切片（技能契约生成器 + B0–B2 契约落地）✅
+
+- **日期**：2026-11-12
+- **产物**：
+  - `apps/scripts/gen-spec-skills.mjs`：从 Rust 注册表导出 + `align/B*.json` **生成**
+    `specs/sanguosha/skills/B0–B20.md`、`granted.md`、`index.json`（296 技能全覆盖，不手写）；
+  - `apps/scripts/backfill-align-anchors.mjs`：按「函数名含 code > 函数体含 "code" > 函数体含中文技能名」
+    给 `align/B*.json` 的 `questions[].test`（及无裁定项技能的技能级 `test`）回填用例锚点；
+  - 状态口径：`verified`（已裁定 + 锚点存在）/ `implemented`（已裁定、锚点待回填，显式计数）/ `draft`。
+- **B0–B2 收口**：B0 7/7、B1 18/18、B2 15/15 → **40 个技能全部 verified**
+  （对齐单待回填锚点 766 → 717，`check:sgs-align` 锚点 9 → 58 条）。
+- **门禁**：
+  - `check:spec-conformance` 新增「技能契约覆盖」：注册表 296 ↔ `index.json` 逐条一致；
+    `verified` 的锚点必须存在；`implemented` 计入欠账（不阻塞，但显式上报）；
+  - `check:sgs2` 追加 `gen:spec-skills --check`（生成物过期即红）。
+- **度量**：`cargo test -p sanguosha2` 784 通过 / 0 失败；`check:sgs2` 全绿
+  （spec：3 契约 / 17 规则 / 技能契约 verified 40、锚点待回填 250）；`sgs:check:fast` 24/24；`test:sgs-web` 通过。
+
 ## M95：spec-kit 规格层（V3-spec 第一切片）✅
 
 - **日期**：2026-11-12

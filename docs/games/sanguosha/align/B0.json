@@ -130,7 +130,8 @@
               "why": "三国杀通用规则禁止同名延时锦囊在判定区叠加",
               "impact": "影响判定区可叠加性与后续判定顺序",
               "answer": "A",
-              "legacy": true
+              "legacy": true,
+              "test": "B0::jushou_flips_back_to_face_up_and_triggers_jiewei_first"
             },
             {
               "id": "Q2",
@@ -143,7 +144,8 @@
               "why": "原文是「当你从背面翻至正面时」，未限定翻面来源",
               "impact": "与放逐的交互顺序",
               "answer": "A",
-              "legacy": true
+              "legacy": true,
+              "test": "B0::jushou_face_up_flips_to_back_and_does_not_trigger_jiewei"
             }
           ],
           "mechanics": [
@@ -231,7 +233,8 @@
               "why": "原文为「你的手牌上限为创的数量」",
               "impact": "影响弃牌阶段弃牌数",
               "answer": "A",
-              "legacy": true
+              "legacy": true,
+              "test": "B0::buqu_moves_chuang_out_of_game"
             }
           ],
           "mechanics": [
@@ -312,7 +315,8 @@
               "why": "现实现如此，且与「每名角色只能发动一次」的常见裁定一致",
               "impact": "多人局（如双奋激）的结算差异",
               "answer": "A",
-              "legacy": true
+              "legacy": true,
+              "test": "B0::fenji_ignores_draw_phase_draws"
             },
             {
               "id": "Q3",
@@ -416,7 +420,8 @@
               "why": "统一顺序表可验证",
               "impact": "死亡链结算稳定性",
               "answer": "A",
-              "legacy": true
+              "legacy": true,
+              "test": "B0::xingshang_excludes_judge_zone"
             }
           ],
           "mechanics": [
@@ -572,7 +577,8 @@
               "why": "「生效」与「牌的去向」是两件事",
               "impact": "与天妒/鬼才的交互",
               "answer": "A",
-              "legacy": true
+              "legacy": true,
+              "test": "B0::songwei_asks_the_judging_player"
             }
           ],
           "mechanics": [

@@ -30,7 +30,7 @@
     "check:sgs-counts": "node apps/scripts/check-sgs-counts.mjs",
     "check:sgs-align": "node apps/scripts/check-sgs-align.mjs",
     "sgs:align": "node apps/scripts/sgs-align-sheet.mjs",
-    "check:sgs2": "cargo test --manifest-path crates/Cargo.toml -p sanguosha2 && node apps/scripts/check-sgs2-metrics.mjs && node apps/scripts/check-sgs2-registry.mjs && node apps/scripts/check-sgs2-decision-log.mjs && node apps/scripts/sgs2-scenes.mjs --check && node apps/scripts/check-sgs2-ai.mjs && node apps/scripts/check-sgs2-conventions.mjs && node apps/scripts/check-spec-conformance.mjs",
+    "check:sgs2": "cargo test --manifest-path crates/Cargo.toml -p sanguosha2 && node apps/scripts/check-sgs2-metrics.mjs && node apps/scripts/check-sgs2-registry.mjs && node apps/scripts/check-sgs2-decision-log.mjs && node apps/scripts/sgs2-scenes.mjs --check && node apps/scripts/check-sgs2-ai.mjs && node apps/scripts/check-sgs2-conventions.mjs && node apps/scripts/check-spec-conformance.mjs && node apps/scripts/gen-spec-skills.mjs --check",
     "check:sgs2:metrics": "node apps/scripts/check-sgs2-metrics.mjs",
     "check:sgs2-ai": "node apps/scripts/check-sgs2-ai.mjs",
     "check:sgs2-plugin": "cargo test --manifest-path crates/Cargo.toml -p sanguosha2 plugin_contract",
@@ -88,6 +88,8 @@
     "check:sgs2:scenes": "node apps/scripts/sgs2-scenes.mjs --check",
     "check:sgs2-ai:all": "node apps/scripts/check-sgs2-ai.mjs --seeds all --no-strict",
     "check:sgs2-conventions": "node apps/scripts/check-sgs2-conventions.mjs",
-    "check:spec-conformance": "node apps/scripts/check-spec-conformance.mjs"
+    "check:spec-conformance": "node apps/scripts/check-spec-conformance.mjs",
+    "gen:spec-skills": "node apps/scripts/gen-spec-skills.mjs",
+    "spec:anchors": "node apps/scripts/backfill-align-anchors.mjs --batch"
   }
 }

@@ -25,7 +25,34 @@
 3. `check:spec-conformance` 要求：**每个注册技能都必须出现在某个批次契约文件里**，
    且 `status: implemented` 的条目必须有存在的用例锚点。
 
-## 当前状态
+## 生成与校验（不手写）
 
-- 机器可校验的注册表快照：`../contracts/skills.json`（296 条 code + kind，与源码逐条比对）；
-- 批次契约文件：待生成（`npm run gen:spec-skills`，C3 第二切片）。
+```bash
+npm run gen:spec-skills                     # 生成/刷新 B*.md + granted.md + index.json
+node apps/scripts/gen-spec-skills.mjs --check   # 只校验是否最新（已并入 check:sgs2）
+npm run spec:anchors -- B0,B1,B2            # 回填 align 的 questions[].test 锚点
+npm run check:spec-conformance              # 覆盖 + 锚点存在性 + 注册表一致
+```
+
+数据源：Rust 注册表导出（code/name/kind/triggers/window/active）+ `align/B*.json`
+（original / current / questions[].test / status）。**本目录所有文件都是生成物**，手改会被覆盖。
+
+## 状态口径
+
+| 状态 | 含义 | 门禁 |
+|---|---|---|
+| `verified` | 对齐单已裁定 + **有用例锚点**（锚点函数必须存在） | 缺锚点 → 红 |
+| `implemented` | 对齐单已裁定，但锚点待回填（M10 legacy 欠账，显式计数） | 计数上报，不阻塞 |
+| `draft` | 待走查 | 不校验 |
+
+技能级锚点：没有裁定项（questions 为空）的技能用 align 的 `test` 字段（由 `spec:anchors` 回填）。
+
+## 当前进度（2026-11-12）
+
+| 项 | 数量 |
+|---|---|
+| 注册技能 | 296 |
+| 契约覆盖 | 296（B0–B20 + granted） |
+| `verified`（B0–B2 已完成回填） | **40**（B0 7 / B1 18 / B2 15） |
+| `implemented`（待回填锚点） | 256 |
+| 授予技 / 无对齐单条目 | 8（`granted.md`） |

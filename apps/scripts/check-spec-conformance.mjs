@@ -205,6 +205,68 @@ function checkSkills() {
 }
 
 // ---------------------------------------------------------------------------
+// 4) 技能契约覆盖（specs/sanguosha/skills/index.json）
+// ---------------------------------------------------------------------------
+
+function checkSkillContracts(fns) {
+  const file = path.join(SPECS, "skills", "index.json");
+  if (!existsSync(file)) {
+    fail("[skills-contract] 缺少 specs/sanguosha/skills/index.json（跑 npm run gen:spec-skills）");
+    return;
+  }
+  const idx = JSON.parse(readFileSync(file, "utf8"));
+  const rows = idx.skills ?? [];
+  const byCode = new Map();
+  for (const r of rows) {
+    const list = byCode.get(r.code) ?? [];
+    list.push(r);
+    byCode.set(r.code, list);
+  }
+  // 与注册表对齐（唯一 code）
+  let reg;
+  try {
+    reg = rustRegistry().skills ?? [];
+  } catch (err) {
+    fail(`[skills-contract] 无法读取 Rust 注册表：${err.message}`);
+    return;
+  }
+  const regCodes = new Set(reg.map((s) => s.code));
+  for (const code of regCodes) {
+    if (!byCode.has(code)) fail(`[skills-contract] 技能契约缺条目：${code}（跑 gen:spec-skills）`);
+  }
+  for (const code of byCode.keys()) {
+    if (!regCodes.has(code)) fail(`[skills-contract] 契约多出技能：${code}（源码已删除？）`);
+  }
+  // verified：必须有用例锚点且存在；implemented：允许「锚点待回填」（M10 显式欠账）
+  let verified = 0;
+  let debt = 0;
+  let draft = 0;
+  for (const r of rows) {
+    if (!["implemented", "verified"].includes(r.status)) {
+      draft += 1;
+      if (VERBOSE) console.log(`  · ${r.code} 状态=${r.status}（待走查）`);
+      continue;
+    }
+    const anchors = r.anchors ?? [];
+    if (anchors.length === 0) {
+      debt += 1;
+      if (r.status === "verified") {
+        fail(`[skills-contract] ${r.code} 标为 verified 但没有用例锚点`);
+      }
+      continue;
+    }
+    if (r.status === "verified") verified += 1;
+    for (const a of anchors) checkAnchor(fns, `skills-contract:${r.code}`, a);
+  }
+  console.log(
+    `[skills-contract] verified ${verified} / 锚点待回填 ${debt} / draft ${draft}（共 ${byCode.size} 个技能）`,
+  );
+  if (VERBOSE) {
+    console.log(`[skills-contract] ${byCode.size} 个技能 / ${rows.length} 条记录`);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // main
 // ---------------------------------------------------------------------------
 
@@ -222,6 +284,7 @@ for (const f of contractFiles) {
   }
 }
 checkSkills();
+checkSkillContracts(fns);
 
 if (problems.length > 0) {
   console.error(`[spec] 规格一致性失败（${problems.length} 项）：`);
@@ -229,7 +292,6 @@ if (problems.length > 0) {
   process.exit(1);
 }
 console.log(
-  `[spec] OK：${contractFiles.length} 个契约 / ${ruleCount} 条规则 / 锚点与禁止模式全部通过${
-    WRITE ? "" : "（技能快照一致）"
-  }`,
+  `[spec] OK：${contractFiles.length} 个契约 / ${ruleCount} 条规则 / 锚点与禁止模式全部通过` +
+    `${WRITE ? "" : "（技能快照 + 技能契约覆盖一致）"}`,
 );
