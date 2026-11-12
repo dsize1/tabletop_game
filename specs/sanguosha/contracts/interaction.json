@@ -99,6 +99,18 @@
       "desc": "端侧要读的字段必须写进 pending.data（wuxie.root/layers、dying.victim/hp、pindian.target…）",
       "anchor": "tests/cards.rs::dismantle_pending_carries_data_and_is_mandatory",
       "forbid": []
+    },
+    {
+      "id": "I1-no-decline-after-commit",
+      "desc": "「无合法牌」不得作为出口下发（无牌应跳过；选了弃置就必须弃置）",
+      "anchor": "tests/b3.rs::yuce_opt1_must_discard",
+      "forbid": [
+        {
+          "glob": "src/skills/**",
+          "pattern": "\\.escape\\(\"不弃置（无合法牌）",
+          "note": "无合法牌应直接跳过；承诺类步骤用 escape_mandatory（真机：御策/峻刑 选选项1 没弃牌）"
+        }
+      ]
     }
   ]
 }

@@ -486,6 +486,35 @@ fn yuce_reveals_and_source_chooses_heal_or_discard() {
     assert!(logs.contains("展示手牌"), "展示写入历史记录");
 }
 
+/// 真机 2026-11-12：孙策两次选「选项1（弃置）」都没有弃牌 ——
+/// 弃置步骤曾给「不弃置」出口（提交 pass 静默成功）。选了弃置就必须弃置。
+#[test]
+fn yuce_opt1_must_discard() {
+    let mut g = game(&[("man", &["yuce"], 4), ("p1", &[], 4)]);
+    g.seats[0].hp = 3;
+    give(&mut g, 0, &["c1"]); // 展示：基本牌
+    give(&mut g, 1, &["c4"]); // 来源：锦囊（类型不同，可弃）
+    flow::damage(&mut g, Some(1), 0, 1);
+    advance(&mut g).unwrap();
+    answer(&mut g, 0, "choose:yuce");
+    answer(&mut g, 0, "choose:c1");
+    answer(&mut g, 1, "opt1");
+    // 弃置步骤：强制选择（出口不展示、提交被拒）
+    let p = pend(&g);
+    assert!(p.escape_hidden(), "弃置步骤应为强制选择");
+    assert!(p.options().iter().any(|o| o.id.starts_with("choose:")));
+    let err = submit(&mut g, 1, "pass").unwrap_err();
+    assert!(err.contains("必须"), "占位出口应被拒绝：{err}");
+    let pick = options(&g)
+        .into_iter()
+        .find(|o| o.starts_with("choose:"))
+        .expect("有可弃的牌");
+    let before = g.hand(1).len();
+    answer(&mut g, 1, &pick);
+    assert_eq!(g.hand(1).len(), before - 1, "选了弃置就必须弃置一张");
+    assert!(g.discard_pile().iter().any(|c| c == &pick.trim_start_matches("choose:").to_string()));
+}
+
 #[test]
 fn yuce_auto_heals_when_source_has_no_hand() {
     let mut g = game(&[

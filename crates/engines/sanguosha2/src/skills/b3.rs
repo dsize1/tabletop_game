@@ -1104,9 +1104,10 @@ fn junxing(g: &mut Game, a: &Ask) -> Result<Step, String> {
                             format!("弃置 {}", label(g, id)),
                         );
                     }
-                    Ok(Step::Need(b.escape("不弃置（无合法牌）").build()))
+                    // 已选「弃置」= 承诺弃置一张：强制选择，不得反悔（I1）。
+                    Ok(Step::Need(b.escape_mandatory("（必须弃置一张）").build()))
                 }
-                Some("pass") => Ok(Step::Done),
+                Some("pass") => Err("峻刑：已选择弃置，必须弃置一张".into()),
                 Some(act) => {
                     let id = act
                         .strip_prefix("choose:")
@@ -1339,9 +1340,11 @@ fn yuce(g: &mut Game, a: &Ask) -> Result<Step, String> {
                             format!("弃置 {}", label(g, id)),
                         );
                     }
-                    Ok(Step::Need(b.escape("不弃置（无合法牌）").build()))
+                    // 已选「弃置」= 承诺弃置一张：强制选择，不得反悔（真机 2026-11-12：
+                    // 孙策两次选选项1 都没有弃牌，就是因为这里给了「不弃置」出口）。
+                    Ok(Step::Need(b.escape_mandatory("（必须弃置一张）").build()))
                 }
-                Some("pass") => Ok(Step::Done),
+                Some("pass") => Err("御策：已选择弃置，必须弃置一张".into()),
                 Some(act) => {
                     let id = act
                         .strip_prefix("choose:")
