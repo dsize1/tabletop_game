@@ -551,6 +551,50 @@ fn fuhen_two_card_sha_response_option_exists() {
     );
 }
 
+/// 丈八蛇矛（v2 补实现，v1 有）：需要【杀】时两张手牌当【杀】打出。
+#[test]
+fn zhangba_two_cards_as_sha_response() {
+    // 用标准牌堆（b19 的测试牌堆不含丈八蛇矛/南蛮入侵）
+    let mut g = Game::new(
+        vec![
+            Seat::new("p0", "gen", &[], 4),
+            Seat::new("p1", "gen", &[], 4),
+        ],
+        sanguosha2::cards::deck(),
+    );
+    let wep = g
+        .ids_in(|z| *z == sanguosha2::kernel::Zone::Draw)
+        .into_iter()
+        .find(|id| g.name_of(id) == "丈八蛇矛")
+        .expect("牌堆有丈八蛇矛");
+    g.to_equip(&wep, 0, sanguosha2::kernel::Slot::Weapon).unwrap();
+    for _ in 0..2 {
+        let id = g
+            .ids_in(|z| *z == sanguosha2::kernel::Zone::Draw)
+            .into_iter()
+            .find(|id| g.name_of(id) == "闪")
+            .expect("两张【闪】");
+        g.to_hand(&id, 0).unwrap();
+    }
+    let nm = g
+        .ids_in(|z| *z == sanguosha2::kernel::Zone::Draw)
+        .into_iter()
+        .find(|id| g.name_of(id) == "南蛮入侵")
+        .expect("南蛮入侵");
+    g.to_hand(&nm, 1).unwrap();
+    play_phase(&mut g, 1);
+    g.resolve_use(1, &nm, vec![]).unwrap();
+    drain_forced(&mut g);
+    let opts = options(&g);
+    let pair = opts
+        .iter()
+        .find(|o| o.starts_with("pair:"))
+        .cloned()
+        .unwrap_or_else(|| panic!("丈八应提供两张手牌当【杀】：{opts:?}"));
+    answer(&mut g, 0, &pair);
+    assert!(g.hand(0).len() == 0, "两张手牌都当【杀】打出：{:?}", g.hand(0));
+}
+
 #[test]
 fn qianxi_locks_distance_one_color_and_boosts_revealed_card() {
     let mut g = game(&[

@@ -179,3 +179,75 @@ export function renderUsagePicker(groups: UseGroup[]): string {
     .join("");
   return `<p class="muted">这张牌有多种用法，先选一种：</p><div class="sgs-zone-actions">${rows}</div>`;
 }
+
+// ---------------------------------------------------------------------------
+// 两张手牌当【杀】（父魂 / 丈八蛇矛）：响应窗口里的 `pair:c1,c2` 折叠成「选两张 → 确认」
+// ---------------------------------------------------------------------------
+
+/** 从响应窗口的选项里取出 `pair:` 组合（两张手牌当【杀】）。 */
+export function pairOptions(options: ActionLike[]): Array<{ id: string; cards: [string, string] }> {
+  const out: Array<{ id: string; cards: [string, string] }> = [];
+  for (const o of options) {
+    const m = /^pair:([^,]+),([^,]+)$/.exec(o.id);
+    if (m) out.push({ id: o.id, cards: [m[1], m[2]] });
+  }
+  return out;
+}
+
+/** 选中的两张牌能否对应某个合法 `pair:` 动作（集合语义；同一对牌顺序无关）。 */
+export function matchPair(
+  options: ActionLike[],
+  picked: string[],
+): string | null {
+  if (picked.length !== 2 || picked[0] === picked[1]) return null;
+  const key = [...picked].sort().join(",");
+  for (const o of pairOptions(options)) {
+    if ([...o.cards].sort().join(",") === key) return o.id;
+  }
+  return null;
+}
+
+export interface PairPickerCard {
+  id: string;
+  label: string;
+}
+
+/**
+ * 渲染「两张手牌当【杀】」选择面板（响应窗口内）。
+ *
+ * 合法组合由引擎下发的 `pair:` 选项决定（端侧不判断技能/装备是否可用）。
+ */
+export function renderPairPicker(
+  options: ActionLike[],
+  hand: PairPickerCard[],
+  picked: string[],
+): string {
+  const legal = pairOptions(options);
+  const usable = new Set(legal.flatMap((p) => p.cards));
+  const rows = hand
+    .filter((c) => usable.has(c.id))
+    .map((c) => {
+      const on = picked.includes(c.id);
+      return (
+        `<button type="button" class="btn small sgs-pick-target${on ? " selected" : ""}" ` +
+        `data-pair-card="${escapeHtml(c.id)}">${escapeHtml(c.label)}</button>`
+      );
+    })
+    .join("");
+  const matched = matchPair(options, picked);
+  const state = matched
+    ? "可以确认（视为打出【杀】）"
+    : picked.length === 0
+      ? "请选择两张手牌"
+      : picked.length === 1
+        ? "再选一张"
+        : "该组合不可用（换两张试试）";
+  return (
+    `<p class="muted">两张手牌当【杀】打出 · 合法组合 ${legal.length} 种</p>` +
+    `<div class="sgs-zone-actions sgs-pick-targets">${rows || '<span class="muted">没有可选的两张牌</span>'}</div>` +
+    `<p class="muted" data-pick-state="1">${escapeHtml(state)}</p>` +
+    `<div class="sgs-zone-actions">` +
+    `<button type="button" class="btn small" data-pair-confirm="1"${matched ? "" : " disabled"}>确认</button>` +
+    `</div>`
+  );
+}

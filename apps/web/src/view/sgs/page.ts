@@ -300,6 +300,7 @@ export function renderSgsApp(
   actions?: Array<{ id: string; description: string }>,
   assets?: SgsAssetMap,
   discardSelected: string[] = [],
+  pairPicked: string[] = [],
 ): string {
   const mySeat = data.player_area?.seat ?? data.public_board.turn.seat;
   return (
@@ -313,6 +314,7 @@ export function renderSgsApp(
       actions,
       assets,
       discardSelected,
+      pairPicked,
     ) +
     `</div>`
   );

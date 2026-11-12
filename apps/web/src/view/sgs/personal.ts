@@ -4,6 +4,7 @@
 // 交互在 P3.2/P3.3 接线（`client/sgs.ts`）。
 
 import { escapeHtml } from "../format.js";
+import { renderPairPicker } from "./targetPicker.js";
 import {
   MARK_LABEL,
   EQUIP_SLOT_LABEL,
@@ -28,7 +29,11 @@ import type {
   SgsSpecialZones,
 } from "./types.js";
 
-function pendingSummary(area: SgsPlayerArea, discardSelected: string[] = []): string {
+function pendingSummary(
+  area: SgsPlayerArea,
+  discardSelected: string[] = [],
+  pairPicked: string[] = [],
+): string {
   const p = area.pending;
   if (!p) return "";
   // 弃牌 pending：手牌上多选 + 一次确认（多人反馈：逐张点太慢且易误触）。
@@ -84,7 +89,17 @@ function pendingSummary(area: SgsPlayerArea, discardSelected: string[] = []): st
           : p.skill === "yijue" && p.data?.stage === "heal"
             ? "（义绝：是否令其回复 1 点体力）"
             : "";
-  const buttons = p.options
+  // 两张手牌当【杀】（父魂/丈八）：把 C(n,2) 个 `pair:` 按钮折叠成「选两张 → 确认」。
+  const pairPanel =
+    p.kind === "card_response" && p.options.some((o) => o.id.startsWith("pair:"))
+      ? renderPairPicker(
+          p.options.map((o) => ({ id: o.id, description: o.label })),
+          (area.hand ?? []).map((c) => ({ id: c.id, label: cardLabel(c) })),
+          pairPicked,
+        )
+      : "";
+  const escapeOnly = p.options.filter((o) => !o.id.startsWith("pair:"));
+  const buttons = escapeOnly
     .map(
       (o) =>
         `<button type="button" class="btn small${o.id === "pass" ? " ghost" : ""}" ` +
@@ -94,6 +109,7 @@ function pendingSummary(area: SgsPlayerArea, discardSelected: string[] = []): st
   return (
     `<div class="sgs-pending" data-kind="${escapeHtml(p.kind)}">` +
     `<div class="sgs-pending-head">待办：${escapeHtml(p.kind)}${extra}</div>` +
+    `${pairPanel}` +
     `<div class="sgs-pending-actions">${buttons}</div>` +
     `</div>`
   );
@@ -302,6 +318,7 @@ export function renderPersonalArea(
   actions?: SgsActionItem[],
   assets?: SgsAssetMap,
   discardSelected: string[] = [],
+  pairPicked: string[] = [],
 ): string {
   if (!area) return `<section class="sgs-personal muted">个人资源区不可见（未坐下或已阵亡）</section>`;
   const acts = actions ?? [];
@@ -479,7 +496,7 @@ export function renderPersonalArea(
     setupPanel(area, board, assets) +
     `<div class="sgs-hand-head"><span class="sgs-equip-label">手牌</span> ${(area.hand ?? []).length}/${handLimitLabel(area.hand_limit)}</div>` +
     `<div class="sgs-hand" role="list">${hand || `<span class="muted">无手牌</span>`}</div>` +
-    pendingSummary(area, discardSelected) +
+    pendingSummary(area, discardSelected, pairPicked) +
     guanxingPanel(area, zones) +
     guhuoPanel(area) +
     huashenPanel(zones) +

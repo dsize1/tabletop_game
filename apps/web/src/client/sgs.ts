@@ -9,6 +9,7 @@ import { renderSidePanelBody } from "../view/sgs/public.js";
 import { applyNames, cardLabel, displayNames, playerName, withDisplayNames } from "../view/sgs/format.js";
 import { renderCardDetail, renderDiscardList, renderGeneralDetail } from "../view/sgs/detail.js";
 import {
+  matchPair,
   groupUseActions,
   isSingleTarget,
   matchTargets,
@@ -81,6 +82,8 @@ let afterRefreshNow: ((res: StateResponse) => void) | null = null;
 let selectedCard: string | null = null;
 /** 端侧多段交互状态（选牌 → 选目标 → 确认）。 */
 let pickState: { group: UseGroup; picked: number[] } | null = null;
+/** 两张手牌当【杀】（父魂/丈八）的已选两张。 */
+let pairPick: string[] = [];
 let unbindPress: (() => void) | null = null;
 let submitting = false;
 let boot: Bootstrap | null = null;
@@ -201,6 +204,15 @@ function syncSelection(): void {
 // ---------------------------------------------------------------------------
 
 /** 座位显示名（武将名优先，已在 names 里映射）。 */
+/** 就地重绘（用于两张牌选择等轻量交互）。 */
+function rerenderApp(): void {
+  const app = q<HTMLElement>("#sgs-app");
+  if (!app || !currentData) return;
+  app.innerHTML = renderSgsApp(currentData, lastNames, currentActions, boot?.assets, discardSel, pairPick);
+  bindInteractions();
+  syncSelection();
+}
+
 function pickerSeats(): Array<{ seat: number; label: string; alive?: boolean | null }> {
   const board = currentData?.public_board;
   return (board?.seats ?? []).map((s) => ({
@@ -650,6 +662,27 @@ function onClick(ev: MouseEvent): void {
   }
   const target = ev.target as HTMLElement | null;
   // 端侧多段交互（选牌 → 选目标 → 确认）：浮层内的目标/确认/取消/用法按钮。
+  const pairEl = target?.closest?.("[data-pair-card], [data-pair-confirm]") as HTMLElement | null;
+  if (pairEl) {
+    const pend = currentData?.player_area?.pending;
+    const opts = (pend?.options ?? []).map((o) => ({ id: o.id, description: o.label }));
+    if (pairEl.dataset.pairCard !== undefined) {
+      const id = pairEl.dataset.pairCard;
+      pairPick = pairPick.includes(id) ? pairPick.filter((x) => x !== id) : [...pairPick, id].slice(-2);
+      rerenderApp();
+      return;
+    }
+    if (pairEl.dataset.pairConfirm !== undefined) {
+      const matched = matchPair(opts, pairPick);
+      if (!matched) {
+        message("该组合不可用（换两张试试）", true);
+        return;
+      }
+      pairPick = [];
+      void submitAction(matched);
+      return;
+    }
+  }
   const pickEl = target?.closest?.("[data-pick-target], [data-pick-confirm], [data-pick-cancel], [data-pick-group]") as HTMLElement | null;
   if (pickEl) {
     if (pickEl.dataset.pickTarget !== undefined) {
@@ -868,7 +901,7 @@ function applyState(res: StateResponse): void {
   const app = q<HTMLElement>("#sgs-app");
   if (app && nextAppSig !== appSig) {
     appSig = nextAppSig;
-    app.innerHTML = renderSgsApp(data, names, currentActions, boot?.assets, discardSel);
+    app.innerHTML = renderSgsApp(data, names, currentActions, boot?.assets, discardSel, pairPick);
     bindInteractions();
     syncSelection();
   }

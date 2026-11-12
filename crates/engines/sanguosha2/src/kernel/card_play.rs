@@ -2312,8 +2312,8 @@ fn response_options(g: &Game, target: usize, kind: ResponseKind) -> Vec<(String,
     for (id, label) in skills::relay_options(g, target, kind) {
         out.push((id, label));
     }
-    // 父魂：将两张手牌当【杀】打出（响应窗口）。
-    if kind == ResponseKind::Sha && skills::two_card_sha(g, target) {
+    // 两张手牌当【杀】打出（响应窗口）：父魂（技能）或丈八蛇矛（装备）。
+    if kind == ResponseKind::Sha && two_card_sha_available(g, target) {
         for (c1, c2) in skills::two_card_sha_pairs(g, target) {
             out.push((
                 format!("pair:{c1},{c2}"),
@@ -2381,6 +2381,13 @@ fn response_pending(
     g.response_context = Some(kind);
     let label = response_label(kind);
     Some(b.escape(format!("不出【{label}】")).build())
+}
+
+/// 「两张手牌当【杀】打出」可用：父魂（技能）或丈八蛇矛（武器）。
+///
+/// v1 对齐：v1 的 `respond:<c1>,<c2>` 同时支持丈八蛇矛与父魂；v2 迁移时只做了父魂。
+fn two_card_sha_available(g: &Game, seat: usize) -> bool {
+    skills::two_card_sha(g, seat) || g.weapon(seat) == crate::cards::WeaponKind::Zhangba
 }
 
 /// 处理一次响应回答，返回 `true` = 已响应（抵消/免疫）。
@@ -2545,8 +2552,8 @@ fn apply_response(
             .split_once(',')
             .ok_or_else(|| "响应：需要两张手牌".to_string())?;
         let (c1, c2) = (c1.to_string(), c2.to_string());
-        if !skills::two_card_sha(g, actor) {
-            return Err("响应：没有可将两张手牌当【杀】的技能".into());
+        if !two_card_sha_available(g, actor) {
+            return Err("响应：没有可将两张手牌当【杀】的技能/装备".into());
         }
         if !g.hand(actor).contains(&c1) || !g.hand(actor).contains(&c2) || c1 == c2 {
             return Err("响应：两张牌不合法".into());

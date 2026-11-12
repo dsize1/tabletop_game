@@ -2,6 +2,22 @@
 
 > 记录项目关键节点与验证结果，按时间倒序。重大技术决策见 `decisions/`。
 
+## M103：两张手牌当【杀】接入端侧多段交互 + 补丈八蛇矛 ✅
+
+- **日期**：2026-11-12
+- **引擎**：补 **丈八蛇矛**（v1 有、v2 迁移时漏）——响应窗口「两张手牌当【杀】打出」：
+  `response_options` 统一判定 `two_card_sha_available`（父魂 或 武器=丈八），
+  `apply_response` 的 `pair:` 分支同步放行（父亲与丈八共用一条执行路径）。
+- **端侧（延续方案 B）**：`pair:` 组合不再平铺 C(n,2) 个按钮，改为「选两张 → 确认」：
+  - `targetPicker.ts` 新增 `pairOptions / matchPair / renderPairPicker`（集合语义匹配合法组合）；
+  - `personal.ts::pendingSummary` 在 `card_response` 出现 `pair:` 时渲染两张牌选择面板（其余出口照旧）；
+  - `page.ts` / `client` 透传 `pairPicked` 状态并支持就地重绘（`rerenderApp`）。
+- **用例**：
+  - 引擎 `tests/b19.rs::zhangba_two_cards_as_sha_response`（丈八提供 pair 选项并可打出）；
+  - 端侧 `test-sgs.mts`「两张手牌当杀」5 组断言（解析/顺序无关/非集内/禁用态/可用态）。
+- **度量**：`cargo test -p sanguosha2` **787 通过 / 0 失败**；`test:sgs-web`（单测 + e2e）全绿；
+  `apps/web build` 通过；`check:sgs2` 全绿；`sgs:check:fast` 24/24。
+
 ## M102：端侧多段交互（铁索/借刀/多目标不再平铺 36 个按钮）✅
 
 - **日期**：2026-11-12

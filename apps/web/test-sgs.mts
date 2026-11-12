@@ -21,6 +21,9 @@ import {
   renderTargetPicker,
   renderUsagePicker,
   targetHint,
+  pairOptions,
+  matchPair,
+  renderPairPicker,
 } from "./src/view/sgs/targetPicker.js";
 import { renderPublicArea, renderSidePanel, renderSidePanelBody } from "./src/view/sgs/public.js";
 import { renderPersonalArea } from "./src/view/sgs/personal.js";
@@ -1320,6 +1323,34 @@ assert.ok(/data-pick-confirm="1">确认/.test(htmlOk), "匹配 → 确认可用"
 const usageHtml = renderUsagePicker(conv);
 assert.ok(usageHtml.includes('data-pick-group="convert:wusheng:c9:杀"'), "用法选择按钮");
 console.log("[sgs-web] 端侧多段目标选择单测通过 ✅");
+
+// 两张手牌当【杀】（父魂 / 丈八蛇矛）：C(n,2) 个 pair 按钮折叠成「选两张 → 确认」
+const pairActs = [
+  { id: "pair:c1,c2", description: "将【杀】【闪】当【杀】打出" },
+  { id: "pair:c1,c3", description: "将【杀】【桃】当【杀】打出" },
+  { id: "pair:c2,c3", description: "将【闪】【桃】当【杀】打出" },
+  { id: "pass", description: "不出【杀】" },
+];
+assert.equal(pairOptions(pairActs).length, 3, "解析出 3 个合法组合");
+assert.equal(matchPair(pairActs, ["c2", "c1"]), "pair:c1,c2", "集合语义：顺序无关");
+assert.equal(matchPair(pairActs, ["c1"]), null, "只选一张不合法");
+assert.equal(matchPair(pairActs, ["c1", "c1"]), null, "同一张牌不能重复");
+assert.equal(matchPair(pairActs, ["c9", "c8"]), null, "不在合法集里");
+const pairView = renderPairPicker(pairActs, [
+  { id: "c1", label: "杀" },
+  { id: "c2", label: "闪" },
+  { id: "c3", label: "桃" },
+  { id: "c9", label: "决斗" },
+], []);
+assert.ok(pairView.includes('data-pair-card="c1"'), "可选牌按钮");
+assert.ok(!pairView.includes('data-pair-card="c9"'), "不可用于该组合的牌不出现");
+assert.ok(/data-pair-confirm="1" disabled/.test(pairView), "未选满 → 确认禁用");
+const pairViewOk = renderPairPicker(pairActs, [
+  { id: "c1", label: "杀" },
+  { id: "c2", label: "闪" },
+], ["c1", "c2"]);
+assert.ok(/data-pair-confirm="1">确认/.test(pairViewOk), "选满合法组合 → 确认可用");
+console.log("[sgs-web] 两张手牌当杀单测通过 ✅");
 
 // v2 取牌浮层（拆/顺）：引擎给的是 `pick:<实体牌 id>`，v1 前缀分组会全空 →
 // 必须回退成「全量按钮」，否则浮层没有可点项（2026-11-11 五谷同类的卡死）。
