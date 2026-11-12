@@ -2,6 +2,23 @@
 
 > 记录项目关键节点与验证结果，按时间倒序。重大技术决策见 `decisions/`。
 
+## M100：终局后群登记不解除（复发修复：以 SQLite 快照为准）✅
+
+- **日期**：2026-11-12
+- **复发**：M99 后用 `version` 比较决定「要不要 restore」仍会漏——server 与 MCP 各自写快照，
+  版本号不一定可比，于是 MCP 内存里的 `Active` 永远不会被刷新 → 群里一直提示「已有进行中的对局」。
+- **修复（不依赖版本比较）**：
+  - 新增 `GameManager::reconcile_active(group_id, snapshot)`：用**外部快照**核准登记——
+    快照 `status != Active` 或 engine `data.finished == true` → 解除登记并返回 `None`；
+  - MCP `fresh_active()`：直接读 SQLite 快照 → `reconcile_active()` →（仍 Active 才）`sync_room()`；
+  - `get_active_game` / `create_game` / `start_game` 全部走它。
+- **端到端验证**（真实 MCP 进程 + 临时 DB）：
+  1. DB 里造一局 active → `get_active_game` 返回该房间；
+  2. 模拟 server 写完终局快照（MCP 内存仍 Active）→ 再次 `get_active_game` 返回 `null` ✅。
+- **用例**：`game-engine-core` 新增 `reconcile_active_uses_snapshot_status_and_finished_flag`
+  （Active 保持 / status=Finished 解除 / finished 标记解除）。
+- **度量**：`cargo test -p game-engine-core` 12 通过；`cargo check -p game-engine-mcp` 通过。
+
 ## M99：终局后群活跃登记不解除（`#开局` 仍要求「#中断」）✅
 
 - **日期**：2026-11-12

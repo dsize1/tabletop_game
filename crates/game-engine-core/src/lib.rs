@@ -442,6 +442,33 @@ impl GameManager {
         }
     }
 
+    /// 用**外部快照**（SQLite，可能是另一个进程写的）核准群活跃登记。
+    ///
+    /// 判定：快照 `status != Active` 或 engine 的 `data.finished == true` → 视为已结束，
+    /// 解除登记并返回 `None`。这是「终局后群里仍提示已有对局」的收口点：
+    /// 不依赖两个进程的 version 比较（不可比时永远不 restore）。
+    pub fn reconcile_active(
+        &self,
+        group_id: &str,
+        snapshot: Option<&GameState>,
+    ) -> Option<GameState> {
+        let Some(stale) = self.get_active_game(group_id) else {
+            return None;
+        };
+        if let Some(db) = snapshot {
+            let finished_flag = db
+                .data
+                .get("finished")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            if db.status != GameStatus::Active || finished_flag {
+                self.release_group(group_id, &db.room_id);
+                return None;
+            }
+        }
+        Some(self.get_active_game(group_id).unwrap_or(stale))
+    }
+
     /// 群内活跃对局，但**先与 SQLite 快照对齐**：快照已终局则解除登记并返回 `None`。
     ///
     /// 由 MCP 侧调用（MCP 与 server 交替写状态，内存里的 Active 可能已过期）。
@@ -639,6 +666,33 @@ mod tests {
         finished.status = GameStatus::Finished;
         mgr.restore(finished);
         assert!(mgr.get_active_game("g").is_none(), "终局快照应解除群登记");
+    }
+
+    /// 真机 2026-11-12（复发）：**不依赖 version 比较**，用外部快照核准活跃登记。
+    /// 场景：终局由 server 写入 SQLite，MCP 内存里仍是 Active 且 version 不可比。
+    #[test]
+    fn reconcile_active_uses_snapshot_status_and_finished_flag() {
+        let mgr = long_manager();
+        let (st, _) = mgr.start_game("long", "g", vec!["p1".into()]).unwrap();
+
+        // 1) 快照仍是 Active → 保持登记
+        let mut active = st.clone();
+        active.status = GameStatus::Active;
+        assert!(mgr.reconcile_active("g", Some(&active)).is_some());
+
+        // 2) 快照 status=Finished → 解除
+        let mut finished = st.clone();
+        finished.status = GameStatus::Finished;
+        assert!(mgr.reconcile_active("g", Some(&finished)).is_none());
+        assert!(mgr.get_active_game("g").is_none());
+
+        // 3) 快照 status 仍是 Active，但 engine 已置 finished 标记 → 也解除
+        let mgr2 = long_manager();
+        let (st2, _) = mgr2.start_game("long", "g", vec!["p1".into()]).unwrap();
+        let mut flag = st2.clone();
+        flag.data = json!({ "finished": true });
+        assert!(mgr2.reconcile_active("g", Some(&flag)).is_none());
+        assert!(mgr2.get_active_game("g").is_none());
     }
 
     /// `active_game_fresh`：对齐回调把状态改成终局后，应解除登记并返回 None。

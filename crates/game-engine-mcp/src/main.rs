@@ -121,11 +121,24 @@ impl EngineServer {
         tracing::debug!("已按快照对齐内存态 room={room_id} version={db}");
     }
 
-    /// 群内活跃对局：**先与 SQLite 快照对齐**（MCP 与 server 交替写状态）。
-    /// 快照已终局 → 解除群登记并返回 None（否则终局后群里仍要求「#中断」）。
+    /// 群内活跃对局：**以 SQLite 快照为准**判定是否仍然活跃。
+    ///
+    /// 背景（真机 2026-11-12）：终局由 server 推进，MCP 内存里仍是 Active；
+    /// 早期实现靠 `version` 比较决定要不要 restore，一旦版本号不可比（两个进程各自写）
+    /// 就永远不 restore → 群里一直认为「有进行中的对局」。
+    /// 这里直接读快照判定 `status` 与 engine 的 `finished` 标记，二者任一表示结束即解除登记。
     fn fresh_active(&self, group_id: &str) -> Option<GameState> {
-        self.manager
-            .active_game_fresh(group_id, |room_id| self.sync_room(room_id))
+        let stale = self.manager.get_active_game(group_id)?;
+        let snapshot = self
+            .storage
+            .get_game_snapshot(&stale.game_id, &stale.room_id)
+            .ok()
+            .flatten()
+            .and_then(|json| serde_json::from_str::<GameState>(&json).ok());
+        let active = self.manager.reconcile_active(group_id, snapshot.as_ref())?;
+        // 仍是 Active：把内存态对齐到快照（server 可能已推进局面）。
+        self.sync_room(&active.room_id);
+        self.manager.get_active_game(group_id)
     }
 
     /// 把引擎产出的事件逐条写入 `game_events`，快照 version 对齐最后 seq。
