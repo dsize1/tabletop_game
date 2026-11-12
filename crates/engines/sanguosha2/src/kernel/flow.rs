@@ -770,6 +770,11 @@ pub fn step_dying(g: &mut Game, a: &Ask) -> Result<Step, String> {
 
 /// 死亡：发事件（行殇等订阅）+ 排一个「死亡清理」（在技能触发之后执行）。
 pub fn die(g: &mut Game, victim: usize, source: Option<usize>) {
+    // I2 单一出口：**死亡确认结算**在这里把存活置 false（此后身份才公开）。
+    // 濒死（hp = 0 等待救援）不经过这里，因此不会被当成死亡。
+    if let Some(s) = g.seats.get_mut(victim) {
+        s.alive = false;
+    }
     // 完杀：濒死结算结束（死亡）。
     crate::skills::leaving_dying(g);
     // 死亡钩子（断肠 / 节命「死亡时」）：在死亡清理（延迟项）之前询问。

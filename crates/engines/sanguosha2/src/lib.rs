@@ -367,6 +367,7 @@ impl EnginePlugin for Sanguosha2Engine {
         g.check_conservation().map_err(EngineError::Internal)?;
         g.check_no_orphan_frames().map_err(EngineError::Internal)?;
         g.check_no_stale_answer().map_err(EngineError::Internal)?;
+        g.check_no_zombies().map_err(EngineError::Internal)?;
         let out = state_of(&state.room_id, &state.group_id, state.players.clone(), &g);
         Ok(ActionResult {
             state: out,

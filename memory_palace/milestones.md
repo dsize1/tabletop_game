@@ -2,6 +2,27 @@
 
 > 记录项目关键节点与验证结果，按时间倒序。重大技术决策见 `decisions/`。
 
+## M94：I2 状态语义（V2.1-fix C2 · 存活/死亡显式化）✅
+
+- **日期**：2026-11-12
+- **背景**：真机「游戏开始时就能看见其他玩家身份」。根因：v1 的 `Seat.alive` 在 v2 被删掉，
+  视图掩码用 `hp <= 0` 冒充「已死亡」→ 未开局（hp 未初始化）与濒死（hp = 0）都被当成死亡。
+- **实现**：
+  - `Seat.alive`（serde 默认 true）+ `Game::is_alive` / `has_general`；
+    `flow::die`（死亡确认结算）是**唯一**置 false 的出口；
+  - 视图：身份仅主公或 `alive == false` 后公开；未选武将 `hp/max_hp/alive` 一律 null；
+  - `identity`：奖惩与胜负判定改读 `alive`（主公濒死不判负，死亡确认才判负）；
+  - 不变量 `Game::check_no_zombies()`（`alive && hp<=0` 且不在濒死 → 报错，接在 execute_action 后）；
+  - **修掉一个深层帧数据 bug**：`card_play::need_at` 原先写 `stack.last_mut()`，
+    在「伤害里压入濒死帧」后会把牌结算 data 覆盖到濒死帧 → 濒死读到别人的 victim
+    （表现为不死不活的座位 / 对局永不结束，seed=3 自对弈复现）。改为只写 Card/Judge 帧。
+  - Web：`alive` 三态（true/false/null）渲染（未开局显示「未开局」而不是「阵亡」）。
+- **门禁**：`check:sgs2-conventions` 新增 **C8 存活语义**（view/identity 不得用 hp 推导存活）；
+  新增 `tests/state_semantics.rs`（6 条）。
+- **度量**：`cargo test -p sanguosha2` **783 通过 / 0 失败**；`check:sgs2` 全绿；
+  `check:sgs2-ai` 30/30 终局（步数 11669→9228、maxRound 114→47，副作用是死亡判定更早更准）；
+  `sgs:check:fast` 24/24；`test:sgs-web` 通过。
+
 ## M93：I1 询问完整性（V2.1-fix C1 · 交互口径回归修复）🚧
 
 - **日期**：2026-11-12

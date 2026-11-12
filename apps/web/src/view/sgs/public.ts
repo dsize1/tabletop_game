@@ -33,7 +33,7 @@ function seatCard(
   const cls = [
     "sgs-opponent",
     `anchor-${{ left: "right", right: "left", top: "center" }[placement.side]}`,
-    seat.alive ? "" : "dead",
+    seat.alive === false ? "dead" : "",
     board.turn.seat === seatIdx && board.turn.phase !== "finished" ? "current" : "",
   ]
     .filter(Boolean)
@@ -89,7 +89,7 @@ function seatCard(
     ((seat.abolished_slots ?? []).length > 0
       ? `<div class="sgs-mini-row muted">废除装备栏×${(seat.abolished_slots ?? []).length}</div>`
       : "") +
-    (seat.alive ? "" : `<div class="sgs-dead-mark">阵亡</div>`) +
+    (seat.alive === false ? `<div class="sgs-dead-mark">阵亡</div>` : "") +
     `</div>`
   );
 }

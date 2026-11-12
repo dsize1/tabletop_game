@@ -492,7 +492,9 @@ fn view_contract_judge_zone_lifo_order() {
 #[test]
 fn view_contract_alive_and_card_revealed_flags() {
     let mut f = fixture();
+    // I2：存活是显式状态（死亡确认），不由 hp 推导。
     f.g.seats[2].hp = 0;
+    f.g.seats[2].alive = false;
     let id = f
         .g
         .ids_in(|z| *z == Zone::Draw)

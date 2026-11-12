@@ -76,7 +76,7 @@ export function renderGeneralDetail(
     row("手牌", `×${seat.hand_count} / ${handLimitLabel(seat.hand_limit)}`),
     row(
       "状态",
-      `${seat.alive ? "存活" : "阵亡"}${seat.flipped ? " · 翻面" : ""}${seat.chained ? " · 横置（连环）" : ""}`,
+      `${seat.alive === true ? "存活" : seat.alive === false ? "阵亡" : "未开局"}${seat.flipped ? " · 翻面" : ""}${seat.chained ? " · 横置（连环）" : ""}`,
     ),
   ];
   const skillTypeLabel: Record<string, string> = {

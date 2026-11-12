@@ -13,6 +13,7 @@
 //   C5 「跳过/不弃置」类出口必须用 escape_mandatory 或显式白名单
 //   C6 kind 一致性：locked 不得有主动入口；limited/awaken 必须有 used 守卫
 //   C7 询问完整性（I1）：内核「不询问」分支必须走 must_ask（只有合法集为空才允许不问）
+//   C8 存活语义（I2）：视图/身份判定不得用 hp 推导存活（必须读 Seat.alive）
 import fs from "node:fs";
 import path from "node:path";
 
@@ -97,6 +98,19 @@ for (const f of ["card_play.rs", "flow.rs"]) {
   });
 }
 
+// ---- C8 存活语义（I2：不得用 hp 推导存活/身份公开） ----
+// 未开局 hp 未初始化、濒死 hp=0 —— 两者都不是死亡；只有 flow::die 置 alive=false 才是死亡。
+for (const f of ["../view.rs", "../identity.rs"]) {
+  const p = path.join(KERNEL, f);
+  if (!fs.existsSync(p)) continue;
+  fs.readFileSync(p, "utf8").split(NL).forEach((ln, i) => {
+    if (/^\s*\/\//.test(ln)) return;
+    if (/hp\s*(<=|<)\s*0|hp\s*(>|>=)\s*0/.test(ln)) {
+      add("C8-alive", f.replace("../", ""), ln.trim(), `第 ${i + 1} 行`);
+    }
+  });
+}
+
 // ---- C6 kind 一致性 ----
 for (const [f, text] of src) {
   for (const m of text.matchAll(/SkillDef \{([\s\S]*?)\};/g)) {
@@ -120,6 +134,7 @@ if (WRITE) {
     "C4-counter": "跨回合/整局累计计数器：思蜀指定、醇醪轮次、诫训累计（需显式作用域 registry）",
     "C5-escape": "候选为空/技能明文可选时的放弃出口（评审保留；空选项自动跳过待 M9 落地）",
     "C7-ask": "历史「没有可选项就不询问」分支（已由 must_ask 收口；新增即失败）",
+    "C8-alive": "视图/身份用 hp 推导存活（应读 Seat.alive；濒死与未开局都不是死亡）",
     "C6-kind": "kind 一致性豁免",
   };
   const out = { generatedAt: new Date().toISOString(), note: "显式白名单：新增违反必须补机制或登记理由（engine-self-audit B4/M8/M9）" };

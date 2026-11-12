@@ -228,7 +228,7 @@ function maybeResumeBots(view: GameView): void {
     | undefined;
   const board = data?.public_board;
   if (!board || data?.phase === "finished") return;
-  const alive = (board.seats ?? []).filter((seat) => seat.alive);
+  const alive = (board.seats ?? []).filter((seat) => seat.alive === true);
   if (alive.length === 0 || !alive.every((seat) => seat.is_bot)) return;
   void fetch(
     `${SERVER_URL}/internal/game/${encodeURIComponent(view.game_id)}/${encodeURIComponent(view.room_id)}/drive`,

@@ -274,16 +274,20 @@ fn public_seat(g: &Game, seat: usize) -> Value {
     let code = public_general(g, seat);
     let def = code.as_deref().and_then(general_def);
     let has_skills = code.is_some();
+    // I2：身份只在「主公」或**死亡确认**（`Seat.alive == false`）后公开；
+    // 未选将 / 濒死（hp = 0 但 alive）都不得公开。
+    let identity_public = s.identity == crate::identity::LORD || !s.alive;
+    // I2：未选将（hp 尚未初始化）不展示体力与存活。
+    let picked = !s.general.is_empty();
     json!({
         "seat": seat,
         "player_id": s.name,
-        // 仅主公身份公开；死亡后公开身份（规则 §8.3）。
-        "identity": if s.identity == crate::identity::LORD || s.hp <= 0 { Some(s.identity.clone()) } else { None },
+        "identity": if identity_public { Some(s.identity.clone()) } else { None },
         "general": code,
         "general_name": code.as_deref().map(general_name).unwrap_or_default(),
         "kingdom": def.map(|d| d.kingdom).or(Some(s.kingdom.as_str())),
-        "hp": s.hp,
-        "max_hp": s.max_hp,
+        "hp": if picked { json!(s.hp) } else { Value::Null },
+        "max_hp": if picked { json!(s.max_hp) } else { Value::Null },
         "hand_count": g.hand(seat).len(),
         "hand_limit": g.hand_limit(seat),
         "equips": equips_view(g, seat),
@@ -299,7 +303,7 @@ fn public_seat(g: &Game, seat: usize) -> Value {
         "judge_abolished": s.judge_abolished,
         "flipped": s.flipped,
         "chained": s.chained,
-        "alive": s.hp > 0,
+        "alive": if picked { json!(s.alive) } else { Value::Null },
         "is_bot": s.bot,
         "has_picked": code.is_some(),
         "skills": if has_skills { skills_view(g, seat) } else { json!([]) },
@@ -546,8 +550,8 @@ fn player_area(g: &Game, seat: Option<usize>) -> Value {
         "general_gid": def.map(|d| d.gid),
         "kingdom": def.map(|d| d.kingdom).or(Some(s.kingdom.as_str())),
         "general_name": general_name(&code),
-        "hp": s.hp,
-        "max_hp": s.max_hp,
+        "hp": if code.is_empty() { Value::Null } else { json!(s.hp) },
+        "max_hp": if code.is_empty() { Value::Null } else { json!(s.max_hp) },
         "hand": cards_view(g, &g.hand(seat)),
         "hand_limit": g.hand_limit(seat),
         "equips": equips_view(g, seat),

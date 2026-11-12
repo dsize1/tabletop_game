@@ -150,6 +150,11 @@ pub struct Seat {
     pub flipped: bool,
     pub hp: i32,
     pub max_hp: i32,
+    /// 是否存活（C2 单一出口：只有 `flow::die` 在**死亡确认结算**时置 false）。
+    ///
+    /// 不得用 `hp <= 0` 代替：濒死（hp=0、等待救援）仍是存活，未开局（hp 未初始化）也不是死亡。
+    #[serde(default = "default_true")]
+    pub alive: bool,
     /// 护甲（mechanics `armor-points`）：受到伤害时先扣护甲、溢出扣体力。
     #[serde(default)]
     pub armor: i32,
@@ -228,6 +233,7 @@ impl Seat {
             flipped: false,
             hp,
             max_hp: hp,
+            alive: true,
             armor: 0,
             skills: skills.iter().map(|s| s.to_string()).collect(),
             granted: Vec::new(),
@@ -1283,6 +1289,36 @@ impl Game {
         }
     }
 
+    /// I2 不变量：`alive == true` 且 `hp <= 0` 只允许出现在**濒死结算中**（栈里有 Dying 帧）。
+    ///
+    /// 否则就是「僵尸座位」：既没死也没在濒死，回合仍会轮到他 → 对局可能永不结束。
+    pub fn check_no_zombies(&self) -> Result<(), String> {
+        let in_dying = self.stack.iter().any(|f| match f {
+            crate::kernel::resolve::Frame::Flow(ff) => {
+                ff.kind == crate::kernel::resolve::FlowKind::Dying
+            }
+            _ => false,
+        });
+        if in_dying {
+            return Ok(());
+        }
+        let zombies: Vec<String> = self
+            .seats
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| s.alive && s.hp <= 0)
+            .map(|(i, s)| format!("#{i}({})", s.name))
+            .collect();
+        if zombies.is_empty() {
+            Ok(())
+        } else {
+            Err(format!(
+                "僵尸座位（alive=true 但 hp<=0 且不在濒死）：{zombies:?}；最近日志={:?}",
+                self.log.iter().rev().take(6).map(|e| e.text.clone()).collect::<Vec<_>>()
+            ))
+        }
+    }
+
     pub fn push_log(&mut self, text: impl Into<String>) {
         let seq = self.log.len() as u32 + 1;
         self.log.push(LogEntry {
@@ -1705,6 +1741,18 @@ impl Game {
             return false;
         }
         !self.seats[seat].frozen.contains(id) && !self.seats[seat].frozen_phase.contains(id)
+    }
+
+    /// 是否存活（唯一判定：`Seat.alive`）。
+    ///
+    /// 不要用 `hp <= 0`：濒死（hp=0 待救援）是存活，未开局（hp 未初始化）也不是死亡。
+    pub fn is_alive(&self, seat: usize) -> bool {
+        self.seats.get(seat).map(|s| s.alive).unwrap_or(false)
+    }
+
+    /// 是否已选将（未选将时视图不展示体力/存活，见 I2）。
+    pub fn has_general(&self, seat: usize) -> bool {
+        self.seats.get(seat).map(|s| !s.general.is_empty()).unwrap_or(false)
     }
 
     /// I1 询问完整性（v1 口径，用户 2026-10-28 裁定）：**只有「合法动作集为空」才允许不询问**。

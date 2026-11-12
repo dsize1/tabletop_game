@@ -82,7 +82,8 @@ export interface SgsSeat {
   flipped?: boolean;
   /** 连环状态（横置）：火/雷属性伤害会传导。 */
   chained?: boolean;
-  alive: boolean;
+  /** 存活（I2：未选将/未开局为 null，不展示）。 */
+  alive: boolean | null;
   is_bot?: boolean;
   /** 已公开武将的技能（公开信息；未公示时为空/缺省）。 */
   /** 转换技当前面：code → "yang" | "yin"（公开信息）。 */

@@ -71,7 +71,7 @@ export function renderSgsTextBody(
         ` 体力 ${s.hp}/${s.max_hp}，手牌 ${s.hand_count}/${handLimitLabel(s.hand_limit)}` +
         (equips ? `，装备 ${escapeHtml(equips)}` : "") +
         (judge ? `，判定 ${escapeHtml(judge)}` : "") +
-        (s.alive ? "" : "（阵亡）") +
+        (s.alive === false ? "（阵亡）" : "") +
         `</li>`
       );
     })

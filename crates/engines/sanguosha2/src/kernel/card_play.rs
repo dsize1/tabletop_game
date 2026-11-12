@@ -2900,16 +2900,31 @@ fn need_at(
     data: Value,
     p: super::pending::Pending,
 ) -> Result<Step, String> {
-    match g.stack.last_mut() {
+    // 只能写回**本牌结算帧**（Card/Judge）。handler 可能已经在栈顶压了子帧
+    // （例如伤害触发濒死 Dying 帧）——写 `stack.last_mut()` 会把牌结算的 data
+    // 覆盖到濒死帧上，导致濒死读到别人的 victim（僵尸座位 / 不结算死亡）。
+    let target = g.stack.iter_mut().rev().find(|f| {
+        matches!(f, Frame::Flow(ff) if matches!(ff.kind, FlowKind::Card | FlowKind::Judge))
+    });
+    match target {
         Some(Frame::Flow(f)) => {
             f.stage = stage;
             f.data = data;
         }
-        Some(Frame::Ask(ask)) => {
-            ask.stage = stage;
-            ask.data = data;
+        _ => {
+            // 兼容：非牌结算帧调用（例如技能自建 Ask）→ 继续写栈顶。
+            match g.stack.last_mut() {
+                Some(Frame::Flow(f)) => {
+                    f.stage = stage;
+                    f.data = data;
+                }
+                Some(Frame::Ask(ask)) => {
+                    ask.stage = stage;
+                    ask.data = data;
+                }
+                _ => return Err("牌结算：当前结算帧不可保存进度".into()),
+            }
         }
-        _ => return Err("牌结算：当前结算帧不可保存进度".into()),
     }
     Ok(Step::Need(p))
 }

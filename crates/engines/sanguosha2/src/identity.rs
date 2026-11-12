@@ -62,7 +62,7 @@ pub fn on_death(g: &mut Game, victim: usize, source: Option<usize>) {
     let Some(killer) = source.filter(|s| *s != victim) else {
         return;
     };
-    if g.seats.get(killer).map(|s| s.hp <= 0).unwrap_or(true) {
+    if !g.is_alive(killer) {
         return;
     }
     match g.seats[victim].identity.as_str() {
@@ -97,8 +97,9 @@ pub fn check_finished(g: &mut Game) {
     let Some(lord) = lord_seat(g) else {
         return;
     };
-    let alive: Vec<usize> = (0..g.seats.len()).filter(|i| g.seats[*i].hp > 0).collect();
-    if g.seats[lord].hp <= 0 {
+    let alive: Vec<usize> = (0..g.seats.len()).filter(|i| g.is_alive(*i)).collect();
+    // I2：主公**死亡确认**（不是濒死）才判负。
+    if !g.is_alive(lord) {
         g.finished = true;
         if alive.len() == 1 && g.seats[alive[0]].identity == TRAITOR {
             g.winner = Some(TRAITOR.to_string());
@@ -204,6 +205,7 @@ mod tests {
         g.identity_game = true;
         g.seats[0].identity = LORD.into();
         g.seats[0].hp = 0;
+        g.seats[0].alive = false; // I2：死亡确认（濒死不算死亡）
         for s in g.seats.iter_mut().skip(1) {
             s.identity = REBEL.into();
         }
@@ -226,11 +228,14 @@ mod tests {
         g.identity_game = true;
         g.seats[0].identity = LORD.into();
         g.seats[0].hp = 0;
+        g.seats[0].alive = false; // I2：死亡确认
         for s in g.seats.iter_mut().skip(1) {
             s.identity = TRAITOR.into();
             s.hp = 0;
+            s.alive = false;
         }
         g.seats[1].hp = 3;
+        g.seats[1].alive = true;
         check_finished(&mut g);
         assert_eq!(g.winner.as_deref(), Some(TRAITOR));
     }

@@ -359,6 +359,21 @@ M9 pending 身份（window id）——都按本模板落地（枚举 + 表 + 覆
 - 用例：`tests/b9.rs`（代出成功 / 全拒绝回窗口 / 全拒绝后放弃受伤 / 主动代出并命中 /
   主动无人代出可重发）。
 
+### 25.0.2 状态语义：存活/死亡是显式状态（2026-11-12 追加）
+
+- **唯一判定**：`Game::is_alive(seat)` 读 `Seat.alive`；**不得用 `hp <= 0` 推导存活**
+  （门禁 `check:sgs2-conventions` C8 扫描 `view.rs` / `identity.rs`）；
+- `Seat.alive` 只由 `flow::die`（**死亡确认结算**）置 false；濒死（hp = 0 等待救援）仍是存活；
+- **未选武将**（`general` 为空）时视图 `hp / max_hp / alive` 一律 `null`，不展示；
+- **身份公开**：仅主公，或 `alive == false` 之后；
+- 开局按武将表满血（`finish_setup`：`max_hp`，主公 +1）；
+- 不变量 `Game::check_no_zombies()`：`alive && hp <= 0` 且栈里没有 Dying 帧 = 僵尸座位 → 报错；
+- **帧数据只能写发起帧**：`card_play::need_at` 必须写回 Card/Judge 帧，不能写 `stack.last_mut()`
+  ——handler 在伤害里压了子帧（濒死）时，写栈顶会把牌数据覆盖到濒死帧上，
+  导致濒死读到别人的 `victim`（真机/自对弈表现为「不死不活的座位 + 对局不结束」）；
+- 用例：`tests/state_semantics.rs`（6 条：未选将不展示 / 已选将展示 / 濒死不公开身份 /
+  死亡确认公开 / 主公濒死不判负 / 沙盒开局满血）。
+
 ### 25.1 强制步骤不得使用普通出口
 
 - 规则上「必须做」的步骤（展示手牌、选牌、弃至上限、取五谷牌）必须用 `escape_mandatory`
