@@ -1,0 +1,455 @@
+//! 视图三分区投影（ADR-0020 / `data-model.md` §4.2）。
+//!
+//! - `public_board`：所有端可见的公共局面（**只读**）；
+//! - `player_area`：本人私有资源（手牌明细、身份、候选武将、个人 pending）；
+//! - `special_zones`：按 `visibility` 下发的特殊交互区。
+//!
+//! 隐藏信息（手牌明细、非主公身份、候选武将、牌堆顺序）**只出现在 `player_area`**。
+
+use crate::data;
+use crate::state::*;
+use serde_json::{json, Map, Value};
+
+/// 牌实例视图（含展示用牌名/分类）。
+pub fn card_view(st: &SgsState, id: &str) -> Value {
+    let Some(c) = st.cards.get(id) else {
+        return json!({ "id": id, "missing": true });
+    };
+    let def = data::card_def(&c.def);
+    json!({
+        "id": id,
+        "def": c.def,
+        "name": def.map(|d| d.name).unwrap_or(c.def.as_str()),
+        "suit": c.suit,
+        "rank": c.rank,
+        "category": def.map(|d| d.category),
+        "equip_slot": def.and_then(|d| d.equip_slot),
+        "range_value": def.and_then(|d| d.range_value),
+        "range_type": def.and_then(|d| d.range_type),
+        "target_mode": def.and_then(|d| d.target_mode),
+        "delayed": def.is_some_and(|d| d.delayed),
+        // 装备牌效果文案（长按牌面详情展示；非装备为 null）。
+        "effect": crate::skills::equipment_effect(&c.def),
+    })
+}
+
+fn equips_view(st: &SgsState, seat: &Seat) -> Value {
+    let mut m = Map::new();
+    for slot in EquipSlot::ALL {
+        let v = match seat.equips.get(&slot) {
+            Some(Some(id)) => card_view(st, id),
+            _ => Value::Null,
+        };
+        let key = serde_json::to_value(slot)
+            .ok()
+            .and_then(|v| v.as_str().map(str::to_string))
+            .unwrap_or_default();
+        m.insert(key, v);
+    }
+    Value::Object(m)
+}
+
+fn pending_view(p: &Pending) -> Value {
+    json!({
+        "kind": p.kind,
+        "actor": p.actor,
+        "skill": p.skill,
+        "options": p.options.iter().map(|o| json!({ "id": o.id, "label": o.label })).collect::<Vec<_>>(),
+        "data": p.data,
+    })
+}
+
+/// 武将牌上的标记（按标记 code → 牌列表；公共信息）。
+fn marks_view(st: &SgsState, seat: &Seat) -> Value {
+    let mut out = Map::new();
+    for (code, ids) in &seat.marks {
+        if ids.is_empty() {
+            continue;
+        }
+        out.insert(
+            code.clone(),
+            json!(ids.iter().map(|id| card_view(st, id)).collect::<Vec<_>>()),
+        );
+    }
+    Value::Object(out)
+}
+
+/// 计数型标记（非牌实例，如陆绩「橘」；公共信息）。
+fn marks_count_view(seat: &Seat) -> Value {
+    let mut out = Map::new();
+    for (code, n) in &seat.mark_counts {
+        if *n == 0 {
+            continue;
+        }
+        out.insert(code.clone(), json!(n));
+    }
+    Value::Object(out)
+}
+
+/// 已废除的装备栏（P4.4.1 SP-2）。
+fn abolished_slots_view(seat: &Seat) -> Vec<Value> {
+    seat.abolished_slots
+        .iter()
+        .filter_map(|slot| serde_json::to_value(slot).ok())
+        .collect()
+}
+
+/// 转换技当前面（阳/阴）视图（公开信息）：清单见 `skills::TRANSFORM_SKILLS`。
+fn transforms_view(st: &SgsState, seat: usize) -> Value {
+    let mut out = Map::new();
+    for code in crate::skills::TRANSFORM_SKILLS {
+        if !crate::skills::has(st, seat, code) {
+            continue;
+        }
+        out.insert(
+            code.to_string(),
+            json!(if crate::skills::yj_yin(st, seat, code) {
+                "yin"
+            } else {
+                "yang"
+            }),
+        );
+    }
+    Value::Object(out)
+}
+
+/// 手牌上限（公共信息）：`null` 表示本回合无上限（如克己）。
+fn hand_limit_view(st: &SgsState, seat: usize) -> Value {
+    let limit = crate::skills::hand_limit(st, seat);
+    if limit == usize::MAX {
+        Value::Null
+    } else {
+        json!(limit)
+    }
+}
+
+/// 公共局面区。
+pub fn public_board(st: &SgsState) -> Value {
+    // 武将公开口径：
+    // - 选将阶段：**主公选完即公开**（规则：主公身份公开，武将随之亮明；2026-11-02 用户裁定），
+    //   其他人选完仍隐藏，待选将完成（进入 turn）统一亮明；
+    // - 对局中/濒死/终局：全员武将公开。
+    let reveal_generals = matches!(st.phase, Phase::Turn | Phase::Dying | Phase::Finished);
+    let seats: Vec<Value> = st
+        .seats
+        .iter()
+        .enumerate()
+        .map(|(i, s)| {
+            // 主公：一旦选将就对外公开（未选时仍为空）。
+            // 注意：选将结果先落在 `setup.picks`，`seats[].general` 要到 `finish_setup`
+            // 才写回，所以选将阶段要直接从 `picks` 取主公的选择。
+            let lord_pick = if s.identity.is_lord() {
+                st.setup.picks.get(&s.player_id).map(String::as_str)
+            } else {
+                None
+            };
+            let general_code = if reveal_generals {
+                s.general.as_deref()
+            } else {
+                lord_pick
+            };
+            let general_name = if reveal_generals {
+                s.general_name.clone()
+            } else {
+                general_code
+                    .and_then(data::general)
+                    .map(|g| g.name.to_string())
+                    .unwrap_or_default()
+            };
+            // 技能是公开信息：武将一旦公示（回合中/终局/主公已选）即下发。
+            let skills = skills_view(st, i, general_code);
+            json!({
+                "seat": i,
+                "player_id": s.player_id,
+                // 仅主公身份公开；其余死亡/终局前不公开（P2.3 处理亮身份）。
+                // 主公公开；死亡后公开身份（规则 §8.3）。
+                "identity": if s.identity.is_lord() || !s.alive { Some(s.identity.code()) } else { None },
+                "general": general_code.map(str::to_string),
+                "general_name": general_name,
+                "kingdom": general_code.and_then(data::general).map(|g| g.kingdom),
+                "skills": skills,
+                // 转换技当前面（阳/阴）：公开信息，公共区/武将详情也展示。
+                "transforms": transforms_view(st, i),
+                "hp": s.hp,
+                "max_hp": s.max_hp,
+                "hand_count": s.hand.len(),
+                "hand_limit": hand_limit_view(st, i),
+                "equips": equips_view(st, s),
+                "judge_zone": s.judge_zone.iter().map(|id| card_view(st, id)).collect::<Vec<_>>(),
+                "marks": marks_view(st, s),
+                "marks_count": marks_count_view(s),
+                "abolished_slots": abolished_slots_view(s),
+                "judge_abolished": s.judge_abolished,
+                "flipped": s.flipped,
+                // 连环状态（横置）：公共信息，端侧需给标签并提示属性伤害传导。
+                "chained": s.chained,
+                "alive": s.alive,
+                "is_bot": s.is_bot,
+                "has_picked": st.setup.picks.contains_key(&s.player_id),
+            })
+        })
+        .collect();
+
+    json!({
+        "phase": st.phase,
+        "round": st.round,
+        "turn_index": st.turn_index,
+        "turn": {
+            "seat": st.turn,
+            "phase": st.turn_phase,
+            "player_id": st.current_player(),
+        },
+        "config": st.config,
+        "min_players": MIN_PLAYERS,
+        "max_players": MAX_PLAYERS,
+        "seat_count": st.seats.len(),
+        "seats": seats,
+        "deck": {
+            "draw": st.deck.draw.len(),
+            "discard": st.deck.discard.len(),
+            "processing": st.deck.processing.len(),
+            "void": st.deck.void.len(),
+        },
+        "discard_top": st.deck.discard.last().map(|id| card_view(st, id)),
+        // 弃牌堆全量（公共信息；ui-spec §4「点击开浮层列表」）
+        "discard": st.deck.discard.iter().map(|id| card_view(st, id)).collect::<Vec<_>>(),
+        // 公共区只给 pending 的「谁在等」，不给选项内容。
+        "pending": st.pending.as_ref().map(|p| json!({ "kind": p.kind, "actor": p.actor })),
+        "setup": if st.phase == Phase::Setup {
+            json!({
+                "lord": st.setup.lord,
+                "lord_picked": st.setup.lord_picked,
+                "picked_count": st.setup.picks.len(),
+            })
+        } else {
+            Value::Null
+        },
+        "winner": st.winner,
+        "aborted": st.abort_reason,
+        // 出牌历史（全量，按时间正序；端侧倒序展示）。
+        "history": st
+            .history
+            .iter()
+            .map(|e| json!({ "seq": e.seq, "turn": e.turn, "actor": e.actor, "text": e.text }))
+            .collect::<Vec<_>>(),
+    })
+}
+
+/// 玩家个人资源区；`viewer` 不在座时返回 `None`。
+
+/// 装备技能视图（P4.5 阶段二）：已装备且已注册的装备技能。
+fn equipment_skills_view(st: &SgsState, seat: usize) -> Vec<Value> {
+    let trigger_code = |t: crate::skills::Trigger| match t {
+        crate::skills::Trigger::Passive => "passive",
+        crate::skills::Trigger::PlayPhase => "play_phase",
+        crate::skills::Trigger::TargetChosen => "target_chosen",
+        crate::skills::Trigger::DamageBefore => "damage_before",
+        crate::skills::Trigger::AfterDodge => "after_dodge",
+        crate::skills::Trigger::JudgeBefore => "judge_before",
+    };
+    let mut out = Vec::new();
+    let virtual_equip = crate::skills::virtual_equip(st, seat);
+    for def in crate::skills::EQUIPMENT_SKILLS {
+        let Some(slot) = EquipSlot::ALL.into_iter().find(|slot| {
+            st.seats[seat]
+                .equips
+                .get(slot)
+                .and_then(|v| v.as_ref())
+                .and_then(|id| st.cards.get(id))
+                .is_some_and(|c| c.def == def.card)
+                || (*slot == EquipSlot::Armor && virtual_equip == Some(def.card))
+        }) else {
+            continue;
+        };
+        out.push(json!({
+            "slot": match slot {
+                EquipSlot::Weapon => "weapon",
+                EquipSlot::Armor => "armor",
+                EquipSlot::HorseOffense => "horse_offense",
+                EquipSlot::HorseDefense => "horse_defense",
+                EquipSlot::Treasure => "treasure",
+            },
+            "code": def.code,
+            "name": def.name,
+            "card": def.card,
+            "trigger": trigger_code(def.trigger),
+        }));
+    }
+    out
+}
+
+/// 技能列表（公共/本人视图共用；技能是公开信息）。
+///
+/// `general` 为**已公开**的武将 code（本人视图=自己的武将；公共视图=已公示武将）。
+/// 未公开武将时调用方传 `None`，不返回任何技能。
+fn skills_view(st: &SgsState, idx: usize, general: Option<&str>) -> Vec<Value> {
+    let Some(code) = general else {
+        return Vec::new();
+    };
+    let s = &st.seats[idx];
+    let mut skills: Vec<Value> = {
+        let defs = crate::skills::skills_of(code);
+        if defs.is_empty() {
+            data::general(code)
+                .map(|g| {
+                    g.skills
+                        .iter()
+                        .map(|name| {
+                            json!({
+                                "code": name,
+                                "name": name,
+                                "type": "normal",
+                                "implemented": false,
+                            })
+                        })
+                        .collect()
+                })
+                .unwrap_or_default()
+        } else {
+            defs.iter()
+                .map(|s| {
+                    json!({
+                        "code": s.code,
+                        "name": s.name,
+                        "type": s.kind.code(),
+                        "implemented": s.implemented,
+                    })
+                })
+                .collect()
+        }
+    };
+    // 觉醒/化身/授予的额外技能（同样是公开信息）。
+    for extra in &s.extra_skills {
+        if skills.iter().any(|v| v["code"] == json!(extra)) {
+            continue;
+        }
+        if let Some(def) = crate::skills::def_of(extra) {
+            skills.push(json!({
+                "code": def.code,
+                "name": def.name,
+                "type": def.kind.code(),
+                "implemented": def.implemented,
+            }));
+        }
+    }
+    skills
+}
+
+pub fn player_area(st: &SgsState, viewer: &str) -> Option<Value> {
+    let idx = st.seat_index(viewer)?;
+    let s = &st.seats[idx];
+    let picked = st.setup.picks.get(viewer).cloned();
+    let general = s.general.clone().or_else(|| picked.clone());
+    let skills = skills_view(st, idx, general.as_deref());
+    let setup = if st.phase == Phase::Setup {
+        // 候选武将：既给 code 列表（既有契约），也给可直接渲染的详情
+        // （Web 选将页需要名字/势力/体力/技能名，否则只能显示内部 code）。
+        let details: Vec<Value> = st
+            .setup
+            .offers
+            .get(viewer)
+            .map(|codes| {
+                codes
+                    .iter()
+                    .filter_map(|code| {
+                        data::general(code).map(|g| {
+                            json!({
+                                "code": g.code,
+                                "name": g.name,
+                                "kingdom": g.kingdom,
+                                "max_hp": g.max_hp,
+                                "is_lord": g.is_lord,
+                                "skills": g.skills,
+                            })
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        json!({
+            "candidates": st.setup.offers.get(viewer),
+            "candidate_details": details,
+            "picked": picked,
+            "is_lord": s.identity.is_lord(),
+        })
+    } else {
+        Value::Null
+    };
+    Some(json!({
+        "seat": idx,
+        "player_id": s.player_id,
+        "identity": s.identity.code(),
+        "general": general,
+        "general_gid": general.as_deref().and_then(data::general).map(|g| g.gid),
+        "kingdom": general.as_deref().and_then(data::general).map(|g| g.kingdom),
+        "general_name": if s.general_name.is_empty() {
+            general.as_deref().and_then(data::general).map(|g| g.name).unwrap_or_default().to_string()
+        } else { s.general_name.clone() },
+        "hp": s.hp,
+        "max_hp": s.max_hp,
+        "hand": s.hand.iter().map(|id| card_view(st, id)).collect::<Vec<_>>(),
+        "hand_limit": hand_limit_view(st, idx),
+        "equips": equips_view(st, s),
+        "judge_zone": s.judge_zone.iter().map(|id| card_view(st, id)).collect::<Vec<_>>(),
+        "marks": marks_view(st, s),
+        "marks_count": marks_count_view(s),
+        "transforms": transforms_view(st, idx),
+        "abolished_slots": abolished_slots_view(s),
+        "judge_abolished": s.judge_abolished,
+        "flipped": s.flipped,
+        "chained": s.chained,
+        "skills": skills,
+        "equipment_skills": equipment_skills_view(st, idx),
+        "is_bot": s.is_bot,
+        "is_current": st.phase == Phase::Turn && idx == st.turn,
+        // 只有本人能看到 pending 的选项内容。
+        "pending": st.pending.as_ref().filter(|p| p.actor == viewer).map(pending_view),
+        "setup": setup,
+    }))
+}
+
+/// 特殊交互区（公共 + 本人可见）。
+pub fn special_zones(st: &SgsState, viewer: Option<&str>) -> Value {
+    let mut out = Map::new();
+    // 判定公开区（judge）只在「判定阶段 / 改判待办」期间有效：
+    // 否则出牌阶段仍会残留上一次判定（如兵粮寸断），造成待响应提示 / 公共区误导（真机反馈）。
+    let judge_live = st.turn_phase == TurnPhase::Judge
+        || st
+            .pending
+            .as_ref()
+            .is_some_and(|p| p.kind == "judge_rewrite");
+    for (id, zone) in &st.special_zones {
+        if id == "judge" && !judge_live {
+            continue;
+        }
+        let visible = zone.visibility == Visibility::Public
+            || viewer.is_some_and(|v| zone.owner.as_deref() == Some(v));
+        if !visible {
+            continue;
+        }
+        let mut obj = Map::new();
+        if let Some(owner) = &zone.owner {
+            obj.insert("owner".into(), json!(owner));
+        }
+        if let Ok(v) = serde_json::to_value(zone.visibility) {
+            obj.insert("visibility".into(), v);
+        }
+        for (k, v) in &zone.payload {
+            obj.insert(k.clone(), v.clone());
+        }
+        out.insert(id.clone(), Value::Object(obj));
+    }
+    Value::Object(out)
+}
+
+/// 视图数据根（`GameState.data` 的对外形态）。
+pub fn view_data(st: &SgsState, viewer: Option<&str>) -> Value {
+    json!({
+        "schema_version": st.schema_version,
+        "game": "sanguosha",
+        "phase": st.phase,
+        "public_board": public_board(st),
+        "player_area": viewer.and_then(|v| player_area(st, v)),
+        "special_zones": special_zones(st, viewer),
+    })
+}

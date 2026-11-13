@@ -1,0 +1,19 @@
+[package]
+name = "sanguosha3"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+# 内核 V3（2026-11-13 立项，ADR-0042）：把 v2 已验证的「机制词表 + 契约门禁」
+# 升级为**骨架类型系统**。与 v2 的关键差异：
+# 1. 订阅带 `Subject`（Self/Other/By/From）——事件归属是声明不是守卫（M105 教训）；
+# 2. 伤害事件带 `damage_kind × source_kind` 二维（藤甲「普通杀无效」判定，2026-11-13）；
+# 3. 技能层是声明式 `SkillDef`（face 化 / 授予技一等公民 / hooks 归一）——M1 之后接入；
+# 4. 装备特效 = equip-skill 注入（武器 = 特殊技能）。
+# v2 冻结作参考实现；本 crate 不注册网关、不上线，先跑内核类型系统与不变量门禁。
+[dependencies]
+game-engine-core = { path = "../../game-engine-core" }
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
