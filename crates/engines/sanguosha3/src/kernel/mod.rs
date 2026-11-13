@@ -3,6 +3,7 @@
 //! 本模块只定义**类型与不变量**，不含任何牌结算逻辑（那是 `flow` / `card_play` 的职责）。
 
 pub mod event;
+pub mod flow;
 pub mod pending;
 
 use std::collections::HashMap;
@@ -115,6 +116,66 @@ pub struct Seat {
     /// 授予技（一等公民的 code；`skills::active` 单一查询 = 自带 ∪ granted ∪ 临时）。
     #[serde(default)]
     pub granted: Vec<String>,
+}
+
+/// 伤害属性（mechanics `damage-attributes`）：普通/火/雷。
+/// 转化/虚拟牌按**生效定义**定属性（朱雀羽扇普杀→火杀=Fire；武圣红牌→普通杀=Normal）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+pub enum DamageKind {
+    #[default]
+    Normal,
+    Fire,
+    Thunder,
+}
+
+/// 伤害来源类别（mechanics `damage-attributes` 的**第二维**，2026-11-13 藤甲裁定引出）：
+/// 藤甲要区分「普通【杀】（无效）/【南蛮】/【万箭】（无效）/【决斗】/技能伤害/体力流失」。
+/// `HpLoss` 不是伤害（走 `flow::lose_hp`，不产生伤害事件），这里仅为来源归类的完整性。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+pub enum SourceKind {
+    #[default]
+    /// 普通伤害（决斗/技能伤害等）。
+    Other,
+    Slash,
+    Nanman,
+    Wanjian,
+    Duel,
+    Skill,
+    HpLoss,
+}
+
+/// 伤害规格（二维：属性 × 来源）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DamageSpec {
+    pub from: Option<usize>,
+    pub target: usize,
+    pub amount: i32,
+    pub kind: DamageKind,
+    pub source: SourceKind,
+}
+
+impl DamageSpec {
+    /// 是否「普通【杀】」（藤甲免疫：slash + normal，含转化普杀）。
+    pub fn is_normal_slash(&self) -> bool {
+        self.source == SourceKind::Slash && self.kind == DamageKind::Normal
+    }
+}
+
+/// 伤害结算结果。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DamageOutcome {
+    /// 被防具/技能免疫（藤甲对普通杀/南蛮/万箭）。
+    Blocked,
+    /// 实际造成点数（已过数值链）。
+    Dealt(i32),
+}
+
+/// 防具（伤害链用；八卦/仁王盾是响应/拦截，M2 接入）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ArmorKind {
+    None,
+    Tengjia,
+    Baiyin,
 }
 
 /// 对局状态：类型与不变量的容器，**不含结算逻辑**。

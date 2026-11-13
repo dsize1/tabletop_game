@@ -86,6 +86,9 @@ pub struct Event {
     /// 来源座位（这张牌此前属于谁；牌堆/弃牌堆为 None）。
     #[serde(default)]
     pub from: Option<usize>,
+    /// 伤害事件的二维（属性 × 来源），仅 `DamageAfter` 用；非伤害事件为 None。
+    #[serde(default)]
+    pub damage: Option<super::DamageSpec>,
 }
 
 impl Event {
@@ -101,6 +104,7 @@ impl Event {
             lifecycle: Lifecycle::Turn,
             by: None,
             from: None,
+            damage: None,
         }
     }
 
@@ -116,6 +120,7 @@ impl Event {
             lifecycle: Lifecycle::Turn,
             by: None,
             from: None,
+            damage: None,
         }
     }
 }
