@@ -12,6 +12,7 @@ pub mod identity;
 pub mod pending;
 pub mod resolve;
 pub mod turn;
+pub mod view;
 
 use std::collections::HashMap;
 
