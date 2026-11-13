@@ -52,7 +52,7 @@ fn v3_summary() -> Vec<(i32, bool, usize)> {
             .collect(),
         ..Default::default()
     };
-    for i in 0..20 {
+    for i in 0..22 {
         let id = format!("c{i}");
         g.cards.insert(id.clone(), Zone::Draw);
         g.deck.push(id);
@@ -112,14 +112,13 @@ fn parity_lord_hp_plus_one() {
     assert!(v3[0].0 > v3[1].0, "主公体力高于其他座位（+1）");
 }
 
-/// 已知差异（白名单）：v1 主公初始手牌 = 6（+2），v3 = 4。根因待查（v1 finish_setup 的
-/// 主公额外摸牌，还是 sandbox 专属行为），登记不阻塞。
 #[test]
-fn parity_known_diff_lord_hand() {
+fn parity_lord_hand_is_six() {
+    // 主公初始手牌 = 6 张（2026-11-13 裁定，v1≡v3）。
     let v1 = v1_summary();
     let v3 = v3_summary();
-    assert_eq!(v1[0].2, 6, "v1 主公手牌 = 6（待查口径）");
-    assert_eq!(v3[0].2, 4, "v3 主公手牌 = 4（rules.md 口径）");
+    assert_eq!(v1[0].2, 6, "v1 主公手牌 = 6");
+    assert_eq!(v3[0].2, 6, "v3 主公手牌 = 6（裁定后一致）");
 }
 
 #[test]

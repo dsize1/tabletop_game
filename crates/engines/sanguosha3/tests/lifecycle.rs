@@ -1,7 +1,5 @@
 //! M2.4 生命周期门禁：身份公开 / 死亡 / 终局判定 / 濒死不判死。
 
-use std::collections::HashMap;
-
 use sanguosha3::kernel::identity::{check_winner, identity_public, identity_visible};
 use sanguosha3::kernel::turn::{begin_game, check_finished, die};
 use sanguosha3::kernel::{Card, Game, Identity, Seat, Suit, Winner, Zone};
@@ -107,25 +105,21 @@ fn dying_is_not_dead_and_not_finished() {
 
 #[test]
 fn begin_game_assigns_identity_and_deals() {
+    let n = 10;
     let mut g = Game {
-        seats: vec![
-            seat(0, None),
-            seat(1, None),
-            seat(2, None),
-            seat(3, None),
-        ],
-        deck: vec!["c1".into(), "c2".into(), "c3".into(), "c4".into(), "c5".into(), "c6".into(), "c7".into(), "c8".into()],
-        cards: (0..8).map(|i| (format!("c{}", i + 1), Zone::Draw)).collect(),
-        card_defs: (0..8).map(|i| (format!("c{}", i + 1), Card { id: format!("c{}", i + 1), def: "sha".into(), suit: Suit::Spade, rank: 7 })).collect(),
+        seats: vec![seat(0, None), seat(1, None), seat(2, None), seat(3, None)],
+        deck: (1..=n).map(|i| format!("c{i}")).collect(),
+        cards: (1..=n).map(|i| (format!("c{i}"), Zone::Draw)).collect(),
+        card_defs: (1..=n).map(|i| (format!("c{i}"), Card { id: format!("c{i}"), def: "sha".into(), suit: Suit::Spade, rank: 7 })).collect(),
         ..Default::default()
     };
     begin_game(&mut g, &[Identity::Loyalist, Identity::Rebel, Identity::Rebel], 2);
     assert_eq!(g.seats[0].identity, Some(Identity::Lord), "座位 0 主公");
     assert_eq!(g.seats[1].identity, Some(Identity::Loyalist));
-    // 每人发 2 张
-    for i in 0..4 {
-        let hand = g.cards.iter().filter(|(_, z)| **z == Zone::Hand(i)).count();
-        assert_eq!(hand, 2, "座位 {i} 发 2 张");
+    // 主公发 4（2+2），其余发 2
+    let hand = |s: usize| g.cards.iter().filter(|(_, z)| **z == Zone::Hand(s)).count();
+    assert_eq!(hand(0), 4, "主公发 4 张（+2）");
+    for i in 1..4 {
+        assert_eq!(hand(i), 2, "座位 {i} 发 2 张");
     }
-    let _ = HashMap::<u8, u8>::new();
 }

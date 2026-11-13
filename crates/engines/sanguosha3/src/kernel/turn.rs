@@ -8,13 +8,15 @@ use super::event::{Event, EventKind};
 use super::identity;
 use super::{Game, Identity, Zone};
 
-/// 开局：发身份（座位 0 = 主公，其余按 `identities` 顺序）+ 发初始手牌（每人 `n` 张）。
+/// 开局：发身份（座位 0 = 主公，其余按 `identities` 顺序）+ 发初始手牌（主公 6 张，其余 `hand_cards` 张）。
+/// 主公 +2 张手牌：2026-11-13 用户裁定（对拍发现 v1 主公 = 6 张，确认为正确口径）。
 pub fn begin_game(g: &mut Game, identities: &[Identity], hand_cards: usize) {
     for (i, seat) in g.seats.iter_mut().enumerate() {
         seat.identity = Some(if i == 0 { Identity::Lord } else { identities[i - 1] });
     }
     for seat in 0..g.seats.len() {
-        super::flow::draw(g, seat, hand_cards);
+        let n = if seat == 0 { hand_cards + 2 } else { hand_cards };
+        super::flow::draw(g, seat, n);
     }
 }
 
