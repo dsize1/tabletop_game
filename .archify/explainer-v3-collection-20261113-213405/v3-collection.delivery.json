@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "f6275115-ba50-4d77-ab9a-7570395a79ae",
+  "status": "current",
+  "command": "deliver",
+  "type": "explainer",
+  "input": "D:\\code\\tabletop_game\\.archify\\explainer-v3-collection-20261113-213405\\candidate.archify.md",
+  "output": "D:\\code\\tabletop_game\\.archify\\explainer-v3-collection-20261113-213405\\v3-collection.html",
+  "specification": {
+    "sha256": "6c5d002eb56022c44b62dd0e851c741c4fcb91e5e381bf0bba6988963f109ba5",
+    "bytes": 10164
+  },
+  "artifact": {
+    "sha256": "d6ff30ae4859064d801e1a8f608a830c721673b594b5e7935041051033f7cdf2",
+    "bytes": 648248
+  },
+  "explainer": {
+    "preparedSha256": "2da25aeb2a5fca304995490eeb7738ad1f1654545ed6ccb98fd7226971497d86",
+    "dependencies": [
+      {
+        "kind": "repository",
+        "id": "v2-registry",
+        "path": "crates/engines/sanguosha2/examples/sgs2-registry.rs",
+        "revision": "84f85f7e233262b542fea5ab19229a3461ccfdf3",
+        "sha256": "0a080e4bd36abcd3501c018ea362f65eeccbed6347f467a8492cffbcb27b240e",
+        "bytes": 2453
+      },
+      {
+        "kind": "diagram-spec",
+        "id": "v3-layers",
+        "inline": true,
+        "sha256": "91c9933dd9276c61fbf5cb906a6b47f8c098774b5a43841ad3a6b4c99512b99a",
+        "bytes": 1919
+      }
+    ]
+  }
+}

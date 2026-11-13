@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "finalize",
+  "status": "pass",
+  "type": "explainer",
+  "quality": "showcase",
+  "specification": {
+    "path": "D:\\code\\tabletop_game\\.archify\\explainer-v3-collection-20261113-213405\\candidate.archify.md",
+    "sha256": "6c5d002eb56022c44b62dd0e851c741c4fcb91e5e381bf0bba6988963f109ba5",
+    "bytes": 10164
+  },
+  "artifact": {
+    "path": "D:\\code\\tabletop_game\\.archify\\explainer-v3-collection-20261113-213405\\v3-collection.html",
+    "sha256": "d6ff30ae4859064d801e1a8f608a830c721673b594b5e7935041051033f7cdf2",
+    "bytes": 648248
+  },
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "not-run"
+  },
+  "diagnostics": [
+    {
+      "code": "explainer/writing-sentence-length",
+      "severity": "warning",
+      "message": "Sentence has 54 reading units, above the configured zh limit of 50.",
+      "subject": {
+        "input": "D:\\code\\tabletop_game\\.archify\\explainer-v3-collection-20261113-213405\\candidate.archify.md",
+        "line": 3,
+        "component": "answer"
+      },
+      "evidence": {
+        "reason": "Sentence has 54 reading units, above the configured zh limit of 50.",
+        "example": "先查缓存。未命中时再查数据库。 / Check the cache first. Query the database on a miss.",
+        "rule": "sentence-length",
+        "units": 54,
+        "limit": 50
+      },
+      "supportedFixes": [
+        "Split at a logical action or condition boundary while preserving qualifications and causal links."
+      ]
+    },
+    {
+      "code": "explainer/writing-sentence-length",
+      "severity": "warning",
+      "message": "Sentence has 69 reading units, above the configured zh limit of 50.",
+      "subject": {
+        "input": "D:\\code\\tabletop_game\\.archify\\explainer-v3-collection-20261113-213405\\candidate.archify.md",
+        "line": 136,
+        "component": "callout",
+        "panelId": "ai-fit"
+      },
+      "evidence": {
+        "reason": "Sentence has 69 reading units, above the configured zh limit of 50.",
+        "example": "先查缓存。未命中时再查数据库。 / Check the cache first. Query the database on a miss.",
+        "rule": "sentence-length",
+        "units": 69,
+        "limit": 50
+      },
+      "supportedFixes": [
+        "Split at a logical action or condition boundary while preserving qualifications and causal links."
+      ]
+    }
+  ],
+  "diagnosticSummary": {
+    "total": 2,
+    "shown": 2,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "D:\\code\\tabletop_game\\.archify\\explainer-v3-collection-20261113-213405\\v3-collection.finalize.json",
+    "summaryReceipt": "D:\\code\\tabletop_game\\.archify\\explainer-v3-collection-20261113-213405\\v3-collection.finalize-summary.json"
+  },
+  "visualReview": "not-requested",
+  "durationMs": 1470,
+  "browserCheck": {
+    "requested": false,
+    "ran": false
+  }
+}
