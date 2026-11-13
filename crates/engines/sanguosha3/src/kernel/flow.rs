@@ -9,7 +9,7 @@
 //! 4. 体力不得低于 0（濒死是 `resolve` 层职责，flow 只钳到 0）。
 
 use super::event::{Event, EventKind};
-use super::{ArmorKind, DamageOutcome, DamageSpec, DamageKind, Game, SourceKind};
+use super::{ArmorKind, CardId, DamageOutcome, DamageSpec, DamageKind, Game, SourceKind};
 
 /// 防具伤害链：技能加成已并入 `amount`，这里只做防具（藤甲 → 白银狮子）。
 ///
@@ -28,7 +28,8 @@ pub fn apply_armor(armor: ArmorKind, spec: &DamageSpec, mut amount: i32) -> Dama
             }
         }
         ArmorKind::Baiyin => {}
-        ArmorKind::None => {}
+        // 八卦阵（响应拦截）/仁王盾（黑色杀拦截）不在伤害链，拦截走 M2.3 gear 的响应钩子。
+        ArmorKind::Bagua | ArmorKind::Renwang | ArmorKind::None => {}
     }
     // 白银狮子最后（恒为 1）。
     if armor == ArmorKind::Baiyin && amount > 1 {
@@ -101,4 +102,25 @@ pub fn lose_max_hp(g: &mut Game, target: usize, amount: i32, cause: &str) -> Vec
     let mut ev = Event::simple(EventKind::MaxHpChanged, Some(target), Some(cause));
     ev.amount = Some(amount);
     vec![ev]
+}
+
+/// 濒死判定（constitution I2）：hp ≤ 0 且仍存活 = 濒死（等待救援，**不是死亡**）。
+pub fn is_dying(seat: &super::Seat) -> bool {
+    seat.alive && seat.hp <= 0
+}
+
+/// 濒死救援（唯一入口，走 `heal` 语义）：桃/酒从 hp ≤ 0 回血；hp > 0 即脱离濒死。
+pub fn rescue(g: &mut Game, target: usize, amount: i32, cause: &str) -> Vec<Event> {
+    heal(g, target, amount, cause)
+}
+
+/// 摸牌：从牌堆顶抽 n 张进手牌（牌堆不足时摸到几张某）。
+pub fn draw(g: &mut Game, seat: usize, n: usize) -> Vec<CardId> {
+    let mut drawn = vec![];
+    for _ in 0..n {
+        let Some(id) = g.deck.pop() else { break };
+        g.cards.insert(id.clone(), super::Zone::Hand(seat));
+        drawn.push(id);
+    }
+    drawn
 }

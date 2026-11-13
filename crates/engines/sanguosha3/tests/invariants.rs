@@ -16,6 +16,7 @@ fn seat(id: usize) -> Seat {
         max_hp: 4,
         alive: true,
         granted: vec![],
+        identity: None,
     }
 }
 

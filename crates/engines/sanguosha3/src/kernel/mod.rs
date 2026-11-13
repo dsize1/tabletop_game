@@ -7,8 +7,11 @@ pub mod cards;
 pub mod deferred;
 pub mod event;
 pub mod flow;
+pub mod gear;
+pub mod identity;
 pub mod pending;
 pub mod resolve;
+pub mod turn;
 
 use std::collections::HashMap;
 
@@ -109,6 +112,26 @@ pub struct Card {
     pub rank: u8,
 }
 
+/// 身份（标准身份局；主公公开，其余隐藏，死亡后公开）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum Identity {
+    Lord,
+    Loyalist,
+    Rebel,
+    Spy,
+}
+
+/// 胜负结果。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum Winner {
+    /// 主忠胜。
+    Lord,
+    /// 反贼胜。
+    Rebel,
+    /// 内奸胜。
+    Spy,
+}
+
 /// 座位（存活/死亡是显式状态，见 constitution I2）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Seat {
@@ -120,6 +143,9 @@ pub struct Seat {
     /// 授予技（一等公民的 code；`skills::active` 单一查询 = 自带 ∪ granted ∪ 临时）。
     #[serde(default)]
     pub granted: Vec<String>,
+    /// 身份（None = 未分配/未选将）。
+    #[serde(default)]
+    pub identity: Option<Identity>,
 }
 
 /// 伤害属性（mechanics `damage-attributes`）：普通/火/雷。
@@ -174,12 +200,41 @@ pub enum DamageOutcome {
     Dealt(i32),
 }
 
-/// 防具（伤害链用；八卦/仁王盾是响应/拦截，M2 接入）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+/// 防具（伤害链用；八卦/仁王盾是响应/拦截，M2.3 接入）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub enum ArmorKind {
+    #[default]
     None,
+    /// 八卦阵：需【闪】时判定，红色视为【闪】。
+    Bagua,
+    /// 仁王盾：黑色【杀】无效。
+    Renwang,
+    /// 藤甲：火 +1；普通杀/南蛮/万箭无效。
     Tengjia,
+    /// 白银狮子：伤害恒 1 + 离开装备区回 1 体力。
     Baiyin,
+}
+
+/// 武器（效果注入用；范围由 `CardDef.weapon_range` 数据给出，特效由本枚举声明）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+pub enum WeaponKind {
+    #[default]
+    None,
+    /// 青釭剑：使用【杀】无视目标防具。
+    Qinggang,
+    Cixiong,
+    Hanbing,
+    Qinglong,
+    Guanshi,
+    Fangtian,
+    Qilin,
+    /// 诸葛连弩：出牌阶段【杀】无次数限制。
+    Zhugeliannu,
+    Gudingdao,
+    /// 丈八蛇矛：两张手牌当【杀】。
+    Zhangba,
+    /// 朱雀羽扇：普通【杀】可当【火杀】。
+    Zhuque,
 }
 
 /// 对局状态：类型与不变量的容器，**不含结算逻辑**。
@@ -208,6 +263,18 @@ pub struct Game {
     /// 下一帧 id（唯一，发起帧归属用）。
     #[serde(default)]
     pub next_frame_id: u64,
+    /// 【酒】加成：本回合下一张【杀】伤害 +1（回合切換清空）。
+    #[serde(default)]
+    pub sha_bonus: i32,
+    /// 牌堆（抽牌顺序：末尾=顶）。
+    #[serde(default)]
+    pub deck: Vec<CardId>,
+    /// 判定区 LIFO 栈（每座位；后置先判）。
+    #[serde(default)]
+    pub judge_stacks: HashMap<usize, Vec<CardId>>,
+    /// 胜负（None = 对局未结束）。
+    #[serde(default)]
+    pub winner: Option<Winner>,
 }
 
 impl Game {

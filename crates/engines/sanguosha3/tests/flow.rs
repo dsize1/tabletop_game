@@ -7,8 +7,8 @@ use sanguosha3::kernel::{ArmorKind, DamageKind, DamageOutcome, DamageSpec, Game,
 fn game() -> Game {
     Game {
         seats: vec![
-            Seat { id: 0, hp: 4, max_hp: 4, alive: true, granted: vec![] },
-            Seat { id: 1, hp: 4, max_hp: 4, alive: true, granted: vec![] },
+            Seat { id: 0, hp: 4, max_hp: 4, alive: true, granted: vec![], identity: None },
+            Seat { id: 1, hp: 4, max_hp: 4, alive: true, granted: vec![], identity: None },
         ],
         ..Default::default()
     }

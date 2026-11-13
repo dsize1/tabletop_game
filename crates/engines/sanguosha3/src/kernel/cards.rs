@@ -58,6 +58,16 @@ pub struct CardDef {
     pub tags: Tags,
     /// 伤害属性（杀=Normal，火杀=Fire，雷杀=Thunder，其余=Normal）。
     pub damage_kind: DamageKind,
+    /// 装备槽位（武器/防具/进攻马/防御马/宝物；非装备为 None）。
+    pub slot: Option<super::Slot>,
+    /// 武器攻击范围（仅武器）。
+    pub weapon_range: Option<u8>,
+    /// 坐骑距离（仅坐骑）。
+    pub horse: Option<u8>,
+    /// 防具效果（八卦/仁王/藤甲/白银）。
+    pub armor: super::ArmorKind,
+    /// 武器效果（青釭/连弩/丈八/朱雀…）。
+    pub weapon: super::WeaponKind,
 }
 
 /// 响应上下文：当前响应窗口需要的响应牌种类（mechanics `response-cards`）。
@@ -68,6 +78,11 @@ pub enum ResponseKind {
     Wuxie,
     Tao,
     Jiu,
+}
+
+/// 牌定义查表（生成物 `cards_generated::DEFS`；内核不按牌名字面量判定，按 code 查表）。
+pub fn def(code: &str) -> Option<&'static CardDef> {
+    crate::cards_generated::DEFS.iter().find(|d| d.code == code)
 }
 
 /// 目标是否合法（默认：存活、非自己、在可选范围内）。技能可扩展（空城/流离/帷幕），M2 接入钩子。
