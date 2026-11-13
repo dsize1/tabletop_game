@@ -195,6 +195,22 @@ fn demo_triggers_and_applies() {
 - [ ] `npm run sgs:batch-status` 显示本批 ✅ 且下一批名单正确；
 - [ ] 单条 commit 提交。
 
+### 6.1 内核 V3 迁移批次 DoD（B0–B20，2026-11-13 用户裁定）
+
+> 适用于 `crates/engines/sanguosha3` 的技能批次迁移（B0 已完成、B1 已完成：18 技能 / 35 用例 + 9 条 M5 框架用例）。
+
+- [ ] **声明 → 行为分离**：声明在 `kernel/skills/bN.rs::SKILLS`（窗口/订阅/钩子/`transform`），handler 同文件；内核不出现技能名分支；
+- [ ] **单一状态源**：拥有技能只读 `skills::active`（自带 ∪ granted ∪ 伪帝借用）；主动入口只读 `skills::active_actions`；
+- [ ] **交互闭环**：可选项一律产生 `pending`（有出口）；玩家提交只经 `resolve::submit`（类型级出口/非法选项拒绝）；
+  - 「触发类可选技能本期允许自动结算，M5 统一补 pass 出口」（2026-11-13 裁定 A）；
+- [ ] **数值/方向/防伤/牌无效** 只经 `skills::draw_bonus` / `draw_from_bottom` / `skip_draw` / `prevent_damage` / `card_ineffective` 单出口；
+- [ ] **濒死/死亡** 只经 `flow::enter_dying` → `FlowKind::Dying` → `turn::settle_death`（弃牌 → 奖惩 → 胜负）；
+- [ ] **跨阶段校验** 只经 `DeferredKind::TurnEndCheck`（未到结束阶段不派发）；不得用 `Game.marks` 代替；
+- [ ] **对拍口径**：v1 oracle 可比标量（开局标记数 / 首回合手牌数）0 差异；不可比项逐条断言对齐单「正例 + 反例」；
+  - v1 全流程动作脚本对拍随 M5 补齐（2026-11-13 裁定 A）；
+- [ ] **门禁**：`npm run check:sgs3` 全绿（含 `gen:sgs-engine-data --check`：牌表 + 武将名录生成物）；
+- [ ] **文档**：对齐单不改；`v3-parity-baseline.md` 补本批对拍表；口径变化同步 `rules-rulings.md`。
+
 ## 7. 界限突破批次（J*）check-list
 
 > 适用于 `development-plan.md` 的 J1–J8 批次（每批 8 将，J8 为 4 将）。J1（26/304/446–451）为范本。

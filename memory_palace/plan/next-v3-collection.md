@@ -439,7 +439,11 @@ V3 侧仍只锁「观测/动作/奖励 schema」+ Gym 风格接口，实现（SB
 
 ### 9.2 追加裁定（2026-11-13，对拍暴露）
 
-- **主公初始手牌 = 6 张**（+2，其余 4 张）：v1 对拍发现主公=6，裁定为正确口径（已落 `turn::begin_game` + `parity_lord_hand_is_six`）。
+- ~~**主公初始手牌 = 6 张**（+2，其余 4 张）~~ **【2026-11-13 B1 对拍更正：作废】**
+  旧对拍把「v1 出牌阶段手牌 6」误读成初始手牌；该 6 = **4 初始 + 摸牌阶段 2**。
+  v1 `DEFAULT_INITIAL_HAND=4`（主公只 +1 体力上限）、v2 同为 4 → `turn::begin_game` 已回正为每人 4 张，
+  `parity_lord_first_turn_hand_is_six` 改为同阶段比对。证据：`docs/games/sanguosha/v3-parity-baseline.md` §6.1。
+  **2026-11-13 用户确认「主公初始手牌 = 4」为最终口径。**
 - **主公候选 = 所有主公武将 + 6 非主公**（`lord_candidate_count = 6`，原默认 5）：选将规则，rules.md §4 同步。
 
 ### 9.1 O1「拆 face」清单（B：有条件拆）
