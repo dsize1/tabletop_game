@@ -2,9 +2,11 @@
 //!
 //! 本模块只定义**类型与不变量**，不含任何牌结算逻辑（那是 `flow` / `card_play` 的职责）。
 
+pub mod deferred;
 pub mod event;
 pub mod flow;
 pub mod pending;
+pub mod resolve;
 
 use std::collections::HashMap;
 
@@ -192,7 +194,18 @@ pub struct Game {
     /// 当前交互（唯一）；多段由 pending 序列推进，同一时刻只有一个 active pending。
     pub pending: Option<pending::Pending>,
     /// 延迟队列：结算中产生的「待栈空处理」请求，**全内核只此一条**（禁 per-skill 队列）。
-    pub deferred: Vec<crate::kernel::event::Event>,
+    pub deferred: Vec<deferred::Deferred>,
+    /// 结算栈：帧（技能帧 + 流程帧），只由 `resolve::advance` 改。
+    pub stack: Vec<resolve::Frame>,
+    /// 当前待办的回答（上一动作提交的 action id）。
+    #[serde(default)]
+    pub answer: Option<String>,
+    /// 回答归属：发起当前待办的技能 code（只有它能消费回答）。
+    #[serde(default)]
+    pub answer_skill: Option<String>,
+    /// 下一帧 id（唯一，发起帧归属用）。
+    #[serde(default)]
+    pub next_frame_id: u64,
 }
 
 impl Game {
