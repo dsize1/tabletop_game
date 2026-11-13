@@ -2,6 +2,8 @@
 //!
 //! 本模块只定义**类型与不变量**，不含任何牌结算逻辑（那是 `flow` / `card_play` 的职责）。
 
+pub mod card_play;
+pub mod cards;
 pub mod deferred;
 pub mod event;
 pub mod flow;
