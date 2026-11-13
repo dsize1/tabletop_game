@@ -4,11 +4,19 @@
 //! 1. **face 化**：转换技/主动+响应类拆多 face，每个 face 独立声明窗口（治「拒战阴面误写成他人回合」）；
 //! 2. **subscription 带 Subject**：事件归属是声明不是守卫（M105 教训，治屯田/燕语在「他人失去牌」误触发）；
 //! 3. **授予技一等公民**（O2=A）：`grant_only` + 所有技能（含怀柔/清侧/排异/攻心）都进注册表；
-//! 4. **单一状态源**（O4=A）：`active()` = 自带 ∪ granted ∪ 临时，禁止 flags/counters 各自表达「拥有技能」。
+//! 4. **单一状态源**（O4=A）：`active()` = 自带 ∪ granted ∪ 临时（含伪帝借用），禁止 flags/counters
+//!    各自表达「拥有技能」。
+//!
+//! 声明按批次分文件（`b0`/`b1`/…），本文件只放**类型 + 单一查询 + 路由 + 出口**。
 
-use super::event::{EventKind, Subject, Window};
+use serde_json::{json, Value};
+
+use super::event::{Event, EventKind, Subject, Window};
+use super::resolve::{Ask, Stage, Step};
+use super::{Game, Phase};
 
 pub mod b0;
+pub mod b1;
 
 /// 技能类型。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -26,6 +34,8 @@ pub enum SkillKind {
 /// 内核/牌结算按钩子类型回调，不 match 技能名。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Hook {
+    /// 游戏开始时（怀橘：开局 3 橘）。
+    GameStart,
     /// 濒死钩子（不屈：濒死翻创判定）。
     Dying,
     /// 翻面钩子（解围②：翻回正面移动装备）。
@@ -40,6 +50,12 @@ pub enum Hook {
     ShaLimit,
     /// 手牌上限修正（血裔：+N）。
     HandLimit(i32),
+    /// 摸牌方向（寸目：从牌堆底摸）。
+    DrawFromBottom,
+    /// 伤害防止（怀橘：自动移橘防伤）。
+    DamagePrevent,
+    /// 牌对你无效（掣政①：攻击范围不含你的角色对你使用牌无效）。
+    CardIneffective,
 }
 
 /// 订阅（声明式）：事件 + 主体。handler 首行按 `subject` 校验（不再靠人记）。
@@ -51,7 +67,7 @@ pub struct Subscription {
 
 impl Subscription {
     /// 订阅是否匹配该事件（事件类型 + 主体，相对 `owner`）。窗口由 `Face.window` 判定。
-    pub fn matches(&self, ev: &super::event::Event, owner: usize) -> bool {
+    pub fn matches(&self, ev: &Event, owner: usize) -> bool {
         self.event == ev.kind && self.subject.matches(ev, owner)
     }
 }
@@ -75,119 +91,59 @@ pub struct SkillDef {
     pub faces: &'static [Face],
     /// 授予技（一等公民）：不能被选将自带，只能被授予（攻心/怀柔/清侧/排异/弦技…）。
     pub grant_only: bool,
+    /// **转换技**：只在「当前面」上订阅/可发动，每次发动后 `flip_face` 换面（§9.1 拆 face 清单）。
+    pub transform: bool,
 }
 
-/// 技能注册表（B0 起步，逐批追加）。
-pub static SKILLS: &[SkillDef] = &[
-    // —— B0：据守/解围/不屈/奋激/行殇/放逐/颂威 ——
-    SkillDef {
-        code: "jushou",
-        name: "据守",
-        kind: SkillKind::Normal,
-        grant_only: false,
-        faces: &[Face {
-            window: Window::OwnPhase(super::Phase::End),
-            subscriptions: &[],
-            hooks: &[],
-            can_active: true,
-        }],
-    },
-    SkillDef {
-        code: "jiewei",
-        name: "解围",
-        kind: SkillKind::Normal,
-        grant_only: false,
-        faces: &[Face {
-            window: Window::AnyTime,
-            subscriptions: &[],
-            hooks: &[Hook::WuxieOpt, Hook::Flip],
-            can_active: false,
-        }],
-    },
-    SkillDef {
-        code: "buqu",
-        name: "不屈",
-        kind: SkillKind::Locked,
-        grant_only: false,
-        faces: &[Face {
-            window: Window::AnyTime,
-            subscriptions: &[],
-            hooks: &[Hook::Dying],
-            can_active: false,
-        }],
-    },
-    SkillDef {
-        code: "fenji",
-        name: "奋激",
-        kind: SkillKind::Normal,
-        grant_only: false,
-        faces: &[Face {
-            window: Window::AnyTime,
-            // 奋激：其他角色的手牌被弃置/获得 → subject = Other（M105 教训的类型级对策）。
-            subscriptions: &[
-                Subscription { event: EventKind::CardDiscarded, subject: Subject::Other },
-                Subscription { event: EventKind::CardGained, subject: Subject::Other },
-            ],
-            hooks: &[],
-            can_active: false,
-        }],
-    },
-    SkillDef {
-        code: "xingshang",
-        name: "行殇",
-        kind: SkillKind::Normal,
-        grant_only: false,
-        faces: &[Face {
-            window: Window::AnyTime,
-            subscriptions: &[Subscription { event: EventKind::Death, subject: Subject::Other }],
-            hooks: &[],
-            can_active: false,
-        }],
-    },
-    SkillDef {
-        code: "fangzhu",
-        name: "放逐",
-        kind: SkillKind::Normal,
-        grant_only: false,
-        faces: &[Face {
-            window: Window::AnyTime,
-            subscriptions: &[Subscription { event: EventKind::DamageAfter, subject: Subject::Self_ }],
-            hooks: &[],
-            can_active: false,
-        }],
-    },
-    SkillDef {
-        code: "songwei",
-        name: "颂威",
-        kind: SkillKind::Lord,
-        grant_only: false,
-        faces: &[Face {
-            window: Window::AnyTime,
-            // 颂威：其他魏势力黑色判定生效 → subject = Other（主公技他人侧）。
-            subscriptions: &[Subscription { event: EventKind::JudgeEffective, subject: Subject::Other }],
-            hooks: &[],
-            can_active: false,
-        }],
-    },
-];
+/// 全量注册表（按批次拼接）。**唯一事实源**：禁止在别处再列技能名清单。
+pub fn all() -> Vec<&'static SkillDef> {
+    b0::SKILLS.iter().chain(b1::SKILLS.iter()).collect()
+}
 
 /// 查技能定义。
 pub fn def(code: &str) -> Option<&'static SkillDef> {
-    SKILLS.iter().find(|s| s.code == code)
+    all().into_iter().find(|s| s.code == code)
 }
 
-/// **单一状态源**（O4=A / mechanics `skill-status`）：自带 ∪ granted ∪ 临时。
-///
-/// 禁止用 flags/turn_counters/marks 各自表达「拥有技能」；所有钩子/视图/合法动作只调这里。
-pub fn active(g: &super::Game, seat: usize, code: &str) -> bool {
+/// 自带 ∪ granted（**不含**伪帝借用）。
+fn owned(g: &Game, seat: usize, code: &str) -> bool {
     let Some(s) = g.seats.get(seat) else {
         return false;
     };
     s.skills.iter().any(|c| c == code) || s.granted.iter().any(|c| c == code)
 }
 
+/// **单一状态源**（O4=A / mechanics `skill-status`）：自带 ∪ granted ∪ 借用。
+///
+/// 借用 = 伪帝（B1）：「视为拥有当前主公的主公技」，只参与联动判定，不能主动使用（见 `can_active`）。
+pub fn active(g: &Game, seat: usize, code: &str) -> bool {
+    if owned(g, seat, code) {
+        return true;
+    }
+    let Some(d) = def(code) else {
+        return false;
+    };
+    if d.kind != SkillKind::Lord || !owned(g, seat, "weidi") {
+        return false;
+    }
+    // 只借「当前主公实际拥有」的主公技（B1 Q3 裁定 A）。
+    g.current_lord()
+        .map(|lord| owned(g, lord, code))
+        .unwrap_or(false)
+}
+
+/// 能否**主动使用**（出牌阶段 skill 入口）：借来的技能不可主动使用（B1 伪帝裁定）。
+pub fn can_active(g: &Game, seat: usize, code: &str) -> bool {
+    if !owned(g, seat, code) {
+        return false;
+    }
+    def(code)
+        .map(|d| d.faces.iter().any(|f| f.can_active))
+        .unwrap_or(false)
+}
+
 /// 授予技能（唯一入口；授予技一等公民，grant 后 `active()` 立即可查到）。
-pub fn grant(g: &mut super::Game, seat: usize, code: &str) {
+pub fn grant(g: &mut Game, seat: usize, code: &str) {
     let Some(s) = g.seats.get_mut(seat) else {
         return;
     };
@@ -196,45 +152,227 @@ pub fn grant(g: &mut super::Game, seat: usize, code: &str) {
     }
 }
 
-/// 技能 handler 分发（`resolve::advance` 用；按 code 找 B0 起的分批 handler）。
-pub fn handler(
-    code: &str,
-) -> Option<fn(&mut super::Game, &super::resolve::Ask) -> Result<super::resolve::Step, String>> {
-    b0::handler(code)
+/// 转换技当前面（0 起；默认 0）。
+pub fn face_of(g: &Game, seat: usize, code: &str) -> usize {
+    g.seats
+        .get(seat)
+        .and_then(|s| s.faces.get(code).copied())
+        .unwrap_or(0) as usize
+}
+
+/// 转换技换面（只有 `transform = true` 的技能才应调用；按 face 数取模）。
+pub fn flip_face(g: &mut Game, seat: usize, code: &str) {
+    let Some(d) = def(code) else { return };
+    if !d.transform || d.faces.len() < 2 {
+        return;
+    }
+    let next = (face_of(g, seat, code) + 1) % d.faces.len();
+    if let Some(s) = g.seats.get_mut(seat) {
+        s.faces.insert(code.to_string(), next as u8);
+    }
+}
+
+/// 技能 handler 分发（`resolve::advance` 用；按 code 找分批 handler）。
+pub fn handler(code: &str) -> Option<fn(&mut Game, &Ask) -> Result<Step, String>> {
+    b0::handler(code).or_else(|| b1::handler(code))
+}
+
+/// 主动技的**可用性判定**（声明之外的前置：手牌/目标/每阶段次数等）。
+/// 未提供判定的技能视为「不可主动使用」（安全默认：不向 UI 提供无效入口）。
+pub fn availability(code: &str) -> Option<fn(&Game, usize) -> bool> {
+    b0::availability(code).or_else(|| b1::availability(code))
+}
+
+/// **主动入口合法集**（唯一来源）：自带技能 ∩ 当前面 can_active ∩ 窗口允许 ∩ 可用性判定。
+///
+/// 禁止各处拼「技能名清单」；UI 的 `skill:<code>` 选项与 `use_active` 校验都读这里。
+pub fn active_actions(g: &Game, seat: usize) -> Vec<&'static str> {
+    all()
+        .into_iter()
+        .filter(|d| owned(g, seat, d.code))
+        .filter(|d| {
+            d.faces
+                .iter()
+                .any(|f| f.can_active && f.window.allows(g.turn, g.phase, seat))
+        })
+        .filter(|d| availability(d.code).map(|f| f(g, seat)).unwrap_or(false))
+        .map(|d| d.code)
+        .collect()
+}
+
+/// 发动主动技（唯一入口）：校验合法 → 压技能帧（`Stage::Choose`）→ 推进到第一个 pending。
+pub fn use_active(g: &mut Game, seat: usize, code: &str) -> Result<(), String> {
+    if !active_actions(g, seat).iter().any(|c| *c == code) {
+        return Err(format!("技能 {code} 当前不可主动使用"));
+    }
+    let face = face_of(g, seat, code);
+    super::resolve::push_ask(
+        g,
+        code,
+        Stage::Choose,
+        seat,
+        serde_json::json!({ "active": true, "face": face, "step": "choose" }),
+    );
+    super::resolve::advance(g)
+}
+
+/// 事件快照 → handler 上下文（`data`）。**只读快照**，不读 live 状态。
+pub fn event_payload(ev: &Event, face: usize) -> Value {
+    let mut m = serde_json::Map::new();
+    if let Some(s) = ev.seat {
+        m.insert("victim".into(), json!(s));
+    }
+    // `target`：伤害事件的「目标」按 B0 口径取施加者（`by`），其余取事件主体。
+    let target = match ev.kind {
+        EventKind::DamageAfter => ev.by,
+        _ => ev.seat,
+    };
+    if let Some(t) = target {
+        m.insert("target".into(), json!(t));
+    }
+    if let Some(c) = &ev.card {
+        m.insert("card".into(), json!(c));
+    }
+    if let Some(c) = &ev.cause {
+        m.insert("cause".into(), json!(c));
+    }
+    if let Some(a) = ev.amount {
+        m.insert("amount".into(), json!(a));
+    }
+    if let Some(b) = ev.by {
+        m.insert("by".into(), json!(b));
+    }
+    if let Some(f) = ev.from {
+        m.insert("from".into(), json!(f));
+    }
+    m.insert("turn".into(), json!(ev.turn));
+    m.insert("phase".into(), json!(format!("{:?}", ev.phase)));
+    m.insert("face".into(), json!(face));
+    Value::Object(m)
 }
 
 /// 事件路由：把事件快照按 SKILLS 的订阅（窗口 + subject）路由给技能帧。
 /// 先收集匹配（避免借用冲突），再统一压帧。
 /// 开局/发牌等 `Lifecycle::Setup` 事件**不路由**（明任开局置任的教训）。
-pub fn route_event(g: &mut super::Game, ev: &super::event::Event) {
+pub fn route_event(g: &mut Game, ev: &Event) {
     if ev.lifecycle == super::event::Lifecycle::Setup {
         return;
     }
-    let mut to_push: Vec<(&'static str, usize, serde_json::Value)> = Vec::new();
+    let mut to_push: Vec<(&'static str, usize, Value)> = Vec::new();
     for seat in 0..g.seats.len() {
-        for skill in SKILLS {
+        for skill in all() {
             if !active(g, seat, skill.code) {
                 continue;
             }
-            for face in skill.faces {
+            let face_now = face_of(g, seat, skill.code);
+            let mut fired = false;
+            for (idx, face) in skill.faces.iter().enumerate() {
+                // 转换技：只有当前面订阅/可发动。
+                if skill.transform && idx != face_now {
+                    continue;
+                }
                 if !face.window.allows(ev.turn, ev.phase, seat) {
                     continue;
                 }
                 for sub in face.subscriptions {
                     if sub.matches(ev, seat) {
-                        let data = match ev.kind {
-                            EventKind::Death => serde_json::json!({ "victim": ev.seat }),
-                            EventKind::DamageAfter => serde_json::json!({ "target": ev.by }),
-                            _ => serde_json::json!({ "victim": ev.seat }),
-                        };
-                        to_push.push((skill.code, seat, data));
+                        to_push.push((skill.code, seat, event_payload(ev, idx)));
+                        fired = true;
                         break; // 一次事件一个技能最多触发一次
                     }
+                }
+                if fired {
+                    break;
                 }
             }
         }
     }
     for (code, seat, data) in to_push {
-        super::resolve::push_ask(g, code, super::resolve::Stage::Choose, seat, data);
+        super::resolve::push_ask(g, code, Stage::Choose, seat, data);
     }
+}
+
+/// 游戏开始钩子（`Hook::GameStart`）：开局一次性数值/标记初始化（怀橘 3 橘…）。
+///
+/// 在 `turn::begin_game` 末尾调用；handler 只允许同步结算（不得产生 pending）。
+pub fn fire_game_start(g: &mut Game) {
+    let mut fires: Vec<(&'static str, usize, usize)> = Vec::new();
+    for seat in 0..g.seats.len() {
+        for skill in all() {
+            if !owned(g, seat, skill.code) {
+                continue;
+            }
+            for (idx, face) in skill.faces.iter().enumerate() {
+                if face.hooks.contains(&Hook::GameStart) {
+                    fires.push((skill.code, seat, idx));
+                }
+            }
+        }
+    }
+    for (code, seat, idx) in fires {
+        if let Some(h) = handler(code) {
+            let ask = Ask {
+                skill: code.to_string(),
+                stage: Stage::Choose,
+                actor: seat,
+                data: json!({ "hook": "game_start", "face": idx }),
+            };
+            let _ = h(g, &ask);
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 数值/回合钩子的**唯一出口**（内核不按技能名判定；这里委托给批次实现）
+// ---------------------------------------------------------------------------
+
+/// 摸牌阶段摸牌数加成（庸肆 +X / 怀橘 +1…）。`flow::draw_phase` 唯一调用点。
+pub fn draw_bonus(g: &Game, seat: usize) -> usize {
+    b1::draw_bonus(g, seat)
+}
+
+/// 摸牌方向：true = 从牌堆底摸（寸目）。`flow::draw` 唯一调用点。
+pub fn draw_from_bottom(g: &Game, seat: usize) -> bool {
+    b1::draw_from_bottom(g, seat)
+}
+
+/// 本回合摸牌阶段是否被整段跳过（整论）。`flow::draw_phase` 唯一调用点。
+pub fn skip_draw(g: &Game, seat: usize) -> bool {
+    b1::skip_draw(g, seat)
+}
+
+/// 伤害防止（怀橘，锁定自动）。`flow::damage` 唯一调用点；true = 本次伤害被防止。
+pub fn prevent_damage(g: &mut Game, victim: usize) -> bool {
+    b1::prevent_damage(g, victim)
+}
+
+/// 牌对目标是否**无效**（掣政①）。`card_play` 唯一调用点。
+pub fn card_ineffective(g: &Game, user: usize, target: usize) -> bool {
+    b1::card_ineffective(g, user, target)
+}
+
+/// 门禁自检：注册表不得出现重复 code。
+pub fn check_unique_codes() -> Result<(), String> {
+    let mut seen = std::collections::BTreeSet::new();
+    for s in all() {
+        if !seen.insert(s.code) {
+            return Err(format!("技能 code 重复注册：{}", s.code));
+        }
+    }
+    Ok(())
+}
+
+/// 门禁自检：转换技必须**每个 face 各自绑定窗口**（§9.1 拆 face 的通用要求）。
+pub fn check_transform_faces() -> Result<(), String> {
+    for s in all() {
+        if s.transform && s.faces.len() < 2 {
+            return Err(format!("转换技 {} 必须拆 ≥2 face", s.code));
+        }
+    }
+    Ok(())
+}
+
+/// 阶段名（事件快照用；避免各 handler 各自 `format!("{:?}")`）。
+pub fn phase_name(p: Phase) -> String {
+    format!("{p:?}")
 }

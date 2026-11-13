@@ -8,6 +8,7 @@ pub mod deferred;
 pub mod event;
 pub mod flow;
 pub mod gear;
+pub mod generals;
 pub mod identity;
 pub mod pending;
 pub mod resolve;
@@ -135,7 +136,7 @@ pub enum Winner {
 }
 
 /// 座位（存活/死亡是显式状态，见 constitution I2）。
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Seat {
     pub id: usize,
     pub hp: i32,
@@ -154,6 +155,33 @@ pub struct Seat {
     /// 翻面（背面朝上）。
     #[serde(default)]
     pub flipped: bool,
+    /// 势力（`wei`/`shu`/`wu`/`qun`；空串 = 未定）。庸肆 X / 立军「吴势力」等按此判定。
+    #[serde(default)]
+    pub kingdom: String,
+    /// **计数标记**（「橘」等）：不是牌，不可被拆/顺/弃（`mark-vs-counter`）。
+    #[serde(default)]
+    pub counters: HashMap<String, i32>,
+    /// 转换技当前面（skill code → face 索引；默认 0。声明 `transform = true` 的技能才读）。
+    #[serde(default)]
+    pub faces: HashMap<String, u8>,
+}
+
+impl Seat {
+    /// 计数标记数量（唯一读法）。
+    pub fn counter(&self, key: &str) -> i32 {
+        self.counters.get(key).copied().unwrap_or(0)
+    }
+
+    /// 计数标记增减（唯一写法，钳到 ≥ 0 并清理零值）。
+    pub fn add_counter(&mut self, key: &str, delta: i32) -> i32 {
+        let v = (self.counter(key) + delta).max(0);
+        if v == 0 {
+            self.counters.remove(key);
+        } else {
+            self.counters.insert(key.to_string(), v);
+        }
+        v
+    }
 }
 
 /// 伤害属性（mechanics `damage-attributes`）：普通/火/雷。
@@ -286,6 +314,14 @@ pub struct Game {
     /// 待路由事件队列（结算产生 → 栈空后按订阅路由给技能）。
     #[serde(default)]
     pub events: Vec<event::Event>,
+    /// 回合/阶段/临时计数器（**唯一入口** `counter`/`bump`/`set_counter`）：
+    /// 键自带命名空间（`turn.*` / `phase.*` / `deny.*` / `binglue.*`），回合切换清 `turn.*`。
+    #[serde(default)]
+    pub counters: HashMap<String, i32>,
+    /// 文本标记（跨阶段校验用，如审时阴面记录「交给其的牌」）：键自带命名空间。
+    /// 与 `counters` 区别：这里存**字符串事实**，不参与数值运算。
+    #[serde(default)]
+    pub marks: HashMap<String, String>,
 }
 
 impl Game {
@@ -326,5 +362,78 @@ impl Game {
     /// 终局房规唯一判定入口（`endgame_no_heal`）。
     pub fn endgame_no_heal(&self) -> bool {
         self.round > ENDGAME_ROUND
+    }
+
+    /// 手牌（按牌 id 排序 = **确定性**；HashMap 迭代序不稳定，禁止直接遍历当手牌序）。
+    pub fn hand(&self, seat: usize) -> Vec<CardId> {
+        let mut ids: Vec<CardId> = self
+            .cards
+            .iter()
+            .filter(|(_, z)| matches!(z, Zone::Hand(s) if *s == seat))
+            .map(|(id, _)| id.clone())
+            .collect();
+        ids.sort();
+        ids
+    }
+
+    /// 手牌数。
+    pub fn hand_size(&self, seat: usize) -> usize {
+        self.cards
+            .values()
+            .filter(|z| matches!(z, Zone::Hand(s) if *s == seat))
+            .count()
+    }
+
+    /// 计数器读（唯一读法）。
+    pub fn counter(&self, key: &str) -> i32 {
+        self.counters.get(key).copied().unwrap_or(0)
+    }
+
+    /// 计数器 +1（唯一写法之一）。
+    pub fn bump(&mut self, key: &str) {
+        let v = self.counter(key) + 1;
+        self.counters.insert(key.to_string(), v);
+    }
+
+    /// 计数器赋值（0 时删除键，便于「未设置」= 0 的判定）。
+    pub fn set_counter(&mut self, key: &str, v: i32) {
+        if v == 0 {
+            self.counters.remove(key);
+        } else {
+            self.counters.insert(key.to_string(), v);
+        }
+    }
+
+    /// 清掉某命名空间的计数器（回合切换 `turn.` / 阶段切换 `phase.` 用）。
+    pub fn clear_counters(&mut self, prefix: &str) {
+        self.counters.retain(|k, _| !k.starts_with(prefix));
+    }
+
+    /// 文本标记读。
+    pub fn mark(&self, key: &str) -> Option<&str> {
+        self.marks.get(key).map(|s| s.as_str())
+    }
+
+    /// 文本标记写。
+    pub fn set_mark(&mut self, key: &str, value: impl Into<String>) {
+        self.marks.insert(key.to_string(), value.into());
+    }
+
+    /// 存活角色的**不同势力数**（庸肆 X；与 v1 同口径：至少 1，同势力只算 1，空势力不计）。
+    pub fn kingdom_count(&self) -> usize {
+        let mut seen = std::collections::BTreeSet::new();
+        for s in &self.seats {
+            if s.alive && !s.kingdom.is_empty() {
+                seen.insert(s.kingdom.as_str());
+            }
+        }
+        seen.len().max(1)
+    }
+
+    /// 当前主公座位（`Identity::Lord` 且存活）。
+    pub fn current_lord(&self) -> Option<usize> {
+        self.seats
+            .iter()
+            .position(|s| s.alive && s.identity == Some(Identity::Lord))
     }
 }

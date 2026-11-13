@@ -13,8 +13,8 @@ fn game_with_hand(seat: usize, cards: &[(&str, &str)]) -> Game {
     // cards: (牌实例 id, 牌定义 code)
     let mut g = Game {
         seats: vec![
-            Seat { id: 0, hp: 4, max_hp: 4, alive: true, granted: vec![], skills: vec![], identity: None, flipped: false },
-            Seat { id: 1, hp: 3, max_hp: 4, alive: true, granted: vec![], skills: vec![], identity: None, flipped: false },
+            Seat { id: 0, hp: 4, max_hp: 4, alive: true, granted: vec![], skills: vec![], identity: None, flipped: false, ..Default::default() },
+            Seat { id: 1, hp: 3, max_hp: 4, alive: true, granted: vec![], skills: vec![], identity: None, flipped: false, ..Default::default() },
         ],
         ..Default::default()
     };

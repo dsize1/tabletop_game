@@ -13,21 +13,29 @@ fn seat(id: usize, skills: Vec<&str>) -> Seat {
         granted: vec![],
         skills: skills.into_iter().map(String::from).collect(),
         identity: None,
-        flipped: false,
+        flipped: false, ..Default::default()
     }
 }
 
 // ---------------------------------------------------------------------------
-// 注册表：B0 7 技能覆盖
+// 注册表：B0 7 技能 + B1 18 技能
 // ---------------------------------------------------------------------------
 
 #[test]
-fn registry_has_b0_seven_skills() {
-    let codes: Vec<&str> = skills::SKILLS.iter().map(|s| s.code).collect();
+fn registry_has_b0_and_b1_skills() {
+    let codes: Vec<&str> = skills::all().iter().map(|s| s.code).collect();
     for c in ["jushou", "jiewei", "buqu", "fenji", "xingshang", "fangzhu", "songwei"] {
         assert!(codes.contains(&c), "B0 技能 {c} 应注册");
     }
-    assert_eq!(skills::SKILLS.len(), 7);
+    for c in [
+        "yongsi", "weidi", "qizhi", "jinzou", "juzhan", "feijun", "binglue", "huaiju", "yili",
+        "zhenglun", "kuizhu", "chezheng", "lijun", "jianxiang", "shenshi", "chenglue", "shicai",
+        "cunmu",
+    ] {
+        assert!(codes.contains(&c), "B1 技能 {c} 应注册");
+    }
+    assert_eq!(skills::all().len(), 25, "B0 7 + B1 18");
+    assert!(skills::check_unique_codes().is_ok(), "技能 code 不得重复");
 }
 
 #[test]
@@ -114,6 +122,7 @@ fn skilldef_supports_multiple_faces() {
         name: "测试转换技",
         kind: SkillKind::Normal,
         grant_only: false,
+        transform: true,
         faces: &[
             skills::Face {
                 window: sanguosha3::kernel::event::Window::OwnTurn,

@@ -198,6 +198,48 @@ pub fn next_deferred_index(g: &super::Game) -> Option<usize> {
     (0..g.deferred.len()).min_by_key(|&i| g.deferred[i].order_index())
 }
 
+/// 取延迟队列里**当前可派发**的最早一项（`TurnEndCheck` 未到结束阶段时不可派发）。
+pub fn next_ready_deferred_index(g: &super::Game) -> Option<usize> {
+    (0..g.deferred.len())
+        .filter(|&i| g.deferred[i].ready(g))
+        .min_by_key(|&i| g.deferred[i].order_index())
+}
+
+/// 玩家提交待办选项（**唯一入口**）：校验 actor / 合法选项 / 强制选择不出出口，
+/// 然后写入 `answer`（归属 = 发起待办的技能）并推进结算栈。
+///
+/// 不变量（constitution I1）：提交非法选项/他人待办/强制选择的占位出口 → 报错且**不改状态**。
+pub fn submit(g: &mut super::Game, seat: usize, option: &str) -> Result<(), String> {
+    let Some(p) = g.pending.as_ref() else {
+        return Err("当前没有待办".into());
+    };
+    if p.actor() != seat {
+        return Err(format!("待办不属于座位 {seat}"));
+    }
+    if !p.has_option(option) {
+        return Err(format!("非法选项：{option}"));
+    }
+    if p.escape_hidden() && p.escape_id() == option {
+        return Err("强制选择不接受出口".into());
+    }
+    let skill = p.skill().map(|s| s.to_string());
+    g.pending = None;
+    g.answer = Some(option.to_string());
+    g.answer_skill = skill;
+    advance(g)
+}
+
+/// 消费回答：只有「发起当前待办的技能」能取走答案（防止跨技能误取）。
+pub fn take_answer(g: &mut super::Game, skill: &str) -> Option<String> {
+    if g.answer_skill.as_deref() == Some(skill) {
+        let a = g.answer.take();
+        g.answer_skill = None;
+        a
+    } else {
+        None
+    }
+}
+
 /// 推进器：栈循环 → 事件路由 → 延迟队列，直到「需输入」或「无事可做」。
 ///
 /// 不变量：
@@ -238,8 +280,13 @@ pub fn advance(g: &mut super::Game) -> Result<(), String> {
             crate::kernel::skills::route_event(g, &ev);
             continue;
         }
-        // 4. 延迟队列：按顺序表派发。
-        if let Some(i) = next_deferred_index(g) {
+        // 4. 延迟队列：按顺序表派发（`TurnEndCheck` 只在当前回合结束阶段派发；陈旧项丢弃）。
+        let turn = g.turn;
+        g.deferred.retain(|d| {
+            !(matches!(d.kind, crate::kernel::deferred::DeferredKind::TurnEndCheck)
+                && d.turn_of().map(|t| t < turn).unwrap_or(true))
+        });
+        if let Some(i) = next_ready_deferred_index(g) {
             let d = g.deferred.remove(i);
             if let crate::kernel::deferred::Payload::Ask { skill, stage, actor, data } = d.payload {
                 push_ask(g, skill, stage, actor, data);

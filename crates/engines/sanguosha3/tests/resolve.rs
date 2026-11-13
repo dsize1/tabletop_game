@@ -121,6 +121,7 @@ fn order_table_is_explicit_and_documented() {
             DeferredKind::Land,
             DeferredKind::SkillTrigger,
             DeferredKind::JudgePhase,
+            DeferredKind::TurnEndCheck,
             DeferredKind::DeathCleanup,
         ]
     );

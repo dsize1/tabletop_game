@@ -5,7 +5,7 @@ use sanguosha3::kernel::turn::{begin_game, check_finished, die};
 use sanguosha3::kernel::{Card, Game, Identity, Seat, Suit, Winner, Zone};
 
 fn seat(id: usize, identity: Option<Identity>) -> Seat {
-    Seat { id, hp: 4, max_hp: 4, alive: true, granted: vec![], skills: vec![], identity, flipped: false }
+    Seat { id, hp: 4, max_hp: 4, alive: true, granted: vec![], skills: vec![], identity, flipped: false, ..Default::default() }
 }
 
 fn game() -> Game {
@@ -116,9 +116,9 @@ fn begin_game_assigns_identity_and_deals() {
     begin_game(&mut g, &[Identity::Loyalist, Identity::Rebel, Identity::Rebel], 2);
     assert_eq!(g.seats[0].identity, Some(Identity::Lord), "座位 0 主公");
     assert_eq!(g.seats[1].identity, Some(Identity::Loyalist));
-    // 主公发 4（2+2），其余发 2
+    // 主公与其余座位**同**发 2 张（主公只 +1 体力上限，不加手牌：官方规则 + v1/v2 一致）
     let hand = |s: usize| g.cards.iter().filter(|(_, z)| **z == Zone::Hand(s)).count();
-    assert_eq!(hand(0), 4, "主公发 4 张（+2）");
+    assert_eq!(hand(0), 2, "主公发 2 张（与其他人一致）");
     for i in 1..4 {
         assert_eq!(hand(i), 2, "座位 {i} 发 2 张");
     }

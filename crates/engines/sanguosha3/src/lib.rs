@@ -15,3 +15,5 @@ pub mod kernel;
 
 /// 牌表生成物（160 张 + 定义；`gen:sgs-engine-data` 生成，勿手改）。
 pub mod cards_generated;
+/// 武将名录生成物（最小字段：势力/体力/性别/主公；同脚本生成，勿手改）。
+pub mod generals_generated;

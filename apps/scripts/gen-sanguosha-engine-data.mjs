@@ -28,6 +28,14 @@ const DEFAULT_OUT_V2 = resolve("crates", "engines", "sanguosha2", "src", "cards_
 /// 内核 V3（`sanguosha3`）的牌表产物（M2 生成物接入，2026-11-13）：
 /// 只含牌定义 + 160 张物理牌；V3 的 `CardDef` 比 v2 简（category/target_mode/tags/damage_kind）。
 const DEFAULT_OUT_V3 = resolve("crates", "engines", "sanguosha3", "src", "cards_generated.rs");
+/// 内核 V3 的**最小**武将名录（B1 迁移起需要：势力/体力/性别；选将/大厅切片再扩）。
+const DEFAULT_OUT_V3_GENERALS = resolve(
+  "crates",
+  "engines",
+  "sanguosha3",
+  "src",
+  "generals_generated.rs",
+);
 const DEFAULT_OUT_V2_GENERALS = resolve(
   "crates",
   "engines",
@@ -278,6 +286,7 @@ function parseArgs(argv) {
     outV2: DEFAULT_OUT_V2,
     outV3: DEFAULT_OUT_V3,
     outV2Generals: DEFAULT_OUT_V2_GENERALS,
+    outV3Generals: DEFAULT_OUT_V3_GENERALS,
     catalog: DEFAULT_CATALOG,
     generalPacks: DEFAULT_GENERAL_PACKS,
     check: false,
@@ -289,6 +298,7 @@ function parseArgs(argv) {
     else if (argv[i] === "--out-v2") opts.outV2 = resolve(argv[++i]);
     else if (argv[i] === "--out-v3") opts.outV3 = resolve(argv[++i]);
     else if (argv[i] === "--out-v2-generals") opts.outV2Generals = resolve(argv[++i]);
+    else if (argv[i] === "--out-v3-generals") opts.outV3Generals = resolve(argv[++i]);
     else if (argv[i] === "--catalog") opts.catalog = resolve(argv[++i]);
     else if (argv[i] === "--general-packs") {
       opts.generalPacks = String(argv[++i] ?? "")
@@ -505,6 +515,55 @@ function assignGeneralStatus(generals) {
   });
 }
 
+/// V3 最小武将名录：只保留技能判定需要的字段（kingdom / max_hp / male / lord）。
+/// 技能 code 映射（武将 → 技能）留到选将/大厅切片，避免这里维护第二份中文名 → code 表。
+function renderV3Generals(generals) {
+  const L = [];
+  L.push("//! 生成的武将名录（V3 最小字段：势力/体力/性别/主公）。**勿手改**：由 gen:sgs-engine-data 生成。");
+  L.push("");
+  L.push("#[derive(Debug, Clone, Copy, PartialEq, Eq)]");
+  L.push("pub struct GeneralDef {");
+  L.push("    pub code: &'static str,");
+  L.push("    /// 官网 gid（素材映射/中台主键）。");
+  L.push("    pub gid: u32,");
+  L.push("    pub name: &'static str,");
+  L.push("    /// 武将包 key（`standard` / `wind_fire_forest_mountain` / `yijiang` / `jiexian`）。");
+  L.push("    pub pack: &'static str,");
+  L.push("    /// 势力（`wei` / `shu` / `wu` / `qun`）。");
+  L.push("    pub kingdom: &'static str,");
+  L.push("    pub male: bool,");
+  L.push("    pub max_hp: i32,");
+  L.push("    pub lord: bool,");
+  L.push("}");
+  L.push("");
+  L.push("pub const GENERALS: &[GeneralDef] = &[");
+  for (const g of generals) {
+    L.push("    GeneralDef {");
+    L.push("        code: " + JSON.stringify(g.code) + ",");
+    L.push("        gid: " + Number(g.gid) + ",");
+    L.push("        name: " + JSON.stringify(g.name) + ",");
+    L.push("        pack: " + JSON.stringify(g.pack) + ",");
+    L.push("        kingdom: " + JSON.stringify(g.kingdom) + ",");
+    L.push("        male: " + (g.gender === "male" ? "true" : "false") + ",");
+    L.push("        max_hp: " + g.max_hp + ",");
+    L.push("        lord: " + (g.is_lord ? "true" : "false") + ",");
+    L.push("    },");
+  }
+  L.push("];");
+  L.push("");
+  L.push("/// 按 code 查武将。");
+  L.push("pub fn def(code: &str) -> Option<&'static GeneralDef> {");
+  L.push("    GENERALS.iter().find(|g| g.code == code)");
+  L.push("}");
+  L.push("");
+  L.push("/// 按 gid 查武将（素材映射/中台主键）。");
+  L.push("pub fn by_gid(gid: u32) -> Option<&'static GeneralDef> {");
+  L.push("    GENERALS.iter().find(|g| g.gid == gid)");
+  L.push("}");
+  L.push("");
+  return L.join("\n");
+}
+
 function renderV2Generals(generals) {
   const L = [];
   L.push("//! 生成的武将名录（化身池 / 中台状态）。**勿手改**：由 gen:sgs-engine-data 生成。");
@@ -675,7 +734,7 @@ function renderV3({ rows, deckRows }) {
   lines.push("//! 约束：V3 内核与本表只按属性字段判定，禁止按牌名 match（skill-spec-rules §3）。");
   lines.push("");
   lines.push("use crate::kernel::cards::{CardDef, Category, Tags, TargetMode};");
-  lines.push("use crate::kernel::{DamageKind, Suit};");
+  lines.push("use crate::kernel::{ArmorKind, DamageKind, Slot, Suit, WeaponKind};");
   lines.push("");
   lines.push(`pub const DECK_SIZE: usize = ${deckRows.length};`);
   lines.push("");
@@ -685,8 +744,11 @@ function renderV3({ rows, deckRows }) {
   for (const r of rows) {
     const category =
       r.kind === "Equip" ? "Equip" : r.kind === "Basic" ? "Basic" : r.delayed ? "DelayedTrick" : "Trick";
+    const slot = r.slot === null || r.slot === undefined ? "None" : `Some(Slot::${r.slot})`;
+    const weaponRange = r.weapon_range === null || r.weapon_range === undefined ? "None" : `Some(${r.weapon_range})`;
+    const horse = r.horse === null || r.horse === undefined ? "None" : `Some(${r.horse})`;
     lines.push(
-      `    CardDef { code: ${rustStr(r.code)}, name: ${rustStr(r.name)}, category: Category::${category}, target_mode: TargetMode::${r.target_mode}, tags: Tags { sha: ${r.sha}, shan: ${r.shan}, tao: ${r.tao}, jiu: ${r.jiu}, wuxie: ${r.wuxie}, duel: ${r.duel}, delayed: ${r.delayed}, damage_trick: ${r.damage_trick} }, damage_kind: DamageKind::${r.damage_kind} },`,
+      `    CardDef { code: ${rustStr(r.code)}, name: ${rustStr(r.name)}, category: Category::${category}, target_mode: TargetMode::${r.target_mode}, tags: Tags { sha: ${r.sha}, shan: ${r.shan}, tao: ${r.tao}, jiu: ${r.jiu}, wuxie: ${r.wuxie}, duel: ${r.duel}, delayed: ${r.delayed}, damage_trick: ${r.damage_trick} }, damage_kind: DamageKind::${r.damage_kind}, slot: ${slot}, weapon_range: ${weaponRange}, horse: ${horse}, armor: ArmorKind::${r.armor}, weapon: WeaponKind::${r.weapon} },`,
     );
   }
   lines.push("];");
@@ -1030,6 +1092,7 @@ async function main() {
   catalog.generals = assignGeneralStatus(catalog.generals);
   const textCatalog = renderCatalog(catalog);
   const textV2Generals = renderV2Generals(catalog.generals);
+  const textV3Generals = renderV3Generals(catalog.generals);
 
   const deckSummary = built.decks
     .map((d) => `${d.label} ${d.physical.length}`)
@@ -1047,6 +1110,7 @@ async function main() {
       { out: opts.outV3, text: textV3, label: "v3 cards_generated.rs" },
       { out: opts.catalog, text: textCatalog, label: "engine-catalog.json" },
       { out: opts.outV2Generals, text: textV2Generals, label: "v2 generals_generated.rs" },
+      { out: opts.outV3Generals, text: textV3Generals, label: "v3 generals_generated.rs" },
     ];
     for (const t of targets) {
       let current = "";
@@ -1079,6 +1143,8 @@ async function main() {
   await writeFile(opts.catalog, textCatalog, "utf8");
   await mkdir(dirname(opts.outV2Generals), { recursive: true });
   await writeFile(opts.outV2Generals, textV2Generals, "utf8");
+  await mkdir(dirname(opts.outV3Generals), { recursive: true });
+  await writeFile(opts.outV3Generals, textV3Generals, "utf8");
   if (v1Present) {
     console.log(
       `[gen] ${built.defs.size} 个牌定义 / ${built.total} 张物理牌（${deckSummary}）/ ${gens.total} 位武将（${generalSummary}）→ ${opts.out}`,
@@ -1093,6 +1159,7 @@ async function main() {
   console.log(
     `[gen] v2 generals：${catalog.generals.filter((g) => g.status === "live").length} 上线 / ${catalog.generals.filter((g) => g.status === "offline").length} 下线 / ${catalog.generals.filter((g) => g.status === "review").length} 待审批 → ${opts.outV2Generals}`,
   );
+  console.log(`[gen] v3 generals：${catalog.generals.length} 将（最小字段）→ ${opts.outV3Generals}`);
   console.log(
     `[gen] catalog：${catalog.generals.length} 将 / ${catalog.card_defs.length} 牌定义 / ${catalog.decks.length} 牌堆 → ${opts.catalog}`,
   );

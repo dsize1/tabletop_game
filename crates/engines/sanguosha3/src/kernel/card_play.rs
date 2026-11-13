@@ -145,6 +145,35 @@ pub fn step_flow(g: &mut Game, kind: super::resolve::FlowKind, data: &serde_json
             let target = data.get("target").and_then(|t| t.as_u64()).ok_or("流程帧缺 target")? as usize;
             let code = g.card_defs.get(card).map(|c| c.def.clone()).ok_or("牌无定义")?;
             let def = super::cards::def(&code).ok_or("未知牌定义")?;
+            // 使用计数（掣政②：含装备牌与响应打出，B1 Q17 裁定 B）。
+            g.bump(&format!("turn.{actor}.cards_used"));
+            // 使用事件（恃才/立军订阅）——快照带使用时刻的 turn/phase。
+            let mut used_ev = super::event::Event::card(
+                super::event::EventKind::CardUsed,
+                Some(actor),
+                card.to_string(),
+                Some("使用".to_string()),
+            );
+            used_ev.by = Some(actor);
+            used_ev.turn = g.turn;
+            used_ev.phase = g.phase;
+            g.events.push(used_ev);
+            // 牌对目标无效（掣政①）：不进结算、不指定目标，但已计入使用数。
+            if super::skills::card_ineffective(g, actor, target) {
+                to_discard(g, card);
+                return Ok(super::resolve::Step::Done);
+            }
+            // 指定目标事件（奇制/拒战/荐降订阅）：目标按统一事件，不按牌名枚举。
+            let mut tgt_ev = super::event::Event::card(
+                super::event::EventKind::TargetChosen,
+                Some(target),
+                card.to_string(),
+                Some("目标".to_string()),
+            );
+            tgt_ev.by = Some(actor);
+            tgt_ev.turn = g.turn;
+            tgt_ev.phase = g.phase;
+            g.events.push(tgt_ev);
             if def.tags.sha {
                 let armor = super::gear::armor_of(g, target);
                 let _ = resolve_sha(g, actor, target, false, armor);
@@ -154,6 +183,77 @@ pub fn step_flow(g: &mut Game, kind: super::resolve::FlowKind, data: &serde_json
             to_discard(g, card);
             Ok(super::resolve::Step::Done)
         }
+        super::resolve::FlowKind::Dying => step_dying(g, data),
         _ => Ok(super::resolve::Step::Done),
     }
+}
+
+/// 濒死救援流程（通用，所有“致濒死”渠道共用）。
+///
+/// 询问顺序：濒死者本人先，然后从其下家顺时针存活角色；逐个给「桃 / 不救」。
+/// 无人出桃 → `turn::settle_death`（弃牌 → 奖惩 → 胜负）。
+/// M5.1 仅支持【桃】（【酒】自救与技能救援在 M5.2 扩展）。
+fn step_dying(g: &mut Game, data: &serde_json::Value) -> Result<super::resolve::Step, String> {
+    use super::resolve::{take_answer, Stage, Step};
+    let target = data.get("target").and_then(|v| v.as_u64()).ok_or("濒死帧缺 target")? as usize;
+    let killer = data.get("by").and_then(|v| v.as_u64()).map(|v| v as usize);
+    let idx = data.get("idx").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+    // 已脱险（被桃/技能救回）：流程结束。
+    if !super::flow::is_dying(&g.seats[target]) {
+        return Ok(Step::Done);
+    }
+    let n = g.seats.len();
+    let order: Vec<usize> = (0..n)
+        .map(|k| (target + k) % n)
+        // 与 v2 `dying_order` 同口径：自己 → 自己下家；**hp>0** 的存活角色才询问。
+        .filter(|&s| g.seats[s].alive && (g.seats[s].hp > 0 || s == target))
+        .collect();
+    if idx >= order.len() {
+        let evs = super::turn::settle_death(g, target, killer);
+        g.events.extend(evs);
+        return Ok(Step::Done);
+    }
+    let asker = order[idx];
+    if let Some(ans) = take_answer(g, "dying") {
+        if let Some(card) = ans.strip_prefix("card:") {
+            let in_hand = matches!(g.cards.get(card), Some(super::Zone::Hand(s)) if *s == asker);
+            let is_tao = g
+                .card_defs
+                .get(card)
+                .and_then(|c| super::cards::def(&c.def))
+                .map(|d| d.tags.tao)
+                .unwrap_or(false);
+            if !in_hand || !is_tao {
+                return Err("濒死救援：只能打出【桃】".into());
+            }
+            super::flow::discard(g, asker, card, "濒死救援");
+            super::flow::rescue(g, target, 1, "桃");
+            if !super::flow::is_dying(&g.seats[target]) {
+                return Ok(Step::Done);
+            }
+        } else if ans != "pass" {
+            return Err(format!("濒死救援：未知选项 {ans}"));
+        }
+        return Ok(Step::Next(
+            Stage::DyingAsk,
+            serde_json::json!({ "target": target, "by": killer, "idx": idx + 1 }),
+        ));
+    }
+    let mut b = super::pending::PendingBuilder::new(asker, "dying_ask").skill("dying");
+    for id in g.hand(asker) {
+        let is_tao = g
+            .card_defs
+            .get(&id)
+            .and_then(|c| super::cards::def(&c.def))
+            .map(|d| d.tags.tao)
+            .unwrap_or(false);
+        if is_tao {
+            b = b.option(format!("card:{id}"), "打出【桃】");
+        }
+    }
+    let p = b
+        .escape("不出桃")
+        .data(serde_json::json!({ "target": target, "idx": idx }))
+        .build();
+    Ok(Step::Need(p))
 }

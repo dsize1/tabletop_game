@@ -14,7 +14,7 @@ fn seat(id: usize, skills: Vec<&str>) -> Seat {
         granted: vec![],
         skills: skills.into_iter().map(String::from).collect(),
         identity: None,
-        flipped: false,
+        flipped: false, ..Default::default()
     }
 }
 

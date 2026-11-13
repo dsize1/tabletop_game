@@ -15,7 +15,7 @@ fn seat(id: usize) -> Seat {
         granted: vec![],
         skills: vec![],
         identity: None,
-        flipped: false,
+        flipped: false, ..Default::default()
     }
 }
 

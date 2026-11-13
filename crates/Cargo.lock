@@ -1224,6 +1224,7 @@ name = "sanguosha3"
 version = "0.1.0"
 dependencies = [
  "game-engine-core",
+ "sanguosha",
  "serde",
  "serde_json",
 ]

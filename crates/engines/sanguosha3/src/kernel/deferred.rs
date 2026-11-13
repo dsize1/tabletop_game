@@ -18,15 +18,19 @@ pub enum DeferredKind {
     SkillTrigger,
     /// 判定阶段：延时锦囊 LIFO 结算（排在技能触发之后）。
     JudgePhase,
+    /// **回合结束校验**（审时阴面「其未失去此牌」等）：只在「当前回合的结束阶段」派发，
+    /// 未到结束阶段时**保留在队列**（不提前派发），跨回合后作为陈旧项清理。
+    TurnEndCheck,
     /// 死亡清理（排在所有死亡时技能之后）。
     DeathCleanup,
 }
 
 /// **顺序表**（常量即文档）。改动必须同步 `docs/games/sanguosha/align/mechanics.json`。
-pub const ORDER: [DeferredKind; 4] = [
+pub const ORDER: [DeferredKind; 5] = [
     DeferredKind::Land,
     DeferredKind::SkillTrigger,
     DeferredKind::JudgePhase,
+    DeferredKind::TurnEndCheck,
     DeferredKind::DeathCleanup,
 ];
 
@@ -99,5 +103,29 @@ impl Deferred {
             .iter()
             .position(|k| *k == self.kind)
             .unwrap_or(ORDER.len())
+    }
+
+    /// 延迟项的 `turn`（仅 `Ask` 载荷带）；`TurnEndCheck` 用来判定「是否本回合」。
+    pub fn turn_of(&self) -> Option<usize> {
+        match &self.payload {
+            Payload::Ask { data, .. } => data.get("turn").and_then(|v| v.as_u64()).map(|v| v as usize),
+            _ => None,
+        }
+    }
+
+    /// 当前是否**可派发**（`TurnEndCheck` 只在当前回合的结束阶段派发）。
+    pub fn ready(&self, g: &super::Game) -> bool {
+        match self.kind {
+            DeferredKind::TurnEndCheck => {
+                g.phase == super::Phase::End && self.turn_of() == Some(g.turn)
+            }
+            _ => true,
+        }
+    }
+
+    /// 是否**陈旧**（回合已过的结束校验）：调用方负责丢弃。
+    pub fn stale(&self, g: &super::Game) -> bool {
+        matches!(self.kind, DeferredKind::TurnEndCheck)
+            && self.turn_of().map(|t| t < g.turn).unwrap_or(true)
     }
 }

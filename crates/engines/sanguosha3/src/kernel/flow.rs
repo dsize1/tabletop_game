@@ -42,6 +42,10 @@ pub fn apply_armor(armor: ArmorKind, spec: &DamageSpec, mut amount: i32) -> Dama
 ///
 /// 返回产生的事件（可能为空 = 被免疫）。`DamageAfter` 事件带二维 `damage` 字段。
 pub fn damage(g: &mut Game, spec: DamageSpec, armor: ArmorKind, bonus: i32) -> Vec<Event> {
+    // 锁定技能防伤（怀橘：移除 1 枚「橘」防止该次伤害）——技能防伤先于防具数值链。
+    if super::skills::prevent_damage(g, spec.target) {
+        return vec![];
+    }
     let base = spec.amount + bonus;
     match apply_armor(armor, &spec, base) {
         DamageOutcome::Blocked => vec![],
@@ -61,6 +65,7 @@ pub fn damage(g: &mut Game, spec: DamageSpec, armor: ArmorKind, bonus: i32) -> V
                 kind: spec.kind,
                 source: spec.source,
             });
+            enter_dying(g, spec.target, spec.from);
             vec![ev]
         }
     }
@@ -75,7 +80,40 @@ pub fn lose_hp(g: &mut Game, target: usize, amount: i32, cause: &str) -> Vec<Eve
     seat.hp = (seat.hp - amount).max(0);
     let mut ev = Event::simple(EventKind::HpLost, Some(target), Some(cause));
     ev.amount = Some(amount);
+    enter_dying(g, target, None);
     vec![ev]
+}
+
+/// **濒死入口（唯一）**：hp ≤ 0 且存活 → 压入通用 `FlowKind::Dying` 帧。
+///
+/// 同一座位同时只允许一个濒死帧（重复伤害/多段结算不得叠帧）。
+pub fn enter_dying(g: &mut Game, seat: usize, by: Option<usize>) {
+    let dying = g
+        .seats
+        .get(seat)
+        .map(|s| s.alive && s.hp <= 0)
+        .unwrap_or(false);
+    if !dying {
+        return;
+    }
+    let already = g.stack.iter().any(|f| {
+        matches!(
+            &f.inner,
+            super::resolve::FrameInner::Flow(ff)
+                if ff.kind == super::resolve::FlowKind::Dying
+                    && ff.data.get("target").and_then(|v| v.as_u64()) == Some(seat as u64)
+        )
+    });
+    if already {
+        return;
+    }
+    super::resolve::push_flow(
+        g,
+        super::resolve::FlowKind::Dying,
+        seat,
+        super::resolve::Stage::DyingAsk,
+        serde_json::json!({ "target": seat, "by": by, "idx": 0 }),
+    );
 }
 
 /// 回复体力（唯一出口）：钳到 `max_hp`，满血不回（但不报错）。
@@ -115,12 +153,82 @@ pub fn rescue(g: &mut Game, target: usize, amount: i32, cause: &str) -> Vec<Even
 }
 
 /// 摸牌：从牌堆顶抽 n 张进手牌（牌堆不足时摸到几张某）。
+///
+/// **摸牌方向单出口**：寸目（锁定）改从牌堆底摸；所有摸牌（摸牌阶段/技能摸牌）都走这里。
 pub fn draw(g: &mut Game, seat: usize, n: usize) -> Vec<CardId> {
+    let bottom = super::skills::draw_from_bottom(g, seat);
     let mut drawn = vec![];
     for _ in 0..n {
-        let Some(id) = g.deck.pop() else { break };
+        let id = if bottom {
+            if g.deck.is_empty() {
+                None
+            } else {
+                Some(g.deck.remove(0))
+            }
+        } else {
+            g.deck.pop()
+        };
+        let Some(id) = id else { break };
         g.cards.insert(id.clone(), super::Zone::Hand(seat));
         drawn.push(id);
     }
     drawn
+}
+
+/// **摸牌阶段单出口**：基础 2 张 + 技能加成（庸肆 +X / 怀橘 +1）；整论可整段跳过。
+pub fn draw_phase(g: &mut Game, seat: usize) -> Vec<CardId> {
+    if super::skills::skip_draw(g, seat) {
+        return vec![];
+    }
+    let n = 2 + super::skills::draw_bonus(g, seat);
+    draw(g, seat, n)
+}
+
+/// 弃置（唯一出口，`lose-vs-discard`）：只能从手牌/装备区弃置（判定区离开**不算弃置**）。
+///
+/// 记账：进弃牌堆 + 本阶段弃牌计数（`phase.discarded.<Phase>`，溃诛 X 的唯一来源）+ 事件（供订阅路由）。
+pub fn discard(g: &mut Game, by: usize, id: &str, cause: &str) -> Option<Event> {
+    let zone = g.cards.get(id)?.clone();
+    let owner = zone.seat()?;
+    if !matches!(zone, super::Zone::Hand(_) | super::Zone::Equip(..)) {
+        return None;
+    }
+    g.cards.insert(id.to_string(), super::Zone::Discard);
+    let key = format!("phase.discarded.{:?}", g.phase);
+    g.bump(&key);
+    let mut ev = Event::card(EventKind::CardDiscarded, Some(owner), id.to_string(), Some(cause.to_string()));
+    ev.by = Some(by);
+    ev.from = Some(owner);
+    ev.turn = g.turn;
+    ev.phase = g.phase;
+    g.events.push(ev.clone());
+    Some(ev)
+}
+
+/// 获得（唯一出口）：牌进手牌；事件记「谁失去 → 谁获得」。
+pub fn gain(g: &mut Game, to: usize, id: &str, by: usize, cause: &str) -> Option<Event> {
+    let from = g.cards.get(id)?.seat();
+    g.cards.insert(id.to_string(), super::Zone::Hand(to));
+    let mut ev = Event::card(EventKind::CardGained, Some(to), id.to_string(), Some(cause.to_string()));
+    ev.by = Some(by);
+    ev.from = from;
+    ev.turn = g.turn;
+    ev.phase = g.phase;
+    g.events.push(ev.clone());
+    Some(ev)
+}
+
+/// 置于牌堆顶（恃才）：进 Draw 区并压到牌堆顶。
+pub fn to_deck_top(g: &mut Game, id: &str) {
+    g.cards.insert(id.to_string(), super::Zone::Draw);
+    g.deck.push(id.to_string());
+}
+
+/// 手牌摸至 n 张（审时「摸至 4 张」）：只摸不弃（超过 n 不处理）。
+pub fn fill_hand(g: &mut Game, seat: usize, n: usize) -> Vec<CardId> {
+    let cur = g.hand_size(seat);
+    if cur >= n {
+        return vec![];
+    }
+    draw(g, seat, n - cur)
 }

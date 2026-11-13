@@ -1,6 +1,6 @@
 //! B0 技能 handler（据守/解围/不屈/奋激/行殇/放逐/颂威）。
 //!
-//! 每个 handler 是「声明 → 行为」的分发落点：声明在 `skills::SKILLS`（窗口/订阅/钩子），
+//! 每个 handler 是「声明 → 行为」的分发落点：声明在 `b0::SKILLS`（窗口/订阅/钩子），
 //! 行为在本模块。handler 只返回 `Step`，栈由 `resolve::advance` 改（spike B 类）。
 //! 上下文（谁失牌/谁死亡/伤害来源）从 `Ask.data` 读事件快照，不读 live 状态。
 
@@ -9,6 +9,9 @@ use serde_json::Value;
 use super::super::flow;
 use super::super::resolve::{Ask, Step};
 use super::super::{Game, Zone};
+use super::{Face, Hook, SkillDef, SkillKind, Subscription};
+use crate::kernel::event::{EventKind, Subject, Window};
+use crate::kernel::Phase;
 
 /// B0 handler 分发。
 pub fn handler(code: &str) -> Option<fn(&mut Game, &Ask) -> Result<Step, String>> {
@@ -116,6 +119,119 @@ fn buqu(g: &mut Game, ask: &Ask) -> Result<Step, String> {
         g.seats[seat].hp = g.seats[seat].hp.max(1); // 回复至 1
     }
     Ok(Step::Done)
+}
+
+/// B0 声明（7 技能）。
+pub static SKILLS: &[SkillDef] = &[
+    // —— B0：据守/解围/不屈/奋激/行殇/放逐/颂威 ——
+    SkillDef {
+        code: "jushou",
+        name: "据守",
+        kind: SkillKind::Normal,
+        grant_only: false,
+        transform: false,
+        faces: &[Face {
+            window: Window::OwnPhase(Phase::End),
+            subscriptions: &[],
+            hooks: &[],
+            can_active: true,
+        }],
+    },
+    SkillDef {
+        code: "jiewei",
+        name: "解围",
+        kind: SkillKind::Normal,
+        grant_only: false,
+        transform: false,
+        faces: &[Face {
+            window: Window::AnyTime,
+            subscriptions: &[],
+            hooks: &[Hook::WuxieOpt, Hook::Flip],
+            can_active: false,
+        }],
+    },
+    SkillDef {
+        code: "buqu",
+        name: "不屈",
+        kind: SkillKind::Locked,
+        grant_only: false,
+        transform: false,
+        faces: &[Face {
+            window: Window::AnyTime,
+            subscriptions: &[],
+            hooks: &[Hook::Dying],
+            can_active: false,
+        }],
+    },
+    SkillDef {
+        code: "fenji",
+        name: "奋激",
+        kind: SkillKind::Normal,
+        grant_only: false,
+        transform: false,
+        faces: &[Face {
+            window: Window::AnyTime,
+            // 奋激：其他角色的手牌被弃置/获得 → subject = Other（M105 教训的类型级对策）。
+            subscriptions: &[
+                Subscription { event: EventKind::CardDiscarded, subject: Subject::Other },
+                Subscription { event: EventKind::CardGained, subject: Subject::Other },
+            ],
+            hooks: &[],
+            can_active: false,
+        }],
+    },
+    SkillDef {
+        code: "xingshang",
+        name: "行殇",
+        kind: SkillKind::Normal,
+        grant_only: false,
+        transform: false,
+        faces: &[Face {
+            window: Window::AnyTime,
+            subscriptions: &[Subscription { event: EventKind::Death, subject: Subject::Other }],
+            hooks: &[],
+            can_active: false,
+        }],
+    },
+    SkillDef {
+        code: "fangzhu",
+        name: "放逐",
+        kind: SkillKind::Normal,
+        grant_only: false,
+        transform: false,
+        faces: &[Face {
+            window: Window::AnyTime,
+            subscriptions: &[Subscription { event: EventKind::DamageAfter, subject: Subject::Self_ }],
+            hooks: &[],
+            can_active: false,
+        }],
+    },
+    SkillDef {
+        code: "songwei",
+        name: "颂威",
+        kind: SkillKind::Lord,
+        grant_only: false,
+        transform: false,
+        faces: &[Face {
+            window: Window::AnyTime,
+            // 颂威：其他魏势力黑色判定生效 → subject = Other（主公技他人侧）。
+            subscriptions: &[Subscription { event: EventKind::JudgeEffective, subject: Subject::Other }],
+            hooks: &[],
+            can_active: false,
+        }],
+    },
+];
+
+/// 主动技可用性判定（`skills::active_actions` 唯一读取）。
+pub fn availability(code: &str) -> Option<fn(&Game, usize) -> bool> {
+    Some(match code {
+        "jushou" => can_jushou,
+        _ => return None,
+    })
+}
+
+fn can_jushou(g: &Game, seat: usize) -> bool {
+    g.turn == seat && g.phase == Phase::End
 }
 
 // 供测试直接调用核心效果（绕过 Ask 构造）。
