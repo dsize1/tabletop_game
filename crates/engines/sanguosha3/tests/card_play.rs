@@ -1,7 +1,5 @@
 //! M1.8 card_play 门禁：使用 vs 打出 / 目标列表 / 响应牌 / 无懈链。
 
-use std::collections::HashMap;
-
 use sanguosha3::kernel::card_play;
 use sanguosha3::kernel::cards::{CardDef, Category, ResponseKind, Tags, TargetMode};
 use sanguosha3::kernel::{Card, DamageKind, Game, Seat, Suit, Zone};

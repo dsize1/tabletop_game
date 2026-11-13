@@ -25,6 +25,9 @@ const DEFAULT_HEROES = resolve("docs", "games", "sanguosha", "data", "heroes.jso
 const DEFAULT_OUT = resolve("crates", "engines", "sanguosha", "src", "data.rs");
 /// 内核 v2（`sanguosha2`）的牌表产物：只含牌定义 + 160 张物理牌（不含武将）。
 const DEFAULT_OUT_V2 = resolve("crates", "engines", "sanguosha2", "src", "cards_generated.rs");
+/// 内核 V3（`sanguosha3`）的牌表产物（M2 生成物接入，2026-11-13）：
+/// 只含牌定义 + 160 张物理牌；V3 的 `CardDef` 比 v2 简（category/target_mode/tags/damage_kind）。
+const DEFAULT_OUT_V3 = resolve("crates", "engines", "sanguosha3", "src", "cards_generated.rs");
 const DEFAULT_OUT_V2_GENERALS = resolve(
   "crates",
   "engines",
@@ -273,6 +276,7 @@ function parseArgs(argv) {
     heroes: DEFAULT_HEROES,
     out: DEFAULT_OUT,
     outV2: DEFAULT_OUT_V2,
+    outV3: DEFAULT_OUT_V3,
     outV2Generals: DEFAULT_OUT_V2_GENERALS,
     catalog: DEFAULT_CATALOG,
     generalPacks: DEFAULT_GENERAL_PACKS,
@@ -283,6 +287,7 @@ function parseArgs(argv) {
     else if (argv[i] === "--heroes") opts.heroes = resolve(argv[++i]);
     else if (argv[i] === "--out") opts.out = resolve(argv[++i]);
     else if (argv[i] === "--out-v2") opts.outV2 = resolve(argv[++i]);
+    else if (argv[i] === "--out-v3") opts.outV3 = resolve(argv[++i]);
     else if (argv[i] === "--out-v2-generals") opts.outV2Generals = resolve(argv[++i]);
     else if (argv[i] === "--catalog") opts.catalog = resolve(argv[++i]);
     else if (argv[i] === "--general-packs") {
@@ -300,7 +305,7 @@ function parseArgs(argv) {
     } else if (argv[i] === "--check") opts.check = true;
     else if (argv[i] === "--help" || argv[i] === "-h") {
       console.log(
-        "用法：node apps/scripts/gen-sanguosha-engine-data.mjs [--cards cards.json] [--heroes heroes.json] [--out data.rs] [--out-v2 cards_generated.rs] [--catalog engine-catalog.json] [--general-packs standard|all] [--check]",
+        "用法：node apps/scripts/gen-sanguosha-engine-data.mjs [--cards cards.json] [--heroes heroes.json] [--out data.rs] [--out-v2 cards_generated.rs] [--out-v3 cards_generated.rs] [--catalog engine-catalog.json] [--general-packs standard|all] [--check]",
       );
       process.exit(0);
     } else {
@@ -660,6 +665,52 @@ function renderV2({ rows, deckRows }) {
   return lines.join("\n");
 }
 
+/// 内核 V3（`sanguosha3`）的牌表：`CardDef` 比 v2 简（category/target_mode/tags/damage_kind）。
+/// 复用 `buildV2` 的 rows（已算好属性/标签/伤害属性/目标模式），只换 V3 的类型签名。
+function renderV3({ rows, deckRows }) {
+  const lines = [];
+  lines.push("//! 三国杀内核 V3 卡牌数据（**自动生成，勿手改**）。");
+  lines.push("//! 生成/校验：`node apps/scripts/gen-sanguosha-engine-data.mjs [--check]`");
+  lines.push("//! 来源：`docs/games/sanguosha/data/cards.json`（standard 108 + junzheng 52 = 160）。");
+  lines.push("//! 约束：V3 内核与本表只按属性字段判定，禁止按牌名 match（skill-spec-rules §3）。");
+  lines.push("");
+  lines.push("use crate::kernel::cards::{CardDef, Category, Tags, TargetMode};");
+  lines.push("use crate::kernel::{DamageKind, Suit};");
+  lines.push("");
+  lines.push(`pub const DECK_SIZE: usize = ${deckRows.length};`);
+  lines.push("");
+  lines.push("/// 牌定义（每名称一条；物理牌实例见 `DECK`）。");
+  lines.push("#[rustfmt::skip]");
+  lines.push("pub static DEFS: &[CardDef] = &[");
+  for (const r of rows) {
+    const category =
+      r.kind === "Equip" ? "Equip" : r.kind === "Basic" ? "Basic" : r.delayed ? "DelayedTrick" : "Trick";
+    lines.push(
+      `    CardDef { code: ${rustStr(r.code)}, name: ${rustStr(r.name)}, category: Category::${category}, target_mode: TargetMode::${r.target_mode}, tags: Tags { sha: ${r.sha}, shan: ${r.shan}, tao: ${r.tao}, jiu: ${r.jiu}, wuxie: ${r.wuxie}, duel: ${r.duel}, delayed: ${r.delayed}, damage_trick: ${r.damage_trick} }, damage_kind: DamageKind::${r.damage_kind} },`,
+    );
+  }
+  lines.push("];");
+  lines.push("");
+  lines.push("/// 物理牌（按建堆顺序：standard → junzheng）。");
+  lines.push("pub struct Phy {");
+  lines.push("    pub name: &'static str,");
+  lines.push("    pub pack: &'static str,");
+  lines.push("    pub suit: Suit,");
+  lines.push("    pub rank: u8,");
+  lines.push("}");
+  lines.push("");
+  lines.push("#[rustfmt::skip]");
+  lines.push("pub static DECK: &[Phy] = &[");
+  for (const c of deckRows) {
+    lines.push(
+      `    Phy { name: ${rustStr(c.name)}, pack: ${rustStr(c.pack)}, suit: Suit::${c.suit}, rank: ${c.rank} },`,
+    );
+  }
+  lines.push("];");
+  lines.push("");
+  return lines.join("\n");
+}
+
 /// 机器可读名录（JSON）：武将 + 牌定义 + 物理牌 + 包清单。
 ///
 /// 口径：与 v1 `data.rs` / v2 `cards_generated.rs` 同源同序（同一份生成逻辑），
@@ -974,6 +1025,7 @@ async function main() {
   });
   const v2 = buildV2(built, cards);
   const textV2 = renderV2(v2);
+  const textV3 = renderV3(v2);
   const catalog = buildCatalog(built, gens, cards);
   catalog.generals = assignGeneralStatus(catalog.generals);
   const textCatalog = renderCatalog(catalog);
@@ -992,6 +1044,7 @@ async function main() {
     const targets = [
       ...(v1Present ? [{ out: opts.out, text, label: "v1 data.rs" }] : []),
       { out: opts.outV2, text: textV2, label: "v2 cards_generated.rs" },
+      { out: opts.outV3, text: textV3, label: "v3 cards_generated.rs" },
       { out: opts.catalog, text: textCatalog, label: "engine-catalog.json" },
       { out: opts.outV2Generals, text: textV2Generals, label: "v2 generals_generated.rs" },
     ];
@@ -1020,6 +1073,8 @@ async function main() {
   }
   await mkdir(dirname(opts.outV2), { recursive: true });
   await writeFile(opts.outV2, textV2, "utf8");
+  await mkdir(dirname(opts.outV3), { recursive: true });
+  await writeFile(opts.outV3, textV3, "utf8");
   await mkdir(dirname(opts.catalog), { recursive: true });
   await writeFile(opts.catalog, textCatalog, "utf8");
   await mkdir(dirname(opts.outV2Generals), { recursive: true });
@@ -1031,6 +1086,9 @@ async function main() {
   }
   console.log(
     `[gen] v2：${v2.rows.length} 条牌定义 / ${v2.deckRows.length} 张物理牌 → ${opts.outV2}`,
+  );
+  console.log(
+    `[gen] v3：${v2.rows.length} 条牌定义 / ${v2.deckRows.length} 张物理牌 → ${opts.outV3}`,
   );
   console.log(
     `[gen] v2 generals：${catalog.generals.filter((g) => g.status === "live").length} 上线 / ${catalog.generals.filter((g) => g.status === "offline").length} 下线 / ${catalog.generals.filter((g) => g.status === "review").length} 待审批 → ${opts.outV2Generals}`,

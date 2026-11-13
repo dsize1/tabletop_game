@@ -12,3 +12,6 @@
 //! 与 v2 的差异见 `Cargo.toml` 顶部注释。
 
 pub mod kernel;
+
+/// 牌表生成物（160 张 + 定义；`gen:sgs-engine-data` 生成，勿手改）。
+pub mod cards_generated;
