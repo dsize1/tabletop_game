@@ -5,7 +5,7 @@ use sanguosha3::kernel::view::{player_view, public_state};
 use sanguosha3::kernel::{Card, Game, Identity, Seat, Suit, Zone};
 
 fn seat(id: usize, identity: Option<Identity>) -> Seat {
-    Seat { id, hp: 4, max_hp: 4, alive: true, granted: vec![], identity }
+    Seat { id, hp: 4, max_hp: 4, alive: true, granted: vec![], skills: vec![], identity, flipped: false }
 }
 
 fn game() -> Game {

@@ -7,7 +7,7 @@ use sanguosha3::kernel::turn::{begin_game, check_finished, die};
 use sanguosha3::kernel::{Card, Game, Identity, Seat, Suit, Winner, Zone};
 
 fn seat(id: usize, identity: Option<Identity>) -> Seat {
-    Seat { id, hp: 4, max_hp: 4, alive: true, granted: vec![], identity }
+    Seat { id, hp: 4, max_hp: 4, alive: true, granted: vec![], skills: vec![], identity, flipped: false }
 }
 
 fn game() -> Game {

@@ -135,3 +135,25 @@ pub fn judge_zone_lifo(g: &mut Game, seat: usize) -> Option<String> {
 pub fn trick_cancelled_by_wuxie(layers: usize) -> bool {
     wuxie_cancelled(layers)
 }
+
+/// 流程帧 handler（`resolve::advance` 的 `Flow` 分支）：牌结算同步版。
+/// 完整交互（选目标/响应窗口 pending）在 M5 接入；M4.3b 先跑通杀/桃的同步结算。
+pub fn step_flow(g: &mut Game, kind: super::resolve::FlowKind, data: &serde_json::Value, actor: usize) -> Result<super::resolve::Step, String> {
+    match kind {
+        super::resolve::FlowKind::Card => {
+            let card = data.get("card").and_then(|c| c.as_str()).ok_or("流程帧缺 card")?;
+            let target = data.get("target").and_then(|t| t.as_u64()).ok_or("流程帧缺 target")? as usize;
+            let code = g.card_defs.get(card).map(|c| c.def.clone()).ok_or("牌无定义")?;
+            let def = super::cards::def(&code).ok_or("未知牌定义")?;
+            if def.tags.sha {
+                let armor = super::gear::armor_of(g, target);
+                let _ = resolve_sha(g, actor, target, false, armor);
+            } else if def.tags.tao {
+                let _ = resolve_tao(g, actor);
+            }
+            to_discard(g, card);
+            Ok(super::resolve::Step::Done)
+        }
+        _ => Ok(super::resolve::Step::Done),
+    }
+}

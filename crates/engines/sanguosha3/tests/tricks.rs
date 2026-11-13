@@ -9,8 +9,8 @@ use sanguosha3::kernel::{Card, Game, Seat, Suit, Zone};
 fn game() -> Game {
     let mut g = Game {
         seats: vec![
-            Seat { id: 0, hp: 4, max_hp: 4, alive: true, granted: vec![], identity: None },
-            Seat { id: 1, hp: 4, max_hp: 4, alive: true, granted: vec![], identity: None },
+            Seat { id: 0, hp: 4, max_hp: 4, alive: true, granted: vec![], skills: vec![], identity: None, flipped: false },
+            Seat { id: 1, hp: 4, max_hp: 4, alive: true, granted: vec![], skills: vec![], identity: None, flipped: false },
         ],
         ..Default::default()
     };

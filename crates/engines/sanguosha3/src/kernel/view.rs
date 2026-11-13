@@ -110,3 +110,31 @@ pub fn player_view(g: &Game, viewer: usize) -> Value {
     }
     v
 }
+
+/// 归一化摘要（差分对拍用）：座位（hp/alive/公开身份/手牌数）+ 区域计数 + 事件日志。
+/// 屏蔽两引擎 schema 差异，是 v1↔v3 对拍的唯一比对口径（见 `v3-parity-baseline.md` §4.1）。
+pub fn summary(g: &Game) -> Value {
+    let seats: Vec<Value> = g
+        .seats
+        .iter()
+        .enumerate()
+        .map(|(i, s)| {
+            let hand = g.cards.values().filter(|z| matches!(z, Zone::Hand(s0) if *s0 == i)).count();
+            json!({
+                "hp": s.hp,
+                "alive": s.alive,
+                "identity": identity::identity_public(s).then(|| format!("{:?}", s.identity)),
+                "hand": hand,
+            })
+        })
+        .collect();
+    let zone_count = |pred: &dyn Fn(&Zone) -> bool| g.cards.values().filter(|z| pred(z)).count();
+    json!({
+        "seats": seats,
+        "zones": {
+            "draw": zone_count(&|z| matches!(z, Zone::Draw)),
+            "discard": zone_count(&|z| matches!(z, Zone::Discard)),
+            "void": zone_count(&|z| matches!(z, Zone::Void)),
+        },
+    })
+}

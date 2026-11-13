@@ -197,3 +197,56 @@ pub fn apply_step(g: &mut super::Game, frame_id: u64, step: Step) -> Result<(), 
 pub fn next_deferred_index(g: &super::Game) -> Option<usize> {
     (0..g.deferred.len()).min_by_key(|&i| g.deferred[i].order_index())
 }
+
+/// 推进器：栈循环 → 事件路由 → 延迟队列，直到「需输入」或「无事可做」。
+///
+/// 不变量：
+/// 1. 栈只由本函数改（handler 只返回 Step，`apply_step` 是唯一落点）；
+/// 2. 发起帧归属：`frame_id` 在 handler 运行前记录，Step 作用于它（不是栈顶）；
+/// 3. 事件先于延迟队列（事件是「刚发生的事实」，延迟队列是「事实之后要补的询问」）。
+pub fn advance(g: &mut super::Game) -> Result<(), String> {
+    let mut guard = 0usize;
+    loop {
+        guard += 1;
+        if guard > 2000 {
+            return Err("结算推进次数异常（疑似死循环）".into());
+        }
+        // 1. 有 pending → 等待玩家输入。
+        if g.pending.is_some() {
+            return Ok(());
+        }
+        // 2. 栈非空 → 跑栈顶帧。
+        if let Some(idx) = g.stack.len().checked_sub(1) {
+            let frame_id = g.stack[idx].id;
+            let frame = g.stack[idx].clone();
+            let step = match &frame.inner {
+                FrameInner::Ask(a) => {
+                    let h = crate::kernel::skills::handler(&a.skill)
+                        .ok_or_else(|| format!("未知技能处理器：{}", a.skill))?;
+                    h(g, a)?
+                }
+                FrameInner::Flow(f) => {
+                    crate::kernel::card_play::step_flow(g, f.kind, &f.data, f.actor)?
+                }
+            };
+            apply_step(g, frame_id, step)?;
+            continue;
+        }
+        // 3. 栈空 → 路由最早的事件（按订阅压技能帧）。
+        if !g.events.is_empty() {
+            let ev = g.events.remove(0);
+            crate::kernel::skills::route_event(g, &ev);
+            continue;
+        }
+        // 4. 延迟队列：按顺序表派发。
+        if let Some(i) = next_deferred_index(g) {
+            let d = g.deferred.remove(i);
+            if let crate::kernel::deferred::Payload::Ask { skill, stage, actor, data } = d.payload {
+                push_ask(g, skill, stage, actor, data);
+            }
+            continue;
+        }
+        break;
+    }
+    Ok(())
+}

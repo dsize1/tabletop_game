@@ -17,3 +17,5 @@ serde.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]
+# v1 作为行为 oracle（test-only）：差分对拍用（M5）。
+sanguosha = { path = "../sanguosha" }

@@ -170,6 +170,19 @@ pub enum Subject {
     Any,
 }
 
+impl Subject {
+    /// 主体判定：事件里的「谁」是否匹配声明的主体（相对 `owner`）。
+    pub fn matches(self, ev: &Event, owner: usize) -> bool {
+        match self {
+            Subject::Self_ => ev.seat == Some(owner),
+            Subject::Other => ev.seat.is_some() && ev.seat != Some(owner),
+            Subject::By => ev.by == Some(owner),
+            Subject::From => ev.from == Some(owner),
+            Subject::Any => true,
+        }
+    }
+}
+
 /// 订阅（由技能注册表派生，禁止手写清单）。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Sub {

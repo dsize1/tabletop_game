@@ -11,6 +11,7 @@ pub mod gear;
 pub mod identity;
 pub mod pending;
 pub mod resolve;
+pub mod skills;
 pub mod turn;
 pub mod view;
 
@@ -144,9 +145,15 @@ pub struct Seat {
     /// 授予技（一等公民的 code；`skills::active` 单一查询 = 自带 ∪ granted ∪ 临时）。
     #[serde(default)]
     pub granted: Vec<String>,
+    /// 自带技能（武将自带 skill code；`skills::active` 单一查询的第一个来源）。
+    #[serde(default)]
+    pub skills: Vec<String>,
     /// 身份（None = 未分配/未选将）。
     #[serde(default)]
     pub identity: Option<Identity>,
+    /// 翻面（背面朝上）。
+    #[serde(default)]
+    pub flipped: bool,
 }
 
 /// 伤害属性（mechanics `damage-attributes`）：普通/火/雷。
@@ -276,6 +283,9 @@ pub struct Game {
     /// 胜负（None = 对局未结束）。
     #[serde(default)]
     pub winner: Option<Winner>,
+    /// 待路由事件队列（结算产生 → 栈空后按订阅路由给技能）。
+    #[serde(default)]
+    pub events: Vec<event::Event>,
 }
 
 impl Game {

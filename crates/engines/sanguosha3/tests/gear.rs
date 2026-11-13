@@ -8,7 +8,7 @@ use sanguosha3::kernel::{ArmorKind, Card, DamageKind, DamageSpec, Game, Seat, So
 
 fn game(n: usize) -> Game {
     let seats = (0..n)
-        .map(|i| Seat { id: i, hp: 4, max_hp: 4, alive: true, granted: vec![], identity: None })
+        .map(|i| Seat { id: i, hp: 4, max_hp: 4, alive: true, granted: vec![], skills: vec![], identity: None, flipped: false })
         .collect();
     Game { seats, ..Default::default() }
 }

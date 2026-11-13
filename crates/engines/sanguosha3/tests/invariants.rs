@@ -16,7 +16,9 @@ fn seat(id: usize) -> Seat {
         max_hp: 4,
         alive: true,
         granted: vec![],
+        skills: vec![],
         identity: None,
+        flipped: false,
     }
 }
 
