@@ -49,6 +49,9 @@ const steps = [
   { name: "pack-pool（v2 选将池/包过滤）", cmd: `${cargo} test --manifest-path crates/Cargo.toml -p sanguosha2 lobby::` },
   { name: "view-contract（v2 视图契约）", cmd: `npm run check:sgs-view-contract` },
   { name: "sgs2-ai（内核 v2 自对弈 10 局）", cmd: `${node} apps/scripts/check-sgs2-ai.mjs` },
+  // V3（正式 id `sanguosha`）：内核用例 + 46 条机制锚点门禁（2026-11-15 用户裁定：内核完备才算批次前置）。
+  { name: "sgs3（内核 V3 用例）", cmd: `${cargo} test --manifest-path crates/Cargo.toml -p sanguosha3` },
+  { name: "sgs3-kernel（46 条机制 ↔ 实现/用例锚点）", cmd: `${node} apps/scripts/check-sgs3-kernel.mjs --check --strict` },
   // v1 交互原语 / 自对弈门禁由 v2 的 pending 出口 + `check:sgs2-ai` 覆盖。
   // 全武将验证：矩阵 ↔ 名录/批次表一致性（纯静态，无需 server）
   { name: "generals-matrix（全武将验证矩阵一致性）", cmd: `${node} apps/scripts/sgs-general-audit.mjs --check-matrix` },
