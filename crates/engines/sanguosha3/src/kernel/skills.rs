@@ -115,6 +115,10 @@ pub fn all() -> Vec<&'static SkillDef> {
 pub const ENABLED_SKILLS: &[&str] = &[
     // B0 批次（按 `align/B0.json` 逐条收口）
     "jushou", "jiewei", "buqu", "fenji", "xingshang", "fangzhu", "songwei",
+    // B1 批次（18 技能；真实路由 + 真实待办 + pass 出口，2026-11-15 收口）
+    "yongsi", "weidi", "qizhi", "jinzou", "juzhan", "feijun", "binglue", "huaiju", "yili",
+    "zhenglun", "kuizhu", "chezheng", "lijun", "jianxiang", "shenshi", "chenglue", "shicai",
+    "cunmu",
 ];
 
 /// 手牌变动类型（奋激口径）。

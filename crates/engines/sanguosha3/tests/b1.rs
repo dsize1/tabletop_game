@@ -65,6 +65,59 @@ fn run(g: &mut Game, skill: &str, actor: usize, data: serde_json::Value) -> Step
     h(g, &b1::ask(skill, actor, data)).expect("handler 不应报错")
 }
 
+
+/// 以「真实待办」方式驱动技能帧：首帧拿 pending，再逐个回答；回答写回
+/// `g.answer/answer_skill`（与 `resolve::submit` 同语义，但不依赖栈/回合帧）。
+fn run_steps(
+    g: &mut Game,
+    skill: &str,
+    actor: usize,
+    data: serde_json::Value,
+    answers: &[&str],
+) -> Step {
+    let mut data = data;
+    let mut step = call(g, skill, actor, data.clone());
+    for ans in answers {
+        // 推进到下一个待办（Next/NeedWith 是「切阶段」，不是回答）。
+        loop {
+            match &step {
+                Step::Need(_) | Step::NeedAt(_, _) => break,
+                Step::Next(_, d) | Step::NeedWith(_, d, _) => {
+                    data = d.clone();
+                    step = call(g, skill, actor, data.clone());
+                }
+                other => panic!("期望待办，实际 {other:?}"),
+            }
+        }
+        let pending = match &step {
+            Step::Need(p) | Step::NeedAt(_, p) => p,
+            _ => unreachable!(),
+        };
+        let opts: Vec<String> = pending.options().iter().map(|o| o.id.clone()).collect();
+        assert!(pending.has_option(ans), "选项 {ans} 不在 {opts:?}");
+        g.answer = Some(ans.to_string());
+        g.answer_skill = Some(skill.to_string());
+        step = call(g, skill, actor, data.clone());
+    }
+    // 收尾：把最后的 Next/NeedWith 推进到 Done/Finish。
+    loop {
+        match &step {
+            Step::Next(_, d) | Step::NeedWith(_, d, _) => {
+                data = d.clone();
+                step = call(g, skill, actor, data.clone());
+            }
+            Step::Need(_) | Step::NeedAt(_, _) => break,
+            _ => break,
+        }
+    }
+    step
+}
+
+fn call(g: &mut Game, skill: &str, actor: usize, data: serde_json::Value) -> Step {
+    let h = skills::handler(skill).expect("handler 应存在");
+    h(g, &b1::ask(skill, actor, data)).expect("handler 不应报错")
+}
+
 fn hand(g: &Game, seat: usize) -> Vec<String> {
     g.hand(seat)
 }
@@ -174,13 +227,27 @@ fn qizhi_triggers_on_targeted_card_use() {
     g.phase = Phase::Play;
     add_deck(&mut g, &["d0"]);
     add_card(&mut g, "t0", "sha", Zone::Hand(1));
-    // 直接路由「指定目标」事件（Subject::By + OwnTurn）
-    let mut ev = Event::card(EventKind::TargetChosen, Some(1), "u0".to_string(), Some("目标".into()));
+    // 直接路由「指定目标」事件（Subject::By + OwnTurn）。
+    let mut ev = Event::card(
+        EventKind::TargetChosen,
+        Some(1),
+        "u0".to_string(),
+        Some("目标".into()),
+    );
     ev.by = Some(0);
     ev.turn = 0;
     ev.phase = Phase::Play;
     g.events.push(ev);
     advance(&mut g).unwrap();
+    // 真实待办：先问「发动/放弃」，再强制选牌（不得代选）。
+    assert_eq!(
+        g.pending.as_ref().and_then(|p| p.skill()),
+        Some("qizhi"),
+        "奇制必须询问"
+    );
+    resolve::submit(&mut g, 0, "use").unwrap();
+    assert_eq!(g.pending.as_ref().map(|p| p.kind().to_string()), Some("pick_other".into()));
+    resolve::submit(&mut g, 0, "card:t0").unwrap();
     assert!(g.cards.get("t0") == Some(&Zone::Discard), "弃置目标一张牌");
     assert_eq!(hand_size(&g, 1), 1, "然后令其摸一张");
     assert_eq!(g.counter("turn.0.qizhi"), 1, "奇制次数 +1（进趋 X）");
@@ -236,12 +303,18 @@ fn juzhan_yang_only_on_others_turn() {
     let mut g = game(&["juzhan"]);
     g.turn = 2; // 他人回合
     add_deck(&mut g, &["d0", "d1"]);
-    let step = run(&mut g, "juzhan", 0, b1::data(&[("face", 0.into()), ("by", 1.into())]));
+    let step = run_steps(
+        &mut g,
+        "juzhan",
+        0,
+        b1::data(&[("face", 0.into()), ("by", 1.into()), ("step", "ask".into())]),
+        &["use"],
+    );
     assert!(matches!(step, Step::Finish(_)));
-    assert_eq!(hand_size(&g, 0), 1, "严颜摸 1");
+    assert_eq!(hand_size(&g, 0), 1, "自己摸 1");
     assert_eq!(hand_size(&g, 1), 1, "来源摸 1");
-    assert!(b1::deny_target(&g, 1, 0), "来源本回合不能再对严颜使用牌");
-    assert_eq!(skills::face_of(&g, 0, "juzhan"), 1, "发动后转阴面");
+    assert!(b1::deny_target(&g, 1, 0), "来源本回合不能再对你使用牌");
+    assert_eq!(skills::face_of(&g, 0, "juzhan"), 1, "发动后转换面");
 }
 
 #[test]
@@ -250,22 +323,27 @@ fn juzhan_yin_takes_card_but_not_judge_zone() {
     g.turn = 0;
     add_card(&mut g, "e0", "sha", Zone::Equip(1, sanguosha3::kernel::Slot::Weapon));
     add_card(&mut g, "j0", "lebu_sishu", Zone::Judge(1));
-    // 第一面是阳；先把面切到阴（路由会按当前面判定）。
     skills::flip_face(&mut g, 0, "juzhan");
-    let step = run(&mut g, "juzhan", 0, b1::data(&[("face", 1.into()), ("target", 1.into())]));
+    let step = run_steps(
+        &mut g,
+        "juzhan",
+        0,
+        b1::data(&[("face", 1.into()), ("target", 1.into()), ("step", "ask".into())]),
+        &["use", "card:e0"],
+    );
     assert!(matches!(step, Step::Finish(_)));
-    assert_eq!(g.cards.get("e0"), Some(&Zone::Hand(0)), "获得装备区牌");
+    assert_eq!(g.cards.get("e0"), Some(&Zone::Hand(0)), "获得装备牌");
     assert_eq!(g.cards.get("j0"), Some(&Zone::Judge(1)), "不含判定区（Q8 裁定 B）");
     assert!(b1::deny_target(&g, 0, 1));
-    assert_eq!(skills::face_of(&g, 0, "juzhan"), 0, "阴面发动后转阳面");
+    assert_eq!(skills::face_of(&g, 0, "juzhan"), 0, "发动后转换面");
 }
 
 #[test]
 fn juzhan_face_routing_rejects_wrong_window() {
     let mut g = game(&["juzhan"]);
-    g.turn = 0; // 严颜自己的回合
+    g.turn = 0; // 自己的回合
     add_deck(&mut g, &["d0", "d1"]);
-    // 当前面 = 阳（OtherTurn）：自己的回合不触发
+    // 阳面 = 他人回合，自己的回合不触发。
     let mut ev = Event::card(EventKind::TargetChosen, Some(0), "c0".to_string(), None);
     ev.by = Some(1);
     ev.turn = 0;
@@ -273,9 +351,9 @@ fn juzhan_face_routing_rejects_wrong_window() {
     g.events.push(ev);
     advance(&mut g).unwrap();
     assert_eq!(hand_size(&g, 0), 0, "阳面不在自己回合触发");
-    assert_eq!(skills::face_of(&g, 0, "juzhan"), 0, "未触发不换面");
+    assert_eq!(skills::face_of(&g, 0, "juzhan"), 0, "未发动不转面");
 
-    // 切到阴面（By + OwnTurn）后应触发
+    // 阴面（By + OwnTurn）应触发，但要先询问发动。
     skills::flip_face(&mut g, 0, "juzhan");
     add_card(&mut g, "c1", "sha", Zone::Hand(1));
     let mut ev = Event::card(EventKind::TargetChosen, Some(1), "c1".to_string(), None);
@@ -284,7 +362,10 @@ fn juzhan_face_routing_rejects_wrong_window() {
     ev.phase = Phase::Play;
     g.events.push(ev);
     advance(&mut g).unwrap();
-    assert_eq!(g.cards.get("c1"), Some(&Zone::Hand(0)), "阴面获得目标一张牌");
+    assert_eq!(g.pending.as_ref().and_then(|p| p.skill()), Some("juzhan"));
+    resolve::submit(&mut g, 0, "use").unwrap();
+    resolve::submit(&mut g, 0, "card:c1").unwrap();
+    assert_eq!(g.cards.get("c1"), Some(&Zone::Hand(0)), "获得目标一张牌");
 }
 
 // ---------------------------------------------------------------------------
@@ -435,15 +516,38 @@ fn kuizhu_draw_mode_uses_phase_discard_count() {
     let mut g = game(&["kuizhu"]);
     g.phase = Phase::Discard;
     g.set_counter("phase.discarded.Discard", 2);
-    g.set_counter("phase.discarded.Play", 5); // 出牌阶段弃牌不计入（Q1/Q16）
+    g.set_counter("phase.discarded.Play", 5); // 其他阶段弃牌不纳入（Q1/Q16）
     add_deck(&mut g, &["d0", "d1"]);
-    run(&mut g, "kuizhu", 0, b1::data(&[("opt", 1.into()), ("targets", serde_json::json!([1, 2]))]));
+    // 模式①：至多 X=2 名，选 2 名。
+    let step = run_steps(
+        &mut g,
+        "kuizhu",
+        0,
+        b1::data(&[("step", "mode".into())]),
+        &["use:1", "t:1", "t:2", "ok"],
+    );
+    assert!(matches!(step, Step::Finish(_)));
     assert_eq!(hand_size(&g, 1), 1);
     assert_eq!(hand_size(&g, 2), 1);
-    // 至多 X 名
-    let err = skills::handler("kuizhu")
-        .unwrap()(&mut g, &b1::ask("kuizhu", 0, b1::data(&[("opt", 1.into()), ("targets", serde_json::json!([1, 2, 0]))])));
-    assert!(err.is_err(), "超过 X 名应拒绝");
+    // 反例：X=1 时选满 1 名后不再提供新的目标选项（UI 层封顶，而不是报错）。
+    let mut g = game(&["kuizhu"]);
+    g.phase = Phase::Discard;
+    g.set_counter("phase.discarded.Discard", 1);
+    let step = run_steps(
+        &mut g,
+        "kuizhu",
+        0,
+        b1::data(&[("step", "mode".into())]),
+        &["use:1", "t:1"],
+    );
+    let opts = match &step {
+        Step::Need(p) | Step::NeedAt(_, p) => {
+            p.options().iter().map(|o| o.id.clone()).collect::<Vec<_>>()
+        }
+        other => panic!("期望继续待办，实际 {other:?}"),
+    };
+    assert!(!opts.iter().any(|o| o.starts_with("t:")), "已达 X 上限");
+    assert!(opts.contains(&"ok".to_string()));
 }
 
 #[test]
@@ -453,19 +557,34 @@ fn kuizhu_damage_mode_requires_hp_sum_equal_x() {
     g.set_counter("phase.discarded.Discard", 6);
     g.seats[1].hp = 3;
     g.seats[2].hp = 3;
-    run(&mut g, "kuizhu", 0, b1::data(&[("opt", 2.into()), ("targets", serde_json::json!([1, 2]))]));
-    assert_eq!(g.seats[1].hp, 2, "各受 1 点伤害");
-    assert_eq!(g.seats[2].hp, 2);
-    let err = skills::handler("kuizhu").unwrap()(
+    // 组合由系统枚举：唯一满足 3+3=6 的是 {1,2}。
+    let step = run_steps(
         &mut g,
-        &b1::ask("kuizhu", 0, b1::data(&[("opt", 2.into()), ("targets", serde_json::json!([1]))])),
+        "kuizhu",
+        0,
+        b1::data(&[("step", "mode".into())]),
+        &["use:2", "combo:0"],
     );
-    assert!(err.is_err(), "体力和 != X 应拒绝");
+    assert!(matches!(step, Step::Finish(_)));
+    assert_eq!(g.seats[1].hp, 2, "造成 1 点伤害");
+    assert_eq!(g.seats[2].hp, 2);
+    // 反例：没有任何组合等于 X 时不提供模式②。
+    let mut g = game(&["kuizhu"]);
+    g.phase = Phase::Discard;
+    g.set_counter("phase.discarded.Discard", 99);
+    let step = call(&mut g, "kuizhu", 0, b1::data(&[("step", "mode".into())]));
+    let opts = match &step {
+        Step::Need(p) | Step::NeedAt(_, p) => {
+            p.options().iter().map(|o| o.id.clone()).collect::<Vec<_>>()
+        }
+        other => panic!("期望待办，实际 {other:?}"),
+    };
+    assert!(!opts.contains(&"use:2".to_string()), "无组合不提供模式②");
 }
 
 #[test]
 fn chezheng_makes_short_range_cards_ineffective() {
-    // 4 座：座位 2 攻击范围 1，到座位 0 距离 2 → 对掣政拥有者使用牌无效。
+    // 4 人局：座位 2 攻击范围 1，不含座位 0 → 对超出范围者使用牌无效。
     let mut g = Game {
         seats: vec![
             seat_with(0, &["chezheng"], "wu"),
@@ -480,17 +599,23 @@ fn chezheng_makes_short_range_cards_ineffective() {
     add_card(&mut g, "c0", "sha", Zone::Hand(2));
     assert!(!b1::in_attack_range(&g, 2, 0));
     assert!(skills::card_ineffective(&g, 2, 0));
-    // 掣政① 的口径正是「越距使用牌」：走技能驱动入口（绕过玩家选目标距离过滤），
-    // 落点=牌无效（伤害不生效但计入使用数）。
+    // ① 越距使用无效：不产生伤害（但仍算使用过牌）。
     sanguosha3::kernel::card_play::use_on_targets(&mut g, 2, "c0", &[0]).unwrap();
     advance(&mut g).unwrap();
-    assert_eq!(g.seats[0].hp, 4, "牌无效（伤害未生效）");
-    assert_eq!(g.counter("turn.2.cards_used"), 1, "仍计入使用牌数");
-    // 效果②：出牌阶段结束，使用牌数 0 < 范围外角色数 → 可弃其一张牌
+    assert_eq!(g.seats[0].hp, 4, "越距牌无效：无伤害");
+    assert_eq!(g.counter("turn.2.cards_used"), 1, "仍然算使用过");
+    // ② 出牌阶段结束：0 < 范围外角色数 → 询问发动 → 选目标 → 强制选牌。
     g.set_counter("turn.0.cards_used", 0);
     add_card(&mut g, "h2", "tao", Zone::Hand(2));
-    run(&mut g, "chezheng", 0, b1::data(&[("target", 2.into())]));
-    assert_eq!(g.cards.get("h2"), Some(&Zone::Discard), "弃置范围外角色一张牌");
+    let step = run_steps(
+        &mut g,
+        "chezheng",
+        0,
+        b1::data(&[("step", "ask".into())]),
+        &["use", "seat:2", "card:h2"],
+    );
+    assert!(matches!(step, Step::Finish(_)));
+    assert_eq!(g.cards.get("h2"), Some(&Zone::Discard), "弃范围外角色一张牌");
 }
 
 #[test]
@@ -527,18 +652,27 @@ fn lijun_other_wu_slash_gives_card_then_lord_may_bonus() {
     g.turn = 1;
     add_card(&mut g, "s0", "sha", Zone::Processing);
     add_deck(&mut g, &["d0"]);
-    run(
+    // 两个「可以」：吴角色先选择是否交牌，孙亮再选择是否给加成。
+    let step = run_steps(
         &mut g,
         "lijun",
         0,
-        b1::data(&[("by", 1.into()), ("card", "s0".into()), ("give", true.into()), ("lord_bonus", true.into())]),
+        b1::data(&[("step", "give".into()), ("by", 1.into()), ("card", "s0".into())]),
+        &["use", "use"],
     );
-    assert_eq!(g.cards.get("s0"), Some(&Zone::Hand(0)), "【杀】进入孙亮手牌（Q18 裁定 A）");
-    assert_eq!(hand_size(&g, 1), 1, "令其摸一张");
+    assert!(matches!(step, Step::Finish(_)));
+    assert_eq!(g.cards.get("s0"), Some(&Zone::Hand(0)), "杀交给孙亮（Q18 裁定 A）");
+    assert_eq!(hand_size(&g, 1), 1, "其摸一张");
     assert_eq!(b1::sha_extra(&g, 1), 1, "本回合【杀】次数 +1");
-    // 每回合限一次
+    // 每回合限一次：第二次直接不询问。
     add_card(&mut g, "s1", "sha", Zone::Processing);
-    run(&mut g, "lijun", 0, b1::data(&[("by", 1.into()), ("card", "s1".into()), ("give", true.into())]));
+    let step = call(
+        &mut g,
+        "lijun",
+        0,
+        b1::data(&[("step", "give".into()), ("by", 1.into()), ("card", "s1".into())]),
+    );
+    assert!(matches!(step, Step::Done));
     assert_eq!(g.cards.get("s1"), Some(&Zone::Processing), "每回合限一次");
 }
 
@@ -555,9 +689,16 @@ fn jianxiang_targets_min_hand_and_owner_breaks_tie() {
     add_card(&mut g, "a", "sha", Zone::Hand(1));
     add_card(&mut g, "b", "sha", Zone::Hand(2));
     add_deck(&mut g, &["d0"]);
-    // 并列最少（各 1 张）：由蒯越蒯良选择座位 2
-    run(&mut g, "jianxiang", 0, b1::data(&[("by", 2.into()), ("target", 2.into())]));
-    assert_eq!(hand_size(&g, 2), 2, "并列时由本人选择（Q19 裁定 B）");
+    // 并列最少（座位 1、2 各 1 张）→ 由蒯越蒯良选择（Q19 裁定 B）。
+    let step = run_steps(
+        &mut g,
+        "jianxiang",
+        0,
+        b1::data(&[("step", "ask".into()), ("by", 2.into())]),
+        &["use", "seat:2"],
+    );
+    assert!(matches!(step, Step::Finish(_)));
+    assert_eq!(hand_size(&g, 2), 2, "并列时由技能拥有者选择");
     assert_eq!(hand_size(&g, 1), 1);
 }
 
@@ -596,16 +737,23 @@ fn shenshi_yin_records_card_and_end_check_fills_to_four() {
     g.phase = Phase::Play;
     add_card(&mut g, "mine", "sha", Zone::Hand(0));
     add_deck(&mut g, &["d0", "d1", "d2", "d3"]);
-    skills::flip_face(&mut g, 0, "shenshi"); // 切到阴面
-    run(&mut g, "shenshi", 0, b1::data(&[("face", 1.into()), ("target", 1.into())]));
+    skills::flip_face(&mut g, 0, "shenshi"); // 阴面
+    let step = run_steps(
+        &mut g,
+        "shenshi",
+        0,
+        b1::data(&[("step", "ask".into()), ("face", 1.into()), ("target", 1.into())]),
+        &["use", "card:mine"],
+    );
+    assert!(matches!(step, Step::Finish(_)));
     assert_eq!(g.cards.get("mine"), Some(&Zone::Hand(1)), "交给其一张牌");
-    // 未到结束阶段：TurnEndCheck 不派发（留在队列）
+    // 未到结束阶段：TurnEndCheck 保留在队列，不提前派发。
     advance(&mut g).unwrap();
     assert_eq!(hand_size(&g, 0), 0, "非结束阶段不结算");
-    // 结束阶段 → 派发并摸至 4 张
+    // 结束阶段 → 可派发 → 摸至 4 张。
     g.phase = Phase::End;
     advance(&mut g).unwrap();
-    assert_eq!(hand_size(&g, 0), 4, "手牌摸至 4 张");
+    assert_eq!(hand_size(&g, 0), 4, "其未失去此牌 → 摸至 4 张");
 }
 
 #[test]
@@ -652,13 +800,26 @@ fn shicai_puts_card_on_top_then_draws_it() {
     g.turn = 0;
     add_card(&mut g, "p0", "sha", Zone::Processing);
     add_deck(&mut g, &["d0"]);
-    run(&mut g, "shicai", 0, b1::data(&[("card", "p0".into())]));
+    let step = run_steps(
+        &mut g,
+        "shicai",
+        0,
+        b1::data(&[("step", "ask".into()), ("card", "p0".into())]),
+        &["use"],
+    );
+    assert!(matches!(step, Step::Finish(_)));
     assert_eq!(hand(&g, 0), vec!["p0".to_string()], "置顶后摸回同一张");
     assert_eq!(g.counter("turn.0.shicai.basic"), 1);
-    // 每回合每类型一次
+    // 每回合每类限一次：第二张基本牌不再询问。
     add_card(&mut g, "p1", "tao", Zone::Processing);
-    run(&mut g, "shicai", 0, b1::data(&[("card", "p1".into())]));
-    assert_eq!(g.cards.get("p1"), Some(&Zone::Processing), "基本牌本回合已用过");
+    let step = call(
+        &mut g,
+        "shicai",
+        0,
+        b1::data(&[("step", "ask".into()), ("card", "p1".into())]),
+    );
+    assert!(matches!(step, Step::Done));
+    assert_eq!(g.cards.get("p1"), Some(&Zone::Processing), "同一类型本回合已用过");
 }
 
 #[test]
@@ -667,10 +828,21 @@ fn shicai_is_optional_with_pass_exit() {
     g.turn = 0;
     add_card(&mut g, "p0", "wuxie_keji", Zone::Processing);
     add_deck(&mut g, &["d0"]);
-    run(&mut g, "shicai", 0, b1::data(&[("card", "p0".into()), ("decline", true.into())]));
-    assert_eq!(g.cards.get("p0"), Some(&Zone::Processing), "放弃时牌不被置顶");
+    let step = run_steps(
+        &mut g,
+        "shicai",
+        0,
+        b1::data(&[("step", "ask".into()), ("card", "p0".into())]),
+        &["pass"],
+    );
+    assert!(matches!(step, Step::Done));
+    assert_eq!(g.cards.get("p0"), Some(&Zone::Processing), "放弃时牌不置顶");
     assert!(hand(&g, 0).is_empty(), "放弃时不摸牌");
-    assert_eq!(g.counter("turn.0.shicai.trick"), 1, "首次机会已消耗");
+    assert_eq!(
+        g.counter("turn.0.shicai.trick"),
+        0,
+        "放弃不消耗「每回合每类一次」"
+    );
 }
 
 #[test]
@@ -700,10 +872,14 @@ fn card_use_path_emits_events_and_routes_qizhi() {
     sanguosha3::kernel::card_play::begin_use(&mut g, 0, "s0", false).unwrap();
     advance(&mut g).unwrap();
     resolve::submit(&mut g, 0, "t:1").unwrap();
-    assert_eq!(g.counter("turn.0.cards_used"), 1, "使用计数（掣政②）");
+    assert_eq!(g.counter("turn.0.cards_used"), 1, "使用计数在结算内");
     advance(&mut g).unwrap();
+    // 真实路由：奇制先询问，再由玩家选牌。
+    assert_eq!(g.pending.as_ref().and_then(|p| p.skill()), Some("qizhi"));
+    resolve::submit(&mut g, 0, "use").unwrap();
+    resolve::submit(&mut g, 0, "card:t0").unwrap();
     assert_eq!(g.counter("turn.0.qizhi"), 1, "指定目标事件路由到奇制");
-    assert_eq!(g.seats[1].hp, 3, "【杀】命中");
+    assert_eq!(g.seats[1].hp, 3, "杀已结算");
 }
 
 #[test]

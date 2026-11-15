@@ -172,7 +172,14 @@ fn skill_mounting_only_enables_aligned_skills() {
     for c in ["jiewei", "buqu", "fenji", "xingshang", "fangzhu", "songwei"] {
         assert!(skills::enabled(c), "B0 批次已收口：{c}");
     }
-    assert!(!skills::enabled("yongsi"), "B1 批次整体未启用");
+    // B1 批次已收口（2026-11-15）：18 技能全部挂载。
+    for c in [
+        "yongsi", "weidi", "qizhi", "jinzou", "juzhan", "feijun", "binglue", "huaiju", "yili",
+        "zhenglun", "kuizhu", "chezheng", "lijun", "jianxiang", "shenshi", "chenglue", "shicai",
+        "cunmu",
+    ] {
+        assert!(skills::enabled(c), "B1 批次已收口：{c}");
+    }
 
     // 选将收尾：曹仁 → 只挂据守（解围未收口）；曹丕 → 空。
     let mut g = turn::new_game(5);
@@ -197,7 +204,12 @@ fn skill_mounting_only_enables_aligned_skills() {
         vec!["jushou".to_string(), "jiewei".to_string()],
         "曹仁挂据守+解围（B0 收口）"
     );
-    assert!(g.seats[2].skills.is_empty(), "未接入批次的武将不挂载");
+    assert_eq!(
+        g.seats[2].skills,
+        vec!["yongsi".to_string(), "weidi".to_string()],
+        "袁术挂庸肆/伪帝（B1 收口）"
+    );
+    assert!(g.seats[3].skills.is_empty(), "未接入批次的武将不挂载");
 
     // 曹丕（行殇/放逐/颂威）目前不挂载任何技能。
     let mut g2 = turn::new_game(5);

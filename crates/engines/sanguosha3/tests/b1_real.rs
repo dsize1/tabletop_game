@@ -183,5 +183,7 @@ fn b1_registry_and_real_driver_file_are_wired() {
     ];
     for c in codes {
         assert!(skills::def(c).is_some(), "B1 技能 {c} 未注册");
+        assert!(skills::enabled(c), "B1 技能 {c} 未挂载（ENABLED_SKILLS）");
     }
 }
+

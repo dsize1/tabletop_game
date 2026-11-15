@@ -401,6 +401,35 @@ fn choose_use(actor: usize, skill: &'static str, label: &str, data: Value) -> St
     )
 }
 
+
+/// 触发类可选技能的统一「发动/放弃」询问（首帧；`Step::Need` 不改 data）。
+fn trigger_ask(actor: usize, skill: &'static str, label: &str, data: Value) -> Step {
+    Step::Need(
+        PendingBuilder::new(actor, "choose")
+            .skill(skill)
+            .option("use", label)
+            .escape("不发动")
+            .data(data)
+            .build(),
+    )
+}
+
+/// 强制选牌询问（**禁止**用 `cands.first()` 兜底代选，constitution I1）。
+fn must_pick(
+    g: &Game,
+    actor: usize,
+    skill: &'static str,
+    verb: &str,
+    cands: &[String],
+    data: Value,
+) -> Step {
+    let mut b = PendingBuilder::new(actor, "pick_other").skill(skill);
+    for id in cands {
+        b = b.option(format!("card:{id}"), format!("{verb}【{}】", card_label(g, id)));
+    }
+    Step::Need(b.escape_mandatory("（必选一张）").data(data).build())
+}
+
 // ---------------------------------------------------------------------------
 // 数值/回合钩子的实现（`skills::draw_bonus` 等唯一出口的落点）
 // ---------------------------------------------------------------------------
@@ -632,6 +661,7 @@ fn yongsi(g: &mut Game, ask: &Ask) -> Result<Step, String> {
 
 fn qizhi(g: &mut Game, ask: &Ask) -> Result<Step, String> {
     let actor = ask.actor;
+    let step = ask.data.get("step").and_then(|v| v.as_str()).unwrap_or("ask");
     let Some(target) = seat_of(ask, "target") else {
         return Ok(Step::Done);
     };
@@ -639,13 +669,46 @@ fn qizhi(g: &mut Game, ask: &Ask) -> Result<Step, String> {
         return Ok(Step::Done);
     }
     let cands = target_any_cards(g, target);
-    let Some(pick) = pick_from(ask, "pick", &cands) else {
+    if cands.is_empty() {
         return Ok(Step::Done); // 目标无牌：不提供发动
-    };
-    flow::discard(g, actor, &pick, "奇制");
-    flow::draw(g, target, 1);
-    g.bump(&turn_key(actor, "qizhi"));
-    Ok(Step::Finish("奇制：弃其一张牌，令其摸一张牌".into()))
+    }
+    if step == "ask" {
+        return match take_answer(g, "qizhi") {
+            None => Ok(trigger_ask(
+                actor,
+                "qizhi",
+                "奇制：弃其一张牌，然后令其摸一张牌",
+                json!({ "step": "ask", "target": target }),
+            )),
+            Some(a) if a == "pass" => Ok(Step::Done),
+            Some(a) if a == "use" => Ok(Step::Next(
+                Stage::PickOther,
+                json!({ "step": "pick", "target": target }),
+            )),
+            Some(o) => Err(format!("奇制：未知选项 {o}")),
+        };
+    }
+    match take_answer(g, "qizhi") {
+        None => Ok(must_pick(
+            g,
+            actor,
+            "qizhi",
+            "弃置",
+            &cands,
+            json!({ "step": "pick", "target": target }),
+        )),
+        Some(a) if a.starts_with("card:") => {
+            let id = a[5..].to_string();
+            if !cands.contains(&id) {
+                return Err("奇制：只能弃置目标区域里的一张牌".into());
+            }
+            flow::discard(g, actor, &id, "奇制");
+            flow::draw(g, target, 1);
+            g.bump(&turn_key(actor, "qizhi"));
+            Ok(Step::Finish("奇制：弃其一张牌，令其摸一张牌".into()))
+        }
+        Some(o) => Err(format!("奇制：未知选项 {o}")),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -687,7 +750,7 @@ fn jinzou(g: &mut Game, ask: &Ask) -> Result<Step, String> {
 fn juzhan(g: &mut Game, ask: &Ask) -> Result<Step, String> {
     let actor = ask.actor;
     let face = ask.data.get("face").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
-    let msg;
+    let step = ask.data.get("step").and_then(|v| v.as_str()).unwrap_or("ask");
     if face == 0 {
         // 阳：他人回合内成为【杀】目标后 → 各摸 1，然后其本回合不能再对你使用牌。
         let Some(src) = seat_of(ask, "by") else {
@@ -696,28 +759,76 @@ fn juzhan(g: &mut Game, ask: &Ask) -> Result<Step, String> {
         if src == actor || !g.seats.get(src).map(|s| s.alive).unwrap_or(false) {
             return Ok(Step::Done);
         }
-        flow::draw(g, actor, 1);
-        flow::draw(g, src, 1);
-        forbid_target(g, src, actor);
-        msg = "拒战（阳）：与来源各摸一张，其本回合不能再对你使用牌";
-    } else {
-        // 阴：自己回合内使用【杀】指定目标后 → 获得其一张牌（仅手牌/装备），然后本回合不能再对其使用牌。
-        let Some(target) = seat_of(ask, "target") else {
-            return Ok(Step::Done);
+        return match take_answer(g, "juzhan") {
+            None => Ok(trigger_ask(
+                actor,
+                "juzhan",
+                "拒战（阳）：与其各摸一张，其本回合不能再对你使用牌",
+                json!({ "step": "ask", "face": 0, "by": src }),
+            )),
+            Some(a) if a == "pass" => Ok(Step::Done),
+            Some(a) if a == "use" => {
+                flow::draw(g, actor, 1);
+                flow::draw(g, src, 1);
+                forbid_target(g, src, actor);
+                skills::flip_face(g, actor, "juzhan");
+                Ok(Step::Finish(
+                    "拒战（阳）：与来源各摸一张，其本回合不能再对你使用牌".into(),
+                ))
+            }
+            Some(o) => Err(format!("拒战：未知选项 {o}")),
         };
-        if target == actor {
-            return Ok(Step::Done);
-        }
-        let cands = target_own_cards(g, target);
-        let Some(pick) = pick_from(ask, "pick", &cands) else {
-            return Ok(Step::Done); // 无牌可获得：不发动
-        };
-        flow::gain(g, actor, &pick, actor, "拒战");
-        forbid_target(g, actor, target);
-        msg = "拒战（阴）：获得其一张牌，本回合不能再对其使用牌";
     }
-    skills::flip_face(g, actor, "juzhan");
-    Ok(Step::Finish(msg.into()))
+    // 阴：自己回合内使用【杀】指定目标后 → 获得其一张牌（仅手牌/装备），本回合不能再对其使用牌。
+    let Some(target) = seat_of(ask, "target") else {
+        return Ok(Step::Done);
+    };
+    if target == actor || !g.seats.get(target).map(|s| s.alive).unwrap_or(false) {
+        return Ok(Step::Done);
+    }
+    let cands = target_own_cards(g, target);
+    if cands.is_empty() {
+        return Ok(Step::Done); // 无牌可获得：不提供发动
+    }
+    if step == "ask" {
+        return match take_answer(g, "juzhan") {
+            None => Ok(trigger_ask(
+                actor,
+                "juzhan",
+                "拒战（阴）：获得其一张牌，本回合不能再对其使用牌",
+                json!({ "step": "ask", "face": 1, "target": target }),
+            )),
+            Some(a) if a == "pass" => Ok(Step::Done),
+            Some(a) if a == "use" => Ok(Step::Next(
+                Stage::PickOther,
+                json!({ "step": "pick", "face": 1, "target": target }),
+            )),
+            Some(o) => Err(format!("拒战：未知选项 {o}")),
+        };
+    }
+    match take_answer(g, "juzhan") {
+        None => Ok(must_pick(
+            g,
+            actor,
+            "juzhan",
+            "获得",
+            &cands,
+            json!({ "step": "pick", "face": 1, "target": target }),
+        )),
+        Some(a) if a.starts_with("card:") => {
+            let id = a[5..].to_string();
+            if !cands.contains(&id) {
+                return Err("拒战（阴）：只能获得其手牌或装备区的一张牌".into());
+            }
+            flow::gain(g, actor, &id, actor, "拒战");
+            forbid_target(g, actor, target);
+            skills::flip_face(g, actor, "juzhan");
+            Ok(Step::Finish(
+                "拒战（阴）：获得其一张牌，本回合不能再对其使用牌".into(),
+            ))
+        }
+        Some(o) => Err(format!("拒战：未知选项 {o}")),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1039,62 +1150,228 @@ fn kuizhu(g: &mut Game, ask: &Ask) -> Result<Step, String> {
     if x <= 0 {
         return Ok(Step::Done);
     }
-    let targets: Vec<usize> = seats_of(ask, "targets")
-        .into_iter()
-        .filter(|&t| g.seats.get(t).map(|s| s.alive).unwrap_or(false))
-        .collect();
-    let opt = ask.data.get("opt").and_then(|v| v.as_u64()).unwrap_or(1);
-    if opt == 1 {
-        if targets.len() as i32 > x {
-            return Err(format!("溃诛：至多 X={x} 名角色"));
-        }
-        for &t in &targets {
-            flow::draw(g, t, 1);
-        }
-        return Ok(Step::Finish(format!("溃诛：令 {} 名角色各摸一张", targets.len())));
-    }
-    // ② 对体力值之和等于 X 的任意名角色各造成 1 点伤害（无满足组合则不提供）。
-    let sum: i32 = targets.iter().map(|&t| g.seats[t].hp).sum();
-    if sum != x {
-        return Err(format!("溃诛：体力值之和须等于 X={x}（当前 {sum}）"));
-    }
-    for &t in &targets {
-        let spec = DamageSpec {
-            from: Some(actor),
-            target: t,
-            amount: 1,
-            kind: DamageKind::Normal,
-            source: SourceKind::Skill,
+    let step = ask.data.get("step").and_then(|v| v.as_str()).unwrap_or("mode");
+    if step == "mode" {
+        // ② 的组合必须在本阶段就枚举好：无满足组合则不提供该选项。
+        let combos = kuizhu_combos(g, x);
+        return match take_answer(g, "kuizhu") {
+            None => {
+                let mut b = PendingBuilder::new(actor, "choose").skill("kuizhu");
+                b = b.option(
+                    format!("use:1"),
+                    format!("溃诛①：令至多 {x} 名角色各摸一张"),
+                );
+                if !combos.is_empty() {
+                    b = b.option("use:2", "溃诛②：对体力值之和等于 X 的任意名角色各造成 1 点伤害");
+                }
+                Ok(Step::Need(
+                    b.escape("不发动")
+                        .data(json!({ "step": "mode", "x": x }))
+                        .build(),
+                ))
+            }
+            Some(a) if a == "pass" => Ok(Step::Done),
+            Some(a) if a == "use:1" => Ok(Step::Next(
+                Stage::MultiSelect,
+                json!({ "step": "pick1", "x": x, "picked": [] }),
+            )),
+            Some(a) if a == "use:2" => Ok(Step::Next(
+                Stage::Choose,
+                json!({ "step": "pick2", "x": x }),
+            )),
+            Some(o) => Err(format!("溃诛：未知选项 {o}")),
         };
-        let armor = gear::armor_of(g, t);
-        flow::damage(g, spec, armor, 0);
     }
-    Ok(Step::Finish(format!("溃诛：对 {} 名角色各造成 1 点伤害", targets.len())))
+    if step == "pick1" {
+        let picked: Vec<usize> = ask
+            .data
+            .get("picked")
+            .and_then(|v| v.as_array())
+            .map(|a| a.iter().filter_map(|v| v.as_u64().map(|n| n as usize)).collect())
+            .unwrap_or_default();
+        let x = ask.data.get("x").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+        return match take_answer(g, "kuizhu") {
+            None => {
+                let mut b = PendingBuilder::new(actor, "multi_select").skill("kuizhu");
+                for t in (0..g.seats.len()).filter(|&t| g.seats[t].alive && !picked.contains(&t)) {
+                    if picked.len() >= x {
+                        break;
+                    }
+                    b = b.option(format!("t:{t}"), format!("令 #{} 摸一张", t + 1));
+                }
+                if !picked.is_empty() {
+                    b = b.option("ok", "确定");
+                }
+                Ok(Step::Need(
+                    b.escape_with("cancel", "放弃")
+                        .data(json!({ "step": "pick1", "x": x, "picked": picked }))
+                        .build(),
+                ))
+            }
+            Some(a) if a == "cancel" => Ok(Step::Done),
+            Some(a) if a.starts_with("t:") => {
+                let t: usize = a[2..].parse().map_err(|_| "溃诛：非法目标")?;
+                if !g.seats.get(t).map(|s| s.alive).unwrap_or(false) || picked.contains(&t) {
+                    return Err("溃诛：目标非法".into());
+                }
+                let mut next = picked.clone();
+                next.push(t);
+                Ok(Step::Next(
+                    Stage::MultiSelect,
+                    json!({ "step": "pick1", "x": x, "picked": next }),
+                ))
+            }
+            Some(a) if a == "ok" => {
+                for &t in &picked {
+                    flow::draw(g, t, 1);
+                }
+                Ok(Step::Finish(format!("溃诛：令 {} 名角色各摸一张", picked.len())))
+            }
+            Some(o) => Err(format!("溃诛：未知选项 {o}")),
+        };
+    }
+    // pick2：系统枚举「体力值之和 = X」的组合供选。
+    let combos = kuizhu_combos(g, x);
+    if combos.is_empty() {
+        return Ok(Step::Done);
+    }
+    match take_answer(g, "kuizhu") {
+        None => {
+            let mut b = PendingBuilder::new(actor, "choose").skill("kuizhu");
+            for (i, combo) in combos.iter().enumerate() {
+                let names: Vec<String> = combo.iter().map(|t| format!("#{}", t + 1)).collect();
+                b = b.option(format!("combo:{i}"), format!("对 {} 各造成 1 点伤害", names.join("、")));
+            }
+            Ok(Step::Need(
+                b.escape("不发动")
+                    .data(json!({ "step": "pick2", "x": x }))
+                    .build(),
+            ))
+        }
+        Some(a) if a == "pass" => Ok(Step::Done),
+        Some(a) if a.starts_with("combo:") => {
+            let i: usize = a[6..].parse().map_err(|_| "溃诛：非法组合")?;
+            let combo = combos.get(i).ok_or("溃诛：非法组合")?.clone();
+            for t in combo {
+                let spec = DamageSpec {
+                    from: Some(actor),
+                    target: t,
+                    amount: 1,
+                    kind: DamageKind::Normal,
+                    source: SourceKind::Skill,
+                };
+                let armor = gear::armor_of(g, t);
+                flow::damage(g, spec, armor, 0);
+            }
+            Ok(Step::Finish("溃诛：对所选角色各造成 1 点伤害".into()))
+        }
+        Some(o) => Err(format!("溃诛：未知选项 {o}")),
+    }
+}
+
+/// 溃诛②：枚举存活角色中「体力值之和 = X」的组合（≤8 人，上限 64 个供选）。
+fn kuizhu_combos(g: &Game, x: i32) -> Vec<Vec<usize>> {
+    let alive: Vec<usize> = (0..g.seats.len()).filter(|&t| g.seats[t].alive).collect();
+    let mut out = Vec::new();
+    if alive.len() > 8 {
+        return out;
+    }
+    for mask in 1u32..(1 << alive.len()) {
+        let mut picked = Vec::new();
+        let mut sum = 0;
+        for (i, &t) in alive.iter().enumerate() {
+            if mask & (1 << i) != 0 {
+                picked.push(t);
+                sum += g.seats[t].hp;
+            }
+        }
+        if sum == x {
+            out.push(picked);
+            if out.len() >= 64 {
+                break;
+            }
+        }
+    }
+    out
 }
 
 fn chezheng(g: &mut Game, ask: &Ask) -> Result<Step, String> {
     let actor = ask.actor;
+    let step = ask.data.get("step").and_then(|v| v.as_str()).unwrap_or("ask");
     // ② 出牌阶段结束时：本阶段使用牌数（含装备与响应打出，Q17 裁定 B）< 攻击范围不含你的角色数。
     let used = g.counter(&turn_key(actor, "cards_used"));
     let outside: Vec<usize> = alive_others(g, actor)
         .into_iter()
         .filter(|&i| !in_attack_range(g, i, actor))
         .collect();
-    if used >= outside.len() as i32 {
+    if outside.is_empty() || used >= outside.len() as i32 {
         return Ok(Step::Done);
+    }
+    if step == "ask" {
+        return match take_answer(g, "chezheng") {
+            None => Ok(trigger_ask(
+                actor,
+                "chezheng",
+                "掣政：弃置一名攻击范围不含你的角色一张牌",
+                json!({ "step": "ask" }),
+            )),
+            Some(a) if a == "pass" => Ok(Step::Done),
+            Some(a) if a == "use" => Ok(Step::Next(Stage::Target, json!({ "step": "target" }))),
+            Some(o) => Err(format!("掣政：未知选项 {o}")),
+        };
+    }
+    if step == "target" {
+        return match take_answer(g, "chezheng") {
+            None => {
+                let mut b = PendingBuilder::new(actor, "target").skill("chezheng");
+                for t in &outside {
+                    b = b.option(format!("seat:{t}"), format!("目标：#{}", t + 1));
+                }
+                Ok(Step::Need(
+                    b.escape_mandatory("（必选目标）")
+                        .data(json!({ "step": "target" }))
+                        .build(),
+                ))
+            }
+            Some(a) if a.starts_with("seat:") => {
+                let t: usize = a[5..].parse().map_err(|_| "掣政：非法目标")?;
+                if !outside.contains(&t) {
+                    return Err("掣政：目标须是攻击范围不含你的角色".into());
+                }
+                Ok(Step::Next(
+                    Stage::PickOther,
+                    json!({ "step": "pick", "target": t }),
+                ))
+            }
+            Some(o) => Err(format!("掣政：未知选项 {o}")),
+        };
     }
     let Some(target) = seat_of(ask, "target") else {
         return Ok(Step::Done);
     };
-    if !outside.contains(&target) {
-        return Err("掣政：目标须是攻击范围不含你的角色".into());
-    }
     let cands = target_any_cards(g, target);
-    let Some(pick) = pick_from(ask, "pick", &cands) else {
+    if cands.is_empty() {
         return Ok(Step::Done);
-    };
-    flow::discard(g, actor, &pick, "掣政");
-    Ok(Step::Finish("掣政：弃其一张牌".into()))
+    }
+    match take_answer(g, "chezheng") {
+        None => Ok(must_pick(
+            g,
+            actor,
+            "chezheng",
+            "弃置",
+            &cands,
+            json!({ "step": "pick", "target": target }),
+        )),
+        Some(a) if a.starts_with("card:") => {
+            let id = a[5..].to_string();
+            if !cands.contains(&id) {
+                return Err("掣政：只能弃置目标区域里的一张牌".into());
+            }
+            flow::discard(g, actor, &id, "掣政");
+            Ok(Step::Finish("掣政：弃其一张牌".into()))
+        }
+        Some(o) => Err(format!("掣政：未知选项 {o}")),
+    }
 }
 
 fn lijun(g: &mut Game, ask: &Ask) -> Result<Step, String> {
@@ -1127,21 +1404,55 @@ fn lijun(g: &mut Game, ask: &Ask) -> Result<Step, String> {
     if g.counter(&turn_key(user, "lijun")) > 0 {
         return Ok(Step::Done); // 每回合限一次
     }
-    // 两个「可以」各自独立：是否交牌（吴角色）、是否令其摸 1 且杀次数 +1（孙亮）。
-    if !ask.data.get("give").and_then(|v| v.as_bool()).unwrap_or(false) {
-        return Ok(Step::Done);
+    let step = ask
+        .data
+        .get("step")
+        .and_then(|v| v.as_str())
+        .unwrap_or("give");
+    // 两个「可以」各自独立：是否交牌（吴角色）→ 是否令其摸 1 且杀次数 +1（孙亮）。
+    if step == "give" {
+        // 询问者 = 使用【杀】的吴角色（不是孙亮）。
+        return match take_answer(g, "lijun") {
+            None => {
+                let mut b = PendingBuilder::new(user, "choose").skill("lijun");
+                b = b.option("use", "立军：将此【杀】交给孙亮");
+                Ok(Step::Need(
+                    b.escape("不交")
+                        .data(json!({ "step": "give", "by": user, "card": card }))
+                        .build(),
+                ))
+            }
+            Some(a) if a == "pass" => Ok(Step::Done),
+            Some(a) if a == "use" => Ok(Step::Next(
+                Stage::Choose,
+                json!({ "step": "bonus", "by": user, "card": card }),
+            )),
+            Some(o) => Err(format!("立军：未知选项 {o}")),
+        };
     }
-    g.bump(&turn_key(user, "lijun"));
-    // 同步牌结算下【杀】可能已在弃牌堆（事件晚于 `to_discard` 路由）；
-    // 立军的「交给」仍成立（从当前区取回孙亮手牌），M5 交互化后改为结算前拦截。
-    flow::gain(g, lord, &card, user, "立军");
-    let mut msg = String::from("立军：获得该【杀】");
-    if ask.data.get("lord_bonus").and_then(|v| v.as_bool()).unwrap_or(false) {
-        flow::draw(g, user, 1);
-        g.bump(&turn_key(user, "sha_limit"));
-        msg.push_str("，令其摸一张且本回合【杀】次数 +1");
+    match take_answer(g, "lijun") {
+        None => {
+            let mut b = PendingBuilder::new(lord, "choose").skill("lijun");
+            b = b.option("use", "立军：令其摸一张牌且本回合【杀】次数 +1");
+            Ok(Step::Need(
+                b.escape("不发动")
+                    .data(json!({ "step": "bonus", "by": user, "card": card }))
+                    .build(),
+            ))
+        }
+        Some(a) if a == "pass" || a == "use" => {
+            g.bump(&turn_key(user, "lijun"));
+            flow::gain(g, lord, &card, user, "立军");
+            let mut msg = String::from("立军：获得该【杀】");
+            if a == "use" {
+                flow::draw(g, user, 1);
+                g.bump(&turn_key(user, "sha_limit"));
+                msg.push_str("，令其摸一张且本回合【杀】次数 +1");
+            }
+            Ok(Step::Finish(msg))
+        }
+        Some(o) => Err(format!("立军：未知选项 {o}")),
     }
-    Ok(Step::Finish(msg))
 }
 
 // ---------------------------------------------------------------------------
@@ -1150,6 +1461,7 @@ fn lijun(g: &mut Game, ask: &Ask) -> Result<Step, String> {
 
 fn jianxiang(g: &mut Game, ask: &Ask) -> Result<Step, String> {
     let actor = ask.actor;
+    let step = ask.data.get("step").and_then(|v| v.as_str()).unwrap_or("ask");
     if seat_of(ask, "by") == Some(actor) {
         return Ok(Step::Done); // 须是「其他角色使用牌」
     }
@@ -1157,14 +1469,51 @@ fn jianxiang(g: &mut Game, ask: &Ask) -> Result<Step, String> {
     let alive: Vec<usize> = (0..g.seats.len()).filter(|&i| g.seats[i].alive).collect();
     let min = alive.iter().map(|&i| g.hand_size(i)).min().unwrap_or(0);
     let cands: Vec<usize> = alive.into_iter().filter(|&i| g.hand_size(i) == min).collect();
-    let target = seat_of(ask, "target")
-        .filter(|t| cands.contains(t))
-        .or_else(|| cands.first().copied());
-    let Some(target) = target else {
+    let Some(first) = cands.first().copied() else {
         return Ok(Step::Done);
     };
-    flow::draw(g, target, 1);
-    Ok(Step::Finish("荐降：令手牌最少者摸一张".into()))
+    if step == "ask" {
+        return match take_answer(g, "jianxiang") {
+            None => Ok(trigger_ask(
+                actor,
+                "jianxiang",
+                "荐降：令手牌数最少的角色摸一张牌",
+                json!({ "step": "ask" }),
+            )),
+            Some(a) if a == "pass" => Ok(Step::Done),
+            Some(a) if a == "use" => {
+                if cands.len() == 1 {
+                    flow::draw(g, first, 1);
+                    Ok(Step::Finish("荐降：令手牌最少者摸一张".into()))
+                } else {
+                    Ok(Step::Next(Stage::Target, json!({ "step": "target" })))
+                }
+            }
+            Some(o) => Err(format!("荐降：未知选项 {o}")),
+        };
+    }
+    match take_answer(g, "jianxiang") {
+        None => {
+            let mut b = PendingBuilder::new(actor, "target").skill("jianxiang");
+            for t in &cands {
+                b = b.option(format!("seat:{t}"), format!("令 #{} 摸一张", t + 1));
+            }
+            Ok(Step::Need(
+                b.escape_mandatory("（必选目标）")
+                    .data(json!({ "step": "target" }))
+                    .build(),
+            ))
+        }
+        Some(a) if a.starts_with("seat:") => {
+            let t: usize = a[5..].parse().map_err(|_| "荐降：非法目标")?;
+            if !cands.contains(&t) {
+                return Err("荐降：目标须为手牌数最少的角色".into());
+            }
+            flow::draw(g, t, 1);
+            Ok(Step::Finish("荐降：令手牌最少者摸一张".into()))
+        }
+        Some(o) => Err(format!("荐降：未知选项 {o}")),
+    }
 }
 
 fn shenshi(g: &mut Game, ask: &Ask) -> Result<Step, String> {
@@ -1177,33 +1526,70 @@ fn shenshi(g: &mut Game, ask: &Ask) -> Result<Step, String> {
     let face = ask.data.get("face").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
     if face == 1 {
         // 阴：其他角色对你造成伤害后（回合外）→ 观看其手牌并交给其一张牌。
-        // 触发类可选技能本期按「自动结算」处理（2026-11-13 裁定 A，M5 统一补 pass 出口）。
         if g.turn == actor {
             return Ok(Step::Done); // 窗口 = 回合外
         }
-        let Some(src) = seat_of(ask, "target") else {
+        // 伤害事件的 `target` = 伤害来源（event_payload 口径）；`src` 为中间态键。
+        let Some(src) = seat_of(ask, "target").or_else(|| seat_of(ask, "src")) else {
             return Ok(Step::Done);
         };
         if src == actor || !g.seats.get(src).map(|s| s.alive).unwrap_or(false) {
             return Ok(Step::Done);
         }
         let own = own_cards(g, actor);
-        let Some(give) = pick_from(ask, "card", &own) else {
+        if own.is_empty() {
             return Ok(Step::Done);
-        };
-        flow::gain(g, src, &give, actor, "审时");
-        // 当前回合结束阶段校验：由 `DeferredKind::TurnEndCheck` 在结束阶段派发（单一延迟队列）。
-        g.deferred.push(super::super::deferred::Deferred {
-            kind: super::super::deferred::DeferredKind::TurnEndCheck,
-            payload: super::super::deferred::Payload::Ask {
-                skill: "shenshi".into(),
-                stage: Stage::Choose,
-                actor,
-                data: json!({ "hook": "end", "turn": g.turn, "src": src, "card": give }),
-            },
-        });
-        skills::flip_face(g, actor, "shenshi");
-        return Ok(Step::Finish("审时（阴）：已交给其一张牌并转换面".into()));
+        }
+        let step = ask.data.get("step").and_then(|v| v.as_str()).unwrap_or("ask");
+        if step == "ask" {
+            return match take_answer(g, "shenshi") {
+                None => Ok(trigger_ask(
+                    actor,
+                    "shenshi",
+                    "审时（阴）：交给其一张牌（结束阶段校验）",
+                    json!({ "step": "ask", "face": 1, "target": src, "src": src }),
+                )),
+                Some(a) if a == "pass" => Ok(Step::Done),
+                Some(a) if a == "use" => Ok(Step::Next(
+                    Stage::PickOwn,
+                    json!({ "step": "give", "face": 1, "target": src, "src": src }),
+                )),
+                Some(o) => Err(format!("审时：未知选项 {o}")),
+            };
+        }
+        return match take_answer(g, "shenshi") {
+            None => {
+                let mut b = PendingBuilder::new(actor, "pick_own").skill("shenshi");
+                for id in &own {
+                    b = b.option(format!("card:{id}"), format!("交给【{}】", card_label(g, id)));
+                }
+                Ok(Step::Need(
+                    b.escape_mandatory("（必选一张）")
+                        .data(json!({ "step": "give", "face": 1, "target": src, "src": src }))
+                        .build(),
+                ))
+            }
+            Some(a) if a.starts_with("card:") => {
+                let give = a[5..].to_string();
+                if !own.contains(&give) {
+                    return Err("审时（阴）：只能交出自己的手牌或装备牌".into());
+                }
+                flow::gain(g, src, &give, actor, "审时");
+                // 当前回合结束阶段校验：由 `DeferredKind::TurnEndCheck` 在结束阶段派发（单一延迟队列）。
+                g.deferred.push(super::super::deferred::Deferred {
+                    kind: super::super::deferred::DeferredKind::TurnEndCheck,
+                    payload: super::super::deferred::Payload::Ask {
+                        skill: "shenshi".into(),
+                        stage: Stage::Choose,
+                        actor,
+                        data: json!({ "hook": "end", "turn": g.turn, "src": src, "card": give }),
+                    },
+                });
+                skills::flip_face(g, actor, "shenshi");
+                Ok(Step::Finish("审时（阴）：已交给其一张牌并转换面".into()))
+            }
+            Some(o) => Err(format!("审时：未知选项 {o}")),
+        }
     }
     // 阳：出牌阶段限一次，交给手牌最多的其他角色一张牌，并对其造成 1 点伤害。
     let step = ask.data.get("step").and_then(|v| v.as_str()).unwrap_or("choose");
@@ -1499,31 +1885,42 @@ fn chenglue_finish(
 }
 fn shicai(g: &mut Game, ask: &Ask) -> Result<Step, String> {
     let actor = ask.actor;
+    let step = ask.data.get("step").and_then(|v| v.as_str()).unwrap_or("ask");
     let Some(card) = card_of(ask, "card") else {
         return Ok(Step::Done);
     };
     let Some(def) = g.card_defs.get(&card).and_then(|c| cards::def(&c.def)) else {
         return Ok(Step::Done);
     };
-    // 类型 = 基本牌 / 锦囊牌 两类各一次（Q23 裁定 A）；装备牌不触发。
+    // 每回合分别对基本牌、锦囊牌两类各限一次；装备牌不触发。
     let kind = match def.category {
         Category::Basic => "basic",
         Category::Trick => "trick",
         _ => return Ok(Step::Done),
     };
-    let k = turn_key(actor, &format!("shicai.{kind}"));
-    if g.counter(&k) > 0 {
+    let used_key = turn_key(actor, &format!("shicai.{kind}"));
+    if g.counter(&used_key) > 0 {
         return Ok(Step::Done);
     }
-    g.bump(&k);
-    // 「可以」= 可选：放弃时有出口且牌不被置顶（B1 反例）。
-    if ask.data.get("decline").and_then(|v| v.as_bool()).unwrap_or(false) {
-        return Ok(Step::Done);
+    if step == "ask" {
+        return match take_answer(g, "shicai") {
+            None => Ok(trigger_ask(
+                actor,
+                "shicai",
+                "恃才：将此牌置于牌堆顶，然后摸一张牌",
+                json!({ "step": "ask", "card": card, "kind": kind }),
+            )),
+            Some(a) if a == "pass" => Ok(Step::Done),
+            Some(a) if a == "use" => {
+                flow::to_deck_top(g, &card);
+                flow::draw(g, actor, 1);
+                g.bump(&used_key);
+                Ok(Step::Finish("恃才：置顶后摸一张".into()))
+            }
+            Some(o) => Err(format!("恃才：未知选项 {o}")),
+        };
     }
-    // 置于牌堆顶 → 摸一张（摸回同一张）。
-    flow::to_deck_top(g, &card);
-    flow::draw(g, actor, 1);
-    Ok(Step::Finish("恃才：置于牌堆顶并摸一张".into()))
+    Err("恃才：未知阶段".into())
 }
 
 // ---------------------------------------------------------------------------
