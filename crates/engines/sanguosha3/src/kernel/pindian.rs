@@ -40,6 +40,9 @@ pub fn can_start(g: &Game, initiator: usize, target: usize) -> bool {
     if initiator == target {
         return false;
     }
+    if super::skills::deny_pindian(g, target) {
+        return false; // 谦节：不能成为其他角色拼点的目标
+    }
     let ok = |i: usize| {
         g.seats
             .get(i)

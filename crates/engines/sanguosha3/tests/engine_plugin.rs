@@ -179,7 +179,17 @@ fn setup_then_play_pending_and_views_are_web_compatible() {
         assert!(!s.general.is_empty(), "座位 {} 已选将", s.id);
         assert!(s.max_hp >= 3 && s.hp == s.max_hp);
         assert!(!s.kingdom.is_empty());
-        assert!(s.skills.is_empty(), "本阶段不挂技能");
+        // 只挂「已注册 + 已收口」技能；未接入批次仍为空。
+        for code in &s.skills {
+            assert!(
+                sanguosha3::kernel::skills::def(code).is_some(),
+                "技能 {code} 未注册"
+            );
+            assert!(
+                sanguosha3::kernel::skills::enabled(code),
+                "技能 {code} 未收口却已挂载"
+            );
+        }
     }
     let lord = e.kernel.current_lord().expect("主公");
     assert_eq!(e.kernel.seats[lord].max_hp, e.kernel.seats[lord].max_hp, "主公体力");

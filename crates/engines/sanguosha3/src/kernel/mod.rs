@@ -454,6 +454,9 @@ pub struct Game {
     /// 虚拟牌/转化牌的承载牌（origin）：`v:*` → 物理牌 id 列表（`finish_card` 一并落盘）。
     #[serde(default)]
     pub virtual_origins: HashMap<CardId, Vec<CardId>>,
+    /// 每次使用牌的**目标列表**（读取型事实；从谏等需要「此牌的其他目标」）。
+    #[serde(default)]
+    pub use_targets: HashMap<CardId, Vec<usize>>,
 }
 
 /// 手牌冻结的到期时机（mechanics `hand-freeze`）。

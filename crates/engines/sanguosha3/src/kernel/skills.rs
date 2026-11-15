@@ -17,6 +17,7 @@ use super::{Game, Phase};
 
 pub mod b0;
 pub mod b1;
+pub mod b2;
 
 /// 技能类型。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -64,6 +65,8 @@ pub enum Hook {
     ShaIntercept,
     /// 濒死求援顺序（兴衰：左手侧 → 自己最后）。
     DyingLeftFirst,
+    /// 使用牌之前（往烈：首张无距离 / 不能响应 + 手牌冻结）。
+    UsePre,
 }
 
 /// 订阅（声明式）：事件 + 主体。handler 首行按 `subject` 校验（不再靠人记）。
@@ -105,7 +108,11 @@ pub struct SkillDef {
 
 /// 全量注册表（按批次拼接）。**唯一事实源**：禁止在别处再列技能名清单。
 pub fn all() -> Vec<&'static SkillDef> {
-    b0::SKILLS.iter().chain(b1::SKILLS.iter()).collect()
+    b0::SKILLS
+        .iter()
+        .chain(b1::SKILLS.iter())
+        .chain(b2::SKILLS.iter())
+        .collect()
 }
 
 /// **已收口可挂载**的技能（逐条放开；未列出的技能即使有 handler 也不进入对局）。
@@ -119,6 +126,10 @@ pub const ENABLED_SKILLS: &[&str] = &[
     "yongsi", "weidi", "qizhi", "jinzou", "juzhan", "feijun", "binglue", "huaiju", "yili",
     "zhenglun", "kuizhu", "chezheng", "lijun", "jianxiang", "shenshi", "chenglue", "shicai",
     "cunmu",
+    // B2 批次（15 技能 + 授予技 清侧/怀柔 + 临时技 集智，2026-11-15 收口）
+    "mingren", "zhenliang", "zhengu", "wanglie", "zuilun", "fuyin", "liangyin", "kongsheng",
+    "zhengrong", "hongju", "qianjie", "jueyan", "poshi", "xiongluan", "congjian", "huairou",
+    "qingce", "jizhi",
 ];
 
 /// 手牌变动类型（奋激口径）。
@@ -299,13 +310,17 @@ pub fn flip_face(g: &mut Game, seat: usize, code: &str) {
 
 /// 技能 handler 分发（`resolve::advance` 用；按 code 找分批 handler）。
 pub fn handler(code: &str) -> Option<fn(&mut Game, &Ask) -> Result<Step, String>> {
-    b0::handler(code).or_else(|| b1::handler(code))
+    b0::handler(code)
+        .or_else(|| b1::handler(code))
+        .or_else(|| b2::handler(code))
 }
 
 /// 主动技的**可用性判定**（声明之外的前置：手牌/目标/每阶段次数等）。
 /// 未提供判定的技能视为「不可主动使用」（安全默认：不向 UI 提供无效入口）。
 pub fn availability(code: &str) -> Option<fn(&Game, usize) -> bool> {
-    b0::availability(code).or_else(|| b1::availability(code))
+    b0::availability(code)
+        .or_else(|| b1::availability(code))
+        .or_else(|| b2::availability(code))
 }
 
 /// **主动入口合法集**（唯一来源）：自带技能 ∩ 当前面 can_active ∩ 窗口允许 ∩ 可用性判定
@@ -634,7 +649,7 @@ pub fn prevent_damage(g: &mut Game, victim: usize) -> bool {
 
 /// 手牌上限修正（`Hook::HandLimit`，唯一调用点 `Game::hand_limit`）。
 pub fn hand_limit_bonus(g: &Game, seat: usize) -> i32 {
-    let mut total = 0;
+    let mut total = b2::hand_limit_bonus(g, seat);
     for skill in all() {
         if !active(g, seat, skill.code) {
             continue;
@@ -670,6 +685,9 @@ pub fn distance_modifier(g: &Game, seat: usize) -> i32 {
 
 /// 【杀】次数是否无限（`Hook::ShaLimit`，连弩/喀嗇）。`card_play::sha_used_limit` 唯一调用点。
 pub fn sha_unlimited(g: &Game, seat: usize) -> bool {
+    if b2::sha_unlimited(g, seat) {
+        return true;
+    }
     all().into_iter().any(|skill| {
         active(g, seat, skill.code)
             && skill
@@ -686,12 +704,70 @@ pub fn card_ineffective(g: &Game, user: usize, target: usize) -> bool {
 
 /// 【杀】次数加成（`ShaLimit` 之外：咆哮/成略等 +N）。`card_play::sha_limit` 唯一调用点。
 pub fn sha_extra(g: &Game, seat: usize) -> i32 {
-    b1::sha_extra(g, seat)
+    b1::sha_extra(g, seat) + b2::sha_extra(g, seat)
 }
 
 /// 不能成为目标（掣政②/空城/帷幕…）。`card_play::legal_targets` 唯一调用点。
 pub fn deny_target(g: &Game, user: usize, target: usize) -> bool {
     b1::deny_target(g, user, target)
+}
+
+/// 距离/范围是否被技能覆盖（决堰·坐骑 / 雄乱）：本次使用跳过距离校验。
+pub fn ignore_distance(g: &Game, seat: usize) -> bool {
+    b2::ignore_distance(g, seat)
+}
+
+/// 「对方不能响应」（雄乱）：本次使用对该目标整段跳过响应。
+pub fn no_response_for(g: &Game, user: usize, target: usize) -> bool {
+    b2::no_response_for(g, user, target)
+}
+
+/// 目标拦截（谦节：延时锦囊 / 铁索连环）：按牌定义判定，legal 与 execute 同源。
+pub fn deny_target_card(g: &Game, user: usize, target: usize, code: &str) -> bool {
+    b2::deny_target_card(g, user, target, code)
+}
+
+/// 拼点目标拦截（谦节）。
+pub fn deny_pindian(g: &Game, target: usize) -> bool {
+    b2::deny_pindian(g, target)
+}
+
+/// 「此牌对目标无效」（父荫）：按牌逐目标判定。
+pub fn card_ineffective_for(g: &mut Game, user: usize, target: usize, card: &str) -> bool {
+    b2::card_ineffective_for(g, user, target, card)
+}
+
+/// 撤销技能（觉醒失去技能 / 临时授予到期；只动 owned，不碰 granted 的其它来源）。
+pub fn revoke(g: &mut Game, seat: usize, code: &str) {
+    if let Some(s) = g.seats.get_mut(seat) {
+        s.skills.retain(|c| c != code);
+        s.granted.retain(|c| c != code);
+    }
+}
+
+/// 使用牌之前询问（`Hook::UsePre`）：把技能帧压到牌结算帧之上，回答后牌继续结算。
+pub fn fire_use_pre(g: &mut Game, actor: usize, card: &str) {
+    let mut codes: Vec<&'static str> = Vec::new();
+    for s in all() {
+        if !enabled(s.code) || !active(g, actor, s.code) {
+            continue;
+        }
+        if s.faces
+            .iter()
+            .any(|f| f.hooks.iter().any(|h| *h == Hook::UsePre))
+        {
+            codes.push(s.code);
+        }
+    }
+    for code in codes {
+        super::resolve::push_ask(
+            g,
+            code,
+            Stage::Choose,
+            actor,
+            json!({ "step": "use_pre", "card": card }),
+        );
+    }
 }
 
 /// 门禁自检：注册表不得出现重复 code。

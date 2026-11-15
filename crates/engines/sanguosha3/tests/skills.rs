@@ -22,7 +22,7 @@ fn seat(id: usize, skills: Vec<&str>) -> Seat {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn registry_has_b0_and_b1_skills() {
+fn registry_has_b0_b1_b2_skills() {
     let codes: Vec<&str> = skills::all().iter().map(|s| s.code).collect();
     for c in ["jushou", "jiewei", "buqu", "fenji", "xingshang", "fangzhu", "songwei"] {
         assert!(codes.contains(&c), "B0 技能 {c} 应注册");
@@ -34,7 +34,14 @@ fn registry_has_b0_and_b1_skills() {
     ] {
         assert!(codes.contains(&c), "B1 技能 {c} 应注册");
     }
-    assert_eq!(skills::all().len(), 25, "B0 7 + B1 18");
+    for c in [
+        "mingren", "zhenliang", "zhengu", "wanglie", "zuilun", "fuyin", "liangyin", "kongsheng",
+        "zhengrong", "hongju", "qianjie", "jueyan", "poshi", "xiongluan", "congjian", "huairou",
+        "qingce", "jizhi",
+    ] {
+        assert!(codes.contains(&c), "B2 技能 {c} 应注册");
+    }
+    assert_eq!(skills::all().len(), 43, "B0 7 + B1 18 + B2 18");
     assert!(skills::check_unique_codes().is_ok(), "技能 code 不得重复");
 }
 

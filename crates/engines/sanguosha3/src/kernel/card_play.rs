@@ -447,6 +447,8 @@ fn use_start(g: &mut Game, actor: usize, card: &str) -> Result<(), String> {
     used.by = Some(actor);
     let e = used.snapshot(g);
     g.push_event(e);
+    // 使用前技能窗口（往烈：首张无距离 / 不能响应 + 手牌冻结）：压帧到牌结算帧之上。
+    super::skills::fire_use_pre(g, actor, card);
     Ok(())
 }
 
@@ -475,7 +477,10 @@ pub fn legal_targets_with(
         if !cards::valid_target(def.target_mode, actor, s, true) {
             continue;
         }
-        if def.target_mode != TargetMode::AllAlive && super::skills::deny_target(g, actor, s) {
+        if def.target_mode != TargetMode::AllAlive
+            && (super::skills::deny_target(g, actor, s)
+                || super::skills::deny_target_card(g, actor, s, def.code))
+        {
             continue;
         }
         match def.effect {
@@ -485,7 +490,10 @@ pub fn legal_targets_with(
                     .range_override
                     .map(|r| r as usize)
                     .unwrap_or_else(|| super::gear::attack_range(g, actor) as usize);
-                if !opts.no_distance && super::gear::distance(g, actor, s) > reach {
+                if !opts.no_distance
+                    && !super::skills::ignore_distance(g, actor)
+                    && super::gear::distance(g, actor, s) > reach
+                {
                     continue;
                 }
             }
@@ -681,6 +689,11 @@ fn other_alive_from(g: &Game, seat: usize) -> Vec<usize> {
 }
 
 fn emit_targets(g: &mut Game, actor: usize, card: &str, targets: &[Value]) {
+    let seats: Vec<usize> = targets
+        .iter()
+        .filter_map(|v| v.as_u64().map(|n| n as usize))
+        .collect();
+    g.use_targets.insert(card.to_string(), seats);
     for t in targets {
         let Some(t) = t.as_u64() else { continue };
         let mut ev = Event::card(
@@ -985,8 +998,14 @@ fn step_sha(
         d.insert("bagua_used".into(), json!(false));
         next(Stage::CardResolve, d.clone())
     };
-    if !g.seats[target].alive || super::skills::card_ineffective(g, actor, target) {
+    if !g.seats[target].alive
+        || super::skills::card_ineffective(g, actor, target)
+        || super::skills::card_ineffective_for(g, actor, target, card)
+    {
         return Ok(advance_target(d));
+    }
+    if super::skills::no_response_for(g, actor, target) {
+        g.use_opts_mut(card).no_response = true;
     }
     let ignore_armor = super::gear::ignores_armor(g, actor);
     let armor = if ignore_armor {
@@ -1317,7 +1336,9 @@ fn step_duel(
     if !g.seats[cur].alive {
         cur = other;
     }
-    if g.use_opts(&card).no_response {
+    if g.use_opts(&card).no_response
+        || super::skills::no_response_for(g, actor, cur)
+    {
         let spec = DamageSpec {
             from: Some(other),
             target: cur,
@@ -1420,8 +1441,8 @@ fn step_aoe(
     if !g.seats[target].alive || super::skills::card_ineffective(g, actor, target) {
         return Ok(next_target(d));
     }
-    // 不能被响应（往烈）：群体锦囊目标直接受伤。
-    if g.use_opts(&card).no_response {
+    // 不能被响应（往烈 / 雄乱）：群体锦囊目标直接受伤。
+    if g.use_opts(&card).no_response || super::skills::no_response_for(g, actor, target) {
         return damage(g, d);
     }
     let got = d.get("resp_got").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
@@ -2153,6 +2174,7 @@ fn push_virtual_use(
     used.by = Some(actor);
     let e = used.snapshot(g);
     g.push_event(e);
+    super::skills::fire_use_pre(g, actor, &vid);
     super::resolve::push_flow(
         g,
         FlowKind::Card,
@@ -2206,6 +2228,7 @@ pub fn use_from_pile(
             g.bump(&format!("phase.sha_used.{actor}"));
         }
     }
+    super::skills::fire_use_pre(g, actor, card);
     super::resolve::push_flow(
         g,
         FlowKind::Card,
