@@ -82,6 +82,7 @@ pub fn text_of(g: &Game, ev: &Event) -> String {
         EventKind::JudgeZoneEntered => format!("{who} 的判定区置入【{}】", card()),
         EventKind::JudgeZoneLeft => format!("{who} 的判定区移出【{}】", card()),
         EventKind::ArmorChanged => format!("{who} 更换防具【{}】", card()),
+        EventKind::Flipped => format!("{who} 翻面"),
         EventKind::Death => format!("{who} 阵亡"),
         EventKind::HandFrozen => String::new(),
         EventKind::HandUnfrozen => String::new(),

@@ -52,6 +52,8 @@ pub fn damage(g: &mut Game, spec: DamageSpec, armor: ArmorKind, bonus: i32) -> V
 
 /// 实际结算伤害（技能防伤拒绝后调用；**跳过 DamageBefore 询问**，防递归）。
 pub fn damage_apply(g: &mut Game, spec: DamageSpec, armor: ArmorKind, bonus: i32) -> Vec<Event> {
+    // 「造成伤害时」的数值加成（暗箭等）：与调用方传入的 bonus 相加。
+    let bonus = bonus + super::skills::damage_bonus(g, &spec);
     let mut events = damage_one(g, spec, armor, bonus);
     // 铁索连环：属性伤害传导（传导后所有横置角色重置）。
     if spec.kind != DamageKind::Normal && !events.is_empty() {
@@ -137,6 +139,22 @@ fn propagate_chain(g: &mut Game, spec: DamageSpec, _armor: ArmorKind) -> Vec<Eve
         events.extend(damage_one(g, sub, armor, 0));
     }
     events
+}
+
+/// 进入连环状态（唯一入口）：已横置则无操作；产生 `ChainedEnter`（法恩等订阅）。
+pub fn chain_enter(g: &mut Game, seat: usize, cause: &str) -> Vec<Event> {
+    let Some(s) = g.seats.get_mut(seat) else {
+        return vec![];
+    };
+    if s.chained {
+        return vec![];
+    }
+    s.chained = true;
+    let mut ev = Event::simple(EventKind::ChainedEnter, Some(seat), Some(cause));
+    ev.turn = g.turn;
+    ev.phase = g.phase;
+    g.push_event(ev.clone());
+    vec![ev]
 }
 
 /// 失去（流失）体力：**不是伤害**，不产生 `DamageAfter`（mechanics `damage-vs-hp-loss`）。

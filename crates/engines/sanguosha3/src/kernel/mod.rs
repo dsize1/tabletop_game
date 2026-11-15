@@ -516,6 +516,12 @@ pub struct UseOpts {
     /// 介入已询问过（防重复询问）。
     #[serde(default)]
     pub intercept_checked: bool,
+    /// 本次无视防具（奔袭）。
+    #[serde(default)]
+    pub ignore_armor: bool,
+    /// 本次造成伤害后摸一张（奔袭）。
+    #[serde(default)]
+    pub draw_on_damage: bool,
 }
 
 /// 濒死结算后的延后结算项（mechanics `dying-aftermath`）。

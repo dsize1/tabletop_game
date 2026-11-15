@@ -232,3 +232,21 @@ M6 落地后把上表扩展为全 18 技能脚本对拍。
 - 奇策以 `use_as` 成功为准设置 `phase.qice`（若之后取消使用，`cards_used` 会回退，但本阶段次数不回退——登记）；
 - 御策「来源无手牌且你满体力」时不提供发动（handler 直接 Done，符合 B3 裁定）；
 - 散谣的两个模式各自每阶段一次（`phase.sanyao_hp` / `phase.sanyao_hand`）。
+
+### 7.7 B4 收口记录（2026-11-15，✅）
+
+> 批次：一将成名·Y2+Y3（8 将 / 11 技能）。
+
+| 项 | 结果 |
+|---|---|
+| 技能 | `kernel/skills/b4.rs`：陷嗣/夺刀/暗箭/胆守/司敌/慎断/勇略/品第/法恩/奔袭/忠勇 |
+| 内核新增 | `EventKind::Flipped`（翻面事件，法恩订阅）；`flow::chain_enter`（品第/法恩）；`flow::damage_apply` 叠加 `skills::damage_bonus`（暗箭）；`UseOpts.ignore_armor/draw_on_damage`（奔袭）；`card_play::use_from_pile_as`（慎断：弃牌堆承载当兵粮）；他人侧技能入口 `skills::other_side_actions` / `start_other`（陷嗣） |
+| 用例 | `tests/b4.rs` 11 条 |
+| 注册/挂载 | 注册表 53 → 64；`ENABLED_SKILLS` +11 |
+
+**已知边界（登记）**：
+- 奔袭的四个选项通过 `UseOpts` 声明，`extra_targets`/`no_wuxie` 在本次使用内消费；「无视防具/伤害后摸牌」在【杀】结算路径生效；
+- 司敌的出牌阶段开始/结束共用 `sidi.<owner>.<target>` 标记区分（冻结后置位）；
+- 勇略「此杀未造成伤害则摸一」以当前日志判定（若【杀】尚未结算则可能提前判定，登记）；
+- 忠勇的「目标响应的【闪】」未单独建模，只移交【杀】本身；
+- 陷嗣的他人侧入口只在出牌阶段候选里出现（`build_play_pending`）。

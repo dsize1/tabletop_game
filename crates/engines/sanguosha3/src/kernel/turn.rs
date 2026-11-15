@@ -358,7 +358,9 @@ fn step_play(g: &mut Game, seat: usize, pi: usize) -> Result<Step, String> {
             return finish_phase(g, seat, pi);
         }
         if let Some(code) = ans.strip_prefix("skill:") {
-            super::skills::start_active(g, seat, code)?;
+            if super::skills::start_active(g, seat, code).is_err() {
+                super::skills::start_other(g, seat, code)?;
+            }
             return Ok(Step::Next(
                 Stage::PlayAct,
                 json!({ "seat": seat, "pi": pi, "entered": true }),
@@ -446,6 +448,11 @@ fn build_play_pending(g: &Game, seat: usize) -> Option<super::pending::Pending> 
         {
             b = b.option(format!("card:{id}:fire"), "使用【火杀】（朱雀羽扇）");
         }
+    }
+    for code in super::skills::other_side_actions(g, seat) {
+        let name = super::skills::def(code).map(|d| d.name).unwrap_or(code);
+        b = b.option(format!("skill:{code}"), format!("发动【{name}】（他人侧）"));
+        any = true;
     }
     for code in super::skills::active_actions(g, seat) {
         let name = super::skills::def(code).map(|d| d.name).unwrap_or(code);

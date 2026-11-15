@@ -19,6 +19,7 @@ pub mod b0;
 pub mod b1;
 pub mod b2;
 pub mod b3;
+pub mod b4;
 
 /// 技能类型。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -116,6 +117,7 @@ pub fn all() -> Vec<&'static SkillDef> {
         .chain(b1::SKILLS.iter())
         .chain(b2::SKILLS.iter())
         .chain(b3::SKILLS.iter())
+        .chain(b4::SKILLS.iter())
         .collect()
 }
 
@@ -137,6 +139,9 @@ pub const ENABLED_SKILLS: &[&str] = &[
     // B3 批次（9 技能 + 授予技 排异，2026-11-15 收口）
     "sanyao", "zhiman", "qice", "zhiyu", "quanji", "zili", "junxing", "yuce", "longyin",
     "paiyi",
+    // B4 批次（8 将 / 11 技能，2026-11-15 收口）
+    "xiansi", "duodao", "anjian", "danshou", "sidi", "shenduan", "yonglue", "pindi", "faen",
+    "benxi", "zhongyong",
 ];
 
 /// 手牌变动类型（奋激口径）。
@@ -157,7 +162,24 @@ pub fn flip_seat(g: &mut Game, seat: usize) {
         s.flipped = !was_flipped;
     }
     if was_flipped {
+        let mut ev = super::event::Event::simple(
+            super::event::EventKind::Flipped,
+            Some(seat),
+            Some("face_up"),
+        );
+        ev.turn = g.turn;
+        ev.phase = g.phase;
+        g.push_event(ev);
         fire_hook(g, seat, Hook::Flip);
+    } else {
+        let mut ev = super::event::Event::simple(
+            super::event::EventKind::Flipped,
+            Some(seat),
+            Some("face_down"),
+        );
+        ev.turn = g.turn;
+        ev.phase = g.phase;
+        g.push_event(ev);
     }
 }
 
@@ -321,6 +343,7 @@ pub fn handler(code: &str) -> Option<fn(&mut Game, &Ask) -> Result<Step, String>
         .or_else(|| b1::handler(code))
         .or_else(|| b2::handler(code))
         .or_else(|| b3::handler(code))
+        .or_else(|| b4::handler(code))
 }
 
 /// 主动技的**可用性判定**（声明之外的前置：手牌/目标/每阶段次数等）。
@@ -330,6 +353,7 @@ pub fn availability(code: &str) -> Option<fn(&Game, usize) -> bool> {
         .or_else(|| b1::availability(code))
         .or_else(|| b2::availability(code))
         .or_else(|| b3::availability(code))
+        .or_else(|| b4::availability(code))
 }
 
 /// **主动入口合法集**（唯一来源）：自带技能 ∩ 当前面 can_active ∩ 窗口允许 ∩ 可用性判定
@@ -722,6 +746,21 @@ pub fn deny_target(g: &Game, user: usize, target: usize) -> bool {
 }
 
 /// 距离/范围是否被技能覆盖（决堰·坐骑 / 雄乱）：本次使用跳过距离校验。
+/// 造成伤害时的数值加成（暗箭：不在其攻击范围内 +1）。
+pub fn damage_bonus(g: &Game, spec: &super::DamageSpec) -> i32 {
+    b4::damage_bonus(g, spec)
+}
+
+/// 他人侧主动技（陷嗣：其他角色移去两张「逆」出【杀】）。
+pub fn other_side_actions(g: &Game, seat: usize) -> Vec<&'static str> {
+    b4::other_side_actions(g, seat)
+}
+
+/// 发动他人侧技能（唯一入口：回合帧的 `skill:<code>` 在自有技能不可用时回退到这里）。
+pub fn start_other(g: &mut Game, seat: usize, code: &str) -> Result<(), String> {
+    b4::start_other(g, seat, code)
+}
+
 pub fn ignore_distance(g: &Game, seat: usize) -> bool {
     b2::ignore_distance(g, seat)
 }

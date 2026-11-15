@@ -1007,7 +1007,7 @@ fn step_sha(
     if super::skills::no_response_for(g, actor, target) {
         g.use_opts_mut(card).no_response = true;
     }
-    let ignore_armor = super::gear::ignores_armor(g, actor);
+    let ignore_armor = super::gear::ignores_armor(g, actor) || g.use_opts(card).ignore_armor;
     let armor = if ignore_armor {
         ArmorKind::None
     } else {
@@ -2190,6 +2190,30 @@ fn push_virtual_use(
         }),
     );
     Ok(())
+}
+
+/// 以牌堆/弃牌堆中的一张牌为**承载牌**、按另一张牌的定义使用（慎断：黑色基本牌当【兵粮寸断】）。
+pub fn use_from_pile_as(
+    g: &mut Game,
+    actor: usize,
+    carrier: &str,
+    def_code: &str,
+    targets: &[usize],
+) -> Result<(), String> {
+    let zone = g
+        .cards
+        .get(carrier)
+        .cloned()
+        .ok_or_else(|| format!("牌 {carrier} 不存在"))?;
+    if !matches!(zone, Zone::Draw | Zone::Discard) {
+        return Err("承载牌必须来自牌堆/弃牌堆".into());
+    }
+    if cards::def(def_code).is_none() {
+        return Err(format!("未知牌定义：{def_code}"));
+    }
+    g.deck.retain(|c| c != carrier);
+    g.cards.insert(carrier.to_string(), Zone::Processing);
+    push_virtual_use(g, actor, def_code, vec![carrier.to_string()], targets, false)
 }
 
 /// 使用牌堆/弃牌堆中的一张牌（mechanics `deck-carrier`）。

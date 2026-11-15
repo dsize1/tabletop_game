@@ -60,6 +60,8 @@ pub enum EventKind {
     JudgeEffective,
     /// 护甲变化。
     ArmorChanged,
+    /// 翻面（`cause` = `face_up` / `face_down`；法恩等读「翻至正面」）。
+    Flipped,
     TurnStart,
     PhaseStart,
     PhaseEnd,
