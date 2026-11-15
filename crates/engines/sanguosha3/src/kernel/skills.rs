@@ -18,6 +18,7 @@ use super::{Game, Phase};
 pub mod b0;
 pub mod b1;
 pub mod b2;
+pub mod b3;
 
 /// 技能类型。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -67,6 +68,8 @@ pub enum Hook {
     DyingLeftFirst,
     /// 使用牌之前（往烈：首张无距离 / 不能响应 + 手牌冻结）。
     UsePre,
+    /// 造成伤害时、伤害结算之前（制蛮：可防止并取牌）。
+    DamageBefore,
 }
 
 /// 订阅（声明式）：事件 + 主体。handler 首行按 `subject` 校验（不再靠人记）。
@@ -112,6 +115,7 @@ pub fn all() -> Vec<&'static SkillDef> {
         .iter()
         .chain(b1::SKILLS.iter())
         .chain(b2::SKILLS.iter())
+        .chain(b3::SKILLS.iter())
         .collect()
 }
 
@@ -130,6 +134,9 @@ pub const ENABLED_SKILLS: &[&str] = &[
     "mingren", "zhenliang", "zhengu", "wanglie", "zuilun", "fuyin", "liangyin", "kongsheng",
     "zhengrong", "hongju", "qianjie", "jueyan", "poshi", "xiongluan", "congjian", "huairou",
     "qingce", "jizhi",
+    // B3 批次（9 技能 + 授予技 排异，2026-11-15 收口）
+    "sanyao", "zhiman", "qice", "zhiyu", "quanji", "zili", "junxing", "yuce", "longyin",
+    "paiyi",
 ];
 
 /// 手牌变动类型（奋激口径）。
@@ -313,6 +320,7 @@ pub fn handler(code: &str) -> Option<fn(&mut Game, &Ask) -> Result<Step, String>
     b0::handler(code)
         .or_else(|| b1::handler(code))
         .or_else(|| b2::handler(code))
+        .or_else(|| b3::handler(code))
 }
 
 /// 主动技的**可用性判定**（声明之外的前置：手牌/目标/每阶段次数等）。
@@ -321,6 +329,7 @@ pub fn availability(code: &str) -> Option<fn(&Game, usize) -> bool> {
     b0::availability(code)
         .or_else(|| b1::availability(code))
         .or_else(|| b2::availability(code))
+        .or_else(|| b3::availability(code))
 }
 
 /// **主动入口合法集**（唯一来源）：自带技能 ∩ 当前面 can_active ∩ 窗口允许 ∩ 可用性判定
@@ -649,7 +658,7 @@ pub fn prevent_damage(g: &mut Game, victim: usize) -> bool {
 
 /// 手牌上限修正（`Hook::HandLimit`，唯一调用点 `Game::hand_limit`）。
 pub fn hand_limit_bonus(g: &Game, seat: usize) -> i32 {
-    let mut total = b2::hand_limit_bonus(g, seat);
+    let mut total = b2::hand_limit_bonus(g, seat) + b3::hand_limit_bonus(g, seat);
     for skill in all() {
         if !active(g, seat, skill.code) {
             continue;
@@ -735,6 +744,67 @@ pub fn deny_pindian(g: &Game, target: usize) -> bool {
 /// 「此牌对目标无效」（父荫）：按牌逐目标判定。
 pub fn card_ineffective_for(g: &mut Game, user: usize, target: usize, card: &str) -> bool {
     b2::card_ineffective_for(g, user, target, card)
+}
+
+/// 造成伤害前询问（`Hook::DamageBefore`）：把技能帧压到伤害之前，由 handler 决定防伤或继续。
+///
+/// 返回 `true` = 已压询问帧（伤害延后到 handler 里 `flow::damage_apply`）。
+pub fn ask_damage_before(
+    g: &mut Game,
+    spec: super::DamageSpec,
+    _armor: super::ArmorKind,
+    _bonus: i32,
+) -> bool {
+    let Some(from) = spec.from else {
+        return false;
+    };
+    if !b3::should_ask_damage_before(g, from, spec.target) {
+        return false;
+    }
+    let mut codes: Vec<&'static str> = Vec::new();
+    for s in all() {
+        if !enabled(s.code) || !active(g, from, s.code) {
+            continue;
+        }
+        if s.faces
+            .iter()
+            .any(|f| f.hooks.iter().any(|h| *h == Hook::DamageBefore))
+        {
+            codes.push(s.code);
+        }
+    }
+    if codes.is_empty() {
+        return false;
+    }
+    let kind = match spec.kind {
+        super::DamageKind::Fire => "fire",
+        super::DamageKind::Thunder => "thunder",
+        _ => "normal",
+    };
+    let source = match spec.source {
+        super::SourceKind::Slash => "slash",
+        super::SourceKind::Nanman => "nanman",
+        super::SourceKind::Wanjian => "wanjian",
+        super::SourceKind::Duel => "duel",
+        super::SourceKind::Skill => "skill",
+        _ => "other",
+    };
+    for code in codes {
+        super::resolve::push_ask(
+            g,
+            code,
+            Stage::Choose,
+            from,
+            json!({
+                "step": "ask",
+                "target": spec.target,
+                "amount": spec.amount,
+                "kind": kind,
+                "source": source,
+            }),
+        );
+    }
+    true
 }
 
 /// 撤销技能（觉醒失去技能 / 临时授予到期；只动 owned，不碰 granted 的其它来源）。

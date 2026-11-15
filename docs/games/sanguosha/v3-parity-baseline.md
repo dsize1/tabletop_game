@@ -214,3 +214,21 @@ M6 落地后把上表扩展为全 18 技能脚本对拍。
 - 决堰·宝物的「集智」用 `turn.<seat>.jizhi` 计数实现（不授予长期 SkillDef），随回合清理；
 - 镇骨的「多则弃」由目标逐张选择（符合 I1），目标回合结束的第二次结算走 `DeferredKind::TurnEndCheck`；
 - 谦节的拼点拦截在 `pindian::can_start` 单入口生效。
+
+### 7.6 B3 收口记录（2026-11-15，✅）
+
+> 批次：一将成名·批次1/2/Y1（5 将 / 9 技能 + 授予技 排异）。
+
+| 项 | 结果 |
+|---|---|
+| 技能 | `kernel/skills/b3.rs`：散谣/制蛮/奇策/智愚/权计/自立/峻刑/御策/龙吟 + `paiyi`（授予） |
+| 内核新增 | `Hook::DamageBefore` + `skills::ask_damage_before` + `flow::damage_apply`（制蛮：伤害结算前询问；拒绝后走 `damage_apply` 防递归）；`hand_limit_bonus` 合并权计（每「权」+1） |
+| 关键口径 | 权计按**每点伤害**各询问一次（`points` 循环）；奇策用 `use_as` 承载全部手牌；智愚/御策展示走 `reveal`/`conceal`（当下公共可见 + 事件）；峻刑按弃牌**类型集合**判定「皆不同」；龙吟只询问从使用者左手侧起的第一个拥有者，`declare_sha_not_counted` 回退次数；排异移去「权」进弃牌堆 |
+| 用例 | `tests/b3.rs` 10 条（每技能 ≥1 正例 + ≥1 反例） |
+| 挂载 | `ENABLED_SKILLS` + B3 10 个 code（注册表 43 → 53） |
+
+**已知边界（已登记，不阻塞 B4）**：
+- 制蛮的「先取荣/先防止」在 v3 中通过 `DamageBefore` 帧完成，伤害事件在取牌后不再产生（符合「防止伤害 = 未造成伤害」）；
+- 奇策以 `use_as` 成功为准设置 `phase.qice`（若之后取消使用，`cards_used` 会回退，但本阶段次数不回退——登记）；
+- 御策「来源无手牌且你满体力」时不提供发动（handler 直接 Done，符合 B3 裁定）；
+- 散谣的两个模式各自每阶段一次（`phase.sanyao_hp` / `phase.sanyao_hand`）。

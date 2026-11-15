@@ -43,6 +43,15 @@ pub fn apply_armor(armor: ArmorKind, spec: &DamageSpec, mut amount: i32) -> Dama
 ///
 /// 返回本次产生的事件（含铁索传导）；事件同时已 emit 进 `g.events`。
 pub fn damage(g: &mut Game, spec: DamageSpec, armor: ArmorKind, bonus: i32) -> Vec<Event> {
+    // 造成伤害前的技能窗口（制蛮）：先压询问帧，伤害延后到 handler 里 `damage_apply`。
+    if super::skills::ask_damage_before(g, spec, armor, bonus) {
+        return vec![];
+    }
+    damage_apply(g, spec, armor, bonus)
+}
+
+/// 实际结算伤害（技能防伤拒绝后调用；**跳过 DamageBefore 询问**，防递归）。
+pub fn damage_apply(g: &mut Game, spec: DamageSpec, armor: ArmorKind, bonus: i32) -> Vec<Event> {
     let mut events = damage_one(g, spec, armor, bonus);
     // 铁索连环：属性伤害传导（传导后所有横置角色重置）。
     if spec.kind != DamageKind::Normal && !events.is_empty() {
