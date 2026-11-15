@@ -444,6 +444,27 @@ pub fn virtual_equip(g: &Game, seat: usize, slot: super::Slot) -> Option<&'stati
     virtual_equip_in(&all(), g, seat, slot)
 }
 
+/// 该座位在该阶段是否有「阶段开始」订阅（需要**先询问再执行**阶段自动动作）。
+///
+/// 用途（turn 驱动）：无技能时不额外增加推进步数；有阶段开始技能时先路由询问，
+/// 询问结算完再执行摸牌/判定等自动动作（整论/遗礼类）。
+pub fn has_phase_start_sub(g: &Game, seat: usize, phase: Phase) -> bool {
+    let kind = EventKind::PhaseStart;
+    all().into_iter().any(|s| {
+        if !enabled(s.code) || !active(g, seat, s.code) {
+            return false;
+        }
+        let face_now = face_of(g, seat, s.code);
+        s.faces.iter().enumerate().any(|(idx, f)| {
+            if s.transform && idx != face_now {
+                return false;
+            }
+            f.window.allows(g.turn, phase, seat)
+                && f.subscriptions.iter().any(|sub| sub.event == kind)
+        })
+    })
+}
+
 /// 濒死求援是否左手侧优先（兴衰；`Hook::DyingLeftFirst`）。
 pub fn dying_left_first(g: &Game, target: usize) -> bool {
     all().into_iter().any(|s| {

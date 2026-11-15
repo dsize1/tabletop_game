@@ -203,6 +203,10 @@ pub fn step_turn(g: &mut Game, data: &Value) -> Result<Step, String> {
     };
     let pi = data.get("pi").and_then(|v| v.as_u64()).unwrap_or(PHASES.len() as u64) as usize;
     let entered = data.get("entered").and_then(|v| v.as_bool()).unwrap_or(false);
+    // 阶段自动动作是否已执行：`entered=false` 只发 PhaseStart，让阶段开始类技能**先询问**，
+    // 询问结算完再执行自动动作（否则整论来不及跳过摸牌、遗礼来不及在出牌阶段开始前结算）。
+    // 未显式声明 `auto` 时：已进入阶段即视为自动动作已执行（防旧帧数据丢字段导致重复结算）。
+    let auto_done = data.get("auto").and_then(|v| v.as_bool()).unwrap_or(entered);
     if g.winner.is_some() {
         return Ok(Step::Done);
     }
@@ -260,6 +264,15 @@ pub fn step_turn(g: &mut Game, data: &Value) -> Result<Step, String> {
         start_ev.turn = g.turn;
         start_ev.phase = phase;
         g.push_event(start_ev);
+        // 有阶段开始类技能 → 先询问（事件路由在 advance 内、本帧下一步之前完成），
+        // 自动动作留到 `auto=false → true` 的下一次进入再执行；无技能则保持单步推进。
+        if super::skills::has_phase_start_sub(g, seat, phase) {
+            return Ok(Step::Next(
+                Stage::PhaseStep,
+                json!({ "seat": seat, "pi": pi, "entered": true, "auto": false }),
+            ));
+        }
+        // 无阶段开始技能：直接执行自动动作（原行为，不额外增加推进步数）。
         match phase {
             Phase::Prepare => return finish_phase(g, seat, pi),
             Phase::Judge => {
@@ -284,8 +297,39 @@ pub fn step_turn(g: &mut Game, data: &Value) -> Result<Step, String> {
         };
         return Ok(Step::Next(
             stage,
-            json!({ "seat": seat, "pi": pi, "entered": true }),
+            json!({ "seat": seat, "pi": pi, "entered": true, "auto": true }),
         ));
+    }
+    if !auto_done {
+        // 阶段自动动作（询问之后执行）。
+        match phase {
+            Phase::Prepare => return finish_phase(g, seat, pi),
+            Phase::Judge => {
+                judge_phase(g, seat);
+                return finish_phase(g, seat, pi);
+            }
+            Phase::Draw => {
+                g.set_counter(&format!("phase.drawn.{seat}"), 0);
+                let drawn = flow::draw_phase(g, seat);
+                g.set_counter(&format!("phase.drawn.{seat}"), drawn.len() as i32);
+                return finish_phase(g, seat, pi);
+            }
+            Phase::Play => {
+                g.set_counter(&format!("phase.sha_used.{seat}"), 0);
+                g.set_counter(&format!("phase.jiu_used.{seat}"), 0);
+                return Ok(Step::Next(
+                    Stage::PlayAct,
+                    json!({ "seat": seat, "pi": pi, "entered": true, "auto": true }),
+                ));
+            }
+            Phase::Discard => {
+                return Ok(Step::Next(
+                    Stage::DiscardPick,
+                    json!({ "seat": seat, "pi": pi, "entered": true, "auto": true }),
+                ));
+            }
+            Phase::End => return finish_phase(g, seat, pi),
+        }
     }
     match phase {
         Phase::Play => step_play(g, seat, pi),
