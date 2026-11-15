@@ -153,6 +153,8 @@ pub fn begin_turn(g: &mut Game, seat: usize) {
 /// 返回 `None` = 对局结束（无下一个回合）。
 pub fn end_turn(g: &mut Game) -> Option<usize> {
     let seat = g.turn;
+    // 回合级手牌冻结到期（往烈“本阶段不能再使用牌”按回合结束口径）。
+    g.unfreeze_turn();
     Event::simple(EventKind::TurnEnd, Some(seat), None).emit(g);
     g.sha_bonus = 0;
     if g.winner.is_some() {
@@ -251,6 +253,8 @@ pub fn step_turn(g: &mut Game, data: &Value) -> Result<Step, String> {
             ));
         }
         g.phase = phase;
+        // 阶段级手牌冻结到期（mechanics `hand-freeze`）：阶段切换自动解冻。
+        g.unfreeze_phase();
         g.clear_counters("phase.");
         let mut start_ev = Event::simple(EventKind::PhaseStart, Some(seat), None);
         start_ev.turn = g.turn;
@@ -470,9 +474,12 @@ pub fn judge_phase(g: &mut Game, seat: usize) {
             .map(|d| d.effect);
         match effect {
             Some(Effect::Indulgence) => {
-                let skipped = !judge::judge(g, seat, "乐不思蜀")
+                // 判定效果反转（mechanics `judge-reversal`）：只改分支，不改牌面花色。
+                let reversed = g.judge_reversed(seat, "lebu_sishu");
+                let heart = judge::judge(g, seat, "乐不思蜀")
                     .map(|r| r.is_heart())
                     .unwrap_or(false);
+                let skipped = if reversed { heart } else { !heart };
                 super::card_play::to_discard(g, &id);
                 if skipped {
                     skip_phase(g, Phase::Play);

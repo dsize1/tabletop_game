@@ -61,11 +61,20 @@ fn damage_one(g: &mut Game, spec: DamageSpec, armor: ArmorKind, bonus: i32) -> V
     match apply_armor(armor, &spec, base) {
         DamageOutcome::Blocked => vec![],
         DamageOutcome::Dealt(n) => {
+            // 护甲（mechanics `armor-points`）：先扣护甲，溢出伤害扣体力；
+            // 伤害事件仍成立（amount = 原伤害值），因此「受到伤害后」技能照常触发。
+            let armor_points = g.seats.get(spec.target).map(|s| s.armor).unwrap_or(0);
+            let mut hp_loss = n;
+            if hp_loss > 0 && armor_points > 0 {
+                let absorbed = armor_points.min(hp_loss);
+                g.add_armor(spec.target, -absorbed);
+                hp_loss -= absorbed;
+            }
             let seat = match g.seats.get_mut(spec.target) {
                 Some(s) => s,
                 None => return vec![],
             };
-            seat.hp = (seat.hp - n).max(0);
+            seat.hp = (seat.hp - hp_loss).max(0);
             let mut ev = Event::simple(EventKind::DamageAfter, Some(spec.target), None);
             ev.amount = Some(n);
             ev.by = spec.from;
@@ -247,6 +256,29 @@ pub fn is_dying(seat: &super::Seat) -> bool {
 /// 濒死救援（唯一入口，走 `heal` 语义）：桃/酒从 hp ≤ 0 回血；hp > 0 即脱离濒死。
 pub fn rescue(g: &mut Game, target: usize, amount: i32, cause: &str) -> Vec<Event> {
     heal(g, target, amount, cause)
+}
+
+/// **濒死结算后的延后结算**（mechanics `dying-aftermath`）：脱困（或死亡）后才派发。
+///
+/// 兴衰：支援者先救人，脱困后才逐个受到 1 点伤害（仍是伤害事件，来源可为无）。
+/// 用户裁定（2026-11-15）：即使濒死者最终死亡，支援者**仍受伤**。
+pub fn settle_after_dying(g: &mut Game) -> Vec<Event> {
+    let entries = g.drain_after_dying();
+    let mut events = vec![];
+    for e in entries {
+        if g.seats.get(e.seat).map(|s| s.alive).unwrap_or(false) {
+            let spec = DamageSpec {
+                from: None,
+                target: e.seat,
+                amount: e.amount,
+                kind: DamageKind::Normal,
+                source: SourceKind::Other,
+            };
+            let armor = super::gear::armor_of(g, e.seat);
+            events.extend(damage(g, spec, armor, 0));
+        }
+    }
+    events
 }
 
 /// 摸牌：从牌堆顶抽 n 张进手牌（牌堆不足时摸到几张某）。

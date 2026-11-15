@@ -23,6 +23,10 @@ pub fn equip(g: &mut Game, seat: usize, card: &str) -> Option<String> {
     let code = g.card_defs.get(card)?.def.clone();
     let def = cards::def(&code)?;
     let slot = def.slot?;
+    // 已废除的装备栏不可再装备（决堰/破势/雄乱）。
+    if g.slot_abolished(seat, slot) {
+        return None;
+    }
     let old = equip_in(g, seat, slot).cloned();
     if let Some(o) = &old {
         g.cards.insert(o.clone(), Zone::Discard);
@@ -31,31 +35,95 @@ pub fn equip(g: &mut Game, seat: usize, card: &str) -> Option<String> {
     old
 }
 
-/// 防具效果（单一入口）。
+/// 防具效果（单一入口）：**真实装备优先**；无真实防具时才读虚拟装备（八阵）。
 pub fn armor_of(g: &Game, seat: usize) -> ArmorKind {
-    equip_in(g, seat, Slot::Armor)
-        .and_then(|id| g.card_defs.get(id))
-        .and_then(|c| cards::def(&c.def))
+    if let Some(id) = equip_in(g, seat, Slot::Armor) {
+        return g
+            .card_defs
+            .get(id)
+            .and_then(|c| cards::def(&c.def))
+            .map(|d| d.armor)
+            .unwrap_or(ArmorKind::None);
+    }
+    virtual_card(g, seat, Slot::Armor)
+        .and_then(cards::def)
         .map(|d| d.armor)
         .unwrap_or(ArmorKind::None)
 }
 
-/// 武器效果（单一入口）。
+/// 武器效果（单一入口）：真实装备优先，其次虚拟装备。
 pub fn weapon_of(g: &Game, seat: usize) -> WeaponKind {
-    equip_in(g, seat, Slot::Weapon)
-        .and_then(|id| g.card_defs.get(id))
-        .and_then(|c| cards::def(&c.def))
+    if let Some(id) = equip_in(g, seat, Slot::Weapon) {
+        return g
+            .card_defs
+            .get(id)
+            .and_then(|c| cards::def(&c.def))
+            .map(|d| d.weapon)
+            .unwrap_or(WeaponKind::None);
+    }
+    virtual_card(g, seat, Slot::Weapon)
+        .and_then(cards::def)
         .map(|d| d.weapon)
         .unwrap_or(WeaponKind::None)
 }
 
-/// 攻击范围（默认 1 + 武器范围）。
+/// 攻击范围（默认 1 + 武器范围；虚拟武器同样参与）。
 pub fn attack_range(g: &Game, seat: usize) -> u8 {
-    equip_in(g, seat, Slot::Weapon)
-        .and_then(|id| g.card_defs.get(id))
-        .and_then(|c| cards::def(&c.def))
+    if let Some(id) = equip_in(g, seat, Slot::Weapon) {
+        return g
+            .card_defs
+            .get(id)
+            .and_then(|c| cards::def(&c.def))
+            .map(|d| 1 + d.weapon_range.unwrap_or(0))
+            .unwrap_or(1);
+    }
+    virtual_card(g, seat, Slot::Weapon)
+        .and_then(cards::def)
         .map(|d| 1 + d.weapon_range.unwrap_or(0))
         .unwrap_or(1)
+}
+
+/// 虚拟装备牌定义 code（mechanics `virtual-equip`；不占槽、不参与牌数守恒）。
+pub fn virtual_card(g: &Game, seat: usize, slot: Slot) -> Option<&'static str> {
+    if equip_in(g, seat, slot).is_some() {
+        return None;
+    }
+    super::skills::virtual_equip(g, seat, slot)
+}
+
+/// 装备移动（mechanics `equip-move`）：场上一张装备移到另一名角色的同槽位（目标槽必须为空）。
+///
+/// 移动 ≠ 弃置，也不属于「获得」：只发 `CardLost`（离开原持有者装备区）+ 失去装备钩子。
+pub fn move_equip(g: &mut Game, from: usize, card: &str, to: usize) -> Result<(), String> {
+    let zone = g
+        .cards
+        .get(card)
+        .cloned()
+        .ok_or_else(|| format!("牌 {card} 不存在"))?;
+    let Zone::Equip(owner, slot) = zone else {
+        return Err("只能移动装备区的牌".into());
+    };
+    if owner != from {
+        return Err("来源座位与装备归属不一致".into());
+    }
+    if to == from {
+        return Err("不能移回原持有者".into());
+    }
+    if equip_in(g, to, slot).is_some() {
+        return Err("目标槽位已有装备".into());
+    }
+    g.cards.insert(card.to_string(), Zone::Equip(to, slot));
+    let mut lost = super::event::Event::card(
+        super::event::EventKind::CardLost,
+        Some(from),
+        card.to_string(),
+        Some("装备移动".to_string()),
+    );
+    lost.by = Some(from);
+    lost.from = Some(from);
+    let ev = lost.snapshot(g);
+    g.push_event(ev);
+    Ok(())
 }
 
 /// 某座位是否有某坐骑。

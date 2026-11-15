@@ -182,3 +182,39 @@
 2. **未完杀 / 技能救援**（濒死扩展）：随 B0 技能 / B3 批次。
 3. **v2 专属浮层**（拼点/观星/蛊惑/化身/勤王）：V3 尚无对应 pending 形态，随对应武将批次补特殊区。
 4. `木牛流马`（宝物）仅入表，未做运输交互。
+
+## 10. 口径更正（2026-11-15）：B0 前置项 ≠ 内核完备
+
+> **用户裁定**：B0 前置项 P1–P6 是「全武将技能的**机制前置**」，不是「只有 B0 批次才需要的机制」；
+> **内核未完备不得开始武将批次**。上一轮把「P1–P6 完成」当成「内核完备」并开始 B0/B1 武将技能，属于**严重漂移**。
+
+### 10.1 事实
+
+- P1–P6 只做实了「回合驱动 / 事件生产 / 交互层 / 卡牌结算 / 装备结算 / 生命周期」的**基础流程**；
+- 对照 `align/mechanics.json` 的 **46 条机制词表**，V3 当时仍有 **18 条缺口**：
+  `hand-freeze` / `virtual-card` / `dying-aftermath` / `reveal` / `pindian` / `target-extra` /
+  `deck-carrier` / `multi-response` / `no-wuxie` / `hidden-declaration` / `aoe-target-trim` /
+  `sha-intercept` / `judge-reversal` / `range-override` / `virtual-equip` / `limit-skill` /
+  `equip-move` / `armor-points`。
+
+### 10.2 对策（已落地 2026-11-15）
+
+| 项 | 内容 |
+|---|---|
+| 事实源 | `apps/scripts/lib/sgs3-mechanics.mjs`：46 条机制 → 实现锚点 + 用例锚点 |
+| 审计表 | `docs/games/sanguosha/v3-kernel-audit.md`（生成物，`npm run gen:sgs3-kernel-doc`） |
+| 门禁 | `npm run check:sgs3-kernel`（锚点符号真实存在 + 词表双向一致 + 审计表最新；缺一条即红） |
+| 聚合 | `check:sgs3` 已包含该门禁；`check:sgs3:full` = `check:sgs3` + `check:sgs-align` + `check:spec-conformance` |
+| 用例 | `tests/kernel_mechanics.rs`（25 条：每机制 ≥1 正例 + ≥1 反例；含守恒/无帧遗留回归） |
+
+### 10.3 新增机制（本次补全，供 B1–B5 直接使用）
+
+`Seat.armor`（护甲）+ 伤害前置扣甲；`hand-freeze`（回合/阶段到期）；`virtual-card`（`use_as` 承载 origin / `use_virtual` 无承载）；
+`deck-carrier`（`use_from_pile`）；`UseOpts`（no-wuxie / no-response / no-distance / target-extra / trim / range-override / multi-response）；
+`sha-intercept`（Continue/Immune/Unresponsive/Replace）；`limit-skill`（每局一次门禁）；`reveal/conceal`（公共可见集合 + 事件）；
+`pindian`（暗选→同亮→比点→平局→弃牌堆，结果单通道）；`dying-aftermath`（濒死结算后队列 + 兴衰求桃顺序）；
+`guhuo`（扣置声明 + 同时质疑 + 缠怨）；`equip-move`（移槽）；`virtual-equip`（视为装备单入口）；`judge-reversal`（思蜀类）；
+`general-pool`（化身池只含已注册技能武将 + 可回放随机）；`abolished_slots` / `judge_abolished`（决堰/破势/雄乱的**共享状态原语**，
+三技能效果各自独立，见 `batch-playbook §9.8`）。
+
+> **下一步**：内核完备后重回武将批次——B1 收口（18 技能重验）→ B0 回归 → B2–B5。

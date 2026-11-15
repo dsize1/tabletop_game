@@ -41,6 +41,13 @@ pub fn public_state(g: &Game) -> Value {
             "flipped": s.flipped,
             "chained": s.chained,
             "kingdom": s.kingdom,
+            // 护甲（mechanics `armor-points`）：独立防护值，公开可见（否则无法判断剩余体力）。
+            "armor": s.armor,
+            // 废除装备栏 / 判定区（雄乱/决堰/破势）：公开事实。
+            "abolished_slots": s.abolished_slots.iter().map(|x| format!("{x:?}")).collect::<Vec<_>>(),
+            "judge_abolished": s.judge_abolished,
+            // 手牌冻结数（明细仍隐藏；只给“有几张不能用”）。
+            "frozen": s.frozen.len() + s.frozen_phase.len(),
         });
         // 身份只在公开时给（主公 / 已死亡）。
         if identity::identity_public(s) {
@@ -74,6 +81,19 @@ pub fn public_state(g: &Game) -> Value {
     });
 
     // 公共 pending 只给 { kind, actor, skill }，不给 options/data（脱敏）。
+    // 公共可见集合（mechanics `reveal`）：展示中的牌牌面公开。
+    let revealed: Vec<Value> = g
+        .revealed
+        .iter()
+        .map(|id| json!({ "id": id, "name": card_label(g, id) }))
+        .collect();
+    // 判定反转目标（思蜀类）：公开可读，供玩家理解判定结果。
+    let judge_reverse = g
+        .judge_reverse
+        .iter()
+        .map(|(seat, code)| json!({ "seat": seat, "card": code }))
+        .collect::<Vec<_>>();
+
     let pending = g.pending.as_ref().map(|p| {
         json!({
             "kind": p.kind(),
@@ -91,6 +111,8 @@ pub fn public_state(g: &Game) -> Value {
         "deck": deck,
         "seats": seats,
         "pending": pending,
+        "revealed": revealed,
+        "judge_reverse": judge_reverse,
         "winner": g.winner.map(|w| format!("{:?}", w)),
     })
 }

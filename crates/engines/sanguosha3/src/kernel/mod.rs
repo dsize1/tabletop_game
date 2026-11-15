@@ -9,15 +9,19 @@ pub mod event;
 pub mod flow;
 pub mod gear;
 pub mod generals;
+pub mod guhuo;
 pub mod identity;
 pub mod judge;
 pub mod pending;
+pub mod pindian;
 pub mod resolve;
 pub mod skills;
 pub mod turn;
 pub mod view;
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
+
+use event::{Event, EventKind};
 
 use serde::{Deserialize, Serialize};
 
@@ -189,6 +193,24 @@ pub struct Seat {
     /// 转换技当前面（skill code → face 索引；默认 0。声明 `transform = true` 的技能才读）。
     #[serde(default)]
     pub faces: HashMap<String, u8>,
+    /// **护甲**（mechanics `armor-points`）：独立于体力的防护值，受到伤害时先扣护甲。
+    /// 只经 `flow::damage`（前置扣甲）与 `Game::add_armor` 改；不是牌、不是体力上限。
+    #[serde(default)]
+    pub armor: i32,
+    /// **手牌冻结（本回合到期）**：冻结的手牌不能在窗口内被主动使用/打出；
+    /// 到期由 `turn` 在回合结束时 `Game::unfreeze_turn` 清空（mechanics `hand-freeze`）。
+    #[serde(default)]
+    pub frozen: BTreeSet<CardId>,
+    /// **手牌冻结（本阶段到期）**：阶段切换时由 `Game::unfreeze_phase` 清空。
+    #[serde(default)]
+    pub frozen_phase: BTreeSet<CardId>,
+    /// **已废除的装备栏**（mechanics `hand-limit` 之外的区域状态；决堰逐槽 / 破势全槽 / 雄乱装备区）：
+    /// 永久废除，不可再装备。
+    #[serde(default)]
+    pub abolished_slots: BTreeSet<Slot>,
+    /// **判定区被废除**（雄乱）：延时锦囊不可进入，流转时跳过。
+    #[serde(default)]
+    pub judge_abolished: bool,
 }
 
 impl Default for Seat {
@@ -210,6 +232,11 @@ impl Default for Seat {
             kingdom: String::new(),
             counters: HashMap::new(),
             faces: HashMap::new(),
+            armor: 0,
+            frozen: BTreeSet::new(),
+            frozen_phase: BTreeSet::new(),
+            abolished_slots: BTreeSet::new(),
+            judge_abolished: false,
         }
     }
 }
@@ -400,6 +427,110 @@ pub struct Game {
     /// 事件序号（单调；`Event.seq` 的来源）。
     #[serde(default)]
     pub log_seq: u64,
+    /// **公共可见集合**（mechanics `reveal`）：`show` 后进入、`conceal` 收回；
+    /// 依赖牌面的技能必须读这里（只写日志不算展示）。
+    #[serde(default)]
+    pub revealed: BTreeSet<CardId>,
+    /// **本次“使用牌”的可选事实**（`no-wuxie` / `target-extra` / `range-override` /
+    /// `multi-response` / `sha-not-counted` / `sha-intercept`）：单一来源，`finish_card` 清除。
+    #[serde(default)]
+    pub use_opts: HashMap<CardId, UseOpts>,
+    /// **判定效果反转**（mechanics `judge-reversal`）：座位 → 延时锦囊 code（如乐不思蜀）。
+    /// 只改判定分支，不改牌面花色；同一效果再次指定时覆盖旧目标。
+    #[serde(default)]
+    pub judge_reverse: HashMap<usize, String>,
+    /// **濒死结算后的延后结算**（mechanics `dying-aftermath`）：脱困后才逐个执行（兴衰）。
+    #[serde(default)]
+    pub after_dying: Vec<AfterDying>,
+    /// **化身状态**（mechanics `general-pool`；池只含“至少一个已注册技能”的武将）。
+    #[serde(default)]
+    pub huashen: HashMap<usize, Huashen>,
+    /// 拼点结果（唯一结果通道：内核写、发起技能读后 `take_pindian` 清空）。
+    #[serde(default)]
+    pub pindian_result: Option<crate::kernel::pindian::PindianResult>,
+    /// 扣置声明结果（mechanics `hidden-declaration`；内核写、技能读后清空）。
+    #[serde(default)]
+    pub guhuo_result: Option<crate::kernel::guhuo::GuhuoResult>,
+    /// 虚拟牌/转化牌的承载牌（origin）：`v:*` → 物理牌 id 列表（`finish_card` 一并落盘）。
+    #[serde(default)]
+    pub virtual_origins: HashMap<CardId, Vec<CardId>>,
+}
+
+/// 手牌冻结的到期时机（mechanics `hand-freeze`）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FreezeUntil {
+    /// 本回合结束（**默认**；往烈“本阶段不能再使用牌”按回合结束口径冻结）。
+    Turn,
+    /// 本阶段结束（阶段切换时解冻；司敌“其本阶段不能使用/打出该颜色”）。
+    Phase,
+}
+
+/// 【杀】结算前介入结果（mechanics `sha-intercept`）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ShaIntercept {
+    /// 继续正常结算。
+    Continue,
+    /// 此【杀】对你无效（不询问【闪】，不产生伤害）。
+    Immune,
+    /// 规则禁止响应（合法集为空：不询问【闪】）。
+    Unresponsive,
+    /// 改目标（目标锁定技；替换目标后重新结算）。
+    Replace(usize),
+}
+
+/// **本次“使用牌”的可选事实**（mechanics 单一来源）。
+///
+/// 不变量：只作用于**本次使用**（`finish_card` / `cancel_use` 清除）；不得跨牌残留。
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UseOpts {
+    /// 不能被【无懈可击】抵消（只关无懈窗口，不碰闪/杀响应）。
+    #[serde(default)]
+    pub no_wuxie: bool,
+    /// 不能被响应（闪/杀响应窗口整段跳过）。
+    #[serde(default)]
+    pub no_response: bool,
+    /// 不计入本阶段【杀】使用次数（龙吟；已经计过的回退）。
+    #[serde(default)]
+    pub sha_not_counted: bool,
+    /// 本次无距离限制（往烈首张 / 陷嗣 / 慎断）。
+    #[serde(default)]
+    pub no_distance: bool,
+    /// 目标数 +N（必须同时是合法目标；legal ≡ execute 同源）。
+    #[serde(default)]
+    pub extra_targets: i32,
+    /// 群体锦囊少选 N 个目标（在无懈/响应之前完成）。
+    #[serde(default)]
+    pub trim_targets: i32,
+    /// 距离口径覆盖（烈弓：距离 ≤ 此牌点数即视为可达；只影响本次、逐目标）。
+    #[serde(default)]
+    pub range_override: Option<i32>,
+    /// 响应计数 N（无双：需连续 N 张同类响应；0/1 = 单张）。
+    #[serde(default)]
+    pub multi_response: u32,
+    /// 【杀】结算前介入结果（sha-intercept）；`None` = 未介入。
+    #[serde(default)]
+    pub intercept: Option<ShaIntercept>,
+    /// 介入已询问过（防重复询问）。
+    #[serde(default)]
+    pub intercept_checked: bool,
+}
+
+/// 濒死结算后的延后结算项（mechanics `dying-aftermath`）。
+///
+/// 兴衰：支援者先救人，**脱困后**才逐个受到 1 点伤害（仍是伤害事件，来源可为无）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AfterDying {
+    pub victim: usize,
+    pub seat: usize,
+    pub amount: i32,
+    pub cause: String,
+}
+
+/// 化身状态（mechanics `general-pool`）：池 + 当前展示的化身武将 code。
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Huashen {
+    pub pool: Vec<String>,
+    pub current: Option<String>,
 }
 
 impl Game {
@@ -582,6 +713,229 @@ impl Game {
             limit.min(self.hand_cap)
         } else {
             limit
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // 机制单一入口（mechanics：armor-points / reveal / hand-freeze /
+    // use-opts / judge-reversal / dying-aftermath / general-pool）
+    // ------------------------------------------------------------------
+
+    /// 获得/失去护甲（mechanics `armor-points`；变化必须有事件 + 视图投影）。
+    pub fn add_armor(&mut self, seat: usize, n: i32) {
+        if n == 0 {
+            return;
+        }
+        if let Some(s) = self.seats.get_mut(seat) {
+            s.armor = (s.armor + n).max(0);
+        }
+        let mut ev = Event::simple(
+            EventKind::ArmorChanged,
+            Some(seat),
+            Some(if n > 0 { "gain" } else { "lose" }),
+        );
+        ev.amount = Some(n);
+        self.push_event(ev);
+    }
+
+    /// 展示（medcanics `reveal`）：当下进入公共可见集合 + `CardRevealed`。
+    pub fn reveal(&mut self, ids: &[CardId], cause: &str) {
+        for id in ids {
+            if self.revealed.insert(id.clone()) {
+                let ev = Event::card(
+                    EventKind::CardRevealed,
+                    self.cards.get(id).and_then(|z| z.seat()),
+                    id.clone(),
+                    Some(cause.to_string()),
+                );
+                self.push_event(ev);
+            }
+        }
+    }
+
+    /// 收回展示（结算完成必须 conceal，避免公共区残留误导）。
+    pub fn conceal(&mut self, ids: &[CardId], cause: &str) {
+        for id in ids {
+            if self.revealed.remove(id) {
+                let ev = Event::card(
+                    EventKind::CardConcealed,
+                    self.cards.get(id).and_then(|z| z.seat()),
+                    id.clone(),
+                    Some(cause.to_string()),
+                );
+                self.push_event(ev);
+            }
+        }
+    }
+
+    /// 是否处于公共可见状态。
+    pub fn is_revealed(&self, id: &str) -> bool {
+        self.revealed.contains(id)
+    }
+
+    /// 冻结手牌（mechanics `hand-freeze`）：绑定“牌集合 + 到期时机”。
+    ///
+    /// 冻结**不阻止**被弃置/被获得/被移出游戏（只挡主动使用/打出）。
+    pub fn freeze_cards(&mut self, owner: usize, ids: &[CardId], until: FreezeUntil, cause: &str) {
+        let Some(s) = self.seats.get_mut(owner) else { return };
+        for id in ids {
+            match until {
+                FreezeUntil::Turn => s.frozen.insert(id.clone()),
+                FreezeUntil::Phase => s.frozen_phase.insert(id.clone()),
+            };
+        }
+        let mut ev = Event::simple(EventKind::HandFrozen, Some(owner), Some(cause));
+        ev.amount = Some(ids.len() as i32);
+        self.push_event(ev);
+    }
+
+    /// 冻结整手（往烈“本阶段不能再使用牌”）。
+    pub fn freeze_hand(&mut self, owner: usize, until: FreezeUntil, cause: &str) {
+        let ids = self.hand(owner);
+        self.freeze_cards(owner, &ids, until, cause);
+    }
+
+    /// 该手牌是否被冻结（唯一读法：`usable_hand`/响应候选/`begin_use` 共用）。
+    pub fn is_frozen(&self, owner: usize, id: &str) -> bool {
+        self.seats
+            .get(owner)
+            .map(|s| s.frozen.contains(id) || s.frozen_phase.contains(id))
+            .unwrap_or(false)
+    }
+
+    /// 阶段到期解冻（由 `turn::begin_phase` 调用；跨阶段禁止残留）。
+    pub fn unfreeze_phase(&mut self) {
+        for seat in 0..self.seats.len() {
+            if self.seats[seat].frozen_phase.is_empty() {
+                continue;
+            }
+            self.seats[seat].frozen_phase.clear();
+            let ev = Event::simple(EventKind::HandUnfrozen, Some(seat), Some("phase_end"));
+            self.push_event(ev);
+        }
+    }
+
+    /// 回合到期解冻（由 `turn` 在回合结束时调用）。
+    pub fn unfreeze_turn(&mut self) {
+        for seat in 0..self.seats.len() {
+            if self.seats[seat].frozen.is_empty() {
+                continue;
+            }
+            self.seats[seat].frozen.clear();
+            let ev = Event::simple(EventKind::HandUnfrozen, Some(seat), Some("turn_end"));
+            self.push_event(ev);
+        }
+    }
+
+    /// 本次使用牌的可选事实（不存在 = 默认值）。
+    pub fn use_opts(&self, card: &str) -> UseOpts {
+        self.use_opts.get(card).cloned().unwrap_or_default()
+    }
+
+    /// 写本次使用牌的可选事实（技能声明入口）。
+    pub fn use_opts_mut(&mut self, card: &str) -> &mut UseOpts {
+        self.use_opts.entry(card.to_string()).or_default()
+    }
+
+    /// 清本次使用牌的可选事实（`finish_card` / `cancel_use` 必须调用）。
+    pub fn clear_use_opts(&mut self, card: &str) {
+        self.use_opts.remove(card);
+    }
+
+    /// 声明“本次不能被【无懈可击】抵消”（mechanics `no-wuxie`）。
+    pub fn no_wuxie(&mut self, card: &str) {
+        self.use_opts_mut(card).no_wuxie = true;
+    }
+
+    /// 声明“本次不能被响应”（闪/杀响应整段跳过）。
+    pub fn no_response(&mut self, card: &str) {
+        self.use_opts_mut(card).no_response = true;
+    }
+
+    /// 判定效果反转（mechanics `judge-reversal`）：同一延时锦囊 code 只绑定一个目标。
+    pub fn reverse_judge(&mut self, seat: usize, code: &str) {
+        self.judge_reverse.retain(|_, v| v != code);
+        self.judge_reverse.insert(seat, code.to_string());
+    }
+
+    /// 某座位的该延时锦囊判定是否反转。
+    pub fn judge_reversed(&self, seat: usize, code: &str) -> bool {
+        self.judge_reverse.get(&seat).map(|c| c == code).unwrap_or(false)
+    }
+
+    /// 该延时锦囊的反转目标（视图用；没有 = None）。
+    pub fn judge_reverse_target(&self, code: &str) -> Option<usize> {
+        self.judge_reverse.iter().find(|(_, c)| c.as_str() == code).map(|(s, _)| *s)
+    }
+
+    /// 登记“濒死结算结束后”要执行的结算（mechanics `dying-aftermath`）。
+    pub fn defer_after_dying(&mut self, entry: AfterDying) {
+        self.after_dying.push(entry);
+    }
+
+    /// 濒死真正脱困/死亡后的派发点（`flow::settle_after_dying` 唯一调用）。
+    pub fn drain_after_dying(&mut self) -> Vec<AfterDying> {
+        std::mem::take(&mut self.after_dying)
+    }
+
+    /// 取拼点结果（唯一读法：读完清空，禁止重复消费）。
+    pub fn take_pindian(&mut self) -> Option<crate::kernel::pindian::PindianResult> {
+        self.pindian_result.take()
+    }
+
+    /// 化身初始化：池 = 至少有一个**已注册**技能的武将（mechanics `general-pool`）。
+    /// 随机取牌一律走 `rand_below`（确定性、可回放）。
+    pub fn init_huashen(&mut self, seat: usize, count: usize) {
+        let mut pool: Vec<String> = crate::generals_generated::GENERALS
+            .iter()
+            .filter(|gd| {
+                gd.status == crate::generals_generated::Status::Live
+                    && gd.skills.iter().any(|n| skills::code_by_name(n).is_some())
+            })
+            .map(|gd| gd.code.to_string())
+            .collect();
+        pool.sort();
+        let mut chosen = Vec::new();
+        for _ in 0..count.min(pool.len()) {
+            let idx = self.rand_below(pool.len());
+            chosen.push(pool.remove(idx));
+        }
+        let current = chosen.first().cloned();
+        self.huashen.insert(
+            seat,
+            Huashen {
+                pool: chosen,
+                current,
+            },
+        );
+    }
+
+    /// 当前化身的“性别/势力”覆盖（读化身时跟随展示武将；移去后恢复原值）。
+    pub fn huashen_general(&self, seat: usize) -> Option<&str> {
+        self.huashen
+            .get(&seat)
+            .and_then(|h| h.current.as_deref())
+    }
+
+    /// 废除一个装备栏（决堰/破势/雄乱；**永久**，不可再装备）。
+    pub fn abolish_slot(&mut self, seat: usize, slot: Slot) {
+        if let Some(s) = self.seats.get_mut(seat) {
+            s.abolished_slots.insert(slot);
+        }
+    }
+
+    /// 装备栏是否已废除（**唯一读法**：装备入口/候选/视图共用）。
+    pub fn slot_abolished(&self, seat: usize, slot: Slot) -> bool {
+        self.seats
+            .get(seat)
+            .map(|s| s.abolished_slots.contains(&slot))
+            .unwrap_or(false)
+    }
+
+    /// 废除判定区（雄乱）：延时锦囊不可进入/流转跳过。
+    pub fn abolish_judge_zone(&mut self, seat: usize) {
+        if let Some(s) = self.seats.get_mut(seat) {
+            s.judge_abolished = true;
         }
     }
 }

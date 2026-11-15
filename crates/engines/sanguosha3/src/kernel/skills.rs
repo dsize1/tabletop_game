@@ -58,6 +58,12 @@ pub enum Hook {
     CardIneffective,
     /// 手牌变动（奋激：回合外 手牌离开进弃牌堆 / 手牌增加）。
     HandChanged,
+    /// 虚拟装备（八阵：无防具时视为装备【八卦阵】）：槽位 + 视为的牌定义 code。
+    VirtualEquip(super::Slot, &'static str),
+    /// 【杀】结算前介入（享乐/铁骑类目标锁定技）：响应窗口之前询问。
+    ShaIntercept,
+    /// 濒死求援顺序（兴衰：左手侧 → 自己最后）。
+    DyingLeftFirst,
 }
 
 /// 订阅（声明式）：事件 + 主体。handler 首行按 `subject` 校验（不再靠人记）。
@@ -298,21 +304,155 @@ pub fn availability(code: &str) -> Option<fn(&Game, usize) -> bool> {
     b0::availability(code).or_else(|| b1::availability(code))
 }
 
-/// **主动入口合法集**（唯一来源）：自带技能 ∩ 当前面 can_active ∩ 窗口允许 ∩ 可用性判定。
+/// **主动入口合法集**（唯一来源）：自带技能 ∩ 当前面 can_active ∩ 窗口允许 ∩ 可用性判定
+/// ∩ 限定技未使用（mechanics `limit-skill`）。
 ///
 /// 禁止各处拼「技能名清单」；UI 的 `skill:<code>` 选项与 `use_active` 校验都读这里。
 pub fn active_actions(g: &Game, seat: usize) -> Vec<&'static str> {
     all()
         .into_iter()
-        .filter(|d| owned(g, seat, d.code))
-        .filter(|d| {
-            d.faces
-                .iter()
-                .any(|f| f.can_active && f.window.allows(g.turn, g.phase, seat))
-        })
-        .filter(|d| availability(d.code).map(|f| f(g, seat)).unwrap_or(false))
+        .filter(|d| active_action_allowed(g, seat, d))
         .map(|d| d.code)
         .collect()
+}
+
+/// 单个技能定义是否可主动发动（纯函数，供门禁/用例直接测）。
+///
+/// 限定技（`SkillKind::Limited`）每局只能发动一次：已使用 → 不再出现在合法集/选项里。
+pub fn active_action_allowed(g: &Game, seat: usize, def: &SkillDef) -> bool {
+    if !owned(g, seat, def.code) {
+        return false;
+    }
+    if !limit_gate(def.kind, limited_used(g, seat, def.code)) {
+        return false;
+    }
+    if !def
+        .faces
+        .iter()
+        .any(|f| f.can_active && f.window.allows(g.turn, g.phase, seat))
+    {
+        return false;
+    }
+    availability(def.code).map(|f| f(g, seat)).unwrap_or(false)
+}
+
+/// 限定技门禁（mechanics `limit-skill`）：已使用的限定技不再出现在合法集/选项里。
+pub fn limit_gate(kind: SkillKind, used: bool) -> bool {
+    !(kind == SkillKind::Limited && used)
+}
+
+/// 限定技是否已使用（每局一次；存座位计数器，可回放）。
+pub fn limited_used(g: &Game, seat: usize, code: &str) -> bool {
+    g.seats
+        .get(seat)
+        .map(|s| s.counter(&format!("skill.limited.{code}")) > 0)
+        .unwrap_or(false)
+}
+
+/// 标记限定技已使用（唯一写入口；发动时调用）。
+pub fn mark_limited_used(g: &mut Game, seat: usize, code: &str) {
+    if let Some(s) = g.seats.get_mut(seat) {
+        s.add_counter(&format!("skill.limited.{code}"), 1);
+    }
+}
+
+/// 是否有【杀】结算前介入技能（`Hook::ShaIntercept`，mechanics `sha-intercept`）。
+pub fn has_sha_intercept(g: &Game, seat: usize) -> bool {
+    all().into_iter().any(|s| {
+        enabled(s.code)
+            && active(g, seat, s.code)
+            && s.faces
+                .iter()
+                .any(|f| f.hooks.iter().any(|h| *h == Hook::ShaIntercept))
+    })
+}
+
+/// 发起【杀】结算前介入询问（每个持有者一帧；handler 用 `card_play::declare_intercept` 写结果）。
+pub fn fire_sha_intercept(g: &mut Game, by: usize, target: usize, card: &str) {
+    let mut owners: Vec<&'static str> = Vec::new();
+    for s in all() {
+        if !enabled(s.code) || !active(g, target, s.code) {
+            continue;
+        }
+        if s.faces
+            .iter()
+            .any(|f| f.hooks.iter().any(|h| *h == Hook::ShaIntercept))
+        {
+            owners.push(s.code);
+        }
+    }
+    for code in owners {
+        super::resolve::push_ask(
+            g,
+            code,
+            Stage::Choose,
+            target,
+            json!({ "step": "sha_intercept", "by": by, "target": target, "card": card }),
+        );
+    }
+}
+
+/// 虚拟装备（mechanics `virtual-equip`）：真实同类装备优先；虚拟装备不占槽、不参与守恒。
+///
+/// 传入 defs 便于用例构造（生产入口 `virtual_equip` 用全量注册表）。
+pub fn virtual_equip_in(
+    defs: &[&SkillDef],
+    g: &Game,
+    seat: usize,
+    slot: super::Slot,
+) -> Option<&'static str> {
+    // 真实同类装备优先（有真实装备时虚拟装备失效）。
+    if super::gear::equip_in(g, seat, slot).is_some() {
+        return None;
+    }
+    for d in defs {
+        let provides = d
+            .faces
+            .iter()
+            .any(|f| f.hooks.iter().any(|h| matches!(h, Hook::VirtualEquip(s, _) if *s == slot)));
+        if !provides {
+            continue;
+        }
+        if !g
+            .seats
+            .get(seat)
+            .map(|s| s.skills.iter().any(|c| c == d.code) || s.granted.iter().any(|c| c == d.code))
+            .unwrap_or(false)
+        {
+            continue;
+        }
+        if let Some(f) = availability(d.code) {
+            if !f(g, seat) {
+                continue;
+            }
+        }
+        for face in d.faces {
+            for h in face.hooks {
+                if let Hook::VirtualEquip(s, code) = h {
+                    if *s == slot {
+                        return Some(code);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+/// 生产入口：当前座位的虚拟装备（真实槽位为空时才该被调用）。
+pub fn virtual_equip(g: &Game, seat: usize, slot: super::Slot) -> Option<&'static str> {
+    virtual_equip_in(&all(), g, seat, slot)
+}
+
+/// 濒死求援是否左手侧优先（兴衰；`Hook::DyingLeftFirst`）。
+pub fn dying_left_first(g: &Game, target: usize) -> bool {
+    all().into_iter().any(|s| {
+        enabled(s.code)
+            && active(g, target, s.code)
+            && s.faces
+                .iter()
+                .any(|f| f.hooks.iter().any(|h| *h == Hook::DyingLeftFirst))
+    })
 }
 
 /// 发动主动技（唯一入口）：校验合法 → 压技能帧（`Stage::Choose`）→ 推进到第一个 pending。

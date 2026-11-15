@@ -37,6 +37,7 @@ pub enum Stage {
     WuxieAsk,
     PindianInit,
     PindianResp,
+    PindianReveal,
     JudgeResolve,
     QuickJudge,
     // —— P1/P3 回合驱动与出牌/弃牌交互 ——
@@ -60,6 +61,7 @@ pub enum FlowKind {
     Card,
     Judge,
     Pindian,
+    Guhuo,
     QuickJudge,
     Discard,
 }

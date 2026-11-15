@@ -33,7 +33,11 @@
 | P5 ✅ | 装备结算 | 武器范围 + 特效（青釭/连弩/丈八/方天/古锭/朱雀…）+ 防具（八卦/仁王/藤甲/白银）+ 坐骑距离；特效=特殊技能注入 | 每件装备特效生效 |
 | P6 ✅ | 生命周期 | 开局（发身份/选将/初始手牌 4 张；主公只 +1 体力上限）/ 终局（胜负判定）/ 中断 | 5–8 人局可从开局到终局 |
 
-> **P1–P6 已全部验收 → 下一片 = B0 武将技能（据守/解围/不屈/奋激/行殇/放逐/颂威）。**
+> **2026-11-15 口径更正（用户裁定）**：P1–P6 只是「基础流程」，**不等于内核完备**；
+> 对照 `align/mechanics.json` 46 条机制词表时仍有 18 条缺口，据此开始武将批次属严重漂移。
+> 已补全并以门禁固化：`apps/scripts/lib/sgs3-mechanics.mjs` + `docs/games/sanguosha/v3-kernel-audit.md` +
+> `npm run check:sgs3-kernel`（46/46 锚点，缺一条即红）+ `tests/kernel_mechanics.rs`（25 条）。
+> **B0/B1 已写的武将技能必须在「内核完备」后重验，不再按「批次需要时才补机制」推进。**
 > B0 的 7 个 handler 已写但依赖 P1–P6（据守依赖 P1 回合驱动、颂威依赖 P2+P3 判定交互、放逐依赖 P3 选目标、
 > 不屈依赖 P4 濒死流程、解围依赖 P4 转化牌、奋激/行殇依赖 P2 事件生产），**必须先做实前置项，B0 技能才「被触发、有选择、真结算」**。
 
@@ -135,5 +139,6 @@
 | **B0 前置项收尾（第二轮审计）** | ✅ | 内奸独胜（用户口径：仅主+内奸存活杀主）/ 桃终局房规 / 兵粮距离 / 铁索重铸 / 装备替换事件 / 死者回合结束 / 五谷落盘事件；`tests/prereq_gaps.rs`（7）+ 7 人局端到端 |
 | **回放工具 V3 感知** | ✅ | `sgs-replay` 按快照形态分派 v3/v2 + v3 digest（单测）；道具中台仍读 v2（待口径确认） |
 | **B0 技能（7/7 ✅）** | ✅ | 据守/解围/不屈/奋激/行殇/放逐/颂威 全部按 `align/B0.json` 收口并挂载；`tests/{b0_real,b0_batch,b0}.rs`（22）；挂载开关 `skills::ENABLED_SKILLS` |
-| **下一片** | ⬜ | ① 真机人工抽检（R1–R7，B0 走查单）② B1 批次（18 技能）收口 |
+| **K 内核机制完备（46 条词表）** | ✅ 2026-11-15 | `v3-kernel-audit.md`（46/46）+ `tests/kernel_mechanics.rs`（25）+ `check:sgs3-kernel` 门禁；补 18 条缺口（pindian / virtual-card / hand-freeze / armor-points / reveal / no-wuxie / target-extra / multi-response / deck-carrier / aoe-target-trim / sha-intercept / judge-reversal / range-override / virtual-equip / equip-move / limit-skill / dying-aftermath / hidden-declaration） |
+| **下一片** | ⬜ | ① B1 收口（18 技能重验 + `tests/b1_real.rs` + pass 出口 + `ENABLED_SKILLS`）② B0 回归 ③ B2–B5 |
 | B2–B20 批量迁移 | ⬜ | — |
