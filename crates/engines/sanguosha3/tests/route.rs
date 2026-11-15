@@ -1,9 +1,8 @@
 //! M4.3 事件路由门禁：事件 → 订阅（窗口+subject）→ 压技能帧 → advance → handler。
 
 use sanguosha3::kernel::event::{Event, EventKind};
-use sanguosha3::kernel::resolve::advance;
-use sanguosha3::kernel::skills::{self};
-use sanguosha3::kernel::{Card, Game, Seat, Suit, Zone};
+use sanguosha3::kernel::resolve::{advance, submit};
+use sanguosha3::kernel::{flow, turn, Card, Game, Seat, Suit, Zone};
 
 fn seat(id: usize, skills: Vec<&str>) -> Seat {
     Seat {
@@ -39,47 +38,97 @@ fn add_deck(g: &mut Game, n: usize) {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn card_discarded_by_other_routes_to_fenji() {
+fn fenji_hook_asks_on_out_of_turn_discard() {
+    // 奋激由**手牌变动钩子**驱动（B0 收口：回合外 + 手牌进弃牌堆/增加 → 询问）。
     let mut g = game();
     add_deck(&mut g, 2);
-    // 其他角色（座位 1）手牌被弃置 → 奋激（subject=Other）触发
+    g.started = true;
+    g.turn = 2; // 他人回合（座位 1 回合外）
     let mut ev = Event::simple(EventKind::CardDiscarded, Some(1), Some("弃置"));
-    ev.turn = 2; // 他人回合（窗口 AnyTime 不限制，但快照要真实）
-    g.events.push(ev);
-    advance(&mut g).unwrap();
-    // 奋激：座位 0 失 1 体力，座位 1 摸 2
-    assert_eq!(g.seats[0].hp, 3, "奋激失去 1 体力");
-    let hand = g.cards.iter().filter(|(_, z)| **z == Zone::Hand(1)).count();
-    assert_eq!(hand, 2, "失牌角色摸 2");
-}
-
-#[test]
-fn own_card_discarded_does_not_route_to_fenji() {
-    let mut g = game();
-    // 自己（座位 0）弃牌 → 奋激 subject=Other 不触发
-    let mut ev = Event::simple(EventKind::CardDiscarded, Some(0), Some("弃置"));
     ev.turn = 2;
     g.events.push(ev);
+    g.cards.insert("h1".into(), Zone::Hand(1));
+    g.card_defs.insert(
+        "h1".into(),
+        Card { id: "h1".into(), def: "tao".into(), suit: Suit::Heart, rank: 3 },
+    );
+    flow::discard(&mut g, 1, "h1", "测试");
     advance(&mut g).unwrap();
-    assert_eq!(g.seats[0].hp, 4, "自己弃牌不触发奋激");
-    let hand = g.cards.iter().filter(|(_, z)| **z == Zone::Hand(0)).count();
-    assert_eq!(hand, 0, "没人摸牌");
+    assert_eq!(
+        g.pending.as_ref().map(|p| p.kind().to_string()),
+        Some("fenji_ask".into()),
+        "奋激先询问（不再自动发动）"
+    );
+    let hand = g.cards.iter().filter(|(_, z)| **z == Zone::Hand(1)).count();
+    submit(&mut g, 0, "choose:fenji").unwrap();
+    assert_eq!(g.seats[0].hp, 3, "奋激失去 1 体力");
+    assert_eq!(
+        g.cards.iter().filter(|(_, z)| **z == Zone::Hand(1)).count(),
+        hand + 2,
+        "失牌角色摸 2"
+    );
+}
+
+#[test]
+fn fenji_not_triggered_in_changed_player_own_turn() {
+    // 回合外口径：手牌变动者处于自己的回合时不触发（QQ1=A）。
+    let mut g = game();
+    g.started = true;
+    g.turn = 1;
+    g.cards.insert("h1".into(), Zone::Hand(1));
+    g.card_defs.insert(
+        "h1".into(),
+        Card { id: "h1".into(), def: "tao".into(), suit: Suit::Heart, rank: 3 },
+    );
+    flow::discard(&mut g, 1, "h1", "测试");
+    advance(&mut g).unwrap();
+    assert_eq!(g.seats[0].hp, 4, "自己回合内不触发奋激");
+    assert_ne!(
+        g.pending.as_ref().map(|p| p.kind().to_string()),
+        Some("fenji_ask".into())
+    );
 }
 
 // ---------------------------------------------------------------------------
-// 死亡事件 → 行殇
+// 死亡结算 → 行殇（清理前延后询问）
 // ---------------------------------------------------------------------------
 
 #[test]
-fn death_routes_to_xingshang() {
+fn death_settlement_defers_to_xingshang() {
     let mut g = game();
     g.cards.insert("h1".into(), Zone::Hand(1));
-    g.card_defs.insert("h1".into(), Card { id: "h1".into(), def: "tao".into(), suit: Suit::Heart, rank: 3 });
-    let mut ev = Event::simple(EventKind::Death, Some(1), None);
+    g.card_defs.insert(
+        "h1".into(),
+        Card { id: "h1".into(), def: "tao".into(), suit: Suit::Heart, rank: 3 },
+    );
+    turn::settle_death(&mut g, 1, None);
+    advance(&mut g).unwrap();
+    assert_eq!(
+        g.pending.as_ref().map(|p| p.kind().to_string()),
+        Some("xingshang_ask".into()),
+        "行殇在死亡清理前询问"
+    );
+    assert!(
+        g.log.iter().all(|e| e.kind != EventKind::Death),
+        "死亡事件等行殇结算后才 emit"
+    );
+    let hand = g.cards.iter().filter(|(_, z)| **z == Zone::Hand(1)).count();
+    submit(&mut g, 0, "choose:xingshang").unwrap();
+    assert_eq!(g.cards.get("h1"), Some(&Zone::Hand(0)), "行殇获得死亡角色手牌");
+    assert_eq!(hand, 1);
+    assert!(g.log.iter().any(|e| e.kind == EventKind::Death), "死亡事件已收口");
+}
+
+#[test]
+fn fenji_is_hook_driven_not_event_driven() {
+    // 直接推公共事件不再触发奋激（避免「订阅 + 钩子」双触发）。
+    let mut g = game();
+    let mut ev = Event::simple(EventKind::CardDiscarded, Some(1), None);
     ev.turn = 2;
     g.events.push(ev);
     advance(&mut g).unwrap();
-    assert_eq!(g.cards.get("h1"), Some(&Zone::Hand(0)), "行殇获得死亡角色手牌");
+    assert!(g.stack.is_empty());
+    assert_eq!(g.seats[0].hp, 4, "事件不再直接触发奋激");
 }
 
 // ---------------------------------------------------------------------------
@@ -99,16 +148,28 @@ fn setup_lifecycle_event_does_not_route() {
 }
 
 #[test]
-fn route_event_only_once_per_skill_per_event() {
+fn fenji_asks_once_per_hand_change() {
     let mut g = game();
     add_deck(&mut g, 2);
-    let mut ev = Event::simple(EventKind::CardDiscarded, Some(1), None);
-    ev.turn = 2;
-    g.events.push(ev);
+    g.started = true;
+    g.turn = 2;
+    g.cards.insert("h1".into(), Zone::Hand(1));
+    g.card_defs.insert(
+        "h1".into(),
+        Card { id: "h1".into(), def: "tao".into(), suit: Suit::Heart, rank: 3 },
+    );
+    flow::discard(&mut g, 1, "h1", "测试");
     advance(&mut g).unwrap();
-    // 奋激只触发一次（stack 清空，events 清空）
-    assert!(g.stack.is_empty());
-    assert!(g.events.is_empty());
-    assert_eq!(g.seats[0].hp, 3, "奋激只触发一次");
-    let _ = skills::handler("fenji");
+    // 一次手牌变动 → 只有一个待办（不重复询问）。
+    assert_eq!(
+        g.pending.as_ref().map(|p| p.kind().to_string()),
+        Some("fenji_ask".into())
+    );
+    submit(&mut g, 0, "pass").unwrap();
+    assert_ne!(
+        g.pending.as_ref().map(|p| p.kind().to_string()),
+        Some("fenji_ask".into()),
+        "放弃后不再追问"
+    );
+    assert_eq!(g.seats[0].hp, 4, "放弃不失去体力");
 }

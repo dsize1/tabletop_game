@@ -534,8 +534,37 @@ pub fn settle_death(g: &mut Game, seat: usize, killer: Option<usize>) -> Vec<Eve
     if !s.alive {
         return vec![];
     }
-    let victim_identity = s.identity;
     s.alive = false;
+    // 行殇（`align/B0.json` QQ1=B）：其他角色死亡时、**清理前**询问获得其手牌+装备（不含判定区）。
+    // 有持有者 → 延后清理（死亡事件/奖惩/胜负在 `finish_death` 里收口）。
+    if let Some(holder) = (0..g.seats.len()).find(|&i| {
+        i != seat
+            && g.seats[i].alive
+            && super::skills::active(g, i, "xingshang")
+            && super::skills::enabled("xingshang")
+    }) {
+        let has_cards = g.cards.iter().any(|(_, z)| {
+            z.seat() == Some(seat) && matches!(z, Zone::Hand(_) | Zone::Equip(..))
+        });
+        if has_cards {
+            super::resolve::push_ask(
+                g,
+                "xingshang",
+                super::resolve::Stage::Choose,
+                holder,
+                serde_json::json!({ "step": "ask", "victim": seat, "killer": killer }),
+            );
+            return vec![];
+        }
+    }
+    finish_death(g, seat, killer)
+}
+
+/// 死亡清理收口（弃所有牌 → Death 事件 → 奖惩 → 胜负）。
+///
+/// 由 `settle_death`（无行殇持有者时）或 `xingshang` 技能结束时调用（唯一收口）。
+pub fn finish_death(g: &mut Game, seat: usize, killer: Option<usize>) -> Vec<Event> {
+    let victim_identity = g.seats.get(seat).and_then(|s| s.identity);
     let mut events = vec![];
     // 弃所有牌：手牌/装备/判定区（判定区栈一并清空）。
     let owned: Vec<String> = g

@@ -7,14 +7,14 @@ mod common;
 
 use std::collections::BTreeMap;
 
-use common::{add, begin, end_turn, game, has_option, pending_actor, start_play, submit};
+use common::{add, begin, end_turn, game, has_option, pending_actor, submit};
 use game_engine_core::{EnginePlugin, EngineRegistry, GameManager, SeededRng};
 use sanguosha3::engine::lobby::{self, LobbyConfig, Setup};
 use sanguosha3::engine::{EngineState, SanguoshaEngine};
 use sanguosha3::kernel::event::{Event, EventKind, Window};
-use sanguosha3::kernel::resolve::{FrameInner, Stage};
+use sanguosha3::kernel::resolve::FrameInner;
 use sanguosha3::kernel::skills::{self, Face, Hook, SkillDef, SkillKind, Subscription};
-use sanguosha3::kernel::{turn, Game, Identity, Phase, Slot, Zone};
+use sanguosha3::kernel::{turn, Game, Phase, Slot, Zone};
 use serde_json::json;
 
 fn jushou_player(g: &mut Game) {
@@ -64,7 +64,7 @@ fn jushou_triggers_at_own_end_phase_and_follows_spec() {
     while g
         .pending
         .as_ref()
-        .map(|p| p.kind() == "jushou_limit")
+        .map(|p| p.kind() == "skill_limit" || p.kind() == "jushou_limit")
         .unwrap_or(false)
     {
         guard += 1;
@@ -81,7 +81,7 @@ fn jushou_triggers_at_own_end_phase_and_follows_spec() {
     );
     assert_ne!(
         g.pending.as_ref().map(|p| p.kind().to_string()).as_deref(),
-        Some("jushou_limit"),
+        Some("skill_limit"),
         "不再有据守弃牌询问"
     );
     assert_eq!(g.check_conservation(), Ok(()));
@@ -169,7 +169,9 @@ fn skill_mounting_only_enables_aligned_skills() {
     assert_eq!(skills::code_by_name("据守"), Some("jushou"));
     assert_eq!(skills::code_by_name("放逐"), Some("fangzhu"));
     assert!(skills::enabled("jushou"));
-    assert!(!skills::enabled("fangzhu"), "B0 其余技能未收口前不挂载");
+    for c in ["jiewei", "buqu", "fenji", "xingshang", "fangzhu", "songwei"] {
+        assert!(skills::enabled(c), "B0 批次已收口：{c}");
+    }
     assert!(!skills::enabled("yongsi"), "B1 批次整体未启用");
 
     // 选将收尾：曹仁 → 只挂据守（解围未收口）；曹丕 → 空。
@@ -190,8 +192,12 @@ fn skill_mounting_only_enables_aligned_skills() {
     });
     let mut rng = SeededRng::new(9);
     lobby::finish_setup(&mut g, &LobbyConfig::default(), &mut setup, &mut rng).unwrap();
-    assert_eq!(g.seats[0].skills, vec!["jushou".to_string()], "曹仁挂据守");
-    assert!(g.seats[2].skills.is_empty(), "未收口技能的武将暂不挂载");
+    assert_eq!(
+        g.seats[0].skills,
+        vec!["jushou".to_string(), "jiewei".to_string()],
+        "曹仁挂据守+解围（B0 收口）"
+    );
+    assert!(g.seats[2].skills.is_empty(), "未接入批次的武将不挂载");
 
     // 曹丕（行殇/放逐/颂威）目前不挂载任何技能。
     let mut g2 = turn::new_game(5);
@@ -207,7 +213,15 @@ fn skill_mounting_only_enables_aligned_skills() {
         lord_picked: true,
     });
     lobby::finish_setup(&mut g2, &LobbyConfig::default(), &mut setup2, &mut rng).unwrap();
-    assert!(g2.seats[0].skills.is_empty(), "曹丕技能未收口：不挂载");
+    assert_eq!(
+        g2.seats[0].skills,
+        vec![
+            "xingshang".to_string(),
+            "fangzhu".to_string(),
+            "songwei".to_string()
+        ],
+        "曹丕挂行殇/放逐/颂威（B0 收口）"
+    );
 }
 
 #[test]
@@ -241,7 +255,10 @@ fn jushou_runs_in_engine_room_end_phase() {
     });
     let mut rng = SeededRng::new(5);
     lobby::finish_setup(&mut es.kernel, &es.cfg, &mut es.setup, &mut rng).expect("finish setup");
-    assert_eq!(es.kernel.seats[0].skills, vec!["jushou".to_string()]);
+    assert_eq!(
+        es.kernel.seats[0].skills,
+        vec!["jushou".to_string(), "jiewei".to_string()]
+    );
     es.setup = None;
     manager.restore(es.to_state(&room, "g1"));
     // 座位 0 是主公先手：打空出牌阶段 → 弃牌 → 结束阶段触发据守。

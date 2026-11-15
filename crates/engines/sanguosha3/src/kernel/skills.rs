@@ -56,6 +56,8 @@ pub enum Hook {
     DamagePrevent,
     /// 牌对你无效（掣政①：攻击范围不含你的角色对你使用牌无效）。
     CardIneffective,
+    /// 手牌变动（奋激：回合外 手牌离开进弃牌堆 / 手牌增加）。
+    HandChanged,
 }
 
 /// 订阅（声明式）：事件 + 主体。handler 首行按 `subject` 校验（不再靠人记）。
@@ -104,7 +106,104 @@ pub fn all() -> Vec<&'static SkillDef> {
 ///
 /// B0 对齐进度：据守 ✅（本切片）→ 解围/不屈/奋激/行殇/放逐/颂威 按 `align/B0.json` 断言逐条补齐后追加；
 /// B1 批次同理（收口后才追加，避免「形状绿、语义错」的技能进真机）。
-pub const ENABLED_SKILLS: &[&str] = &["jushou"];
+pub const ENABLED_SKILLS: &[&str] = &[
+    // B0 批次（按 `align/B0.json` 逐条收口）
+    "jushou", "jiewei", "buqu", "fenji", "xingshang", "fangzhu", "songwei",
+];
+
+/// 手牌变动类型（奋激口径）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HandChange {
+    /// 手牌离开并进入弃牌堆。
+    Discarded,
+    /// 从其他区域/角色获得。
+    Gained,
+    /// 摸牌（摸牌阶段不计）。
+    Drawn,
+}
+
+/// **翻面（唯一入口）**：取反；`背面 → 正面` 时触发 `Hook::Flip`（解围②等）。
+pub fn flip_seat(g: &mut Game, seat: usize) {
+    let was_flipped = g.seats.get(seat).map(|s| s.flipped).unwrap_or(false);
+    if let Some(s) = g.seats.get_mut(seat) {
+        s.flipped = !was_flipped;
+    }
+    if was_flipped {
+        fire_hook(g, seat, Hook::Flip);
+    }
+}
+
+/// 触发某座位的某个钩子（**已收口**技能才触发；压技能帧，不直接执行）。
+pub fn fire_hook(g: &mut Game, seat: usize, hook: Hook) {
+    let mut to_push: Vec<&'static str> = Vec::new();
+    for skill in all() {
+        if !enabled(skill.code) || !active(g, seat, skill.code) {
+            continue;
+        }
+        for face in skill.faces {
+            if face.hooks.contains(&hook) && face.window.allows(g.turn, g.phase, seat) {
+                to_push.push(skill.code);
+                break;
+            }
+        }
+    }
+    for code in to_push {
+        super::resolve::push_ask(
+            g,
+            code,
+            Stage::Choose,
+            seat,
+            serde_json::json!({ "hook": format!("{hook:?}"), "step": "ask" }),
+        );
+    }
+}
+
+/// 手牌上限**覆盖**（不屈：「创」存在时 = 创数，取代体力值）。`None` = 用默认口径。
+pub fn hand_limit_override(g: &Game, seat: usize) -> Option<usize> {
+    if active(g, seat, "buqu") && enabled("buqu") {
+        let n = g.counter(&format!("buqu_total.{seat}"));
+        if n > 0 {
+            return Some(n as usize);
+        }
+    }
+    None
+}
+
+/// 手牌变动钩子（奋激）：满足「回合外 + 手牌离开进弃牌堆 / 手牌增加」时，
+/// 从变动者开始按座位顺序找**第一个**拥有奋激的存活角色并询问。
+pub fn on_hand_changed(g: &mut Game, seat: usize, change: HandChange) {
+    if !enabled("fenji") || !g.started {
+        return;
+    }
+    // 防递归：奋激自己造成的摸牌不再次触发。
+    let suppress = format!("fenji.suppress.{seat}");
+    if g.counter(&suppress) > 0 {
+        return;
+    }
+    // 摸牌阶段摸牌不计。
+    if change == HandChange::Drawn && g.phase == Phase::Draw {
+        return;
+    }
+    if !g.seats.get(seat).map(|s| s.alive).unwrap_or(false) {
+        return;
+    }
+    // 窗口：动作发生时不是该角色的回合（回合外）。
+    if g.turn == seat {
+        return;
+    }
+    let n = g.seats.len();
+    let holder = (0..n)
+        .map(|k| (seat + k) % n)
+        .find(|s| g.seats[*s].alive && active(g, *s, "fenji"));
+    let Some(holder) = holder else { return };
+    super::resolve::push_ask(
+        g,
+        "fenji",
+        Stage::Choose,
+        holder,
+        serde_json::json!({ "step": "ask", "victim": seat }),
+    );
+}
 
 /// 技能是否已收口可挂载（选将挂载与 AI/视图共用）。
 pub fn enabled(code: &str) -> bool {

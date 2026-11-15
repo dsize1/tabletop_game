@@ -69,7 +69,7 @@ fn jushou_asks_choice_first() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn fenji_loses_hp_and_draws_for_victim() {
+fn fenji_asks_then_loses_hp_and_draws_for_victim() {
     let mut g = game();
     for i in 0..2 {
         let id = format!("d{i}");
@@ -78,7 +78,15 @@ fn fenji_loses_hp_and_draws_for_victim() {
         g.deck.push(id);
     }
     let h = skills::handler("fenji").unwrap();
-    h(&mut g, &ask("fenji", 0, serde_json::json!({"victim": 1}))).unwrap();
+    let ask0 = ask("fenji", 0, serde_json::json!({"step": "ask", "victim": 1}));
+    // 先询问（`choose:fenji` / `pass`），不再自动发动。
+    let step = h(&mut g, &ask0).unwrap();
+    assert!(matches!(step, Step::NeedAt(_, _) | Step::Need(_)), "奋激先询问");
+    assert_eq!(g.seats[0].hp, 4, "询问阶段尚未失去体力");
+    // 模拟玩家选择发动。
+    g.answer = Some("choose:fenji".into());
+    g.answer_skill = Some("fenji".into());
+    h(&mut g, &ask0).unwrap();
     assert_eq!(g.seats[0].hp, 3, "奋激失去 1 体力");
     let hand = g.cards.iter().filter(|(_, z)| **z == Zone::Hand(1)).count();
     assert_eq!(hand, 2, "失牌角色摸 2");
@@ -94,14 +102,21 @@ fn xingshang_gains_hand_and_equip_but_not_judge() {
     g.cards.insert("h1".into(), Zone::Hand(1));
     g.cards.insert("e1".into(), Zone::Equip(1, sanguosha3::kernel::Slot::Weapon));
     g.cards.insert("j1".into(), Zone::Judge(1));
+    g.judge_stacks.entry(1).or_default().push("j1".into());
     for id in ["h1", "e1", "j1"] {
         g.card_defs.insert(id.into(), Card { id: id.into(), def: "sha".into(), suit: Suit::Spade, rank: 7 });
     }
+    g.seats[1].alive = false;
     let h = skills::handler("xingshang").unwrap();
-    h(&mut g, &ask("xingshang", 0, serde_json::json!({"victim": 1}))).unwrap();
+    let ask0 = ask("xingshang", 0, serde_json::json!({"step": "ask", "victim": 1}));
+    let step = h(&mut g, &ask0).unwrap();
+    assert!(matches!(step, Step::NeedAt(_, _) | Step::Need(_)), "行殇先询问");
+    g.answer = Some("choose:xingshang".into());
+    g.answer_skill = Some("xingshang".into());
+    h(&mut g, &ask0).unwrap();
     assert_eq!(g.cards.get("h1"), Some(&Zone::Hand(0)), "手牌被获得");
     assert_eq!(g.cards.get("e1"), Some(&Zone::Hand(0)), "装备被获得");
-    assert_eq!(g.cards.get("j1"), Some(&Zone::Judge(1)), "判定区不被获得");
+    assert_eq!(g.cards.get("j1"), Some(&Zone::Judge(1)), "判定区不被获得（QQ1=B）");
 }
 
 // ---------------------------------------------------------------------------
@@ -111,7 +126,7 @@ fn xingshang_gains_hand_and_equip_but_not_judge() {
 #[test]
 fn fangzhu_flips_target_and_draws_lost_hp() {
     let mut g = game();
-    g.seats[0].hp = 1; // 已损失 3
+    g.seats[0].hp = 1; // 已损失 3（无上限）
     for i in 0..3 {
         let id = format!("d{i}");
         g.cards.insert(id.clone(), Zone::Draw);
@@ -119,10 +134,25 @@ fn fangzhu_flips_target_and_draws_lost_hp() {
         g.deck.push(id);
     }
     let h = skills::handler("fangzhu").unwrap();
-    h(&mut g, &ask("fangzhu", 0, serde_json::json!({"target": 1}))).unwrap();
+    let mut step = h(&mut g, &ask("fangzhu", 0, serde_json::json!({"step": "ask"}))).unwrap();
+    assert!(matches!(step, Step::NeedAt(_, _) | Step::Need(_)), "放逐先选目标");
+    g.answer = Some("t:1".into());
+    g.answer_skill = Some("fangzhu".into());
+    // 目标 → 翻面 → 摸牌 → 上限（依次推进）。
+    let mut data = serde_json::json!({"step": "ask"});
+    for _ in 0..4 {
+        let a = ask("fangzhu", 0, data.clone());
+        step = h(&mut g, &a).unwrap();
+        match step {
+            Step::Next(_, next) => data = next,
+            _ => break,
+        }
+        g.answer = None;
+        g.answer_skill = None;
+    }
     assert!(g.seats[1].flipped, "目标翻面");
-    let hand = g.cards.iter().filter(|(_, z)| **z == Zone::Hand(1)).count();
-    assert_eq!(hand, 3, "摸 X=3（已损失体力）");
+    let hand = g.cards.iter().filter(|(_, z)| matches!(z, Zone::Hand(1))).count();
+    assert_eq!(hand, 3, "摸 X=3（已损失体力，无 min 5 上限）");
 }
 
 // ---------------------------------------------------------------------------
@@ -130,17 +160,20 @@ fn fangzhu_flips_target_and_draws_lost_hp() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn buqu_places_mark_and_revives() {
+fn buqu_moves_chuang_out_of_game_and_revives() {
     let mut g = game();
+    g.seats[0].skills = vec!["buqu".into()];
     g.seats[0].hp = 0;
     let id = "d0".to_string();
     g.cards.insert(id.clone(), Zone::Draw);
     g.card_defs.insert(id.clone(), Card { id: id.clone(), def: "sha".into(), suit: Suit::Spade, rank: 7 });
-    g.deck.push(id);
-    let h = skills::handler("buqu").unwrap();
-    h(&mut g, &ask("buqu", 0, serde_json::json!({}))).unwrap();
-    assert_eq!(g.seats[0].hp, 1, "创点数不同回 1");
-    assert!(g.cards.iter().any(|(_, z)| matches!(z, Zone::Mark(0, name) if name == "创")), "创进 mark 区");
+    g.deck.push(id.clone());
+    sanguosha3::kernel::flow::enter_dying(&mut g, 0, None);
+    assert_eq!(g.seats[0].hp, 1, "创点数不同 → 回复至 1");
+    assert_eq!(g.cards.get("d0"), Some(&Zone::Void), "创移出游戏（不产生弃置）");
+    assert_eq!(g.counter("buqu_total.0"), 1, "创数 1");
+    assert!(!g.stack.iter().any(|f| matches!(&f.inner, sanguosha3::kernel::resolve::FrameInner::Flow(ff) if ff.kind == sanguosha3::kernel::resolve::FlowKind::Dying)), "已脱离濒死，不压濒死帧");
+    assert_eq!(g.hand_limit(0), 1, "手牌上限 = 创数（QQ2=A）");
 }
 
 #[test]

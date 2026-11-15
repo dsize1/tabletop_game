@@ -713,6 +713,18 @@ fn step_wuxie(g: &mut Game, actor: usize, mut d: Map<String, Value>) -> Result<S
             d.insert("layers".into(), json!(layers + 1));
             d.insert("widx".into(), json!(0));
             return Ok(next(Stage::WuxieAsk, d));
+        } else if let Some(id) = ans.strip_prefix("equip:") {
+            // 解围①：装备区牌当【无懈可击】。
+            let ok = matches!(g.cards.get(id), Some(Zone::Equip(s, _)) if *s == asker)
+                && super::skills::active(g, asker, "jiewei")
+                && super::skills::enabled("jiewei");
+            if !ok {
+                return Err("解围：只能以自己装备区的牌当【无懈可击】".into());
+            }
+            play_from_equip(g, asker, id, "解围·无懈可击")?;
+            d.insert("layers".into(), json!(layers + 1));
+            d.insert("widx".into(), json!(0));
+            return Ok(next(Stage::WuxieAsk, d));
         } else if ans == "pass" {
             d.insert("widx".into(), json!(idx + 1));
             return Ok(next(Stage::WuxieAsk, d));
@@ -723,6 +735,13 @@ fn step_wuxie(g: &mut Game, actor: usize, mut d: Map<String, Value>) -> Result<S
     for id in g.hand(asker) {
         if def_of(g, &id).map(|c| c.tags.wuxie).unwrap_or(false) {
             b = b.option(format!("w:{id}"), "打出【无懈可击】");
+            any = true;
+        }
+    }
+    // 解围①：装备区牌当【无懈可击】。
+    if super::skills::active(g, asker, "jiewei") && super::skills::enabled("jiewei") {
+        for id in super::gear::equips_of(g, asker) {
+            b = b.option(format!("equip:{id}"), "解围：以装备牌当【无懈可击】");
             any = true;
         }
     }
@@ -1705,7 +1724,7 @@ fn own_cards(g: &Game, seat: usize) -> Vec<String> {
 }
 
 /// 把目标区域的一张牌移出（弃置/获得/弃置判定区牌）：走事件 + 判定区栈维护。
-fn remove_card(g: &mut Game, owner: usize, id: &str, cause: &str) {
+pub fn remove_card(g: &mut Game, owner: usize, id: &str, cause: &str) {
     let zone = g.cards.get(id).cloned();
     match zone {
         Some(Zone::Hand(_)) | Some(Zone::Equip(..)) => {
@@ -1761,6 +1780,26 @@ fn discard_processed(g: &mut Game, id: &str, cause: &str) {
     );
     let e = ev.snapshot(g);
     g.push_event(e);
+}
+
+/// 装备区牌当响应牌打出（解围①：装备牌当【无懈可击】）。
+fn play_from_equip(g: &mut Game, seat: usize, id: &str, cause: &str) -> Result<(), String> {
+    if !matches!(g.cards.get(id), Some(Zone::Equip(s, _)) if *s == seat) {
+        return Err(format!("{id} 不在座位 {seat} 的装备区"));
+    }
+    g.cards.insert(id.to_string(), Zone::Discard);
+    let mut lost = Event::card(EventKind::CardLost, Some(seat), id.to_string(), Some(cause.to_string()));
+    lost.by = Some(seat);
+    lost.from = Some(seat);
+    let e = lost.snapshot(g);
+    g.push_event(e);
+    flow::leave_equip(g, seat, id, cause);
+    let mut ev = Event::card(EventKind::CardPlayed, Some(seat), id.to_string(), Some(cause.to_string()));
+    ev.by = Some(seat);
+    ev.from = Some(seat);
+    let e = ev.snapshot(g);
+    g.push_event(e);
+    Ok(())
 }
 
 /// 从手牌**使用装备牌**（技能驱动入口：据守④「弃置的装备牌改为使用」等）。

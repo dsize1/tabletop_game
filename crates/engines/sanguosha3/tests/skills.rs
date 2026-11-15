@@ -1,7 +1,7 @@
 //! M4 技能层门禁：声明式 SkillDef + face + Subject 声明 + active 单一查询 + 授予技一等公民。
 
 use sanguosha3::kernel::event::{EventKind, Subject};
-use sanguosha3::kernel::skills::{self, SkillKind};
+use sanguosha3::kernel::skills::{self, Hook, SkillKind};
 use sanguosha3::kernel::{Game, Seat};
 
 fn seat(id: usize, skills: Vec<&str>) -> Seat {
@@ -53,14 +53,12 @@ fn buqu_is_locked() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn fenji_declares_other_subject() {
-    // 奋激：其他角色的手牌被弃置/获得 → subject = Other，不是 Self。
+fn fenji_is_hook_declared_not_event_subscribed() {
+    // 奋激（B0 收口）：改为**手牌变动钩子**驱动（回合外 + 进弃牌堆/手牌增加，排除摸牌阶段），
+    // 不再声明 CardDiscarded/CardGained 订阅——避免「事件 + 钩子」双触发。
     let fenji = skills::def("fenji").unwrap();
-    assert!(fenji.faces[0]
-        .subscriptions
-        .iter()
-        .all(|s| s.subject == Subject::Other));
-    assert!(fenji.faces[0].subscriptions.iter().any(|s| s.event == EventKind::CardDiscarded));
+    assert!(fenji.faces[0].subscriptions.is_empty());
+    assert!(fenji.faces[0].hooks.contains(&Hook::HandChanged));
 }
 
 #[test]

@@ -572,6 +572,10 @@ impl Game {
 
     /// 手牌上限（弃牌阶段用；体力值 + 技能修正，下限 0）。
     pub fn hand_limit(&self, seat: usize) -> usize {
+        // 技能覆盖（不屈：有「创」时 = 创数，取代体力值）。
+        if let Some(n) = skills::hand_limit_override(self, seat) {
+            return n;
+        }
         let hp = self.seats.get(seat).map(|s| s.hp.max(0) as usize).unwrap_or(0);
         let limit = hp.saturating_add_signed(skills::hand_limit_bonus(self, seat) as isize);
         if self.hand_cap > 0 {

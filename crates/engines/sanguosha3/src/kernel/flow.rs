@@ -160,6 +160,13 @@ pub fn enter_dying(g: &mut Game, seat: usize, by: Option<usize>) {
     if already {
         return;
     }
+    // 不屈（锁定，`align/B0.json`）：濒死自动翻「创」判定；点数不重复 → 回复至 1，脱离濒死。
+    if super::skills::active(g, seat, "buqu")
+        && super::skills::enabled("buqu")
+        && try_buqu(g, seat)
+    {
+        return;
+    }
     super::resolve::push_flow(
         g,
         super::resolve::FlowKind::Dying,
@@ -167,6 +174,37 @@ pub fn enter_dying(g: &mut Game, seat: usize, by: Option<usize>) {
         super::resolve::Stage::DyingAsk,
         serde_json::json!({ "target": seat, "by": by, "idx": 0 }),
     );
+}
+
+/// 不屈：翻一张「创」判定。点数与该座位已有「创」不重复 → 视为「创」移出游戏并回复至 1。
+///
+/// 返回 `true` = 已脱离濒死（不再压濒死帧）。
+fn try_buqu(g: &mut Game, seat: usize) -> bool {
+    let Some(r) = super::judge::judge(g, seat, "不屈") else {
+        return false;
+    };
+    let key = format!("buqu_rank.{seat}.{}", r.rank);
+    if g.counter(&key) > 0 {
+        // 重复：判定牌留在弃牌堆，仍濒死（继续求桃）。
+        return false;
+    }
+    // 不重复：作为「创」移出游戏（不产生弃置事件）。
+    g.cards.insert(r.card.clone(), super::Zone::Void);
+    let mut ev = Event::card(
+        EventKind::CardOutOfGame,
+        Some(seat),
+        r.card.clone(),
+        Some("不屈·创".to_string()),
+    );
+    ev.by = Some(seat);
+    let e = ev.snapshot(g);
+    g.push_event(e);
+    g.bump(&key);
+    g.bump(&format!("buqu_total.{seat}"));
+    if let Some(s) = g.seats.get_mut(seat) {
+        s.hp = 1;
+    }
+    true
 }
 
 /// 回复体力（唯一出口）：钳到 `max_hp`，满血不回（但不报错）。
@@ -262,6 +300,7 @@ pub fn draw(g: &mut Game, seat: usize, n: usize) -> Vec<CardId> {
         ev.phase = g.phase;
         g.push_event(ev);
         drawn.push(id);
+        super::skills::on_hand_changed(g, seat, super::skills::HandChange::Drawn);
     }
     drawn
 }
@@ -318,6 +357,9 @@ pub fn discard(g: &mut Game, by: usize, id: &str, cause: &str) -> Option<Event> 
     ev.turn = g.turn;
     ev.phase = g.phase;
     g.push_event(ev.clone());
+    if matches!(zone, super::Zone::Hand(_)) {
+        super::skills::on_hand_changed(g, owner, super::skills::HandChange::Discarded);
+    }
     Some(ev)
 }
 
@@ -343,6 +385,7 @@ pub fn gain(g: &mut Game, to: usize, id: &str, by: usize, cause: &str) -> Option
     ev.turn = g.turn;
     ev.phase = g.phase;
     g.push_event(ev.clone());
+    super::skills::on_hand_changed(g, to, super::skills::HandChange::Gained);
     Some(ev)
 }
 
