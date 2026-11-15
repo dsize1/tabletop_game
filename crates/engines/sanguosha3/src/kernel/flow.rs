@@ -47,6 +47,9 @@ pub fn damage(g: &mut Game, spec: DamageSpec, armor: ArmorKind, bonus: i32) -> V
     if super::skills::ask_damage_before(g, spec, armor, bonus) {
         return vec![];
     }
+    if super::skills::ask_damage_before_victim(g, spec, armor, bonus) {
+        return vec![];
+    }
     damage_apply(g, spec, armor, bonus)
 }
 
@@ -201,6 +204,10 @@ pub fn enter_dying(g: &mut Game, seat: usize, by: Option<usize>) {
         && super::skills::enabled("buqu")
         && try_buqu(g, seat)
     {
+        return;
+    }
+    // 兴衰（主公技+限定技）：先由其他魏势力逐个支援，再收口濒死。
+    if super::skills::fire_dying_enter(g, seat) {
         return;
     }
     super::resolve::push_flow(

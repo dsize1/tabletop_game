@@ -20,6 +20,7 @@ pub mod b1;
 pub mod b2;
 pub mod b3;
 pub mod b4;
+pub mod b5;
 
 /// 技能类型。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -71,6 +72,8 @@ pub enum Hook {
     UsePre,
     /// 造成伤害时、伤害结算之前（制蛮：可防止并取牌）。
     DamageBefore,
+    /// 濒死进入时（兴衰：其他魏势力逐个支援）。
+    DyingEnter,
 }
 
 /// 订阅（声明式）：事件 + 主体。handler 首行按 `subject` 校验（不再靠人记）。
@@ -118,6 +121,7 @@ pub fn all() -> Vec<&'static SkillDef> {
         .chain(b2::SKILLS.iter())
         .chain(b3::SKILLS.iter())
         .chain(b4::SKILLS.iter())
+        .chain(b5::SKILLS.iter())
         .collect()
 }
 
@@ -142,6 +146,9 @@ pub const ENABLED_SKILLS: &[&str] = &[
     // B4 批次（8 将 / 11 技能，2026-11-15 收口）
     "xiansi", "duodao", "anjian", "danshou", "sidi", "shenduan", "yonglue", "pindi", "faen",
     "benxi", "zhongyong",
+    // B5 批次（6 将 / 13 技能，2026-11-15 收口）
+    "zanhui", "jiaojin", "fenli", "pingkou", "shenxing", "bingyi", "huituo", "mingjian",
+    "xingshuai", "qianju", "qingxi", "huomo", "zuoding",
 ];
 
 /// 手牌变动类型（奋激口径）。
@@ -344,6 +351,7 @@ pub fn handler(code: &str) -> Option<fn(&mut Game, &Ask) -> Result<Step, String>
         .or_else(|| b2::handler(code))
         .or_else(|| b3::handler(code))
         .or_else(|| b4::handler(code))
+        .or_else(|| b5::handler(code))
 }
 
 /// 主动技的**可用性判定**（声明之外的前置：手牌/目标/每阶段次数等）。
@@ -354,6 +362,7 @@ pub fn availability(code: &str) -> Option<fn(&Game, usize) -> bool> {
         .or_else(|| b2::availability(code))
         .or_else(|| b3::availability(code))
         .or_else(|| b4::availability(code))
+        .or_else(|| b5::availability(code))
 }
 
 /// **主动入口合法集**（唯一来源）：自带技能 ∩ 当前面 can_active ∩ 窗口允许 ∩ 可用性判定
@@ -682,7 +691,9 @@ pub fn prevent_damage(g: &mut Game, victim: usize) -> bool {
 
 /// 手牌上限修正（`Hook::HandLimit`，唯一调用点 `Game::hand_limit`）。
 pub fn hand_limit_bonus(g: &Game, seat: usize) -> i32 {
-    let mut total = b2::hand_limit_bonus(g, seat) + b3::hand_limit_bonus(g, seat);
+    let mut total = b2::hand_limit_bonus(g, seat)
+        + b3::hand_limit_bonus(g, seat)
+        + b5::hand_limit_bonus(g, seat);
     for skill in all() {
         if !active(g, seat, skill.code) {
             continue;
@@ -699,6 +710,11 @@ pub fn hand_limit_bonus(g: &Game, seat: usize) -> i32 {
 }
 
 /// 距离修正（`Hook::Distance`，唯一调用点 `gear::distance`）。
+/// 动态距离修正（千驹：每损失 1 点体力 -1）。
+pub fn distance_bonus(g: &Game, seat: usize) -> i32 {
+    b5::distance_bonus(g, seat)
+}
+
 pub fn distance_modifier(g: &Game, seat: usize) -> i32 {
     let mut total = 0;
     for skill in all() {
@@ -737,7 +753,7 @@ pub fn card_ineffective(g: &Game, user: usize, target: usize) -> bool {
 
 /// 【杀】次数加成（`ShaLimit` 之外：咆哮/成略等 +N）。`card_play::sha_limit` 唯一调用点。
 pub fn sha_extra(g: &Game, seat: usize) -> i32 {
-    b1::sha_extra(g, seat) + b2::sha_extra(g, seat)
+    b1::sha_extra(g, seat) + b2::sha_extra(g, seat) + b5::sha_extra(g, seat)
 }
 
 /// 不能成为目标（掣政②/空城/帷幕…）。`card_play::legal_targets` 唯一调用点。
@@ -844,6 +860,78 @@ pub fn ask_damage_before(
         );
     }
     true
+}
+
+/// 受害者侧「造成伤害时」询问（骄矜：弃装备牌令伤害 -1）。
+pub fn ask_damage_before_victim(
+    g: &mut Game,
+    spec: super::DamageSpec,
+    _armor: super::ArmorKind,
+    _bonus: i32,
+) -> bool {
+    let Some(from) = spec.from else {
+        return false;
+    };
+    if !b5::should_ask_damage_before_victim(g, from, spec.target) {
+        return false;
+    }
+    let mut codes: Vec<&'static str> = Vec::new();
+    for s in all() {
+        if !enabled(s.code) || !active(g, spec.target, s.code) {
+            continue;
+        }
+        if s.faces
+            .iter()
+            .any(|f| f.hooks.iter().any(|h| *h == Hook::DamageBefore))
+        {
+            codes.push(s.code);
+        }
+    }
+    if codes.is_empty() {
+        return false;
+    }
+    for code in codes {
+        super::resolve::push_ask(
+            g,
+            code,
+            Stage::Choose,
+            spec.target,
+            json!({
+                "step": "ask",
+                "target": spec.target,
+                "from": from,
+                "amount": spec.amount,
+            }),
+        );
+    }
+    true
+}
+
+/// 濒死进入时询问（兴衰）：已压询问帧则返回 true（濒死帧由 handler 收口）。
+pub fn fire_dying_enter(g: &mut Game, seat: usize) -> bool {
+    if !b5::should_fire_dying_enter(g, seat) {
+        return false;
+    }
+    let mut pushed = false;
+    for s in all() {
+        if !enabled(s.code) || !active(g, seat, s.code) {
+            continue;
+        }
+        if s.faces
+            .iter()
+            .any(|f| f.hooks.iter().any(|h| *h == Hook::DyingEnter))
+        {
+            super::resolve::push_ask(
+                g,
+                s.code,
+                Stage::Choose,
+                seat,
+                json!({ "step": "ask", "target": seat, "cursor": 0, "helped": 0 }),
+            );
+            pushed = true;
+        }
+    }
+    pushed
 }
 
 /// 撤销技能（觉醒失去技能 / 临时授予到期；只动 owned，不碰 granted 的其它来源）。

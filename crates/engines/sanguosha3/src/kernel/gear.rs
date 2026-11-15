@@ -147,7 +147,7 @@ pub fn distance(g: &Game, from: usize, to: usize) -> usize {
         d += 1;
     }
     // 技能距离修正（马术 -1）：`Hook::Distance` 单出口。
-    d += super::skills::distance_modifier(g, from);
+    d += super::skills::distance_modifier(g, from) + super::skills::distance_bonus(g, from);
     d.max(1) as usize
 }
 
