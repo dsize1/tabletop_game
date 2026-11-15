@@ -289,7 +289,22 @@ pub fn advance(g: &mut super::Game) -> Result<(), String> {
         if g.pending.is_some() {
             return Ok(());
         }
-        // 2. 栈非空 → 跑栈顶帧。
+        // 2. 事件路由：栈空时；或栈顶是**回合流程帧**时（本次动作已结算完，回到回合帧
+        //    即按订阅派发，不必等整局无帧——否则常驻的回合帧会让技能永不触发）。
+        //    濒死/牌结算等其他帧在栈顶时不路由（濒死中断要先把救援结算完）。
+        let top_is_turn = g
+            .stack
+            .last()
+            .map(|f| {
+                matches!(&f.inner, FrameInner::Flow(ff) if ff.kind == crate::kernel::resolve::FlowKind::Turn)
+            })
+            .unwrap_or(true);
+        if top_is_turn && !g.events.is_empty() {
+            let ev = g.events.remove(0);
+            crate::kernel::skills::route_event(g, &ev);
+            continue;
+        }
+        // 3. 栈非空 → 跑栈顶帧。
         if let Some(idx) = g.stack.len().checked_sub(1) {
             let frame_id = g.stack[idx].id;
             let frame = g.stack[idx].clone();
@@ -304,21 +319,6 @@ pub fn advance(g: &mut super::Game) -> Result<(), String> {
                 }
             };
             apply_step(g, frame_id, step)?;
-            continue;
-        }
-        // 3. 事件路由：栈空时；或栈顶是**回合流程帧**时（本次动作已结算完，回到回合帧
-        //    即按订阅派发，不必等整局无帧——否则常驻的回合帧会让技能永不触发）。
-        //    濒死/牌结算等其他帧在栈顶时不路由（濒死中断要先把救援结算完）。
-        let top_is_turn = g
-            .stack
-            .last()
-            .map(|f| {
-                matches!(&f.inner, FrameInner::Flow(ff) if ff.kind == crate::kernel::resolve::FlowKind::Turn)
-            })
-            .unwrap_or(true);
-        if top_is_turn && !g.events.is_empty() {
-            let ev = g.events.remove(0);
-            crate::kernel::skills::route_event(g, &ev);
             continue;
         }
         // 4. 延迟队列：按顺序表派发（`TurnEndCheck` 只在当前回合结束阶段派发；陈旧项丢弃）。

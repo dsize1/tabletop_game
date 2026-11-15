@@ -833,7 +833,7 @@ fn step_effect(g: &mut Game, actor: usize, mut d: Map<String, Value>) -> Result<
     }
 }
 
-fn equip_card(g: &mut Game, actor: usize, card: &str, def: &CardDef) -> Result<Event, String> {
+pub(crate) fn equip_card(g: &mut Game, actor: usize, card: &str, def: &CardDef) -> Result<Event, String> {
     let old = super::gear::equip(g, actor, card);
     if let Some(old_id) = old {
         let mut lost = Event::card(
@@ -1761,6 +1761,17 @@ fn discard_processed(g: &mut Game, id: &str, cause: &str) {
     );
     let e = ev.snapshot(g);
     g.push_event(e);
+}
+
+/// 从手牌**使用装备牌**（技能驱动入口：据守④「弃置的装备牌改为使用」等）。
+pub fn equip_from_hand(g: &mut Game, actor: usize, card: &str) -> Result<(), String> {
+    let def = def_of(g, card)?;
+    if def.slot.is_none() {
+        return Err("不是装备牌".into());
+    }
+    equip_card(g, actor, card, &def)?;
+    finish_card(g, card);
+    Ok(())
 }
 
 /// 结算收尾：牌从处理区落盘（虚拟牌进 `Void`；装备/判定区已落位则不动）。

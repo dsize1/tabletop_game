@@ -697,7 +697,15 @@ pub fn finish_setup(
         seat.max_hp = def.max_hp + bonus;
         seat.hp = seat.max_hp;
         seat.alive = true;
-        seat.skills.clear();
+        // 技能挂载：中文名 → code（V3 注册表），只挂**已收口**批次（`skills::ENABLED_SKILLS`）。
+        seat.skills = def
+            .skills
+            .iter()
+            .filter_map(|n| crate::kernel::skills::code_by_name(n))
+            .filter(|c| crate::kernel::skills::enabled(c))
+            .map(|c| c.to_string())
+            .collect();
+        seat.skills.dedup();
         seat.granted.clear();
     }
     *setup = None;

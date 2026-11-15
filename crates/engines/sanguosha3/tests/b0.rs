@@ -45,7 +45,7 @@ fn handler_dispatches_b0_skills() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn jushou_flips_and_draws_four() {
+fn jushou_asks_choice_first() {
     let mut g = game();
     for i in 0..4 {
         let id = format!("d{i}");
@@ -55,10 +55,13 @@ fn jushou_flips_and_draws_four() {
     }
     let h = skills::handler("jushou").unwrap();
     let step = h(&mut g, &ask("jushou", 0, serde_json::json!({}))).unwrap();
-    assert_eq!(step, Step::Done);
-    assert!(g.seats[0].flipped, "据守翻面");
-    let hand = g.cards.iter().filter(|(_, z)| **z == Zone::Hand(0)).count();
-    assert_eq!(hand, 4, "据守摸 4");
+    // 据守是「结束阶段触发 + 先询问」（对齐 B0.json：`choose:jushou` / `pass`）。
+    assert!(
+        matches!(step, Step::NeedAt(_, _) | Step::Need(_)),
+        "据守先询问是否发动：{step:?}"
+    );
+    assert!(!g.seats[0].flipped, "询问阶段尚未翻面");
+    // 完整流程（翻面/摸 4/弃 1/上限）见 `tests/b0_real.rs`。
 }
 
 // ---------------------------------------------------------------------------

@@ -4,9 +4,12 @@
 //! 行为在本模块。handler 只返回 `Step`，栈由 `resolve::advance` 改（spike B 类）。
 //! 上下文（谁失牌/谁死亡/伤害来源）从 `Ask.data` 读事件快照，不读 live 状态。
 
-use serde_json::Value;
+use serde_json::{json, Value};
 
+use super::super::cards;
 use super::super::flow;
+use super::super::pending::PendingBuilder;
+use super::super::resolve::{take_answer, Stage};
 use super::super::resolve::{Ask, Step};
 use super::super::{Game, Zone};
 use super::{Face, Hook, SkillDef, SkillKind, Subscription};
@@ -27,12 +30,104 @@ pub fn handler(code: &str) -> Option<fn(&mut Game, &Ask) -> Result<Step, String>
     })
 }
 
-/// 据守：结束阶段翻面（取反）+ 摸 4 张。
+/// 据守（`align/B0.json`，Q1=B 取反）：结束阶段 → 翻面 → 摸 4 → 弃 1 张手牌（装备牌改为使用）
+/// → 按手牌上限弃牌收尾。
+///
+/// 交互：`choose:jushou` 发动 / `pass` 放弃；选牌 1 张（强制）；超上限时逐张强制弃置。
 fn jushou(g: &mut Game, ask: &Ask) -> Result<Step, String> {
     let seat = ask.actor;
-    g.seats[seat].flipped = !g.seats[seat].flipped; // 取反（B0 Q1 裁定 B）
-    flow::draw(g, seat, 4);
-    Ok(Step::Done)
+    let step = ask
+        .data
+        .get("step")
+        .and_then(|v| v.as_str())
+        .unwrap_or("ask");
+    let label = |g: &Game, id: &str| {
+        g.card_defs
+            .get(id)
+            .and_then(|c| cards::def(&c.def))
+            .map(|d| format!("【{}】", d.name))
+            .unwrap_or_else(|| id.to_string())
+    };
+    match step {
+        "ask" => {
+            if let Some(ans) = take_answer(g, "jushou") {
+                if ans != "choose:jushou" {
+                    return Ok(Step::Done);
+                }
+                // Q1=B：翻面是「取反」（背面→正面会触发解围②等翻面钩子）。
+                g.seats[seat].flipped = !g.seats[seat].flipped;
+                flow::draw(g, seat, 4);
+                return Ok(Step::Next(Stage::Choose, json!({ "step": "pick" })));
+            }
+            let b = PendingBuilder::new(seat, "jushou_ask")
+                .skill("jushou")
+                .option(
+                    "choose:jushou",
+                    "发动【据守】：翻面并摸四张牌，然后弃置一张手牌（装备牌改为使用）",
+                );
+            Ok(Step::NeedAt(Stage::Choose, b.escape("不发动").build()))
+        }
+        "pick" => {
+            if let Some(ans) = take_answer(g, "jushou") {
+                if let Some(id) = ans.strip_prefix("card:") {
+                    if !g.hand(seat).iter().any(|c| c == id) {
+                        return Err("据守：只能选择自己的手牌".into());
+                    }
+                    let is_equip = g
+                        .card_defs
+                        .get(id)
+                        .and_then(|c| cards::def(&c.def))
+                        .map(|d| d.slot.is_some())
+                        .unwrap_or(false);
+                    if is_equip {
+                        // ④ 装备牌：改为使用（进对应栏位；旧装备进弃牌堆 + 事件）。
+                        super::super::card_play::equip_from_hand(g, seat, id)?;
+                    } else {
+                        flow::discard(g, seat, id, "据守");
+                    }
+                } else if ans != "pass" {
+                    return Err(format!("据守：未知选项 {ans}"));
+                }
+                return Ok(Step::Next(
+                    Stage::DiscardPick,
+                    json!({ "step": "limit" }),
+                ));
+            }
+            if g.hand(seat).is_empty() {
+                return Ok(Step::Next(
+                    Stage::DiscardPick,
+                    json!({ "step": "limit" }),
+                ));
+            }
+            let mut b = PendingBuilder::new(seat, "jushou_pick").skill("jushou");
+            for id in g.hand(seat) {
+                b = b.option(format!("card:{id}"), label(g, &id));
+            }
+            Ok(Step::NeedAt(
+                Stage::PickOwn,
+                b.escape_mandatory("弃置一张手牌").build(),
+            ))
+        }
+        _ => {
+            // 收尾：按持有上限弃牌（摸 4 后可能超限）。
+            if let Some(ans) = take_answer(g, "jushou") {
+                if let Some(id) = ans.strip_prefix("card:") {
+                    flow::discard(g, seat, id, "据守（手牌上限）");
+                }
+            }
+            if g.hand_size(seat) <= g.hand_limit(seat) {
+                return Ok(Step::Done);
+            }
+            let mut b = PendingBuilder::new(seat, "jushou_limit").skill("jushou");
+            for id in g.hand(seat) {
+                b = b.option(format!("card:{id}"), label(g, &id));
+            }
+            Ok(Step::NeedAt(
+                Stage::DiscardPick,
+                b.escape_mandatory("弃至手牌上限").build(),
+            ))
+        }
+    }
 }
 
 /// 奋激：其他角色回合外手牌被弃置/获得 → 失去 1 体力令其摸 2 张。
@@ -131,10 +226,14 @@ pub static SKILLS: &[SkillDef] = &[
         grant_only: false,
         transform: false,
         faces: &[Face {
+            // 结束阶段开始时触发（`PhaseStart` + 自身结束阶段窗口；`turn::step_turn` 在进入 End 时 emit）。
             window: Window::OwnPhase(Phase::End),
-            subscriptions: &[],
+            subscriptions: &[Subscription {
+                event: EventKind::PhaseStart,
+                subject: Subject::Any,
+            }],
             hooks: &[],
-            can_active: true,
+            can_active: false,
         }],
     },
     SkillDef {

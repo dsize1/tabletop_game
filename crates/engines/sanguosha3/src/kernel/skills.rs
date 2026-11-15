@@ -100,6 +100,22 @@ pub fn all() -> Vec<&'static SkillDef> {
     b0::SKILLS.iter().chain(b1::SKILLS.iter()).collect()
 }
 
+/// **已收口可挂载**的技能（逐条放开；未列出的技能即使有 handler 也不进入对局）。
+///
+/// B0 对齐进度：据守 ✅（本切片）→ 解围/不屈/奋激/行殇/放逐/颂威 按 `align/B0.json` 断言逐条补齐后追加；
+/// B1 批次同理（收口后才追加，避免「形状绿、语义错」的技能进真机）。
+pub const ENABLED_SKILLS: &[&str] = &["jushou"];
+
+/// 技能是否已收口可挂载（选将挂载与 AI/视图共用）。
+pub fn enabled(code: &str) -> bool {
+    ENABLED_SKILLS.contains(&code)
+}
+
+/// 技能中文名 → code（只查**已注册**技能；未接入批次的武将技能名返回 None）。
+pub fn code_by_name(name: &str) -> Option<&'static str> {
+    all().into_iter().find(|s| s.name == name).map(|s| s.code)
+}
+
 /// 查技能定义。
 pub fn def(code: &str) -> Option<&'static SkillDef> {
     all().into_iter().find(|s| s.code == code)
