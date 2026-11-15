@@ -106,12 +106,36 @@ export function sgsBotsAdded(count: number, seats: number): string {
  * 坑：`get_state` 返回的是**公共视图**（引擎脱敏），三国杀的座位在
  * `data.public_board.seats`；直接读 `data.seats` 会得到 0（P6.3 `#加机器人` 回执踩过）。
  */
+/** 座位数（**不**过滤空 player_id：大厅阶段座位尚未填名字，也要计数）。 */
 export function sgsSeatCount(data: unknown): number {
   const d = (data ?? {}) as {
     seats?: unknown[];
     public_board?: { seats?: unknown[] };
+    kernel?: { seats?: unknown[] };
   };
-  return d.public_board?.seats?.length ?? d.seats?.length ?? 0;
+  return (d.public_board?.seats ?? d.seats ?? d.kernel?.seats ?? []).length;
+}
+
+/** 房主（v3：`data.kernel.host`；v2：`data.host`）。 */
+export function sgsHostOf(data: unknown): string | undefined {
+  const d = (data ?? {}) as { host?: unknown; kernel?: { host?: unknown } };
+  const host = d.host ?? d.kernel?.host;
+  return typeof host === "string" && host.trim() ? host : undefined;
+}
+
+/** 房间阶段（`lobby` / `setup` / 内核阶段）：v3 由 `lobby`/`setup` 是否存在决定。 */
+export function sgsPhaseOf(data: unknown): string | undefined {
+  const d = (data ?? {}) as {
+    phase?: unknown;
+    lobby?: unknown;
+    setup?: unknown;
+    kernel?: { phase?: unknown };
+  };
+  if (d.lobby != null) return "lobby";
+  if (d.setup != null) return "setup";
+  if (typeof d.phase === "string") return d.phase;
+  if (typeof d.kernel?.phase === "string") return d.kernel.phase;
+  return undefined;
 }
 
 /** 武将包组合 code → 中文标签（如 `standard+jiexian` → `标准 + 界限突破`）。 */
@@ -134,14 +158,15 @@ export function sgsPackLabel(mode: string): string {
 export function sgsSeatList(
   data: unknown,
 ): Array<{ player_id: string; is_bot?: boolean }> {
+  type RawSeat = { player_id?: string; name?: string; is_bot?: boolean; bot?: boolean };
   const d = (data ?? {}) as {
-    seats?: Array<{ player_id?: string; name?: string; is_bot?: boolean; bot?: boolean }>;
-    public_board?: {
-      seats?: Array<{ player_id?: string; name?: string; is_bot?: boolean; bot?: boolean }>;
-    };
+    seats?: RawSeat[];
+    public_board?: { seats?: RawSeat[] };
+    // v3（当前正式引擎，ADR-0043）：`data = { kernel: Game, cfg, lobby, setup }`。
+    kernel?: { seats?: RawSeat[] };
   };
-  // v1 原始 state 用 `player_id`/`is_bot`，v2 用 `name`/`bot`；视图投影统一 `player_id`/`is_bot`。
-  const raw = d.seats ?? d.public_board?.seats ?? [];
+  // v1 原始 state 用 `player_id`/`is_bot`，v2/v3 用 `name`/`bot`；视图投影统一 `player_id`/`is_bot`。
+  const raw = d.public_board?.seats ?? d.seats ?? d.kernel?.seats ?? [];
   return raw
     .map((s) => ({
       player_id: s.player_id ?? s.name ?? "",
@@ -224,8 +249,7 @@ export function sgsManageActor(
   data: unknown,
 ): string {
   if (!isGroupManager(role)) return senderId;
-  const host = (data as { host?: unknown } | undefined)?.host;
-  return typeof host === "string" && host.trim() ? host : senderId;
+  return sgsHostOf(data) ?? senderId;
 }
 
 /** 三国杀全局开关（紧急回滚；默认开）。`SGS_ROLLOUT=off|0|false` 关闭新开对局。 */

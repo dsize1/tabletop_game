@@ -39,11 +39,22 @@ pub enum Stage {
     PindianResp,
     JudgeResolve,
     QuickJudge,
+    // —— P1/P3 回合驱动与出牌/弃牌交互 ——
+    /// 回合流程帧的阶段推进。
+    PhaseStep,
+    /// 出牌阶段行动选择（出牌/技能/结束）。
+    PlayAct,
+    /// 弃牌阶段逐张弃置。
+    DiscardPick,
+    /// 牌结算的「效果结算」阶段（P4）。
+    CardResolve,
 }
 
 /// 内核流程帧类型（牌结算 / 濒死 / 无懈 / 拼点 / 判定 / 弃牌）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FlowKind {
+    /// 回合流程（P1：阶段机）。
+    Turn,
     Dying,
     Wuxie,
     Card,
@@ -89,6 +100,14 @@ impl Frame {
         Self { id, inner }
     }
 
+    /// 只切阶段（保留 data）：`Step::NeedAt` 用（询问后 handler 仍需读发起帧数据）。
+    pub fn set_stage(&mut self, stage: Stage) {
+        match &mut self.inner {
+            FrameInner::Ask(a) => a.stage = stage,
+            FrameInner::Flow(f) => f.stage = stage,
+        }
+    }
+
     pub fn set_stage_data(&mut self, stage: Stage, data: Value) {
         match &mut self.inner {
             FrameInner::Ask(a) => {
@@ -112,8 +131,11 @@ pub enum Step {
     Next(Stage, Value),
     /// 挂起，等待玩家输入（不改阶段）。
     Need(Pending),
-    /// 切阶段并立刻询问（避免「答完又走同一段」）。
+    /// 切阶段并立刻询问（避免「答完又走同一段」）。**保留**发起帧原有 data。
     NeedAt(Stage, Pending),
+    /// 切阶段 + **写回 data** + 挂起询问：handler 需要把中间状态（已选目标/已亮出的牌）
+    /// 存进发起帧数据时必须用它（`Need`/`NeedAt` 都不改 data，本地 Map 改动会被丢弃）。
+    NeedWith(Stage, Value, Pending),
     /// 结束 + 播报文案。
     Finish(String),
 }
@@ -183,7 +205,17 @@ pub fn apply_step(g: &mut super::Game, frame_id: u64, step: Step) -> Result<(), 
                 .iter_mut()
                 .find(|f| f.id == frame_id)
                 .ok_or_else(|| format!("帧 {frame_id} 已不存在"))?;
-            f.set_stage_data(stage, serde_json::Value::Null);
+            // 只切阶段，**不丢 data**：询问回复后 handler 仍按同一份数据继续。
+            f.set_stage(stage);
+            g.pending = Some(p);
+        }
+        Step::NeedWith(stage, data, p) => {
+            let f = g
+                .stack
+                .iter_mut()
+                .find(|f| f.id == frame_id)
+                .ok_or_else(|| format!("帧 {frame_id} 已不存在"))?;
+            f.set_stage_data(stage, data);
             g.pending = Some(p);
         }
         Step::Finish(_msg) => {
@@ -274,8 +306,17 @@ pub fn advance(g: &mut super::Game) -> Result<(), String> {
             apply_step(g, frame_id, step)?;
             continue;
         }
-        // 3. 栈空 → 路由最早的事件（按订阅压技能帧）。
-        if !g.events.is_empty() {
+        // 3. 事件路由：栈空时；或栈顶是**回合流程帧**时（本次动作已结算完，回到回合帧
+        //    即按订阅派发，不必等整局无帧——否则常驻的回合帧会让技能永不触发）。
+        //    濒死/牌结算等其他帧在栈顶时不路由（濒死中断要先把救援结算完）。
+        let top_is_turn = g
+            .stack
+            .last()
+            .map(|f| {
+                matches!(&f.inner, FrameInner::Flow(ff) if ff.kind == crate::kernel::resolve::FlowKind::Turn)
+            })
+            .unwrap_or(true);
+        if top_is_turn && !g.events.is_empty() {
             let ev = g.events.remove(0);
             crate::kernel::skills::route_event(g, &ev);
             continue;

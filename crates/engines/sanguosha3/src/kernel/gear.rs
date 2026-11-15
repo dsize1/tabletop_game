@@ -63,7 +63,7 @@ fn has_horse(g: &Game, seat: usize, slot: Slot) -> bool {
     equip_in(g, seat, slot).is_some()
 }
 
-/// 距离（座位环 + 进攻马 -1 + 目标防御马 +1，下限 1；自己到自己的距离 = 0）。
+/// 距离（座位环 + 进攻马 -1 + 目标防御马 +1 + 技能修正，下限 1；自己到自己的距离 = 0）。
 pub fn distance(g: &Game, from: usize, to: usize) -> usize {
     let n = g.seats.len();
     if from == to || n <= 1 {
@@ -78,5 +78,38 @@ pub fn distance(g: &Game, from: usize, to: usize) -> usize {
     if has_horse(g, to, Slot::HorseDefense) {
         d += 1;
     }
+    // 技能距离修正（马术 -1）：`Hook::Distance` 单出口。
+    d += super::skills::distance_modifier(g, from);
     d.max(1) as usize
+}
+
+/// 使用【杀】是否无视目标防具（青釭剑）。
+pub fn ignores_armor(g: &Game, seat: usize) -> bool {
+    weapon_of(g, seat) == WeaponKind::Qinggang
+}
+
+/// 装备区全部牌（按牌 id 排序 = 确定性）。
+pub fn equips_of(g: &Game, seat: usize) -> Vec<String> {
+    let mut ids: Vec<String> = g
+        .cards
+        .iter()
+        .filter(|(_, z)| matches!(z, Zone::Equip(s, _) if *s == seat))
+        .map(|(id, _)| id.clone())
+        .collect();
+    ids.sort();
+    ids
+}
+
+/// 坐骑（进攻/防御）牌 id（麒麟弓「弃置其一张坐骑牌」唯一查询）。
+pub fn horses_of(g: &Game, seat: usize) -> Vec<String> {
+    let mut ids: Vec<String> = g
+        .cards
+        .iter()
+        .filter(|(_, z)| {
+            matches!(z, Zone::Equip(s, Slot::HorseOffense) | Zone::Equip(s, Slot::HorseDefense) if *s == seat)
+        })
+        .map(|(id, _)| id.clone())
+        .collect();
+    ids.sort();
+    ids
 }

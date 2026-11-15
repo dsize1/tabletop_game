@@ -58,7 +58,11 @@ fn die_sets_alive_false_and_discards_cards() {
     let evs = die(&mut g, 2);
     assert!(!g.seats[2].alive);
     assert_eq!(g.cards.get("h1"), Some(&Zone::Discard), "死亡弃牌");
-    assert_eq!(evs[0].kind, sanguosha3::kernel::event::EventKind::Death);
+    assert!(
+        evs.iter().any(|e| e.kind == sanguosha3::kernel::event::EventKind::Death),
+        "死亡事件（P2：弃牌事件同时 emit，不再保证是第一项）"
+    );
+    assert!(g.events.iter().any(|e| e.kind == sanguosha3::kernel::event::EventKind::Death), "事件已进队列");
 }
 
 #[test]

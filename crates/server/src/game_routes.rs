@@ -249,7 +249,7 @@ fn decision_context(
     let digest = state
         .games
         .get_state(room_id)
-        .and_then(|s| sanguosha2::ai::state_digest_of(&s));
+        .and_then(|s| sanguosha3::engine::bot::state_digest_of(&s));
     (legal, digest)
 }
 
@@ -283,21 +283,24 @@ fn capture_replay_base(state: &AppState, game_id: &str, room_id: &str) {
 /// 15 × 200 = 3000 步/局（与计划台账的 3000 步告警口径一致）。
 const DRIVE_CHAIN_ROUNDS: usize = 15;
 
+/// 单次请求内的机器人推进上限（与 v2 口径一致：200 步/请求）。
+const DRIVE_MAX_STEPS: usize = 200;
+
 /// 把机器人回合推进到人类回合/终局（最多 `DRIVE_MAX_STEPS` 步）。
 ///
 /// - 只推进 `seat.is_bot` 的座位；人类回合立刻停（正常停点）；
 /// - 每步动作都按同一链路落 `game_events` + 快照（与人类动作一致）；
 /// - 拿到房间锁才推进；已有推进在跑则跳过（并发保护，页面轮询兜底）；
 /// - 到达单请求上限且仍在机器人回合 → 后台链式续推（否则全 AI 局会永久停在 bot 回合）。
-fn drive_bots(state: &AppState, room_id: &str) -> sanguosha2::ai::DriveReport {
+fn drive_bots(state: &AppState, room_id: &str) -> sanguosha3::engine::bot::DriveReport {
     let report = drive_bots_once(state, room_id);
-    if report.stop == Some(sanguosha2::ai::StopReason::MaxSteps) && !report.finished {
+    if report.stop == Some(sanguosha3::engine::bot::StopReason::MaxSteps) && !report.finished {
         let state = state.clone();
         let room_id = room_id.to_string();
         tokio::task::spawn_blocking(move || {
             for _ in 0..DRIVE_CHAIN_ROUNDS {
                 let next = drive_bots_once(&state, &room_id);
-                if next.finished || next.stop != Some(sanguosha2::ai::StopReason::MaxSteps) {
+                if next.finished || next.stop != Some(sanguosha3::engine::bot::StopReason::MaxSteps) {
                     break;
                 }
             }
@@ -306,20 +309,20 @@ fn drive_bots(state: &AppState, room_id: &str) -> sanguosha2::ai::DriveReport {
     report
 }
 
-fn drive_bots_once(state: &AppState, room_id: &str) -> sanguosha2::ai::DriveReport {
+fn drive_bots_once(state: &AppState, room_id: &str) -> sanguosha3::engine::bot::DriveReport {
     let Some(_guard) = state.bot_drive.try_acquire(room_id) else {
         tracing::debug!("房间 {room_id} 已有机器人推进在跑，跳过本次");
-        return sanguosha2::ai::DriveReport::default();
+        return sanguosha3::engine::bot::DriveReport::default();
     };
     // 机器人回合开始前写回放基线（若尚无）。
     if let Some(gs) = state.games.get_state(room_id) {
         capture_replay_base(state, &gs.game_id, room_id);
     }
     crate::metrics::Metrics::inc(&state.metrics.drives);
-    let report = sanguosha2::ai::drive_bots(
+    let report = sanguosha3::engine::bot::drive_bots(
         &state.games,
         room_id,
-        sanguosha2::ai::MAX_STEPS,
+        DRIVE_MAX_STEPS,
         |game_state, events| match persist(state, game_state, events) {
             Ok(seq) => seq,
             Err(e) => {
@@ -340,11 +343,11 @@ fn drive_bots_once(state: &AppState, room_id: &str) -> sanguosha2::ai::DriveRepo
                 player_id: &d.actor,
                 source: "bot",
                 legal: &d.legal,
-                candidates: Some(&d.candidates),
-                chosen: Some(&d.chosen),
+                candidates: None,
+                chosen: Some(d.action.as_str()),
                 score: Some(d.score),
-                reason: Some(&d.reason),
-                state_digest: Some(&d.state_digest),
+                reason: Some(d.reason.as_str()),
+                state_digest: Some(d.state_digest.as_str()),
                 latency_ms: Some(d.latency_ms),
             },
         );

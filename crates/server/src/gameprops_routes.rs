@@ -252,18 +252,21 @@ pub async fn import_heroes(
 
 /// 从**引擎静态数据**同步牌定义 / 物理牌 / 武将 / 技能 / 关联（中台可见「已制作」）。
 ///
-/// 口径（S5 起）：引擎 **v2**（`crates/engines/sanguosha2`）是「已实现」的唯一真相：
+/// 口径（2026-11-14 起，ADR-0043）：引擎 **V3**（`crates/engines/sanguosha3`）是唯一真相：
 /// - 牌定义/物理牌来自生成物 `cards_generated::{DEFS, DECK}`（160 张）；
-/// - 武将来自生成物 `generals_generated::GENERALS`（147 live / 85 offline）；状态与引擎一致；
-/// - 技能来自 v2 注册表（`skills::{code_by_name, def}`），只登记**已实现**技能。
+/// - 武将来自生成物 `generals_generated::GENERALS`（232 名录：**147 live + 85 offline** + 0 review）；
+///   重名（界化）原版由生成器标 `Offline`（与引擎选将池同口径）；
+/// - 技能来自 V3 注册表 `kernel::skills::all()`（按 B0–B20 批次接入，**只登记已实现**技能）。
 /// 官网原始数据（`heroes.json`，696 候选）仍走 `/import/heroes`（draft），两者互补。
 /// 幂等：牌定义/武将/技能按 code，物理牌按保留 id 段重写。
 pub async fn import_engine(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<Json<Value>, ApiError> {
-    use sanguosha2::cards_generated::{DECK, DEFS};
-    use sanguosha2::generals::{Status, GENERALS};
+    use sanguosha3::cards_generated::{DECK, DEFS};
+    use sanguosha3::generals_generated::{Status, GENERALS};
+    use sanguosha3::kernel::cards::{Category, TargetMode};
+    use sanguosha3::kernel::Slot;
 
     require_admin(&state, &headers)?;
 
@@ -316,44 +319,39 @@ pub async fn import_engine(
         cpack_ids.insert(code, pack_id(&state, "card", code, name, sort)?);
     }
 
-    // 2) 牌定义（v2 生成物 44 条，含 v1 未登记的 木牛流马 等）
+    // 2) 牌定义（V3 生成物 44 条，含 木牛流马）
     let mut card_defs = 0usize;
     for r in DEFS {
-        let category = match r.kind {
-            sanguosha2::cards::CardKind::Basic => "basic",
-            sanguosha2::cards::CardKind::Trick => {
-                if r.delayed {
-                    "delayed_trick"
-                } else {
-                    "trick"
-                }
-            }
-            sanguosha2::cards::CardKind::Equip => match r.slot {
-                Some(sanguosha2::kernel::Slot::Weapon) => "weapon",
-                Some(sanguosha2::kernel::Slot::Armor) => "armor",
-                Some(sanguosha2::kernel::Slot::Treasure) => "treasure",
+        let category = match r.category {
+            Category::Basic => "basic",
+            Category::Trick => "trick",
+            Category::DelayedTrick => "delayed_trick",
+            Category::Equip => match r.slot {
+                Some(Slot::Weapon) => "weapon",
+                Some(Slot::Armor) => "armor",
+                Some(Slot::Treasure) => "treasure",
                 _ => "horse",
             },
         };
         let equip_slot = match r.slot {
-            Some(sanguosha2::kernel::Slot::Weapon) => Some("weapon"),
-            Some(sanguosha2::kernel::Slot::Armor) => Some("armor"),
-            Some(sanguosha2::kernel::Slot::HorseOffense) => Some("horse_offense"),
-            Some(sanguosha2::kernel::Slot::HorseDefense) => Some("horse_defense"),
-            Some(sanguosha2::kernel::Slot::Treasure) => Some("treasure"),
+            Some(Slot::Weapon) => Some("weapon"),
+            Some(Slot::Armor) => Some("armor"),
+            Some(Slot::HorseOffense) => Some("horse_offense"),
+            Some(Slot::HorseDefense) => Some("horse_defense"),
+            Some(Slot::Treasure) => Some("treasure"),
             None => None,
         };
         // 中台约束：`range_type` 只对坐骑有值（武器只记 `range_value`）。
         let (range_value, range_type) = match r.slot {
-            Some(sanguosha2::kernel::Slot::HorseOffense) => (r.horse, Some("attack")),
-            Some(sanguosha2::kernel::Slot::HorseDefense) => (r.horse, Some("defense")),
-            Some(sanguosha2::kernel::Slot::Weapon) => (r.weapon_range, None),
+            Some(Slot::HorseOffense) => (r.horse, Some("attack")),
+            Some(Slot::HorseDefense) => (r.horse, Some("defense")),
+            Some(Slot::Weapon) => (r.weapon_range, None),
             _ => (None, None),
         };
         let target_mode = match r.target_mode {
-            sanguosha2::cards::TargetMode::AllAlive => Some("aoe"),
-            sanguosha2::cards::TargetMode::Chosen => Some("single"),
-            sanguosha2::cards::TargetMode::SelfOnly => None,
+            TargetMode::AllAlive => Some("aoe"),
+            TargetMode::Chosen | TargetMode::Single => Some("single"),
+            TargetMode::SelfOnly | TargetMode::None => None,
         };
         let mut row = serde_json::Map::new();
         row.insert("code".into(), json!(r.code));
@@ -369,7 +367,7 @@ pub async fn import_engine(
         card_defs += 1;
     }
 
-    // 3) 物理牌（v2 生成物 160 张；保留 id 段重写）
+    // 3) 物理牌（V3 生成物 160 张；保留 id 段重写）
     const ENGINE_CARD_ID_BASE: i64 = 1_000_000;
     state
         .storage
@@ -380,12 +378,12 @@ pub async fn import_engine(
         let Some(pid) = cpack_ids.get(c.pack) else {
             continue;
         };
-        let def_code = sanguosha2::cards::code_of(c.name).unwrap_or(c.name);
+        let def_code = sanguosha3::kernel::cards::code_of(c.name).unwrap_or(c.name);
         let suit = match c.suit {
-            sanguosha2::kernel::Suit::Spade => "spade",
-            sanguosha2::kernel::Suit::Heart => "heart",
-            sanguosha2::kernel::Suit::Club => "club",
-            sanguosha2::kernel::Suit::Diamond => "diamond",
+            sanguosha3::kernel::Suit::Spade => "spade",
+            sanguosha3::kernel::Suit::Heart => "heart",
+            sanguosha3::kernel::Suit::Club => "club",
+            sanguosha3::kernel::Suit::Diamond => "diamond",
         };
         let mut row = serde_json::Map::new();
         row.insert("id".into(), json!(ENGINE_CARD_ID_BASE + cards as i64));
@@ -398,10 +396,15 @@ pub async fn import_engine(
         cards += 1;
     }
 
-    // 4) 武将 + 技能 + 关联（v2 生成物名录 + v2 技能注册表）
+    // 4) 武将 + 技能 + 关联（V3 生成物名录 + V3 技能注册表）
     let mut generals = 0usize;
     let mut skills_n = 0usize;
     let mut links = 0usize;
+    // 技能中文名 → code（V3 注册表 = 已实现技能的唯一来源；未接入的技能不登记）。
+    let mut skill_codes: std::collections::HashMap<&'static str, &'static str> = Default::default();
+    for def in sanguosha3::kernel::skills::all() {
+        skill_codes.insert(def.name, def.code);
+    }
     for g in GENERALS {
         let Some(pid) = gpack_ids.get(g.pack) else {
             continue;
@@ -430,15 +433,23 @@ pub async fn import_engine(
         generals += 1;
 
         for (idx, name) in g.skills.iter().enumerate() {
-            // 只登记 v2 注册表里**已实现**的技能（未实现的技能不进中台「已制作」）。
-            let Some(code) = sanguosha2::skills::code_by_name(name) else {
+            // 只登记 V3 注册表里**已实现**的技能（未接入批次的不进中台「已制作」）。
+            let Some(code) = skill_codes.get(name).copied() else {
                 continue;
             };
-            if let Some(def) = sanguosha2::skills::def(code) {
+            if let Some(def) = sanguosha3::kernel::skills::def(code) {
+                let kind = match def.kind {
+                    sanguosha3::kernel::skills::SkillKind::Normal => "normal",
+                    sanguosha3::kernel::skills::SkillKind::Locked => "locked",
+                    sanguosha3::kernel::skills::SkillKind::Limited => "limited",
+                    sanguosha3::kernel::skills::SkillKind::Awaken => "awaken",
+                    sanguosha3::kernel::skills::SkillKind::Lord => "lord",
+                    sanguosha3::kernel::skills::SkillKind::Equip => "equip",
+                };
                 let mut srow = serde_json::Map::new();
                 srow.insert("code".into(), json!(def.code));
                 srow.insert("name".into(), json!(def.name));
-                srow.insert("type".into(), json!("normal"));
+                srow.insert("type".into(), json!(kind));
                 srow.insert("description".into(), json!(""));
                 srow.insert("status".into(), json!("live"));
                 upsert(&state, "sgs_skills", srow)?;
@@ -462,7 +473,7 @@ pub async fn import_engine(
             "skills": skills_n,
             "general_skills": links,
         },
-        "source": "engine v2: crates/engines/sanguosha2/{cards_generated,generals_generated,skills}",
+        "source": "engine v3: crates/engines/sanguosha3/{cards_generated,generals_generated,kernel::skills}",
     })))
 }
 

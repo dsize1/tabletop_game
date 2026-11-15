@@ -356,6 +356,11 @@ export function renderPersonalArea(
           const card = a.id.slice("use:".length).split(":")[0];
           return handIds.has(card) ? card : null;
         }
+        // v3：`card:<id>` / `card:<id>:fire`（朱雀羽扇转化）。
+        if (a.id.startsWith("card:")) {
+          const card = a.id.slice("card:".length).split(":")[0];
+          return handIds.has(card) ? card : null;
+        }
         const m1 = /^skill:[a-z_]+:(.+)$/.exec(a.id);
         if (m1 && handIds.has(m1[1])) return m1[1];
         const m2 = /^convert:[a-z_]+:([^:]+):/.exec(a.id);

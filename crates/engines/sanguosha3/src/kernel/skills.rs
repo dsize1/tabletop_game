@@ -202,6 +202,12 @@ pub fn active_actions(g: &Game, seat: usize) -> Vec<&'static str> {
 
 /// 发动主动技（唯一入口）：校验合法 → 压技能帧（`Stage::Choose`）→ 推进到第一个 pending。
 pub fn use_active(g: &mut Game, seat: usize, code: &str) -> Result<(), String> {
+    start_active(g, seat, code)?;
+    super::resolve::advance(g)
+}
+
+/// 只压帧不推进（内核回合流程帧内使用；**禁止**在流程帧 handler 里递归 `advance`）。
+pub fn start_active(g: &mut Game, seat: usize, code: &str) -> Result<(), String> {
     if !active_actions(g, seat).iter().any(|c| *c == code) {
         return Err(format!("技能 {code} 当前不可主动使用"));
     }
@@ -213,7 +219,7 @@ pub fn use_active(g: &mut Game, seat: usize, code: &str) -> Result<(), String> {
         seat,
         serde_json::json!({ "active": true, "face": face, "step": "choose" }),
     );
-    super::resolve::advance(g)
+    Ok(())
 }
 
 /// 事件快照 → handler 上下文（`data`）。**只读快照**，不读 live 状态。
@@ -346,9 +352,66 @@ pub fn prevent_damage(g: &mut Game, victim: usize) -> bool {
     b1::prevent_damage(g, victim)
 }
 
+/// 手牌上限修正（`Hook::HandLimit`，唯一调用点 `Game::hand_limit`）。
+pub fn hand_limit_bonus(g: &Game, seat: usize) -> i32 {
+    let mut total = 0;
+    for skill in all() {
+        if !active(g, seat, skill.code) {
+            continue;
+        }
+        for face in skill.faces {
+            for h in face.hooks {
+                if let Hook::HandLimit(n) = h {
+                    total += *n;
+                }
+            }
+        }
+    }
+    total
+}
+
+/// 距离修正（`Hook::Distance`，唯一调用点 `gear::distance`）。
+pub fn distance_modifier(g: &Game, seat: usize) -> i32 {
+    let mut total = 0;
+    for skill in all() {
+        if !active(g, seat, skill.code) {
+            continue;
+        }
+        for face in skill.faces {
+            for h in face.hooks {
+                if let Hook::Distance(n) = h {
+                    total += *n;
+                }
+            }
+        }
+    }
+    total
+}
+
+/// 【杀】次数是否无限（`Hook::ShaLimit`，连弩/喀嗇）。`card_play::sha_used_limit` 唯一调用点。
+pub fn sha_unlimited(g: &Game, seat: usize) -> bool {
+    all().into_iter().any(|skill| {
+        active(g, seat, skill.code)
+            && skill
+                .faces
+                .iter()
+                .any(|f| f.hooks.iter().any(|h| *h == Hook::ShaLimit))
+    })
+}
+
 /// 牌对目标是否**无效**（掣政①）。`card_play` 唯一调用点。
 pub fn card_ineffective(g: &Game, user: usize, target: usize) -> bool {
     b1::card_ineffective(g, user, target)
+}
+
+/// 【杀】次数加成（`ShaLimit` 之外：咆哮/成略等 +N）。`card_play::sha_limit` 唯一调用点。
+pub fn sha_extra(g: &Game, seat: usize) -> i32 {
+    b1::sha_extra(g, seat)
+}
+
+/// 不能成为目标（掣政②/空城/帷幕…）。`card_play::legal_targets` 唯一调用点。
+pub fn deny_target(g: &Game, user: usize, target: usize) -> bool {
+    b1::deny_target(g, user, target)
 }
 
 /// 门禁自检：注册表不得出现重复 code。

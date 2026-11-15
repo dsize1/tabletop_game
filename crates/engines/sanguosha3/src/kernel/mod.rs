@@ -10,6 +10,7 @@ pub mod flow;
 pub mod gear;
 pub mod generals;
 pub mod identity;
+pub mod judge;
 pub mod pending;
 pub mod resolve;
 pub mod skills;
@@ -25,6 +26,9 @@ pub type CardId = String;
 /// 终局轮次阈值（房规，2026-11-11 用户裁定，沿用 v2）：`round > ENDGAME_ROUND` 起
 /// 【桃】/【桃园结义】回血无效，濒死救援不受限。单一判定入口 `Game::endgame_no_heal`。
 pub const ENDGAME_ROUND: u32 = 100;
+
+/// 历史日志上限（超出丢弃最旧的；`Game.log` 不再是无限 append-only）。
+pub const LOG_MAX: usize = 400;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Suit {
@@ -135,10 +139,25 @@ pub enum Winner {
     Spy,
 }
 
+fn default_true() -> bool {
+    true
+}
+
 /// 座位（存活/死亡是显式状态，见 constitution I2）。
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+///
+/// `Default` 手写：性别默认「男」（`derive(Default)` 会把 `male` 变 false，与「未选将=男」口径不符）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Seat {
     pub id: usize,
+    /// 玩家 id（引擎侧 `EnginePlugin` 的 player_id；内核结算不读它，只用于视图/权限映射）。
+    #[serde(default)]
+    pub name: String,
+    /// 机器人座位（引擎/AI 推进用）。
+    #[serde(default)]
+    pub bot: bool,
+    /// 武将 code（选将结果；内核结算不读它，技能/视图读）。
+    #[serde(default)]
+    pub general: String,
     pub hp: i32,
     pub max_hp: i32,
     /// 显式存活状态：只有 `flow::die` 置 false；濒死（hp≤0）仍是存活。
@@ -152,9 +171,15 @@ pub struct Seat {
     /// 身份（None = 未分配/未选将）。
     #[serde(default)]
     pub identity: Option<Identity>,
+    /// 性别（选将时由 `generals::apply_to_seat` 从生成物落地；默认男 = 与旧夹具兼容）。
+    #[serde(default = "default_true")]
+    pub male: bool,
     /// 翻面（背面朝上）。
     #[serde(default)]
     pub flipped: bool,
+    /// 横置（铁索连环；属性伤害在横置角色间传导）。
+    #[serde(default)]
+    pub chained: bool,
     /// 势力（`wei`/`shu`/`wu`/`qun`；空串 = 未定）。庸肆 X / 立军「吴势力」等按此判定。
     #[serde(default)]
     pub kingdom: String,
@@ -164,6 +189,29 @@ pub struct Seat {
     /// 转换技当前面（skill code → face 索引；默认 0。声明 `transform = true` 的技能才读）。
     #[serde(default)]
     pub faces: HashMap<String, u8>,
+}
+
+impl Default for Seat {
+    fn default() -> Self {
+        Self {
+            id: 0,
+            name: String::new(),
+            bot: false,
+            general: String::new(),
+            hp: 0,
+            max_hp: 0,
+            alive: false,
+            granted: vec![],
+            skills: vec![],
+            identity: None,
+            male: true,
+            flipped: false,
+            chained: false,
+            kingdom: String::new(),
+            counters: HashMap::new(),
+            faces: HashMap::new(),
+        }
+    }
 }
 
 impl Seat {
@@ -314,6 +362,9 @@ pub struct Game {
     /// 待路由事件队列（结算产生 → 栈空后按订阅路由给技能）。
     #[serde(default)]
     pub events: Vec<event::Event>,
+    /// **事件历史日志**（append-only；调试/真机验收/事件生产门禁读它，不被路由消费）。
+    #[serde(default)]
+    pub log: Vec<event::Event>,
     /// 回合/阶段/临时计数器（**唯一入口** `counter`/`bump`/`set_counter`）：
     /// 键自带命名空间（`turn.*` / `phase.*` / `deny.*` / `binglue.*`），回合切换清 `turn.*`。
     #[serde(default)]
@@ -322,9 +373,67 @@ pub struct Game {
     /// 与 `counters` 区别：这里存**字符串事实**，不参与数值运算。
     #[serde(default)]
     pub marks: HashMap<String, String>,
+    /// 额外回合队列（P1：`extra_turn` 由技能/牌插入，下一个回合轮到时优先消费）。
+    #[serde(default)]
+    pub extra_turns: Vec<usize>,
+    /// 本回合待跳过的阶段（P1：`skip_phase` 插入；回合切换时清空）。
+    #[serde(default)]
+    pub skipped: Vec<Phase>,
+    /// 已开局（`turn::begin_game` 置 true；引擎入口用它拒绝非法写动作）。
+    #[serde(default)]
+    pub started: bool,
+    /// 房主（`lobby` 阶段权限；开局后保留给 `#中断` 判定）。
+    #[serde(default)]
+    pub host: Option<String>,
+    /// 第几个回合（从 1 起；视图 `turn_index`/历史用）。
+    #[serde(default)]
+    pub turn_seq: u64,
+    /// 中断原因（`turn::abort` 之外由引擎写入；`Some` 表示本局废弃不结算）。
+    #[serde(default)]
+    pub abort_reason: Option<String>,
+    /// 房规手牌持有上限（0 = 用体力值；`hand_limit` 唯一读点）。
+    #[serde(default)]
+    pub hand_cap: usize,
+    /// 内核随机数状态（牌堆耗尽重洗；由引擎用注入的 `RandomSource` 播种，可序列化回放）。
+    #[serde(default)]
+    pub rng: u64,
+    /// 事件序号（单调；`Event.seq` 的来源）。
+    #[serde(default)]
+    pub log_seq: u64,
 }
 
 impl Game {
+    /// 事件唯一入队口（P2）：同时进「待路由队列」与「历史日志」。
+    ///
+    /// 任何结算路径都必须走这里（直接 `events.push` 会让事件历史漏记，门禁会查）。
+    pub fn push_event(&mut self, mut ev: event::Event) {
+        self.log_seq += 1;
+        ev.seq = self.log_seq;
+        self.events.push(ev.clone());
+        self.log.push(ev);
+        // 历史日志封顶：快照每次动作都会整份序列化，日志无上限会让长局 O(n²)。
+        if self.log.len() > LOG_MAX {
+            let drop = self.log.len() - LOG_MAX;
+            self.log.drain(0..drop);
+        }
+    }
+
+    /// xorshift64*（可序列化、可回放；只用于牌堆重洗等内核随机）。
+    pub fn rand_below(&mut self, n: usize) -> usize {
+        if n <= 1 {
+            return 0;
+        }
+        let mut x = self.rng;
+        if x == 0 {
+            x = 0x9E37_79B9_7F4A_7C15;
+        }
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        self.rng = x;
+        (x.wrapping_mul(0x2545_F491_4F6C_DD1D) % n as u64) as usize
+    }
+
     /// 牌区唯一归属（`zone-ownership`）：每张牌恰好在一个区，且区总数 == 牌实例总数。
     pub fn check_conservation(&self) -> Result<(), String> {
         // 每张牌实例必须有且仅有唯一区域归属。
@@ -435,5 +544,40 @@ impl Game {
         self.seats
             .iter()
             .position(|s| s.alive && s.identity == Some(Identity::Lord))
+    }
+
+    /// 存活座位（升序；**确定性**，替代 `seats.iter().enumerate()` 各处自拼）。
+    pub fn alive_seats(&self) -> Vec<usize> {
+        self.seats
+            .iter()
+            .filter(|s| s.alive)
+            .map(|s| s.id)
+            .collect()
+    }
+
+    /// 是否是当前回合角色。
+    pub fn is_turn(&self, seat: usize) -> bool {
+        self.turn == seat
+    }
+
+    /// player_id → 座位号（`Seat.name` 唯一）。
+    pub fn seat_of(&self, player_id: &str) -> Option<usize> {
+        self.seats.iter().position(|s| s.name == player_id)
+    }
+
+    /// 对局是否已结束（胜负已定或已中断）。
+    pub fn finished(&self) -> bool {
+        self.winner.is_some() || self.abort_reason.is_some()
+    }
+
+    /// 手牌上限（弃牌阶段用；体力值 + 技能修正，下限 0）。
+    pub fn hand_limit(&self, seat: usize) -> usize {
+        let hp = self.seats.get(seat).map(|s| s.hp.max(0) as usize).unwrap_or(0);
+        let limit = hp.saturating_add_signed(skills::hand_limit_bonus(self, seat) as isize);
+        if self.hand_cap > 0 {
+            limit.min(self.hand_cap)
+        } else {
+            limit
+        }
     }
 }

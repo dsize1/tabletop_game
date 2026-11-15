@@ -1,4 +1,15 @@
-//! 生成的武将名录（V3 最小字段：势力/体力/性别/主公）。**勿手改**：由 gen:sgs-engine-data 生成。
+//! 生成的武将名录（V3：势力/体力/性别/主公/技能名）。**勿手改**：由 gen:sgs-engine-data 生成。
+
+/// 武将状态（与 v2 / 道具中台 `sgs_generals.status` **同口径**）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Status {
+    /// 可选将池（四包内 + 未被界化版本去重）。
+    Live,
+    /// 下线（被「界/将」同名去重排除的原版）。
+    Offline,
+    /// 待审批（不在已登记完整包内的武将）。
+    Review,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct GeneralDef {
@@ -13,6 +24,10 @@ pub struct GeneralDef {
     pub male: bool,
     pub max_hp: i32,
     pub lord: bool,
+    /// 技能中文名（**只用于展示/契约**；V3 的 name→code 映射按批次建，未实现前技能不挂载）。
+    pub skills: &'static [&'static str],
+    /// 选将池状态（`Live` 才进候选；`Offline` = 被界化版本取代的原版）。
+    pub status: Status,
 }
 
 pub const GENERALS: &[GeneralDef] = &[
@@ -25,6 +40,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: true,
+        skills: &["仁德", "激将"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_2",
@@ -35,6 +52,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["武圣"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_3",
@@ -45,6 +64,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["咆哮"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_4",
@@ -55,6 +76,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["观星", "空城"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_5",
@@ -65,6 +88,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["龙胆"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_6",
@@ -75,6 +100,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["铁骑", "马术"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_7",
@@ -85,6 +112,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: false,
         max_hp: 3,
         lord: false,
+        skills: &["集智", "奇才"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_8",
@@ -95,6 +124,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: true,
+        skills: &["制衡", "救援"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_9",
@@ -105,6 +136,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["奇袭"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_10",
@@ -115,6 +148,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["克己"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_11",
@@ -125,6 +160,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["苦肉"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_12",
@@ -135,6 +172,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["英姿", "反间"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_13",
@@ -145,6 +184,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: false,
         max_hp: 3,
         lord: false,
+        skills: &["国色", "流离"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_14",
@@ -155,6 +196,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["谦逊", "连营"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_15",
@@ -165,6 +208,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: true,
+        skills: &["奸雄", "护驾"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_16",
@@ -175,6 +220,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["反馈", "鬼才"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_17",
@@ -185,6 +232,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["刚烈"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_18",
@@ -195,6 +244,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["突袭"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_19",
@@ -205,6 +256,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["裸衣"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_20",
@@ -215,6 +268,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["天妒", "遗计"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_21",
@@ -225,6 +280,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: false,
         max_hp: 3,
         lord: false,
+        skills: &["洛神", "倾国"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_22",
@@ -235,6 +292,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["急救", "青囊"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_23",
@@ -245,6 +304,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["无双"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_24",
@@ -255,6 +316,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: false,
         max_hp: 3,
         lord: false,
+        skills: &["闭月", "离间"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_25",
@@ -265,6 +328,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: false,
         max_hp: 3,
         lord: false,
+        skills: &["枭姬", "结姻"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_27",
@@ -275,6 +340,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["狂骨", "奇谋"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_28",
@@ -285,6 +352,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["神速"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_29",
@@ -295,6 +364,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["据守", "解围"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_30",
@@ -305,6 +376,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: false,
         max_hp: 3,
         lord: false,
+        skills: &["红颜", "天香"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_34",
@@ -315,6 +388,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["强袭"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_35",
@@ -325,6 +400,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["驱虎", "节命"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_36",
@@ -335,6 +412,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["连环", "涅槃"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_37",
@@ -345,6 +424,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["八阵", "火计", "看破"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_38",
@@ -355,6 +436,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["天义"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_39",
@@ -365,6 +448,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["马术", "鞬出"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_40",
@@ -375,6 +460,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["双雄"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_41",
@@ -385,6 +472,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: true,
+        skills: &["乱击", "血裔"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_42",
@@ -395,6 +484,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["断粮", "截辎"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_43",
@@ -405,6 +496,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: true,
+        skills: &["行殇", "放逐", "颂威"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_44",
@@ -415,6 +508,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["英魂"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_45",
@@ -425,6 +520,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 8,
         lord: true,
+        skills: &["酒池", "肉林", "崩坏", "暴虐"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_46",
@@ -435,6 +532,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: false,
         max_hp: 4,
         lord: false,
+        skills: &["巨象", "烈刃"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_47",
@@ -445,6 +544,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["祸首", "再起"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_48",
@@ -455,6 +556,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["完杀", "乱武", "帷幕"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_49",
@@ -465,6 +568,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["好施", "缔盟"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_50",
@@ -475,6 +580,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["巧变"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_51",
@@ -485,6 +592,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["屯田", "凿险"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_52",
@@ -495,6 +604,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["挑衅", "志继"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_53",
@@ -505,6 +616,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: true,
+        skills: &["享乐", "放权", "若愚"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_54",
@@ -515,6 +628,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: true,
+        skills: &["激昂", "魂姿", "制霸"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_55",
@@ -525,6 +640,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["直谏", "固政"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_56",
@@ -535,6 +652,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["化身", "新生"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_57",
@@ -545,6 +664,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: false,
         max_hp: 3,
         lord: false,
+        skills: &["悲歌", "断肠"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_61",
@@ -555,6 +676,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["烈弓"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_100",
@@ -565,6 +688,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["庸肆", "伪帝"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_210",
@@ -575,6 +700,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["不屈", "奋激"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_211",
@@ -585,6 +712,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["蛊惑"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_212",
@@ -595,6 +724,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: true,
+        skills: &["鬼道", "黄天", "雷击"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_362",
@@ -605,6 +736,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["奇制", "进趋"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_400",
@@ -615,6 +748,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["拒战"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_401",
@@ -625,6 +760,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["飞军", "兵略"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_402",
@@ -635,6 +772,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["怀橘", "遗礼", "整论"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_403",
@@ -645,6 +784,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: true,
+        skills: &["溃诛", "掣政", "立军"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_404",
@@ -655,6 +796,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["荐降", "审时"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_406",
@@ -665,6 +808,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["成略", "恃才", "寸目"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_407",
@@ -675,6 +820,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["明任", "贞良"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_408",
@@ -685,6 +832,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["镇骨"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_409",
@@ -695,6 +844,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["往烈"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_410",
@@ -705,6 +856,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["罪论", "父荫"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_411",
@@ -715,6 +868,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: false,
         max_hp: 3,
         lord: false,
+        skills: &["良姻", "箜声"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_413",
@@ -725,6 +880,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["征荣", "鸿举"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_414",
@@ -735,6 +892,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["谦节", "决堰", "破势"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_415",
@@ -745,6 +904,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["雄乱", "从谏"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_151",
@@ -755,6 +916,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["落英", "酒诗"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_152",
@@ -765,6 +928,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["陷阵", "禁酒"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_153",
@@ -775,6 +940,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["明策", "智迟"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_155",
@@ -785,6 +952,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["旋风"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_156",
@@ -795,6 +964,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["散谣", "制蛮"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_157",
@@ -805,6 +976,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: false,
         max_hp: 3,
         lord: false,
+        skills: &["甘露", "补益"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_158",
@@ -815,6 +988,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["破军"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_160",
@@ -825,6 +1000,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["镇军"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_161",
@@ -835,6 +1012,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: false,
         max_hp: 3,
         lord: false,
+        skills: &["绝情", "伤逝"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_162",
@@ -845,6 +1024,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["将驰"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_164",
@@ -855,6 +1036,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["奇策", "智愚"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_166",
@@ -865,6 +1048,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["当先", "伏枥"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_167",
@@ -875,6 +1060,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["马术", "潜袭"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_168",
@@ -885,6 +1072,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: false,
         max_hp: 3,
         lord: false,
+        skills: &["安恤", "追忆"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_169",
@@ -895,6 +1084,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["疠火", "醇醪"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_170",
@@ -905,6 +1096,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["弓骑", "解烦"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_171",
@@ -915,6 +1108,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 6,
         lord: false,
+        skills: &["恃勇"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_172",
@@ -925,6 +1120,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["自守", "宗室"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_173",
@@ -935,6 +1132,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["权计", "自立"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_174",
@@ -945,6 +1144,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["称象", "仁心"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_175",
@@ -955,6 +1156,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["精策"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_176",
@@ -965,6 +1168,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["峻刑", "御策"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_177",
@@ -975,6 +1180,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["龙吟"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_178",
@@ -985,6 +1192,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["巧说", "纵适"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_179",
@@ -995,6 +1204,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["陷嗣"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_180",
@@ -1005,6 +1216,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["夺刀", "暗箭"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_181",
@@ -1015,6 +1228,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["纵玄", "直言"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_182",
@@ -1025,6 +1240,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["胆守"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_183",
@@ -1035,6 +1252,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: false,
         max_hp: 3,
         lord: false,
+        skills: &["惴恐", "求援"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_184",
@@ -1045,6 +1264,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["灭计", "绝策", "焚城"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_185",
@@ -1055,6 +1276,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["恩怨", "眩惑"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_186",
@@ -1065,6 +1288,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["无言", "举荐"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_187",
@@ -1075,6 +1300,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: false,
         max_hp: 3,
         lord: false,
+        skills: &["贞烈", "秘计"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_188",
@@ -1085,6 +1312,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["父魂"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_321",
@@ -1095,6 +1324,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["司敌"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_322",
@@ -1105,6 +1336,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["慎断", "勇略"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_323",
@@ -1115,6 +1348,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["品第", "法恩"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_324",
@@ -1125,6 +1360,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["奔袭"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_325",
@@ -1135,6 +1372,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["忠勇"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_326",
@@ -1145,6 +1384,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["强识", "献图"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_327",
@@ -1155,6 +1396,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: false,
         max_hp: 3,
         lord: false,
+        skills: &["谮毁", "骄矜"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_328",
@@ -1165,6 +1408,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["奋励", "平寇"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_329",
@@ -1175,6 +1420,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["慎行", "秉壹"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_330",
@@ -1185,6 +1432,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["渐营", "矢北"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_331",
@@ -1195,6 +1444,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: false,
         max_hp: 3,
         lord: false,
+        skills: &["窃听", "献州"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_332",
@@ -1205,6 +1456,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: true,
+        skills: &["恢拓", "明鉴", "兴衰"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_333",
@@ -1215,6 +1468,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["千驹", "倾袭"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_334",
@@ -1225,6 +1480,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["活墨", "佐定"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_335",
@@ -1235,6 +1492,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: true,
+        skills: &["战绝", "勤王"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_336",
@@ -1245,6 +1504,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: false,
         max_hp: 3,
         lord: false,
+        skills: &["樵拾", "燕语"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_337",
@@ -1255,6 +1516,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["怃戎", "矢志"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_338",
@@ -1265,6 +1528,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: true,
+        skills: &["宴诛", "兴学", "诏缚"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_339",
@@ -1275,6 +1540,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["安国"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_340",
@@ -1285,6 +1552,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["邀名"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_341",
@@ -1295,6 +1564,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["怀异"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_342",
@@ -1305,6 +1576,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["急攻", "饰非"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_380",
@@ -1315,6 +1588,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: false,
         max_hp: 3,
         lord: false,
+        skills: &["矫诏", "殚心"],
+        status: Status::Offline,
     },
     GeneralDef {
         code: "sgs_hero_381",
@@ -1325,6 +1600,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["督粮", "腹鳞"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_382",
@@ -1335,6 +1612,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["匡弼"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_383",
@@ -1345,6 +1624,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 2,
         lord: false,
+        skills: &["止戈", "宗祚"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_384",
@@ -1355,6 +1636,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["极奢", "链祸"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_385",
@@ -1365,6 +1648,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["瑰藻", "讥谀"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_386",
@@ -1375,6 +1660,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["寝情", "贿生"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_387",
@@ -1385,6 +1672,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["滔乱"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_388",
@@ -1395,6 +1684,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: false,
         max_hp: 3,
         lord: false,
+        skills: &["忠鉴", "才识"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_389",
@@ -1405,6 +1696,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: false,
         max_hp: 3,
         lord: false,
+        skills: &["福绵", "怠宴"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_390",
@@ -1415,6 +1708,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: false,
         max_hp: 3,
         lord: false,
+        skills: &["问卦", "伏诛"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_391",
@@ -1425,6 +1720,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: false,
         max_hp: 3,
         lord: false,
+        skills: &["守玺", "惠民"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_392",
@@ -1435,6 +1732,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["清弦", "绝响"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_393",
@@ -1445,6 +1744,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["谏征", "专对", "天辩"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_394",
@@ -1455,6 +1756,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["复难", "诫训"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_395",
@@ -1465,6 +1768,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["辟撰", "通博"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_26",
@@ -1475,6 +1780,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["烈弓"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_299",
@@ -1485,6 +1792,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: true,
+        skills: &["仁德", "激将"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_300",
@@ -1495,6 +1804,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["义绝", "武圣"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_301",
@@ -1505,6 +1816,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["替身", "咆哮"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_302",
@@ -1515,6 +1828,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["涯角", "龙胆"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_303",
@@ -1525,6 +1840,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["马术", "铁骑"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_304",
@@ -1535,6 +1852,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["诛害", "潜心"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_305",
@@ -1545,6 +1864,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["奇袭", "奋威"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_306",
@@ -1555,6 +1876,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["克己", "勤学", "博图"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_307",
@@ -1565,6 +1888,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["苦肉", "诈降"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_308",
@@ -1575,6 +1900,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["英姿", "反间"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_309",
@@ -1585,6 +1912,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: false,
         max_hp: 3,
         lord: false,
+        skills: &["流离", "国色"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_310",
@@ -1595,6 +1924,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["谦逊", "连营"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_311",
@@ -1605,6 +1936,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: true,
+        skills: &["奸雄", "护驾"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_312",
@@ -1615,6 +1948,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["反馈", "鬼才"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_313",
@@ -1625,6 +1960,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["刚烈", "清俭"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_314",
@@ -1635,6 +1972,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["突袭"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_315",
@@ -1645,6 +1984,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["裸衣"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_316",
@@ -1655,6 +1996,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["天妒", "遗计"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_317",
@@ -1665,6 +2008,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["恂恂", "忘隙"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_318",
@@ -1675,6 +2020,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["急救", "除疠"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_319",
@@ -1685,6 +2032,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 5,
         lord: false,
+        skills: &["无双", "利驭"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_320",
@@ -1695,6 +2044,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["义从", "趫猛"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_440",
@@ -1705,6 +2056,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["空城", "观星"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_441",
@@ -1715,6 +2068,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["集智", "奇才"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_442",
@@ -1725,6 +2080,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: true,
+        skills: &["制衡", "救援"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_443",
@@ -1735,6 +2092,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: false,
         max_hp: 3,
         lord: false,
+        skills: &["枭姬", "结姻"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_444",
@@ -1745,6 +2104,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: false,
         max_hp: 3,
         lord: false,
+        skills: &["倾国", "洛神"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_445",
@@ -1755,6 +2116,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: false,
         max_hp: 3,
         lord: false,
+        skills: &["离间", "闭月"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_446",
@@ -1765,6 +2128,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 6,
         lord: false,
+        skills: &["耀武", "势斩"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_447",
@@ -1775,6 +2140,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["化身", "新生"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_448",
@@ -1785,6 +2152,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: true,
+        skills: &["雷击", "鬼道", "黄天"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_449",
@@ -1795,6 +2164,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["蛊惑"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_450",
@@ -1805,6 +2176,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: true,
+        skills: &["乱击", "血裔"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_451",
@@ -1815,6 +2188,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: true,
+        skills: &["享乐", "放权", "若愚"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_452",
@@ -1825,6 +2200,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: true,
+        skills: &["制霸", "激昂", "魂姿"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_453",
@@ -1835,6 +2212,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["神速", "设变"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_454",
@@ -1845,6 +2224,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["八阵", "藏拙", "火计", "看破"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_455",
@@ -1855,6 +2236,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["连环", "涅槃"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_456",
@@ -1865,6 +2248,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["狂骨", "奇谋"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_457",
@@ -1875,6 +2260,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: false,
         max_hp: 3,
         lord: false,
+        skills: &["红颜", "天香", "飘零"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_458",
@@ -1885,6 +2272,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 5,
         lord: false,
+        skills: &["英魂", "武烈"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_462",
@@ -1895,6 +2284,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["马术", "鞬出"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_463",
@@ -1905,6 +2296,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["天义", "酣战"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_470",
@@ -1915,6 +2308,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 8,
         lord: true,
+        skills: &["肉林", "崩坏", "酒池", "暴虐"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_471",
@@ -1925,6 +2320,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["屯田", "凿险"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_479",
@@ -1935,6 +2332,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: false,
         max_hp: 4,
         lord: false,
+        skills: &["巨象", "烈刃", "长标"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_480",
@@ -1945,6 +2344,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["挑衅", "志继"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_484",
@@ -1955,6 +2356,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["帷幕", "乱武", "完杀"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_485",
@@ -1965,6 +2368,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["好施", "缔盟"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_486",
@@ -1975,6 +2380,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["巧变"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_492",
@@ -1985,6 +2392,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["祸首", "再起"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_496",
@@ -1995,6 +2404,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["断粮", "截辎"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_505",
@@ -2005,6 +2416,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: false,
         max_hp: 3,
         lord: false,
+        skills: &["断肠", "悲歌"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_515",
@@ -2015,6 +2428,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["驱虎", "节命"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_526",
@@ -2025,6 +2440,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["强袭", "狞恶"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_550",
@@ -2035,6 +2452,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["双雄"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_563",
@@ -2045,6 +2464,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["直谏", "固政"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_587",
@@ -2055,6 +2476,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["破军"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_588",
@@ -2065,6 +2488,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["旋风"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_597",
@@ -2075,6 +2500,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["智迟", "明策"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_599",
@@ -2085,6 +2512,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["将驰"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_600",
@@ -2095,6 +2524,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["纵适", "巧说"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_603",
@@ -2105,6 +2536,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["纵玄", "直言"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_604",
@@ -2115,6 +2548,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["陷阵", "禁酒"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_610",
@@ -2125,6 +2560,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["眩惑", "恩怨"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_620",
@@ -2135,6 +2572,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["疠火", "醇醪"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_621",
@@ -2145,6 +2584,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: false,
         max_hp: 3,
         lord: false,
+        skills: &["贞烈", "秘计"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_625",
@@ -2155,6 +2596,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: false,
         max_hp: 3,
         lord: false,
+        skills: &["绝情", "伤逝", "翦灭"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_626",
@@ -2165,6 +2608,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["自守", "宗室"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_627",
@@ -2175,6 +2620,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: false,
         max_hp: 3,
         lord: false,
+        skills: &["献州", "窃听"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_628",
@@ -2185,6 +2632,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["称象", "仁心"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_629",
@@ -2195,6 +2644,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["落英", "酒诗"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_640",
@@ -2205,6 +2656,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: false,
         max_hp: 3,
         lord: false,
+        skills: &["甘露", "补益"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_641",
@@ -2215,6 +2668,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["当先", "伏枥"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_642",
@@ -2225,6 +2680,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["灭计", "焚城", "绝策"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_658",
@@ -2235,6 +2692,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["精策"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_671",
@@ -2245,6 +2704,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: false,
         max_hp: 3,
         lord: false,
+        skills: &["惴恐", "求援"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_676",
@@ -2255,6 +2716,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["弓骑", "解烦"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_690",
@@ -2265,6 +2728,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["父魂"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_696",
@@ -2275,6 +2740,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["马术", "潜袭"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_726",
@@ -2285,6 +2752,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: false,
         max_hp: 3,
         lord: false,
+        skills: &["矫诏", "殚心"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_749",
@@ -2295,6 +2764,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["矢北", "渐营"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_752",
@@ -2305,6 +2776,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: false,
         max_hp: 3,
         lord: false,
+        skills: &["樵拾", "燕语"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_753",
@@ -2315,6 +2788,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 3,
         lord: false,
+        skills: &["强识", "献图"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_756",
@@ -2325,6 +2800,8 @@ pub const GENERALS: &[GeneralDef] = &[
         male: true,
         max_hp: 4,
         lord: false,
+        skills: &["镇军", "毅重"],
+        status: Status::Live,
     },
     GeneralDef {
         code: "sgs_hero_775",
@@ -2335,12 +2812,19 @@ pub const GENERALS: &[GeneralDef] = &[
         male: false,
         max_hp: 3,
         lord: false,
+        skills: &["安恤", "追忆"],
+        status: Status::Live,
     },
 ];
 
 /// 按 code 查武将。
 pub fn def(code: &str) -> Option<&'static GeneralDef> {
     GENERALS.iter().find(|g| g.code == code)
+}
+
+/// 可选将池（`Status::Live`，147 位；与 v2 / 批次口径一致）。
+pub fn live() -> impl Iterator<Item = &'static GeneralDef> {
+    GENERALS.iter().filter(|g| g.status == Status::Live)
 }
 
 /// 按 gid 查武将（素材映射/中台主键）。

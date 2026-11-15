@@ -46,6 +46,52 @@ pub struct Tags {
     pub delayed: bool,
     /// 伤害锦囊（决斗/南蛮/万箭/火攻）。
     pub damage_trick: bool,
+    /// 铁索连环（横置/重置，P4）。
+    pub lianhuan: bool,
+}
+
+/// 结算效果（B0 前置项 P4：内核按**效果字段**分派，禁止按牌名 match）。
+///
+/// 与 v2 `cards::Effect` 同口径（同一份生成数据），V3 只保留「无技能接入也能完整结算」的部分。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+pub enum Effect {
+    /// 装备牌（按槽位处理）或未登记效果。
+    #[default]
+    None,
+    Sha,
+    Shan,
+    Tao,
+    Jiu,
+    Wuxie,
+    Duel,
+    Dismantle,
+    Snatch,
+    ExNihilo,
+    SavageAssault,
+    ArcheryAttack,
+    PeachGarden,
+    Harvest,
+    FireAttack,
+    Collateral,
+    IronChain,
+    Indulgence,
+    SupplyShortage,
+    Lightning,
+}
+
+impl Effect {
+    /// 延时锦囊（进判定区，判定阶段按 LIFO 结算）。
+    pub fn is_delayed(self) -> bool {
+        matches!(self, Effect::Indulgence | Effect::SupplyShortage | Effect::Lightning)
+    }
+
+    /// 需要「无懈可击」窗口的效果（非延时锦囊的锦囊效果；延时锦囊在放置时也要无懈）。
+    pub fn is_trick(self) -> bool {
+        !matches!(
+            self,
+            Effect::None | Effect::Sha | Effect::Shan | Effect::Tao | Effect::Jiu
+        )
+    }
 }
 
 /// 牌定义（生成物的行；手写代码只读）。
@@ -58,6 +104,10 @@ pub struct CardDef {
     pub tags: Tags,
     /// 伤害属性（杀=Normal，火杀=Fire，雷杀=Thunder，其余=Normal）。
     pub damage_kind: DamageKind,
+    /// 结算效果（P4 唯一分派依据；内核不按牌名判定）。
+    pub effect: Effect,
+    /// 该牌**要求**的响应牌（杀→闪 / 南蛮→杀 / 万箭→闪 / 决斗→杀）。
+    pub respond: Option<ResponseKind>,
     /// 装备槽位（武器/防具/进攻马/防御马/宝物；非装备为 None）。
     pub slot: Option<super::Slot>,
     /// 武器攻击范围（仅武器）。
@@ -83,6 +133,14 @@ pub enum ResponseKind {
 /// 牌定义查表（生成物 `cards_generated::DEFS`；内核不按牌名字面量判定，按 code 查表）。
 pub fn def(code: &str) -> Option<&'static CardDef> {
     crate::cards_generated::DEFS.iter().find(|d| d.code == code)
+}
+
+/// 牌名（中文）→ 定义 code（生成物唯一来源；中台同步/回放对拍用）。
+pub fn code_of(name: &str) -> Option<&'static str> {
+    crate::cards_generated::DEFS
+        .iter()
+        .find(|d| d.name == name)
+        .map(|d| d.code)
 }
 
 /// 目标是否合法（默认：存活、非自己、在可选范围内）。技能可扩展（空城/流离/帷幕），M2 接入钩子。

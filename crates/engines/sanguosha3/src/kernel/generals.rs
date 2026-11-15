@@ -7,7 +7,12 @@
 //! 技能 code 映射（武将 → 技能）**不在本切片**：generated 里只有中文技能名，
 //! 中文名 → code 的第二份映射表留到选将/大厅切片（避免两处事实源漂移）。
 
-pub use crate::generals_generated::{by_gid, def, GeneralDef, GENERALS};
+pub use crate::generals_generated::{by_gid, def, live, GeneralDef, Status, GENERALS};
+
+/// 选将池（`Status::Live`，147 位；与 v2 / 批次 / 中台同口径）。
+pub fn live_codes() -> Vec<&'static str> {
+    live().map(|g| g.code).collect()
+}
 
 /// 势力 code（`wei`/`shu`/`wu`/`qun`；未知武将 = `None`）。
 pub fn kingdom(code: &str) -> Option<&'static str> {
@@ -27,6 +32,7 @@ pub fn apply_to_seat(g: &mut super::Game, seat: usize, code: &str) -> Result<(),
     };
     let lord = s.identity == Some(super::Identity::Lord);
     s.kingdom = def.kingdom.to_string();
+    s.male = def.male;
     s.max_hp = def.max_hp + if lord { 1 } else { 0 };
     s.hp = s.max_hp;
     Ok(())

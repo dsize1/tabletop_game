@@ -1,10 +1,14 @@
 //! M4.3b 门禁：流程帧 handler（杀/桃）+ 归一化摘要（差分对拍口径）。
 
-use sanguosha3::kernel::card_play::step_flow;
-use sanguosha3::kernel::resolve::FlowKind;
+use sanguosha3::kernel::card_play::begin_use;
+use sanguosha3::kernel::resolve::advance;
 use sanguosha3::kernel::view::summary;
 use sanguosha3::kernel::{Card, Game, Seat, Suit, Zone};
-use serde_json::json;
+/// 提交一个选项（内部走 `resolve::submit`；无待办时视为无事）。
+fn submit(g: &mut Game, seat: usize, option: &str) {
+    sanguosha3::kernel::resolve::submit(g, seat, option).unwrap();
+}
+
 
 fn seat(id: usize) -> Seat {
     Seat {
@@ -32,8 +36,10 @@ fn flow_card_slash_deals_damage() {
     let mut g = game();
     g.cards.insert("s1".into(), Zone::Hand(0));
     g.card_defs.insert("s1".into(), Card { id: "s1".into(), def: "sha".into(), suit: Suit::Spade, rank: 7 });
-    let step = step_flow(&mut g, FlowKind::Card, &json!({"card": "s1", "target": 1}), 0).unwrap();
-    assert_eq!(step, sanguosha3::kernel::resolve::Step::Done);
+    // P3：使用入口 → 结算流程帧 → 目标无【闪】时同步结算（合法集为空不询问）。
+    begin_use(&mut g, 0, "s1", false).unwrap();
+    advance(&mut g).unwrap();
+    submit(&mut g, 0, "t:1");
     assert_eq!(g.seats[1].hp, 3, "杀造成 1 伤");
     assert_eq!(g.cards.get("s1"), Some(&Zone::Discard), "杀结算后进弃牌堆");
 }
@@ -44,7 +50,8 @@ fn flow_card_tao_heals() {
     g.seats[0].hp = 2;
     g.cards.insert("t1".into(), Zone::Hand(0));
     g.card_defs.insert("t1".into(), Card { id: "t1".into(), def: "tao".into(), suit: Suit::Heart, rank: 3 });
-    step_flow(&mut g, FlowKind::Card, &json!({"card": "t1", "target": 0}), 0).unwrap();
+    begin_use(&mut g, 0, "t1", false).unwrap();
+    advance(&mut g).unwrap();
     assert_eq!(g.seats[0].hp, 3, "桃回 1");
 }
 

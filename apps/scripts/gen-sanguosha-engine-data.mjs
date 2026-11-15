@@ -519,7 +519,18 @@ function assignGeneralStatus(generals) {
 /// 技能 code 映射（武将 → 技能）留到选将/大厅切片，避免这里维护第二份中文名 → code 表。
 function renderV3Generals(generals) {
   const L = [];
-  L.push("//! 生成的武将名录（V3 最小字段：势力/体力/性别/主公）。**勿手改**：由 gen:sgs-engine-data 生成。");
+  L.push("//! 生成的武将名录（V3：势力/体力/性别/主公/技能名）。**勿手改**：由 gen:sgs-engine-data 生成。");
+  L.push("");
+  L.push("/// 武将状态（与 v2 / 道具中台 `sgs_generals.status` **同口径**）。");
+  L.push("#[derive(Debug, Clone, Copy, PartialEq, Eq)]");
+  L.push("pub enum Status {");
+  L.push("    /// 可选将池（四包内 + 未被界化版本去重）。");
+  L.push("    Live,");
+  L.push("    /// 下线（被「界/将」同名去重排除的原版）。");
+  L.push("    Offline,");
+  L.push("    /// 待审批（不在已登记完整包内的武将）。");
+  L.push("    Review,");
+  L.push("}");
   L.push("");
   L.push("#[derive(Debug, Clone, Copy, PartialEq, Eq)]");
   L.push("pub struct GeneralDef {");
@@ -534,6 +545,10 @@ function renderV3Generals(generals) {
   L.push("    pub male: bool,");
   L.push("    pub max_hp: i32,");
   L.push("    pub lord: bool,");
+  L.push("    /// 技能中文名（**只用于展示/契约**；V3 的 name→code 映射按批次建，未实现前技能不挂载）。");
+  L.push("    pub skills: &'static [&'static str],");
+  L.push("    /// 选将池状态（`Live` 才进候选；`Offline` = 被界化版本取代的原版）。");
+  L.push("    pub status: Status,");
   L.push("}");
   L.push("");
   L.push("pub const GENERALS: &[GeneralDef] = &[");
@@ -547,6 +562,8 @@ function renderV3Generals(generals) {
     L.push("        male: " + (g.gender === "male" ? "true" : "false") + ",");
     L.push("        max_hp: " + g.max_hp + ",");
     L.push("        lord: " + (g.is_lord ? "true" : "false") + ",");
+    L.push("        skills: &[" + (g.skills ?? []).map((x) => JSON.stringify(x)).join(", ") + "],");
+    L.push("        status: Status::" + (g.status === "offline" ? "Offline" : g.status === "review" ? "Review" : "Live") + ",");
     L.push("    },");
   }
   L.push("];");
@@ -554,6 +571,11 @@ function renderV3Generals(generals) {
   L.push("/// 按 code 查武将。");
   L.push("pub fn def(code: &str) -> Option<&'static GeneralDef> {");
   L.push("    GENERALS.iter().find(|g| g.code == code)");
+  L.push("}");
+  L.push("");
+  L.push("/// 可选将池（`Status::Live`，147 位；与 v2 / 批次口径一致）。");
+  L.push("pub fn live() -> impl Iterator<Item = &'static GeneralDef> {");
+  L.push("    GENERALS.iter().filter(|g| g.status == Status::Live)");
   L.push("}");
   L.push("");
   L.push("/// 按 gid 查武将（素材映射/中台主键）。");
@@ -733,7 +755,7 @@ function renderV3({ rows, deckRows }) {
   lines.push("//! 来源：`docs/games/sanguosha/data/cards.json`（standard 108 + junzheng 52 = 160）。");
   lines.push("//! 约束：V3 内核与本表只按属性字段判定，禁止按牌名 match（skill-spec-rules §3）。");
   lines.push("");
-  lines.push("use crate::kernel::cards::{CardDef, Category, Tags, TargetMode};");
+  lines.push("use crate::kernel::cards::{CardDef, Category, Effect, ResponseKind, Tags, TargetMode};");
   lines.push("use crate::kernel::{ArmorKind, DamageKind, Slot, Suit, WeaponKind};");
   lines.push("");
   lines.push(`pub const DECK_SIZE: usize = ${deckRows.length};`);
@@ -748,7 +770,7 @@ function renderV3({ rows, deckRows }) {
     const weaponRange = r.weapon_range === null || r.weapon_range === undefined ? "None" : `Some(${r.weapon_range})`;
     const horse = r.horse === null || r.horse === undefined ? "None" : `Some(${r.horse})`;
     lines.push(
-      `    CardDef { code: ${rustStr(r.code)}, name: ${rustStr(r.name)}, category: Category::${category}, target_mode: TargetMode::${r.target_mode}, tags: Tags { sha: ${r.sha}, shan: ${r.shan}, tao: ${r.tao}, jiu: ${r.jiu}, wuxie: ${r.wuxie}, duel: ${r.duel}, delayed: ${r.delayed}, damage_trick: ${r.damage_trick} }, damage_kind: DamageKind::${r.damage_kind}, slot: ${slot}, weapon_range: ${weaponRange}, horse: ${horse}, armor: ArmorKind::${r.armor}, weapon: WeaponKind::${r.weapon} },`,
+      `    CardDef { code: ${rustStr(r.code)}, name: ${rustStr(r.name)}, category: Category::${category}, target_mode: TargetMode::${r.target_mode}, tags: Tags { sha: ${r.sha}, shan: ${r.shan}, tao: ${r.tao}, jiu: ${r.jiu}, wuxie: ${r.wuxie}, duel: ${r.duel}, delayed: ${r.delayed}, damage_trick: ${r.damage_trick}, lianhuan: ${r.lianhuan} }, damage_kind: DamageKind::${r.damage_kind}, effect: Effect::${r.effect}, respond: ${r.respond === null || r.respond === undefined ? "None" : `Some(ResponseKind::${r.respond})`}, slot: ${slot}, weapon_range: ${weaponRange}, horse: ${horse}, armor: ArmorKind::${r.armor}, weapon: WeaponKind::${r.weapon} },`,
     );
   }
   lines.push("];");

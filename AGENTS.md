@@ -34,7 +34,8 @@
 | 三国杀视图 / 布局 / 手势 / 浮层 / 观星交互 | `docs/games/sanguosha/ui-spec.md` |
 | 三国杀 Web 真机验收清单（人工） | `docs/games/sanguosha/p3-manual-test.md` |
 | 三国杀批次开发 playbook（流程/模板/门禁，含 v2 B8+ 开工命令） | `docs/games/sanguosha/batch-playbook.md` §9 |
-| 引擎替换（v1→v2）：**v1 crate 已于 2026-11-10 删除**；替换切片/删除清单/对拍白名单（归档） | `memory_palace/plan/next-engine-replacement.md`、`docs/games/sanguosha/engine-replacement/README.md`、`deletion-checklist.md` |
+| **引擎接管（V3 → 正式 id `sanguosha`，v2 退役参考）** | `memory_palace/decisions/ADR-0043-v3-takeover.md` |
+| 引擎替换（v1→v2，已归档）：v1 crate 已删除；v2 现仅作参考实现/道具数据源 | `memory_palace/plan/next-engine-replacement.md`、`docs/games/sanguosha/engine-replacement/README.md` |
 | v2 门禁 / B8+ 脚手架命令 | `npm run check:sgs2`、`npm run sgs2:batch -- B8`、`npm run check:sgs2-registry` |
 | 三国杀技能注册表 / 触发钩子 / 实现进度 | `docs/games/sanguosha/skills.md` |
 | 三国杀 AI（分层 / 打分 / 威胁模型 / 自对弈门禁 / 已知缺陷） | `docs/games/sanguosha/ai.md` |
@@ -42,6 +43,7 @@
 | 三国杀技能对齐单（147 将 / 7 段 / 疑点裁定） | `docs/games/sanguosha/align/README.md`、`align/B0.md`、`align/mechanics.json` |
 | **引擎规格层（spec-kit：宪法/状态/交互/合法集 + 契约门禁）** | `specs/sanguosha/README.md`、`constitution.md`、`contracts/*.json`、`npm run check:spec-conformance` |
 | **V3 引擎重构（v2 已冻结）** | `memory_palace/plan/next-v3-rebuild.md`、`memory_palace/decisions/ADR-0042-v3-rebuild.md` |
+| V3 B0 前置项（P1–P6）+ 端侧接入说明 / 门禁 | `docs/games/sanguosha/v3-b0-prereq.md` |
 | 内核 v2 spike 结论（6 类缺陷对策 / 度量 / 迁移条件） | `docs/games/sanguosha/spike-report.md`、ADR-0038 |
 | 三国杀武将抓取数据（696 位） | `docs/games/sanguosha/data/README.md`、`docs/games/sanguosha/data/heroes.json` |
 | 三国杀武将表（自动生成） | `docs/games/sanguosha/generals.md` |

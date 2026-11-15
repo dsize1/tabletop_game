@@ -23,6 +23,9 @@ pub enum EventKind {
     CardOutOfGame,
     CardIntoGame,
     CardGained,
+    /// 摸牌（从牌堆进手牌）。与 `CardGained` 区分：摸牌不是「获得他人的牌」，
+    /// 不得触发「他人获得牌」类订阅（奋激教训）。
+    CardDrawn,
     CardDiscarded,
     /// 失去牌：牌离开**手牌或装备区**（含被获得/弃置/使用/打出）。与 `CardDiscarded` 区别：
     /// 弃置只是失去的一种原因；与 `CardGained` 区别：获得只说明「谁拿到」，不说明「谁失去」。
@@ -41,6 +44,8 @@ pub enum EventKind {
     MaxHpChanged,
     /// 进入连环状态。
     ChainedEnter,
+    /// 解除连环状态（铁索重置）。
+    ChainedLeft,
     /// 手牌冻结 / 解冻。
     HandFrozen,
     HandUnfrozen,
@@ -64,6 +69,9 @@ pub enum EventKind {
 /// 事件快照：**窗口与主体判定只读快照，不读 live 状态**（路由可能晚于状态推进）。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Event {
+    /// 全局单调序号（历史日志封顶后仍单调；Web `history[].seq` 用它做增量）。
+    #[serde(default)]
+    pub seq: u64,
     pub kind: EventKind,
     /// 事件主体（谁的手牌被弃置 / 谁使用牌 / 谁受到伤害）。
     pub seat: Option<usize>,
@@ -94,6 +102,7 @@ pub struct Event {
 impl Event {
     pub fn card(kind: EventKind, seat: Option<usize>, card: CardId, cause: Option<String>) -> Self {
         Self {
+            seq: 0,
             kind,
             seat,
             card: Some(card),
@@ -110,6 +119,7 @@ impl Event {
 
     pub fn simple(kind: EventKind, seat: Option<usize>, cause: Option<&str>) -> Self {
         Self {
+            seq: 0,
             kind,
             seat,
             card: None,
@@ -122,6 +132,19 @@ impl Event {
             from: None,
             damage: None,
         }
+    }
+
+    /// 打上「发生时刻的 turn/phase 快照」（**每次 emit 前必须调用**，路由只读快照）。
+    pub fn snapshot(mut self, g: &super::Game) -> Self {
+        self.turn = g.turn;
+        self.phase = g.phase;
+        self
+    }
+
+    /// 一次性写入事件队列并返回自身（P2：事件生产单出口）。
+    pub fn emit(self, g: &mut super::Game) -> Self {
+        g.push_event(self.clone());
+        self
     }
 }
 

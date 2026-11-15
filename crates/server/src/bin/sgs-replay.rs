@@ -54,16 +54,23 @@ fn main() -> anyhow::Result<()> {
         if gs.game_id != *game_id {
             anyhow::bail!("replay base game_id 不一致: {} != {game_id}", gs.game_id);
         }
+        // 引擎按**快照形态**分派：V3（`data = EngineState`）走 V3；旧 v2 快照保留兼容回放。
+        let is_v3 = serde_json::from_value::<sanguosha3::engine::EngineState>(gs.data.clone()).is_ok();
         let mut reg = EngineRegistry::new();
-        reg.register(sanguosha2::Sanguosha2Engine);
+        if is_v3 {
+            reg.register(sanguosha3::engine::SanguoshaEngine);
+        } else {
+            reg.register(sanguosha2::Sanguosha2Engine);
+        }
         let mgr = GameManager::with_rng(reg, Box::new(SeededRng::new(0)));
         mgr.restore(gs);
         restored = true;
         printf(
             as_json,
             &format!(
-                "[sgs-replay] base seq={base_seq} room={room} logs={}",
-                logs.len()
+                "[sgs-replay] base seq={base_seq} room={room} logs={} engine={}",
+                logs.len(),
+                if is_v3 { "v3" } else { "v2" }
             ),
         );
 
@@ -75,7 +82,11 @@ fn main() -> anyhow::Result<()> {
                 .get_state(&room)
                 .ok_or_else(|| anyhow::anyhow!("回放中状态丢失"))?;
             if let Some(expected) = row.state_digest.as_deref() {
-                let actual = sanguosha2::ai::state_digest_of(&state).unwrap_or_default();
+                let actual = if is_v3 {
+                    sanguosha3::engine::bot::state_digest_of(&state).unwrap_or_default()
+                } else {
+                    sanguosha2::ai::state_digest_of(&state).unwrap_or_default()
+                };
                 if actual != expected {
                     mismatches.push(format!(
                         "seq={} digest 不一致 expected={expected} actual={actual}",
@@ -173,5 +184,27 @@ fn main() -> anyhow::Result<()> {
 fn printf(as_json: bool, msg: &str) {
     if !as_json {
         println!("{msg}");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 回放入口的引擎分派：V3 快照（`data = EngineState`）必须能被识别，且 digest 与 server 写入口径一致。
+    #[test]
+    fn detects_v3_snapshot_shape_and_digest() {
+        let mut reg = EngineRegistry::new();
+        reg.register(sanguosha3::engine::SanguoshaEngine);
+        let mgr = GameManager::with_rng(reg, Box::new(SeededRng::new(3)));
+        let (st, _) = mgr.create_game("sanguosha", "g1", "u1").expect("create");
+        assert!(
+            serde_json::from_value::<sanguosha3::engine::EngineState>(st.data.clone()).is_ok(),
+            "V3 快照可识别"
+        );
+        assert!(
+            sanguosha3::engine::bot::state_digest_of(&st).is_some(),
+            "V3 digest 可用（与 server 决策日志同源）"
+        );
     }
 }

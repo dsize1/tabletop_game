@@ -1,4 +1,4 @@
-//! 体力结算唯一出口：伤害 / 失去体力 / 回血 / 体力上限变化。
+//! 体力结算唯一出口：伤害 / 失去体力 / 回血 / 体力上限变化 + 牌移动出口（摸/弃/获得）。
 //!
 //! 不变量（constitution §I2 / mechanics `damage-vs-hp-loss` / `damage-attributes`）：
 //! 1. **伤害 ≠ 失去体力 ≠ 体力上限变化**：三类动作各有独立入口与事件，
@@ -6,10 +6,11 @@
 //! 2. 伤害事件必须带**二维**（`DamageKind` 属性 × `SourceKind` 来源）——
 //!    藤甲「普通杀无效」= `Slash + Normal`，火杀 = `Slash + Fire`（+1），雷杀 = `Slash + Thunder`（正常）；
 //! 3. 数值链顺序：技能加成 → 藤甲 → 白银狮子**最后**（>1 改为 1）；
-//! 4. 体力不得低于 0（濒死是 `resolve` 层职责，flow 只钳到 0）。
+//! 4. 体力不得低于 0（濒死是 `resolve` 层职责，flow 只钳到 0）；
+//! 5. **事件由本模块 emit**（P2）：任何体力/牌移动路径都自带事件，不靠测试手推 `g.events.push`。
 
 use super::event::{Event, EventKind};
-use super::{ArmorKind, CardId, DamageOutcome, DamageSpec, DamageKind, Game, SourceKind};
+use super::{ArmorKind, CardId, DamageKind, DamageOutcome, DamageSpec, Game, SourceKind};
 
 /// 防具伤害链：技能加成已并入 `amount`，这里只做防具（藤甲 → 白银狮子）。
 ///
@@ -28,7 +29,7 @@ pub fn apply_armor(armor: ArmorKind, spec: &DamageSpec, mut amount: i32) -> Dama
             }
         }
         ArmorKind::Baiyin => {}
-        // 八卦阵（响应拦截）/仁王盾（黑色杀拦截）不在伤害链，拦截走 M2.3 gear 的响应钩子。
+        // 八卦阵（响应拦截）/仁王盾（黑色杀拦截）不在伤害链，拦截走 P5 的响应钩子。
         ArmorKind::Bagua | ArmorKind::Renwang | ArmorKind::None => {}
     }
     // 白银狮子最后（恒为 1）。
@@ -38,10 +39,20 @@ pub fn apply_armor(armor: ArmorKind, spec: &DamageSpec, mut amount: i32) -> Dama
     DamageOutcome::Dealt(amount)
 }
 
-/// 造成伤害（唯一出口）。`bonus` = 技能加成（链祸/暗箭/咆哮…，M2 skills 接入）。
+/// 造成伤害（唯一出口）。`bonus` = 技能加成（链祸/暗箭/咆哮…）。
 ///
-/// 返回产生的事件（可能为空 = 被免疫）。`DamageAfter` 事件带二维 `damage` 字段。
+/// 返回本次产生的事件（含铁索传导）；事件同时已 emit 进 `g.events`。
 pub fn damage(g: &mut Game, spec: DamageSpec, armor: ArmorKind, bonus: i32) -> Vec<Event> {
+    let mut events = damage_one(g, spec, armor, bonus);
+    // 铁索连环：属性伤害传导（传导后所有横置角色重置）。
+    if spec.kind != DamageKind::Normal && !events.is_empty() {
+        events.extend(propagate_chain(g, spec, armor));
+    }
+    events
+}
+
+/// 单体伤害（不传导）：被技能/防具免疫则返回空。
+fn damage_one(g: &mut Game, spec: DamageSpec, armor: ArmorKind, bonus: i32) -> Vec<Event> {
     // 锁定技能防伤（怀橘：移除 1 枚「橘」防止该次伤害）——技能防伤先于防具数值链。
     if super::skills::prevent_damage(g, spec.target) {
         return vec![];
@@ -58,6 +69,8 @@ pub fn damage(g: &mut Game, spec: DamageSpec, armor: ArmorKind, bonus: i32) -> V
             let mut ev = Event::simple(EventKind::DamageAfter, Some(spec.target), None);
             ev.amount = Some(n);
             ev.by = spec.from;
+            ev.turn = g.turn;
+            ev.phase = g.phase;
             ev.damage = Some(DamageSpec {
                 from: spec.from,
                 target: spec.target,
@@ -65,10 +78,47 @@ pub fn damage(g: &mut Game, spec: DamageSpec, armor: ArmorKind, bonus: i32) -> V
                 kind: spec.kind,
                 source: spec.source,
             });
+            g.push_event(ev.clone());
             enter_dying(g, spec.target, spec.from);
             vec![ev]
         }
     }
+}
+
+/// 铁索传导：其他横置角色各受同属性同点数伤害，然后全部解除横置。
+fn propagate_chain(g: &mut Game, spec: DamageSpec, _armor: ArmorKind) -> Vec<Event> {
+    let chained: Vec<usize> = g
+        .seats
+        .iter()
+        .filter(|s| s.alive && s.chained && s.id != spec.target)
+        .map(|s| s.id)
+        .collect();
+    let victim_chained = g.seats.get(spec.target).map(|s| s.chained).unwrap_or(false);
+    if chained.is_empty() && !victim_chained {
+        return vec![];
+    }
+    let mut events = vec![];
+    // 传导前先解除所有横置（避免递归传导）。
+    let unchain: Vec<usize> = g
+        .seats
+        .iter_mut()
+        .filter(|s| s.chained)
+        .map(|s| {
+            s.chained = false;
+            s.id
+        })
+        .collect();
+    for id in unchain {
+        let ev = Event::simple(EventKind::ChainedLeft, Some(id), Some("属性伤害传导"));
+        g.push_event(ev.clone());
+        events.push(ev);
+    }
+    for t in chained {
+        let armor = super::gear::armor_of(g, t);
+        let sub = DamageSpec { target: t, ..spec };
+        events.extend(damage_one(g, sub, armor, 0));
+    }
+    events
 }
 
 /// 失去（流失）体力：**不是伤害**，不产生 `DamageAfter`（mechanics `damage-vs-hp-loss`）。
@@ -80,6 +130,9 @@ pub fn lose_hp(g: &mut Game, target: usize, amount: i32, cause: &str) -> Vec<Eve
     seat.hp = (seat.hp - amount).max(0);
     let mut ev = Event::simple(EventKind::HpLost, Some(target), Some(cause));
     ev.amount = Some(amount);
+    ev.turn = g.turn;
+    ev.phase = g.phase;
+    g.push_event(ev.clone());
     enter_dying(g, target, None);
     vec![ev]
 }
@@ -126,6 +179,9 @@ pub fn heal(g: &mut Game, target: usize, amount: i32, cause: &str) -> Vec<Event>
     seat.hp = (seat.hp + healed).min(seat.max_hp);
     let mut ev = Event::simple(EventKind::Healed, Some(target), Some(cause));
     ev.amount = Some(healed);
+    ev.turn = g.turn;
+    ev.phase = g.phase;
+    g.push_event(ev.clone());
     vec![ev]
 }
 
@@ -139,6 +195,9 @@ pub fn lose_max_hp(g: &mut Game, target: usize, amount: i32, cause: &str) -> Vec
     seat.hp = seat.hp.min(seat.max_hp);
     let mut ev = Event::simple(EventKind::MaxHpChanged, Some(target), Some(cause));
     ev.amount = Some(amount);
+    ev.turn = g.turn;
+    ev.phase = g.phase;
+    g.push_event(ev.clone());
     vec![ev]
 }
 
@@ -154,8 +213,35 @@ pub fn rescue(g: &mut Game, target: usize, amount: i32, cause: &str) -> Vec<Even
 
 /// 摸牌：从牌堆顶抽 n 张进手牌（牌堆不足时摸到几张某）。
 ///
+/// 弃牌堆洗回牌堆（牌堆耗尽时唯一入口；**不是弃置/获得**，不产生牌移动事件）。
+pub fn reshuffle(g: &mut Game) {
+    let mut ids: Vec<CardId> = g
+        .cards
+        .iter()
+        .filter(|(_, z)| **z == super::Zone::Discard)
+        .map(|(id, _)| id.clone())
+        .collect();
+    if ids.is_empty() {
+        return;
+    }
+    ids.sort();
+    // Fisher-Yates（确定性）。
+    for i in (1..ids.len()).rev() {
+        let j = g.rand_below(i + 1);
+        ids.swap(i, j);
+    }
+    for id in &ids {
+        g.cards.insert(id.clone(), super::Zone::Draw);
+    }
+    g.deck = ids;
+}
+
 /// **摸牌方向单出口**：寸目（锁定）改从牌堆底摸；所有摸牌（摸牌阶段/技能摸牌）都走这里。
 pub fn draw(g: &mut Game, seat: usize, n: usize) -> Vec<CardId> {
+    // 牌堆耗尽：弃牌堆洗回牌堆（内核随机由 `Game.rng` 决定，可回放）。
+    if g.deck.is_empty() {
+        reshuffle(g);
+    }
     let bottom = super::skills::draw_from_bottom(g, seat);
     let mut drawn = vec![];
     for _ in 0..n {
@@ -170,6 +256,11 @@ pub fn draw(g: &mut Game, seat: usize, n: usize) -> Vec<CardId> {
         };
         let Some(id) = id else { break };
         g.cards.insert(id.clone(), super::Zone::Hand(seat));
+        let mut ev = Event::card(EventKind::CardDrawn, Some(seat), id.clone(), Some("摸牌".to_string()));
+        ev.by = Some(seat);
+        ev.turn = g.turn;
+        ev.phase = g.phase;
+        g.push_event(ev);
         drawn.push(id);
     }
     drawn
@@ -184,6 +275,21 @@ pub fn draw_phase(g: &mut Game, seat: usize) -> Vec<CardId> {
     draw(g, seat, n)
 }
 
+/// 牌离开装备区（P5）：白银狮子 → 原持有者回 1 体力（离开装备区的唯一钩子）。
+pub fn leave_equip(g: &mut Game, owner: usize, id: &str, cause: &str) -> Vec<Event> {
+    let is_baiyin = g
+        .card_defs
+        .get(id)
+        .and_then(|c| super::cards::def(&c.def))
+        .map(|d| d.armor == ArmorKind::Baiyin)
+        .unwrap_or(false);
+    if is_baiyin {
+        heal(g, owner, 1, cause)
+    } else {
+        vec![]
+    }
+}
+
 /// 弃置（唯一出口，`lose-vs-discard`）：只能从手牌/装备区弃置（判定区离开**不算弃置**）。
 ///
 /// 记账：进弃牌堆 + 本阶段弃牌计数（`phase.discarded.<Phase>`，溃诛 X 的唯一来源）+ 事件（供订阅路由）。
@@ -196,25 +302,47 @@ pub fn discard(g: &mut Game, by: usize, id: &str, cause: &str) -> Option<Event> 
     g.cards.insert(id.to_string(), super::Zone::Discard);
     let key = format!("phase.discarded.{:?}", g.phase);
     g.bump(&key);
+    // 失去牌事件（M105 教训：主体=失去者，施动者=弃置者）。
+    let mut lost = Event::card(EventKind::CardLost, Some(owner), id.to_string(), Some(cause.to_string()));
+    lost.by = Some(by);
+    lost.from = Some(owner);
+    lost.turn = g.turn;
+    lost.phase = g.phase;
+    g.push_event(lost);
+    if matches!(zone, super::Zone::Equip(..)) {
+        leave_equip(g, owner, id, cause);
+    }
     let mut ev = Event::card(EventKind::CardDiscarded, Some(owner), id.to_string(), Some(cause.to_string()));
     ev.by = Some(by);
     ev.from = Some(owner);
     ev.turn = g.turn;
     ev.phase = g.phase;
-    g.events.push(ev.clone());
+    g.push_event(ev.clone());
     Some(ev)
 }
 
 /// 获得（唯一出口）：牌进手牌；事件记「谁失去 → 谁获得」。
 pub fn gain(g: &mut Game, to: usize, id: &str, by: usize, cause: &str) -> Option<Event> {
-    let from = g.cards.get(id)?.seat();
+    let from_zone = g.cards.get(id)?.clone();
+    let from = from_zone.seat();
     g.cards.insert(id.to_string(), super::Zone::Hand(to));
+    if let Some(owner) = from {
+        let mut lost = Event::card(EventKind::CardLost, Some(owner), id.to_string(), Some(cause.to_string()));
+        lost.by = Some(by);
+        lost.from = Some(owner);
+        lost.turn = g.turn;
+        lost.phase = g.phase;
+        g.push_event(lost);
+        if matches!(from_zone, super::Zone::Equip(..)) {
+            leave_equip(g, owner, id, cause);
+        }
+    }
     let mut ev = Event::card(EventKind::CardGained, Some(to), id.to_string(), Some(cause.to_string()));
     ev.by = Some(by);
     ev.from = from;
     ev.turn = g.turn;
     ev.phase = g.phase;
-    g.events.push(ev.clone());
+    g.push_event(ev.clone());
     Some(ev)
 }
 

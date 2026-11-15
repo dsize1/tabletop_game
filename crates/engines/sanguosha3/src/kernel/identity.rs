@@ -19,13 +19,19 @@ pub fn identity_visible(seat: &Seat, viewer: usize) -> bool {
     seat.id == viewer || identity_public(seat)
 }
 
-/// 胜负判定（rules §3）：主公先死 → 反贼胜；反贼+内奸全灭 → 主忠胜。
-/// 内奸单独胜利（最后 1v1 杀主）在 M2.4 之后细化。
+/// 胜负判定（rules §3 / rules-rulings §2，用户 2026-11-14 口径细化）：
+/// 1. **内奸胜**：主公死亡时场上**仅存活主公与内奸**（其余角色全部已死）→ 内奸胜；
+///    双内局同理，只能有一名内奸达成（两名内奸同时存活 → 仍判反贼胜）；
+/// 2. 其余「主公死亡」情形 → **反贼胜**（主公先于其他角色死亡，不区分是否有存活反贼）；
+/// 3. 反贼 + 内奸全灭 → 主忠胜（主公存活）。
 pub fn check_winner(seats: &[Seat]) -> Option<Winner> {
-    let lord = seats.iter().find(|s| s.identity == Some(Identity::Lord));
-    // 主公死亡 → 反贼胜（不要求清场）。
-    if let Some(l) = lord {
+    if let Some(l) = seats.iter().find(|s| s.identity == Some(Identity::Lord)) {
         if !l.alive {
+            // 主公已死：存活者只剩「一名内奸」= 内奸达成（除主公外其他玩家全部死亡后杀主）。
+            let alive: Vec<&Seat> = seats.iter().filter(|s| s.alive).collect();
+            if alive.len() == 1 && alive[0].identity == Some(Identity::Spy) {
+                return Some(Winner::Spy);
+            }
             return Some(Winner::Rebel);
         }
     }

@@ -80,14 +80,14 @@ SERVER_URL=http://127.0.0.1:3100 npm --workspace @tabletop-game/props-admin run 
 | POST | `/internal/gameprops/status` | `{table,entity_code,to_status,note?}` + 审计日志 |
 | POST | `/internal/gameprops/seed` | 身份/配比/包初始化（幂等） |
 | POST | `/internal/gameprops/import/heroes` | 导入 `heroes.json`（幂等，`draft`：官网候选 696 位） |
-| POST | `/internal/gameprops/import/engine` | **从引擎（v2）同步已制作数据**（幂等）：牌定义 44 / 物理牌 160 / 武将 232（147 live + 85 offline）/ 技能与关联按 v2 注册表（只登记已实现技能） |
+| POST | `/internal/gameprops/import/engine` | **从引擎（V3，ADR-0043）同步已制作数据**（幂等）：牌定义 44 / 物理牌 160 / 武将 232 名录（**147 live + 85 offline**：重名界化原版下线）/ 技能与关联按 V3 注册表（只登记已接入批次的技能） |
 | GET/POST | `/internal/gameprops/templates` | 工作台模板列表 / 新建（`game_id,name,source,snapshot,meta?`） |
 | GET/PUT/DELETE | `/internal/gameprops/templates/{id}` | 模板详情 / 更新 / 删除 |
 | POST | `/internal/gameprops/templates/{id}/duplicate` | 复制模板 |
 | POST | `/internal/gameprops/templates/from-room` | 从当前对局快照抓取模板 |
 | POST | `/internal/gameprops/templates/from-replay` | 从回放基线抓取模板 |
 | GET | `/internal/gameprops/decision-logs?room_id=&since_seq=&limit=` | 决策日志只读（`player_id` 已哈希） |
-| GET | `/internal/game/preview/meta` | 沙盒表单：v2 可选武将池 147 / 标准身份配比（含 `traitor` 与 `spy` 别名）/ 默认包 |
+| GET | `/internal/game/preview/meta` | 沙盒表单：可选武将池 147（Live 口径，V3 同源）/ 标准身份配比（含 `traitor` 与 `spy` 别名）/ 默认包 |
 | POST | `/internal/game/preview/sandbox` | **创建对局（沙盒开局）**：`{players,seed?,seats,save_template?,name?}` → 预览会话（全 bot、跳过选将） |
 | POST | `/internal/game/preview` | 创建预览（`template_id` 或内联 `snapshot` + `scene`） |
 | POST | `/internal/game/preview/scene` | 只校验/应用场景（不创建会话） |

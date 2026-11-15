@@ -41,3 +41,10 @@
 - [ADR-0035：测试玩家白名单 —— 中台仅「工作台」最小权限](./ADR-0035-test-player-whitelist.md)
 - [ADR-0036：武将卡面入中台 —— 内容寻址素材库、缩略图/裁剪与公网可见边界](./ADR-0036-general-assets-in-props-admin.md)
 - [ADR-0037：对局页客户端特效层 —— 历史增量消费、输入锁定与 ComfyUI 素材管线](./ADR-0037-client-fx-layer.md)
+
+- [ADR-0038：技能规格「对齐单 + 规格即数据」](./ADR-0038-skill-alignment-spec-as-data.md)
+- [ADR-0039：事件「发生时刻/来源」快照 + 开局生命周期 + 主体窗口](./ADR-0039-event-time-snapshot-and-lifecycle.md)
+- [ADR-0040：终局房规（第 100 轮后【桃】/【桃园结义】回血无效）](./ADR-0040-endgame-round-heal-limit.md)
+- [ADR-0041：主公技「他人侧」注册表](./ADR-0041-lord-skill-others-side-registry.md)
+- [ADR-0042：废弃 v2 引擎，启动 V3 重构](./ADR-0042-v3-rebuild.md)
+- [ADR-0043：V3 接管正式引擎 id `sanguosha`，v2 退役为参考实现](./ADR-0043-v3-takeover.md)

@@ -172,12 +172,17 @@ function updateOpsSummary(): void {
   label.textContent = card ? `已选：${cardLabel(card)}` : "未选择";
 }
 
-/** 选中牌的可用动作（v1 `play:<card>`；v2 `use:<card>[:目标]`；转化技 `convert:*:<card>:*`）。 */
+/**
+ * 选中牌的可用动作（v1 `play:<card>`；v2 `use:<card>[:目标]`；
+ * v3 `card:<card>` / `card:<card>:fire`；转化技 `convert:*:<card>:*`）。
+ */
 function actionsForCard(card: string): Array<{ id: string; description: string }> {
   return currentActions.filter((a) => {
     if (a.id === `play:${card}` || a.id === `use:${card}`) return true;
     if (a.id.startsWith(`play:${card}:`)) return true;
     if (a.id.startsWith(`use:${card}:`)) return true;
+    // v3：出牌阶段选项 `card:<id>[:fire]`（朱雀羽扇转化）。
+    if (a.id === `card:${card}` || a.id === `card:${card}:fire`) return true;
     const m = /^convert:[a-z_]+:([^:]+):/.exec(a.id);
     if (m && m[1] === card) return true;
     const m2 = /^skill:[a-z_]+:(.+)$/.exec(a.id);
@@ -762,8 +767,8 @@ function onClick(ev: MouseEvent): void {
         message("请先选择一张手牌", true);
         return;
       }
-      // 直接使用（无目标）：v1 `play:<card>` / v2 `use:<card>`。
-      for (const id of [`play:${selectedCard}`, `use:${selectedCard}`]) {
+      // 直接使用（无目标）：v1 `play:<card>` / v2 `use:<card>` / v3 `card:<card>`。
+      for (const id of [`play:${selectedCard}`, `use:${selectedCard}`, `card:${selectedCard}`]) {
         if (currentActions.some((a) => a.id === id)) {
           void submitAction(id);
           return;

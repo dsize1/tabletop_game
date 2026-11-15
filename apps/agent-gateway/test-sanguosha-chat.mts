@@ -15,6 +15,8 @@ import {
   sgsSeatCount,
   sgsStartedPrompt,
   sgsSeatList,
+  sgsHostOf,
+  sgsPhaseOf,
   resolveSgsKickTarget,
   sgsLinkMessages,
   sgsResumeLink,
@@ -126,6 +128,23 @@ assert.equal(
   "公共视图的 data.public_board.seats（#加机器人 0/8 的回归）",
 );
 assert.equal(sgsSeatCount(undefined), 0);
+// v3（当前正式引擎，ADR-0043）：`data = { kernel: { seats, host, phase }, cfg, lobby, setup }`
+assert.equal(
+  sgsSeatCount({ kernel: { seats: [{}, {}, {}, {}, {}] } }),
+  5,
+  "v3 内核座位数",
+);
+assert.equal(sgsHostOf({ kernel: { host: "openid-host" } }), "openid-host");
+assert.equal(sgsPhaseOf({ lobby: { host: "u" } }), "lobby", "v3 大厅阶段");
+assert.equal(sgsPhaseOf({ setup: { lord: 0 } }), "setup", "v3 选将阶段");
+assert.equal(sgsPhaseOf({ kernel: { phase: "Play" } }), "Play", "v3 回合阶段");
+assert.deepEqual(
+  sgsSeatList({ kernel: { seats: [{ name: "u1", bot: false }, { name: "bot:1", bot: true }] } }).map(
+    (s: { player_id: string }) => s.player_id,
+  ),
+  ["u1", "bot:1"],
+  "v3 座位列表（name → player_id）",
+);
 
 // —— P7：踢人目标解析（openid / 昵称 / 座位号） ——
 const seats = [

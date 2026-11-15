@@ -25,11 +25,22 @@ fn card_label(g: &Game, id: &str) -> String {
 pub fn public_state(g: &Game) -> Value {
     let mut seats = Vec::new();
     for (i, s) in g.seats.iter().enumerate() {
+        // 手牌数是公开信息（只有手牌**明细**是隐藏信息）；翻面/横置同样公开。
+        let hand = g
+            .cards
+            .values()
+            .filter(|z| matches!(z, Zone::Hand(s0) if *s0 == i))
+            .count();
         let mut seat = json!({
             "id": i,
             "hp": s.hp,
             "max_hp": s.max_hp,
             "alive": s.alive,
+            "hand": hand,
+            "hand_limit": g.hand_limit(i),
+            "flipped": s.flipped,
+            "chained": s.chained,
+            "kingdom": s.kingdom,
         });
         // 身份只在公开时给（主公 / 已死亡）。
         if identity::identity_public(s) {
@@ -72,9 +83,11 @@ pub fn public_state(g: &Game) -> Value {
     });
 
     json!({
+        "started": g.started,
         "turn": g.turn,
         "phase": format!("{:?}", g.phase),
         "round": g.round,
+        "turn_seat": g.turn,
         "deck": deck,
         "seats": seats,
         "pending": pending,

@@ -480,13 +480,10 @@ fn chezheng_makes_short_range_cards_ineffective() {
     add_card(&mut g, "c0", "sha", Zone::Hand(2));
     assert!(!b1::in_attack_range(&g, 2, 0));
     assert!(skills::card_ineffective(&g, 2, 0));
-    sanguosha3::kernel::card_play::step_flow(
-        &mut g,
-        sanguosha3::kernel::resolve::FlowKind::Card,
-        &serde_json::json!({"card": "c0", "target": 0}),
-        2,
-    )
-    .unwrap();
+    // 掣政① 的口径正是「越距使用牌」：走技能驱动入口（绕过玩家选目标距离过滤），
+    // 落点=牌无效（伤害不生效但计入使用数）。
+    sanguosha3::kernel::card_play::use_on_targets(&mut g, 2, "c0", &[0]).unwrap();
+    advance(&mut g).unwrap();
     assert_eq!(g.seats[0].hp, 4, "牌无效（伤害未生效）");
     assert_eq!(g.counter("turn.2.cards_used"), 1, "仍计入使用牌数");
     // 效果②：出牌阶段结束，使用牌数 0 < 范围外角色数 → 可弃其一张牌
@@ -700,13 +697,9 @@ fn card_use_path_emits_events_and_routes_qizhi() {
     add_card(&mut g, "s0", "sha", Zone::Hand(0));
     add_card(&mut g, "t0", "tao", Zone::Hand(1));
     add_deck(&mut g, &["d0"]);
-    sanguosha3::kernel::card_play::step_flow(
-        &mut g,
-        sanguosha3::kernel::resolve::FlowKind::Card,
-        &serde_json::json!({"card": "s0", "target": 1}),
-        0,
-    )
-    .unwrap();
+    sanguosha3::kernel::card_play::begin_use(&mut g, 0, "s0", false).unwrap();
+    advance(&mut g).unwrap();
+    resolve::submit(&mut g, 0, "t:1").unwrap();
     assert_eq!(g.counter("turn.0.cards_used"), 1, "使用计数（掣政②）");
     advance(&mut g).unwrap();
     assert_eq!(g.counter("turn.0.qizhi"), 1, "指定目标事件路由到奇制");

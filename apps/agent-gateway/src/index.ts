@@ -92,6 +92,8 @@ import {
   sgsBotsAdded,
   sgsPackLabel,
   sgsSeatCount,
+  sgsSeatList,
+  sgsPhaseOf,
   sgsGeneralPackApplied,
   sgsGeneralPackMenu,
   sgsLinkList,
@@ -1175,7 +1177,7 @@ async function issueSgsPlayerLinks(
 ): Promise<{ name: string; url: string }[]> {
   const names = await loadNames(redis, groupId, st);
   const out: { name: string; url: string }[] = [];
-  for (const seat of st.data?.seats ?? []) {
+  for (const seat of sgsSeatList(st.data)) {
     const pid = seatPid(seat);
     if (!pid || seatIsBot(seat)) continue;
     const openid = pid;
@@ -1818,7 +1820,7 @@ async function handleGameCommand(
 
   // 三国杀（lobby 命令）：确定性回执 + 登录链接；不做局面叙述、不列合法动作
   if (active.game_id === SANGUOSHA_GAME_ID) {
-    const sgsPhase = active.data?.phase;
+    const sgsPhase = sgsPhaseOf(active.data);
     const manageActor = sgsManageActor(
       event.sender_id,
       event.member_role,
