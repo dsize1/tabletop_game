@@ -2,11 +2,11 @@
   "batch": "B5",
   "source": "一将成名·Y4（保留）",
   "status": "implemented",
-  "engine": "v2",
+  "engine": "v3",
   "mechanics_version": 2,
   "confirmed_by": "用户",
   "confirmed_at": "2026-11-06",
-  "note": "B5 13/13 已在 `crates/engines/sanguosha2` 实现（2026-11-06）。跨批新增内核能力：「造成伤害时」钩子链（制蛮 → 骄矜 → 倾袭，含 hook 自抑制与「改完数值仍继续走剩余钩子」）、`phase.damage`（本阶段受伤计数）、兴衰式濒死流程（`xingshuai_available` / 求桃顺序 / `after_dying_damage` 延后结算）、明鉴下回合增益（`mingjian:<seat>` 1→2→0）、`Seat.male`（骄矜性别判定）、千驹并入统一距离入口。已知收口项：① 谮毁的「使用者变更 / 追加目标」在 v2 无【杀】结算引擎，先记为状态（`zanhui_switch_user` / `zanhui_extra_target`）；② 秉壹的「弃置」定义已固化为机制 `discard-contract`（弃置 ≠ 使用、判定区移出不算弃置、唯一弃置出口）；③ 活墨转化出的【杀】无承载牌。\n\n【S2 销号（2026-11-10）】谮毁「代用 / 额外目标」已改走**结算前钩子**：`Game.use_pre` + `FlowKind::PreUse`（kernel），在牌结算开始**之前**询问；「额外目标」会真的多结算一份，「代用」会真的把伤害来源改为协助者（用例 `tests/pre_use.rs` 4 条）。旧的状态降级（`zanhui_switch_user` / `zanhui_extra_target`）仅保留为兼容字段。",
+  "note": "B5 13/13 已在 `crates/engines/sanguosha2` 实现（2026-11-06）。跨批新增内核能力：「造成伤害时」钩子链（制蛮 → 骄矜 → 倾袭，含 hook 自抑制与「改完数值仍继续走剩余钩子」）、`phase.damage`（本阶段受伤计数）、兴衰式濒死流程（`xingshuai_available` / 求桃顺序 / `after_dying_damage` 延后结算）、明鉴下回合增益（`mingjian:<seat>` 1→2→0）、`Seat.male`（骄矜性别判定）、千驹并入统一距离入口。已知收口项：① 谮毁的「使用者变更 / 追加目标」在 v2 无【杀】结算引擎，先记为状态（`zanhui_switch_user` / `zanhui_extra_target`）；② 秉壹的「弃置」定义已固化为机制 `discard-contract`（弃置 ≠ 使用、判定区移出不算弃置、唯一弃置出口）；③ 活墨转化出的【杀】无承载牌。\n\n【S2 销号（2026-11-10）】谮毁「代用 / 额外目标」已改走**结算前钩子**：`Game.use_pre` + `FlowKind::PreUse`（kernel），在牌结算开始**之前**询问；「额外目标」会真的多结算一份，「代用」会真的把伤害来源改为协助者（用例 `tests/pre_use.rs` 4 条）。旧的状态降级（`zanhui_switch_user` / `zanhui_extra_target`）仅保留为兼容字段。；current/impl/tests 已回写 v3（B16–B20 优先，见 next-v3-verification.md 步骤 B）",
   "generals": [
     {
       "gid": 327,
@@ -22,12 +22,9 @@
           "original_source": "heroes.json#gid=327",
           "mechanics_version": 2,
           "current": [
-            "触发：拥有者使用【杀】**指定目标后**（`resolve.rs` 的【杀】目标阶段），若本阶段未发动过（`zanhui_used`）且存在「除使用者与目标外的其他角色」→ 压入谮毁帧。",
-            "阶段 1（Helper）：由孙鲁班选一名**协助者**（排除自己与【杀】的目标）。",
-            "阶段 2（Choice）：由协助者二选一——`opt1`（仅当协助者有可获得牌时）「交给孙鲁班一张牌，代替其成为此牌使用者」；`opt2`「成为此牌的额外目标」。",
-            "opt1：从协助者区域取 1 张牌（`take_one_from_region`：**判定区 → 装备区 → 手牌随机**）给孙鲁班；把栈中 Sha 帧的 `user` 改为协助者，以协助者身份进入【杀】响应（有无双则需 2 张【闪】）。",
-            "opt2：把协助者加入 Sha 帧的 `pending_targets`（额外目标），随后按原使用者继续进入响应。",
-            "只对**【杀】**接线：黑色普通锦囊（顺手牵羊/过河拆桥/决斗等）指定唯一目标时**不触发**。"
+            "v3：出牌阶段限一次（`phase.<seat>.zanhui`）；自己使用【杀】或**黑色普通锦囊**且目标列表长度 == 1 时触发。",
+            "选另一名可成为该牌目标的角色（`seat:<t>`，排除原目标）→ 协助者二选一：`give` 交给孙鲁班一张牌并代替其成为使用者（`flow::gain` 后按原牌结算）；`extra` 成为此牌额外目标（`declare_extra_targets(1)`）。",
+            "协助者无牌时 `give` 不可用；两项均强制。"
           ],
           "confidence": "verified",
           "diff": [
@@ -116,11 +113,9 @@
               "同一出牌阶段只发动一次"
             ]
           },
-          "impl": "sanguosha2::skills::b5::ZANHUI",
+          "impl": "sanguosha3::kernel::skills::b5::SKILLS(code=zanhui) + b5::zanhui",
           "tests": [
-            "b5::zanhui_helper_becomes_extra_target",
-            "b5::zanhui_black_trick_triggers_but_multi_target_does_not",
-            "b5::zanhui_helper_gives_card_and_becomes_user"
+            "b5::zanhui_helper_choice"
           ]
         },
         {
@@ -132,11 +127,9 @@
           "original_source": "heroes.json#gid=327",
           "mechanics_version": 2,
           "current": [
-            "触发在「造成伤害时」（伤害**尚未**结算，与天香/仁心同一时机）：受伤者拥有骄矜、来源是**男性**角色、来源≠自己、且受伤者有装备牌（手牌里的装备牌或装备区牌）。",
-            "询问：列出「手牌中的装备牌 + 装备区的牌」+「不发动」；选定后弃置该牌（装备区的牌会触发旋风/枭姬类失去装备钩子）。",
-            "发动后伤害 -1（下限 0）；减到 0 时**不再结算伤害**（不产生伤害事件，「受到伤害后」类技能不触发）。",
-            "不发动 → 按原伤害立即结算。",
-            "女性来源、无来源伤害（闪电等）不触发。"
+            "v3：`Hook::DamageBefore`（男性角色对孙鲁班造成伤害**结算前**）→ 门控 `should_ask_damage_before_victim`（自己有装备牌才询问）。",
+            "询问 `use`（可放弃；放弃按原伤害 `damage_apply`）→ 强制弃一张装备牌（手牌中的装备或装备区）→ 伤害 **-1**；减到 0 则不发生（不产伤害事件）。",
+            "原伤害点数 >1 时只减 1 点。"
           ],
           "confidence": "verified",
           "diff": [
@@ -195,11 +188,9 @@
               "伤害减为 0 时不扣血且不产生伤害事件（不计入「本阶段受过伤害」）"
             ]
           },
-          "impl": "sanguosha2::skills::b5::JIAOJIN（`skills::damage_before` 受害者侧）",
+          "impl": "sanguosha3::kernel::skills::b5::SKILLS(code=jiaojin) + b5::{should_ask_damage_before_victim, jiaojin}",
           "tests": [
-            "b5::jiaojin_reduces_damage_by_one_with_equip_cost",
-            "b5::jiaojin_not_triggered_by_female_source",
-            "b5::jiaojin_zero_damage_produces_no_damage_event"
+            "b5::jiaojin_reduces_damage_by_one"
           ]
         }
       ]
@@ -218,12 +209,9 @@
           "original_source": "heroes.json#gid=328",
           "mechanics_version": 2,
           "current": [
-            "三个**独立时机**各自动判定，条件满足即询问是否跳过（每回合每个阶段只问一次，`fenli_*_asked`）：",
-            "① 摸牌阶段开始：自己手牌数 ≥ 其他所有存活角色（**并列也算**）→ 可跳过摸牌阶段（置 `skip_draw`）。",
-            "② 出牌阶段开始：自己体力 ≥ 其他所有人 → 可跳过出牌阶段（置 `skip_play`）。",
-            "③ 弃牌阶段开始：自己装备区牌数 > 0 且 ≥ 其他所有人 → 可跳过弃牌阶段（置 `fenli_skip_discard`）。",
-            "每次发动把 `fenli_skipped`（本回合已跳过阶段数）+1，供「平寇」结算伤害次数。",
-            "「不跳过」= 正常进入该阶段；三个条件互相独立，同一回合可连跳多个阶段。"
+            "v3：三个时机各自判定（**严格大于**其他所有存活角色，并列不算）：摸牌阶段看手牌数、出牌阶段看体力值、弃牌阶段看装备数（且装备 >0）。",
+            "条件满足 → 询问是否跳过该阶段（`phase.<seat>.fenli` 每阶段一次，可放弃）→ `turn::skip_phase` + `turn.<seat>.pingkou` +1。",
+            "同一回合可连跳多个阶段；每跳一个阶段给平寇 +1 次伤害。"
           ],
           "confidence": "verified",
           "diff": [
@@ -282,10 +270,9 @@
               "不跳过则正常进入该阶段"
             ]
           },
-          "impl": "sanguosha2::skills::b5::FENLI",
+          "impl": "sanguosha3::kernel::skills::b5::SKILLS(code=fenli) + b5::fenli + turn::skip_phase",
           "tests": [
-            "b5::fenli_skips_draw_phase_when_strictly_most_hand",
-            "b5::fenli_not_offered_when_tied"
+            "b5::fenli_skips_phase_and_counts_for_pingkou"
           ]
         },
         {
@@ -297,11 +284,9 @@
           "original_source": "heroes.json#gid=328",
           "mechanics_version": 2,
           "current": [
-            "触发：**回合结束收尾**（`turn.rs` End 段，`pingkou_offered` 每回合一次），若拥有平寇且本回合 `fenli_skipped` > 0 → 压入平寇帧，`remaining` = 已跳过阶段数。",
-            "每次询问：选一名**其他**存活角色 → 造成 1 点伤害（来源=朱桓），`remaining` -1，直到用完。",
-            "「不发动平寇」= 立即结束，**放弃剩余全部**伤害。",
-            "每次目标重新列出（同一角色可被重复选择）。",
-            "伤害走完整伤害流程（可被骄矜/制蛮/仁心等「防止伤害」技能接管）。"
+            "v3：回合结束后按 `turn.<seat>.pingkou` 次数逐次询问；每次选一名其他存活角色（`seat:<t>`，同一角色可重复选）造成 1 点伤害（`SourceKind::Skill`，按防具）。",
+            "`pass` 只放弃**本次**，剩余次数继续询问。",
+            "无其他角色/次数为 0 时不询问。"
           ],
           "confidence": "verified",
           "diff": [
@@ -360,10 +345,9 @@
               "「不发动」只放弃本次，剩余次数仍可继续"
             ]
           },
-          "impl": "sanguosha2::skills::b5::PINGKOU",
+          "impl": "sanguosha3::kernel::skills::b5::SKILLS(code=pingkou) + b5::pingkou",
           "tests": [
-            "b5::pingkou_deals_damage_per_skipped_phase",
-            "b5::pingkou_not_offered_without_skipped_phase"
+            "b5::pingkou_damages_per_skipped_phase"
           ]
         }
       ]
@@ -382,10 +366,9 @@
           "original_source": "heroes.json#gid=329",
           "mechanics_version": 2,
           "current": [
-            "出牌阶段可用，**不限次数**：前置 = 手牌 ≥ 2。",
-            "多选恰好 2 张**手牌**（可勾选/取消）→ `confirm` 逐张弃置 → 摸 1 张。",
-            "只允许手牌作为成本（装备区牌不可）。",
-            "弃置原因透传 `shenxing`（会触发秉壹等「牌被弃置」钩子）。"
+            "v3：出牌阶段主动、**不限次数**；`multi_select` 弃**任意两张**自己的牌（手牌/装备区；≥2 张后可直接结算）→ `flow::draw(1)`。",
+            "不足 2 张或取消则结束；弃牌一次结算（两张依次进弃牌堆）。",
+            "无次数限制，可反复发动。"
           ],
           "confidence": "verified",
           "diff": [
@@ -429,10 +412,9 @@
               "可弃牌数不足 2 时动作不出现"
             ]
           },
-          "impl": "sanguosha2::skills::b5::SHENXING",
+          "impl": "sanguosha3::kernel::skills::b5::SKILLS(code=shenxing) + b5::{can_shenxing, shenxing}",
           "tests": [
-            "b5::shenxing_discards_two_including_equipment_and_draws_one",
-            "b5::shenxing_needs_two_cards"
+            "b5::shenxing_discard_two_draw_one"
           ]
         },
         {
@@ -444,10 +426,9 @@
           "original_source": "heroes.json#gid=329",
           "mechanics_version": 2,
           "current": [
-            "触发：**自己的牌**进入弃牌堆（`bingyi_after_discard`，`bingyi_offered` **每阶段一次**）→ 询问是否发动。",
-            "发动：统计手牌颜色是否「颜色均相同」，写一条日志（展示所有手牌仅日志摘要，不亮牌）。",
-            "颜色均相同 → 顾雍自己摸 1 张，并**自动**取前 X 名其他存活角色各摸 1（X = 发动时自己的手牌数）；不询问「至多」。",
-            "颜色不同 → 只展示，不摸牌；手牌为空 → 视为颜色不同（不摸牌）。"
+            "v3：每阶段限一次（`phase.<seat>.bingyi`）：**自己的牌因弃置**进弃牌堆后询问（判定区移出不算弃置）。",
+            "发动 → `reveal` 全部手牌并判色（全红/全黑才算同色）→ 同色则进入 `multi_select`：选至多 X 名其他角色（X = 手牌数，`seat:<t>` + `ok`）各摸 1。",
+            "不同色/取消则结束；展示后 `conceal` 收回。"
           ],
           "confidence": "verified",
           "diff": [
@@ -508,10 +489,9 @@
               "每阶段限一次"
             ]
           },
-          "impl": "sanguosha2::skills::b5::BINGYI",
+          "impl": "sanguosha3::kernel::skills::b5::SKILLS(code=bingyi) + b5::bingyi",
           "tests": [
-            "b5::bingyi_reveals_and_lets_chosen_targets_draw",
-            "b5::bingyi_not_triggered_for_judge_zone_discard_or_twice_per_phase"
+            "b5::bingyi_same_color_draws_for_others"
           ]
         }
       ]
@@ -530,10 +510,9 @@
           "original_source": "heroes.json#gid=332",
           "mechanics_version": 2,
           "current": [
-            "触发：`damage_after`（受伤后、仍存活、amount>0）→ 压入恢拓帧（记 amount）。",
-            "询问曹叡：令**任一存活角色**（含自己）判定（走 QuickJudge 帧，含改判窗口）。",
-            "判定结果按**判定牌颜色**：红色（红桃/方块）→ 该角色回复 1 点体力（满体力时不回复，日志照写）；黑色（黑桃/梅花）→ 该角色摸「本次伤害值」张牌。",
-            "判定牌走统一判定流程（可被鬼才/鬼道等改判），改判后的结果生效。"
+            "v3：`DamageAfter`（受害者自己）→ 询问是否发动 → 选一名存活角色（`seat:<t>`）→ `quick_judge::start`（可被改判/天妒）。",
+            "判定**红色** → 该角色 `flow::heal(1)`；**黑色** → `flow::draw(该次伤害值)`（`amount` 由伤害事件带入）。",
+            "可放弃；无存活目标不询问。"
           ],
           "confidence": "verified",
           "diff": [
@@ -591,11 +570,9 @@
               "满体力时红色分支直接跳过（不执行回复）"
             ]
           },
-          "impl": "sanguosha2::skills::b5::HUITUO",
+          "impl": "sanguosha3::kernel::skills::b5::SKILLS(code=huituo) + b5::huituo + kernel::quick_judge::start",
           "tests": [
-            "b5::huituo_red_judge_heals_target",
-            "b5::huituo_black_judge_draws_damage_amount",
-            "b5::huituo_full_hp_red_branch_skipped"
+            "b5::huituo_judges_red_for_heal"
           ]
         },
         {
@@ -607,10 +584,9 @@
           "original_source": "heroes.json#gid=332",
           "mechanics_version": 2,
           "current": [
-            "出牌阶段限一次（`mingjian_used`）；前置 = 存在其他存活角色（**不检查自己是否有手牌**）。",
-            "选择一名其他角色 → 把自己的**全部手牌**直接移入其手牌（`mem::take` + `push`，非「获得」语义），随后做手牌上限检查。",
-            "给目标置 `mingjian` 标记 → 在其**下个回合**生效：手牌上限 +1、【杀】使用次数 +1；其回合开始时清除该标记。",
-            "手牌为 0 时仍可发动（只置标记）。"
+            "v3：出牌阶段限一次；手牌为 0 时不提供（`can_mingjian`）；选一名其他存活角色（`seat:<t>`，可放弃）。",
+            "发动 → **所有手牌** `flow::gain` 给其 → `mingjian.<target>` = 1：其下回合 `hand_limit_bonus +1` 且 `sha_extra +1`。",
+            "手牌全给后自己空手；加成按目标座位记，回合开始/结束的清理由内核 `turn.` 前缀统一处理。"
           ],
           "confidence": "verified",
           "diff": [
@@ -670,10 +646,9 @@
               "手牌为 0 时不能发动（裁定 Q1=B）"
             ]
           },
-          "impl": "sanguosha2::skills::b5::MINGJIAN",
+          "impl": "sanguosha3::kernel::skills::b5::SKILLS(code=mingjian) + b5::{can_mingjian, mingjian, hand_limit_bonus, sha_extra}",
           "tests": [
-            "b5::mingjian_gives_all_hand_and_buffs_next_turn",
-            "b5::mingjian_not_available_without_hand"
+            "b5::mingjian_gives_all_hand_and_buffs_next_turn"
           ]
         },
         {
@@ -685,11 +660,9 @@
           "original_source": "heroes.json#gid=332",
           "mechanics_version": 2,
           "current": [
-            "主公技 + 限定技：曹叡（**主公**且拥有兴衰）进入濒死时，濒死流程调用 `xingshuai_on_dying`（先于求桃）。",
-            "找所有存活的**魏势力**其他角色作为支援者（无人数上限、**不询问**）。",
-            "逐个支援者：曹叡回复 1 点体力（至多到上限），随后该支援者**立即失去 1 点体力**。",
-            "置 `xingshuai_used`（每局一次）；无魏势力角色 → 不触发。",
-            "支援者若因失去体力进入濒死，实现会**中断**并返回（其余支援者不再处理）。"
+            "v3：主公技 + 限定技（`Hook::DyingEnter`，仅主公身份、未用；`should_fire_dying_enter`）。",
+            "按座位顺序逐个询问其他**魏势力**存活角色（`cursor` 前进）：`use` → 主公 `flow::heal(1)`，`helped` +1。",
+            "主公脱离濒死后结束，并对每个支援者挂 `AfterDying{amount:1}`（濒死结算结束后各受 1 点伤害）；限定技标记已用。"
           ],
           "confidence": "verified",
           "diff": [
@@ -777,10 +750,9 @@
               "每局限定一次"
             ]
           },
-          "impl": "sanguosha2::skills::b5::XINGSHUAI（`skills::xingshuai_available/start_xingshuai/settle_after_dying`）",
+          "impl": "sanguosha3::kernel::skills::b5::SKILLS(code=xingshuai) + b5::{should_fire_dying_enter, xingshuai}",
           "tests": [
-            "b5::xingshuai_asks_wei_allies_then_hurts_them_after_dying",
-            "b5::xingshuai_not_available_without_lord_or_wei_allies"
+            "b5::xingshuai_supporters_heal_then_take_damage"
           ]
         }
       ]
@@ -799,10 +771,9 @@
           "original_source": "heroes.json#gid=333",
           "mechanics_version": 2,
           "current": [
-            "锁定技：距离计算里减去 `max_hp - hp`（每损失 1 点体力距离 -1），任何时点生效（含回合外）。",
-            "只在 `effective_distance`（技能判定用距离）里扣减；`seat_distance` 原值不变。",
-            "与进攻马/马术/奔袭等叠加，最终距离下限 1。",
-            "无询问、无日志（静默修正）。"
+            "v3：锁定技，唯一出口 `distance_bonus`：计算与其他角色距离 = **-(已损失体力)**（`max_hp - hp`，下限 0），与进攻马等逐项叠加。",
+            "距离统一走 `gear::distance`，最终下限 1；无 handler/询问。",
+            "不按使用牌次数累加（每损失 1 点体力固定 -1）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -846,10 +817,9 @@
               "没有千驹时不改距离"
             ]
           },
-          "impl": "sanguosha2::skills::b5::QIANJU（`Game::distance` 统一入口）",
+          "impl": "sanguosha3::kernel::skills::b5::SKILLS(code=qianju) + b5::distance_bonus",
           "tests": [
-            "b5::qianju_reduces_distance_per_lost_hp",
-            "b5::qianju_absent_keeps_distance"
+            "b5::qianju_distance_penalty_per_lost_hp"
           ]
         },
         {
@@ -861,10 +831,9 @@
           "original_source": "heroes.json#gid=333",
           "mechanics_version": 2,
           "current": [
-            "触发在「造成伤害时」（扣血前）：曹休拥有倾袭、来源是【杀】、且**装备区有武器** → 压入倾袭帧（记 damage、damage_type、武器攻击范围 range）。",
-            "由**目标**二选一：`opt1`（目标手牌数 ≥ 攻击范围时才提供）「弃置与攻击范围等量张手牌，然后弃置此武器」；`opt2`「令此【杀】伤害 +1」。",
-            "opt1：**随机**弃置目标 N 张手牌 + 弃置曹休的武器（触发失去装备钩子）→ 按原伤害结算。",
-            "opt2：伤害 +1 后立即结算（直接用 `apply_damage_now`，不再走「造成伤害时」钩子）。"
+            "v3：`Hook::DamageBefore`（曹休使用【杀】造成伤害前）；条件 = 自己装备区有**武器**（`weapon_range` 读取）。",
+            "询问 `use`（可放弃=按原伤害）→ 由**目标**二选一：`discard` 弃与武器攻击范围等量的手牌（目标自选）然后曹休弃武器；`plus` 此【杀】伤害 +1。",
+            "两条路径都以 `damage_apply` 收口（与其它「造成伤害时」技能逐个询问、互不吞掉）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -925,10 +894,9 @@
               "目标手牌不足以支付 opt1 时只提供 opt2"
             ]
           },
-          "impl": "sanguosha2::skills::b5::QINGXI（`skills::damage_before` + hook 自抑制）",
+          "impl": "sanguosha3::kernel::skills::b5::SKILLS(code=qingxi) + b5::qingxi",
           "tests": [
-            "b5::qingxi_lets_target_discard_cards_and_weapon",
-            "b5::qingxi_opt2_increases_damage_and_no_weapon_no_trigger"
+            "b5::qingxi_target_choice_discard_or_plus_one"
           ]
         }
       ]
@@ -947,11 +915,9 @@
           "original_source": "heroes.json#gid=334",
           "mechanics_version": 2,
           "current": [
-            "出牌阶段列出「黑色非基本牌 × 可转化的基本牌名（杀/桃/酒）」选项，动作 id 为 `skill:huomo:{card}:{code}`。",
-            "过滤：本回合**已用过**的基本牌名不再提供（`huomo_used` 位图，只覆盖基本牌：杀/桃/酒/闪）；`桃` 仅在受伤时提供；`酒` 每回合一次。",
-            "执行：把该牌从手牌移到**牌堆顶**（`deck.draw.push`，`draw_one` 用 `pop` 取顶），并记为「视为使用」对应基本牌：杀 → 走 Sha 帧（占用次数、需攻击范围内有目标）；桃 → 回复 1 点；酒 → 置酒标记。",
-            "「视为使用」的【杀】为虚拟牌：`card` 为空串、`virtual_card: true`（无承载牌）。",
-            "黑色非基本牌读牌属性 ✓。"
+            "v3：出牌阶段主动；可承载牌 = 手牌中的**黑色非基本牌**（`can_huomo`）；无此类牌不提供。",
+            "选一张 `card:<id>` → `flow::to_deck_top` 置于牌堆顶 → 选牌名 `use:<sha|tao|jiu>`（本回合未用过的基本牌名，杀/火杀/雷杀统一按【杀】）→ `use_virtual`。",
+            "「桃」满血不提供、「酒」每回合一次等常规收口沿用内核校验；本回合用过的牌名记 `turn.<seat>.huomo.<def>`。"
           ],
           "confidence": "verified",
           "diff": [
@@ -1025,10 +991,9 @@
               "红色非基本牌不能作为活墨材料"
             ]
           },
-          "impl": "sanguosha2::skills::b5::HUOMO",
+          "impl": "sanguosha3::kernel::skills::b5::SKILLS(code=huomo) + b5::{can_huomo, huomo} + card_play::use_virtual",
           "tests": [
-            "b5::huomo_places_black_trick_on_top_and_uses_missing_basic",
-            "b5::huomo_excludes_used_basic_names_and_red_cards"
+            "b5::huomo_uses_black_nonbasic_as_basic"
           ]
         },
         {
@@ -1040,11 +1005,9 @@
           "original_source": "heroes.json#gid=334",
           "mechanics_version": 2,
           "current": [
-            "触发：**其他角色**在其出牌阶段使用**黑桃**牌指定目标后（`zuoding_trigger`：花色=黑桃、目标≠使用者、本阶段 `phase_damage` == 0）。",
-            "找场上第一个拥有佐定的角色（钟繇）→ 询问：令**该目标**摸 1 张。",
-            "多目标牌会**对每个目标各触发一次**（可令多个目标各摸 1）。",
-            "本阶段一旦有角色受到过伤害（`phase_damage` > 0）→ 不再触发。",
-            "花色读物理牌花色 ✓。"
+            "v3：`CardUsed`（其他角色、其出牌阶段）；条件 = 该牌为**黑桃**、本阶段无伤害事件（`g.log` 的 `DamageAfter`）。",
+            "询问 `use`（可放弃）→ 选该牌的**一个目标**（`seat:<t>`，一张牌只触发一次）→ `flow::draw(t, 1)`。",
+            "V3 额外收 `turn.<turn>.zuoding`（每回合一次）；**agreed 未写该上限，待人工复核**。"
           ],
           "confidence": "verified",
           "diff": [
@@ -1117,10 +1080,9 @@
               "同一张牌只触发一次"
             ]
           },
-          "impl": "sanguosha2::skills::b5::ZUODING",
+          "impl": "sanguosha3::kernel::skills::b5::SKILLS(code=zuoding) + b5::zuoding",
           "tests": [
-            "b5::zuoding_lets_one_target_draw_for_spade_card",
-            "b5::zuoding_skipped_after_damage_or_for_heart"
+            "b5::zuoding_lets_target_draw_on_spade"
           ]
         }
       ]
