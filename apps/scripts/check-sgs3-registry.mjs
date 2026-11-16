@@ -117,6 +117,8 @@ for (const f of readdirSync(ALIGN_DIR)) {
     generals,
     codes: [...codes],
     status: data.status,
+    engine: data.engine ?? "v2",
+    confirmedAt: String(data.confirmed_at ?? "").slice(0, 10),
   });
 }
 
@@ -140,13 +142,27 @@ for (let i = 0; i < V3_STARTED_BATCHES.length; i += 1) {
   }
 }
 
-// 5.2 每批：align ⊂ 注册表 ∩ 已收口 ∩ 有用例
+// 5.2 每批：align ⊂ 注册表 ∩ 已收口 ∩ 有用例；且 align 批次状态必须跟上「已收口」
 const coveredCodes = new Set();
 for (const batch of V3_STARTED_BATCHES) {
   const align = alignBatches.get(batch);
   if (!align) {
     problems.push(`已开工批次 ${batch} 缺对齐单 docs/games/sanguosha/align/${batch}.json`);
     continue;
+  }
+  // 注册表已收口 ⇒ 对齐单批次状态不得停在 confirmed 及以下（否则就是「v2 台账没跟上 V3」）。
+  if (!["implemented", "verified"].includes(align.status)) {
+    problems.push(
+      `${batch} 已收口（ENABLED_SKILLS 全量）但 align 批次状态仍为 ${align.status}：` +
+        "请同步为 implemented（v3 待复核）或 verified（v3 已签字）",
+    );
+  }
+  // verified 必须是 v3 口径（V3 开工日 2026-11-13 之后签字）。
+  if (align.status === "verified") {
+    if (align.engine !== "v3") problems.push(`${batch} align=verified 但 engine=${align.engine}（须 v3）`);
+    if (align.confirmedAt < "2026-11-13") {
+      problems.push(`${batch} align=verified 但 confirmed_at=${align.confirmedAt || "-"} 早于 V3 开工日 2026-11-13`);
+    }
   }
   const file = `b${Number(batch.slice(1))}`;
   const registeredInFile = new Set(byBatchFile.get(file) ?? []);

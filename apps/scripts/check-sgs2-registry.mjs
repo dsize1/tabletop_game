@@ -226,6 +226,9 @@ for (const b of V2_BATCHES) {
   const specFile = path.join(projectRoot, `docs/games/sanguosha/align/B${b}.json`);
   if (!existsSync(specFile)) continue;
   const spec = JSON.parse(readFileSync(specFile, "utf8"));
+  // 已回写 v3 的批次：`impl`/`tests` 锚点指向 `sanguosha3`，交给 `check:sgs-align`（4.6）
+  // 按 v3 源码/用例校验；v2 注册表门禁只管 code 覆盖（上方 3.5）。
+  if ((spec.engine ?? "v2") === "v3") continue;
   for (const gen of spec.generals ?? []) {
     for (const sk of gen.skills ?? []) {
       for (const t of sk.tests ?? []) {

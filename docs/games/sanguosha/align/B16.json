@@ -2,10 +2,11 @@
   "batch": "B16",
   "source": "界限突破·J4",
   "status": "implemented",
+  "engine": "v3",
   "mechanics_version": 2,
   "confirmed_by": "用户",
   "confirmed_at": "2026-11-09",
-  "note": "机器文件（单一事实源）。人读请看同目录 B16.md；改这里后运行 --sync 重生成 md。 2026-11-09：42 条疑点用户逐条裁定（含自定义：狞恶弃置=装备区+随机手牌、固政=单次弃置≥2 张、悲歌两获得可叠加、驱虎伤害不被防具减免、再起红牌=任何方式进弃牌堆、截辎=完整额外摸牌阶段）；同日实现 `crates/engines/sanguosha2/src/skills/b16.rs`（14 技能）+ `tests/b16.rs`（29 条），注册 SKILLS + V2_BATCHES=16，状态置 implemented。",
+  "note": "机器文件（单一事实源）。人读请看同目录 B16.md；改这里后运行 --sync 重生成 md。 2026-11-09：42 条疑点用户逐条裁定（含自定义：狞恶弃置=装备区+随机手牌、固政=单次弃置≥2 张、悲歌两获得可叠加、驱虎伤害不被防具减免、再起红牌=任何方式进弃牌堆、截辎=完整额外摸牌阶段）；同日实现 `crates/engines/sanguosha2/src/skills/b16.rs`（14 技能）+ `tests/b16.rs`（29 条），注册 SKILLS + V2_BATCHES=16，状态置 implemented。；current/impl/tests 已回写 v3（B16–B20 优先，见 next-v3-verification.md 步骤 B）",
   "generals": [
     {
       "gid": 492,
@@ -21,9 +22,9 @@
           "original_source": "heroes.json#gid=492",
           "mechanics_version": 2,
           "current": [
-            "v2 锁定技（纯钩子）：`target_blocker` 拦截牌名「南蛮入侵」（AOE 目标枚举处 `skills::can_target` 过滤）。",
-            "`skills::aoe_damage_source` → `b16::huoshou_source`：其他角色使用【南蛮入侵】时，伤害来源改为座位序最先的祸首持有者。",
-            "自己就是祸首持有者时**不替换**（用户裁定 Q3=B）。"
+            "v3：锁定技，两个统一出口：①`aoe_excluded` → 【南蛮入侵】目标枚举时排除祸首持有者（**不能成为目标**）；②`aoe_damage_source` → 其他角色使用【南蛮入侵】时，伤害来源改为座位序最先的存活祸首持有者。",
+            "自己使用的【南蛮入侵】不替换来源（`has(g, user, \"huoshou\")` 直接返回 None）。",
+            "无 handler/无询问；AOE 目标枚举与伤害出口由内核统一调用。"
           ],
           "confidence": "verified",
           "diff": [
@@ -97,10 +98,9 @@
               "非【南蛮入侵】的伤害不替换来源"
             ]
           },
-          "impl": "sanguosha2::skills::b16::HUOSHOU + card_play::aoe（伤害来源）",
+          "impl": "sanguosha3::kernel::skills::b16::SKILLS(code=huoshou) + b16::{aoe_excluded, aoe_damage_source}",
           "tests": [
-            "b16::huoshou_immune_and_replaces_damage_source",
-            "b16::huoshou_own_nanman_keeps_source"
+            "b16::huoshou_blocks_nanman_and_replaces_damage_source"
           ]
         },
         {
@@ -112,9 +112,9 @@
           "original_source": "heroes.json#gid=492",
           "mechanics_version": 2,
           "current": [
-            "v2：`PhaseStart(End)` 触发（`Window::OwnTurn`），读 `turn.red_discarded`（`to_discard` 对红色实体牌累计，任何进入弃牌堆方式都算）。",
-            "逐张结算：令一名角色（可重复、可放弃）选择摸 1 / 令孟获回复 1；由被选者作答。",
-            "回复走 `flow::heal`（不超上限）。"
+            "v3：结束阶段（`PhaseStart` + `Phase::End`）；X = 本回合红色牌进入弃牌堆张数（`turn.<回合>.red_to_discard`，内核 `to_discard` 对红色实体牌累计）。",
+            "X>0 时逐次询问：孟获选一名存活角色（`target:<seat>`，可 `pass` 提前结束）→ 由**该角色**强制二选一（`opt1` 摸 1 / `opt2` 令孟获回复 1，满血不回复仍结算），每次消耗 1 张。",
+            "可重复选同一名角色；剩余次数随 `remaining` 递减，计数按回合座位（`turn.` 前缀）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -189,10 +189,10 @@
               "非结束阶段不触发"
             ]
           },
-          "impl": "sanguosha2::skills::b16::ZAIZHI + kernel::mod::to_discard（红牌计数）",
+          "impl": "sanguosha3::kernel::skills::b16::SKILLS(code=zaizhi) + b16::{zaizhi, next_round}",
           "tests": [
-            "b16::zaizhi_settles_per_red_card_in_discard",
-            "b16::zaizhi_needs_red_cards_in_discard"
+            "b16::zaizhi_repeats_per_red_card_to_discard_and_target_chooses",
+            "b16::zaizhi_not_triggered_without_red_cards"
           ]
         }
       ]
@@ -211,9 +211,9 @@
           "original_source": "heroes.json#gid=496",
           "mechanics_version": 2,
           "current": [
-            "v2 转化：黑色基本牌/黑色装备牌（**手牌 + 装备区**）当【兵粮寸断】（`skills::conversions` → `convert:` 动作）。",
-            "`skills::supply_shortage_no_distance` 含「本回合未造成伤害」（`turn.damage_by:<seat>` == 0，实时读取）→ 不受距离 1 限制。",
-            "已造成伤害时恢复【兵粮寸断】距离 1（`card_play` 新增距离校验）。"
+            "v3：转化技（`skills::use_alias`）：**黑色**基本牌 / 黑色装备牌（手牌与装备区，`Category::Basic` 或 `slot.is_some()`）当【兵粮寸断】使用 → 生成 `convert:` 动作。",
+            "`trick_no_distance`：本回合**未造成过伤害**（`turn.<seat>.damage_dealt == 0`，使用时实时判定）→ 该【兵粮寸断】无距离限制。",
+            "无独立 handler；转化入口与距离校验共用内核出口。"
           ],
           "confidence": "verified",
           "diff": [
@@ -288,10 +288,9 @@
               "本回合已造成伤害且目标距离 >1 时不可指定（沿用现有【兵粮寸断】距离口径）"
             ]
           },
-          "impl": "sanguosha2::skills::b16::DUANLIANG + skills::supply_shortage_no_distance",
+          "impl": "sanguosha3::kernel::skills::b16::SKILLS(code=duanliang) + b16::{use_alias, trick_no_distance}",
           "tests": [
-            "b16::duanliang_converts_black_cards_and_ignores_distance",
-            "b16::duanliang_loses_no_distance_after_damage"
+            "b16::duanliang_converts_black_basic_or_equip_and_no_distance_before_damage"
           ]
         },
         {
@@ -303,9 +302,9 @@
           "original_source": "heroes.json#gid=496",
           "mechanics_version": 2,
           "current": [
-            "v2：`Game::draw_phase` 跳过分支调用 `skills::on_skip_draw`（任何角色，含徐晃自己）。",
-            "界版选择一名角色：手牌数全场最少（并列均算）且无「辎」（`seat.counters[\"zai\"]`）→ 获得「辎」，否则摸 1。",
-            "`skills::after_draw_phase` → 摸牌阶段**结束**时移除「辎」并立刻执行**额外摸牌阶段**（`draw_with_cause(2 + draw_bonus)`）。"
+            "v3：任意角色（含徐晃自己）跳过摸牌阶段 → `on_skip_draw` 压入座位序最先的截辎持有者询问（`stage=ask`，可放弃）。",
+            "对象固定为「跳过摸牌阶段的那名角色」：若其手牌数全场最少（并列均算）且无「辎」→ `add_zai`（`Seat.counters[\"zai\"]`）；否则 `flow::draw` 1 张。",
+            "有「辎」者于**其摸牌阶段结束时** `take_extra_draw` 移除「辎」并重跑一次摸牌阶段（K15 单出口）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -379,10 +378,10 @@
               "已有「辎」→ 改为摸 1"
             ]
           },
-          "impl": "sanguosha2::skills::b16::JIEZI + kernel::mod::draw_phase（跳过钩子）",
+          "impl": "sanguosha3::kernel::skills::b16::SKILLS(code=jiezi) + b16::{on_skip_draw, take_extra_draw, jiezi}",
           "tests": [
-            "b16::jiezi_gives_mark_then_extra_draw_phase",
-            "b16::jiezi_non_min_hand_draws_one"
+            "b16::jiezi_skip_draw_grants_zai_or_draws_and_extra_draw_consumes_it",
+            "b16::jiezi_not_offered_without_holder"
           ]
         }
       ]
@@ -401,9 +400,9 @@
           "original_source": "heroes.json#gid=505",
           "mechanics_version": 2,
           "current": [
-            "v2 锁定技：`flow::die` 调 `skills::on_death(g, victim, source)`（死亡清理之前）。",
-            "有伤害来源且来源不是自己 → 给来源置 `skills_lost` 标记；`skills::active` 统一返回 false（含锁定技/主公技）。",
-            "无来源死亡不触发；杀死者是另一名断肠持有者时不再互相触发（用户裁定 Q3=B）。"
+            "v3：锁定技 `Death`（`Subject::Self_`）；读取 `by`（伤害来源），**无来源或来源=自己** → 不触发。",
+            "触发 → `skills::revoke_all(killer)`：杀死者失去**所有**技能（含锁定技/主公技，本局永久），执行于死亡清理（弃牌）之前。",
+            "无询问。"
           ],
           "confidence": "verified",
           "diff": [
@@ -476,10 +475,9 @@
               "杀死者不是伤害来源时不触发"
             ]
           },
-          "impl": "sanguosha2::skills::b16::DUANCHANG + skills::active（skills_lost）",
+          "impl": "sanguosha3::kernel::skills::b16::SKILLS(code=duanchang) + b16::duanchang + skills::revoke_all",
           "tests": [
-            "b16::duanchang_killer_loses_all_skills",
-            "b16::duanchang_no_source_no_trigger"
+            "b16::duanchang_revokes_killer_skills_before_death_cleanup"
           ]
         },
         {
@@ -491,9 +489,9 @@
           "original_source": "heroes.json#gid=505",
           "mechanics_version": 2,
           "current": [
-            "v2：`DamageAfter` 触发（来源牌为实体【杀】），持有者**有牌**（手牌或装备区）才询问。",
-            "弃一张牌 → `start_quick_judge`（可改判）→ 按花色结算：红桃回复 1 / 方片摸 2 / 梅花来源弃 2（来源逐张自选）/ 黑桃来源翻面。",
-            "界版：判定牌与弃置牌**花色相同** → 获得判定牌；**点数相同** → 获得弃置牌（两张可同时获得，用户裁定 Q3=B）。"
+            "v3：`DamageAfter`（`Subject::Any`）；条件 = 伤害来源为【杀】（`damage_source == \"Slash\"`）且蔡文姬**有牌**（`common::own_cards` 手牌+装备区）。",
+            "发动：弃一张自己的牌（`pick:`，手牌或装备区）→ `quick_judge::start` 令受伤者判定；按花色结算：红桃回 1 / 方片摸 2 / 梅花伤害来源**逐张**弃 2（`stage=club`，不足弃光）/ 黑桃伤害来源翻面。",
+            "界版追加 `beige_bonus`：判定牌与弃置牌**同花色** → 蔡文姬获得判定牌；**同点数** → 获得弃置牌（两者可叠加）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -569,10 +567,10 @@
               "非【杀】伤害不触发"
             ]
           },
-          "impl": "sanguosha2::skills::b16::BEIGE + card_play::start_quick_judge",
+          "impl": "sanguosha3::kernel::skills::b16::SKILLS(code=beige) + b16::{beige, beige_club, beige_bonus} + kernel::quick_judge::start",
           "tests": [
-            "b16::beige_discard_judge_and_gain_same_suit",
-            "b16::beige_needs_cards_to_trigger"
+            "b16::beige_discards_then_judges_and_heart_heals",
+            "b16::beige_not_triggered_by_non_slash_damage"
           ]
         }
       ]
@@ -591,9 +589,9 @@
           "original_source": "heroes.json#gid=515",
           "mechanics_version": 2,
           "current": [
-            "v2 主动技：出牌阶段限一次（放弃后本阶段不再提示 `phase.cancel_quhu`）；目标须体力大于你**且手牌非空**。",
-            "拼点（`kernel::pindian`）：赢 → 选其攻击范围内的一名角色（可含荀彧自己）造成 1 点伤害；没赢 → 其对你造成 1 点伤害。",
-            "伤害走 `flow::damage_now_no_armor`（可触发受伤类技能，但**不被防具减免/防止**，用户裁定 Q21 补充）。"
+            "v3：出牌阶段限一次（`turn.<seat>.quhu_used`）；目标须**体力 > 荀彧且手牌非空**（`can_quhu`）→ `pindian::start` 拼点。",
+            "赢 → 荀彧选目标攻击范围内一名角色（可含荀彧自己）受 1 点伤害（来源=拼点目标、`SourceKind::Skill`、`ArmorKind::None` 不被防具减免）。",
+            "没赢 → 拼点目标对荀彧造成 1 点伤害（同样 `ArmorKind::None`）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -667,10 +665,9 @@
               "手牌为空不可选"
             ]
           },
-          "impl": "sanguosha2::skills::b16::QUHU + flow::damage_now_no_armor",
+          "impl": "sanguosha3::kernel::skills::b16::SKILLS(code=quhu) + b16::{can_quhu, quhu} + kernel::pindian::start",
           "tests": [
-            "b16::quhu_win_lets_target_damage_chosen_role",
-            "b16::quhu_requires_higher_hp_and_hand"
+            "b16::quhu_lost_takes_damage_from_target_and_win_deals_damage"
           ]
         },
         {
@@ -682,9 +679,9 @@
           "original_source": "heroes.json#gid=515",
           "mechanics_version": 2,
           "current": [
-            "v2：`DamageAfter` 触发（受伤后；濒死救起后也能走这里）+ 死亡钩子 `skills::on_death`。",
-            "令一名角色摸 X 张（X=当前体力上限，≤5），然后由该角色逐张弃至 X 张（reason=`jieming`）。",
-            "死亡时在死亡清理之前询问（`flow::die` → `on_death`）。"
+            "v3：`DamageAfter`（受害者自己）+ `Death`（自己）双订阅；X = min(5, 目标**当前**体力上限)。",
+            "发动 → 选一名存活角色（`target:<seat>`，可放弃）→ 摸 X 张，随后**强制逐张弃至 X 张**（`stage=discard`，按手牌数比较）。",
+            "受伤后已死亡则交给 Death 分支（防双触发）；死亡分支同样可发动。"
           ],
           "confidence": "verified",
           "diff": [
@@ -758,9 +755,9 @@
               "目标弃牌后手牌不超过 X 时不再弃"
             ]
           },
-          "impl": "sanguosha2::skills::b16::JIEMING + flow::die（死亡触发）",
+          "impl": "sanguosha3::kernel::skills::b16::SKILLS(code=jieming) + b16::jieming",
           "tests": [
-            "b16::jieming_draws_x_then_discards_to_x",
+            "b16::jieming_draws_to_x_then_discards_to_x",
             "b16::jieming_triggers_on_death"
           ]
         }
@@ -780,9 +777,9 @@
           "original_source": "heroes.json#gid=526",
           "mechanics_version": 2,
           "current": [
-            "v2 主动技：出牌阶段限两次（`turn.qiangxi_used`），每名角色本回合只能被指定一次（位掩码 `turn.qiangxi_mask`）。",
-            "代价：受到 1 点伤害（`flow::damage(g, None, owner, 1)`，无来源）或弃置武器牌（触发失去装备钩子）。",
-            "对目标造成 1 点伤害（来源=典韦）；代价濒死后救起仍继续选目标。"
+            "v3：出牌阶段限两次（`phase.<seat>.qiangxi_used`），每名角色本回合只能被指定一次（`turn.<seat>.qiangxi_t.<t>`）。",
+            "代价二选一：①`hp` → `flow::lose_hp` 1（无来源，走失去体力入口）；②`weapon:<id>` → 弃置装备区武器；无武器且体力 ≤ 0 时不可发动。",
+            "选目标后 `flow::damage` 1 点（来源典韦、`SourceKind::Skill`、`ArmorKind::None`，无距离限制）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -856,10 +853,9 @@
               "第三次发动被拒绝"
             ]
           },
-          "impl": "sanguosha2::skills::b16::QIANGXI",
+          "impl": "sanguosha3::kernel::skills::b16::SKILLS(code=qiangxi) + b16::{can_qiangxi, qiangxi}",
           "tests": [
-            "b16::qiangxi_cost_hp_then_damage_once_per_target",
-            "b16::qiangxi_discards_weapon_as_cost"
+            "b16::qiangxi_costs_hp_then_damages_once_per_target_and_twice_per_phase"
           ]
         },
         {
@@ -871,9 +867,9 @@
           "original_source": "heroes.json#gid=526",
           "mechanics_version": 2,
           "current": [
-            "v2 锁定技：`turn.damage_taken:<victim>`（内核伤害出口累计）== 2 且（其为你或来源为你）→ 摸 1 并弃置其一张牌。",
-            "弃置候选＝装备区具体牌 + 随机手牌（**不含判定区**），由典韦选择。",
-            "每名角色各自第 2 次受伤都触发；第 1/3 次不触发。"
+            "v3：锁定技 `DamageAfter`（`Subject::Any`）；计数 = `turn.<受害者>.ninge_hits`。",
+            "当计数 == 2 且（受害者=典韦 或 伤害来源=典韦）→ 典韦摸 1 张；随后询问弃受害者一张牌：手牌随机（`hand`）/装备区指定（`equip:<id>`），判定区不算（可放弃）。",
+            "其他情形（计数 ≠ 2 或与典韦无关）不触发。"
           ],
           "confidence": "verified",
           "diff": [
@@ -948,10 +944,9 @@
               "不可弃置判定区牌"
             ]
           },
-          "impl": "sanguosha2::skills::b16::NINGE + flow::damage_now_impl（受伤计数）",
+          "impl": "sanguosha3::kernel::skills::b16::SKILLS(code=ninge) + b16::ninge",
           "tests": [
-            "b16::ninge_second_damage_draws_and_discards",
-            "b16::ninge_ignores_unrelated_damage"
+            "b16::ninge_draws_and_discards_on_second_damage_of_turn"
           ]
         }
       ]
@@ -970,9 +965,9 @@
           "original_source": "heroes.json#gid=550",
           "mechanics_version": 2,
           "current": [
-            "v2：`after_draw_phase` 时可选弃一张牌（手牌或装备区，每回合一次），记录颜色 `turn.sx_color`。",
-            "本回合与该牌**颜色不同**（实体牌花色）的手牌/装备牌可当【决斗】使用（`skills::conversions`）。",
-            "`DamageAfter` 记录 `sx_dmg:<card>`；`PhaseStart(End)` 从弃牌堆/处理区取回（含自己发起的转化【决斗】）。"
+            "v3：摸牌阶段结束 `after_draw_phase`（每回合一次 `turn.<seat>.sx_offered`）→ 询问弃一张自己的牌（手牌或装备区），记录**相反颜色** `turn.<turn>.<seat>.sx_color`。",
+            "`use_alias`：本回合该颜色的牌（按物理花色，手牌/装备区）当【决斗】使用。",
+            "结束阶段（`PhaseStart` + `Phase::End`）→ 汇总本回合对你造成过伤害的牌（`turn.<seat>.damage_card_taken.*`，仅取仍在弃牌堆/处理区/移出区的）→ 询问一次性获得（`gain`，可放弃）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -1049,10 +1044,9 @@
               "已不在弃牌堆/处理区的牌不取回"
             ]
           },
-          "impl": "sanguosha2::skills::b16::SHUANGXIONG + skills::after_draw_phase",
+          "impl": "sanguosha3::kernel::skills::b16::SKILLS(code=shuangxiong) + b16::{after_draw_phase, shuangxiong, use_alias}",
           "tests": [
-            "b16::shuangxiong_discards_color_then_converts_opposite",
-            "b16::shuangxiong_gains_damage_cards_at_end"
+            "b16::shuangxiong_discard_enables_opposite_color_duel_and_recovers_damage_cards"
           ]
         }
       ]
@@ -1071,9 +1065,9 @@
           "original_source": "heroes.json#gid=563",
           "mechanics_version": 2,
           "current": [
-            "v2 主动技（无次数限制，放弃后本阶段不再提示）：选一张手牌装备 → 选一名其他角色 → 置入其装备区。",
-            "同槽位旧装备进弃牌堆并触发失去装备钩子（枭姬等）。",
-            "完成后摸 1 张（走 `draw_with_cause`，弃牌阶段处理上限）。"
+            "v3：出牌阶段主动、**无次数限制**（`can_zhijian` 只要求手牌有装备且场上有其他存活角色）。",
+            "选一张**手牌装备**（`slot.is_some()`）→ 选一名其他存活角色（`target:`）→ `gear::place_from_hand` 置入其装备区（替换原装备，旧装备进弃牌堆并触发失去装备钩子）→ 张昭张纮摸 1。",
+            "两段都可放弃；放弃后本阶段不再询问。"
           ],
           "confidence": "verified",
           "diff": [
@@ -1147,10 +1141,9 @@
               "不能对自己使用"
             ]
           },
-          "impl": "sanguosha2::skills::b16::ZHIJIAN",
+          "impl": "sanguosha3::kernel::skills::b16::SKILLS(code=zhijian) + b16::{can_zhijian, zhijian} + kernel::gear::place_from_hand",
           "tests": [
-            "b16::zhijian_moves_equip_and_draws",
-            "b16::zhijian_needs_equip_in_hand"
+            "b16::zhijian_places_hand_equip_into_other_and_draws"
           ]
         },
         {
@@ -1162,9 +1155,9 @@
           "original_source": "heroes.json#gid=563",
           "mechanics_version": 2,
           "current": [
-            "v2：订阅 `CardDiscarded`；用内核 `Game.discard_batch`（每次动作清空）判定「**单次弃置动作 ≥2 张**」。",
-            "每角色每阶段限一次（`phase.guzheng_used:<owner>`）；由固政持有者选择交给弃牌者的那一张，其余归自己（`Game::gain`）。",
-            "判定区移出不产生 `CardDiscarded`，天然不计入。"
+            "v3：`CardDiscarded`（`Subject::Other`）；用内核 `skills::discard_batch` 判定「其他角色**单次弃置动作 ≥2 张**」（只算仍在弃牌堆的牌）。",
+            "每阶段限一次（`phase.<seat>.guzheng_offered`）；询问选一张 `give:<id>` 令弃置者获得，其余全部归张昭张纮（可放弃）。",
+            "单张弃置、自己弃置不触发。"
           ],
           "confidence": "verified",
           "diff": [
@@ -1238,10 +1231,10 @@
               "同一阶段第二次不触发"
             ]
           },
-          "impl": "sanguosha2::skills::b16::GUZHENG + kernel::mod::discard_batch",
+          "impl": "sanguosha3::kernel::skills::b16::SKILLS(code=guzheng) + b16::guzheng + skills::discard_batch",
           "tests": [
-            "b16::guzheng_single_action_two_discards",
-            "b16::guzheng_single_card_does_not_trigger"
+            "b16::guzheng_gives_one_and_takes_rest_from_single_discard_batch",
+            "b16::guzheng_not_triggered_on_single_discard"
           ]
         }
       ]
@@ -1260,9 +1253,9 @@
           "original_source": "heroes.json#gid=587",
           "mechanics_version": 2,
           "current": [
-            "v2：登记为【杀】指定目标后的介入技能（`skills::b16::sha_intercept` → `b8::sha_intercept_skills`）。",
-            "逐张移出目标手牌（随机）/装备区牌，最多 X 张（X=目标当前体力值），`to_void` + `void_return`（due=当前 `turn_seq`）。",
-            "`skills::damage_bonus_typed` 加 `b16::pojun_bonus`：目标手牌数与装备区牌数皆 ≤ 你 → 【杀】伤害 +1（结算时实时比较）。"
+            "v3：`Hook::ShaTargeted` → `fire_sha_targeted` 为每个目标压入询问（`step=targets`），可逐目标放弃。",
+            "发动：X = 目标体力值，逐张移出至多 X 张（手牌随机 `hand` / 装备区指定 `equip:<id>`，判定区不算）；`flow::exile_until_turn_end` 本回合结束自动归还。",
+            "伤害加成 `damage_bonus`：徐盛使用的【杀】（`SourceKind::Slash`）对「手牌+装备数 ≤ 徐盛」的目标 +1（结算时实时比较）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -1336,10 +1329,9 @@
               "判定区牌不能移出"
             ]
           },
-          "impl": "sanguosha2::skills::b16::POJUN + b8::sha_intercept_skills",
+          "impl": "sanguosha3::kernel::skills::b16::SKILLS(code=pojun) + b16::{fire_sha_targeted, pojun, damage_bonus}",
           "tests": [
-            "b16::pojun_voids_cards_until_turn_end",
-            "b16::pojun_bonus_when_card_counts_not_higher"
+            "b16::pojun_exiles_cards_until_turn_end_and_damage_bonus_compares_counts"
           ]
         }
       ]

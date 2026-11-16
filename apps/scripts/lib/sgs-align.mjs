@@ -21,6 +21,13 @@ export const SKILL_STATUS = ["draft", "discussed", "confirmed", "implemented", "
 export const STATUS_ORDER = ["draft", "discussed", "confirmed", "implemented", "verified"];
 export const atLeast = (status, want) => STATUS_ORDER.indexOf(status) >= STATUS_ORDER.indexOf(want);
 
+export const ENGINES = ["v2", "v3"];
+/**
+ * V3 内核开工日（ADR-0043，`sanguosha3` 起）：`verified` 若早于此日期，一律视为 v2 时代签字。
+ * 台账反「假绿」门禁（memory_palace/plan/next-v3-verification.md 步骤 C）。
+ */
+export const V3_EPOCH = "2026-11-13";
+
 export function loadMechanics() {
   return JSON.parse(readFileSync(MECHANICS_FILE, "utf8"));
 }
@@ -149,7 +156,7 @@ export function renderMarkdown(spec, catalog, mechanics) {
   L.push(`# 对齐单 ${spec.batch} · ${spec.source}（${spec.generals.length} 将 / ${allSkills.length} 技能）`);
   L.push("");
   L.push("> **本文件由 `npm run sgs:align -- --batch " + spec.batch + " --sync` 生成，勿手改**；改 `" + spec.batch + ".json`。");
-  L.push(`> 批次状态：\`${spec.status}\`｜机制词表版本：${spec.mechanics_version}（当前 ${mechanics.version}）｜确认人：${spec.confirmed_by ?? "-"}｜确认时间：${spec.confirmed_at ?? "-"}`);
+  L.push(`> 批次状态：\`${spec.status}\`｜引擎：${spec.engine ?? "v2"}（本单 \`current\`/锚点所指）｜机制词表版本：${spec.mechanics_version}（当前 ${mechanics.version}）｜确认人：${spec.confirmed_by ?? "-"}｜确认时间：${spec.confirmed_at ?? "-"}`);
   L.push("> 流程与字段说明见 `README.md`；门禁 `npm run check:sgs-align`。");
   L.push("");
 
@@ -269,6 +276,11 @@ export function validateSpec(spec, catalog, mechanics, { strict = true } = {}) {
   const batchId = spec.batch;
   const batch = BATCHES.find((b) => b.id === batchId);
   if (!batch) return { errors: [`未知批次 ${batchId}`], warnings, conflicts };
+  // `engine`：本批 `current`/`impl`/`tests` 锚点所指引擎（v2 默认=历史口径）。
+  const engine = spec.engine ?? "v2";
+  if (!ENGINES.includes(engine)) errors.push(`批次 ${batchId}: 非法 engine \`${engine}\`（只允许 ${ENGINES.join("/")}）`);
+  const confirmedAt = String(spec.confirmed_at ?? "").slice(0, 10);
+  const v3Signed = engine === "v3" && confirmedAt >= V3_EPOCH;
   // catalog.byCode 是「原始名录」（不含 skills）；校验技能需用 audited 条目。
   const auditByCode = new Map(catalog.audited.map((g) => [g.code, g]));
 
@@ -320,10 +332,23 @@ export function validateSpec(spec, catalog, mechanics, { strict = true } = {}) {
         }
       }
       if (atLeast(s.status, "implemented")) {
-        if (!s.impl) errors.push(`${tag}: 缺实现锚点 impl（如 sanguosha2::skills::liangyin）`);
+        if (!s.impl) errors.push(`${tag}: 缺实现锚点 impl（如 sanguosha3::kernel::skills::b19::MIEJI）`);
         if (s.tests.length === 0) errors.push(`${tag}: 缺回归用例 tests`);
         if (s.assertions.positive.length === 0) errors.push(`${tag}: 缺正例断言`);
         if (s.assertions.negative.length === 0) errors.push(`${tag}: 缺反例断言（良姻教训：误触发必须有反例）`);
+      }
+      // `verified` 的引擎口径（步骤 C 防「v2 签字被 V3 继承成假绿」）。
+      if (s.status === "verified") {
+        if (spec.engine == null) errors.push(`${tag}: verified 必须显式声明批次 engine`);
+        if (!v3Signed) {
+          errors.push(
+            `${tag}: verified 必须是 v3 口径签字（engine=${engine} / confirmed_at=${confirmedAt || "-"}），` +
+              `v2 时代签字请回落 implemented 并注明「v2 签字 / v3 待复核」`,
+          );
+        }
+        if (!/^sanguosha3::/.test(String(s.impl ?? ""))) {
+          errors.push(`${tag}: verified 的 impl 锚点必须指向 sanguosha3（当前 ${s.impl ?? "-"}）`);
+        }
       }
       // 「原文限定语复述」检查：agreed 不得省略原文的关键限定词（2026-11-06 奇制「指定目标后」事故）。
       if (s.agreed) {
@@ -343,6 +368,22 @@ export function validateSpec(spec, catalog, mechanics, { strict = true } = {}) {
 
   if (atLeast(spec.status, "confirmed") && !spec.confirmed_by) {
     errors.push(`批次 ${batchId}: 状态 ${spec.status} 但缺 confirmed_by`);
+  }
+  // 批次 verified ⇒ 全技能 verified 且 v3 签字（防批次整体虚报）。
+  if (spec.status === "verified") {
+    const notVerified = spec.generals.flatMap((g) => g.skills).filter((s) => s.status !== "verified");
+    if (notVerified.length) {
+      errors.push(
+        `批次 ${batchId}: status=verified 但仍有 ${notVerified.length} 个技能未 verified（${notVerified
+          .slice(0, 6)
+          .map((s) => s.code)
+          .join(",")}）`,
+      );
+    }
+    if (spec.engine !== "v3") errors.push(`批次 ${batchId}: status=verified 但 engine=${spec.engine ?? "-"}（须 v3）`);
+    if (confirmedAt < V3_EPOCH) {
+      errors.push(`批次 ${batchId}: status=verified 但 confirmed_at=${confirmedAt || "-"} 早于 V3 开工日 ${V3_EPOCH}`);
+    }
   }
   if (conflicts.length && spec.status !== "blocked") {
     errors.push(`批次 ${batchId}: 存在机制冲突但批次状态未置 blocked`);

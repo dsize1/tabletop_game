@@ -1,11 +1,12 @@
 {
   "batch": "B19",
   "source": "界限突破·J7",
-  "status": "verified",
+  "status": "implemented",
+  "engine": "v3",
   "mechanics_version": 2,
   "confirmed_by": "用户",
   "confirmed_at": "2026-11-10",
-  "note": "机器文件（单一事实源）。人读请看同目录 <B>.md；改这里后运行 --sync 重生成 md。",
+  "note": "机器文件（单一事实源）。人读请看同目录 <B>.md；改这里后运行 --sync 重生成 md。；v2 签字 2026-11-10；v3 待复核（V3 台账回落，见 memory_palace/plan/next-v3-verification.md）；current/impl/tests 已回写 v3（B16–B20 优先，见 next-v3-verification.md 步骤 B）",
   "generals": [
     {
       "gid": 642,
@@ -16,14 +17,14 @@
           "code": "mieji",
           "name": "灭计",
           "kind": "normal",
-          "status": "verified",
+          "status": "implemented",
           "original": "出牌阶段限一次，你可以将一张锦囊牌置于牌堆顶并令一名有手牌的其他角色选择一项：\n 1.弃置一张锦囊牌；\n 2.依次弃置两张牌。",
           "original_source": "heroes.json#gid=642",
           "mechanics_version": 2,
           "current": [
-            "v2：出牌阶段限一次（`turn.mieji_used`）；从手牌选一张锦囊牌（含延时）并 `Game::put_on_top` 置于牌堆顶（公开、留在牌堆顶）。",
-            "随后选一名有手牌的其他角色，压入该角色的询问：①弃一张锦囊牌（其自选）；②依次弃两张牌（手牌或装备区，逐张自选）。",
-            "选项可用性按其区域判定；两项都没有时直接结束（置顶牌不回退）。"
+            "v3：出牌阶段主动技，限一次（`turn.<seat>.mieji_used`）；可选承载牌 = 手牌中的锦囊/延时锦囊（`cards::Category::{Trick,DelayedTrick}`）。",
+            "选牌后 `flow::to_deck_top` 置于牌堆顶并 `reveal(\"灭计\")` 公开（留在牌堆顶）；再选一名有手牌的其他角色（`target:<seat>`）。",
+            "目标二选一（`PendingBuilder` 强制，无「放弃」）：①`trick_pick` 弃一张锦囊（目标自选）；②`two_pick` 依次弃两张（逐张自选手牌/装备区，判定区不算）。选项按「有锦囊 / 手牌数≥2」判定可用性。"
           ],
           "confidence": "verified",
           "diff": [
@@ -85,24 +86,23 @@
               "本阶段已发动过不能再发动"
             ]
           },
-          "impl": "sanguosha2::skills::b19::MIEJI",
+          "impl": "sanguosha3::kernel::skills::b19::SKILLS(code=mieji) + b19::mieji + kernel::flow::to_deck_top",
           "tests": [
-            "b19::mieji_puts_trick_on_top_and_target_discards_two",
-            "b19::mieji_requires_trick_and_is_once_per_play_phase"
+            "b19::mieji_puts_trick_on_top_and_target_discards_two"
           ]
         },
         {
           "code": "fencheng",
           "name": "焚城",
           "kind": "limited",
-          "status": "verified",
+          "status": "implemented",
           "original": "限定技，出牌阶段，你可以选择一名其他角色开始，令所有其他角色依次选择一项：\n 1.弃置任意张牌（须比上家弃置的牌多）；\n 2.受到你造成的2点火焰伤害。",
           "original_source": "heroes.json#gid=642",
           "mechanics_version": 2,
           "current": [
-            "v2：限定技（`flags.fencheng_used`）；出牌阶段由李儒选择起始角色，按座位顺序从该角色起取所有其他存活角色（不含李儒）。",
-            "逐个询问：弃置 ≥ 上家+1 张（手牌/装备区自选，逐张；可选「完成」）或受到 2 点火焰伤害（`flow::damage_typed(Fire)`，来源=李儒）。",
-            "弃置完成时把张数写为新的「上家张数」；选伤害不改变。阵亡角色跳过。"
+            "v3：限定技（`skills::{limited_used, mark_limited_used}`），出牌阶段主动；李儒选一名其他存活角色为起点（`target:<seat>`，可放弃）。",
+            "顺序 = 从起点按座位环依次（跳过李儒本人与已死亡角色），逐个询问：①弃置**至少 prev+1 张**（`own_cards` 含手牌+装备区，逐张自选 `pick:`，凑够后 `ok` 确认，prev 更新为本次张数）；②受 2 点火焰伤害（`DamageKind::Fire`、`ArmorKind::None`）。",
+            "「弃牌 > prev」不成立时只提供受伤项；角色中途死亡则跳过。"
           ],
           "confidence": "verified",
           "diff": [
@@ -164,24 +164,23 @@
               "已发动过不能再发动"
             ]
           },
-          "impl": "sanguosha2::skills::b19::FENCHENG",
+          "impl": "sanguosha3::kernel::skills::b19::SKILLS(code=fencheng) + b19::{can_fencheng, fencheng}",
           "tests": [
-            "b19::fencheng_start_target_and_discard_more_than_last",
-            "b19::fencheng_is_limited_and_needs_start_target"
+            "b19::fencheng_sequence_and_fire_damage"
           ]
         },
         {
           "code": "juece",
           "name": "绝策",
           "kind": "normal",
-          "status": "verified",
+          "status": "implemented",
           "original": "结束阶段，你可以对一名手牌数小于等于你的其他角色造成1点伤害。",
           "original_source": "heroes.json#gid=642",
           "mechanics_version": 2,
           "current": [
-            "v2：`PhaseStart(End)` + `Window::OwnPhase(End)` 触发；每回合一次（`turn.juece_used`）。",
-            "候选 = 手牌数 ≤ 李儒手牌数的其他存活角色；有候选即询问（可放弃）。",
-            "选定后 `flow::damage(Some(李儒), target, 1)`（无牌来源）。"
+            "v3：`PhaseStart` 订阅 + `Window::OwnPhase(Phase::End)`（自己的结束阶段）；handler 再校验 `g.phase == Phase::End`。",
+            "候选 = 其他存活且手牌数 ≤ 李儒手牌数的角色；李儒选一名（`target:<seat>`，可放弃）。",
+            "结算 = `flow::damage`（来源李儒、1 点、`DamageKind::Normal`、`ArmorKind::None`，不走防具/护甲）。无候选则不询问。"
           ],
           "confidence": "verified",
           "diff": [
@@ -225,10 +224,9 @@
               "结束阶段外不触发"
             ]
           },
-          "impl": "sanguosha2::skills::b19::JUECE",
+          "impl": "sanguosha3::kernel::skills::b19::SKILLS(code=juece) + b19::juece",
           "tests": [
-            "b19::juece_hits_target_with_fewer_or_equal_hand",
-            "b19::juece_not_triggered_outside_end_phase"
+            "b19::juece_end_phase_damages_low_hand_target"
           ]
         }
       ]
@@ -242,14 +240,14 @@
           "code": "jingce",
           "name": "精策",
           "kind": "normal",
-          "status": "verified",
+          "status": "implemented",
           "original": "你每于回合内使用一种花色的手牌，本回合的手牌上限便+1；每个出牌阶段结束时，你可以摸X张牌（X为你本回合使用过牌的类型数）。",
           "original_source": "heroes.json#gid=658",
           "mechanics_version": 2,
           "current": [
-            "v2：`skills::on_card_use` 只统计**从手牌使用**的牌：花色位图 `turn.jingce_suits` + 类型位图 `turn.jingce_types`（基本/锦囊（含延时）/装备三类）。",
-            "手牌上限：`skills::hand_limit_delta` 叠加花色数。",
-            "`PhaseEnd(Play)` 触发询问「摸 X 张 / 不发动」，X = 类型数；X=0 不压询问。"
+            "v3：`on_use_start` 只统计**从手牌使用**的牌（`Zone::Hand(actor)`）：花色位 `turn.<seat>.jingce_suit.<Suit>` + 类型位 `jingce_type.{basic|trick|equip}`（锦囊含延时）。",
+            "手牌上限加成 `hand_limit_bonus` = 本回合用过的**不同花色数**（0–4）。",
+            "出牌阶段结束 `on_phase_end`：X = 本回合用过的**类型数**（0–3），X>0 时询问「是否摸 X 张」（`jingce` stage=end，可放弃）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -323,10 +321,9 @@
               "花色/类型计数在回合切换后清零"
             ]
           },
-          "impl": "sanguosha2::skills::b19::JINGCE",
+          "impl": "sanguosha3::kernel::skills::b19::SKILLS(code=jingce) + b19::{on_use_start, hand_limit_bonus, on_phase_end, jingce}",
           "tests": [
-            "b19::jingce_hand_limit_and_optional_draw_at_play_end",
-            "b19::jingce_no_prompt_when_no_card_used"
+            "b19::jingce_counts_suits_types_and_draws_at_play_end"
           ]
         }
       ]
@@ -340,14 +337,14 @@
           "code": "zhuikong",
           "name": "惴恐",
           "kind": "normal",
-          "status": "verified",
+          "status": "implemented",
           "original": "其他角色的回合开始时，若你已受伤，你可以与其拼点：\n•若你赢，其本回合不能对除其以外的角色使用牌；\n•若你没赢，你获得其拼点牌，然后其视为对你使用一张【杀】。",
           "original_source": "heroes.json#gid=671",
           "mechanics_version": 2,
           "current": [
-            "v2：`TurnStart` + `Window::OtherTurn`；条件：已受伤、双方有手牌、对方可拼点（未被封锁）。",
-            "拼点走 `kernel::pindian::start`；赢 → 写 `turn.zhuikong_deny:<当前角色>`，`plan_use` 统一拦截「对其他角色使用牌」。",
-            "没赢（含平局）→ `Game::gain` 获得对方拼点牌，然后 `use_virtual(当前角色, 杀, [伏皇后])`。"
+            "v3：`PhaseStart` + `Window::AnyTime`；条件 = 其他角色的准备阶段、伏皇后已受伤（`hp < max_hp`）、双方都有手牌，且该回合未询问过（`turn.<回合角色>.zhuikong_offered`）。",
+            "发动 → `pindian::start` 拼点；赢 → 置 `turn.<回合角色>.zhuikong`，该回合角色不能对除自己以外的角色使用牌（`others_use_blocked`）。",
+            "没赢 → 获得对方拼点牌（仅在弃牌堆时 `flow::gain`），随后该回合角色对伏皇后 `use_virtual(\"sha\")`（可被【闪】响应）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -423,24 +420,23 @@
               "技能视为使用不被封锁（仍可对其他角色使用）"
             ]
           },
-          "impl": "sanguosha2::skills::b19::ZHUIKONG",
+          "impl": "sanguosha3::kernel::skills::b19::SKILLS(code=zhuikong) + b19::{zhuikong, others_use_blocked} + kernel::pindian::start",
           "tests": [
-            "b19::zhuikong_win_blocks_targeting_others",
-            "b19::zhuikong_lose_gains_pindian_card_and_virtual_sha"
+            "b19::zhuikong_win_blocks_turn_player_targeting_others"
           ]
         },
         {
           "code": "qiuyuan",
           "name": "求援",
           "kind": "normal",
-          "status": "verified",
+          "status": "implemented",
           "original": "当你成为【杀】或伤害锦囊的目标时，你可以令另一名其他角色选择一项：\n 1.交给你一张与此牌同类型不同牌名的牌；\n 2.成为此牌的额外目标。",
           "original_source": "heroes.json#gid=671",
           "mechanics_version": 2,
           "current": [
-            "v2：【杀】走 `sha_intercept_skills`（结算前），伤害锦囊走 `trick_intercept_owner`（逐目标）；无协助者不提供。",
-            "发动后由伏皇后选协助者；协助者二选一：①交一张同类型（基本/锦囊/装备）不同牌名的手牌（`Game::gain` 交给伏皇后）；②`Game.extra_targets_mid` 追加为额外目标。",
-            "群体锦囊不提供②；结果经 `ShaIntercept::Continue` / `g.trick_intercept=(target,false)` 回到原结算；`turn.qiuyuan:<seat>` 记录已用一次。"
+            "v3：`fire_target_helper` 在【杀】/伤害锦囊（`tags.sha|damage_trick`，排除 `AllAlive` 群体锦囊）结算前，对每个「有求援」的目标逐个压入协助者询问（非使用者、非目标的其他存活角色，stage=ask）。",
+            "协助者二选一：①`become` → `declare_mid_target` 成为此牌的额外目标（追加到目标列表末尾）；②`give:<card>` → 交给目标一张与使用牌**同类别**（基本/锦囊/装备）且**牌名不同**的手牌。",
+            "没有协助者或没有可交牌时只提供「不响应」/直接结束。"
           ],
           "confidence": "verified",
           "diff": [
@@ -517,10 +513,9 @@
               "使用者与目标之外无人可协助时不触发"
             ]
           },
-          "impl": "sanguosha2::skills::b19::QIUYUAN",
+          "impl": "sanguosha3::kernel::skills::b19::SKILLS(code=qiuyuan) + b19::{fire_target_helper, qiuyuan}",
           "tests": [
-            "b19::qiuyuan_helper_gives_same_kind_card",
-            "b19::qiuyuan_not_triggered_without_helper_or_for_non_damage_trick"
+            "b19::qiuyuan_helper_becomes_extra_target"
           ]
         }
       ]
@@ -534,14 +529,14 @@
           "code": "gongqi",
           "name": "弓骑",
           "kind": "normal",
-          "status": "verified",
+          "status": "implemented",
           "original": "出牌阶段限一次，你可以弃置一张牌使你本回合攻击范围无限，且你使用与弃置的牌花色相同的【杀】无次数限制。若弃置的牌为装备牌，你可以弃置一名其他角色一张牌。",
           "original_source": "heroes.json#gid=676",
           "mechanics_version": 2,
           "current": [
-            "v2：出牌阶段限一次；弃一张自己的牌（手牌或装备区）。",
-            "写 `turn.gongqi_range`（`Game::can_reach` 统一入口 → 攻击范围无限）与 `turn.gongqi_suit`（同花色【杀】在 `planned_targets` 跳过次数校验）。",
-            "若弃置装备牌：选一名其他角色，再选「随机手牌 / 装备区具体牌」（不含判定区）弃置。"
+            "v3：出牌阶段限一次（`turn.<seat>.gongqi_used`），弃一张自己的牌（手牌或装备区）：置 `gongqi_range`（攻击范围无限，`infinite_range`）+ 记录弃牌花色（`gongqi_suit`）→ 该花色【杀】本回合无次数限制（`sha_unlimited_card`）。",
+            "若弃的是**装备区**牌 → 追加「弃一名其他角色一张牌」：选目标后进入选牌（手牌 `hand` = 随机弃一张；装备区 `equip:<id>` = 指定弃置），判定区不算。",
+            "弃手牌只有前半段效果，不追加弃他人牌。"
           ],
           "confidence": "verified",
           "diff": [
@@ -630,24 +625,23 @@
               "弃置非装备牌不解锁「弃他人一张牌」"
             ]
           },
-          "impl": "sanguosha2::skills::b19::GONGQI",
+          "impl": "sanguosha3::kernel::skills::b19::SKILLS(code=gongqi) + b19::{can_gongqi, gongqi, infinite_range, sha_unlimited_card}",
           "tests": [
-            "b19::gongqi_discards_equip_then_unlimited_sha_of_same_suit",
-            "b19::gongqi_once_per_play_phase"
+            "b19::gongqi_discard_grants_infinite_range_and_same_suit_unlimited"
           ]
         },
         {
           "code": "jiefan",
           "name": "解烦",
           "kind": "limited",
-          "status": "verified",
+          "status": "implemented",
           "original": "限定技，出牌阶段，你可以选择一名角色，令所有攻击范围内包含其的角色选择一项：\n 1.弃置一张武器牌；\n 2.令该角色摸一张牌。\n若此时为第一轮，回合结束时，此技能视为未发动过。",
           "original_source": "heroes.json#gid=676",
           "mechanics_version": 2,
           "current": [
-            "v2：出牌阶段选一名角色（含自己）；投票者 = 攻击范围包含目标的角色（`distance <= attack_range`）。",
-            "逐个投票者询问：①弃一张武器牌（手牌或装备区，自选）②令目标摸 1 张。",
-            "第一轮（`g.round <= 1`）只写回合计数 `turn.jiefan_used:<seat>`（回合结束重置）；第 2 轮起写永久 `flags.jiefan_used`。"
+            "v3：限定技（`skills::{limited_used, mark_limited_used}`），出牌阶段主动；可选任意存活角色（含自己）为目标（`target:<seat>`，可放弃）。",
+            "投票者 = 攻击范围包含目标的存活角色（`gear::within_attack_range`，按目标的攻击范围），逐个询问：①弃置自己装备区的武器（`weapon:<id>`）；②令目标摸一张（`draw`）；无武器则只有摸牌项。",
+            "第一轮（`round <= 1`）结束 `on_turn_end` 清除 `skill.limited.jiefan` → 视为未发动；第二轮起整局一次。"
           ],
           "confidence": "verified",
           "diff": [
@@ -722,10 +716,9 @@
               "攻击范围不含目标的角色不参与"
             ]
           },
-          "impl": "sanguosha2::skills::b19::JIEFAN",
+          "impl": "sanguosha3::kernel::skills::b19::SKILLS(code=jiefan) + b19::{can_jiefan, jiefan, on_turn_end}",
           "tests": [
-            "b19::jiefan_voters_choose_and_round_one_resets",
-            "b19::jiefan_after_round_one_is_once_per_game"
+            "b19::jiefan_first_round_resets_limited"
           ]
         }
       ]
@@ -739,14 +732,14 @@
           "code": "fuhen",
           "name": "父魂",
           "kind": "normal",
-          "status": "verified",
+          "status": "implemented",
           "original": "你可将两张牌当【杀】使用或打出。你使用的转化【杀】目标角色只能使用颜色相同的手牌响应；\n你于出牌阶段使用【杀】造成伤害后，你本回合获得“武圣”“咆哮”。",
           "original_source": "heroes.json#gid=690",
           "mechanics_version": 2,
           "current": [
-            "v2：出牌阶段选两张手牌（组合）→ 选目标 → `set_virtual` + `use_as(杀)`；响应窗口提供 `pair:c1,c2` 两张手牌当【杀】打出。",
-            "两张承载牌同色时写 `Game.response_color_lock`：该【杀】的【闪】响应只提供同色手牌（异色不限制）；`finish` 清空。",
-            "`DamageAfter` 且来源为自己、此牌是【杀】、处于自己出牌阶段 → 授予武圣/咆哮（`turn.fuhen_granted` 每回合一次），`on_turn_end` 撤销。"
+            "v3：两张手牌当【杀】使用/打出：响应窗口 `pair_response_options` 生成 `pair:<c1>,<c2>`（`pair_response_valid` 校验手牌归属/未冻结/不同牌）。",
+            "承载两张**同色**时 `on_use_start_fuhen` 声明 `response_color_lock`（目标只能用同色手牌响应）；异色不限制颜色。",
+            "出牌阶段用父魂【杀】造成伤害后（`DamageAfter` + `Subject::By`，且本回合 `fuhen_pair > 0`）→ `skills::grant` 授予「武圣」「咆哮」，`on_turn_end` 回合结束撤销。"
           ],
           "confidence": "verified",
           "diff": [
@@ -824,10 +817,10 @@
               "回合结束后授予的「武圣」「咆哮」撤销"
             ]
           },
-          "impl": "sanguosha2::skills::b19::FUHEN",
+          "impl": "sanguosha3::kernel::skills::b19::SKILLS(code=fuhen) + b19::{pair_response_options, pair_response_valid, on_use_start_fuhen, fuhen_damage, on_turn_end}",
           "tests": [
-            "b19::fuhen_same_color_restricts_shan_response",
-            "b19::fuhen_grants_wusheng_paoxiao_until_turn_end"
+            "b19::fuhen_pair_sets_color_lock_and_grants_after_damage",
+            "b19::fuhen_pair_response_options_and_validation"
           ]
         }
       ]
@@ -841,14 +834,14 @@
           "code": "mashu",
           "name": "马术",
           "kind": "locked",
-          "status": "verified",
+          "status": "implemented",
           "original": "锁定技，你计算与其他角色的距离-1。",
           "original_source": "heroes.json#gid=696",
           "mechanics_version": 2,
           "current": [
-            "v2：`b9::MASHU`（锁定技）→ `skills::distance_delta` = 1，在 `Game::distance_raw` 统一累加，最终下限 1。",
-            "界马岱与标准马超同 code（ADR-0024），无需新逻辑。",
-            "只影响「我 → 他人」，不改他人到你的距离。"
+            "v3：锁定技，注册在 B9（`b9::SKILLS`，`code=mashu`），不挂 handler：`Face.hooks = [Hook::Distance(-1)]`。",
+            "距离计算走内核 `gear::distance` 统一入口（`Hook::Distance` 直接并入 `distance_delta`），最终距离下限 1。",
+            "无询问、无事件订阅；界马岱/界马超共用同一注册（ADR-0024 同名复用）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -875,9 +868,9 @@
               "不改变其他角色到你的距离"
             ]
           },
-          "impl": "sanguosha2::skills::b9::MASHU",
+          "impl": "sanguosha3::kernel::skills::b9::SKILLS(code=mashu) + skills::Hook::Distance(-1)",
           "tests": [
-            "b19::mashu_reduces_distance_for_jie_madai"
+            "b9::mashu_reduces_distance"
           ],
           "test": "b19::mashu_reduces_distance_for_jie_madai"
         },
@@ -885,14 +878,14 @@
           "code": "qianxi",
           "name": "潜袭",
           "kind": "normal",
-          "status": "verified",
+          "status": "implemented",
           "original": "出牌阶段开始时，你可以展示一张牌。若如此做，距离为1的其他角色本回合不能使用或打出与“潜袭”牌颜色相同的手牌，你本回合使用“潜袭”牌造成的伤害+1。",
           "original_source": "heroes.json#gid=696",
           "mechanics_version": 2,
           "current": [
-            "v2：`PhaseStart(Play)` 触发；展示一张手牌（`Game::reveal`，牌留在手牌）。",
-            "写 `turn.color_lock:<seat>`（发动时距离 1 的所有其他角色）；`Game::can_use_card` → `skills::hand_color_blocked` 统一拦截该颜色手牌（含之后摸到的）。",
-            "写 `turn.qianxi_bonus:<牌>`，`damage_bonus*` 对被展示牌造成的伤害 +1（本回合）。"
+            "v3：`PhaseStart` + `Window::OwnPhase(Phase::Play)`（出牌阶段开始时），每回合限一次（`turn.<seat>.qianxi_used`）。",
+            "展示一张手牌（`reveal` 公开、牌留在手牌）并记 `qianxi_card` + 颜色位 `qianxi_red|qianxi_black`。",
+            "效果：①距离 1 的其他角色本回合不能使用/打出该颜色手牌（`hand_color_blocked`）；②马岱本回合使用该展示牌造成的伤害 +1（`damage_bonus` 以 `g.damage_card` 比对）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -983,10 +976,9 @@
               "展示牌离开手牌后不再 +1"
             ]
           },
-          "impl": "sanguosha2::skills::b19::QIANXI",
+          "impl": "sanguosha3::kernel::skills::b19::SKILLS(code=qianxi) + b19::{qianxi, hand_color_blocked, damage_bonus}",
           "tests": [
-            "b19::qianxi_locks_distance_one_color_and_boosts_revealed_card",
-            "b19::qianxi_does_not_lock_without_reveal"
+            "b19::qianxi_reveals_card_and_blocks_same_color_at_distance_one"
           ]
         }
       ]
@@ -1000,14 +992,14 @@
           "code": "jiazhao",
           "name": "矫诏",
           "kind": "normal",
-          "status": "verified",
+          "status": "implemented",
           "original": "出牌阶段限一次，你可将一张牌当本轮未有角色使用过的基本或普通锦囊牌使用。",
           "original_source": "heroes.json#gid=726",
           "mechanics_version": 2,
           "current": [
-            "v2：基础形态出牌阶段限一次；牌名 = 基本牌 + 普通锦囊（不含【闪】、不含延时；含【无懈可击】），排除 `round.used:<牌名>`（本轮所有角色的使用+打出）。",
-            "承载牌为手牌；`set_virtual` + `use_as`（基础形态严格校验；【无懈可击】走技能声明不严格校验）。",
-            "修改 1（`jiazhao_mod=1` 显示「矫诏plus」）：每轮限一次（`round.jiazhao_used:<seat>`）、任意基本/普通锦囊、`legal_actions_out_of_turn` 允许回合外发动；修改 2（=2 显示「矫诏plusplus」）不需要承载牌（`use_virtual`）。"
+            "v3：`jiazhao_mod` 0（基础）→ 出牌阶段限一次（`phase.<seat>.jiazhao`）：选一张手牌承载（`pick:`）→ 声明**本轮未有角色使用过**的基本/普通锦囊牌名（`declarable_codes` 从牌定义派生：基本牌排除【闪】、不含延时锦囊）→ `use_as` 结算。",
+            "`jiazhao_mod` 1（显示「矫诏plus」）→ 每轮限一次（`round.<seat>.jiazhao`），**回合外也可发动**（`out_of_turn_actions`/`start_out_of_turn`），仍以一张手牌承载，牌名不再受限。",
+            "`jiazhao_mod` 2（「矫诏plusplus」）→ 每轮限一次，改用 `use_virtual`（**无承载虚拟牌**）当任意基本/普通锦囊。"
           ],
           "confidence": "verified",
           "diff": [
@@ -1098,24 +1090,23 @@
               "本阶段已发动过不能再发动（修改后改为每轮限一次）"
             ]
           },
-          "impl": "sanguosha2::skills::b19::JIAZHAO",
+          "impl": "sanguosha3::kernel::skills::b19::SKILLS(code=jiazhao) + b19::{jiazhao, can_jiazhao, declarable_codes, display_name, out_of_turn_actions, start_out_of_turn}",
           "tests": [
-            "b19::jiazhao_excludes_names_used_this_round",
-            "b19::jiazhao_uses_card_as_trick_and_plus_works_out_of_turn"
+            "b19::jiazhao_declares_unused_card_and_plus_display_name"
           ]
         },
         {
           "code": "danxin",
           "name": "殚心",
           "kind": "normal",
-          "status": "verified",
+          "status": "implemented",
           "original": "当你受到伤害后，你可摸X张牌，然后修改“矫诏”（X为你修改“矫诏”的次数）。",
           "original_source": "heroes.json#gid=726",
           "mechanics_version": 2,
           "current": [
-            "v2：`DamageAfter` 且伤害值 > 0、体力 > 0 时询问；发动后先摸 X 张（X = 当前修改次数），然后必定修改一次。",
-            "修改次数存 `Seat.counters.jiazhao_mod`，上限 2；满 2 次后仍摸 2 张但不再修改。",
-            "修改使「矫诏」显示名与行为切换（见矫诏条目），持续到游戏结束。"
+            "v3：`DamageAfter`（受害者自己）→ 先 `Stage::Choose` 询问「是否发动」（可放弃）。",
+            "发动：若已修改过（`jiazhao_mod > 0`）先 `flow::draw` X 张（X = 当前修改次数）；随后 `jiazhao_mod` +1（上限 2）。",
+            "满 2 次后仍可发动摸 2 张，不再修改（`display_name` 停在「矫诏plusplus」）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -1177,10 +1168,9 @@
               "未受伤不触发"
             ]
           },
-          "impl": "sanguosha2::skills::b19::DANXIN",
+          "impl": "sanguosha3::kernel::skills::b19::SKILLS(code=danxin) + b19::danxin",
           "tests": [
-            "b19::danxin_draws_x_then_modifies_jiazhao",
-            "b19::danxin_not_triggered_while_dying"
+            "b19::danxin_draws_and_modifies_jiazhao_up_to_two"
           ]
         }
       ]
@@ -1194,14 +1184,14 @@
           "code": "shibei",
           "name": "矢北",
           "kind": "locked",
-          "status": "verified",
+          "status": "implemented",
           "original": "锁定技，游戏开始时，你获得3点护甲。当你每回合首次受到伤害后，你回复1点体力，然后当你本回合再受到伤害后，你失去1点体力。",
           "original_source": "heroes.json#gid=749",
           "mechanics_version": 2,
           "current": [
-            "v2：`on_game_start` 发 3 点护甲（`Game.add_armor` + `EventKind::ArmorChanged`）；视图 `marks_count.hu` 投影「护N」。",
-            "`flow::damage_now_impl`：先扣护甲、溢出扣体力；伤害事件照常成立（amount = 原伤害值）。",
-            "`DamageAfter` 锁定：每回合（`turn.shibei_hits:<seat>`）首次 → `flow::heal(1)`；再次 → `flow::lose_hp(1)`。"
+            "v3：`GameStart` 钩子 `add_armor(owner, 3)`；护甲在视图标记区投影「护N」（`marks_count.hu`），受伤先扣护甲、溢出才扣体力。",
+            "锁定技 `DamageAfter`（受害者自己）：本回合首次受伤（`turn.<seat>.shibei_hit == 0`）→ 计数并 `flow::heal` 1（满血不回复）；之后同回合再受伤 → `flow::lose_hp` 1（统一失去体力入口）。",
+            "全程无询问（锁定技）；「首次」按回合重置（`turn.` 前缀）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -1289,24 +1279,23 @@
               "失去体力不触发「受到伤害后」类技能"
             ]
           },
-          "impl": "sanguosha2::skills::b19::SHIBEI",
+          "impl": "sanguosha3::kernel::skills::b19::SKILLS(code=shibei) + b19::shibei + kernel::flow::{heal, lose_hp}",
           "tests": [
-            "b19::shibei_armor_absorbs_then_heals_and_loses_hp",
-            "b19::shibei_armor_is_projected_in_marks_count"
+            "b19::shibei_starts_with_armor_and_first_damage_heals"
           ]
         },
         {
           "code": "jianying",
           "name": "渐营",
           "kind": "normal",
-          "status": "verified",
+          "status": "implemented",
           "original": "当你于出牌阶段使用牌时，若此牌与你于此阶段使用的上一张牌花色或点数相同，则你可以摸一张牌。出牌阶段限一次，你可以将一张牌当做任意一张基本牌使用，若你于本阶段使用的上一张牌有花色，则此牌的花色视为与上一张牌的花色相同。",
           "original_source": "heroes.json#gid=749",
           "mechanics_version": 2,
           "current": [
-            "v2：`skills::on_card_use` 按当前出牌阶段记录「上一张牌」的花色/点数，与当前牌相同则写 `turn.jy_match:<牌>`；`CardUsed` 触发询问「摸一张 / 不摸」。",
-            "②出牌阶段限一次：选牌名（基本牌，不含【闪】，区分杀/火杀/雷杀/桃/酒）→ 选手牌 → 需要目标时再选目标 → `set_virtual` + `use_as`（严格校验）。",
-            "花色继承：`turn.jy_suit_override:<牌>` → `skills::effective_suit` 统一返回上一张牌花色（上一张无花色则不继承）。"
+            "v3：出牌阶段限一次（`turn.<seat>.jianying_used`）：选一张手牌承载，声明一张基本牌（`cards::all_defs` 派生，排除【闪】）→ `use_as`；花色按上一张牌**继承**（`suit_for_use` + `jianying_inherit`）。",
+            "`on_use_start_jianying` 记录本阶段上一张牌的花色/点数（`jianying_suit/rank`）；本阶段使用的牌与上一张**花色或点数相同** → 置 `jianying_offer`，由 `CardUsed` 驱动询问「是否摸一张」（可放弃）。",
+            "为避免同一张牌重复询问，`jianying_offer` 在询问后清零（每张匹配牌一次）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -1394,10 +1383,9 @@
               "上一张牌无花色时不继承花色"
             ]
           },
-          "impl": "sanguosha2::skills::b19::JIANYING",
+          "impl": "sanguosha3::kernel::skills::b19::SKILLS(code=jianying) + b19::{on_use_start_jianying, can_jianying, jianying, suit_for_use}",
           "tests": [
-            "b19::jianying_draws_on_same_suit_in_play_phase",
-            "b19::jianying_converts_to_basic_with_suit_inheritance"
+            "b19::jianying_draws_on_same_suit_and_inherits_suit"
           ]
         }
       ]

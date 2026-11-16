@@ -10,7 +10,7 @@
 //
 // 用法：node apps/scripts/check-sgs-align.mjs [--require-all] [--verbose]
 
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { loadCatalog, projectRoot } from "./lib/sgs-catalog.mjs";
 import { BATCHES } from "./lib/sgs-batches.mjs";
@@ -69,6 +69,8 @@ for (const spec of specs) {
 
 // 4.5 裁定 ↔ 用例锚点（M10）：已答疑点要么带 `test`（必须真实存在），要么显式 `legacy: true`。
 // 历史 775 条裁定已批量标 legacy（见 align/README）；新裁定必须写 test，防「裁定漂移无人守」。
+// 口径：`q.test` 锚点仍校验 v2 用例库（历史裁定以 v2 为语料）；技能级 `impl`/`tests`
+// 则按批次 `engine` 分派（v3 批次校验 `sanguosha3` 源码/用例，见 4.6）。
 const testsDir = join(projectRoot, "crates/engines/sanguosha2/tests");
 const testsText = readdirSync(testsDir)
   .filter((f) => f.endsWith(".rs"))
@@ -100,6 +102,52 @@ for (const spec of specs) {
 
 // 5. 跨批术语
 conflicts.push(...detectTermConflicts(specs));
+
+// 5.0 引擎锚点（v3 批次）：`impl`/`tests` 必须真实落在 `sanguosha3` 源码/用例。
+// 背景：V3 重写后 align 仍写 v2 锚点（假绿），步骤 B/C 要求「回写 + 门禁」。
+const v3SkillsDir = join(projectRoot, "crates/engines/sanguosha3/src/kernel/skills");
+const v3TestsDir = join(projectRoot, "crates/engines/sanguosha3/tests");
+const v3Cache = new Map();
+const v3Source = (file) => {
+  if (!v3Cache.has(file)) {
+    v3Cache.set(file, existsSync(file) ? readFileSync(file, "utf8") : null);
+  }
+  return v3Cache.get(file);
+};
+for (const spec of specs) {
+  if ((spec.engine ?? "v2") !== "v3") continue;
+  for (const g of spec.generals ?? []) {
+    for (const s of g.skills ?? []) {
+      if (!s.impl || !String(s.impl).includes("sanguosha3::")) {
+        errors.push(`[${spec.batch}] ${s.code}: engine=v3 但 impl 未指向 sanguosha3（${s.impl ?? "-"}）`);
+      }
+      // impl 里的 `bN::fn` 必须能在 `src/kernel/skills/bN.rs` 找到 `fn fn(`。
+      for (const m of String(s.impl ?? "").matchAll(/\b(b\d+)::([a-z_][a-z0-9_]*)/g)) {
+        const file = join(v3SkillsDir, `${m[1]}.rs`);
+        const src = v3Source(file);
+        if (src === null) {
+          errors.push(`[${spec.batch}] ${s.code}: impl 模块不存在 src/kernel/skills/${m[1]}.rs（${m[0]}）`);
+        } else if (!src.includes(`fn ${m[2]}(`)) {
+          errors.push(`[${spec.batch}] ${s.code}: impl 锚点 \`${m[0]}\` 在 ${m[1]}.rs 找不到 \`fn ${m[2]}(\``);
+        }
+      }
+      // tests 的 `bN::fn` 必须在 `sanguosha3/tests/bN.rs` 存在。
+      for (const t of s.tests ?? []) {
+        const [mod, fn, extra] = String(t).split("::");
+        if (!mod || !fn || extra !== undefined || !/^b\d+$/.test(mod)) {
+          errors.push(`[${spec.batch}] ${s.code}: 用例锚点格式异常 \`${t}\`（应为 bN::fn）`);
+          continue;
+        }
+        const src = v3Source(join(v3TestsDir, `${mod}.rs`));
+        if (src === null) {
+          errors.push(`[${spec.batch}] ${s.code}: 用例文件不存在 tests/${mod}.rs（${t}）`);
+        } else if (!src.split("\n").some((line) => line.trimStart().startsWith(`fn ${fn}(`))) {
+          errors.push(`[${spec.batch}] ${s.code}: 用例锚点 \`${t}\` 在 tests/${mod}.rs 中找不到 \`fn ${fn}(\``);
+        }
+      }
+    }
+  }
+}
 
 // 5.1 技能 code ↔ 名称撞车（B17 教训：宗室/纵适 曾共用 `zongshi`，导致界简雍纵适不触发）
 // 允许：同一 code 在不同武将上对应**同一技能名**（界/标同名复用，ADR-0024）；

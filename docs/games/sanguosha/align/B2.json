@@ -1,11 +1,12 @@
 {
   "batch": "B2",
   "source": "风林火山·SP-2",
-  "status": "confirmed",
+  "status": "implemented",
+  "engine": "v2",
   "mechanics_version": 2,
   "confirmed_by": "用户",
   "confirmed_at": "2026-11-06",
-  "note": "B2 15/15 已实现（2026-11-06）。罪论为简化版（缺看3张/排序交互），已在 diff 标注。",
+  "note": "B2 15/15 已实现（2026-11-06）。罪论为简化版（缺看3张/排序交互），已在 diff 标注。；V3 已收口，批次状态同步为 implemented（v3 待复核）",
   "generals": [
     {
       "gid": 407,

@@ -384,6 +384,9 @@ pub async fn import_engine(
             sanguosha3::kernel::Suit::Heart => "heart",
             sanguosha3::kernel::Suit::Club => "club",
             sanguosha3::kernel::Suit::Diamond => "diamond",
+            // `Suit::None` 只用于虚拟牌（ADR-0043 无属性虚拟牌）；物理牌表（DECK）必有花色。
+            // 若生成物出现无花色物理牌，说明数据异常：跳过该行（不污染中台花色字段）。
+            sanguosha3::kernel::Suit::None => continue,
         };
         let mut row = serde_json::Map::new();
         row.insert("id".into(), json!(ENGINE_CARD_ID_BASE + cards as i64));

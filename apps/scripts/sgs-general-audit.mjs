@@ -524,8 +524,12 @@ function renderMatrix(catalog, batches) {
   lines.push("- `自动通过`：机器证据仅证明可达/不报错/守恒/pending 可续/可复现（**不等于语义正确**）；");
   lines.push("- `自动失败`：机器证据出现失败（需复现并登记）；");
   lines.push("- `待裁定`：技能文本存在歧义，等待用户裁定；");
-  lines.push("- `人工通过` / `人工失败`：工作台逐项走查后的**唯一验收依据**（确认人签字）；");
+  lines.push("- `人工通过` / `人工失败`：工作台逐项走查后的**唯一验收依据**（确认人签字，且必须为 **v3** 口径）；");
+  lines.push("- `v2 签字 / v3 待复核`：v2 时代签字，**不再作为验收依据**，需按 V3 重新走查；");
   lines.push("- `阻塞`：环境/前置缺陷导致无法验证（注明原因）。");
+  lines.push("");
+  lines.push("> **引擎口径**：`人工通过` 必须在「确认人」或「备注」里指出 **v3** 签字；");
+  lines.push("> 只有 v2 签字的行一律写 `v2 签字 / v3 待复核`（门禁 `npm run check:sgs-generals:matrix` 校验）。");
   lines.push("");
   lines.push("## 2. 人工走查记录字段（逐项）");
   lines.push("");
@@ -563,7 +567,19 @@ function renderMatrix(catalog, batches) {
   return `${lines.join("\n")}\n`;
 }
 
-/** 矩阵 ↔ 名录/批次表一致性校验（防漏项/错字/批次漂移）。 */
+/** 人工结果枚举（与矩阵 §1 一致；引擎口径见 `v2 签字 / v3 待复核`）。 */
+const HUMAN_RESULTS = [
+  "未验证",
+  "自动通过",
+  "自动失败",
+  "待裁定",
+  "人工通过",
+  "人工失败",
+  "v2 签字 / v3 待复核",
+  "阻塞",
+];
+
+/** 矩阵 ↔ 名录/批次表一致性校验（防漏项/错字/批次漂移）+ 人工列引擎口径校验。 */
 async function checkMatrix(catalog, batches) {
   const problems = [];
   let text = "";
@@ -577,7 +593,26 @@ async function checkMatrix(catalog, batches) {
     const m = /^\|\s*(B\d+)\s*\|\s*([a-z_]+)\s*\|\s*([^|]+?)\s*\|\s*`(sgs_hero_\d+)`\s*\|([^|]*)\|/.exec(
       line,
     );
-    if (m) rows.push({ batch: m[1], pack: m[2], name: m[3].trim(), code: m[4], skillsCell: m[5] });
+    if (!m) continue;
+    // 整行拆格（`\|` 是转义竖线，不拆）；列序：0 批次/1 包/2 武将/3 code/4 技能/5 定向用例/
+    // 6 原文歧义/7 机器证据/8 人工结果/9 确认人/10 复现/11 备注。
+    const cells = line
+      .trim()
+      .replace(/^\|/, "")
+      .replace(/\|$/, "")
+      .split(/(?<!\\)\|/)
+      .map((c) => c.trim());
+    rows.push({
+      batch: m[1],
+      pack: m[2],
+      name: m[3].trim(),
+      code: m[4],
+      skillsCell: m[5],
+      human: cells[8] ?? "",
+      by: cells[9] ?? "",
+      note: cells[11] ?? "",
+      cells,
+    });
   }
   if (rows.length !== catalog.audited.length) {
     problems.push(`矩阵行数 ${rows.length} ≠ 审计范围 ${catalog.audited.length}`);
@@ -602,6 +637,32 @@ async function checkMatrix(catalog, batches) {
     for (const s of g.skills) {
       if (!row.skillsCell.includes(`\`${s.code}\``)) {
         problems.push(`${row.code} 技能缺项：${s.code}`);
+      }
+    }
+    // 人工列：枚举合法 + 引擎口径（v2 签字不得冒充验收）。
+    if (row.cells.length < 12) {
+      problems.push(`${row.code} ${row.name}：矩阵行缺列（${row.cells.length} < 12）`);
+      continue;
+    }
+    if (!HUMAN_RESULTS.includes(row.human)) {
+      problems.push(
+        `${row.code} ${row.name}：人工结果「${row.human}」不在枚举内（${HUMAN_RESULTS.join("/")}）`,
+      );
+      continue;
+    }
+    if (row.human !== "未验证") {
+      const stamp = `${row.by} ${row.note}`;
+      if (!/v[23]/.test(stamp)) {
+        problems.push(`${row.code} ${row.name}：人工结果「${row.human}」未标明引擎口径（确认人或备注需含 v2/v3）`);
+      }
+    }
+    if (row.human === "人工通过") {
+      const stamp = `${row.by} ${row.note}`;
+      if (!/v3/.test(stamp)) {
+        problems.push(`${row.code} ${row.name}：人工通过必须是 v3 签字（v2 签字请写「v2 签字 / v3 待复核」）`);
+      }
+      if (!/\d{4}-\d{2}-\d{2}/.test(stamp)) {
+        problems.push(`${row.code} ${row.name}：人工通过缺签字日期（确认人+日期）`);
       }
     }
   }

@@ -2,10 +2,11 @@
   "batch": "B17",
   "source": "界限突破·J5",
   "status": "implemented",
+  "engine": "v3",
   "mechanics_version": 2,
   "confirmed_by": "用户",
   "confirmed_at": "2026-11-10",
-  "note": "机器文件（单一事实源）。人读请看同目录 <B>.md；改这里后运行 --sync 重生成 md。",
+  "note": "机器文件（单一事实源）。人读请看同目录 <B>.md；改这里后运行 --sync 重生成 md。；current/impl/tests 已回写 v3（B16–B20 优先，见 next-v3-verification.md 步骤 B）",
   "generals": [
     {
       "gid": 588,
@@ -21,10 +22,9 @@
           "original_source": "heroes.json#gid=588",
           "mechanics_version": 2,
           "current": [
-            "v2：`CardLost` + `Window::AnyTime` 触发（失去的手牌/装备区牌为凌统本人）：①失去的牌原本在装备区（`equip_lost_batch`）→ 触发；②本动作 `lost_batch[seat].len() >= 2`（单次动作失去 ≥2 张，含被获得/移出游戏/置于武将牌上）→ 触发。",
-            "同一动作只触发一次（`action_seen` 去重），每回合无次数限制（用户裁定 Q5=A）。",
-            "结算：先选至多 2 个目标（可重复选同一名角色；选项 id `target:<seat>`，可 `confirm` 提前结束或 `pass` 放弃）；随后选择 1 名角色 → 该角色弃 2 张，选择 2 名 → 各弃 1 张。",
-            "弃置哪张牌由引擎随机（先随机手牌，无手牌再取装备区第一张），走 `Game::to_discard`（触发弃置类技能）。"
+            "v3：`CardLost`（`Subject::Self_`）；判定「单次动作内失去 ≥2 张」（`skills::lost_batch`）**或**本动作失去过装备区牌（`g.equip_lost_batch`）。",
+            "同一动作只触发一次（`skills::action_seen(\"xuanfeng.action.<seq>\")`）；随后逐张（共 2 张）选目标：可对同一名其他角色连续选择（`target:<seat>`，可 `pass` 停止）。",
+            "弃置哪张由引擎随机（先随机手牌，无手牌再随机装备区一张，`flow::discard`）；无「限一次」，每回合可多次发动。"
           ],
           "confidence": "verified",
           "diff": [
@@ -127,10 +127,10 @@
               "没有可弃牌的目标时不触发"
             ]
           },
-          "impl": "sanguosha2::skills::b17::XUANFENG + kernel::mod::lost_batch/equip_lost_batch/action_seen",
+          "impl": "sanguosha3::kernel::skills::b17::SKILLS(code=xuanfeng) + b17::xuanfeng + skills::{lost_batch, action_seen}",
           "tests": [
-            "b17::xuanfeng_triggers_on_two_cards_lost_in_one_action",
-            "b17::xuanfeng_ignores_single_card_loss_and_lost_equip_triggers"
+            "b17::xuanfeng_triggers_on_single_action_lost_two_and_discards_target_cards",
+            "b17::xuanfeng_not_triggered_on_single_card_loss"
           ]
         }
       ]
@@ -149,10 +149,9 @@
           "original_source": "heroes.json#gid=597",
           "mechanics_version": 2,
           "current": [
-            "v2：`DamageAfter` + `Window::AnyTime`；受伤者为陈宫、当前回合不是其本人、体力 > 0（濒死救起后）时置 `turn.zhichi:<seat>`。",
-            "`target_blocker`：本回合内【杀】（含火/雷）与**普通锦囊**（`CardKind::Trick && !delayed && !wuxie`，按牌类别属性）不能以陈宫为目标（目标枚举阶段裁剪）。",
-            "延时锦囊、装备牌不受影响；计数器随回合切换清空（下一回合开始清除）。",
-            "锁定技，无询问（`LOCKED_SKILLS` 登记，义绝/铁骑不使其失效）。"
+            "v3：锁定技 `DamageAfter`（`Subject::Self_`）；`g.turn != owner`（回合外）时置 `turn.<seat>.zhichi`（本回合）。",
+            "`deny_target_instance` 在目标枚举阶段裁剪：该回合【杀】（`tags.sha`）与**普通锦囊**（`Category::Trick` 且非延时）不能以陈宫为目标。",
+            "延时锦囊/装备不拦；标记随回合滚动自动清除（`turn.` 前缀）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -239,9 +238,9 @@
               "延时锦囊与装备仍可指定"
             ]
           },
-          "impl": "sanguosha2::skills::b17::ZHICHI（target_blocker）+ skills::trick_blocked 同源属性判定",
+          "impl": "sanguosha3::kernel::skills::b17::SKILLS(code=zhichi) + b17::{zhichi, deny_target_instance}",
           "tests": [
-            "b17::zhichi_blocks_sha_and_normal_tricks_outside_own_turn",
+            "b17::zhichi_after_out_of_turn_damage_blocks_sha_and_normal_tricks",
             "b17::zhichi_not_triggered_in_own_turn"
           ]
         },
@@ -254,10 +253,9 @@
           "original_source": "heroes.json#gid=597",
           "mechanics_version": 2,
           "current": [
-            "v2：出牌阶段限一次（`phase.mingce_used`）；可交出的牌 = 手牌或装备区中的【杀】/装备牌（`mingce_pool`）。",
-            "流程：选牌 → 选一名其他角色 → `Game::gain` 交牌（装备区牌被交出会触发失去装备钩子）→ 目标二选一。",
-            "①视为对陈宫指定的另一名角色使用【杀】：该角色须在协助者攻击范围内（虚拟【杀】无属性/花色/点数，按正常【杀】结算，受【闪】响应）；若造成伤害，`DamageAfter` 消费 `turn.mingce_watch/helper` 标记 → 陈宫与其各摸 1 张。",
-            "②陈宫与其各摸 1 张；协助者没有合法【杀】目标时不提供①。"
+            "v3：出牌阶段限一次（`turn.<seat>.mingce_used`）；可交出的牌 = 手牌或装备区的【杀】/装备（`tags.sha || slot.is_some()`，`own_cards`）。",
+            "交给一名其他角色 → **该角色**二选一：①`opt1` 视为对陈宫指定的角色使用【杀】（须在协助者攻击范围内，`use_virtual`，无属性虚拟牌），若造成伤害 → 陈宫与协助者各摸 1；②`opt2` 陈宫与其各摸 1。",
+            "协助者攻击范围内没有合法目标时不提供 `opt1`；`opt1` 的伤害确认靠 `mingce_card` 标记匹配 `DamageAfter`。"
           ],
           "confidence": "verified",
           "diff": [
@@ -358,11 +356,9 @@
               "不是【杀】/装备牌不能交"
             ]
           },
-          "impl": "sanguosha2::skills::b17::MINGCE + Game::use_virtual + DamageAfter（mingce_watch）",
+          "impl": "sanguosha3::kernel::skills::b17::SKILLS(code=mingce) + b17::{can_mingce, mingce, on_damage_after}",
           "tests": [
-            "b17::mingce_gives_card_and_helper_chooses_draw",
-            "b17::mingce_virtual_sha_damage_draws_for_both",
-            "b17::mingce_requires_sha_or_equip_in_hand"
+            "b17::mingce_gives_card_and_helper_chooses_draw"
           ]
         }
       ]
@@ -381,9 +377,9 @@
           "original_source": "heroes.json#gid=599",
           "mechanics_version": 2,
           "current": [
-            "v2：`skills::after_draw_phase` 询问（`turn.jiangchi_offered` 每回合一次），选项①/②/放弃。",
-            "①摸 1 张；`turn.jiangchi_penalty` 使 `Game::sha_limit` 减 1（与其它加成同层相加、可为 0）；`turn.jiangchi_sha_free` 让手牌中的【杀】不计入手牌上限（`hand_limit_delta`）。",
-            "②从手牌或装备区选 1 张重铸：`to_discard`（计入弃置）→ 摸 1 张；`turn.jiangchi_bonus` 使【杀】次数 +1；`turn.jiangchi_no_distance` 只令【杀】无距离（`skills::sha_no_distance`）。"
+            "v3：摸牌阶段结束 `after_draw_phase`（每回合一次 `turn.<seat>.jiangchi_offered`）→ 二选一（可放弃）。",
+            "①`draw`：摸 1 张 + `jiangchi_penalty`（本回合【杀】次数 **-1**，`sha_extra` 同层相加）+ `jiangchi_no_sha_limit`（【杀】不计入手牌上限，`hand_size_for_discard` 扣除手中【杀】）。",
+            "②`recast`：选一张自己的牌（手牌或装备区）`recast_any` 重铸（弃置并摸一张）→ `jiangchi_bonus`（【杀】次数 +1）+ `jiangchi_no_distance`（本回合【杀】无距离限制）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -484,10 +480,10 @@
               "②弃置的牌计入弃置事件"
             ]
           },
-          "impl": "sanguosha2::skills::b17::JIANGCHI + skills::after_draw_phase + sha_limit_penalty/sha_limit_bonus/hand_limit_delta/sha_no_distance",
+          "impl": "sanguosha3::kernel::skills::b17::SKILLS(code=jiangchi) + b17::{after_draw_phase, jiangchi, sha_extra, recast_allowed, ignore_distance, hand_size_for_discard}",
           "tests": [
-            "b17::jiangchi_option1_penalty_and_hand_limit",
-            "b17::jiangchi_option2_recast_and_no_distance"
+            "b17::jiangchi_draw_branch_changes_sha_limit_and_hand_limit",
+            "b17::jiangchi_recast_branch_enables_one_recast_and_bonus"
           ]
         }
       ]
@@ -506,10 +502,9 @@
           "original_source": "heroes.json#gid=600",
           "mechanics_version": 2,
           "current": [
-            "v2：技能 code = `zongshi_jie`（与界刘表【宗室】`zongshi` 解耦；v1 因 code 撞车导致纵适不触发 + 误吃宗室手牌上限，已修）。",
-            "拼点结算后由 `skills::pindian_after` → `b17::pindian_after` 为每个拥有者压入询问：赢 → 可获得点数较小的拼点牌（赢时即对方的牌）；没赢（含平手）→ 可获得自己的拼点牌。",
-            "比较用 `skills::pindian_rank`（有效点数）；牌此时已在弃牌堆，发动后经 `Game::gain` 取回（CardGained）。",
-            "询问带放弃出口（wording-can）。"
+            "v3：拼点统一出口 `pindian_after` 为每个持有纵适的参与者压入询问（initiator/target 两侧都问）。",
+            "赢（`winner == owner`）→ 候选 = 对方拼点牌；没赢 → 候选 = 自己的拼点牌；两者都只在牌已在弃牌堆时提供 `gain`。",
+            "每次均可放弃（`escape(\"不获得\")`）；取回走 `flow::gain`。"
           ],
           "confidence": "verified",
           "diff": [
@@ -597,10 +592,9 @@
               "未参与拼点不触发"
             ]
           },
-          "impl": "sanguosha2::skills::b17::ZONGSHI_JIE + skills::pindian_after + Game::gain",
+          "impl": "sanguosha3::kernel::skills::b17::SKILLS(code=zongshi_jie) + b17::{pindian_after, zongshi_jie}",
           "tests": [
-            "b17::zongshi_jie_win_gains_smaller_pindian_card",
-            "b17::zongshi_jie_lose_gains_own_and_requires_skill"
+            "b17::zongshi_jie_gains_opponent_card_on_win_and_own_card_on_loss"
           ]
         },
         {
@@ -612,13 +606,9 @@
           "original_source": "heroes.json#gid=600",
           "mechanics_version": 2,
           "current": [
-            "v2：出牌阶段主动技，无次数限制（`turn.qiaoshuo_invalid` 为 0 时可反复发动），双方需有手牌且目标不受谦节影响。",
-            "拼点结算（`pindian_result`）：赢 → `turn.qiao:<seat>` **+1**（界面标记「巧」，视图 `marks_count.qiao`）；没赢 → `turn.qiaoshuo_fail` + `turn.qiaoshuo_invalid`（本回合技能失效、不能使用锦囊）并**清空「巧」**。",
-            "赢的 +1：`skills::extra_targets` 在「巧」>0 时对本回合下一张**非延时**牌返回 1（杀/决斗/拆/顺/火攻；借刀（固定 2 目标）与铁索（1–2 目标，自定义流程）不参与 +1，也不消耗「巧」）。",
-            "赢的 -1：`legal_uses` 为群体锦囊（南蛮/万箭/桃园/五谷，均为非延时）追加 `trim:<牌>:<不指定目标>` 动作，`planned_targets` 用 `aoe_trim_target` 裁掉目标。",
-            "消耗：内核 `start_use` → `skills::on_card_use`，每使用一张符合条件的**手牌**（非延时且有目标）消耗 1 枚「巧」；重铸/打出/延时锦囊不消耗。",
-            "清空：`turn.` 前缀计数在回合切换（回合结束）清空；拼点没赢立即清零。",
-            "没赢：`plan_use` 拦截所有锦囊（含延时锦囊）。"
+            "v3：出牌阶段主动（`can_qiaoshuo`：自己/目标都有手牌，且本回合未「没赢」）；选一名其他有手牌角色拼点，可反复发动直到任一方没手牌。",
+            "赢 → `turn.<seat>.qiao` +1（「巧」标记）；使用**手牌**时由 `Hook::UsePre` 询问「+1 / -1（仅群体牌）/ 不修改」，确认后扣 1 枚「巧」（`qiaoshuo_shift_eligible`：非延时、非无目标/仅自己）。",
+            "没赢 → 清空「巧」+ `qiao_lost`（本回合不能再发动）+ `trick_use_blocked`（本回合不能使用锦囊，含延时）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -720,15 +710,10 @@
               "没赢后仍可使用基本牌/装备"
             ]
           },
-          "impl": "sanguosha2::skills::b17::QIAOSHUO + skills::extra_targets/consume_extra_targets/can_trim_targets/trick_blocked + card_play trim 入口",
+          "impl": "sanguosha3::kernel::skills::b17::SKILLS(code=qiaoshuo) + b17::{can_qiaoshuo, qiaoshuo, on_use_start, qiaoshuo_shift_eligible, trick_use_blocked}",
           "tests": [
-            "b17::qiaoshuo_win_allows_extra_target_then_consumes",
-            "b17::qiaoshuo_lose_blocks_tricks_and_invalidates_skill",
-            "b17::qiaoshuo_consecutive_wins_stack_marks_one_per_card",
-            "b17::qiaoshuo_marks_exposed_in_view_and_cleared_on_loss",
-            "b17::qiaoshuo_delayed_trick_gets_no_extra_target",
-            "b17::qiaoshuo_win_offers_trim_action",
-            "b17::qiaoshuo_fixed_target_tricks_do_not_consume_mark"
+            "b17::qiaoshuo_win_gives_qiao_and_consumes_on_use",
+            "b17::qiaoshuo_loss_blocks_tricks"
           ]
         }
       ]
@@ -747,9 +732,9 @@
           "original_source": "heroes.json#gid=603",
           "mechanics_version": 2,
           "current": [
-            "v2：`CardDiscarded` + `Window::AnyTime`；弃置者为虞翻本人，或为虞翻的「上家」（存活座位环上一位）且本回合首次（`turn.zongxuan_upper:<seat>`）→ 触发。",
-            "候选 = 本次弃置动作中仍在弃牌堆的牌（`discard_batch`）；同一动作去重（`action_seen`），上家分支每回合一次。",
-            "多选（✔ 标记）+ 确认/放弃；确认后按选择顺序 `put_on_top`（后选的在最上面）。"
+            "v3：`CardDiscarded`；条件 = 弃置者为虞翻本人，或为**上家**（`prev_alive`：存活座位环上一位）且该回合首次（`turn.<seat>.zongxuan_prev`）。",
+            "按单次弃置动作（`skills::discard_batch` + `action_seen`）取本批仍在弃牌堆的牌，逐张询问 `top:<id>` 置牌堆顶（后选的在最上面），可 `escape` 结束置顶。",
+            "上家一次弃多张时全部进入候选。"
           ],
           "confidence": "verified",
           "diff": [
@@ -851,10 +836,9 @@
               "被获得（非弃置）不触发"
             ]
           },
-          "impl": "sanguosha2::skills::b17::ZONGXUAN + discard_batch + Game::put_on_top",
+          "impl": "sanguosha3::kernel::skills::b17::SKILLS(code=zongxuan) + b17::{prev_alive, zongxuan} + skills::discard_batch",
           "tests": [
-            "b17::zongxuan_puts_own_discards_on_top",
-            "b17::zongxuan_upper_seat_first_discard_only"
+            "b17::zongxuan_puts_discarded_cards_on_top"
           ]
         },
         {
@@ -866,10 +850,9 @@
           "original_source": "heroes.json#gid=603",
           "mechanics_version": 2,
           "current": [
-            "v2：`PhaseStart` + `Window::AnyTime`，在「自己的结束阶段」或「上家的结束阶段」各触发一次（`turn.zhiyan_own/upper:<seat>` 计数）。",
-            "选一名角色（含自己）摸 1 张并用 `Game::reveal` 展示（结算后 `conceal`）。",
-            "装备牌：自动置入装备区（替换旧装备 → 弃置并触发失去装备钩子），体力未满则 `flow::heal` 回复 1 点。",
-            "非装备牌且其体力值 ≠ 虞翻：`flow::lose_hp` 失去 1 点体力（不触发受伤类技能）。"
+            "v3：`PhaseStart` + `Phase::End`；触发点 = 自己的结束阶段或**上家**（`prev_alive`）的结束阶段，两处各每回合一次（`turn.<seat>.zhiyan_self|prev`）。",
+            "选一名存活角色（`target:<seat>`，可放弃）→ 摸 1 并 `reveal` 公开；若是**装备牌** → `gear::place_from_hand` 自动使用并回复 1（替换旧装备触发失去钩子）。",
+            "若是非装备牌且其体力 ≠ 虞翻 → `flow::lose_hp` 1（不触发受伤类技能）；结算后 `conceal` 收回展示。"
           ],
           "confidence": "verified",
           "diff": [
@@ -971,11 +954,10 @@
               "上家结束阶段每回合只触发一次"
             ]
           },
-          "impl": "sanguosha2::skills::b17::ZHIYAN + Game::reveal/conceal + flow::lose_hp/flow::heal",
+          "impl": "sanguosha3::kernel::skills::b17::SKILLS(code=zhiyan) + b17::{prev_alive, zhiyan}",
           "tests": [
-            "b17::zhiyan_uses_equip_and_heals",
-            "b17::zhiyan_non_equip_hp_diff_loses_hp",
-            "b17::zhiyan_upper_seat_end_phase_triggers"
+            "b17::zhiyan_uses_drawn_equip_and_heals",
+            "b17::zhiyan_non_equip_loses_hp_when_hp_differs"
           ]
         }
       ]
@@ -994,9 +976,9 @@
           "original_source": "heroes.json#gid=604",
           "mechanics_version": 2,
           "current": [
-            "v2：出牌阶段限一次（`phase.xianzhen_used`），与一名有手牌的角色拼点（自己需有手牌）。",
-            "赢：`turn.xianzhen_win` + `turn.xianzhen_target` → 对其使用牌无距离（`Game::distance` 走 `target_no_distance`）、对其【杀】不受次数上限（`sha_limit_exempt`）、无视其防具（`armor_ignored_by_skill`）、【杀】/普通锦囊可多指定其为目标（`extra_targets` +1）。",
-            "没赢：`turn.xianzhen_lose` + `turn.xianzhen_lose_target` → 不能对其使用【杀】（`sha_blocked_for`，不影响其他角色），且手牌【杀】不计手牌上限。"
+            "v3：出牌阶段限一次（`turn.<seat>.xianzhen_used`），需自己有手牌、目标有手牌 → `pindian::start`。",
+            "赢 → 置 `xianzhen_t.<t>`：对目标使用牌无距离（`target_no_distance`）、无视其防具（`ignore_armor_for`）、【杀】不限次数（`sha_limit_exempt`）、【杀】/普通锦囊可多指定其为目标（`on_use_start` +`extra_targets`）。",
+            "没赢 → 置 `xianzhen_block.<t>`（本回合不能对其用【杀】，`sha_blocked_for`）+ `xianzhen_no_sha_limit`（【杀】不计手牌上限）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -1098,10 +1080,9 @@
               "赢的收益不对其他角色生效"
             ]
           },
-          "impl": "sanguosha2::skills::b17::XIANZHEN + skills::target_no_distance/sha_limit_exempt/sha_blocked_for/armor_ignored_by_skill",
+          "impl": "sanguosha3::kernel::skills::b17::SKILLS(code=xianzhen) + b17::{can_xianzhen, xianzhen, target_no_distance, sha_limit_exempt, sha_blocked_for, ignore_armor_for}",
           "tests": [
-            "b17::xianzhen_win_grants_distance_limit_and_extra_target",
-            "b17::xianzhen_lose_blocks_sha_only_vs_target"
+            "b17::xianzhen_win_marks_target_for_distance_limit_and_armor"
           ]
         },
         {
@@ -1113,9 +1094,9 @@
           "original_source": "heroes.json#gid=604",
           "mechanics_version": 2,
           "current": [
-            "v2：`conversions` 提供「手牌【酒】→【杀】」（`usable` + `playable`，可主动使用与响应打出）；`effective_rank` 令其有效点数为 K（拼点等读取）。",
-            "`jiu_blocked`：高顺本人不能用【酒】（锁定转化）；其他角色在高顺的回合内不能用【酒】——`plan_use`（出牌阶段）、濒死自救（含酒池）、醇醪视为【酒】三处统一拦截。",
-            "锁定技，无「当【酒】使用」选项；`LOCKED_SKILLS` 登记。"
+            "v3：锁定技，三分支：①`use_alias`：自己的【酒】（手牌/装备区）当【杀】使用（牌名【杀】、花色按承载牌）；②`rank_for_use`：该牌有效点数 = K（13）；③`jiu_blocked`：高顺自己不用【酒】，且**高顺回合内**其他角色也不能使用【酒】（含出牌阶段、濒死自救、技能视为使用）。",
+            "无 handler/无询问；转化与封锁走内核统一出口。",
+            "「视为【杀】」不提供「当【酒】使用」选项。"
           ],
           "confidence": "verified",
           "diff": [
@@ -1215,10 +1196,9 @@
               "其他角色在其他回合可正常使用【酒】"
             ]
           },
-          "impl": "sanguosha2::skills::b17::JINJIU + skills::conversions/effective_rank/jiu_blocked",
+          "impl": "sanguosha3::kernel::skills::b17::SKILLS(code=jinjiu) + b17::{use_alias, jiu_blocked, rank_for_use}",
           "tests": [
-            "b17::jinjiu_converts_jiu_to_sha_with_rank_k",
-            "b17::jinjiu_blocks_others_jiu_during_own_turn"
+            "b17::jinjiu_blocks_others_and_turns_jiu_into_k_slash"
           ]
         }
       ]
@@ -1237,10 +1217,9 @@
           "original_source": "heroes.json#gid=610",
           "mechanics_version": 2,
           "current": [
-            "v2：按官方界版重做——`skills::after_draw_phase` 在摸牌阶段结束时询问（`turn.xuanhuo_offered`），要求法正有 ≥2 张手牌且场上还有其他角色。",
-            "选两张手牌 → 选一名其他角色 → `Game::gain` 交给其两张 → 该角色二选一。",
-            "①由法正指定一名在协助者攻击范围内的角色（排除协助者与法正），协助者 `use_virtual` 视为使用【杀】。",
-            "②法正观看协助者手牌（`reveal_private`，仅法正可见），随后选择并获得其中两张手牌（`Game::gain`），结算后清除私密展示。"
+            "v3：摸牌阶段结束 `xuanhuo_after_draw`（每回合一次 `xuanhuo_offered`；需手牌 ≥2 且场上有其他存活角色）。",
+            "发动：逐张选两张**手牌**交给一名其他角色（`pick:` 两段，可中途取消）→ 该角色二选一：①`opt1` 视为对法正指定的角色使用【杀】（须在协助者攻击范围）；②`opt2` 法正 `reveal_private` 观看其手牌并 `take:` 获得其中两张。",
+            "`opt1` 无合法目标时不提供；`opt2` 逐张获得（可提前结束）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -1354,10 +1333,9 @@
               "①的目标不在协助者攻击范围内时不提供"
             ]
           },
-          "impl": "sanguosha2::skills::b17::XUANHUO + skills::after_draw_phase + Game::reveal_private/gain",
+          "impl": "sanguosha3::kernel::skills::b17::SKILLS(code=xuanhuo) + b17::{xuanhuo_after_draw, xuanhuo}",
           "tests": [
-            "b17::xuanhuo_gives_two_cards_and_views_hand",
-            "b17::xuanhuo_requires_two_hand_cards"
+            "b17::xuanhuo_gives_two_cards_then_watch_returns_two"
           ]
         },
         {
@@ -1369,9 +1347,9 @@
           "original_source": "heroes.json#gid=610",
           "mechanics_version": 2,
           "current": [
-            "v2：`CardGained` 触发：单次动作内经 `Game::gain` 从一名其他角色获得 ≥2 张（`gain_batch`）→ 询问是否令其摸 1 张（可放弃）。",
-            "`DamageAfter` 触发：每受到 1 点伤害后，令伤害来源二选一（逐点询问）：①交给法正一张红色手牌（由来源选牌，按物理花色判红）；②`flow::lose_hp` 失去 1 点体力。",
-            "来源没有红色手牌时不提供①；无伤害来源不触发。"
+            "v3：`CardGained`（`Subject::Self_`）+ `DamageAfter`（`Subject::Self_`）双订阅。",
+            "获得分支：单次动作（`skills::gain_batch` + `action_seen`）从**同一名**其他角色获得 ≥2 张 → 询问是否令其摸 1（可放弃）。",
+            "受伤分支：按伤害点数（`amount`）逐点询问来源二选一——交一张**红色手牌**（来源自选）或 `flow::lose_hp` 1；无红手牌则直接失去 1 点体力。"
           ],
           "confidence": "verified",
           "diff": [
@@ -1486,10 +1464,9 @@
               "来源无红色手牌时不提供交牌选项"
             ]
           },
-          "impl": "sanguosha2::skills::b17::ENYUAN + kernel::mod::gain_batch + flow::lose_hp",
+          "impl": "sanguosha3::kernel::skills::b17::SKILLS(code=enyuan) + b17::enyuan + skills::gain_batch",
           "tests": [
-            "b17::enyuan_gain_two_cards_lets_owner_draw",
-            "b17::enyuan_single_gain_and_damage_choice"
+            "b17::enyuan_gain_and_damage_windows"
           ]
         }
       ]
@@ -1508,9 +1485,9 @@
           "original_source": "heroes.json#gid=620",
           "mechanics_version": 2,
           "current": [
-            "v2：`conversions` 提供「非火【杀】（普通/雷）→ 火【杀】」（仅主动使用，不用于响应）；`lib.rs` 的 `convert:` 入口调用 `on_conversion_used` 记录标记。",
-            "「此牌结算后」由内核 `sha_effect` 结算完成时调 `skills::on_card_finished` → 若本牌造成过伤害（`turn.damage_card:<card>`）则询问程普：弃置一张牌（手牌或装备区，由程普选）或失去 1 点体力；每张牌只结算一次。",
-            "火【杀】可多指定一个目标（`extra_targets` +1，不因额外目标获得无距离）。"
+            "v3：`use_alias`：非火【杀】（普通/雷）→ 火【杀】（牌名火【杀】、花色点数按承载牌）；`on_use_start` 记录转化标记 `lihuo_card.<card>` 并给火【杀】+1 目标上限（`extra_targets`）。",
+            "`on_card_finished`：该牌结算后若造成过伤害（`turn.<seat>.damage_card.<card>`）→ 压入 `lihuo` stage=cost 询问：弃一张自己的牌（手牌/装备区）或 `flow::lose_hp` 1。",
+            "代价强制支付（`escape_mandatory`）；每张牌只结算一次。"
           ],
           "confidence": "verified",
           "diff": [
@@ -1610,10 +1587,9 @@
               "代价每张牌只结算一次"
             ]
           },
-          "impl": "sanguosha2::skills::b17::LIHUO + skills::conversions/on_conversion_used/on_card_finished + turn.damage_card",
+          "impl": "sanguosha3::kernel::skills::b17::SKILLS(code=lihuo) + b17::{use_alias, on_use_start, on_card_finished, lihuo}",
           "tests": [
-            "b17::lihuo_converts_sha_to_fire_and_pays_cost",
-            "b17::lihuo_real_fire_sha_has_no_cost_and_extra_target"
+            "b17::lihuo_converts_non_fire_slash_and_charges_cost_after_damage"
           ]
         },
         {
@@ -1625,9 +1601,9 @@
           "original_source": "heroes.json#gid=620",
           "mechanics_version": 2,
           "current": [
-            "v2：`CardDiscarded` + `Window::AnyTime`：弃置者为程普本人或存活座位环相邻的角色，且弃置的牌是【杀】→ 自动（无「可以」）从弃牌堆 `to_mark(..., \"chun\")`，上限 9 张。",
-            "结束阶段：若「醇」为 0 且手牌有【杀】，可选择任意张（多选+确认/放弃）置于武将牌上。",
-            "濒死窗口：`dying_extra_options` 提供「移去 X 张「醇」视为使用【酒】」（X = 本轮以此法使用【酒】次数 + 1，每轮清零；`jiu_blocked` 生效时不提供）；执行时移去 X 张进弃牌堆、濒死者回复 1 点体力。"
+            "v3：`CardDiscarded`（`Subject::Any`）：弃置者与自己相邻（`adjacent`，含自己）且弃的是【杀】→ 自动 `store_chunlao` 置于武将牌「醇」（>9 张不再收，无「可以」）。",
+            "自己的结束阶段 `PhaseStart`：若当前没有「醇」→ 询问把任意张**手牌【杀】**逐张 `store:<id>` 置为「醇」（可结束）。",
+            "濒死救援 `dying_options`：X = `round.chunlao + 1`；移去**置入顺序最前**的 X 张（不代选牌，`chunlao.<seq>` 排序）→ `flow::rescue` 1 点并 `round.chunlao` +1（每轮清零）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -1742,10 +1718,11 @@
               "「醇」达到 9 张后不再放置"
             ]
           },
-          "impl": "sanguosha2::skills::b17::CHUNLAO + skills::dying_extra_options/dying_extra_use + Game::to_mark",
+          "impl": "sanguosha3::kernel::skills::b17::SKILLS(code=chunlao) + b17::{adjacent, chunlao_cards, store_chunlao, chunlao, dying_options}",
           "tests": [
-            "b17::chunlao_places_adjacent_discarded_sha",
-            "b17::chunlao_dying_uses_x_chun_as_jiu"
+            "b17::chunlao_stores_adjacent_discarded_slash_and_end_phase_slash",
+            "b17::chunlao_dying_option_scales_with_round_usage",
+            "b17::chunlao_dying_moves_first_x_cards_in_insertion_order"
           ]
         }
       ]

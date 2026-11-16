@@ -1,11 +1,12 @@
 {
   "batch": "B20",
   "source": "界限突破·J8",
-  "status": "verified",
+  "status": "implemented",
+  "engine": "v3",
   "mechanics_version": 2,
   "confirmed_by": "用户",
   "confirmed_at": "2026-11-10",
-  "note": "机器文件（单一事实源）。人读请看同目录 <B>.md；改这里后运行 --sync 重生成 md。",
+  "note": "机器文件（单一事实源）。人读请看同目录 <B>.md；改这里后运行 --sync 重生成 md。；v2 签字 2026-11-10；v3 待复核（V3 台账回落，见 memory_palace/plan/next-v3-verification.md）；current/impl/tests 已回写 v3（B16–B20 优先，见 next-v3-verification.md 步骤 B）",
   "generals": [
     {
       "gid": 752,
@@ -16,14 +17,14 @@
           "code": "qiaoshi",
           "name": "樵拾",
           "kind": "normal",
-          "status": "verified",
+          "status": "implemented",
           "original": "每个结束阶段，你可以与当前回合角色各摸一张牌。然后若其与你手牌数不相等，此技能本轮失效。",
           "original_source": "heroes.json#gid=752",
           "mechanics_version": 2,
           "current": [
-            "v2：`PhaseStart` + `Window::OtherPhase(End)`（仅其他角色结束阶段）；若 `round.qiaoshi_off:<seat>` 已置则跳过。",
-            "发动：夏侯氏与当前回合角色各摸 1；然后若双方手牌数不等 → 置 `round.qiaoshi_off:<seat>`（本轮失效，轮次切换自动恢复）。",
-            "未发动不置失效标记；自己的结束阶段不触发。"
+            "v3：`PhaseStart`（`Window::AnyTime`）；条件 = `g.phase == Phase::End` 且 `g.turn != owner`（**不含自己的结束阶段**），且本轮未失效（`round.<seat>.qiaoshi_off`）。",
+            "发动：夏侯氏与当前回合角色各摸 1（`flow::draw`）；随后若双方手牌数不相等 → 置 `qiaoshi_off`（本轮失效，轮次切换自动恢复）。",
+            "未发动不置失效标记。"
           ],
           "confidence": "verified",
           "diff": [
@@ -97,24 +98,23 @@
               "本轮已失效时不再询问"
             ]
           },
-          "impl": "sanguosha2::skills::b20::QIAOSHI",
+          "impl": "sanguosha3::kernel::skills::b20::SKILLS(code=qiaoshi) + b20::qiaoshi",
           "tests": [
-            "b20::qiaoshi_other_end_phase_draws_and_offs_round",
-            "b20::qiaoshi_not_on_own_end_phase"
+            "b20::qiaoshi_draws_both_and_disables_on_unequal_hands"
           ]
         },
         {
           "code": "yanyu",
           "name": "燕语",
           "kind": "normal",
-          "status": "verified",
+          "status": "implemented",
           "original": "出牌阶段，你可以重铸【杀】。出牌阶段结束时，若你本阶段失去过至少两张【杀】，你可以令一名男性角色摸两张牌。",
           "original_source": "heroes.json#gid=752",
           "mechanics_version": 2,
           "current": [
-            "v2：主动技（出牌阶段）逐张重铸【杀】（`to_discard` + 摸 1，无次数限制；可选「结束重铸」）。",
-            "`CardLost` 事件（`Window::OwnTurn` + 出牌阶段过滤）统计本回合失去的【杀】张数（`turn.yanyu_lost:<seat>`，含重铸/使用/弃置/被获得）。",
-            "`PhaseEnd`（cause=Play）≥2 张时询问令一名男性角色摸 2（候选含自己，若为男性）。"
+            "v3：出牌阶段可将【杀】重铸（`recast_allowed` → `recast_any`：弃置并摸一张，无次数限制，不占【杀】次数）。",
+            "`CardLost` 计数：出牌阶段每失去一张【杀】（重铸/使用/被弃/被获得等所有离开途径）→ `phase.<seat>.yanyu_sha` +1。",
+            "出牌阶段结束 `on_phase_end`：若本阶段失去过 ≥2 张【杀】，选一名**男性**角色（含自己，若为男性）令其摸 2 张（`stage=end` 询问，可放弃）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -200,10 +200,9 @@
               "非出牌阶段不重铸"
             ]
           },
-          "impl": "sanguosha2::skills::b20::YANYU",
+          "impl": "sanguosha3::kernel::skills::b20::SKILLS(code=yanyu) + b20::{yanyu, recast_allowed, on_phase_end}",
           "tests": [
-            "b20::yanyu_recasts_sha_then_gifts_male",
-            "b20::yanyu_no_gift_without_two_sha_lost"
+            "b20::yanyu_recast_sha_and_end_draws_two_for_male"
           ]
         }
       ]
@@ -217,14 +216,14 @@
           "code": "qiangshi",
           "name": "强识",
           "kind": "normal",
-          "status": "verified",
+          "status": "implemented",
           "original": "出牌阶段开始时，你可观看一名其他角色的手牌并展示其中一张牌，然后你本阶段使用此类别的牌时可摸一张牌。",
           "original_source": "heroes.json#gid=753",
           "mechanics_version": 2,
           "current": [
-            "v2：`PhaseStart(Play)` 询问 → 选一名有手牌的其他角色 → 张松从其手牌中自选一张 `Game::reveal` 公开（pending 选项只发给张松）。",
-            "记录类别位图 `turn.qiangshi_type`（基本/锦囊（含延时）/装备）。",
-            "`CardUsed`（`Window::OwnPhase(Play)`）使用同类别牌时询问「摸一张 / 不摸」（可选）。"
+            "v3：`PhaseStart`（`Window::OwnPhase(Phase::Play)`），限一次（`turn.<seat>.qiangshi_used`）；选一名有手牌的其他角色 → `reveal_private` 观看其手牌 → 自选一张 `reveal` 公开并记录类别（`qiangshi_category`：基本/锦囊含延时/装备）。",
+            "`CardUsed` 驱动：本阶段使用与该类别相同的牌 → 询问「是否摸一张」（可放弃）。",
+            "不选牌/无候选则不置类别，本阶段不再询问。"
           ],
           "confidence": "verified",
           "diff": [
@@ -311,24 +310,23 @@
               "使用不同类别的牌不摸"
             ]
           },
-          "impl": "sanguosha2::skills::b20::QIANGSHI",
+          "impl": "sanguosha3::kernel::skills::b20::SKILLS(code=qiangshi) + b20::qiangshi",
           "tests": [
-            "b20::qiangshi_reveals_chosen_card_and_draws_on_same_type",
-            "b20::qiangshi_no_prompt_for_other_type"
+            "b20::qiangshi_reveals_and_draws_on_same_category"
           ]
         },
         {
           "code": "xiantu",
           "name": "献图",
           "kind": "normal",
-          "status": "verified",
+          "status": "implemented",
           "original": "其他角色出牌阶段开始时，你可以摸至多两张牌，然后交给其等量牌。此阶段结束时，若其造成伤害小于你以此法交给其的牌数，你失去1点体力。",
           "original_source": "heroes.json#gid=753",
           "mechanics_version": 2,
           "current": [
-            "v2：`PhaseStart(Play)` + `Window::OtherTurn`；其他角色出牌阶段开始时询问张数（2/1/0，0 即不发动）。",
-            "摸对应张数后由张松自选等量手牌 `Game::gain` 交给当前回合角色；记录 `turn.xiantu_given/target/base`。",
-            "`PhaseEnd`（cause=Play）比较 `turn.damage_by:<target>` - 基准 与交给张数：小于 → `flow::lose_hp(张松,1)`；交 0 张不结算。"
+            "v3：`PhaseStart`（`Window::AnyTime`）；条件 = 其他角色的**出牌阶段**开始（`g.turn != owner`、`g.phase == Phase::Play`），每回合一次（`turn.<回合角色>.xiantu_offered`）。",
+            "发动 → 选 0/1/2 张（`count`，0 等同不发动）：摸 n 张后逐张把 n 张**手牌**自选交给当前回合角色（`give`，强制交满 n 张）。",
+            "该角色出牌阶段结束（`xiantu_phase_end`）：若其本阶段造成伤害点数 < 交出的张数 → 张松失去 1 点体力（记录 `xiantu_owner` 防多人同将串位）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -429,10 +427,9 @@
               "非该角色的出牌阶段结束不结算"
             ]
           },
-          "impl": "sanguosha2::skills::b20::XIANTU",
+          "impl": "sanguosha3::kernel::skills::b20::SKILLS(code=xiantu) + b20::{xiantu, xiantu_phase_end}",
           "tests": [
-            "b20::xiantu_gives_and_loses_hp_when_damage_less",
-            "b20::xiantu_no_hp_loss_when_not_activated"
+            "b20::xiantu_gives_cards_and_penalizes_insufficient_damage"
           ]
         }
       ]
@@ -446,14 +443,14 @@
           "code": "zhenjun",
           "name": "镇军",
           "kind": "normal",
-          "status": "verified",
+          "status": "implemented",
           "original": "准备阶段，你可以弃置一名角色X张牌（X为其手牌数减体力值且至少为1)，然后选择一项：\n 1.你弃置与其中非装备牌数等量张牌；\n 2.结束阶段，其摸与其中非装备牌数等量张牌。",
           "original_source": "heroes.json#gid=756",
           "mechanics_version": 2,
           "current": [
-            "v2：`PhaseStart(Prepare)` + `Window::OwnPhase(Prepare)`；目标可含自己，X = max(1, 手牌数-体力值)，实际弃置不超过其手牌+装备区总牌数。",
-            "逐张弃置（手牌随机 / 装备区具体牌由发动者选，判定区不算），统计非装备牌数 n；n=0 结束。",
-            "二选一：①自己逐张弃 n 张（自选）；②置 `turn.zhenjun_draw:<target>`，于禁本回合结束阶段（`PhaseStart(End)`）令其摸 n 张。"
+            "v3：`PhaseStart` + `Window::OwnPhase(Phase::Prepare)`（自己的准备阶段）；选一名**有牌**的存活角色（含自己）为目标（`target:<seat>`，可放弃）。",
+            "X = `max(1, 其手牌数 - 其体力)`；弃牌：手牌随机（`hand`）、装备区具体牌（`equip:<id>`），判定区不算；统计其中**非装备牌数** Y。",
+            "Y>0 时二选一：①自己弃置 Y 张手牌（`self` → `self_pick`）；②该角色本回合结束阶段摸 Y 张（`defer` → `zhenjun_defer`，`on_phase_end` 执行）。Y=0 直接结束。"
           ],
           "confidence": "verified",
           "diff": [
@@ -554,24 +551,23 @@
               "非准备阶段不触发"
             ]
           },
-          "impl": "sanguosha2::skills::b20::ZHENJUN",
+          "impl": "sanguosha3::kernel::skills::b20::SKILLS(code=zhenjun) + b20::{zhenjun, on_phase_end}",
           "tests": [
-            "b20::zhenjun_discards_x_then_end_phase_draw",
-            "b20::zhenjun_skips_target_without_cards"
+            "b20::zhenjun_discards_x_and_self_discards_non_equip_count"
           ]
         },
         {
           "code": "yizhong",
           "name": "毅重",
           "kind": "locked",
-          "status": "verified",
+          "status": "implemented",
           "original": "锁定技，体力值大于等于你的角色的黑色【杀】对你无效；手牌数小于等于你的角色无法响应你的黑色【杀】。",
           "original_source": "heroes.json#gid=756",
           "mechanics_version": 2,
           "current": [
-            "v2：①`skills::sha_intercept_skills` 增补 → 使用者体力 ≥ 于禁且此【杀】为黑色（实体牌花色）时返回 `ShaIntercept::Immune`（该【杀】对于禁不结算，牌正常进弃牌堆）。",
-            "②`Game::response_source` + `skills::shan_blocked_for`：目标手牌 ≤ 于禁手牌时，响应窗口不提供【闪】（含转化【闪】与八卦阵），`apply_response` 同源校验。",
-            "红色【杀】与「使用者体力低于于禁」不触发①。"
+            "v3：锁定技，两个出口：①`card_ineffective_for`：体力 ≥ 于禁的角色使用的**黑色**【杀】（按有效花色）对于禁无效（目标标 `target_ineffective`）；②`shan_blocked_for`：手牌数 ≤ 于禁的角色对黑色【杀】不能使用/打出【闪】。",
+            "黑色按实体牌花色判定（转化牌按承载牌，`cards::is_black` 同源）；【闪】封锁含技能转化与八卦阵。",
+            "无询问（锁定技）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -658,10 +654,9 @@
               "使用者体力低于于禁时不触发①"
             ]
           },
-          "impl": "sanguosha2::skills::b20::YIZHONG",
+          "impl": "sanguosha3::kernel::skills::b20::SKILLS(code=yizhong) + b20::{card_ineffective_for, shan_blocked_for}",
           "tests": [
-            "b20::yizhong_black_sha_is_immune_when_hp_ge",
-            "b20::yizhong_blocks_shan_when_hand_le"
+            "b20::yizhong_black_slash_ineffective_and_shan_blocked"
           ]
         }
       ]
@@ -675,14 +670,14 @@
           "code": "anxu",
           "name": "安恤",
           "kind": "normal",
-          "status": "verified",
+          "status": "implemented",
           "original": "出牌阶段限一次，你可以获得两名角色各一张牌。然后你展示一张牌并交给其中手牌较少的角色，若不为黑桃，你摸一张牌。",
           "original_source": "heroes.json#gid=775",
           "mechanics_version": 2,
           "current": [
-            "v2：出牌阶段限一次（`turn.anxu_used`）；依次获得两名**不同**其他角色各一张牌（手牌随机 / 装备区具体牌，由安恤者选）。",
-            "然后从获得的这两张中选一张 `Game::reveal` 展示并交给其中手牌较少的角色（按获得后手牌数比较；平局由安恤者选）。",
-            "展示牌不为黑桃（`skills::effective_suit`）→ 安恤者摸 1 张。"
+            "v3：出牌阶段限一次（`turn.<seat>.anxu_used`），要求至少两名**其他**有牌角色；先选 a 再选 b（`a:`/`b:`，不得相同）。",
+            "获得：从 a、b 各获得一张牌——手牌随机（`hand`）、装备区指定（`equip:<id>`），判定区不算；随后从这两张里选一张 `reveal` 展示并交给其中**手牌较少者**（平局由步练师指定 `give:<card>:<seat>`）。",
+            "若该牌不为黑桃（按有效花色）→ 步练师摸 1；黑桃则不摸。"
           ],
           "confidence": "verified",
           "diff": [
@@ -782,24 +777,23 @@
               "本阶段已发动过不能再发动"
             ]
           },
-          "impl": "sanguosha2::skills::b20::ANXU",
+          "impl": "sanguosha3::kernel::skills::b20::SKILLS(code=anxu) + b20::{can_anxu, anxu}",
           "tests": [
-            "b20::anxu_gains_two_cards_and_spade_rule",
-            "b20::anxu_cannot_activate_twice"
+            "b20::anxu_takes_two_cards_then_gives_one_to_lower_hand"
           ]
         },
         {
           "code": "zhuixi",
           "name": "追忆",
           "kind": "limited",
-          "status": "verified",
+          "status": "implemented",
           "original": "限定技，结束阶段，你可令一名其他角色摸三张牌并回复1点体力。然后你死亡时，可以对其再次发动本技能。",
           "original_source": "heroes.json#gid=775",
           "mechanics_version": 2,
           "current": [
-            "v2：`PhaseStart(End)` + `Window::OwnPhase(End)`；限定技（`flags.zhuixi_used`）每局一次，选定目标后 `draw(3)` + `flow::heal(1)`，并记 `zhuixi_target`。",
-            "亡语：`skills::on_death` → `b20::on_death` 在死亡清理前压入询问，只能对首次目标再次发动（`draw 3 + heal 1`）；独立一次、不排除杀死者。",
-            "满血时 `flow::heal` 不回复（仅摸牌）。"
+            "v3：限定技（`skills::{limited_used, mark_limited_used}`）；主动面 = 自己的结束阶段（`Window::OwnPhase(Phase::End)`），死亡面 = `Death` 订阅（`Subject::Self_`）。",
+            "结束阶段：选一名其他存活角色（`target:<seat>`）→ 记 `zhuixi_target` + 限定技已用，目标摸 3 并回复 1（满血只摸）。",
+            "死亡时：按 `zhuixi_target` 再执行一次（不占限定技次数，可指向杀死者）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -900,10 +894,9 @@
               "目标满血时不回复"
             ]
           },
-          "impl": "sanguosha2::skills::b20::ZHUIXI",
+          "impl": "sanguosha3::kernel::skills::b20::SKILLS(code=zhuixi) + b20::{can_zhuixi, zhuixi}",
           "tests": [
-            "b20::zhuixi_end_phase_then_death_again",
-            "b20::zhuixi_death_only_after_used"
+            "b20::zhuixi_end_and_death_repeat"
           ]
         }
       ]

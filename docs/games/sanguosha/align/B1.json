@@ -1,11 +1,12 @@
 {
   "batch": "B1",
   "source": "风林火山·SP-1",
-  "status": "confirmed",
+  "status": "implemented",
+  "engine": "v2",
   "mechanics_version": 2,
   "confirmed_by": "用户",
   "confirmed_at": "2026-11-06",
-  "note": "B1 18/18 已实现（2026-11-06）。UI：本期不做动效。",
+  "note": "B1 18/18 已实现（2026-11-06）。UI：本期不做动效。；V3 已收口，批次状态同步为 implemented（v3 待复核）",
   "generals": [
     {
       "gid": 100,
