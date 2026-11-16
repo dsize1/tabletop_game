@@ -444,6 +444,8 @@ fn rende(g: &mut Game, ask: &Ask) -> Result<Step, String> {
         .get("step")
         .and_then(|v| v.as_str())
         .unwrap_or("target");
+    // 主动技入口统一由 `skills::start_active` 注入 `step="choose"`；本技能入口步名为 `target`。
+    let step = if step == "choose" { "target" } else { step };
     match step {
         "target" => {
             let cands: Vec<usize> = common::alive_others(g, actor)
@@ -817,6 +819,8 @@ fn yijue(g: &mut Game, ask: &Ask) -> Result<Step, String> {
         .get("step")
         .and_then(|v| v.as_str())
         .unwrap_or("target");
+    // 主动技入口统一由 `skills::start_active` 注入 `step="choose"`；本技能入口步名为 `target`。
+    let step = if step == "choose" { "target" } else { step };
     match step {
         "target" => {
             if g.counter(&phase_key(actor, "yijue")) > 0 {

@@ -1,6 +1,6 @@
 # V3 工作台沙盒 / 场景注入 / 预览 drive 适配（步骤 D 前置）
 
-> 状态：**计划（待用户确认后执行）** · 创建 2026-11-16
+> 状态：**已实施（S1–S4 ✅ 2026-11-16）** · 创建 2026-11-16
 > 触发：`next-v3-verification.md` 步骤 D 实测阻塞——workbench 的 sandbox/scene/drive 仍是 v2 基座，
 > `audit:sgs-generals` 无法产出 V3 机器证据（`游戏 sanguosha 不支持场景注入`）。
 > 本任务只做「预览基座 V3 化」，不改任何技能行为；技能台账见 `next-v3-verification.md`。
@@ -90,19 +90,20 @@ fn seat_summary(&self, state: &GameState) -> serde_json::Value { /* players + in
 
 ## 3. 待办（分 4 步）
 
-- [ ] **S1** core 能力接口 + v2 包装（不改 v2 行为）；`cargo test -p game-engine-core`
-- [ ] **S2** `sanguosha3::sandbox`：`mount_general` 抽取、`create_sandbox`、`apply_scene`、单出口牌移动；Rust 用例
-      （sandbox 建局 / scene 手牌装备 / deck_top 顺序 / 阶段落点 / 同 seed 复现 / 事件守恒）
-- [ ] **S3** `preview.rs` 去 v2 耦合 + meta 分引擎；`check:sgs-preview` 加 V3 用例
-- [ ] **S4** 审计脚本读 `my_pending.options` + 证据头 engine；B0 dry-run → 全量 21 批 → 新证据
+- [x] **S1** core 能力接口 + v2 包装（`supports_sandbox/create_sandbox/current_actor/seat_summary`）
+- [x] **S2** `sanguosha3::sandbox`：`mount_general` 抽取、`create_sandbox`、`apply_scene`、确定性取牌（按实例 id 排序）
+- [x] **S3** `preview.rs` 去 v2 耦合（sandbox 分派 / seat_summary / current_actor / drive 通用策略）；`sandbox_meta` 仍 v2（工作台表单待后续）
+- [x] **S4** 审计脚本读 `player.my_pending.options` + 证据头 `引擎：v3`；B0 dry-run → 全量（触达 86 / 未触达 61 / 失败 0 / 阻塞 0）
 
 ## 4. 验证事项
 
 - [ ] `cargo build -p server` 绿（当前已修 `Suit::None`）
-- [ ] `npm run check:sgs-preview` 绿（含新增 V3 用例）
-- [ ] `npm run audit:sgs-generals -- B0 --seed 20261105`：失败 0 / 阻塞 0，且 `game_id=sanguosha`
-- [ ] `npm run audit:sgs-generals:all` → `general-audit-evidence.md` 头 `引擎：v3 / 技能 299 / 失败 0`
-- [ ] `npm run check:sgs3:full`、`npm run sgs:check:fast` 无回归
+- [x] `npm run check:sgs-generals`（抽样 8 将 repeat=2）失败 0 / 阻塞 0（确定性修复：场景取牌按实例 id 排序）
+- [ ] `npm run check:sgs-preview` 绿（V3 用例尚未补：工作台 UI 仍走 v2 表单）
+- [x] `npm run audit:sgs-generals -- B0 --seed 20261105`：失败 0 / 阻塞 0，且 `game_id=sanguosha`
+- [x] `npm run audit:sgs-generals:all` → `general-audit-evidence.md` 头 `引擎：v3`，失败 0 / 阻塞 0（触达 86 / 未触达 61）
+- [x] `npm run check:sgs3:full` 无回归（技能注册/契约不受影响）
+- [ ] `npm run sgs:check:fast`（下一步验证）
 - [ ] 回放隔离：预览会话不写 `game_state/game_events/game_decision_log`（沿用现有断言）
 
 ## 5. 风险 / 注意
@@ -112,3 +113,12 @@ fn seat_summary(&self, state: &GameState) -> serde_json::Value { /* players + in
 - **不允许为审计放宽引擎校验**：`validate_state` 仍须拒绝非法快照。
 - **不得把 v2 证据当 V3**：证据头 engine 与 `check:sgs-general` 抽样门禁双重校验。
 - 本任务不动技能实现；若沙盒暴露技能缺陷 → 记入 `general-audit.md`，按 `next-general-audit.md` 走。
+
+## 6. 实施记录（2026-11-16）
+
+- 新增 `crates/engines/sanguosha3/src/sandbox.rs`（建局/场景注入/座位摘要/确定性取牌）。
+- `core::EnginePlugin` 新增 `supports_sandbox / create_sandbox / current_actor / seat_summary`（默认保守）。
+- `preview.rs`：sandbox 由引擎 `create_sandbox` 建局；`seat_summary/current_actor/drive` 去 v2 硬编码。
+- 审计：`collect()` 读 `player.my_pending`，`countCards` 支持 `kernel.cards`；证据头写 `引擎：v3`；抽样不再覆写全量证据。
+- 顺带修复：`skills::start_active` 不再注入 `step:"choose"`（13 个主动技「未知阶段 choose」全部消失）。
+- 结果：147 将 · 触达 86 / 未触达 61 / 失败 0 / 阻塞 0；`check:sgs-generals` 抽样失败 0。

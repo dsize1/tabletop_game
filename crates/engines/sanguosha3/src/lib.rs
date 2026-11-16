@@ -13,6 +13,8 @@
 
 pub mod engine;
 pub mod kernel;
+/// 工作台沙盒（建局 + 场景注入；仅预览用）。
+pub mod sandbox;
 
 /// 牌表生成物（160 张 + 定义；`gen:sgs-engine-data` 生成，勿手改）。
 pub mod cards_generated;

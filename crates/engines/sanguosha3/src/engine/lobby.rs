@@ -667,6 +667,39 @@ fn maybe_finish(
     Ok(())
 }
 
+/// 武将落地（正式选将/工作台沙盒共用）：势力/性别/体力上限 + 技能挂载（已收口）。
+///
+/// `lord_bonus` = 主公 +1 体力上限；技能只挂 `ENABLED_SKILLS`（未收口批次不挂）。
+pub fn mount_general(g: &mut Game, seat: usize, code: &str) -> Result<(), String> {
+    let is_lord = g.seats.get(seat).and_then(|s| s.identity) == Some(Identity::Lord);
+    mount_general_as(g, seat, code, is_lord)
+}
+
+fn mount_general_as(g: &mut Game, seat: usize, code: &str, is_lord: bool) -> Result<(), String> {
+    let def = generals::def(code).ok_or_else(|| format!("未知武将 {code}"))?;
+    let Some(s) = g.seats.get_mut(seat) else {
+        return Err(format!("座位 {seat} 不存在"));
+    };
+    let bonus = if is_lord { 1 } else { 0 };
+    s.general = code.to_string();
+    s.kingdom = def.kingdom.to_string();
+    s.male = def.male;
+    s.max_hp = def.max_hp + bonus;
+    s.hp = s.max_hp;
+    s.alive = true;
+    // 技能挂载：中文名 → code（V3 注册表），只挂**已收口**批次（`skills::ENABLED_SKILLS`）。
+    s.skills = def
+        .skills
+        .iter()
+        .filter_map(|n| crate::kernel::skills::code_by_name(n))
+        .filter(|c| crate::kernel::skills::enabled(c))
+        .map(|c| c.to_string())
+        .collect();
+    s.skills.dedup();
+    s.granted.clear();
+    Ok(())
+}
+
 /// 选将完成：定体力/势力/性别 → 组牌堆 → 发 4 张 → 进入主公回合。
 ///
 /// 技能**暂不挂载**（V3 按 B0–B20 批次接入）：本阶段目标是「武将/手牌/装备/锦囊」可
@@ -688,25 +721,7 @@ pub fn finish_setup(
             .get(&i)
             .cloned()
             .ok_or_else(|| "缺少选将结果".to_string())?;
-        let def = generals::def(&code).ok_or_else(|| format!("未知武将 {code}"))?;
-        let bonus = if i == lord { 1 } else { 0 };
-        let seat = &mut g.seats[i];
-        seat.general = code.clone();
-        seat.kingdom = def.kingdom.to_string();
-        seat.male = def.male;
-        seat.max_hp = def.max_hp + bonus;
-        seat.hp = seat.max_hp;
-        seat.alive = true;
-        // 技能挂载：中文名 → code（V3 注册表），只挂**已收口**批次（`skills::ENABLED_SKILLS`）。
-        seat.skills = def
-            .skills
-            .iter()
-            .filter_map(|n| crate::kernel::skills::code_by_name(n))
-            .filter(|c| crate::kernel::skills::enabled(c))
-            .map(|c| c.to_string())
-            .collect();
-        seat.skills.dedup();
-        seat.granted.clear();
+        mount_general_as(g, i, &code, i == lord)?;
     }
     *setup = None;
     g.hand_cap = cfg.max_hand_cards as usize;

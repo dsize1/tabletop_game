@@ -163,10 +163,13 @@ function dbCounts() {
   return out;
 }
 
-/** 牌数（所有区域合计；守恒断言）。v2：`Game.zone` 每张牌一条位置记录（含 Void）。 */
+/** 牌数（所有区域合计；守恒断言）。v2：`Game.zone`；v3：`kernel.cards`（id → Zone）。 */
 function countCards(st) {
   if (st?.zone && typeof st.zone === "object" && !Array.isArray(st.zone)) {
     return Object.keys(st.zone).length;
+  }
+  if (st?.kernel?.cards && typeof st.kernel.cards === "object") {
+    return Object.keys(st.kernel.cards).length;
   }
   const n = (a) => (Array.isArray(a) ? a.length : 0);
   let total =
@@ -306,17 +309,30 @@ async function auditGeneral(general) {
     const collect = (sheet, tag) => {
       const ids = (sheet?.actions ?? []).map((a) => a.id);
       const st = sheet?.raw?.data ?? null;
-      const rawPending = st?.pending ?? null;
-      const pending = rawPending
+      // V3：公共视图按宪法 I3 不暴露 pending；读 **viewer 私有视图**（`player.my_pending`）。
+      const priv = sheet?.player?.my_pending ?? sheet?.player?.data?.my_pending ?? null;
+      // v2：raw 里的 `pending`（`Game.pending`）；V3 raw 是 `EngineState`（`kernel.pending`）。
+      const rawPending = st?.pending ?? st?.kernel?.pending ?? null;
+      const pending = priv
         ? {
-            // v2：raw 里的 `actor` 是座位下标；v1 是 player_id。两者都兼容。
-            actor: rawPending.actor ?? rawPending.player_id ?? null,
-            skill: rawPending.skill ?? null,
-            reason: rawPending.data?.reason ?? null,
-            required: rawPending.data?.required ?? null,
-            options: (rawPending.options ?? []).map((o) => o.id).slice(0, 20),
+            // 私有视图只会在 `p.actor() == viewer` 时给出，故行动者即被审计座位。
+            actor: targetSeat,
+            skill: priv.data?.skill ?? null,
+            reason: priv.data?.reason ?? null,
+            required: priv.data?.required ?? null,
+            options: (priv.options ?? []).map((o) => o.id).slice(0, 20),
+            escape: priv.escape ?? null,
           }
-        : null;
+        : rawPending
+          ? {
+              // v2：raw 里的 `actor` 是座位下标；v1 是 player_id。两者都兼容。
+              actor: rawPending.actor ?? rawPending.player_id ?? null,
+              skill: rawPending.skill ?? null,
+              reason: rawPending.data?.reason ?? null,
+              required: rawPending.data?.required ?? null,
+              options: (rawPending.options ?? []).map((o) => o.id).slice(0, 20),
+            }
+          : null;
       const pool = [...ids, ...(pending?.options ?? [])];
       const ownCodes = new Set(general.skills.map((s) => s.code));
       if (pending?.skill && ownCodes.has(pending.skill)) reached.add(pending.skill);
@@ -328,8 +344,11 @@ async function auditGeneral(general) {
       for (const x of ids) seenIds.add(x);
       run.steps.push({
         tag,
-        turn: st?.turn ?? null,
-        turnPhase: st?.turn_phase ?? (typeof st?.phase === "string" ? st.phase.toLowerCase() : null),
+        turn: st?.turn ?? st?.kernel?.turn ?? null,
+        turnPhase:
+          st?.turn_phase ??
+          st?.kernel?.phase ??
+          (typeof st?.phase === "string" ? st.phase.toLowerCase() : null),
         legalCount: ids.length,
         pending,
         matchedIds: pool.filter((x) => mentionedSkills([x], general.skills).size > 0).concat(dataHits).slice(0, 10),
@@ -741,6 +760,7 @@ async function writeEvidence(report, file) {
   lines.push("# 全武将验证 · 机器证据（自动生成，勿手改）");
   lines.push("");
   lines.push(`> 生成：\`apps/scripts/sgs-general-audit.mjs\` · 时间：${report.generatedAt}`);
+  lines.push("> 引擎：**v3**（`crates/engines/sanguosha3`，game_id=`sanguosha`）；v2 证据已失效，勿复用。");
   lines.push("> 只含**机械证据**（可达/不报错/守恒/pending/可复现），不含语义判定；");
   lines.push("> 人工走查结论请写入 `docs/games/sanguosha/general-audit.md`。");
   lines.push("");
@@ -1009,9 +1029,15 @@ async function main() {
   await fs.writeFile(outFile, `${JSON.stringify(report, null, 2)}\n`, "utf8");
   log(`证据 JSON：${path.relative(projectRoot, outFile)}`);
 
+  // 只在「批次/全量」跑时刷新汇总证据；`--check`/`--general`/`--pack` 抽样**不**覆写
+  // （否则一次门禁抽样会把全量证据换成 8 行）。
   const evidenceFile = EVIDENCE_FILE;
-  await writeEvidence(report, evidenceFile);
-  log(`证据汇总：${path.relative(projectRoot, evidenceFile)}`);
+  if (batchId || flag("--all")) {
+    await writeEvidence(report, evidenceFile);
+    log(`证据汇总：${path.relative(projectRoot, evidenceFile)}`);
+  } else {
+    log("证据汇总：跳过（抽样/单将不覆盖全量证据；用 --batch/--all 刷新）");
+  }
 
   log(
     `汇总：触达 ${report.summary.reached} · 未触达 ${report.summary.untracked} · 失败 ${report.summary.failed} · 阻塞 ${report.summary.blocked} · 真相源未写 ${report.summary.truthSourceUntouched ? "✓" : "✗"}`,

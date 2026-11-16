@@ -142,39 +142,14 @@ impl PreviewSession {
     }
 
     fn seat_summary(&self) -> Value {
-        if let Some(state) = self.mgr.get_state(&self.room_id) {
-            if let Ok(g) = serde_json::from_value::<sanguosha2::kernel::Game>(state.data.clone()) {
-                let seats: Vec<Value> = g
-                    .seats
-                    .iter()
-                    .enumerate()
-                    .map(|(i, s)| {
-                        let name = sanguosha2::generals::by_code(&s.general)
-                            .map(|d| d.name)
-                            .unwrap_or(s.general.as_str());
-                        json!({
-                            "index": i,
-                            "player_id": s.name,
-                            "general": s.general,
-                            "general_name": name,
-                            "identity": s.identity,
-                            "hp": s.hp,
-                            "max_hp": s.max_hp,
-                            "alive": s.hp > 0,
-                            "is_bot": s.bot,
-                        })
-                    })
-                    .collect();
-                return json!({
-                    "phase": sanguosha2::view::phase_label(&g),
-                    "turn": g.turn,
-                    "turn_phase": format!("{:?}", g.phase).to_lowercase(),
-                    "round": g.round,
-                    "seats": seats,
-                });
-            }
-        }
-        json!({ "seats": [] })
+        let Some(state) = self.mgr.get_state(&self.room_id) else {
+            return json!({ "seats": [] });
+        };
+        self.mgr
+            .registry_arc()
+            .get(&self.game_id)
+            .map(|e| e.seat_summary(&state))
+            .unwrap_or_else(|| json!({ "seats": [] }))
     }
 
     /// 构造与 `/resources/game` 同形的视图（供预览页/工作台共用）。
@@ -322,8 +297,10 @@ impl PreviewSession {
 
     fn current_actor(&self) -> Option<String> {
         let state = self.mgr.get_state(&self.room_id)?;
-        let g: sanguosha2::kernel::Game = serde_json::from_value(state.data.clone()).ok()?;
-        sanguosha2::ai::current_actor(&self.mgr, &self.room_id, &g)
+        self.mgr
+            .registry_arc()
+            .get(&self.game_id)
+            .and_then(|e| e.current_actor(&state))
     }
 
     /// AI 单步/连推。`max_steps == 1` 可操作任意当前行动者；`> 1` 只推进机器人。
@@ -346,16 +323,13 @@ impl PreviewSession {
                 stop = "finished".to_string();
                 break;
             }
-            let Ok(st) = serde_json::from_value::<sanguosha2::kernel::Game>(state.data.clone())
-            else {
-                stop = "engine_error".to_string();
-                errors.push("状态解析失败".to_string());
-                break;
-            };
+            // v2 专用 AI 分支（保留原行为）；其他引擎走通用策略（RandomPolicy）。
+            let v2_state =
+                serde_json::from_value::<sanguosha2::kernel::Game>(state.data.clone()).ok();
             let actor = if single && req.actor.as_deref().is_some_and(|a| !a.is_empty()) {
                 req.actor.clone().unwrap()
             } else {
-                match sanguosha2::ai::current_actor(&self.mgr, &self.room_id, &st) {
+                match self.current_actor() {
                     Some(a) => a,
                     None => {
                         stop = "no_actor".to_string();
@@ -363,16 +337,21 @@ impl PreviewSession {
                     }
                 }
             };
-            if !single
-                && !st
-                    .seats
-                    .iter()
-                    .find(|s| s.name == actor)
-                    .map(|s| s.bot)
-                    .unwrap_or(false)
-            {
-                stop = "human_turn".to_string();
-                break;
+            if !single {
+                let is_bot = match &v2_state {
+                    Some(st) => st
+                        .seats
+                        .iter()
+                        .find(|s| s.name == actor)
+                        .map(|s| s.bot)
+                        .unwrap_or(false),
+                    // 非 v2 引擎：预览沙盒座位均视为机器人（无人类人类接入）。
+                    None => true,
+                };
+                if !is_bot {
+                    stop = "human_turn".to_string();
+                    break;
+                }
             }
             let legal = match self.mgr.legal_actions(&self.room_id, &actor) {
                 Ok(l) => l,
@@ -387,7 +366,7 @@ impl PreviewSession {
                 break;
             }
             let t0 = std::time::Instant::now();
-            let (chosen, trace) = if policy == "random" {
+            let (chosen, trace) = if policy == "random" || v2_state.is_none() {
                 let mut rng = SeededRng::new((self.seq + 1) | 1);
                 let chosen = RandomPolicy.choose(&state, &actor, &legal, &mut rng);
                 (chosen, None)
@@ -832,11 +811,15 @@ pub async fn sandbox_meta(
 #[derive(Debug, Deserialize)]
 pub struct SandboxRequest {
     pub players: usize,
+    /// 引擎 id（缺省 `sanguosha` = 当前正式引擎）。
+    #[serde(default)]
+    pub game_id: Option<String>,
     /// 随机种子（缺省自动随机；同 seed 可复现）。
     #[serde(default)]
     pub seed: Option<u64>,
+    /// 引擎自定义座位参数（v2：`SandboxSeat`；v3：`SandboxSeat`，由 `create_sandbox` 解析）。
     #[serde(default)]
-    pub seats: Vec<sanguosha2::sandbox::SandboxSeat>,
+    pub seats: Vec<Value>,
     /// 是否同时保存为模板（默认 false）。
     #[serde(default)]
     pub save_template: Option<bool>,
@@ -847,6 +830,7 @@ pub struct SandboxRequest {
 /// `POST /internal/game/preview/sandbox`：按表单创建「已开局」预览会话。
 ///
 /// 只写 `game_state_templates`（可选）；预览状态仅内存，不写对局真相源。
+/// 建局由引擎 `create_sandbox` 负责（v2/v3 各自实现；本函数不认识具体引擎）。
 pub async fn sandbox(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -854,15 +838,32 @@ pub async fn sandbox(
 ) -> Result<Json<Value>, ApiError> {
     require_workbench(&state, &headers)?;
     let seed = req.seed.unwrap_or_else(rand::random);
-    let spec = sanguosha2::sandbox::SandboxSpec {
-        players: req.players,
-        seats: req.seats,
-    };
+    let game_id = req
+        .game_id
+        .clone()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(default_game_id);
+    let engine = state
+        .games
+        .registry()
+        .get(&game_id)
+        .cloned()
+        .ok_or_else(|| err(StatusCode::NOT_FOUND, format!("未知游戏 {game_id}")))?;
+    if !engine.supports_sandbox() {
+        return Err(err(
+            StatusCode::BAD_REQUEST,
+            format!("游戏 {game_id} 不支持沙盒"),
+        ));
+    }
+    let spec = json!({
+        "players": req.players,
+        "seed": seed,
+        "seats": req.seats,
+    });
     let mut rng = SeededRng::new(seed);
-    let placeholder = format!("preview:{}", uuid::Uuid::new_v4());
-    let (game_state, _events) =
-        sanguosha2::sandbox::new_sandbox_game(&placeholder, &placeholder, &spec, &mut rng)
-            .map_err(map_engine_error)?;
+    let game_state = engine
+        .create_sandbox(&spec, &mut rng)
+        .map_err(map_engine_error)?;
     let viewer = game_state.players.first().cloned().unwrap_or_default();
 
     let template_id = if req.save_template.unwrap_or(false) {
@@ -874,12 +875,12 @@ pub async fn sandbox(
             .map(str::trim)
             .filter(|s| !s.is_empty())
             .map(str::to_string)
-            .unwrap_or_else(|| format!("创建对局-{}人-{}", spec.players, seed));
+            .unwrap_or_else(|| format!("创建对局-{}人-{}", spec["players"], seed));
         let meta = json!({
             "sandbox": {
-                "players": spec.players,
+                "players": spec["players"],
                 "seed": seed,
-                "seats": spec.seats,
+                "seats": spec["seats"],
             }
         })
         .to_string();
@@ -887,7 +888,7 @@ pub async fn sandbox(
         let row = state
             .storage
             .create_template(&TemplateInput {
-                game_id: "sanguosha",
+                game_id: &game_id,
                 name: &name,
                 source: "manual",
                 snapshot: &snapshot,

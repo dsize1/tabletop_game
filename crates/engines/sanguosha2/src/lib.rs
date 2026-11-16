@@ -451,6 +451,65 @@ impl EnginePlugin for Sanguosha2Engine {
         Ok(())
     }
 
+    /// 工作台沙盒（v2）：包装既有 `sandbox::new_sandbox_game`。
+    fn supports_sandbox(&self) -> bool {
+        true
+    }
+
+    fn create_sandbox(
+        &self,
+        spec: &serde_json::Value,
+        rng: &mut dyn RandomSource,
+    ) -> Result<GameState, EngineError> {
+        let spec: sandbox::SandboxSpec = serde_json::from_value(spec.clone())
+            .map_err(|e| EngineError::IllegalAction(format!("沙盒参数非法：{e}")))?;
+        let (state, _events) =
+            sandbox::new_sandbox_game("preview:tmp", "preview:tmp", &spec, rng)?;
+        Ok(state)
+    }
+
+    fn current_actor(&self, state: &GameState) -> Option<String> {
+        let g = parse(state).ok()?;
+        if let Some(p) = &g.pending {
+            return g.seats.get(p.actor()).map(|s| s.name.clone());
+        }
+        g.seats.get(g.turn).map(|s| s.name.clone())
+    }
+
+    fn seat_summary(&self, state: &GameState) -> serde_json::Value {
+        let Ok(g) = parse(state) else {
+            return serde_json::json!({ "seats": [] });
+        };
+        let seats: Vec<serde_json::Value> = g
+            .seats
+            .iter()
+            .enumerate()
+            .map(|(i, s)| {
+                let name = generals::by_code(&s.general)
+                    .map(|d| d.name)
+                    .unwrap_or(s.general.as_str());
+                serde_json::json!({
+                    "index": i,
+                    "player_id": s.name,
+                    "general": s.general,
+                    "general_name": name,
+                    "identity": s.identity,
+                    "hp": s.hp,
+                    "max_hp": s.max_hp,
+                    "alive": s.hp > 0,
+                    "is_bot": s.bot,
+                })
+            })
+            .collect();
+        serde_json::json!({
+            "phase": view::phase_label(&g),
+            "turn": g.turn,
+            "turn_phase": format!("{:?}", g.phase).to_lowercase(),
+            "round": g.round,
+            "seats": seats,
+        })
+    }
+
     fn summarize(&self, state: &GameState) -> String {
         let Ok(g) = parse(state) else {
             return "三国杀：状态异常".to_string();

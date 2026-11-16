@@ -365,4 +365,43 @@ impl EnginePlugin for SanguoshaEngine {
         es.kernel.check_no_orphan_frames()?;
         Ok(())
     }
+
+    /// 工作台沙盒（V3）：支持建局 + 场景注入（仅预览用，不写真相源）。
+    fn supports_sandbox(&self) -> bool {
+        true
+    }
+
+    fn create_sandbox(
+        &self,
+        spec: &serde_json::Value,
+        rng: &mut dyn RandomSource,
+    ) -> Result<GameState, EngineError> {
+        let es = crate::sandbox::new_sandbox_game(spec, rng).map_err(EngineError::IllegalAction)?;
+        Ok(es.to_state("", ""))
+    }
+
+    fn apply_scene(
+        &self,
+        state: &GameState,
+        scene: &serde_json::Value,
+    ) -> Result<GameState, EngineError> {
+        let mut es = EngineState::from_state(state)?;
+        crate::sandbox::apply_scene(&mut es, scene).map_err(EngineError::IllegalAction)?;
+        Ok(es.to_state(&state.room_id, &state.group_id))
+    }
+
+    fn current_actor(&self, state: &GameState) -> Option<String> {
+        let es = EngineState::from_state(state).ok()?;
+        if let Some(p) = &es.kernel.pending {
+            return es.kernel.seats.get(p.actor()).map(|s| s.name.clone());
+        }
+        es.kernel.seats.get(es.kernel.turn).map(|s| s.name.clone())
+    }
+
+    fn seat_summary(&self, state: &GameState) -> serde_json::Value {
+        match EngineState::from_state(state) {
+            Ok(es) => crate::sandbox::seat_summary(&es.kernel),
+            Err(_) => serde_json::json!({ "seats": [] }),
+        }
+    }
 }

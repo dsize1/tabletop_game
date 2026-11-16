@@ -1,6 +1,6 @@
 # V3 全量验收台账回落与复核（下一会话 0 号动作）
 
-> 状态：**执行中（步骤 A–C ✅ / 步骤 D ⛔ 阻塞于「V3 工作台沙盒」/ 步骤 E 待用户签字）** · 创建 2026-11-16 · 更新 2026-11-16
+> 状态：**执行中（步骤 A–D ✅ / 步骤 E 待用户签字）** · 创建 2026-11-16 · 更新 2026-11-16
 > 触发：用户追问「147 将技能是否都已验证」。结论是**实现全齐、验收几乎为零**，
 > 且 align 台账里存在 **v2 时代签字被 V3 继承**的「假绿」，必须先回落台账、再跑 V3 验证。
 > 本文件只做**文档与门禁**（不改技能行为）；技能整改见 `v3-parity-baseline.md §7.35/§7.36`。
@@ -58,18 +58,14 @@
 - [x] `check:sgs-generals:matrix`：人工结果枚举校验；`人工通过` 必须含 **v3** 签字与日期；非「未验证」行必须在确认人/备注标明 `v2`/`v3`。
 - [x] `check:sgs2-registry`：对 `engine=v3` 的批次跳过 v2 锚点校验（改由 `check:sgs-align` 按 v3 源码/用例校验）。
 
-### 步骤 D：V3 机器证据（147 将）— ⛔ 阻塞（发现未登记前置）
+### 步骤 D：V3 机器证据（147 将）— ✅ 已完成（2026-11-16）
 
-- [ ] `audit:sgs-generals` 适配 V3 —— **未实施**：workbench 仍是 v2 基座，V3 无法建沙盒/注入场景。
-  - 实测（server 已重建）：`npm run audit:sgs-generals -- B0` → 3/3 失败，`游戏 sanguosha 不支持场景注入`；
-  - 根因：`crates/server/src/preview.rs` 的 `/internal/game/preview/sandbox` 直接调 `sanguosha2::sandbox::new_sandbox_game`；
-    `preview.rs` 的 `seat_summary` / `current_actor` / `drive` 全部走 `sanguosha2::ai`；V3 `SanguoshaEngine` 未实现 `apply_scene`；
-    v2 快照喂给 V3 引擎会被 `validate_state` 拒绝。
-  - 附带修复：`crates/server/src/gameprops_routes.rs` 的 `Suit` 匹配漏 `Suit::None` 导致 **server 编译失败**（已修，`cargo build -p server` 绿）。
-  - 结论：需要**新开任务**「V3 工作台沙盒/场景注入 + drive 适配（preview v3 基座）」，完成后才能跑步骤 D；
-    证据文件 `general-audit-evidence.md` / `data/audit/*` 保持 v2 旧值（**不得当 V3 证据用**）。
-- [ ] 先 dry-run 一批：`npm run audit:sgs-generals -- B0 --seed 20261105`（等 v3 沙盒就绪）
-- [ ] 全量：`for b in B0…B20; do npm run audit:sgs-generals -- $b; done` → 重生成 `general-audit-evidence.md`（V3 口径 299 技能）
+- [x] 前置：**V3 工作台沙盒/场景注入/preview drive 适配**（`memory_palace/plan/next-v3-workbench-sandbox.md`，S1–S4）。
+- [x] `apps/scripts/sgs-general-audit.mjs` 适配 V3：读 `player.my_pending.options`；`countCards` 支持 `kernel.cards`。
+- [x] B0 dry-run → 全量：`npm run audit:sgs-generals:all` → **触达 86 / 未触达 61 / 失败 0 / 阻塞 0**。
+- [x] `general-audit-evidence.md` 头写 `引擎：v3`（147 将 / 288 技能口径）；抽样跑不再覆写全量证据。
+- [x] 顺带修复 V3 缺陷：`skills::start_active` 注入 `step:"choose"` 导致 13 个主动技「未知阶段 choose」。
+- 未触达 61 = L1 场景未构造触发（锁定技/觉醒/限定/需他人响应的主公技），交人工走查。
 
 ### 步骤 E：人工走查与签字（待用户）
 
@@ -87,7 +83,7 @@
 - [x] `npm run check:sgs-align` 绿（含新 `engine` 维度 + v3 锚点存在性）
 - [x] `npm run check:sgs3:full` 绿（`cargo test -p sanguosha3` + kernel/registry/suit/conventions + align + spec-conformance 全过）
 - [x] `npm run check:sgs-generals:matrix` 绿（147 行 / 21 批 / 技能齐全 + 人工列引擎口径）
-- [ ] `general-audit-evidence.md` 头显示 V3 口径（299 技能）且「失败 0 / 阻塞 0」 → **阻塞于步骤 D**
+- [x] `general-audit-evidence.md` 头显示 `引擎：v3` 且「失败 0 / 阻塞 0」（147 将 / 288 技能）
 - [ ] 台账抽查：随机 5 行「人工通过」都能指出签字日期（v3）与确认人 → 当前无 v3 签字（符合预期）
 
 ## 4. 风险 / 注意

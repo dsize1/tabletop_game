@@ -273,6 +273,41 @@ pub trait EnginePlugin: Send + Sync {
             self.game_id()
         )))
     }
+
+    /// 是否支持工作台沙盒（`/internal/game/preview/sandbox`）。
+    fn supports_sandbox(&self) -> bool {
+        false
+    }
+
+    /// 创建工作台沙盒（已开局快照）。`spec` 为引擎自定义 JSON（players/seed/seats）。
+    ///
+    /// 缺省不支持；实现者必须保证：确定性（seed）、牌区守恒、不写真相源。
+    fn create_sandbox(
+        &self,
+        _spec: &serde_json::Value,
+        _rng: &mut dyn RandomSource,
+    ) -> Result<GameState, EngineError> {
+        Err(EngineError::IllegalAction(format!(
+            "游戏 {} 不支持沙盒",
+            self.game_id()
+        )))
+    }
+
+    /// 当前待操作玩家（工作台 drive 用）；缺省 `None`（由调用方回退）。
+    fn current_actor(&self, _state: &GameState) -> Option<String> {
+        None
+    }
+
+    /// 座位摘要（工作台预览展示）。缺省只给玩家列表的最小字段。
+    fn seat_summary(&self, state: &GameState) -> serde_json::Value {
+        let seats: Vec<serde_json::Value> = state
+            .players
+            .iter()
+            .enumerate()
+            .map(|(i, p)| serde_json::json!({ "index": i, "player_id": p }))
+            .collect();
+        serde_json::json!({ "seats": seats })
+    }
 }
 
 /// 引擎注册表。

@@ -556,6 +556,8 @@ fn wurong(g: &mut Game, ask: &Ask) -> Result<Step, String> {
         return Ok(Step::Done);
     }
     let step = ask.data.get("step").and_then(|v| v.as_str()).unwrap_or("target");
+    // 主动技入口统一由 `skills::start_active` 注入 `step="choose"`；本技能入口步名为 `target`。
+    let step = if step == "choose" { "target" } else { step };
     match step {
         "target" => {
             let cands: Vec<usize> = common::alive_others(g, actor)
@@ -740,6 +742,8 @@ fn yanzhu(g: &mut Game, ask: &Ask) -> Result<Step, String> {
         return Ok(Step::Done);
     }
     let step = ask.data.get("step").and_then(|v| v.as_str()).unwrap_or("target");
+    // 主动技入口统一由 `skills::start_active` 注入 `step="choose"`；本技能入口步名为 `target`。
+    let step = if step == "choose" { "target" } else { step };
     match step {
         "target" => {
             let cands = yanzhu_targets(g, actor);
@@ -1083,6 +1087,8 @@ fn anguo(g: &mut Game, ask: &Ask) -> Result<Step, String> {
         return Ok(Step::Done);
     }
     let step = ask.data.get("step").and_then(|v| v.as_str()).unwrap_or("target");
+    // 主动技入口统一由 `skills::start_active` 注入 `step="choose"`；本技能入口步名为 `target`。
+    let step = if step == "choose" { "target" } else { step };
     match step {
         "target" => {
             let cands = common::alive_others(g, actor);
@@ -1373,6 +1379,8 @@ fn huaiyi(g: &mut Game, ask: &Ask) -> Result<Step, String> {
         return Ok(Step::Done);
     }
     let step = ask.data.get("step").and_then(|v| v.as_str()).unwrap_or("color");
+    // 主动技入口统一由 `skills::start_active` 注入 `step="choose"`；本技能入口步名为 `color`。
+    let step = if step == "choose" { "color" } else { step };
     // 前置只在校验首次入口（后续阶段手牌可能被弃空/获得，不能再跑一次前置）。
     if step == "color" && !can_huaiyi(g, actor) {
         return Ok(Step::Done);

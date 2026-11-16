@@ -436,6 +436,8 @@ fn duliang(g: &mut Game, ask: &Ask) -> Result<Step, String> {
         .get("step")
         .and_then(|v| v.as_str())
         .unwrap_or("target");
+    // 主动技入口统一由 `skills::start_active` 注入 `step="choose"`；本技能入口步名为 `target`。
+    let step = if step == "choose" { "target" } else { step };
     match step {
         "target" => {
             let cands = duliang_targets(g, actor);
@@ -551,6 +553,8 @@ fn kuangbi(g: &mut Game, ask: &Ask) -> Result<Step, String> {
         .get("step")
         .and_then(|v| v.as_str())
         .unwrap_or("target");
+    // 主动技入口统一由 `skills::start_active` 注入 `step="choose"`；本技能入口步名为 `target`。
+    let step = if step == "choose" { "target" } else { step };
     match step {
         "target" => {
             if !can_kuangbi(g, actor) {
@@ -733,6 +737,8 @@ fn zhige(g: &mut Game, ask: &Ask) -> Result<Step, String> {
         .get("step")
         .and_then(|v| v.as_str())
         .unwrap_or("target");
+    // 主动技入口统一由 `skills::start_active` 注入 `step="choose"`；本技能入口步名为 `target`。
+    let step = if step == "choose" { "target" } else { step };
     match step {
         "target" => {
             if !can_zhige(g, actor) {
@@ -1056,6 +1062,8 @@ fn jiyu(g: &mut Game, ask: &Ask) -> Result<Step, String> {
         .get("step")
         .and_then(|v| v.as_str())
         .unwrap_or("target");
+    // 主动技入口统一由 `skills::start_active` 注入 `step="choose"`；本技能入口步名为 `target`。
+    let step = if step == "choose" { "target" } else { step };
     match step {
         "target" => {
             if !can_jiyu(g, actor) {
