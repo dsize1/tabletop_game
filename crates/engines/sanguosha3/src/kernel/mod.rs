@@ -469,6 +469,9 @@ pub struct Game {
     /// 本动作内技能去重标记（`begin_action` 清空）。
     #[serde(default)]
     pub action_seen: BTreeSet<String>,
+    /// **私密可见集合**（观看手牌）：viewer → 牌；不进入公共可见集合，`clear_private_reveals` 收回。
+    #[serde(default)]
+    pub private_reveals: HashMap<usize, BTreeSet<CardId>>,
     /// **公共可见集合**（mechanics `reveal`）：`show` 后进入、`conceal` 收回；
     /// 依赖牌面的技能必须读这里（只写日志不算展示）。
     #[serde(default)]
@@ -753,6 +756,19 @@ impl Game {
     /// 牌级标记（K18）：清除（离开手牌时由 `flow::note_lost` 统一调用）。
     pub fn clear_card_mark(&mut self, id: &str) {
         self.card_marks.remove(id);
+    }
+
+    /// 私密展示（观看手牌）：仅 viewer 可见，不进入公共可见集合。
+    pub fn reveal_private(&mut self, viewer: usize, ids: &[CardId], _cause: &str) {
+        let set = self.private_reveals.entry(viewer).or_default();
+        for id in ids {
+            set.insert(id.clone());
+        }
+    }
+
+    /// 清空某 viewer 的私密展示。
+    pub fn clear_private_reveals(&mut self, viewer: usize) {
+        self.private_reveals.remove(&viewer);
     }
 
     /// 清掉某命名空间的计数器（回合切换 `turn.` / 阶段切换 `phase.` 用）。

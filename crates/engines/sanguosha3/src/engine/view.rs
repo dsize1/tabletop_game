@@ -451,7 +451,17 @@ fn player_area(g: &Game, cfg: &LobbyConfig, setup: Option<&Setup>, seat: usize) 
         "is_current": g.turn == seat && setup.is_none(),
         "pending": pending_private(g, Some(seat)),
         "setup": setup_view,
-        "private_reveals": [],
+        "private_reveals": g
+            .private_reveals
+            .get(&seat)
+            .map(|ids| {
+                Value::Array(
+                    ids.iter()
+                        .map(|id| card_view(g, id))
+                        .collect(),
+                )
+            })
+            .unwrap_or_else(|| json!([])),
     })
 }
 

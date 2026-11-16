@@ -159,6 +159,7 @@ pub fn recast_allowed(g: &Game, seat: usize, id: &str) -> bool {
 }
 
 pub fn on_phase_end(g: &mut Game, seat: usize, phase: Phase) {
+    g.clear_private_reveals(seat);
     if phase == Phase::Play {
         xiantu_phase_end(g, seat);
     }
@@ -225,6 +226,7 @@ fn qiangshi(g: &mut Game, ask: &Ask) -> Result<Step, String> {
                 return Err("强识：目标不合法".into());
             }
             g.bump(&turn_key(owner, "qiangshi_used"));
+            g.reveal_private(owner, &g.hand(t), "强识");
             let mut b = PendingBuilder::new(owner, "qiangshi_pick").skill("qiangshi");
             for id in g.hand(t) {
                 b = b.option(format!("pick:{id}"), format!("强识：展示【{}】", card_label(g, &id)));

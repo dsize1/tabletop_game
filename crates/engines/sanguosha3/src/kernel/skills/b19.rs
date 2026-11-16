@@ -1063,3 +1063,41 @@ pub fn suit_for_use(g: &Game, seat: usize, physical: Suit) -> Suit {
         .unwrap_or(physical)
 }
 
+
+
+pub fn pair_response_valid(g: &Game, seat: usize, c1: &str, c2: &str) -> bool {
+    if !has(g, seat, "fuhen") || c1 == c2 {
+        return false;
+    }
+    for id in [c1, c2] {
+        if !matches!(g.cards.get(id), Some(Zone::Hand(s)) if *s == seat) || g.is_frozen(seat, id) {
+            return false;
+        }
+    }
+    true
+}
+
+pub fn pair_response_options(
+    g: &Game,
+    seat: usize,
+    kind: super::super::cards::ResponseKind,
+) -> Vec<(String, String)> {
+    if kind != super::super::cards::ResponseKind::Sha || !has(g, seat, "fuhen") {
+        return vec![];
+    }
+    let hand = g.hand(seat);
+    let mut out = vec![];
+    for i in 0..hand.len() {
+        for j in (i + 1)..hand.len() {
+            out.push((
+                format!("pair:{},{}", hand[i], hand[j]),
+                format!(
+                    "父魂：将【{}】【{}】当【杀】打出",
+                    card_label(g, &hand[i]),
+                    card_label(g, &hand[j])
+                ),
+            ));
+        }
+    }
+    out
+}

@@ -241,3 +241,21 @@ fn jianying_draws_on_same_suit_and_inherits_suit() {
     g.set_counter("turn.0.jianying_inherit", 1);
     assert_eq!(skills::b19::suit_for_use(&g, 0, Suit::Spade), Suit::Heart);
 }
+
+#[test]
+fn fuhen_pair_response_options_and_validation() {
+    let mut g = test_game(3);
+    g.seats[0].skills = vec!["fuhen".into()];
+    mk(&mut g, "a", "sha", Suit::Heart, Zone::Hand(0));
+    mk(&mut g, "b", "shan", Suit::Spade, Zone::Hand(0));
+    let opts = skills::pair_response_options(&g, 0, sanguosha3::kernel::cards::ResponseKind::Sha);
+    assert!(opts.iter().any(|(id, _)| id == "pair:a,b"), "父魂两张手牌可当杀打出");
+    assert!(skills::pair_response_valid(&g, 0, "a", "b"));
+    sanguosha3::kernel::card_play::play_pair_response(&mut g, 0, "a", "b", "测试").unwrap();
+    assert_eq!(g.cards.get("a"), Some(&Zone::Discard));
+    assert_eq!(g.cards.get("b"), Some(&Zone::Discard));
+    // 反例：非父魂。
+    g.seats[0].skills.clear();
+    mk(&mut g, "c", "sha", Suit::Heart, Zone::Hand(0));
+    assert!(skills::pair_response_options(&g, 0, sanguosha3::kernel::cards::ResponseKind::Sha).is_empty());
+}

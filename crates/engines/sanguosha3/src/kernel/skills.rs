@@ -514,6 +514,20 @@ pub fn rank_for_use(g: &Game, seat: usize, card: &str, rank: u8) -> u8 {
     b17::rank_for_use(g, seat, card, rank)
 }
 
+/// 两张手牌当响应牌（父魂）：合法性校验（legal ≡ execute）。
+pub fn pair_response_valid(g: &Game, seat: usize, c1: &str, c2: &str) -> bool {
+    b19::pair_response_valid(g, seat, c1, c2)
+}
+
+/// 两张手牌当响应牌的选项（父魂）。
+pub fn pair_response_options(
+    g: &Game,
+    seat: usize,
+    kind: super::cards::ResponseKind,
+) -> Vec<(String, String)> {
+    b19::pair_response_options(g, seat, kind)
+}
+
 /// 两张手牌当【杀】的可用性（父魂）。
 pub fn pair_sha_available(g: &Game, seat: usize) -> bool {
     b19::pair_sha_available(g, seat)

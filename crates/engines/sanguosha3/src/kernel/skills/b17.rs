@@ -1583,6 +1583,7 @@ fn xuanhuo(g: &mut Game, ask: &Ask) -> Result<Step, String> {
                         ));
                     }
                     "opt2" => {
+                        g.reveal_private(owner, &g.hand(helper), "眩惑");
                         return Ok(Step::Next(
                             Stage::Choose,
                             json!({ "stage": "watch", "helper": helper, "left": 2 }),
@@ -1655,6 +1656,7 @@ fn xuanhuo(g: &mut Game, ask: &Ask) -> Result<Step, String> {
                 flow::gain(g, owner, id, helper, "眩惑");
                 let left = left - 1;
                 if left == 0 {
+                    g.clear_private_reveals(owner);
                     return Ok(Step::Done);
                 }
                 return Ok(Step::Next(

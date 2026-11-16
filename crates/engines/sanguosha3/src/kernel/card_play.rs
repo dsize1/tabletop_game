@@ -1701,6 +1701,20 @@ fn step_duel(
             d.insert("esub".into(), json!("alt"));
             return Ok(next(Stage::CardResolve, d.clone()));
         }
+        if let Some(pair) = ans.strip_prefix("pair:") {
+            let Some((c1, c2)) = pair.split_once(',') else {
+                return Err("决斗：pair 格式错误".into());
+            };
+            play_pair_response(g, cur, c1, c2, "决斗")?;
+            if got + 1 < need {
+                d.insert("resp_got".into(), json!(got + 1));
+                return Ok(next(Stage::CardResolve, d.clone()));
+            }
+            d.insert("resp_got".into(), json!(0));
+            d.insert("duel_cur".into(), json!(other));
+            d.insert("duel_other".into(), json!(cur));
+            return Ok(next(Stage::CardResolve, d.clone()));
+        }
         if let Some(id) = ans.strip_prefix("s:") {
             let ok = matches!(g.cards.get(id), Some(Zone::Hand(s)) if *s == cur)
                 && super::skills::response_as(g, cur, id, ResponseKind::Sha).is_some();
@@ -1736,6 +1750,9 @@ fn step_duel(
     let mut b = PendingBuilder::new(cur, "duel_ask").skill("flow:card");
     for id in shas {
         b = b.option(format!("s:{id}"), "打出【杀】");
+    }
+    for (id, label) in super::skills::pair_response_options(g, cur, ResponseKind::Sha) {
+        b = b.option(id, label);
     }
     if d.get("alt_used").is_none() {
         for (code, label) in super::skills::response_alternatives(g, cur, ResponseKind::Sha, "duel") {
@@ -1818,6 +1835,20 @@ fn step_aoe(
             d.insert("esub".into(), json!("alt"));
             return Ok(next(Stage::CardResolve, d.clone()));
         }
+        if let Some(pair) = ans.strip_prefix("pair:") {
+            if expect != Some(ResponseKind::Sha) {
+                return Err("该响应不支持两张手牌".into());
+            }
+            let Some((c1, c2)) = pair.split_once(',') else {
+                return Err("响应：pair 格式错误".into());
+            };
+            play_pair_response(g, target, c1, c2, "响应")?;
+            if got + 1 < need {
+                d.insert("resp_got".into(), json!(got + 1));
+                return Ok(next(Stage::CardResolve, d.clone()));
+            }
+            return Ok(next_target(d));
+        }
         if let Some(id) = ans.strip_prefix("p:") {
             let ok = matches!(g.cards.get(id), Some(Zone::Hand(s)) if *s == target)
                 && expect
@@ -1849,7 +1880,12 @@ fn step_aoe(
     } else {
         vec![]
     };
-    if cards.is_empty() && alts.is_empty() {
+    let pairs = if expect == Some(ResponseKind::Sha) {
+        super::skills::pair_response_options(g, target, ResponseKind::Sha)
+    } else {
+        vec![]
+    };
+    if cards.is_empty() && alts.is_empty() && pairs.is_empty() {
         return damage(g, d);
     }
     let mut b = PendingBuilder::new(target, "aoe_ask").skill("flow:card");
@@ -1860,6 +1896,9 @@ fn step_aoe(
     };
     for id in cards {
         b = b.option(format!("p:{id}"), label);
+    }
+    for (id, label) in pairs {
+        b = b.option(id, label);
     }
     for (code, label) in alts {
         b = b.option(format!("alt:{code}"), label);
@@ -2410,6 +2449,25 @@ pub fn remove_card(g: &mut Game, owner: usize, id: &str, cause: &str) {
 }
 
 /// 「打出」：手牌 → 弃牌堆 + `CardPlayed` 事件（不计入使用次数，但计入掣政「使用过的牌数」）。
+/// 两张手牌当一张响应牌打出（父魂）：逐张走 `played`（保持失去/打出/冻结校验）。
+pub fn play_pair_response(
+    g: &mut Game,
+    seat: usize,
+    c1: &str,
+    c2: &str,
+    cause: &str,
+) -> Result<(), String> {
+    if c1 == c2 {
+        return Err("不能重复选择同一张牌".into());
+    }
+    if !super::skills::pair_response_valid(g, seat, c1, c2) {
+        return Err("两张手牌当响应牌当前不可用".into());
+    }
+    played(g, seat, c1, cause)?;
+    played(g, seat, c2, cause)?;
+    Ok(())
+}
+
 pub(crate) fn played(g: &mut Game, seat: usize, id: &str, cause: &str) -> Result<(), String> {
     if let Some(responding) = g.mark("flow.card").map(|s| s.to_string()) {
         g.set_mark(&format!("responds.{id}"), responding);
