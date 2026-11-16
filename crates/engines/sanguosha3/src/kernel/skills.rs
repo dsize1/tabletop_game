@@ -222,7 +222,8 @@ pub const ENABLED_SKILLS: &[&str] = &[
     "xuanfeng", "zhichi", "jiangchi", "zongshi_jie", "qiaoshuo", "zongxuan", "zhiyan",
     "jinjiu", "enyuan", "lihuo", "xianzhen", "chunlao", "mingce", "xuanhuo",
     // B18 批次（J6：进行中，见 check:sgs3-registry 的 ⏳ 计数）
-    "jueqing", "zishou", "luoying", "shangshi",
+    "jueqing", "zishou", "luoying", "shangshi", "zhenlie", "miji", "jianmie", "zongshi",
+    "xianzhou", "qieting", "chengxiang", "renxin", "jiushi", "ganlu", "buyi", "dangxian", "fuli",
 ];
 
 /// 手牌变动类型（奋激口径）。
@@ -478,8 +479,7 @@ pub fn fire_target_ineffective(
     targets: &[usize],
     card: &str,
 ) -> bool {
-    let _ = (g, user, targets, card);
-    false
+    b18::fire_target_ineffective(g, user, targets, card)
 }
 
 /// 本回合不能使用锦囊（巧说没赢）。
@@ -1400,6 +1400,7 @@ pub fn ask_damage_before_victim(
     if !b5::should_ask_damage_before_victim(g, from, spec.target)
         && !b7::should_ask_damage_before_victim(g, from, spec.target)
         && !b14::should_ask_damage_before_victim(g, from, spec.target)
+        && !b18::should_ask_damage_before_victim(g, from, spec.target)
     {
         return false;
     }
@@ -1511,6 +1512,7 @@ pub fn on_equip_lost(g: &mut Game, owner: usize, id: &str) {
 /// 回合结束前的技能窗口（博图额外回合 / 谦逊归还手牌）。
 pub fn on_turn_end(g: &mut Game, seat: usize) {
     b10::on_turn_end(g, seat);
+    b18::on_turn_end(g, seat);
 }
 
 /// 多目标牌结算前（奋威）：返回是否压入询问帧。

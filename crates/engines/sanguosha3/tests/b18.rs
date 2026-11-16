@@ -93,3 +93,179 @@ fn shangshi_fills_hand_to_lost_hp_on_hand_change() {
     submit(&mut g, "draw");
     assert_eq!(g.hand_size(0), 2, "摸至 X=2");
 }
+
+// ---------------------------------------------------------------------------
+// B18 其余技能
+// ---------------------------------------------------------------------------
+
+#[test]
+fn zhenlie_loses_hp_and_makes_card_ineffective() {
+    let mut g = test_game(3);
+    g.seats[0].skills = vec!["zhenlie".into()];
+    mk(&mut g, "c1", "sha", Suit::Spade, Zone::Processing);
+    trigger(&mut g, "zhenlie", 0, data(&[("step", "ask".into()), ("user", json!(1)), ("target", json!(0)), ("card", json!("c1"))]));
+    submit(&mut g, "use");
+    assert_eq!(g.seats[0].hp, 3);
+    assert!(g.use_opts("c1").target_ineffective.contains(&0));
+}
+
+#[test]
+fn miji_draws_lost_hp_at_end_phase() {
+    let mut g = test_game(3);
+    g.seats[0].skills = vec!["miji".into()];
+    g.seats[0].hp = 2;
+    g.turn = 0;
+    g.phase = Phase::End;
+    for i in 0..2 {
+        mk(&mut g, &format!("d{i}"), "sha", Suit::Spade, Zone::Draw);
+        g.deck.push(format!("d{i}"));
+    }
+    trigger(&mut g, "miji", 0, data(&[("event", "PhaseStart".into())]));
+    submit(&mut g, "use");
+    assert_eq!(g.hand_size(0), 2);
+}
+
+#[test]
+fn jianmie_discards_chosen_color_and_duels() {
+    let mut g = test_game(3);
+    g.seats[0].skills = vec!["jianmie".into()];
+    g.turn = 0;
+    g.phase = Phase::Play;
+    mk(&mut g, "r1", "sha", Suit::Heart, Zone::Hand(0));
+    mk(&mut g, "r2", "sha", Suit::Diamond, Zone::Hand(0));
+    mk(&mut g, "br", "sha", Suit::Spade, Zone::Hand(1));
+    assert!(skills::use_active(&mut g, 0, "jianmie").is_ok());
+    submit(&mut g, "target:1");
+    submit(&mut g, "red");
+    submit(&mut g, "black");
+    assert_eq!(g.hand_size(0), 0, "弃光红色手牌");
+    assert_eq!(g.hand_size(1), 0, "对方选黑，弃黑后无红可弃");
+}
+
+#[test]
+fn zongshi_prevents_damage_and_source_gains_card() {
+    let mut g = test_game(3);
+    g.seats[0].skills = vec!["zongshi".into()];
+    mk(&mut g, "h1", "sha", Suit::Spade, Zone::Hand(0));
+    assert!(sanguosha3::kernel::skills::b18::should_ask_damage_before_victim(&g, 1, 0));
+    trigger(&mut g, "zongshi", 0, data(&[("step", "ask".into()), ("target", json!(0)), ("from", json!(1))]));
+    assert_eq!(g.pending.as_ref().map(|p| p.actor()), Some(1));
+    submit(&mut g, "hand");
+    assert_eq!(g.hand_size(0), 0);
+    assert_eq!(g.hand_size(1), 1, "来源获得一张牌");
+}
+
+#[test]
+fn xianzhou_gives_equips_and_target_heals() {
+    let mut g = test_game(3);
+    g.seats[0].skills = vec!["xianzhou".into()];
+    g.seats[0].hp = 2;
+    g.turn = 0;
+    g.phase = Phase::Play;
+    mk(&mut g, "e1", "qinggang_jian", Suit::Spade, Zone::Equip(0, sanguosha3::kernel::Slot::Weapon));
+    assert!(skills::use_active(&mut g, 0, "xianzhou").is_ok());
+    submit(&mut g, "target:1");
+    submit(&mut g, "heal");
+    assert_eq!(g.seats[0].hp, 3, "回复 X=1");
+    assert_eq!(g.cards.get("e1"), Some(&Zone::Hand(1)));
+}
+
+#[test]
+fn qieting_on_other_turn_end_offers_draw() {
+    let mut g = test_game(3);
+    g.seats[0].skills = vec!["qieting".into()];
+    sanguosha3::kernel::skills::b18::on_turn_end(&mut g, 1);
+    resolve::advance(&mut g).unwrap();
+    assert_eq!(g.pending.as_ref().map(|p| p.actor()), Some(0));
+    mk(&mut g, "d1", "sha", Suit::Spade, Zone::Draw);
+    g.deck.push("d1".into());
+    submit(&mut g, "draw");
+    assert_eq!(g.hand_size(0), 1);
+}
+
+#[test]
+fn chengxiang_asks_pool_and_bonus_on_13() {
+    let mut g = test_game(3);
+    g.seats[0].skills = vec!["chengxiang".into()];
+    for i in 0..4 {
+        mk(&mut g, &format!("d{i}"), "sha", Suit::Spade, Zone::Draw);
+        g.deck.push(format!("d{i}"));
+    }
+    trigger(&mut g, "chengxiang", 0, data(&[("event", "DamageAfter".into())]));
+    assert_eq!(g.pending.as_ref().map(|p| p.actor()), Some(0));
+    submit(&mut g, "ok");
+}
+
+#[test]
+fn renxin_discards_equip_and_restores_dying_target() {
+    let mut g = test_game(3);
+    g.seats[0].skills = vec!["renxin".into()];
+    g.seats[1].hp = 0;
+    mk(&mut g, "e1", "qinggang_jian", Suit::Spade, Zone::Equip(0, sanguosha3::kernel::Slot::Weapon));
+    trigger(&mut g, "renxin", 0, data(&[("step", "ask".into()), ("target", json!(1))]));
+    submit(&mut g, "pick:e1");
+    assert_eq!(g.seats[1].hp, 1);
+    assert!(g.seats[0].flipped);
+}
+
+#[test]
+fn jiushi_flips_and_uses_wine() {
+    let mut g = test_game(3);
+    g.seats[0].skills = vec!["jiushi".into()];
+    g.turn = 0;
+    g.phase = Phase::Play;
+    assert!(skills::use_active(&mut g, 0, "jiushi").is_ok());
+    assert!(g.seats[0].flipped, "翻至背面");
+    assert_eq!(g.counter("turn.0.jiushi_used"), 1);
+}
+
+#[test]
+fn ganlu_swaps_equip_zones() {
+    let mut g = test_game(3);
+    g.seats[0].skills = vec!["ganlu".into()];
+    g.turn = 0;
+    g.phase = Phase::Play;
+    mk(&mut g, "w1", "qinggang_jian", Suit::Spade, Zone::Equip(0, sanguosha3::kernel::Slot::Weapon));
+    mk(&mut g, "w2", "zhuge_liannu", Suit::Club, Zone::Equip(1, sanguosha3::kernel::Slot::Weapon));
+    assert!(skills::use_active(&mut g, 0, "ganlu").is_ok());
+    submit(&mut g, "a:0");
+    submit(&mut g, "b:1");
+    assert_eq!(g.cards.get("w1"), Some(&Zone::Equip(1, sanguosha3::kernel::Slot::Weapon)));
+    assert_eq!(g.cards.get("w2"), Some(&Zone::Equip(0, sanguosha3::kernel::Slot::Weapon)));
+}
+
+#[test]
+fn buyi_discards_non_basic_and_heals_dying() {
+    let mut g = test_game(3);
+    g.seats[0].skills = vec!["buyi".into()];
+    g.seats[1].hp = 0;
+    mk(&mut g, "s1", "sha", Suit::Spade, Zone::Hand(1));
+    trigger(&mut g, "buyi", 0, data(&[("step", "ask".into()), ("target", json!(1))]));
+    submit(&mut g, "pick:s1");
+    assert_eq!(g.seats[1].hp, 0, "基本牌不弃置不回复");
+}
+
+#[test]
+fn dangxian_extra_play_and_self_damage_without_damage() {
+    let mut g = test_game(3);
+    g.seats[0].skills = vec!["dangxian".into()];
+    g.turn = 0;
+    assert!(sanguosha3::kernel::skills::b18::take_extra_play(&mut g, 0));
+    assert!(!sanguosha3::kernel::skills::b18::take_extra_play(&mut g, 0), "每回合一次");
+    sanguosha3::kernel::skills::b18::on_extra_play_end(&mut g, 0);
+    assert_eq!(g.seats[0].hp, 3, "未造成伤害 → 自伤 1");
+}
+
+#[test]
+fn fuli_dying_option_and_restore() {
+    let mut g = test_game(3);
+    g.seats[0].skills = vec!["fuli".into()];
+    g.seats[0].hp = 0;
+    g.seats[0].kingdom = "wei".into();
+    g.seats[1].kingdom = "shu".into();
+    g.seats[2].kingdom = "wu".into();
+    assert!(!sanguosha3::kernel::skills::b18::dying_options(&g, 0, 0).is_empty());
+    trigger(&mut g, "fuli", 0, data(&[("stage", "dying".into())]));
+    assert!(g.seats[0].hp >= 1);
+    assert!(skills::limited_used(&g, 0, "fuli"));
+}

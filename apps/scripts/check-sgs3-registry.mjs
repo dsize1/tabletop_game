@@ -26,7 +26,7 @@ const ALIGN_DIR = path.join(root, "docs/games/sanguosha/align");
 
 /** 已开工批次（连续，从 B0 起）。新批次开工时追加；**不得**跳过。 */
 const V3_STARTED_BATCHES = [
-  "B0", "B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8", "B9", "B10", "B11", "B12", "B13", "B14", "B15", "B16", "B17",
+  "B0", "B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8", "B9", "B10", "B11", "B12", "B13", "B14", "B15", "B16", "B17", "B18",
 ];
 
 /**
@@ -34,7 +34,7 @@ const V3_STARTED_BATCHES = [
  * 缺口以 `⏳` 计数报告（不静默）：已注册的技能仍必须「已收口 + 有用例」。
  * 全部注册完成后，把该批从本表移到 `V3_STARTED_BATCHES`（此后按完整批次校验）。
  */
-const V3_IN_PROGRESS_BATCHES = ["B18"];
+const V3_IN_PROGRESS_BATCHES = [];
 
 const tag = "[check:sgs3-registry]";
 const problems = [];

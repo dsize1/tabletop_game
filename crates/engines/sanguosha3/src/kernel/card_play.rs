@@ -862,6 +862,9 @@ fn emit_targets(g: &mut Game, actor: usize, card: &str, targets: &[Value]) {
         .iter()
         .filter_map(|v| v.as_u64().map(|n| n as usize))
         .collect();
+    if seats.iter().any(|t| *t != actor) {
+        g.bump(&format!("turn.{actor}.target_other"));
+    }
     g.use_targets.insert(card.to_string(), seats);
     for t in targets {
         let Some(t) = t.as_u64() else { continue };
