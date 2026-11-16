@@ -11,6 +11,7 @@ use super::super::pending::PendingBuilder;
 use super::super::resolve::{take_answer, Ask, Stage, Step};
 use super::super::{DamageKind, DamageSpec, Game, Phase, SourceKind, Zone};
 use super::{Face, Hook, SkillDef, SkillKind, Subscription};
+use super::common;
 use crate::kernel::skills;
 
 pub static SKILLS: &[SkillDef] = &[
@@ -412,6 +413,20 @@ fn huituo(g: &mut Game, ask: &Ask) -> Result<Step, String> {
     let actor = ask.actor;
     let amount = ask.data.get("amount").and_then(|v| v.as_i64()).unwrap_or(1) as usize;
     let step = ask.data.get("step").and_then(|v| v.as_str()).unwrap_or("target");
+    if step == "resolve" {
+        // 判定已生效（quick_judge 窗口结束）：红 → 回复；黑 → 摸伤害值张。
+        let t = common::seat_of(ask, "target").unwrap_or(actor);
+        match g.judge_result.take() {
+            Some(r) if r.is_red() => {
+                flow::heal(g, t, 1, "恢拓");
+            }
+            Some(_) => {
+                flow::draw(g, t, amount);
+            }
+            None => {}
+        }
+        return Ok(Step::Finish("恢拓：判定结算".into()));
+    }
     if step == "target" {
         let alive: Vec<usize> = (0..g.seats.len()).filter(|&t| g.seats[t].alive).collect();
         return match take_answer(g, "huituo") {
@@ -424,12 +439,12 @@ fn huituo(g: &mut Game, ask: &Ask) -> Result<Step, String> {
             Some(a) if a.starts_with("seat:") => {
                 let t: usize = a[5..].parse().map_err(|_| "恢拓：非法目标")?;
                 if !alive.contains(&t) { return Err("恢拓：目标非法".into()); }
-                match judge::judge(g, t, "恢拓") {
-                    Some(r) if r.is_red() => { flow::heal(g, t, 1, "恢拓"); }
-                    Some(_) => { flow::draw(g, t, amount); }
-                    None => {}
-                }
-                Ok(Step::Finish("恢拓：判定结算".into()))
+                // 判定走 `quick_judge`（含鬼才改判 / 天妒窗口）；结果在下一次进入 "resolve" 时读。
+                super::super::quick_judge::start(g, t, "恢拓", None);
+                Ok(Step::Next(
+                    Stage::Choose,
+                    json!({ "step": "resolve", "target": t, "amount": amount }),
+                ))
             }
             Some(o) => Err(format!("恢拓：未知选项 {o}")),
         };

@@ -9,7 +9,7 @@ use super::event::{Event, EventKind};
 use super::{CardId, Game, Suit, Zone};
 
 /// 判定结果（花色 + 点数即可覆盖乐/兵/闪电/技能判定，不含牌名）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct JudgeResult {
     pub card: CardId,
     pub suit: Suit,
@@ -41,8 +41,9 @@ impl JudgeResult {
     }
 }
 
-/// 翻判定牌（唯一入口）：牌堆顶 → 处理区 → 弃牌堆；同时产生两条事件。
-pub fn judge(g: &mut Game, seat: usize, cause: &str) -> Option<JudgeResult> {
+/// 翻判定牌（**不发生效事件**；需要改判/天妒窗口时一律走 `quick_judge::start`）。
+/// 牌堆顶 → 处理区，同时产生 `JudgeRevealed`。
+pub fn reveal(g: &mut Game, seat: usize, cause: &str) -> Option<JudgeResult> {
     if g.deck.is_empty() {
         super::flow::reshuffle(g);
     }
@@ -54,21 +55,39 @@ pub fn judge(g: &mut Game, seat: usize, cause: &str) -> Option<JudgeResult> {
     ev.turn = g.turn;
     ev.phase = g.phase;
     g.push_event(ev);
-    // 判定牌公开后进弃牌堆（需要改判窗口时，由 `judge_pending` 保留在处理区）。
-    g.cards.insert(id.clone(), Zone::Discard);
-    let mut eff = Event::simple(EventKind::JudgeEffective, Some(seat), Some(cause));
-    eff.turn = g.turn;
-    eff.phase = g.phase;
-    eff.card = Some(id.clone());
-    g.push_event(eff);
     Some(JudgeResult {
         card: id,
-        suit: c.suit,
+        suit: super::skills::suit_for_judge(g, seat, c.suit),
         rank: c.rank,
     })
 }
 
-/// 只翻不看：给需要「先展示、后改判」的窗口用（当前无改判技能，预留单一入口）。
+/// 判定牌生效（发 `JudgeEffective`；牌仍在处理区，由调用方决定去向）。
+pub fn effective(g: &mut Game, seat: usize, cause: &str, card: &CardId) -> Option<JudgeResult> {
+    let c = g.card_defs.get(card)?.clone();
+    let mut eff = Event::simple(EventKind::JudgeEffective, Some(seat), Some(cause));
+    eff.turn = g.turn;
+    eff.phase = g.phase;
+    eff.card = Some(card.clone());
+    g.push_event(eff);
+    Some(JudgeResult {
+        card: card.clone(),
+        suit: super::skills::suit_for_judge(g, seat, c.suit),
+        rank: c.rank,
+    })
+}
+
+/// 同步判定（**无**改判/天妒窗口）：亮牌 → 生效 → 进弃牌堆。
+///
+/// 只允许「无玩家选择」的场景使用；所有技能判定/延时锦囊判定必须走 `quick_judge`。
+pub fn judge(g: &mut Game, seat: usize, cause: &str) -> Option<JudgeResult> {
+    let r = reveal(g, seat, cause)?;
+    let r = effective(g, seat, cause, &r.card)?;
+    g.cards.insert(r.card.clone(), Zone::Discard);
+    Some(r)
+}
+
+/// 只翻不看：给需要「先展示、后改判」的窗口用（改判窗口的单一入口见 `quick_judge`）。
 pub fn judge_peek(g: &Game) -> Option<CardId> {
     g.deck.last().cloned()
 }

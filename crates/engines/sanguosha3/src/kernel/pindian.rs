@@ -56,8 +56,27 @@ pub fn can_start(g: &Game, initiator: usize, target: usize) -> bool {
     ok(initiator) && ok(target)
 }
 
+/// 发起拼点（酣战：**目标侧随机一张**）：目标不自行选牌，由内核随机取一张手牌参与。
+pub fn start_random(g: &mut Game, initiator: usize, target: usize, cause: &str) {
+    let idx = g.rand_below(g.hand(target).len().max(1));
+    let picked = g.hand(target).get(idx).cloned();
+    start_with_forced(g, initiator, target, cause, None, picked);
+}
+
 /// 发起拼点：压入拼点流程帧（不推进，由外层 `advance` 驱动）。
 pub fn start(g: &mut Game, initiator: usize, target: usize, cause: &str) {
+    start_with_forced(g, initiator, target, cause, None, None);
+}
+
+/// 内部：可指定一方/双方预先确定的拼点牌（酣战用目标随机牌）。
+pub fn start_with_forced(
+    g: &mut Game,
+    initiator: usize,
+    target: usize,
+    cause: &str,
+    forced_initiator: Option<CardId>,
+    forced_target: Option<CardId>,
+) {
     debug_assert!(initiator != target, "拼点双方不能是同一角色");
     if !can_start(g, initiator, target) {
         return;
@@ -70,8 +89,10 @@ pub fn start(g: &mut Game, initiator: usize, target: usize, cause: &str) {
         json!({
             "initiator": initiator,
             "target": target,
-            "a": null,
-            "b": null,
+            "a": forced_initiator,
+            "b": forced_target,
+            "forced_a": forced_initiator.is_some(),
+            "forced_b": forced_target.is_some(),
             "step": "init",
             "cause": cause,
         }),

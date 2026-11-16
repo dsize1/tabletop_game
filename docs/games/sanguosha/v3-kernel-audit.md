@@ -1,4 +1,4 @@
-# V3 内核机制完备审计（`align/mechanics.json` 46 条）
+# V3 内核机制完备审计（`align/mechanics.json` 47 条）
 
 > **生成物，勿手改**：`npm run check:sgs3-kernel -- --write`。
 > 事实源：`apps/scripts/lib/sgs3-mechanics.mjs`（机制 → 实现锚点 + 用例锚点）。
@@ -7,13 +7,13 @@
 ## 为什么有这份表（2026-11-15 用户裁定）
 
 `B0 前置项 P1–P6` 只覆盖「回合/事件/交互/卡牌/装备/生命周期」的**基础流程**，
-不等于「46 条机制词表全部进内核」。上一轮把「P1–P6 完成」当成「内核完备」并开始武将批次，
+不等于「47 条机制词表全部进内核」。上一轮把「P1–P6 完成」当成「内核完备」并开始武将批次，
 属于**严重漂移**。V3 的口径是：**内核未完备不开始武将批次**；本表就是完备判据。
 
 ## 汇总
 
-- 词表机制：**46**
-- ✅ 已具备（实现 + 用例锚点）：**46**
+- 词表机制：**47**
+- ✅ 已具备（实现 + 用例锚点）：**47**
 - 🟡 部分（只有实现锚点）：**0**
 - ❌ 缺失：**0**
 
@@ -55,11 +55,11 @@
 | 32 | `card-gained` | 「获得」语义（获得 = 事件链） | ✅ | `kernel/flow.rs::gain` | `tests/cards_full.rs::snatch_gains_target_card` | 获得 = 事件链（CardGained）；摸牌是 CardDrawn，不算「获得他人的牌」。 |
 | 33 | `multi-response` | 多张响应（响应计数 N） | ✅ | `kernel/mod.rs::UseOpts`<br>`kernel/card_play.rs::declare_multi_response` | `tests/kernel_mechanics.rs::multi_response_requires_n_cards_to_block` | 同一响应窗口连续 N 张同类响应；每张计 1；中断视为未抵消。 |
 | 34 | `no-wuxie` | 不能被【无懈可击】抵消 | ✅ | `kernel/card_play.rs::declare_no_wuxie`<br>`kernel/card_play.rs::step_wuxie` | `tests/kernel_mechanics.rs::no_wuxie_skips_wuxie_window_but_not_other_rules` | 只关无懈窗口（本次使用），不影响闪/杀响应；视图/日志仍可见事实。 |
-| 35 | `general-pool` | 武将牌池（化身 / 新生） | ✅ | `generals_generated.rs::GENERALS`<br>`kernel/mod.rs::Game::init_huashen` | `tests/kernel_mechanics.rs::huashen_pool_only_has_generals_with_registered_skills` | 池只含「至少一个已注册技能」的 Live 武将；随机走 rand_below；性别/势力覆盖跟随展示化身。 |
+| 35 | `general-pool` | 武将牌池（化身 / 新生） | ✅ | `generals_generated.rs::GENERALS`<br>`kernel/mod.rs::Game::init_huashen` | `tests/kernel_mechanics.rs::huashen_pool_only_has_generals_with_grantable_skills`<br>`tests/kernel_mechanics.rs::huashen_skills_exclude_locked_awaken_lord_and_grant_only`<br>`tests/kernel_mechanics.rs::huashen_pool_excludes_self_and_generals_on_field` | 池只含「至少一个已注册技能」的 Live 武将；随机走 rand_below；性别/势力覆盖跟随展示化身。 |
 | 36 | `hidden-declaration` | 扣置声明 + 质疑链（蛊惑） | ✅ | `kernel/guhuo.rs::start`<br>`kernel/guhuo.rs::step_guhuo`<br>`kernel/guhuo.rs::GuhuoResult` | `tests/kernel_mechanics.rs::hidden_declaration_reveals_only_after_doubts_and_settles_truth` | 扣置期不公开；同时收集质疑；真假只读物理定义；缠怨为独立状态（Seat.counters）。 |
 | 37 | `aoe-target-trim` | 群体锦囊少选目标 | ✅ | `kernel/card_play.rs::declare_trim_targets`<br>`kernel/card_play.rs::target_bounds` | `tests/kernel_mechanics.rs::aoe_trim_asks_fewer_targets_before_resolution` | 群体锦囊少选 N 个目标：发生在目标确定阶段（无懈/响应之前）。 |
 | 38 | `sha-intercept` | 【杀】结算前介入（目标锁定技） | ✅ | `kernel/mod.rs::ShaIntercept`<br>`kernel/card_play.rs::declare_intercept`<br>`kernel/skills.rs::fire_sha_intercept` | `tests/kernel_mechanics.rs::sha_intercept_can_make_slash_immune_or_unresponsive` | 成为【杀】目标后、响应窗口之前：Continue/Immune/Unresponsive/Replace。 |
-| 39 | `judge-reversal` | 判定效果反转（思蜀） | ✅ | `kernel/mod.rs::Game::reverse_judge`<br>`kernel/turn.rs::judge_phase` | `tests/kernel_mechanics.rs::judge_reversal_flips_indulgence_branch_only` | 按角色绑定的判定效果反转：只改分支不改牌面花色；可视图（judge_reverse）。 |
+| 39 | `judge-reversal` | 判定效果反转（思蜀） | ✅ | `kernel/mod.rs::Game::reverse_judge`<br>`kernel/turn.rs::step_judge_zone` | `tests/kernel_mechanics.rs::judge_reversal_flips_indulgence_branch_only` | 按角色绑定的判定效果反转：只改分支不改牌面花色；可视图（judge_reverse）。 |
 | 40 | `range-override` | 距离/范围覆盖（按牌属性） | ✅ | `kernel/mod.rs::UseOpts`<br>`kernel/card_play.rs::legal_targets_with` | `tests/kernel_mechanics.rs::range_override_extends_reach_for_this_use_only` | 按牌属性覆盖本次距离口径（烈弓）；逐目标、不改全局攻击范围。 |
 | 41 | `virtual-equip` | 虚拟装备（视为装备） | ✅ | `kernel/skills.rs::virtual_equip`<br>`kernel/gear.rs::virtual_card` | `tests/kernel_mechanics.rs::virtual_equip_is_read_only_when_real_slot_empty` | 视为装备（八阵）单入口：真实同类装备优先；不占槽、不参与守恒。 |
 | 42 | `hand-limit` | 手牌上限（叠加 / 赋值 / 豁免） | ✅ | `kernel/mod.rs::Game::hand_limit`<br>`kernel/skills.rs::hand_limit_bonus` | `tests/b1.rs::yongsi_discard_discards_all_when_short` | 手牌上限单入口：体力 + 技能修正 + 覆盖（不屈）+ 房规上限。 |
@@ -67,8 +67,9 @@
 | 44 | `limit-skill` | 限定技（每局一次） | ✅ | `kernel/skills.rs::limit_gate`<br>`kernel/skills.rs::mark_limited_used`<br>`kernel/skills.rs::active_actions` | `tests/kernel_mechanics.rs::limited_skill_is_usable_once_per_game` | 限定技每局一次：已使用 → legal/选项过滤；状态存座位计数器（可回放）。 |
 | 45 | `equip-move` | 装备移动（场上一张装备牌） | ✅ | `kernel/gear.rs::move_equip` | `tests/kernel_mechanics.rs::equip_move_requires_empty_target_slot_and_emits_lost` | 场上装备移槽（设变）：非弃置非获得；目标槽必须为空；发 CardLost（失去装备钩子）。 |
 | 46 | `armor-points` | 护甲（独立防护值） | ✅ | `kernel/mod.rs::Seat`<br>`kernel/flow.rs::damage_one`<br>`kernel/mod.rs::Game::add_armor` | `tests/kernel_mechanics.rs::armor_absorbs_damage_before_hp_and_emits_event`<br>`tests/kernel_mechanics.rs::armor_zero_does_not_absorb` | 护甲先吸收伤害（伤害事件仍成立，amount = 原值）；ArmorChanged + 视图；溢出扣体力。 |
+| 47 | `judge-rewrite` | 判定改判（生效前替换判定牌） | ✅ | `kernel/quick_judge.rs::start`<br>`kernel/quick_judge.rs::step`<br>`kernel/mod.rs::Game::judge_rewrite`<br>`kernel/skills.rs::judge_rewrite_holders`<br>`kernel/skills.rs::judge_rewrite_cards_for`<br>`kernel/skills.rs::on_judge_effective` | `tests/b11.rs::guicai_rewrites_judge_card_and_original_goes_to_discard`<br>`tests/b11.rs::guicai_not_asked_without_cards`<br>`tests/b13.rs::guidao_only_offers_black_cards_and_draws_on_spade_2_to_9`<br>`tests/b13.rs::guidao_on_own_judge_then_fires_leiji_after_effective` | 亮牌 → 改判链（按 Hook::JudgeRewrite 的技能声明询问，判定者最后；鬼才=任意牌/鬼道=黑色牌）→ 生效 → 天妒 → 生效后钩子（雷击）→ 落盘；结果经 Game.judge_result 交给发起方，续接技能另收注入的 suit/rank。 |
 
 ## 机制词表来源
 
-- `docs/games/sanguosha/align/mechanics.json` version=2 updated_at=2026-11-09
+- `docs/games/sanguosha/align/mechanics.json` version=2 updated_at=2026-11-16
 - 机制定义/不变量变更必须走该文件（bump version 会让已确认技能进入冲突阻断）。

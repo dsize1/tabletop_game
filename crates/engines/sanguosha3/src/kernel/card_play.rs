@@ -115,6 +115,9 @@ pub fn sha_limit_reached(g: &Game, seat: usize) -> bool {
 
 /// 本回合【酒】是否已使用。
 pub fn jiu_limit_reached(g: &Game, seat: usize) -> bool {
+    if super::skills::jiu_unlimited(g, seat) {
+        return false;
+    }
     g.counter(&format!("phase.jiu_used.{seat}")) >= 1
 }
 
@@ -154,7 +157,10 @@ pub enum ShaResult {
 
 /// 使用【酒】：本回合下一张【杀】伤害 +1（出牌阶段；濒死自救走 `flow::rescue`）。
 pub fn use_jiu(g: &mut Game) {
-    g.sha_bonus = 1;
+    // 酒池：同回合连喝**叠加**（其余武将受一次/回合限制，不会叠加）。
+    let seat = g.turn;
+    g.sha_bonus = g.sha_bonus.saturating_add(1);
+    g.bump(&format!("turn.{seat}.jiu_used"));
 }
 
 /// 使用【杀】结算（同步版，技能/测试用）：`shan` = 目标是否打出【闪】。
@@ -245,6 +251,9 @@ pub fn begin_use(g: &mut Game, actor: usize, card: &str, fire: bool) -> Result<(
         return Err("本回合不能使用该花色的牌（讥谀）".into());
     }
     let def = def_of(g, card)?;
+    if def.tags.sha && super::skills::sha_use_blocked(g, actor) {
+        return Err("本回合不能使用【杀】（天义没赢）".into());
+    }
     if def.tags.sha && sha_limit_reached(g, actor) {
         return Err("本阶段【杀】次数已用尽".into());
     }
@@ -299,6 +308,7 @@ pub fn recast(g: &mut Game, actor: usize, card: &str) -> Result<(), String> {
     }
     flow::discard(g, actor, card, "重铸");
     flow::draw(g, actor, 1);
+    super::skills::on_recast(g, actor, card);
     Ok(())
 }
 
@@ -368,6 +378,8 @@ pub fn step_flow(
         FlowKind::Relay => super::relay::step_relay(g, data),
         FlowKind::Pindian => super::pindian::step_pindian(g, data),
         FlowKind::Guhuo => super::guhuo::step_guhuo(g, data),
+        FlowKind::QuickJudge => super::quick_judge::step(g, data),
+        FlowKind::JudgeZone => super::turn::step_judge_zone(g, data),
         _ => Ok(Step::Done),
     }
 }
@@ -493,9 +505,17 @@ pub fn legal_targets_with(
         if !cards::valid_target(def.target_mode, actor, s, true) {
             continue;
         }
-        if def.target_mode != TargetMode::AllAlive
-            && (super::skills::deny_target(g, actor, s)
-                || super::skills::deny_target_card(g, actor, s, def.code))
+        // 实例级「不能成为目标」（帷幕：黑色锦囊）对所有目标模式生效。
+        if super::skills::deny_target_instance(g, actor, s, card, def) {
+            continue;
+        }
+        if def.target_mode == TargetMode::AllAlive {
+            // 群体牌也必须尊重「不能成为目标」（巨象：南蛮无效）。
+            if super::skills::aoe_excluded(g, actor, s, def.code) {
+                continue;
+            }
+        } else if super::skills::deny_target(g, actor, s)
+            || super::skills::deny_target_card(g, actor, s, def.code)
         {
             continue;
         }
@@ -811,6 +831,13 @@ fn step_wuxie(g: &mut Game, actor: usize, mut d: Map<String, Value>) -> Result<S
     }
     let layers = uid(&d, "layers");
     let idx = uid(&d, "widx");
+    // 看破：本次【无懈可击】不能被响应（跳过后续无懈链）。
+    if flag(&d, "no_chain") {
+        d.insert("cancelled".into(), json!(wuxie_cancelled(layers)));
+        d.insert("sub".into(), json!("effect"));
+        d.insert("esub".into(), json!("start"));
+        return Ok(next(Stage::CardResolve, d));
+    }
     if d.get("esub").and_then(|v| v.as_str()) == Some("alt") {
         d.insert("esub".into(), json!(""));
         if take_response_sub(g, g.seats.len()) {
@@ -855,9 +882,13 @@ fn step_wuxie(g: &mut Game, actor: usize, mut d: Map<String, Value>) -> Result<S
             if !ok {
                 return Err("无懈可击：只能打出手牌中的【无懈可击】".into());
             }
+            let no_chain = super::skills::wuxie_no_chain(g, asker, id);
             played(g, asker, id, "无懈可击")?;
             d.insert("layers".into(), json!(layers + 1));
             d.insert("widx".into(), json!(0));
+            if no_chain {
+                d.insert("no_chain".into(), json!(true));
+            }
             return Ok(next(Stage::WuxieAsk, d));
         } else if let Some(id) = ans.strip_prefix("equip:") {
             // 解围①：装备区牌当【无懈可击】。
@@ -999,7 +1030,7 @@ fn step_effect(g: &mut Game, actor: usize, mut d: Map<String, Value>) -> Result<
             Ok(Step::Done)
         }
         Effect::Jiu => {
-            g.sha_bonus = 1;
+            use_jiu(g);
             finish_card(g, &card);
             Ok(Step::Done)
         }
@@ -1158,8 +1189,12 @@ fn step_sha(
                 d.insert("esub".into(), json!("harm"));
                 return Ok(next(Stage::CardResolve, d.clone()));
             }
-            // 多张响应（mechanics `multi-response`）：需连续 N 张【闪】才算抵消。
-            let need = g.use_opts(card).multi_response.max(1);
+            // 多张响应（mechanics `multi-response`）：需连续 N 张【闪】才算抵消；
+            // 无双（锁定技）由 `skills::response_need` 统一给出张数。
+            let need = g
+                .use_opts(card)
+                .multi_response
+                .max(super::skills::response_need(g, target, actor, ResponseKind::Shan));
             let got = d.get("resp_got").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
             // 仁王盾：黑色【杀】无效（不需要出闪）。
             if armor == ArmorKind::Renwang {
@@ -1175,11 +1210,10 @@ fn step_sha(
             let bagua = armor == ArmorKind::Bagua && !flag(d, "bagua_used");
             if let Some(ans) = take_answer(g, "flow:card") {
                 if ans == "bagua" {
-                    let red = judge::judge(g, target, "八卦阵")
-                        .map(|r| r.is_red())
-                        .unwrap_or(false);
+                    // 八卦阵判定：走 `quick_judge`（含鬼才改判 / 天妒窗口），结果在下次进入时读。
                     d.insert("bagua_used".into(), json!(true));
-                    d.insert("esub".into(), json!(if red { "blocked" } else { "ask" }));
+                    d.insert("esub".into(), json!("bagua_judge"));
+                    super::quick_judge::start(g, target, "八卦阵", None);
                     return Ok(next(Stage::CardResolve, d.clone()));
                 } else if let Some(code) = ans.strip_prefix("alt:") {
                     super::resolve::push_ask(
@@ -1251,6 +1285,12 @@ fn step_sha(
                 d.insert("esub".into(), json!("ask"));
                 d.insert("alt_used".into(), json!(true));
             }
+            Ok(next(Stage::CardResolve, d.clone()))
+        }
+        "bagua_judge" => {
+            // 八卦阵判定已生效（红 → 视为【闪】）。
+            let red = g.judge_result.take().map(|r| r.is_red()).unwrap_or(false);
+            d.insert("esub".into(), json!(if red { "blocked" } else { "ask" }));
             Ok(next(Stage::CardResolve, d.clone()))
         }
         "blocked" => {
@@ -1472,7 +1512,6 @@ fn step_duel(
 ) -> Result<Step, String> {
     let Some(target) = target else { return finish_done(g, d) };
     let card = sval(d, "card").unwrap_or_default();
-    let need = g.use_opts(&card).multi_response.max(1);
     let mut cur = d.get("duel_cur").and_then(|v| v.as_u64()).map(|v| v as usize).unwrap_or(target);
     let other = d.get("duel_other").and_then(|v| v.as_u64()).map(|v| v as usize).unwrap_or(actor);
     let hit = |g: &mut Game, from: usize, victim: usize| {
@@ -1507,6 +1546,11 @@ fn step_duel(
         }
         return Ok(next(Stage::CardResolve, d.clone()));
     }
+    // 响应张数：对方（非响应方）有【无双】→ 每次需两张【杀】。
+    let need = g
+        .use_opts(&card)
+        .multi_response
+        .max(super::skills::response_need(g, cur, other, ResponseKind::Sha));
     let got = d.get("resp_got").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
     if let Some(ans) = take_answer(g, "flow:card") {
         if let Some(code) = ans.strip_prefix("alt:") {
@@ -1867,20 +1911,15 @@ fn step_fire_attack(
             return Ok(finish_and_done(g, &card));
         }
     }
+    // 展示牌的花色按**归属者语义**（红颜：小乔的黑桃视为红桃）。
     let shown_suit = d
         .get("shown")
         .and_then(|v| v.as_str())
-        .and_then(|id| g.card_defs.get(id))
-        .map(|c| c.suit);
+        .and_then(|id| super::skills::suit_of_card(g, id));
     let cards: Vec<String> = g
         .hand(actor)
         .into_iter()
-        .filter(|id| {
-            g.card_defs
-                .get(id)
-                .map(|c| Some(c.suit) == shown_suit)
-                .unwrap_or(false)
-        })
+        .filter(|id| super::skills::suit_of_card(g, id) == shown_suit)
         .collect();
     if cards.is_empty() {
         return Ok(finish_and_done(g, &card));
@@ -2016,11 +2055,81 @@ fn step_dying(g: &mut Game, data: &Value) -> Result<Step, String> {
         return Ok(Step::Done);
     }
     let asker = order[idx];
+    // 涅槃回传：技能已复原体力（写 mark），濒死帧据此收口。
+    if data.get("niepan_wait").and_then(|v| v.as_bool()).unwrap_or(false) {
+        let key = format!("dying.niepan.{asker}");
+        let ok = g.mark(&key).is_some();
+        g.marks.remove(&key);
+        if ok && !flow::is_dying(&g.seats[target]) {
+            return Ok(Step::Done);
+        }
+        return Ok(Step::Next(
+            Stage::DyingAsk,
+            json!({ "target": target, "by": killer, "idx": idx + 1 }),
+        ));
+    }
+    // 蛊惑·濒死救援结算回传（技能帧写 mark，濒死帧读后清空）。
+    if data.get("guhuo_wait").and_then(|v| v.as_bool()).unwrap_or(false) {
+        let key = format!("dying.guhuo.{asker}");
+        let ok = g.mark(&key).is_some();
+        g.marks.remove(&key);
+        if ok {
+            flow::rescue(g, target, 1, "蛊惑");
+            if !flow::is_dying(&g.seats[target]) {
+                return Ok(Step::Done);
+            }
+        }
+        return Ok(Step::Next(
+            Stage::DyingAsk,
+            json!({ "target": target, "by": killer, "idx": idx + 1 }),
+        ));
+    }
     if let Some(ans) = take_answer(g, "dying") {
+        if ans == "niepan" {
+            super::resolve::push_ask(
+                g,
+                "niepan",
+                Stage::Choose,
+                asker,
+                json!({ "step": "use", "target": target }),
+            );
+            return Ok(Step::Next(
+                Stage::DyingAsk,
+                json!({ "target": target, "by": killer, "idx": idx, "niepan_wait": true }),
+            ));
+        }
+        if ans == "guhuo" {
+            super::resolve::push_ask(
+                g,
+                "guhuo",
+                Stage::Choose,
+                asker,
+                json!({ "step": "dying_pick", "target": target }),
+            );
+            return Ok(Step::Next(
+                Stage::DyingAsk,
+                json!({ "target": target, "by": killer, "idx": idx, "guhuo_wait": true }),
+            ));
+        }
+        if let Some(card) = ans.strip_prefix("ji:") {
+            // 急救：回合外红色手牌/装备牌当【桃】（技能转化，承载牌落盘）。
+            super::skills::use_dying_alternative(g, asker, card)?;
+            flow::rescue(g, target, 1, "急救");
+            if !flow::is_dying(&g.seats[target]) {
+                return Ok(Step::Done);
+            }
+            return Ok(Step::Next(
+                Stage::DyingAsk,
+                json!({ "target": target, "by": killer, "idx": idx + 1 }),
+            ));
+        }
         if let Some(card) = ans.strip_prefix("card:") {
             let in_hand = matches!(g.cards.get(card), Some(Zone::Hand(s)) if *s == asker);
-            let def = def_of(g, card).ok();
             let is_tao = super::skills::response_as(g, asker, card, ResponseKind::Tao).is_some();
+            // 完杀：贾诩回合内只有贾诩与濒死者可用【桃】。
+            if is_tao && !super::skills::dying_allow_tao(g, asker, target) {
+                return Err("完杀：此角色的回合内只有贾诩与濒死者可以使用【桃】".into());
+            }
             let is_jiu = super::skills::response_as(g, asker, card, ResponseKind::Jiu).is_some()
                 && asker == target;
             if !in_hand || !(is_tao || is_jiu) {
@@ -2050,12 +2159,43 @@ fn step_dying(g: &mut Game, data: &Value) -> Result<Step, String> {
             Err(_) => continue,
         };
         if def.tags.tao {
-            b = b.option(format!("card:{id}"), "使用【桃】");
-            any = true;
+            if super::skills::dying_allow_tao(g, asker, target) {
+                b = b.option(format!("card:{id}"), "使用【桃】");
+                any = true;
+            }
         } else if def.tags.jiu && asker == target {
             b = b.option(format!("card:{id}"), "使用【酒】自救");
             any = true;
         }
+    }
+    // 涅槃（庞统）：濒死时可用。
+    for (id, label) in super::skills::dying_skill_options(g, asker, target) {
+        b = b.option(id, label);
+        any = true;
+    }
+    // 蛊惑：扣置一张手牌声明为【桃】/【酒】（Q5 影响链）。
+    if super::skills::active(g, asker, "guhuo")
+        && super::skills::enabled("guhuo")
+        && g.counter(&format!("turn.{asker}.guhuo_used")) == 0
+        && !g.hand(asker).is_empty()
+    {
+        b = b.option("guhuo", "蛊惑：扣置一张手牌当【桃】/【酒】");
+        any = true;
+    }
+    // 技能转化（急救：回合外红色牌当【桃】）。
+    for id in super::skills::dying_alternatives(g, asker) {
+        b = b.option(
+            format!("ji:{id}"),
+            format!(
+                "急救：将【{}】当【桃】",
+                g.card_defs
+                    .get(&id)
+                    .and_then(|c| super::cards::def(&c.def))
+                    .map(|d| d.name)
+                    .unwrap_or("?")
+            ),
+        );
+        any = true;
     }
     let _ = any;
     let p = b
@@ -2335,6 +2475,11 @@ pub fn use_relay(
 /// 结算收尾：牌从处理区落盘（虚拟牌进 `Void`；装备/判定区已落位则不动）。
 fn finish_card(g: &mut Game, card: &str) {
     // 本次使用事实只作用于本次（禁止跨牌残留）。
+    let owner = g
+        .mark(&format!("card.owner.{card}"))
+        .and_then(|s| s.parse::<usize>().ok())
+        .unwrap_or(g.turn);
+    g.marks.remove(&format!("card.owner.{card}"));
     g.clear_use_opts(card);
     if card.starts_with("v:") {
         g.cards.insert(card.to_string(), Zone::Void);
@@ -2353,11 +2498,13 @@ fn finish_card(g: &mut Game, card: &str) {
             }
         }
         // 虚拟牌实例保留（区域 = Void）：守恒要求「实例 ↔ 区域」同时存在。
+        super::skills::on_card_finished(g, card, owner);
         return;
     }
     if matches!(g.cards.get(card), Some(Zone::Processing) | Some(Zone::Frame(_))) {
         g.cards.insert(card.to_string(), Zone::Discard);
     }
+    super::skills::on_card_finished(g, card, owner);
 }
 
 fn finish_and_done(g: &mut Game, card: &str) -> Step {
@@ -2448,7 +2595,7 @@ fn push_virtual_use(
     let (suit, rank) = origin
         .first()
         .and_then(|id| g.card_defs.get(id))
-        .map(|c| (c.suit, c.rank))
+        .map(|c| (super::skills::suit_for_use(g, actor, c.suit), c.rank))
         .unwrap_or((super::Suit::Spade, 1));
     let vid = format!("v:m{}", g.next_frame_id);
     g.next_frame_id += 1;

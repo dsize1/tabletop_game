@@ -64,6 +64,8 @@ pub enum FlowKind {
     Guhuo,
     QuickJudge,
     Discard,
+    /// 判定阶段（延时锦囊 LIFO；每张牌走 `quick_judge` 子帧）。
+    JudgeZone,
     /// 代出/代响应接力（激将/勤王）。
     Relay,
 }

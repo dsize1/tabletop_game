@@ -256,6 +256,12 @@ fn put_delayed(g: &mut Game, seat: usize, id: &str, def: &str) {
     g.judge_stacks.entry(seat).or_default().push(id.to_string());
 }
 
+/// 跑完判定阶段（`JudgeZone` 流程帧；判定走 quick_judge）。
+fn judge_zone(g: &mut Game, seat: usize) {
+    turn::start_judge_zone(g, seat);
+    sanguosha3::kernel::resolve::advance(g).unwrap();
+}
+
 #[test]
 fn judge_reversal_flips_indulgence_branch_only() {
     // 未反转：红桃 → 不跳过（正常）。
@@ -264,7 +270,7 @@ fn judge_reversal_flips_indulgence_branch_only() {
     put_delayed(&mut g, 0, "le1", "lebu_sishu");
     add_suit(&mut g, "top", "sha", Zone::Draw, Suit::Heart, 7);
     g.deck.push("top".into());
-    turn::judge_phase(&mut g, 0);
+    judge_zone(&mut g, 0);
     assert!(!g.skipped.contains(&sanguosha3::kernel::Phase::Play));
 
     // 反转后：红桃 → 跳过出牌阶段（思蜀口径）。
@@ -275,7 +281,7 @@ fn judge_reversal_flips_indulgence_branch_only() {
     g.deck.push("top".into());
     g.reverse_judge(0, "lebu_sishu");
     assert!(g.judge_reversed(0, "lebu_sishu"));
-    turn::judge_phase(&mut g, 0);
+    judge_zone(&mut g, 0);
     assert!(
         g.skipped.contains(&sanguosha3::kernel::Phase::Play),
         "反转后红桃应跳过"
@@ -598,17 +604,16 @@ fn dying_order_left_first_puts_victim_last() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn huashen_pool_only_has_generals_with_registered_skills() {
+fn huashen_pool_only_has_generals_with_grantable_skills() {
     let mut g = game(3);
     g.rng = 12345;
     g.init_huashen(0, 3);
     let h = g.huashen.get(&0).expect("化身状态");
     assert_eq!(h.pool.len(), 3);
     for code in &h.pool {
-        let def = sanguosha3::kernel::generals::def(code).expect("名录里有该武将");
         assert!(
-            def.skills.iter().any(|n| skills::code_by_name(n).is_some()),
-            "池只允许至少一个已注册技能的武将"
+            !skills::huashen_skills_of(code).is_empty(),
+            "池只允许至少一个**可授予**技能的武将（{code}）"
         );
     }
     assert!(g.huashen_general(0).is_some(), "当前展示化身");
@@ -620,6 +625,77 @@ fn huashen_pool_only_has_generals_with_registered_skills() {
         g.huashen.get(&0).map(|h| h.pool.clone()),
         g2.huashen.get(&0).map(|h| h.pool.clone())
     );
+}
+
+#[test]
+fn huashen_skills_exclude_locked_awaken_lord_and_grant_only() {
+    // 主公技（护驾）被排除：界曹操只剩奸雄。
+    assert_eq!(skills::huashen_skills_of("sgs_hero_311"), vec!["jianxiong"]);
+    // 锁定技（英姿）被排除：界周瑜只剩反间。
+    assert_eq!(skills::huashen_skills_of("sgs_hero_308"), vec!["fanjian"]);
+    // 觉醒技（勤学）被排除：界吕蒙剩克己 + 博图。
+    assert_eq!(skills::huashen_skills_of("sgs_hero_306"), vec!["keji", "botu"]);
+    // 锁定技（耀武）被排除后只剩势斩（B13 收口后）。
+    assert_eq!(skills::huashen_skills_of("sgs_hero_446"), vec!["shizhan"]);
+    // 全 Live 池不出现「授予技」（攻心/怀柔/清侧/排异/弦技）。
+    for gd in sanguosha3::generals_generated::GENERALS
+        .iter()
+        .filter(|gd| gd.status == sanguosha3::generals_generated::Status::Live)
+    {
+        for code in skills::huashen_skills_of(gd.code) {
+            let d = skills::def(code).expect("已注册");
+            assert!(!d.grant_only, "化身不得授予「{}」这类授予技", d.name);
+            assert!(!matches!(d.kind, sanguosha3::kernel::skills::SkillKind::Locked));
+            assert!(!matches!(d.kind, sanguosha3::kernel::skills::SkillKind::Awaken));
+            assert!(!matches!(d.kind, sanguosha3::kernel::skills::SkillKind::Lord));
+        }
+    }
+}
+
+#[test]
+fn huashen_pool_excludes_self_and_generals_on_field() {
+    let mut g = game(4);
+    g.seats[0].general = "sgs_hero_447".into(); // 界左慈
+    g.seats[1].general = "sgs_hero_311".into(); // 界曹操（同场存活）
+    g.seats[2].general = "sgs_hero_306".into(); // 界吕蒙（同场存活）
+    g.rng = 7;
+    g.init_huashen(0, 3);
+    let pool = g.huashen.get(&0).expect("化身").pool.clone();
+    assert!(!pool.iter().any(|c| c == "sgs_hero_447"), "不能化身自己");
+    assert!(!pool.iter().any(|c| c == "sgs_hero_311"), "不能化身同场已存在武将");
+    assert!(!pool.iter().any(|c| c == "sgs_hero_306"));
+    // 手牌里的化身牌不重复：再抽一次仍不含已持有的 code。
+    let before = pool.clone();
+    let owned_after = g.huashen.get(&0).map(|h| h.pool.clone()).unwrap_or_default();
+    assert_eq!(before, owned_after);
+    assert_eq!(
+        owned_after.iter().collect::<std::collections::BTreeSet<_>>().len(),
+        owned_after.len(),
+        "化身牌不重复"
+    );
+}
+
+#[test]
+fn huashen_choices_exclude_skills_owned_by_other_seats() {
+    let mut g = game(3);
+    // 座位 1 已拥有奸雄 → 界曹操的化身技能不可选。
+    g.seats[1].skills = vec!["jianxiong".into()];
+    assert!(skills::huashen_choices(&g, 0, "sgs_hero_311").is_empty());
+    g.seats[1].skills.clear();
+    assert_eq!(skills::huashen_choices(&g, 0, "sgs_hero_311"), vec!["jianxiong"]);
+}
+
+#[test]
+fn huashen_display_overrides_and_restores_kingdom_and_gender() {
+    let mut g = game(2);
+    g.seats[0].general = "sgs_hero_447".into(); // 界左慈（qun/男）
+    g.seats[0].kingdom = "qun".into();
+    g.seats[0].male = true;
+    g.huashen_set_current(0, Some("sgs_hero_445")); // 界貂蝉（qun/女）
+    assert!(!g.seats[0].male, "展示化身 → 性别跟随");
+    g.huashen_set_current(0, None);
+    assert!(g.seats[0].male, "移去展示 → 恢复原武将性别");
+    assert!(g.huashen_general(0).is_none());
 }
 
 #[test]

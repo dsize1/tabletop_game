@@ -14,6 +14,7 @@ pub mod identity;
 pub mod judge;
 pub mod pending;
 pub mod pindian;
+pub mod quick_judge;
 pub mod relay;
 pub mod resolve;
 pub mod skills;
@@ -440,6 +441,13 @@ pub struct Game {
     /// 只改判定分支，不改牌面花色；同一效果再次指定时覆盖旧目标。
     #[serde(default)]
     pub judge_reverse: HashMap<usize, String>,
+    /// **判定结果（唯一结果通道）**：`quick_judge` 完成时写入；发起方读后 `take`
+    /// （mechanics `judge-rewrite`；等价 v2 的 `Game.judge_result`）。
+    #[serde(default)]
+    pub judge_result: Option<crate::kernel::judge::JudgeResult>,
+    /// **鬼才改判单通道**：技能写「代替判定牌的牌实例」，判定流程读后清空。
+    #[serde(default)]
+    pub judge_rewrite: Option<CardId>,
     /// **濒死结算后的延后结算**（mechanics `dying-aftermath`）：脱困后才逐个执行（兴衰）。
     #[serde(default)]
     pub after_dying: Vec<AfterDying>,
@@ -542,8 +550,14 @@ pub struct AfterDying {
 /// 化身状态（mechanics `general-pool`）：池 + 当前展示的化身武将 code。
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Huashen {
+    /// 持有的化身牌（武将 code；不重复）。
     pub pool: Vec<String>,
+    /// 当前展示的化身牌（`None` = 未展示/已移去）。
+    #[serde(default)]
     pub current: Option<String>,
+    /// 当前从展示化身牌上取得的技能 code（授予技形式：`skills::grant` 同一入口）。
+    #[serde(default)]
+    pub active_skill: Option<String>,
 }
 
 impl Game {
@@ -896,17 +910,13 @@ impl Game {
         self.pindian_result.take()
     }
 
-    /// 化身初始化：池 = 至少有一个**已注册**技能的武将（mechanics `general-pool`）。
+    /// 化身初始化（mechanics `general-pool` / 2026-11-16 用户裁定）：
+    /// 池 = `Status::Live` ∩ **至少一个可授予技能**（已注册，且非锁定/觉醒/主公/授予技）
+    /// ∩ 非「同场存活武将」∩ 非自己 ∩ 非已持有化身牌。
+    ///
     /// 随机取牌一律走 `rand_below`（确定性、可回放）。
     pub fn init_huashen(&mut self, seat: usize, count: usize) {
-        let mut pool: Vec<String> = crate::generals_generated::GENERALS
-            .iter()
-            .filter(|gd| {
-                gd.status == crate::generals_generated::Status::Live
-                    && gd.skills.iter().any(|n| skills::code_by_name(n).is_some())
-            })
-            .map(|gd| gd.code.to_string())
-            .collect();
+        let mut pool: Vec<String> = skills::huashen_generals(self, seat);
         pool.sort();
         let mut chosen = Vec::new();
         for _ in 0..count.min(pool.len()) {
@@ -919,8 +929,33 @@ impl Game {
             Huashen {
                 pool: chosen,
                 current,
+                active_skill: None,
             },
         );
+    }
+
+    /// 展示/切换化身牌：**改写** `Seat.kingdom` / `Seat.male` 跟随展示武将；
+    /// `None` = 移去展示 → 从 `Seat.general` 重新读取原值（不另存第二份事实）。
+    pub fn huashen_set_current(&mut self, seat: usize, code: Option<&str>) {
+        let display: Option<String> = match code {
+            Some(c) => Some(c.to_string()),
+            None => self
+                .seats
+                .get(seat)
+                .map(|s| s.general.clone())
+                .filter(|c| !c.is_empty()),
+        };
+        let Some(display) = display else { return };
+        let Some(gd) = crate::kernel::generals::def(&display) else {
+            return;
+        };
+        if let Some(s) = self.seats.get_mut(seat) {
+            s.kingdom = gd.kingdom.to_string();
+            s.male = gd.male;
+        }
+        if let Some(h) = self.huashen.get_mut(&seat) {
+            h.current = code.map(|c| c.to_string());
+        }
     }
 
     /// 当前化身的“性别/势力”覆盖（读化身时跟随展示武将；移去后恢复原值）。

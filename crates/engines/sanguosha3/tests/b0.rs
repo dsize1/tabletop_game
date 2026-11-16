@@ -169,6 +169,8 @@ fn buqu_moves_chuang_out_of_game_and_revives() {
     g.card_defs.insert(id.clone(), Card { id: id.clone(), def: "sha".into(), suit: Suit::Spade, rank: 7 });
     g.deck.push(id.clone());
     sanguosha3::kernel::flow::enter_dying(&mut g, 0, None);
+    // 不屈判定走 `quick_judge`（含鬼才/天妒窗口）：推进到判定结算完。
+    sanguosha3::kernel::resolve::advance(&mut g).unwrap();
     assert_eq!(g.seats[0].hp, 1, "创点数不同 → 回复至 1");
     assert_eq!(g.cards.get("d0"), Some(&Zone::Void), "创移出游戏（不产生弃置）");
     assert_eq!(g.counter("buqu_total.0"), 1, "创数 1");

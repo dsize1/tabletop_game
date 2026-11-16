@@ -110,6 +110,8 @@ fn buqu_duplicate_rank_goes_to_discard_not_void() {
     add_suit(&mut g, "jt", "sha", Zone::Draw, Suit::Spade, 7);
     g.deck.push("jt".into());
     flow::enter_dying(&mut g, 0, None);
+    // 不屈判定走 `quick_judge`；推进到判定结算 + 濒死帧压入。
+    sanguosha3::kernel::resolve::advance(&mut g).unwrap();
     assert_eq!(g.seats[0].hp, 0, "点数重复：仍濒死");
     assert_eq!(g.cards.get("jt"), Some(&Zone::Discard), "重复的判定牌进弃牌堆（QQ1=A）");
     assert!(in_dying_frame(&g, 0), "继续按濒死流程求桃");

@@ -26,6 +26,11 @@ pub mod b7;
 pub mod b8;
 pub mod b9;
 pub mod b10;
+pub mod b11;
+pub mod b12;
+pub mod b13;
+pub mod b14;
+pub mod b15;
 pub mod common;
 
 /// 技能类型。
@@ -82,6 +87,8 @@ pub enum Hook {
     DamageBefore,
     /// 濒死进入时（兴衰：其他魏势力逐个支援）。
     DyingEnter,
+    /// 判定改判（鬼才=任意牌 / 鬼道=黑色牌）：候选由技能自己判定，询问按技能 code 分发。
+    JudgeRewrite,
 }
 
 /// 订阅（声明式）：事件 + 主体。handler 首行按 `subject` 校验（不再靠人记）。
@@ -135,6 +142,11 @@ pub fn all() -> Vec<&'static SkillDef> {
         .chain(b8::SKILLS.iter())
         .chain(b9::SKILLS.iter())
         .chain(b10::SKILLS.iter())
+        .chain(b11::SKILLS.iter())
+        .chain(b12::SKILLS.iter())
+        .chain(b13::SKILLS.iter())
+        .chain(b14::SKILLS.iter())
+        .chain(b15::SKILLS.iter())
         .collect()
 }
 
@@ -178,6 +190,25 @@ pub const ENABLED_SKILLS: &[&str] = &[
     // B10 批次（界标·吴：8 将 / 17 技能，2026-11-16 收口）
     "qixi", "fenwei", "keji", "qinxue", "botu", "kurou", "zhaxiang", "yingzi", "fanjian",
     "liuli", "guose", "qianxun", "lianying", "zhiheng", "jiuyuan", "xiaoji", "jieyin",
+    // 勤学授予（grant_only；B10 收口缺口 ④）
+    "gongxin",
+    // B11 批次（界标·魏：8 将 / 14 技能，judge-rewrite + 摸牌阶段替代）
+    "jianxiong", "hujia", "fankui", "guicai", "ganglie", "qingjian", "tuxi", "luoyi", "tiandu",
+    "yiji", "xunxun", "wangxi", "qingguo", "luoshen",
+    // B12 批次（界标·群：4 将 / 8 技能）
+    "jijiu", "chuli", "wushuang", "liyu", "yicong", "qiaomeng", "lijian", "biyue",
+    // B13 批次（J1：进行中，见 check:sgs3-registry 的 ⏳ 计数）
+    "huashen", "xinsheng", "guidao", "leiji", "guhuo",
+    "liegong", "zhuhai", "qianxin", "jianyan", "yaowu", "shizhan", "huangtian",
+    "luanji", "xueyi", "xiangle", "fangquan", "ruoyu", "sishu",
+    // B14 批次（J2：8 将 / 20 技能；马术复用 B9）
+    "zhiba", "jiang", "hunzi", "shensu", "shebian", "bazhen", "cangzhuo", "huoji", "kanpo",
+    "lianhuan", "niepan", "kuanggu", "qimou", "hongyan", "tianxiang", "piaoling", "yinghun",
+    "wulie", "jiandu",
+    // B15 批次（J3：进行中，见 check:sgs3-registry 的 ⏳ 计数）
+    "roulin", "bengkuai", "jiuchi", "baonue", "tiaoxin", "zhiji",
+    "tianyi", "hanzhan", "tuotian", "zaoxian", "jixi", "juxiang", "liereng", "changbiao",
+    "weimu", "luanwu", "wansha", "haoshi", "dimeng", "qiaobian",
 ];
 
 /// 手牌变动类型（奋激口径）。
@@ -251,6 +282,9 @@ pub fn hand_limit_override(g: &Game, seat: usize) -> Option<usize> {
         return Some(n);
     }
     if let Some(n) = b10::hand_limit_override(g, seat) {
+        return Some(n);
+    }
+    if let Some(n) = b14::hand_limit_override(g, seat) {
         return Some(n);
     }
     if active(g, seat, "buqu") && enabled("buqu") {
@@ -333,6 +367,21 @@ fn owned(g: &Game, seat: usize, code: &str) -> bool {
 ///
 /// 借用 = 伪帝（B1）：「视为拥有当前主公的主公技」，只参与联动判定，不能主动使用（见 `can_active`）。
 pub fn active(g: &Game, seat: usize, code: &str) -> bool {
+    // 缠怨（Q6 裁定）：体力值为 1 时**所有技能**失效（含锁定技/装备特效）。
+    // 独立闸门（持续整局），不复用回合制 `suppress.*`。
+    if g.counter(&format!("chanyuan.{seat}")) > 0
+        && g.seats.get(seat).map(|s| s.hp == 1).unwrap_or(false)
+    {
+        return false;
+    }
+    // 完杀（K7b）：某人濒死结算中，除贾诩与濒死者外的角色**非锁定技**失效。
+    if b15::suppressed_in_dying(g, seat) {
+        if let Some(d) = def(code) {
+            if !matches!(d.kind, SkillKind::Locked | SkillKind::Equip) {
+                return false;
+            }
+        }
+    }
     // 义绝/铁骑：「本回合非锁定技失效」——锁定技与装备特效不受影响。
     if g.counter(&format!("suppress.{seat}.{}", g.turn)) > 0 {
         if let Some(d) = def(code) {
@@ -409,6 +458,11 @@ pub fn handler(code: &str) -> Option<fn(&mut Game, &Ask) -> Result<Step, String>
         .or_else(|| b8::handler(code))
         .or_else(|| b9::handler(code))
         .or_else(|| b10::handler(code))
+        .or_else(|| b11::handler(code))
+        .or_else(|| b12::handler(code))
+        .or_else(|| b13::handler(code))
+        .or_else(|| b14::handler(code))
+        .or_else(|| b15::handler(code))
 }
 
 /// 主动技的**可用性判定**（声明之外的前置：手牌/目标/每阶段次数等）。
@@ -425,6 +479,11 @@ pub fn availability(code: &str) -> Option<fn(&Game, usize) -> bool> {
         .or_else(|| b8::availability(code))
         .or_else(|| b9::availability(code))
         .or_else(|| b10::availability(code))
+        .or_else(|| b11::availability(code))
+        .or_else(|| b12::availability(code))
+        .or_else(|| b13::availability(code))
+        .or_else(|| b14::availability(code))
+        .or_else(|| b15::availability(code))
 }
 
 /// **主动入口合法集**（唯一来源）：自带技能 ∩ 当前面 can_active ∩ 窗口允许 ∩ 可用性判定
@@ -748,12 +807,83 @@ pub fn draw_from_bottom(g: &Game, seat: usize) -> bool {
 
 /// 本回合摸牌阶段是否被整段跳过（整论）。`flow::draw_phase` 唯一调用点。
 pub fn skip_draw(g: &Game, seat: usize) -> bool {
-    b1::skip_draw(g, seat)
+    b1::skip_draw(g, seat) || b11::skip_draw(g, seat)
 }
 
 /// 伤害防止（怀橘，锁定自动）。`flow::damage` 唯一调用点；true = 本次伤害被防止。
 pub fn prevent_damage(g: &mut Game, victim: usize) -> bool {
-    b1::prevent_damage(g, victim)
+    b1::prevent_damage(g, victim) || b14::prevent_damage(g, victim)
+}
+
+/// 弃牌阶段手牌计数（藏拙：未使用锦囊时锦囊不计入）。
+pub fn hand_size_for_discard(g: &Game, seat: usize) -> usize {
+    b14::hand_size_for_discard(g, seat)
+}
+
+/// 看破：转化的【无懈可击】不能被响应。
+pub fn wuxie_no_chain(g: &Game, seat: usize, card: &str) -> bool {
+    b14::wuxie_no_chain(g, seat, card)
+}
+
+/// 连环：重铸算「使用牌」。
+pub fn on_recast(g: &mut Game, seat: usize, card: &str) {
+    b14::on_recast(g, seat, card)
+}
+
+/// 红颜：使用/打出时虚拟牌的花色（`card_play::push_virtual_use` 唯一调用点）。
+pub fn suit_for_use(g: &Game, seat: usize, physical: super::Suit) -> super::Suit {
+    b14::suit_for_use(g, seat, physical)
+}
+
+/// 红颜：判定牌花色（`judge::reveal/effective` 唯一调用点）。
+pub fn suit_for_judge(g: &Game, seat: usize, physical: super::Suit) -> super::Suit {
+    b14::suit_for_judge(g, seat, physical)
+}
+
+/// 某张牌在归属者语义下的有效花色（火攻等「他人读牌」唯一调用点）。
+pub fn suit_of_card(g: &Game, card: &str) -> Option<super::Suit> {
+    b14::suit_of_card(g, card)
+}
+
+/// 实例级「不能成为目标」（帷幕：黑色锦囊）。
+pub fn deny_target_instance(
+    g: &Game,
+    user: usize,
+    target: usize,
+    card: Option<&str>,
+    def: &super::cards::CardDef,
+) -> bool {
+    b15::deny_target_instance(g, user, target, card, def)
+}
+
+/// 群体牌目标排除（巨象）。
+pub fn aoe_excluded(g: &Game, user: usize, target: usize, def_code: &str) -> bool {
+    b15::aoe_excluded(g, user, target, def_code)
+}
+
+/// 结算结束后钩子（巨象：获得他人使用的【南蛮】）。
+pub fn on_card_finished(g: &mut Game, card: &str, user: usize) {
+    b15::on_card_finished(g, card, user);
+}
+
+/// 回合内全防伤（帷幕）：返回被防止的点数；`flow::damage_one` 唯一调用点。
+pub fn try_full_prevent(g: &mut Game, target: usize, amount: i32) -> Option<i32> {
+    b15::try_full_prevent(g, target, amount)
+}
+
+/// 濒死求桃限制（完杀）。
+pub fn dying_allow_tao(g: &Game, asker: usize, target: usize) -> bool {
+    b15::dying_allow_tao(g, asker, target)
+}
+
+/// 天义没赢 → 本回合不能使用【杀】。
+pub fn sha_use_blocked(g: &Game, seat: usize) -> bool {
+    b15::sha_use_blocked(g, seat)
+}
+
+/// 濒死窗口的技能选项（涅槃）。
+pub fn dying_skill_options(g: &Game, asker: usize, target: usize) -> Vec<(&'static str, String)> {
+    b14::dying_options(g, asker, target)
 }
 
 /// 手牌上限修正（`Hook::HandLimit`，唯一调用点 `Game::hand_limit`）。
@@ -762,7 +892,9 @@ pub fn hand_limit_bonus(g: &Game, seat: usize) -> i32 {
         + b3::hand_limit_bonus(g, seat)
         + b5::hand_limit_bonus(g, seat)
         + b7::hand_limit_bonus(g, seat)
-        + b8::hand_limit_bonus(g, seat);
+        + b8::hand_limit_bonus(g, seat)
+        + b11::hand_limit_bonus(g, seat)
+        + b13::hand_limit_bonus(g, seat);
     for skill in all() {
         if !active(g, seat, skill.code) {
             continue;
@@ -781,7 +913,12 @@ pub fn hand_limit_bonus(g: &Game, seat: usize) -> i32 {
 /// 距离修正（`Hook::Distance`，唯一调用点 `gear::distance`）。
 /// 动态距离修正（千驹：每损失 1 点体力 -1）。
 pub fn distance_bonus(g: &Game, seat: usize) -> i32 {
-    b5::distance_bonus(g, seat)
+    b5::distance_bonus(g, seat) + b14::distance_bonus(g, seat) + b15::distance_bonus(g, seat)
+}
+
+/// 「他人 → 该座位」距离修正（义从：体力 ≤2 时 +1；`gear::distance` 唯一调用点）。
+pub fn distance_to_bonus(g: &Game, seat: usize) -> i32 {
+    b12::distance_to_bonus(g, seat)
 }
 
 pub fn distance_modifier(g: &Game, seat: usize) -> i32 {
@@ -815,6 +952,36 @@ pub fn sha_unlimited(g: &Game, seat: usize) -> bool {
     })
 }
 
+/// 响应张数（无双：`opponent` 有锁定技 → 需连续 2 张；`card_play` 唯一调用点）。
+pub fn response_need(
+    g: &Game,
+    responder: usize,
+    opponent: usize,
+    kind: super::cards::ResponseKind,
+) -> u32 {
+    // 无双（覆盖为 2）与肉林（+1，与无双相加 → 3）分别为「下限/加成」。
+    let base = b12::response_need(g, responder, opponent, kind).max(1);
+    if kind != super::cards::ResponseKind::Shan {
+        return base;
+    }
+    base + b15::response_bonus(g, responder, opponent)
+}
+
+/// 酒池：【酒】无次数限制（`card_play::jiu_limit_reached` 唯一调用点）。
+pub fn jiu_unlimited(g: &Game, seat: usize) -> bool {
+    b15::jiu_unlimited(g, seat)
+}
+
+/// 濒死救援的技能转化候选（急救：回合外红色手牌/装备牌当【桃】）。
+pub fn dying_alternatives(g: &Game, asker: usize) -> Vec<super::CardId> {
+    b12::jijiu_options(g, asker)
+}
+
+/// 濒死救援的技能转化结算（承载牌落盘；回复由调用方执行）。
+pub fn use_dying_alternative(g: &mut Game, asker: usize, id: &str) -> Result<(), String> {
+    b12::use_jijiu(g, asker, id)
+}
+
 /// 牌对目标是否**无效**（掣政①）。`card_play` 唯一调用点。
 pub fn card_ineffective(g: &Game, user: usize, target: usize) -> bool {
     b1::card_ineffective(g, user, target)
@@ -826,6 +993,8 @@ pub fn sha_extra(g: &Game, seat: usize) -> i32 {
         + b2::sha_extra(g, seat)
         + b5::sha_extra(g, seat)
         + b10::sha_extra(g, seat)
+        + b14::sha_extra(g, seat)
+        + b15::sha_extra(g, seat)
 }
 
 /// 不能成为目标（掣政②/空城/帷幕…）。`card_play::legal_targets` 唯一调用点。
@@ -836,18 +1005,26 @@ pub fn deny_target(g: &Game, user: usize, target: usize) -> bool {
 /// 距离/范围是否被技能覆盖（决堰·坐骑 / 雄乱）：本次使用跳过距离校验。
 /// 造成伤害时的数值加成（暗箭：不在其攻击范围内 +1）。
 pub fn damage_bonus(g: &Game, spec: &super::DamageSpec) -> i32 {
-    b4::damage_bonus(g, spec)
+    b4::damage_bonus(g, spec) + b11::damage_bonus(g, spec) + b13::damage_bonus(g, spec)
 }
 
 /// 他人侧主动技（陷嗣：其他角色移去两张「逆」出【杀】）。
 pub fn other_side_actions(g: &Game, seat: usize) -> Vec<&'static str> {
     let mut v = b4::other_side_actions(g, seat);
     v.extend(b8::other_side_actions(g, seat));
+    v.extend(b13::other_side_actions(g, seat));
+    v.extend(b14::other_side_actions(g, seat));
     v
 }
 
 /// 发动他人侧技能（唯一入口：回合帧的 `skill:<code>` 在自有技能不可用时回退到这里）。
 pub fn start_other(g: &mut Game, seat: usize, code: &str) -> Result<(), String> {
+    if b14::other_side_actions(g, seat).contains(&code) {
+        return b14::start_other(g, seat, code);
+    }
+    if b13::other_side_actions(g, seat).contains(&code) {
+        return b13::start_other(g, seat, code);
+    }
     if b8::other_side_actions(g, seat).contains(&code) {
         return b8::start_other(g, seat, code);
     }
@@ -953,6 +1130,7 @@ pub fn ask_damage_before_victim(
     };
     if !b5::should_ask_damage_before_victim(g, from, spec.target)
         && !b7::should_ask_damage_before_victim(g, from, spec.target)
+        && !b14::should_ask_damage_before_victim(g, from, spec.target)
     {
         return false;
     }
@@ -1035,6 +1213,8 @@ pub fn on_use_start(g: &mut Game, actor: usize, card: &str) {
     b8::on_use_start(g, actor, card);
     b9::on_use_start(g, actor, card);
     b10::on_use_start(g, actor, card);
+    b13::on_use_start(g, actor, card);
+    b15::on_use_start(g, actor, card);
 }
 
 /// 克己：本回合出牌阶段未使用【杀】→ 跳过弃牌阶段（`turn::step_turn` 唯一调用点）。
@@ -1187,6 +1367,8 @@ pub fn use_alias(g: &Game, seat: usize, id: &str) -> Option<&'static str> {
     b6::use_alias(g, seat, id)
         .or_else(|| b9::use_alias(g, seat, id))
         .or_else(|| b10::use_alias(g, seat, id))
+        .or_else(|| b14::use_alias(g, seat, id))
+        .or_else(|| b15::use_alias(g, seat, id))
 }
 
 /// 响应语义下的生效定义：先问替代型技能（矢志/武圣/龙胆），再看牌自身标签。
@@ -1199,6 +1381,8 @@ pub fn response_as(
     for opinion in [
         b6::response_as(g, seat, id, kind),
         b9::response_as(g, seat, id, kind),
+        b11::response_as(g, seat, id, kind),
+        b14::response_as(g, seat, id, kind),
     ] {
         match opinion {
             CardAs::As(code) => return Some(code),
@@ -1215,6 +1399,132 @@ pub fn response_as(
     } else {
         None
     }
+}
+
+/// 化身可授予技能（mechanics `general-pool` / 2026-11-16 用户裁定 Q1/Q2）：
+/// **已注册**（`all()`，不要求已收口）且**排除** 锁定技 / 觉醒技 / 主公技 / 授予技。
+///
+/// 授予走 `skills::grant` 同一入口（授予技形式），因此不依赖各技能的具体实现。
+pub fn huashen_skills_of(general_code: &str) -> Vec<&'static str> {
+    let Some(gd) = super::generals::def(general_code) else {
+        return vec![];
+    };
+    let mut out: Vec<&'static str> = Vec::new();
+    for name in gd.skills {
+        let Some(code) = code_by_name(name) else { continue };
+        let Some(d) = def(code) else { continue };
+        if d.grant_only || matches!(d.kind, SkillKind::Locked | SkillKind::Awaken | SkillKind::Lord) {
+            continue;
+        }
+        if !out.contains(&code) {
+            out.push(code);
+        }
+    }
+    out
+}
+
+/// 某座位此刻**可化身**的武将池（Q2 裁定）：
+/// `Status::Live` ∩ 非「同场存活武将」∩ 非自己 ∩ 非已持有化身牌 ∩ 至少一个可授予技能。
+pub fn huashen_generals(g: &super::Game, seat: usize) -> Vec<String> {
+    // 「同场已存在」= 存活座位正在使用的武将（含自己）。
+    let on_field: Vec<String> = g
+        .seats
+        .iter()
+        .filter(|s| s.alive && !s.general.is_empty())
+        .map(|s| s.general.clone())
+        .collect();
+    let owned: Vec<String> = g
+        .huashen
+        .get(&seat)
+        .map(|h| {
+            let mut v = h.pool.clone();
+            if let Some(c) = &h.current {
+                v.push(c.clone());
+            }
+            v
+        })
+        .unwrap_or_default();
+    let mut out: Vec<String> = crate::generals_generated::GENERALS
+        .iter()
+        .filter(|gd| gd.status == crate::generals_generated::Status::Live)
+        .filter(|gd| !on_field.iter().any(|c| c == gd.code))
+        .filter(|gd| !owned.iter().any(|c| c == gd.code))
+        .filter(|gd| !huashen_skills_of(gd.code).is_empty())
+        // Q8（2026-11-16）：该武将的可授予技能若已被同场存活角色全部拥有 → 不可入选。
+        .filter(|gd| !huashen_choices(g, seat, gd.code).is_empty())
+        .map(|gd| gd.code.to_string())
+        .collect();
+    out.sort();
+    out.dedup();
+    out
+}
+
+/// 展示某个化身牌时**可选**的技能（Q2 裁定）：排除同场存活角色已拥有的技能
+/// （`Seat.skills` ∪ `granted`），以及该座位已取得的化身技能。
+pub fn huashen_choices(g: &super::Game, seat: usize, general_code: &str) -> Vec<&'static str> {
+    let mut taken: Vec<&str> = Vec::new();
+    for (i, s) in g.seats.iter().enumerate() {
+        if i == seat || !s.alive {
+            continue;
+        }
+        taken.extend(s.skills.iter().map(|c| c.as_str()));
+        taken.extend(s.granted.iter().map(|c| c.as_str()));
+    }
+    if let Some(h) = g.huashen.get(&seat) {
+        if let Some(c) = h.active_skill.as_deref() {
+            taken.push(c);
+        }
+    }
+    huashen_skills_of(general_code)
+        .into_iter()
+        .filter(|c| !taken.contains(c))
+        .collect()
+}
+
+/// 可改判的座位 + 技能 code（mechanics `judge-rewrite`；判定者左手侧起、判定者最后）。
+///
+/// **按技能声明**（`Hook::JudgeRewrite`）而非写死技能名：新增改判技只需声明钩子 + 提供候选。
+pub fn judge_rewrite_holders(g: &Game, judge_seat: usize) -> Vec<(usize, &'static str)> {
+    let n = g.seats.len();
+    let mut out = Vec::new();
+    for k in 1..=n {
+        let s = (judge_seat + k) % n;
+        if !g.seats.get(s).map(|x| x.alive).unwrap_or(false) {
+            continue;
+        }
+        for skill in all() {
+            if !enabled(skill.code) || !active(g, s, skill.code) {
+                continue;
+            }
+            if skill
+                .faces
+                .iter()
+                .any(|f| f.hooks.iter().any(|h| *h == Hook::JudgeRewrite))
+            {
+                out.push((s, skill.code));
+            }
+        }
+    }
+    out
+}
+
+/// 某改判技能可用的替代牌（手牌 + 装备区；具体过滤由技能决定）。
+pub fn judge_rewrite_cards_for(g: &Game, seat: usize, code: &str) -> Vec<super::CardId> {
+    match code {
+        "guicai" => b11::judge_rewrite_cards(g, seat),
+        "guidao" => b13::guidao_cards(g, seat),
+        _ => Vec::new(),
+    }
+}
+
+/// 判定生效后的统一钩子（雷击：鬼道改判自己的判定后仍可发动判定后效果）。
+pub fn on_judge_effective(g: &mut Game, judge_seat: usize) -> bool {
+    b13::on_judge_effective(g, judge_seat)
+}
+
+/// 天妒：判定牌生效后是否可获得。
+pub fn judge_gain_available(g: &Game, seat: usize) -> bool {
+    b11::judge_gain_available(g, seat)
 }
 
 /// 花色/牌封锁（讥谀：本回合不能使用与之相同花色的牌）——使用/打出/响应统一拦截。
@@ -1236,6 +1546,8 @@ pub fn response_alternatives(
     let mut out = b6::response_alternatives(g, seat, kind, ctx);
     out.extend(b9::response_alternatives(g, seat, kind, ctx));
     out.extend(b7::response_alternatives(g, seat, kind, ctx));
+    out.extend(b11::response_alternatives(g, seat, kind, ctx));
+    out.extend(b13::response_alternatives(g, seat, kind, ctx));
     out
 }
 

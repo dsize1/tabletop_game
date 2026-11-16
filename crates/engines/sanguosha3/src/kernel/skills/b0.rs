@@ -555,9 +555,45 @@ fn songwei(g: &mut Game, ask: &Ask) -> Result<Step, String> {
     }
 }
 
-/// 不屈：锁定技，濒死时自动发动（实现见 `flow::enter_dying` / `flow::try_buqu`）。
-fn buqu(_g: &mut Game, _ask: &Ask) -> Result<Step, String> {
-    Ok(Step::Done)
+/// 不屈：锁定技，濒死时自动发动（入口见 `flow::enter_dying`）。
+///
+/// 判定由 `quick_judge` 驱动（含鬼才改判 / 天妒）；本 handler 在 `step="result"` 收口：
+/// 点数与已有「创」不重复 → 作为「创」移出游戏并回复至 1；重复 → 判定牌进弃牌堆、仍濒死
+/// （此时再压通用濒死帧，求桃顺序不变）。
+fn buqu(g: &mut Game, ask: &Ask) -> Result<Step, String> {
+    use crate::kernel::event::Event;
+    use crate::kernel::resolve::FlowKind;
+
+    let seat = ask.actor;
+    let by = ask.data.get("by").and_then(|v| v.as_u64()).map(|v| v as usize);
+    let Some(r) = g.judge_result.take() else {
+        // 无判定牌（牌堆/弃牌堆皆空）：直接进入濒死求桃。
+        flow::enter_dying_bypass_buqu(g, seat, by);
+        return Ok(Step::Done);
+    };
+    let key = format!("buqu_rank.{seat}.{}", r.rank);
+    if g.counter(&key) > 0 {
+        // 重复：判定牌已在弃牌堆（quick_judge 落盘），仍濒死。
+        flow::enter_dying_bypass_buqu(g, seat, by);
+        return Ok(Step::Done);
+    }
+    g.cards.insert(r.card.clone(), Zone::Void);
+    let mut ev = Event::card(
+        EventKind::CardOutOfGame,
+        Some(seat),
+        r.card.clone(),
+        Some("不屈·创".to_string()),
+    );
+    ev.by = Some(seat);
+    let e = ev.snapshot(g);
+    g.push_event(e);
+    g.bump(&key);
+    g.bump(&format!("buqu_total.{seat}"));
+    if let Some(s) = g.seats.get_mut(seat) {
+        s.hp = 1;
+    }
+    let _ = FlowKind::Dying;
+    Ok(Step::Finish("不屈：翻「创」成功，回复至 1".into()))
 }
 
 /// B0 声明（7 技能）。

@@ -22,14 +22,16 @@ use super::{CardId, Game};
 pub struct RelayOpts {
     /// 可代出的势力（空串 = 不限势力）。
     pub kingdom: String,
-    /// true = 代出【杀】被视为发起者**使用**；false = 视为**打出**。
+    /// 代出的响应种类（激将/勤王 = 【杀】；护驾 = 【闪】）。
+    pub kind: ResponseKind,
+    /// true = 代出的牌被视为发起者**使用**；false = 视为**打出**。
     pub for_use: bool,
-    /// 事件来源文案（激将/勤王）。
+    /// 事件来源文案（激将/勤王/护驾）。
     pub cause: &'static str,
 }
 
 /// 可代出【杀】的座位（发起者左手侧起、同势力、存活、有可响应的手牌）。
-pub fn order(g: &Game, owner: usize, kingdom: &str) -> Vec<usize> {
+pub fn order(g: &Game, owner: usize, kingdom: &str, kind: ResponseKind) -> Vec<usize> {
     let n = g.seats.len();
     (1..n)
         .map(|k| (owner + k) % n)
@@ -40,14 +42,14 @@ pub fn order(g: &Game, owner: usize, kingdom: &str) -> Vec<usize> {
                 && (kingdom.is_empty() || seat.kingdom == kingdom)
                 && g.hand(s)
                     .iter()
-                    .any(|id| super::skills::response_as(g, s, id, ResponseKind::Sha).is_some())
+                    .any(|id| super::skills::response_as(g, s, id, kind).is_some())
         })
         .collect()
 }
 
 /// 发起接力：返回 false = 无人可代出（不压帧）。
 pub fn start(g: &mut Game, owner: usize, opts: RelayOpts) -> bool {
-    let order = order(g, owner, &opts.kingdom);
+    let order = order(g, owner, &opts.kingdom, opts.kind);
     if order.is_empty() {
         return false;
     }
@@ -62,6 +64,7 @@ pub fn start(g: &mut Game, owner: usize, opts: RelayOpts) -> bool {
             "order": order,
             "cursor": 0,
             "for_use": opts.for_use,
+            "kind": format!("{:?}", opts.kind),
             "cause": opts.cause,
             "step": "ask",
         }),
@@ -84,6 +87,12 @@ pub fn step_relay(g: &mut Game, data: &serde_json::Value) -> Result<Step, String
         .and_then(|v| v.as_str())
         .unwrap_or("接力")
         .to_string();
+    // 响应种类（默认【杀】，兼容既有数据）。
+    let kind = match data.get("kind").and_then(|v| v.as_str()) {
+        Some("Shan") => ResponseKind::Shan,
+        Some("Wuxie") => ResponseKind::Wuxie,
+        _ => ResponseKind::Sha,
+    };
     while cursor < order.len() {
         let by = order[cursor];
         let alive = g.seats.get(by).map(|s| s.alive).unwrap_or(false);
@@ -94,7 +103,7 @@ pub fn step_relay(g: &mut Game, data: &serde_json::Value) -> Result<Step, String
         let cands: Vec<CardId> = g
             .hand(by)
             .into_iter()
-            .filter(|id| super::skills::response_as(g, by, id, ResponseKind::Sha).is_some())
+            .filter(|id| super::skills::response_as(g, by, id, kind).is_some())
             .collect();
         if cands.is_empty() {
             cursor += 1;
@@ -124,7 +133,8 @@ pub fn step_relay(g: &mut Game, data: &serde_json::Value) -> Result<Step, String
                             "order": order,
                             "cursor": cursor,
                             "for_use": for_use,
-                            "cause": cause,
+                            "kind": format!("{kind:?}"),
+                            "cause": cause.clone(),
                             "step": "ask",
                         }))
                         .build(),
@@ -139,7 +149,8 @@ pub fn step_relay(g: &mut Game, data: &serde_json::Value) -> Result<Step, String
                         "order": order,
                         "cursor": cursor,
                         "for_use": for_use,
-                        "cause": cause,
+                        "kind": format!("{kind:?}"),
+                        "cause": cause.clone(),
                         "step": "ask",
                     }),
                 ));
@@ -147,7 +158,7 @@ pub fn step_relay(g: &mut Game, data: &serde_json::Value) -> Result<Step, String
             Some(a) if a.starts_with("respond:") => {
                 let id = a[8..].to_string();
                 if !cands.iter().any(|c| *c == id) {
-                    return Err("接力：只能代出【杀】".into());
+                    return Err("接力：只能代出可响应的牌".into());
                 }
                 if for_use {
                     // 牌不转手：留在代出者手牌，由发起者用 `use_relay` 作为承载牌使用。

@@ -191,7 +191,7 @@
 ### 10.1 事实
 
 - P1–P6 只做实了「回合驱动 / 事件生产 / 交互层 / 卡牌结算 / 装备结算 / 生命周期」的**基础流程**；
-- 对照 `align/mechanics.json` 的 **46 条机制词表**，V3 当时仍有 **18 条缺口**：
+- 对照 `align/mechanics.json` 的 **47 条机制词表**，V3 当时仍有 **18 条缺口**：
   `hand-freeze` / `virtual-card` / `dying-aftermath` / `reveal` / `pindian` / `target-extra` /
   `deck-carrier` / `multi-response` / `no-wuxie` / `hidden-declaration` / `aoe-target-trim` /
   `sha-intercept` / `judge-reversal` / `range-override` / `virtual-equip` / `limit-skill` /
@@ -201,7 +201,7 @@
 
 | 项 | 内容 |
 |---|---|
-| 事实源 | `apps/scripts/lib/sgs3-mechanics.mjs`：46 条机制 → 实现锚点 + 用例锚点 |
+| 事实源 | `apps/scripts/lib/sgs3-mechanics.mjs`：47 条机制 → 实现锚点 + 用例锚点 |
 | 审计表 | `docs/games/sanguosha/v3-kernel-audit.md`（生成物，`npm run gen:sgs3-kernel-doc`） |
 | 门禁 | `npm run check:sgs3-kernel`（锚点符号真实存在 + 词表双向一致 + 审计表最新；缺一条即红） |
 | 聚合 | `check:sgs3` 已包含该门禁；`check:sgs3:full` = `check:sgs3` + `check:sgs-align` + `check:spec-conformance` |

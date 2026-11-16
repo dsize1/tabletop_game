@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "updated_at": "2026-11-09",
+  "updated_at": "2026-11-16",
   "note": "共享机制词表。仅新增条目不 bump version；既有机制定义/不变量变更才 bump（bump 会让引用它的已确认技能进入冲突阻断）。",
   "mechanics": [
     {
@@ -450,11 +450,15 @@
     {
       "id": "general-pool",
       "name": "武将牌池（化身 / 新生）",
-      "definition": "「化身」类技能需要一份武将牌池（code / 名称 / 势力 / 性别 / 技能表）。池来自生成物 `generals_generated.rs`（`npm run gen:sgs-engine-data` 从 `engine-catalog.json` 生成），运行时不读 JSON。",
+      "definition": "「化身」类技能需要一份武将牌池（code / 名称 / 势力 / 性别 / 技能表）。池来自生成物 `generals_generated.rs`（`npm run gen:sgs-engine-data` 从 `engine-catalog.json` 生成），运行时不读 JSON。授予走 `skills::grant`（授予技形式），**不依赖各技能的具体实现**。",
       "invariants": [
-        "池内只允许「至少有一个技能已注册」的武将（否则会授予空技能）",
+        "2026-11-16 用户裁定（V3）：以下为**新增约束**，只作用于尚未实现的化身/新生；因此不 bump version（避免 290 条历史已确认技能被整体判为冲突）",
+        "池成员 = `Status::Live` ∩ 至少一个**可授予技能**（技能已注册；不要求已收口）",
+        "可授予技能**排除** 锁定技 / 觉醒技 / 主公技 / 授予技（不给空壳或无效技能）",
+        "不能化身**同场存活**武将（按武将 code），也不能重复持有同一张化身牌；技能选择排除同场存活角色已拥有的技能",
+        "池按当前构建**动态**计算（随批次收口增大）；回放只读快照 `Game.huashen`，不重算池",
         "化身牌不进入牌区（不占手牌/装备/判定/移出游戏），只作为技能状态",
-        "性别/势力覆盖必须跟随当前展示的化身；移去全部化身时恢复原值",
+        "性别/势力覆盖跟随当前展示的化身；移去展示时从 `Seat.general` 重新读取原值（不另存第二份事实）",
         "随机取牌一律走 `Game::rand_below`（确定性、可回放）"
       ],
       "events": []
@@ -584,6 +588,21 @@
       ],
       "events": [
         "armor_changed"
+      ]
+    },
+    {
+      "id": "judge-rewrite",
+      "name": "判定改判（生效前替换判定牌）",
+      "definition": "判定牌亮出后、生效前，可被技能用一张牌（手牌或装备区）替换；原判定牌进弃牌堆，替换牌作为生效判定牌。",
+      "invariants": [
+        "改判只能经 `kernel/quick_judge.rs` 流程帧 + `Game.judge_rewrite` 单通道；禁止在同步 `judge()` 里静默改判",
+        "原判定牌进弃牌堆（不置回牌堆顶）",
+        "询问顺序 = 判定者左手侧起、判定者最后；无牌可换不询问（I1）",
+        "判定结果只经 `Game.judge_result` 交给发起方（读后清空）；天妒等「生效后获得」读生效牌"
+      ],
+      "events": [
+        "judge_revealed",
+        "judge_effective"
       ]
     }
   ]

@@ -91,10 +91,32 @@ fn registry_has_all_batches() {
     ] {
         assert!(codes.contains(&c), "B10 技能 {c} 应注册");
     }
+    for c in [
+        "jianxiong", "hujia", "fankui", "guicai", "ganglie", "qingjian", "tuxi", "luoyi", "tiandu",
+        "yiji", "xunxun", "wangxi", "qingguo", "luoshen",
+    ] {
+        assert!(codes.contains(&c), "B11 技能 {c} 应注册");
+    }
+    for c in ["jijiu", "chuli", "wushuang", "liyu", "yicong", "qiaomeng", "lijian", "biyue"] {
+        assert!(codes.contains(&c), "B12 技能 {c} 应注册");
+    }
+    for c in [
+        "huashen", "xinsheng", "guidao", "leiji", "guhuo", "liegong", "zhuhai", "qianxin",
+        "jianyan", "yaowu", "shizhan", "huangtian", "luanji", "xueyi", "xiangle", "fangquan",
+        "ruoyu", "sishu",
+        "zhiba", "jiang", "hunzi", "shensu", "shebian", "bazhen", "cangzhuo", "huoji", "kanpo",
+        "lianhuan", "niepan", "kuanggu", "qimou", "hongyan", "tianxiang", "piaoling", "yinghun",
+        "wulie", "jiandu",
+        "roulin", "bengkuai", "jiuchi", "baonue", "tiaoxin", "zhiji",
+        "tianyi", "hanzhan", "tuotian", "zaoxian", "jixi", "juxiang", "liereng", "changbiao",
+        "weimu", "luanwu", "wansha", "haoshi", "dimeng", "qiaobian",
+    ] {
+        assert!(codes.contains(&c), "B13 技能 {c} 应注册");
+    }
     assert_eq!(
         skills::all().len(),
-        153,
-        "B0–B10：7+18+18+10+11+13+12+12+21+13+17+1（勤学授予·攻心）"
+        232,
+        "B0–B15：B0–B14 212 + B15 20（19 技能 + 授予技 急袭；马术复用 B9）"
     );
     assert!(skills::check_unique_codes().is_ok(), "技能 code 不得重复");
 }

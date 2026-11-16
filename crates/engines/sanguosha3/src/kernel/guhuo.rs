@@ -81,8 +81,10 @@ pub fn step_guhuo(g: &mut Game, data: &serde_json::Value) -> Result<Step, String
         "doubt" => {
             // 其他存活角色按座位顺序逐个私有询问。
             let idx = data.get("idx").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+            // 缠怨者不能质疑蛊惑（`align/B13.json` 蛊惑「缠怨」）。
             let order: Vec<usize> = (0..g.seats.len())
                 .filter(|&s| s != user && g.seats[s].alive)
+                .filter(|&s| g.counter(&format!("chanyuan.{s}")) == 0)
                 .collect();
             if idx >= order.len() {
                 next["step"] = json!("reveal");
@@ -142,9 +144,9 @@ pub fn step_guhuo(g: &mut Game, data: &serde_json::Value) -> Result<Step, String
             } else {
                 // 真：质疑者获得「缠怨」（独立状态），并逐个自选弃一张牌或失去 1 点体力。
                 for d in &doubters {
-                    if let Some(s) = g.seats.get_mut(*d) {
-                        s.add_counter("chanyuan", 1);
-                    }
+                    // 「缠怨」状态单一事实源 = `Game.counters["chanyuan.<seat>"]`
+                    // （`skills::active` 的 Q6 闸门只读这里）。
+                    g.bump(&format!("chanyuan.{d}"));
                 }
             }
             g.conceal(&[carrier.clone()], "扣置声明结算完成");

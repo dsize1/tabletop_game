@@ -390,7 +390,7 @@ pub fn response_alternatives(
     if !skills::active(g, seat, "jijiang") || g.seats.get(seat).and_then(|s| s.identity) != Some(Identity::Lord) {
         return Vec::new();
     }
-    if relay::order(g, seat, "shu").is_empty() {
+    if relay::order(g, seat, "shu", super::super::cards::ResponseKind::Sha).is_empty() {
         return Vec::new();
     }
     vec![(
@@ -410,7 +410,7 @@ fn can_jijiang(g: &Game, seat: usize) -> bool {
     if g.seats.get(seat).and_then(|s| s.identity) != Some(Identity::Lord) {
         return false;
     }
-    if relay::order(g, seat, "shu").is_empty() {
+    if relay::order(g, seat, "shu", super::super::cards::ResponseKind::Sha).is_empty() {
         return false;
     }
     let Some(sha) = cards::def("sha") else { return false };
@@ -432,7 +432,7 @@ fn jijiang(g: &mut Game, ask: &Ask) -> Result<Step, String> {
             }
             return Ok(Step::Finish("激将：响应结算".into()));
         }
-        if relay::order(g, actor, "shu").is_empty() {
+        if relay::order(g, actor, "shu", super::super::cards::ResponseKind::Sha).is_empty() {
             return Ok(Step::Done);
         }
         let started = relay::start(
@@ -440,6 +440,7 @@ fn jijiang(g: &mut Game, ask: &Ask) -> Result<Step, String> {
             actor,
             relay::RelayOpts {
                 kingdom: "shu".to_string(),
+                kind: super::super::cards::ResponseKind::Sha,
                 for_use: false,
                 cause: "激将",
             },
@@ -549,6 +550,7 @@ fn jijiang(g: &mut Game, ask: &Ask) -> Result<Step, String> {
                 actor,
                 relay::RelayOpts {
                     kingdom: "shu".to_string(),
+                    kind: super::super::cards::ResponseKind::Sha,
                     for_use: true,
                     cause: "激将",
                 },
@@ -926,7 +928,16 @@ fn tieqi(g: &mut Game, ask: &Ask) -> Result<Step, String> {
                 return Ok(Step::Finish("铁骑：结算完成".into()));
             }
             let t = targets[idx];
-            let r = judge::judge(g, actor, "铁骑").map(|r| r.suit);
+            // 判定走 `quick_judge`（含鬼才改判 / 天妒窗口）：先压帧，再在 `judge_wait` 读结果。
+            let wait = ask.data.get("await").and_then(|v| v.as_bool()).unwrap_or(false);
+            if !wait {
+                super::super::quick_judge::start(g, actor, "铁骑", None);
+                return Ok(Step::Next(
+                    Stage::Choose,
+                    json!({ "step": "judge", "await": true, "card": card, "targets": targets, "idx": idx }),
+                ));
+            }
+            let r = g.judge_result.take().map(|r| r.suit);
             Ok(Step::Next(
                 Stage::Choose,
                 json!({ "step": "judged", "card": card, "target": t, "idx": idx, "targets": targets, "suit": format!("{:?}", r) }),

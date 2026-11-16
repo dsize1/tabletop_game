@@ -251,6 +251,10 @@ pub fn step_turn(g: &mut Game, data: &Value) -> Result<Step, String> {
         };
     }
     let phase = PHASES[pi];
+    // 判定阶段刚结算完（`JudgeZone` 子帧已弹）：发 PhaseEnd，推进到下一阶段。
+    if data.get("judging").and_then(|v| v.as_bool()).unwrap_or(false) {
+        return finish_phase(g, seat, pi);
+    }
     if !entered {
         // 跳阶段（乐不思蜀/兵粮寸断/技能）：不产生 PhaseStart/PhaseEnd（阶段未发生）。
         if g.skipped.contains(&phase) {
@@ -291,8 +295,11 @@ pub fn step_turn(g: &mut Game, data: &Value) -> Result<Step, String> {
         match phase {
             Phase::Prepare => return finish_phase(g, seat, pi),
             Phase::Judge => {
-                judge_phase(g, seat);
-                return finish_phase(g, seat, pi);
+                start_judge_zone(g, seat);
+                return Ok(Step::Next(
+                    Stage::PhaseStep,
+                    json!({ "seat": seat, "pi": pi, "entered": true, "auto": true, "judging": true }),
+                ));
             }
             Phase::Draw => {
                 g.set_counter(&format!("phase.drawn.{seat}"), 0);
@@ -320,8 +327,11 @@ pub fn step_turn(g: &mut Game, data: &Value) -> Result<Step, String> {
         match phase {
             Phase::Prepare => return finish_phase(g, seat, pi),
             Phase::Judge => {
-                judge_phase(g, seat);
-                return finish_phase(g, seat, pi);
+                start_judge_zone(g, seat);
+                return Ok(Step::Next(
+                    Stage::PhaseStep,
+                    json!({ "seat": seat, "pi": pi, "entered": true, "auto": true, "judging": true }),
+                ));
             }
             Phase::Draw => {
                 g.set_counter(&format!("phase.drawn.{seat}"), 0);
@@ -365,8 +375,19 @@ fn finish_phase(g: &mut Game, seat: usize, pi: usize) -> Result<Step, String> {
     ))
 }
 
+/// 立即结束当前出牌阶段（放权）：写一次性标记，下一步 `step_play` 进入即收尾。
+pub fn skip_current_play(g: &mut Game, seat: usize) {
+    g.set_mark(&format!("skip_play_now.{seat}"), "1");
+}
+
 /// 出牌阶段：`pending` 选牌/选技能 → 压 `Card` 流程帧 → 回来继续问，直到 `end`。
 fn step_play(g: &mut Game, seat: usize, pi: usize) -> Result<Step, String> {
+    // 放权：立即跳过出牌阶段（技能帧已结算，进入本阶段后第一步收尾）。
+    let key = format!("skip_play_now.{seat}");
+    if g.mark(&key).is_some() {
+        g.marks.remove(&key);
+        return finish_phase(g, seat, pi);
+    }
     if let Some(ans) = take_answer(g, "flow:play") {
         // Web 端「结束出牌」按钮提交 `end_play`（兼容旧 id `end`）。
         if ans == "end_play" || ans == "end" {
@@ -546,7 +567,7 @@ fn step_discard(g: &mut Game, seat: usize, pi: usize) -> Result<Step, String> {
         }
     }
     let limit = g.hand_limit(seat);
-    if g.hand_size(seat) <= limit {
+    if super::skills::hand_size_for_discard(g, seat) <= limit {
         return finish_phase(g, seat, pi);
     }
     let mut b = PendingBuilder::new(seat, "discard_phase").skill("flow:discard");
@@ -556,36 +577,39 @@ fn step_discard(g: &mut Game, seat: usize, pi: usize) -> Result<Step, String> {
     Ok(Step::NeedAt(Stage::DiscardPick, b.escape_mandatory("弃牌").build()))
 }
 
-/// 判定阶段：判定区 LIFO（后置先判），逐个结算延时锦囊。
-pub fn judge_phase(g: &mut Game, seat: usize) {
-    while let Some(id) = g
-        .judge_stacks
-        .get(&seat)
-        .and_then(|s| s.last().cloned())
-    {
-        if let Some(stack) = g.judge_stacks.get_mut(&seat) {
-            stack.pop();
-        }
-        g.cards.insert(id.clone(), Zone::Processing);
-        let mut left = Event::card(EventKind::JudgeZoneLeft, Some(seat), id.clone(), Some("判定阶段".to_string()));
-        left.by = Some(seat);
-        left.turn = g.turn;
-        left.phase = g.phase;
-        g.push_event(left);
-        // 谦逊：延时锦囊判定生效时（技能只压询问帧，不阻塞判定流程）。
-        super::skills::on_delayed_judge(g, seat, &id);
+/// 判定阶段入口：压入 `JudgeZone` 流程帧（父回合帧保留，子帧弹回后由 `judging` 标记收尾）。
+pub fn start_judge_zone(g: &mut Game, seat: usize) {
+    super::resolve::push_flow(
+        g,
+        FlowKind::JudgeZone,
+        seat,
+        Stage::JudgeResolve,
+        json!({ "seat": seat, "card": Value::Null }),
+    );
+}
+
+/// 判定阶段：判定区 LIFO（后置先判），每张延时锦囊走一次 `quick_judge`（含改判/天妒窗口）。
+///
+/// 范式：本帧压入 `QuickJudge` 子帧后返回 `Step::Next`（保持自身），
+/// 子帧弹回时再次进入本帧 → 读 `Game::judge_result` 并结算该延时锦囊。
+pub fn step_judge_zone(g: &mut Game, data: &Value) -> Result<Step, String> {
+    if g.winner.is_some() {
+        return Ok(Step::Done);
+    }
+    let seat = data.get("seat").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+    let mut d = data.clone();
+    if let Some(id) = data.get("card").and_then(|v| v.as_str()).map(str::to_string) {
+        let result = g.judge_result.take();
         let effect = g
             .card_defs
             .get(&id)
             .and_then(|c| cards::def(&c.def))
-            .map(|d| d.effect);
+            .map(|x| x.effect);
         match effect {
             Some(Effect::Indulgence) => {
                 // 判定效果反转（mechanics `judge-reversal`）：只改分支，不改牌面花色。
                 let reversed = g.judge_reversed(seat, "lebu_sishu");
-                let heart = judge::judge(g, seat, "乐不思蜀")
-                    .map(|r| r.is_heart())
-                    .unwrap_or(false);
+                let heart = result.map(|r| r.is_heart()).unwrap_or(false);
                 let skipped = if reversed { heart } else { !heart };
                 super::card_play::to_discard(g, &id);
                 if skipped {
@@ -593,16 +617,14 @@ pub fn judge_phase(g: &mut Game, seat: usize) {
                 }
             }
             Some(Effect::SupplyShortage) => {
-                let skipped = !judge::judge(g, seat, "兵粮寸断")
-                    .map(|r| r.is_club())
-                    .unwrap_or(false);
+                let club = result.map(|r| r.is_club()).unwrap_or(false);
                 super::card_play::to_discard(g, &id);
-                if skipped {
+                if !club {
                     skip_phase(g, Phase::Draw);
                 }
             }
             Some(Effect::Lightning) => {
-                let hit = judge::judge(g, seat, "闪电")
+                let hit = result
                     .map(|r| r.is_spade() && r.rank_in(2, 9))
                     .unwrap_or(false);
                 if hit {
@@ -627,10 +649,44 @@ pub fn judge_phase(g: &mut Game, seat: usize) {
             }
             _ => super::card_play::to_discard(g, &id),
         }
+        d["card"] = Value::Null;
         if g.winner.is_some() {
-            return;
+            return Ok(Step::Done);
         }
+        return Ok(Step::Next(Stage::JudgeResolve, d));
     }
+    let Some(id) = g
+        .judge_stacks
+        .get(&seat)
+        .and_then(|s| s.last().cloned())
+    else {
+        return Ok(Step::Done);
+    };
+    if let Some(stack) = g.judge_stacks.get_mut(&seat) {
+        stack.pop();
+    }
+    g.cards.insert(id.clone(), Zone::Processing);
+    let mut left = Event::card(
+        EventKind::JudgeZoneLeft,
+        Some(seat),
+        id.clone(),
+        Some("判定阶段".to_string()),
+    );
+    left.by = Some(seat);
+    left.turn = g.turn;
+    left.phase = g.phase;
+    g.push_event(left);
+    // 谦逊：延时锦囊判定生效时（技能只压询问帧，不阻塞判定流程）。
+    super::skills::on_delayed_judge(g, seat, &id);
+    let cause = g
+        .card_defs
+        .get(&id)
+        .and_then(|c| cards::def(&c.def))
+        .map(|x| x.name.to_string())
+        .unwrap_or_else(|| "判定".to_string());
+    d["card"] = json!(id);
+    super::quick_judge::start(g, seat, &cause, None);
+    Ok(Step::Next(Stage::JudgeResolve, d))
 }
 
 /// 死亡确认结算（无击杀者上下文；保留给「非伤害死亡」与测试）。

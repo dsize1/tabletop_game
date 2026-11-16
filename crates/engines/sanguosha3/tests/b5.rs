@@ -144,6 +144,10 @@ fn huituo_judges_red_for_heal() {
     add_suit(&mut g, "top", "sha", Zone::Draw, Suit::Heart, 7);
     g.deck.push("top".into());
     let step = run_steps(&mut g, "huituo", 0, data(&[("amount", 1.into())]), &["seat:0"]);
+    // 判定走 `quick_judge`（含鬼才/天妒窗口）：推进判定后由 handler 的 resolve 段收口。
+    sanguosha3::kernel::resolve::advance(&mut g).unwrap();
+    let _ = step;
+    let step = call(&mut g, "huituo", 0, data(&[("step", "resolve".into()), ("target", 0.into()), ("amount", 1.into())]));
     assert!(matches!(step, Step::Finish(_)));
     assert_eq!(g.seats[0].hp, 4, "红色 → 回复 1 点");
     // 反例：黑色 → 摸伤害值张。
@@ -152,6 +156,9 @@ fn huituo_judges_red_for_heal() {
     g.deck.push("top".into());
     add_deck(&mut g, 2);
     let step = run_steps(&mut g, "huituo", 0, data(&[("amount", 2.into())]), &["seat:0"]);
+    sanguosha3::kernel::resolve::advance(&mut g).unwrap();
+    let _ = step;
+    let step = call(&mut g, "huituo", 0, data(&[("step", "resolve".into()), ("target", 0.into()), ("amount", 2.into())]));
     assert!(matches!(step, Step::Finish(_)));
     assert_eq!(g.hand_size(0), 2, "黑色 → 摸 2 张");
 }

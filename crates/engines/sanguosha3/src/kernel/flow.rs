@@ -74,9 +74,14 @@ fn damage_one(g: &mut Game, spec: DamageSpec, armor: ArmorKind, bonus: i32) -> V
         return vec![];
     }
     let base = spec.amount + bonus;
+    // 帷幕（K6b）：自己回合内受到的伤害**全部**防止，并摸「防止点数 ×2」。
+    if super::skills::try_full_prevent(g, spec.target, base).is_some() {
+        return vec![];
+    }
     match apply_armor(armor, &spec, base) {
         DamageOutcome::Blocked => vec![],
         DamageOutcome::Dealt(n) => {
+            super::skills::b15::on_damage_after(g, spec.from, spec.source == SourceKind::Slash);
             // 护甲（mechanics `armor-points`）：先扣护甲，溢出伤害扣体力；
             // 伤害事件仍成立（amount = 原伤害值），因此「受到伤害后」技能照常触发。
             let armor_points = g.seats.get(spec.target).map(|s| s.armor).unwrap_or(0);
@@ -209,10 +214,44 @@ pub fn enter_dying(g: &mut Game, seat: usize, by: Option<usize>) {
         return;
     }
     // 不屈（锁定，`align/B0.json`）：濒死自动翻「创」判定；点数不重复 → 回复至 1，脱离濒死。
+    //
+    // 判定走 `quick_judge`（含鬼才改判 / 天妒窗口），结果由 `buqu` handler 在 `step="result"` 收口：
+    // 未脱离濒死时由 handler 再压濒死帧（濒死求桃顺序不变）。
     if super::skills::active(g, seat, "buqu")
         && super::skills::enabled("buqu")
-        && try_buqu(g, seat)
+        && (!g.deck.is_empty() || g.cards.values().any(|z| matches!(z, super::Zone::Discard)))
     {
+        super::quick_judge::start(
+            g,
+            seat,
+            "不屈",
+            Some(("buqu", seat, serde_json::json!({ "by": by }))),
+        );
+        return;
+    }
+    enter_dying_bypass_buqu(g, seat, by);
+}
+
+/// 濒死帧压入（**跳过不屈判定**）：不屈判定失败后由 `buqu` handler 调用；
+/// 其余进入钩子（兴衰）仍然生效（`mechanics dying-aftermath`）。
+pub fn enter_dying_bypass_buqu(g: &mut Game, seat: usize, by: Option<usize>) {
+    let dying = g
+        .seats
+        .get(seat)
+        .map(|s| s.alive && s.hp <= 0)
+        .unwrap_or(false);
+    if !dying {
+        return;
+    }
+    let already = g.stack.iter().any(|f| {
+        matches!(
+            &f.inner,
+            super::resolve::FrameInner::Flow(ff)
+                if ff.kind == super::resolve::FlowKind::Dying
+                    && ff.data.get("target").and_then(|v| v.as_u64()) == Some(seat as u64)
+        )
+    });
+    if already {
         return;
     }
     // 兴衰（主公技+限定技）：先由其他魏势力逐个支援，再收口濒死。
@@ -226,37 +265,6 @@ pub fn enter_dying(g: &mut Game, seat: usize, by: Option<usize>) {
         super::resolve::Stage::DyingAsk,
         serde_json::json!({ "target": seat, "by": by, "idx": 0 }),
     );
-}
-
-/// 不屈：翻一张「创」判定。点数与该座位已有「创」不重复 → 视为「创」移出游戏并回复至 1。
-///
-/// 返回 `true` = 已脱离濒死（不再压濒死帧）。
-fn try_buqu(g: &mut Game, seat: usize) -> bool {
-    let Some(r) = super::judge::judge(g, seat, "不屈") else {
-        return false;
-    };
-    let key = format!("buqu_rank.{seat}.{}", r.rank);
-    if g.counter(&key) > 0 {
-        // 重复：判定牌留在弃牌堆，仍濒死（继续求桃）。
-        return false;
-    }
-    // 不重复：作为「创」移出游戏（不产生弃置事件）。
-    g.cards.insert(r.card.clone(), super::Zone::Void);
-    let mut ev = Event::card(
-        EventKind::CardOutOfGame,
-        Some(seat),
-        r.card.clone(),
-        Some("不屈·创".to_string()),
-    );
-    ev.by = Some(seat);
-    let e = ev.snapshot(g);
-    g.push_event(e);
-    g.bump(&key);
-    g.bump(&format!("buqu_total.{seat}"));
-    if let Some(s) = g.seats.get_mut(seat) {
-        s.hp = 1;
-    }
-    true
 }
 
 /// 回复体力（唯一出口）：钳到 `max_hp`，满血不回（但不报错）。
@@ -496,6 +504,23 @@ pub fn discard(g: &mut Game, by: usize, id: &str, cause: &str) -> Option<Event> 
     Some(ev)
 }
 
+/// **手牌交换（唯一出口）**：双方同时失去并重新获得手牌（缔盟）。
+///
+/// 事件成对：先快照双方手牌，再各自 `gain` 到对方（`gain` 内已 emit `CardLost`+`CardGained`）。
+pub fn swap_hands(g: &mut Game, a: usize, b: usize) {
+    if a == b {
+        return;
+    }
+    let ha = g.hand(a);
+    let hb = g.hand(b);
+    for id in &hb {
+        gain(g, a, id, b, "缔盟");
+    }
+    for id in &ha {
+        gain(g, b, id, a, "缔盟");
+    }
+}
+
 /// 获得（唯一出口）：牌进手牌；事件记「谁失去 → 谁获得」。
 pub fn gain(g: &mut Game, to: usize, id: &str, by: usize, cause: &str) -> Option<Event> {
     let from_zone = g.cards.get(id)?.clone();
@@ -529,6 +554,12 @@ pub fn gain(g: &mut Game, to: usize, id: &str, by: usize, cause: &str) -> Option
 pub fn to_deck_top(g: &mut Game, id: &str) {
     g.cards.insert(id.to_string(), super::Zone::Draw);
     g.deck.push(id.to_string());
+}
+
+/// 置于牌堆底（恂恂）：进 Draw 区并压到牌堆底。
+pub fn to_deck_bottom(g: &mut Game, id: &str) {
+    g.cards.insert(id.to_string(), super::Zone::Draw);
+    g.deck.insert(0, id.to_string());
 }
 
 /// 手牌摸至 n 张（审时「摸至 4 张」）：只摸不弃（超过 n 不处理）。

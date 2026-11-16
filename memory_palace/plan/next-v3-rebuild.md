@@ -34,7 +34,7 @@
 | P6 ✅ | 生命周期 | 开局（发身份/选将/初始手牌 4 张；主公只 +1 体力上限）/ 终局（胜负判定）/ 中断 | 5–8 人局可从开局到终局 |
 
 > **2026-11-15 口径更正（用户裁定）**：P1–P6 只是「基础流程」，**不等于内核完备**；
-> 对照 `align/mechanics.json` 46 条机制词表时仍有 18 条缺口，据此开始武将批次属严重漂移。
+> 对照 `align/mechanics.json` 47 条机制词表时仍有 18 条缺口，据此开始武将批次属严重漂移。
 > 已补全并以门禁固化：`apps/scripts/lib/sgs3-mechanics.mjs` + `docs/games/sanguosha/v3-kernel-audit.md` +
 > `npm run check:sgs3-kernel`（46/46 锚点，缺一条即红）+ `tests/kernel_mechanics.rs`（25 条）。
 > **B0/B1 已写的武将技能必须在「内核完备」后重验，不再按「批次需要时才补机制」推进。**
@@ -152,5 +152,14 @@
 | **B2 收口（8 将 / 15 技能 + 授予 2 + 临时 1）** | ✅ 2026-11-15 | `skills/b2.rs` + `tests/b2.rs`(20)；`Hook::UsePre`/`use_targets`/`revoke` 单出口；破势按原文补齐；`v3-parity-baseline §7.5` |
 | **B1 收口（18 技能）** | ✅ 2026-11-15 | 8 个 handler 重写为真实待办（不再 `cands.first()` 代选）；`tests/b1_real.rs`(7)+`b1_real_more.rs`(9)；`ENABLED_SKILLS` 挂载 18 个 code；`v3-parity-baseline §7.4` |
 | **K 内核机制完备（46 条词表）** | ✅ 2026-11-15 | `v3-kernel-audit.md`（46/46）+ `tests/kernel_mechanics.rs`（25）+ `check:sgs3-kernel` 门禁；补 18 条缺口（pindian / virtual-card / hand-freeze / armor-points / reveal / no-wuxie / target-extra / multi-response / deck-carrier / aoe-target-trim / sha-intercept / judge-reversal / range-override / virtual-equip / equip-move / limit-skill / dying-aftermath / hidden-declaration） |
-| **下一片** | ⬜ | B11–B20（按同一 DoD 推进）；真机抽检 R1–R7 待人工 |
+| **B0–B10 完整度审计（2026-11-16）** | ✅ | 145 技能全部「已注册 ∩ 已收口 ∩ 有断言用例」；修 `gongxin` 未挂载；新增 `check:sgs3-registry`（align ↔ 注册表 ↔ ENABLED ↔ tests/bN） |
+| **B11 收口（界标·魏 8 将 / 14 技能）** | ✅ 2026-11-16 | `skills/b11.rs` + `tests/b11.rs`(26)；**新增机制 `judge-rewrite`**（`kernel/quick_judge.rs`：鬼才改判 → 生效 → 天妒，覆盖延时锦囊/八卦阵/不屈/铁骑/恢拓）；摸牌阶段替代（突袭/裸衣/恂恂）；`relay` 增加 `kind`（护驾代出【闪】）；注册表 167 |
+| **B12 收口（界标·群 4 将 / 8 技能）** | ✅ 2026-11-16 | `skills/b12.rs` + `tests/b12.rs`(17)；急救（濒死转化）/无双（`response_need`）/义从（双向距离）/离间（无懈跳过）；注册表 175 |
+| **B13 口径裁定 + 化身池机制（2026-11-16）** | ✅ | **ADR-0044**（Q1 已注册 / Q2 排除锁定·觉醒·主公·授予技 + 非同场武将/技能 + 不重复化身牌 / Q4 动态池 / Q5 蛊惑可声明无懈且影响链含杀闪桃酒无懈 / Q6 缠怨=所有技能失效·独立闸门）；`init_huashen` 重写 + `skills::{huashen_skills_of,huashen_generals,huashen_choices}` 单出口 + `huashen_set_current`；`tests/kernel_mechanics.rs` 5 条 |
+| **B13 收口（J1 8 将 / 16 技能 + 授予技 荐言/思蜀）** | ✅ 2026-11-16 | 门禁新增 `V3_IN_PROGRESS_BATCHES`（进行中批次允许部分注册，但已注册必须收口+有用例，并输出 ⏳ 计数）；`skills/b13.rs` + `tests/b13.rs`（29）；judge-rewrite 泛化（`Hook::JudgeRewrite`）/ `on_judge_effective` / 蛊惑 5 窗口 / 缠怨闸门（Q6）/ 化身池 Q7–Q9；注册表 193 |
+| **B14 收口（J2 8 将 / 20 技能）** | ✅ 2026-11-16 | `skills/b14.rs` + `tests/b14.rs`（19）；K1'（虚拟红桃 + `check:sgs3-suit`）/K2 藏拙计数出口/K3 看破无懈不可响应/K4 重铸算使用；注册表 212 |
+| **B15 收口（J3 8 将 / 19 技能 + 授予技 急袭）** | ✅ 2026-11-16 | 已收口 肉林/崩坏/酒池/暴虐/挑衅/志继（`tests/b15.rs` 7 条）；`skills/b15.rs`（19 技能）+ `tests/b15.rs`（22）；K5–K12 内核前置先落（§7.23）；注册表 232 |
+| **B15 内核前置 K5–K12 落地（2026-11-16）** | ✅ | `v3-parity-baseline §7.23`：AOE 目标排除（顺带修既有缺陷）/ `on_card_finished` / 实例级目标拒绝（帷幕）/ 回合内全防伤+摸2×/ 完杀求桃限制+濒死期失效闸门 / 任意区域移牌 / `flow::swap_hands` / 拼点随机牌 / 屯田距离 / 天义限制与加成；全量回归绿 |
+| **B15 开工前置（2026-11-16）** | 🟡 | 8 项内核前置已登记 `v3-parity-baseline §7.21`（K5 AOE 目标排除/K6 回合内伤害防止+摸/K7 濒死可用者过滤+完杀闸门/K8 阶段跳过+任意区域移牌/K9 回礼者跨回合/K10 手牌交换/K11 乱武强制序列/K12 屯田·酣战·长标组合） |
+| **下一片** | ⬜ | B16（J4：8 将 / 14 技能）→ B17–B20；真机抽检 R1–R7 待人工 |
 | B2–B20 批量迁移 | ⬜ | — |

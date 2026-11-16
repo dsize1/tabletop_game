@@ -401,7 +401,7 @@ fn can_qinwang(g: &Game, seat: usize) -> bool {
     if own_cards(g, seat).is_empty() {
         return false;
     }
-    if relay::order(g, seat, &g.seats[seat].kingdom).is_empty() {
+    if relay::order(g, seat, &g.seats[seat].kingdom, super::super::cards::ResponseKind::Sha).is_empty() {
         return false;
     }
     let Some(sha) = cards::def("sha") else {
@@ -464,6 +464,7 @@ fn qinwang(g: &mut Game, ask: &Ask) -> Result<Step, String> {
                     actor,
                     relay::RelayOpts {
                         kingdom,
+                        kind: super::super::cards::ResponseKind::Sha,
                         for_use: true,
                         cause: "勤王",
                     },

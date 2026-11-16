@@ -1,6 +1,6 @@
 // V3 内核机制支持矩阵（单一事实源）。
 //
-// 口径：`docs/games/sanguosha/align/mechanics.json` 的 46 条机制词表 = 内核完备的判据。
+// 口径：`docs/games/sanguosha/align/mechanics.json` 的 47 条机制词表 = 内核完备的判据。
 // 每条机制必须给出：
 //   - `impl`  ：内核实现锚点（相对 `crates/engines/sanguosha3/src`，形如 `kernel/flow.rs::damage`
 //               或 `kernel/mod.rs::Zone`，符号可是 fn/struct/enum/const/type）；
@@ -215,7 +215,9 @@ export const MECHANICS = {
   },
   "general-pool": {
     impl: ["generals_generated.rs::GENERALS", "kernel/mod.rs::Game::init_huashen"],
-    tests: ["tests/kernel_mechanics.rs::huashen_pool_only_has_generals_with_registered_skills"],
+    tests: ["tests/kernel_mechanics.rs::huashen_pool_only_has_generals_with_grantable_skills",
+      "tests/kernel_mechanics.rs::huashen_skills_exclude_locked_awaken_lord_and_grant_only",
+      "tests/kernel_mechanics.rs::huashen_pool_excludes_self_and_generals_on_field"],
     note: "池只含「至少一个已注册技能」的 Live 武将；随机走 rand_below；性别/势力覆盖跟随展示化身。",
   },
   "hidden-declaration": {
@@ -245,8 +247,25 @@ export const MECHANICS = {
     ],
     note: "成为【杀】目标后、响应窗口之前：Continue/Immune/Unresponsive/Replace。",
   },
+  "judge-rewrite": {
+    impl: [
+      "kernel/quick_judge.rs::start",
+      "kernel/quick_judge.rs::step",
+      "kernel/mod.rs::Game::judge_rewrite",
+      "kernel/skills.rs::judge_rewrite_holders",
+      "kernel/skills.rs::judge_rewrite_cards_for",
+      "kernel/skills.rs::on_judge_effective",
+    ],
+    tests: [
+      "tests/b11.rs::guicai_rewrites_judge_card_and_original_goes_to_discard",
+      "tests/b11.rs::guicai_not_asked_without_cards",
+      "tests/b13.rs::guidao_only_offers_black_cards_and_draws_on_spade_2_to_9",
+      "tests/b13.rs::guidao_on_own_judge_then_fires_leiji_after_effective",
+    ],
+    note: "亮牌 → 改判链（按 Hook::JudgeRewrite 的技能声明询问，判定者最后；鬼才=任意牌/鬼道=黑色牌）→ 生效 → 天妒 → 生效后钩子（雷击）→ 落盘；结果经 Game.judge_result 交给发起方，续接技能另收注入的 suit/rank。",
+  },
   "judge-reversal": {
-    impl: ["kernel/mod.rs::Game::reverse_judge", "kernel/turn.rs::judge_phase"],
+    impl: ["kernel/mod.rs::Game::reverse_judge", "kernel/turn.rs::step_judge_zone"],
     tests: ["tests/kernel_mechanics.rs::judge_reversal_flips_indulgence_branch_only"],
     note: "按角色绑定的判定效果反转：只改分支不改牌面花色；可视图（judge_reverse）。",
   },

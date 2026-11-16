@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// V3 内核机制门禁：`align/mechanics.json`（46 条机制词表）↔ 实现锚点 ↔ 用例锚点。
+// V3 内核机制门禁：`align/mechanics.json`（47 条机制词表）↔ 实现锚点 ↔ 用例锚点。
 //
 // 背景（2026-11-15 用户裁定）：「B0 前置项 P1–P6 已完成」被误读为「内核完备」，
 // 实际缺 20 条机制（pindian / hand-freeze / virtual-card / armor-points …）。
@@ -90,7 +90,7 @@ const gaps = rows.filter((r) => r.status !== "✅");
 
 function renderDoc() {
   const lines = [];
-  lines.push("# V3 内核机制完备审计（`align/mechanics.json` 46 条）");
+  lines.push("# V3 内核机制完备审计（`align/mechanics.json` 47 条）");
   lines.push("");
   lines.push("> **生成物，勿手改**：`npm run check:sgs3-kernel -- --write`。");
   lines.push("> 事实源：`apps/scripts/lib/sgs3-mechanics.mjs`（机制 → 实现锚点 + 用例锚点）。");
@@ -99,7 +99,7 @@ function renderDoc() {
   lines.push("## 为什么有这份表（2026-11-15 用户裁定）");
   lines.push("");
   lines.push("`B0 前置项 P1–P6` 只覆盖「回合/事件/交互/卡牌/装备/生命周期」的**基础流程**，");
-  lines.push("不等于「46 条机制词表全部进内核」。上一轮把「P1–P6 完成」当成「内核完备」并开始武将批次，");
+  lines.push("不等于「47 条机制词表全部进内核」。上一轮把「P1–P6 完成」当成「内核完备」并开始武将批次，");
   lines.push("属于**严重漂移**。V3 的口径是：**内核未完备不开始武将批次**；本表就是完备判据。");
   lines.push("");
   lines.push("## 汇总");
