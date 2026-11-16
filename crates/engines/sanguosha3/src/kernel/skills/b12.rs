@@ -7,12 +7,12 @@
 
 use serde_json::json;
 
-use super::super::cards::ResponseKind;
+use super::super::cards::{self, ResponseKind};
 use super::super::event::{EventKind, Subject, Window};
 use super::super::flow;
 use super::super::pending::PendingBuilder;
 use super::super::resolve::{take_answer, Ask, Stage, Step};
-use super::super::{CardId, Game, Phase, Slot, Zone};
+use super::super::{CardId, Game, Phase, Slot, Suit, Zone};
 use super::common::{self, card_label, def_of, own_cards, phase_key, seat_name};
 use super::{Face, Hook, SkillDef, SkillKind, Subscription};
 use crate::kernel::skills;
@@ -286,7 +286,7 @@ fn chuli(g: &mut Game, ask: &Ask) -> Result<Step, String> {
                 if !is_owner_in(g.cards.get(&id), who) {
                     return Err("除疠：该牌不在该角色的手牌/装备区".into());
                 }
-                let spade = g.card_defs.get(&id).map(|c| c.suit == super::super::Suit::Spade).unwrap_or(false);
+                let spade = cards::suit_is(g, &id, Suit::Spade);
                 flow::discard(g, who, &id, "除疠");
                 if spade && !drawers.contains(&who) {
                     drawers.push(who);

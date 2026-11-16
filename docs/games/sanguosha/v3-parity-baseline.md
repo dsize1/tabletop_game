@@ -629,14 +629,14 @@ M6 落地后把上表扩展为全 18 技能脚本对拍。
 
 | 技能 | 收口方式 |
 |---|---|
-| 天义 `tianyi` | `target` →（有酣战则 `hanzhan_pre`）→ 拼点 → `wait`：赢→`tianyi_won`（次数+1/无距离/多一目标，经 `on_use_start` + `sha_extra`）；没赢→`tianyi_lost`（`begin_use` 拒绝使用【杀】，响应打出不受限） |
-| 酣战 `hanzhan` | 拼点前（`hanzhan_pre`→`pindian::start_random`）+ 拼点后（`hanzhan`：获得两张拼点牌中最大点数的**实体【杀】**，同最大由玩家选） |
-| 屯田 `tuotian` | `CardLost(Self)`（回合外）/`CardDiscarded(Self)`（回合内弃【杀】）→ 判定：非红桃 → 判定牌进 `Void`、`tian.<seat>`+1；每田距离 −1 |
-| 凿险 `zaoxian` | `Prepare` 且 `tian>=3` → 上限 −1、授予【急袭】、本回合后额外回合 |
+| 天义 `tianyi` | `target` → 拼点 → `wait`：赢→`tianyi_won`（次数+1/无距离/多一目标，经 `on_use_start` + `sha_extra`）；没赢→`tianyi_lost`（`begin_use` 拒绝使用【杀】，响应打出不受限） |
+| 酣战 `hanzhan` | **独立拼点窗口**：`pindian::start` 压入前置询问（`skills::fire_pindian_pre` → 令对手随机手牌拼点，内核按 `pindian.random.<seat>` 代抽）；`pindian_after` 压入后置询问（获得点数最大的**实体【杀】**，同最大由持有者选） |
+| 屯田 `tuotian` | `CardLost(Self)`（回合外）/`CardDiscarded(Self)`（回合内弃【杀】）→ 判定：非红桃 → 判定牌 `flow::store_on_general(…, "tian")`（视为武将牌上的牌）；每田距离 −1 |
+| 凿险 `zaoxian` | `Prepare` 且「田」≥3 → 上限 −1、授予【急袭】、本回合后额外回合 |
 | 急袭 `jixi`（授予） | 出牌阶段限一次：消耗 1 枚「田」→ 视为使用【顺手牵羊】（田以计数表示，见边界） |
 | 巨象 `juxiang` | 锁定：AOE 目标排除 + 结算结束后获得他人使用的【南蛮】（`aoe_excluded` / `on_card_finished`） |
 | 烈刃 `liereng` | 自己【杀】造成伤害后（目标存活）→ 拼点；赢则随机获得其手牌/装备一张 |
-| 长标 `changbiao` | 多选手牌 → `use_as(sha)` 无距离 → 比较目标体力判定命中 → **出牌阶段结束**摸 X（X=牌数）；本阶段限一次 |
+| 长标 `changbiao` | 多选手牌 → `use_as(sha, [], …)`（目标交给内核单出口）+ `declare_no_distance` → `DamageAfter` 记命中 → **结束阶段（弃牌之后）**摸 X（X=牌数）；本阶段限一次；多张承载 = 无属性（比较判否） |
 | 帷幕 `weimu` | 锁定：黑色锦囊不能指定（实例级）+ 自己回合内伤害**全部**防止并摸 2×点数 |
 | 乱武 `luanwu` | 限定技：按座位序逐个其他角色二选一（对距离最小者使用【杀】/失去 1 体力）；完毕后可视为使用无距离【杀】（不计次数） |
 | 完杀 `wansha` | 锁定：贾诩回合内只有贾诩与濒死者可用【桃】；濒死结算中其他角色非锁定技失效 |
@@ -646,7 +646,7 @@ M6 落地后把上表扩展为全 18 技能脚本对拍。
 
 **表示性边界（登记）**：
 - 「田」以**计数**表示（判定牌进 `Void`），急袭消耗 1 枚；【顺手牵羊】不读牌面，行为等价；
-- 长标的「多张转化无花色无点数」在 `Card.suit: Suit` 下无法表示 → 取占位值（本回合不可观测），行为等价；
+- 长标的「多张转化无花色无点数」已由 `Suit::None` + `cards::attrs` 表达（2026-11-16 裁定：无属性牌一切比较判否）；
 - 酣战目前接在**天义**的拼点流程（太史慈唯一的拼点来源）；若将来出现其它让其发起拼点的技能，需再接 `pindian` 前置钩子。
 
 **用例**：`tests/b15.rs` **22 条**（19 技能各含正/反例 + 授予技 急袭 + 巧变两条）。
@@ -680,14 +680,14 @@ M6 落地后把上表扩展为全 18 技能脚本对拍。
 
 | 技能 | 交互步骤（handler 状态机） | 已就绪的内核 |
 |---|---|---|
-| 天义 `tianyi` | `target`（选拼点对象）→（有酣战则 `hanzhan_pre`：是否令对方随机）→ 拼点 → `wait`：赢→`turn.<seat>.tianyi_won`；没赢→`tianyi_lost` → `hanzhan`（获得最大点数实体【杀】） | `pindian::{start,start_random}` / `sha_extra` / `sha_use_blocked` / `on_use_start`（无距离 + 多目标） |
-| 酣战 `hanzhan` | 无独立入口：作为天义 `hanzhan_pre` + `hanzhan` 两段（若将来出现其它拼点来源，再接 `pindian` 前置钩子） | 同上 |
-| 屯田 `tuotian` | 订阅 `CardLost(Self)`（回合外）/`CardDiscarded(Self)`（回合内弃【杀】）→ 询问 → `quick_judge` 续接 `result`：非红桃 → `tian.<seat>`+1，判定牌进 `Void` | `quick_judge` / `distance_bonus`（每田 −1） |
+| 天义 `tianyi` | `target`（选拼点对象）→ 拼点 → `wait`：赢→`turn.<seat>.tianyi_won`；没赢→`tianyi_lost` | `pindian::start` / `sha_extra` / `sha_use_blocked` / `on_use_start`（无距离 + 多目标） |
+| 酣战 `hanzhan` | **独立窗口**：`fire_pindian_pre`（`pre`：是否令对手随机手牌拼点）+ `pindian_after`（`after`：获得最大点数实体【杀】） | `pindian::{start,start_random}` / `pindian.random.<seat>` 代抽 / `flow::gain` |
+| 屯田 `tuotian` | 订阅 `CardLost(Self)`（回合外）/`CardDiscarded(Self)`（回合内弃【杀】）→ 询问 → `quick_judge` 续接 `result`：非红桃 → 判定牌置于武将牌上（`Zone::Mark "tian"`） | `quick_judge` / `distance_bonus`（每田 −1） / `flow::store_on_general` |
 | 凿险 `zaoxian` | `Prepare` 且 `tian>=3` → 上限 −1、授予 `jixi`、`turn::extra_turn(owner)` | `extra_turn` |
 | 急袭 `jixi`（授予） | 出牌阶段限一次：消耗 1 枚「田」→ `use_virtual(顺手牵羊, [目标])`。**田以计数表示**（判定牌在 Void）；因【顺手】不读牌面，行为等价（登记为表示性口径） | `use_virtual` |
 | 巨象 `juxiang` | 无 handler：仅声明锁定技 | `aoe_excluded`（目标排除）/`on_card_finished`（结算后获得）——**已接线** |
 | 烈刃 `liereng` | `DamageAfter(By)` 首帧校验目标存活 → 询问 → 拼点 → `wait`：赢则随机获得其手牌/装备一张 | `pindian::start` |
-| 长标 `changbiao` | `pick`（多选手牌，`confirm` 收口）→ `target` → `use_as(sha, picked, [t])` + 无距离 → `wait`（比较目标体力判定是否造成伤害）→ 出牌阶段结束 `PhaseStart(End)` 若命中则摸 X（X = 牌数） | `use_as` / `declare_no_distance`。**多张转化「无花色无点数」**在现有 `Card.suit: Suit` 下无法表示 → 用占位值（本回合不可观测），登记为表示性边界 |
+| 长标 `changbiao` | `pick`（多选手牌，`confirm`）→ `use_as(sha, picked, &[])` + `declare_no_distance` → 内核 `step_target`（`legal_targets_with` + `target_bounds`，方天画戟多目标）→ `DamageAfter` 记命中 → **结束阶段（弃牌之后）**摸 X | `use_as` / `declare_no_distance` / `cards::attrs`（无属性）/ `on_use_cancelled`（取消回退） |
 | 帷幕 `weimu` | 无 handler：仅声明锁定技 | `deny_target_instance`（黑锦囊目标）+ `try_full_prevent`（自己回合内全防伤并摸 2×）——**已接线** |
 | 乱武 `luanwu` | `ask` → `seat`：按座位序逐个其他角色询问（`sha` 需手牌有【杀】且存在距离最小者 / `lose_hp`）→ `sha_target`（并列最小由该角色选）→ 全部完毕后 `final`：可选视为使用无距离【杀】（`declare_sha_not_counted`） | 无需新内核（技能帧 `Step::Next` 迭代） |
 | 完杀 `wansha` | 无 handler：仅声明锁定技 | `dying_allow_tao` + `suppressed_in_dying`（`active` 闸门）——**已接线** |
@@ -725,8 +725,9 @@ M6 落地后把上表扩展为全 18 技能脚本对拍。
 - **限定技门禁只在首帧**校验（标记置位后会挡住自己）；
 - 大段代码**必须用 `write` 工具**落盘再拼接（heredoc 超长会 `spawn ENAMETOOLONG` 且静默不写入）。
 
-**已知/表示性边界**（勿当缺陷修）：田=计数（急袭消耗 1）、长标多张转化无花色（占位值）、
-酣战接在天义流程、蛊惑不可被无懈响应自身、红颜仅 4 个出口。
+**已知/表示性边界**（勿当缺陷修）：
+蛊惑不可被无懈响应自身、红颜仅 4 个出口（align 口径即为 4 处）。
+> 2026-11-16 第二轮：**酣战已改为独立拼点窗口**（任意拼点来源），屯田「田」改为武将牌上的实体牌（可被急袭当承载牌）。
 
 ### 7.26 B16–B20 内核前置第一批（K13/K14/K16/K23，2026-11-16）
 
@@ -953,3 +954,64 @@ B17 所需 K20（目标/响应限制）与 K21/K22 在 **B17 开工前**落地�
 | 私密观看（强识/眩惑） | `Game.private_reveals` + `reveal_private/clear_private_reveals` + `player_view.private_reveals` | `tests/b17.rs` / `tests/b20.rs` 回归（视图字段） |
 
 **口径**：机制先以单一出口 + 数据/视图字段落地；技能只消费，不在 `card_play`/`view` 里写技能名。
+
+### 7.35 B0–B20 规范回归审计与整改（2026-11-16，用户裁定「不得把缺省写成边界」）
+
+> 触发：B16–B20 收口后复查发现「边界登记」替代了机制/交互实现。本轮把审计范围扩到 **B0–B20**，
+> 先补机制（单一出口 / 作用域 / 视图投影），再把 align 明确要求「询问·自选」的自动结算改回 `pending`。
+
+**机制整改（内核，全部带用例/门禁）**
+
+| # | 问题（此前状态） | 整改 |
+|---|---|---|
+| M1 | `Game.marks` 只在 `abort` 清理 → `turn./phase.` 标记跨回合泄漏（双雄颜色、弓骑花色、潜袭牌、渐营花色、强识类别…） | 新增 `Game::clear_marks(prefix)`；`turn::begin_turn`/阶段切换/轮次递增与 `clear_counters` 成对调用；门禁 C7 |
+| M2 | `VISIBLE_COUNTER_MARKS` 留空 → 辎/护/巧/矫诏修改全不可见 | 填表 + 投影 `qiao`/`hu`；`截辎`/`殚心` 的计数器进白名单 |
+| M3 | 「两张手牌当【杀】」双通道（丈八 `play.zb` + 父魂 `play.pair`），且父魂走 `use_as` 绕过【杀】次数/禁用；`escape` 无效；内核出现技能中文名 | 单入口 `card_play::begin_use_pair`（冻结/花色封锁/【杀】次数/禁用统一校验）；中间态改 `Game.pair_pick`（类型字段，非 marks 状态机）；出口真实生效；文案去技能名；门禁 C3b |
+| M4 | `use_as` / `played` / `recast_any` 漏掉 `hand_color_blocked`（潜袭）→ legal ≠ execute | 三个入口补齐；`alias:` 选项也按冻结/封锁/【杀】次数过滤 |
+| M5 | 技能层直写牌区：醇醪 `Zone::Mark`（一条路径无事件）、窃听 `Zone::Equip`、当先 `deck.retain`、称象 `deck.pop` | 新增单出口 `flow::store_on_general` / `reveal_top` / `gain_from_deck`；窃听/结姻改 `gear::place_from_hand`·`move_equip`；门禁 C5 |
+| M6 | 矫诏牌名硬编码且 `huogong` ≠ 数据 `huo_gong`（【火攻】静默不可声明）；渐营硬编码基本牌表 | 改由 `cards::all_defs()` 派生（基本牌排除【闪】+ 普通锦囊）；`cards::all_defs()` 为唯一数据源 |
+| M7 | `let _ = use_virtual/use_as/place_from_hand(…)` 吞错（失败静默） | 全部改 `?` 冒泡；门禁 C6 |
+
+**交互整改（align 权威口径：把「可以/自选」还原为 `pending`）**
+
+| 批次 | 技能 | align 依据 |
+|---|---|---|
+| B16 | 庸肆（弃哪 X 张）、进趋（弃至 X） | B1 Q1/Q2、B1 Q1 |
+| B1/B4/B5 | 品第（目标自选弃 X）、倾袭（目标自选弃 X） | B4 Q1=A、B5 Q1=A |
+| B11 | 突袭（手牌随机，不再取第一张） | B11 Q2=A |
+| B17 | 巧说（±1 改由 `Hook::UsePre` 询问；没赢后不再进合法集） | B17 Q3=A / Q5=A |
+| B18 | 当先（获得【杀】改为询问） | B18 Q1=A |
+| B19 | 焚城（逐张自选 ≥last+1）、灭计（锦囊/两张自选）、弓骑（随机手牌/装备具体）、精策（阶段结束询问）、殚心（「可以」询问）、渐营（同花色询问） | B19 Q2/Q1/Q4/Q1/Q1/Q1 |
+| B20 | 强识（同类牌询问）、镇军（自己弃哪些）、安恤（各自选一张 + 平局选择） | B20 Q2/Q2/Q1+Q3 |
+
+**门禁新增（`check:sgs3-conventions`）**：C3b 内核中文技能名、C5 技能层直写装备区、C6 视为使用吞错、
+C7 `turn./phase./round.` 标记缺少 `clear_marks`；`check:sgs3-kernel` 仍负责 47 条机制锚点。
+
+**第二轮（同日，用户裁定「剩余欠账本轮清零，且不得新增技能」）**
+
+| 类别 | 整改 |
+|---|---|
+| 牌区直写（全部 skills） | 新增 `flow::to_processing` / `take_from_deck` / `reveal_from_deck` / `exile`；不屈·创、谦逊移出/归还、屯田·田、箜声、问卦、观星、督粮、涯角、辟撰、通博、鬼才/鬼道、荐言、裸衣/恂恂 全部改走单出口；skills 层 `cards.insert(Zone::*)` 与 `deck.*` 直接操作**归零**（门禁 C5 无白名单） |
+| 交互（align 复核后仍缺的） | 忠勇（`zais_sha`：接收者「可以」使用【杀】+ 自选周仓攻击范围内目标）；其余（享乐/谦逊/烈弓/雷击/新生/止戈/趫猛/闭月/秉壹/陷嗣/诫训/突袭）复核为已询问，记入本表避免重复登记 |
+| B16–B20 复核 | 截辎（对象固定为「跳过摸牌阶段者」，不再任选）、旋风（装备区随机，不取第一张）、醇醪（濒死按置入顺序移去前 X 张，B17 Q5=B；新增 `chunlao.<seq>` 牌级标记）、献图（记录发动者，多人同将不串位）、伤逝（去掉「每回合一次」，每次跌破 X 都询问）、酒诗（回合外累计落英 ≥ 体力上限 → 询问翻回，B18 Q4=A） |
+
+**当前状态**：§7.35 两类欠账（机制/交互）**本轮清零**；新增「不得把缺省写成边界」的硬性 DoD（`batch-playbook §6.1`）与门禁 C1–C7。
+
+### 7.36 长标与「虚拟牌无属性」（2026-11-16 用户裁定，✅ 已实施）
+
+**裁定（原文 vs 实现差异的最终口径）**
+
+1. **无属性牌**：虚拟牌中 **0 张承载**（纯视为使用）或 **≥2 张承载**（长标/丈八）→ 无花色/点数；
+   **恰 1 张承载**（武圣/龙胆/禁酒 K 点杀/蛊惑单张）→ 继承承载牌的实体属性。
+   表示法：`Suit::None` + 点数 0（`Card` 层），公共读取 `cards::attrs/is_red/is_black/rank_of/suit_of/suit_is/same_color/same_rank`。
+   单张承载**读实例属性**（创建时已套用覆盖）：红颜「黑桃→红桃」、禁酒「【酒】视为 K 点」在比较里照常生效。
+   **一切比较判否**：颜色/花色判定恒 false（仁王盾「黑色【杀】无效」→ 无属性【杀】**有效**）、点数比较 0/不相等（拼点判负、烈弓范围 0）。
+   禁止 `!x.is_red()` 表达「黑色」（会把无属性当黑色，门禁 C8）。
+2. **长标摸牌时机**：**弃牌阶段之后的结束阶段**（`PhaseStart(End)`），不是出牌阶段结束——否则摸到的牌会被弃牌阶段的手牌上限弃掉。
+3. **命中判定**：`DamageAfter` 伤害事件（护甲吸收后事件仍成立 → 仍算命中）；多目标多次伤害**只摸一次**，X=承载牌数。
+4. **目标选择**：走内核单出口 `legal_targets_with` + `target_bounds`（陷阵没赢 / 惴恐 / 帷幕等过滤；方天画戟「最后的手牌」→ 最多 3 名目标）；无距离通过 `declare_no_distance`（只免距离）。
+5. **承载牌候选**：与 `usable_hand` 同口径过滤（冻结 / 讥谀花色封锁 / 潜袭颜色封锁）。
+6. **取消回退**：目标阶段 `cancel` → 承载牌回手、本阶段限一次与 X/hit 全部回退（`skills::on_use_cancelled`）。
+
+**门禁新增**：C8 禁止 `!…is_red()`；C9 禁止 `x.suit == Suit::…`（用 `cards::suit_is`）；
+`check:sgs3-conventions` 已覆盖 skills 全量。

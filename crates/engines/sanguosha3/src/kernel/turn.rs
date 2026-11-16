@@ -93,7 +93,10 @@ pub fn start(g: &mut Game) -> Result<(), String> {
     if g.stack.iter().any(is_turn_frame) {
         return Err("对局已开始（回合帧已在栈上）".into());
     }
-    let first = g.current_lord().or_else(|| g.alive_seats().first().copied()).unwrap_or(0);
+    let first = g
+        .current_lord()
+        .or_else(|| g.alive_seats().first().copied())
+        .unwrap_or(0);
     g.pending = None;
     g.answer = None;
     g.answer_skill = None;
@@ -144,8 +147,11 @@ pub fn begin_turn(g: &mut Game, seat: usize) {
     g.phase = Phase::Prepare;
     g.sha_bonus = 0;
     g.skipped.clear();
+    g.pair_pick = None;
     g.clear_counters("turn.");
     g.clear_counters("phase.");
+    g.clear_marks("turn.");
+    g.clear_marks("phase.");
     Event::simple(EventKind::TurnStart, Some(seat), None).emit(g);
     // 回合开始钩子（绝响保护到期）。
     super::skills::on_turn_start(g, seat);
@@ -183,6 +189,7 @@ pub fn end_turn(g: &mut Game) -> Option<usize> {
             g.round += 1;
             // K21：本轮级计数随轮次清空（矫诏/解烦/樵拾/醇醪）。
             g.clear_counters("round.");
+            g.clear_marks("round.");
         }
         cursor = next;
         if g.seats[next].flipped {
@@ -206,15 +213,28 @@ pub fn next_living(g: &Game, from: usize) -> Option<usize> {
 
 /// 回合流程帧 handler（`FlowKind::Turn`）。
 pub fn step_turn(g: &mut Game, data: &Value) -> Result<Step, String> {
-    let Some(seat) = data.get("seat").and_then(|v| v.as_u64()).map(|v| v as usize) else {
+    let Some(seat) = data
+        .get("seat")
+        .and_then(|v| v.as_u64())
+        .map(|v| v as usize)
+    else {
         return Ok(Step::Done);
     };
-    let pi = data.get("pi").and_then(|v| v.as_u64()).unwrap_or(PHASES.len() as u64) as usize;
-    let entered = data.get("entered").and_then(|v| v.as_bool()).unwrap_or(false);
+    let pi = data
+        .get("pi")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(PHASES.len() as u64) as usize;
+    let entered = data
+        .get("entered")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
     // 阶段自动动作是否已执行：`entered=false` 只发 PhaseStart，让阶段开始类技能**先询问**，
     // 询问结算完再执行自动动作（否则整论来不及跳过摸牌、遗礼来不及在出牌阶段开始前结算）。
     // 未显式声明 `auto` 时：已进入阶段即视为自动动作已执行（防旧帧数据丢字段导致重复结算）。
-    let auto_done = data.get("auto").and_then(|v| v.as_bool()).unwrap_or(entered);
+    let auto_done = data
+        .get("auto")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(entered);
     if g.winner.is_some() {
         return Ok(Step::Done);
     }
@@ -256,7 +276,11 @@ pub fn step_turn(g: &mut Game, data: &Value) -> Result<Step, String> {
     }
     let phase = PHASES[pi];
     // 判定阶段刚结算完（`JudgeZone` 子帧已弹）：发 PhaseEnd，推进到下一阶段。
-    if data.get("judging").and_then(|v| v.as_bool()).unwrap_or(false) {
+    if data
+        .get("judging")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+    {
         return finish_phase(g, seat, pi);
     }
     if !entered {
@@ -287,6 +311,7 @@ pub fn step_turn(g: &mut Game, data: &Value) -> Result<Step, String> {
         // 阶段级手牌冻结到期（mechanics `hand-freeze`）：阶段切换自动解冻。
         g.unfreeze_phase();
         g.clear_counters("phase.");
+        g.clear_marks("phase.");
         let mut start_ev = Event::simple(EventKind::PhaseStart, Some(seat), None);
         start_ev.turn = g.turn;
         start_ev.phase = phase;
@@ -475,27 +500,40 @@ fn step_play(g: &mut Game, seat: usize, pi: usize) -> Result<Step, String> {
                 json!({ "seat": seat, "pi": pi, "entered": true }),
             ));
         } else if ans == "pair_sha" {
-            g.set_mark("play.pair", "1");
+            // 两张手牌当【杀】（父魂）：选牌中间态走 `Game.pair_pick`（单一类型字段，不用 marks 状态机）。
+            g.pair_pick = Some((seat, None));
             return Ok(Step::Next(
                 Stage::PlayAct,
                 json!({ "seat": seat, "pi": pi, "entered": true }),
             ));
         } else if let Some(id) = ans.strip_prefix("pair1:") {
-            g.set_mark("play.pair", "2");
-            g.set_mark("play.pair.first", id);
+            if g.pair_pick.is_none() {
+                g.pair_pick = Some((seat, None));
+            }
+            g.pair_pick = Some((seat, Some(id.to_string())));
             return Ok(Step::Next(
                 Stage::PlayAct,
                 json!({ "seat": seat, "pi": pi, "entered": true }),
             ));
         } else if let Some(id) = ans.strip_prefix("pair2:") {
-            let first = g.mark("play.pair.first").map(|s| s.to_string()).unwrap_or_default();
-            g.marks.remove("play.pair");
-            g.marks.remove("play.pair.first");
-            super::card_play::use_as(g, seat, "sha", &[first, id.to_string()], &[], false)?;
+            let first = g.pair_pick.take().and_then(|(_, c)| c);
+            let Some(first) = first else {
+                return Err("两张手牌当【杀】：缺少第一张牌".into());
+            };
+            super::card_play::begin_use_pair(g, seat, "sha", &first, id)?;
             return Ok(Step::Next(
                 Stage::PlayAct,
                 json!({ "seat": seat, "pi": pi, "entered": true }),
             ));
+        } else if ans == "pass" || ans == "cancel" {
+            // 出口：清掉「两张手牌当【杀】」中间态（否则取消后会重新弹同一个 pending）。
+            if g.pair_pick.is_some() {
+                g.pair_pick = None;
+                return Ok(Step::Next(
+                    Stage::PlayAct,
+                    json!({ "seat": seat, "pi": pi, "entered": true }),
+                ));
+            }
         } else if let Some(id) = ans.strip_prefix("recast:") {
             super::card_play::recast(g, seat, id)?;
             return Ok(Step::Next(
@@ -522,7 +560,10 @@ fn step_play(g: &mut Game, seat: usize, pi: usize) -> Result<Step, String> {
             if Some(&id) == first.as_ref() {
                 continue;
             }
-            b = b.option(format!("zbc:{id}"), format!("选择【{}】", card_name(g, &id)));
+            b = b.option(
+                format!("zbc:{id}"),
+                format!("选择【{}】", card_name(g, &id)),
+            );
         }
         return Ok(Step::NeedAt(Stage::CardPick, b.escape("取消").build()));
     }
@@ -541,30 +582,45 @@ fn card_name(g: &Game, id: &str) -> String {
 }
 
 fn build_play_pending(g: &Game, seat: usize) -> Option<super::pending::Pending> {
-    // 父魂：两张手牌当【杀】（两步选牌）。
-    if g.mark("play.pair") == Some("1") {
-        let mut b = PendingBuilder::new(seat, "pair_sha_first").skill("flow:play");
-        for id in g.hand(seat) {
-            b = b.option(format!("pair1:{id}"), format!("父魂：选择第一张【{}】", card_name(g, &id)));
-        }
-        return Some(b.escape("取消父魂").build());
-    }
-    if g.mark("play.pair") == Some("2") {
-        let first = g.mark("play.pair.first").map(|s| s.to_string());
-        let mut b = PendingBuilder::new(seat, "pair_sha_second").skill("flow:play");
-        for id in g.hand(seat) {
-            if Some(&id) == first.as_ref() {
-                continue;
+    // 两张手牌当【杀】（父魂）：两步选牌；状态在 `Game.pair_pick`，出口真实生效。
+    if let Some((owner, first)) = g.pair_pick.clone() {
+        if owner == seat {
+            match first {
+                None => {
+                    let mut b = PendingBuilder::new(seat, "pair_sha_first").skill("flow:play");
+                    for id in g.hand(seat) {
+                        b = b.option(
+                            format!("pair1:{id}"),
+                            format!("两张手牌当【杀】：选择第一张【{}】", card_name(g, &id)),
+                        );
+                    }
+                    return Some(b.escape("取消").build());
+                }
+                Some(first) => {
+                    let mut b = PendingBuilder::new(seat, "pair_sha_second").skill("flow:play");
+                    for id in g.hand(seat) {
+                        if id == first {
+                            continue;
+                        }
+                        b = b.option(
+                            format!("pair2:{id}"),
+                            format!("两张手牌当【杀】：选择第二张【{}】", card_name(g, &id)),
+                        );
+                    }
+                    return Some(b.escape("取消").build());
+                }
             }
-            b = b.option(format!("pair2:{id}"), format!("父魂：选择第二张【{}】", card_name(g, &id)));
         }
-        return Some(b.escape("取消父魂").build());
     }
     let mut b = PendingBuilder::new(seat, "play_act").skill("flow:play");
     let mut any = false;
     for id in super::card_play::usable_hand(g, seat) {
-        let Some(c) = g.card_defs.get(&id) else { continue };
-        let Some(def) = cards::def(&c.def) else { continue };
+        let Some(c) = g.card_defs.get(&id) else {
+            continue;
+        };
+        let Some(def) = cards::def(&c.def) else {
+            continue;
+        };
         b = b.option(format!("card:{id}"), format!("使用【{}】", def.name));
         any = true;
         // 朱雀羽扇：普通【杀】可当【火杀】使用（转化牌按生效定义定属性）。
@@ -586,8 +642,21 @@ fn build_play_pending(g: &Game, seat: usize) -> Option<super::pending::Pending> 
         any = true;
     }
     // 转化/替代使用（矢志：体力 1 时【闪】当【杀】；武圣/奇袭/国色…）。
+    // 与 `usable_hand` 同口径：冻结 / 花色封锁 / 【杀】次数与禁用都在此过滤（legal ≡ execute）。
     for id in g.hand(seat) {
+        if g.is_frozen(seat, &id) || super::skills::card_locked(g, seat, &id) {
+            continue;
+        }
+        if super::skills::hand_color_blocked(g, seat, &id) {
+            continue;
+        }
         if let Some(code) = super::skills::use_alias(g, seat, &id) {
+            if cards::def(code).map(|d| d.tags.sha).unwrap_or(false)
+                && (super::card_play::sha_limit_reached(g, seat, Some(&id))
+                    || super::skills::sha_use_blocked(g, seat))
+            {
+                continue;
+            }
             let name = cards::def(code).map(|d| d.name).unwrap_or(code);
             b = b.option(
                 format!("alias:{id}"),
@@ -615,24 +684,36 @@ fn build_play_pending(g: &Game, seat: usize) -> Option<super::pending::Pending> 
             .map(|d| d.tags.lianhuan)
             .unwrap_or(false)
         {
-            b = b.option(format!("recast:{id}"), format!("重铸【{}】", card_name(g, &id)));
+            b = b.option(
+                format!("recast:{id}"),
+                format!("重铸【{}】", card_name(g, &id)),
+            );
         }
     }
     // 通用重铸（K22；将驰/燕语）：手牌/装备区任意牌均可重铸。
     for id in g.hand(seat) {
         if super::skills::recast_allowed(g, seat, &id) {
-            b = b.option(format!("recast:{id}"), format!("重铸【{}】", card_name(g, &id)));
+            b = b.option(
+                format!("recast:{id}"),
+                format!("重铸【{}】", card_name(g, &id)),
+            );
             any = true;
         }
     }
     for id in super::gear::equips_of(g, seat) {
         if super::skills::recast_allowed(g, seat, &id) {
-            b = b.option(format!("recast:{id}"), format!("重铸装备【{}】", card_name(g, &id)));
+            b = b.option(
+                format!("recast:{id}"),
+                format!("重铸装备【{}】", card_name(g, &id)),
+            );
             any = true;
         }
     }
-    if super::skills::pair_sha_available(g, seat) {
-        b = b.option("pair_sha", "父魂：两张手牌当【杀】使用");
+    if super::skills::pair_sha_available(g, seat)
+        && !super::card_play::sha_limit_reached(g, seat, None)
+        && !super::skills::sha_use_blocked(g, seat)
+    {
+        b = b.option("pair_sha", "两张手牌当【杀】使用");
         any = true;
     }
     // 丈八蛇矛：两张手牌当【杀】（装备特效 = 特殊技能注入）。
@@ -669,9 +750,15 @@ fn step_discard(g: &mut Game, seat: usize, pi: usize) -> Result<Step, String> {
     }
     let mut b = PendingBuilder::new(seat, "discard_phase").skill("flow:discard");
     for id in g.hand(seat) {
-        b = b.option(format!("card:{id}"), format!("弃置【{}】", card_name(g, &id)));
+        b = b.option(
+            format!("card:{id}"),
+            format!("弃置【{}】", card_name(g, &id)),
+        );
     }
-    Ok(Step::NeedAt(Stage::DiscardPick, b.escape_mandatory("弃牌").build()))
+    Ok(Step::NeedAt(
+        Stage::DiscardPick,
+        b.escape_mandatory("弃牌").build(),
+    ))
 }
 
 /// 判定阶段入口：压入 `JudgeZone` 流程帧（父回合帧保留，子帧弹回后由 `judging` 标记收尾）。
@@ -695,7 +782,11 @@ pub fn step_judge_zone(g: &mut Game, data: &Value) -> Result<Step, String> {
     }
     let seat = data.get("seat").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
     let mut d = data.clone();
-    if let Some(id) = data.get("card").and_then(|v| v.as_str()).map(str::to_string) {
+    if let Some(id) = data
+        .get("card")
+        .and_then(|v| v.as_str())
+        .map(str::to_string)
+    {
         let result = g.judge_result.take();
         let effect = g
             .card_defs
@@ -736,7 +827,11 @@ pub fn step_judge_zone(g: &mut Game, data: &Value) -> Result<Step, String> {
                     let _ = flow::damage(g, spec, super::gear::armor_of(g, seat), 0);
                 } else if let Some(next) = next_living(g, seat) {
                     // 未生效：移到下家判定区（同名去重；下家已有闪电则弃置）。
-                    let code = g.card_defs.get(&id).map(|c| c.def.clone()).unwrap_or_default();
+                    let code = g
+                        .card_defs
+                        .get(&id)
+                        .map(|c| c.def.clone())
+                        .unwrap_or_default();
                     if !super::card_play::place_delayed(g, next, &id, &code) {
                         super::card_play::to_discard(g, &id);
                     }
@@ -752,11 +847,7 @@ pub fn step_judge_zone(g: &mut Game, data: &Value) -> Result<Step, String> {
         }
         return Ok(Step::Next(Stage::JudgeResolve, d));
     }
-    let Some(id) = g
-        .judge_stacks
-        .get(&seat)
-        .and_then(|s| s.last().cloned())
-    else {
+    let Some(id) = g.judge_stacks.get(&seat).and_then(|s| s.last().cloned()) else {
         return Ok(Step::Done);
     };
     if let Some(stack) = g.judge_stacks.get_mut(&seat) {
@@ -837,9 +928,7 @@ pub fn death_cleanup(g: &mut Game, seat: usize, killer: Option<usize>) -> Vec<Ev
     let mut cards: Vec<String> = g
         .cards
         .iter()
-        .filter(|(_, z)| {
-            z.seat() == Some(seat) && matches!(z, Zone::Hand(_) | Zone::Equip(..))
-        })
+        .filter(|(_, z)| z.seat() == Some(seat) && matches!(z, Zone::Hand(_) | Zone::Equip(..)))
         .map(|(id, _)| id.clone())
         .collect();
     cards.sort();
@@ -872,7 +961,9 @@ pub fn death_cleanup(g: &mut Game, seat: usize, killer: Option<usize>) -> Vec<Ev
         events.push(ev.snapshot(g).emit(g));
     }
     // 奖惩：只在击杀者存活且不是自己时结算。
-    if let Some(k) = killer.filter(|&k| k != seat && g.seats.get(k).map(|s| s.alive).unwrap_or(false)) {
+    if let Some(k) =
+        killer.filter(|&k| k != seat && g.seats.get(k).map(|s| s.alive).unwrap_or(false))
+    {
         match victim_identity {
             // 杀死反贼：摸 3 张。
             Some(Identity::Rebel) => {

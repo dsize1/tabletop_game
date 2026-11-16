@@ -97,6 +97,22 @@ pub fn start_with_forced(
             "cause": cause,
         }),
     );
+    // 拼点前窗口：由技能注册表决定谁要询问（内核不出现技能名；询问压在拼点帧之上 → 先结算）。
+    super::skills::fire_pindian_pre(g, initiator, target);
+}
+
+/// 酣战：某方被指定为「随机手牌拼点」时，由内核替他随机取一张（不询问）。
+fn forced_random_pick(g: &mut Game, seat: usize) -> Option<CardId> {
+    if g.counter(&format!("pindian.random.{seat}")) <= 0 {
+        return None;
+    }
+    g.set_counter(&format!("pindian.random.{seat}"), 0);
+    let n = g.hand(seat).len();
+    if n == 0 {
+        return None;
+    }
+    let idx = g.rand_below(n);
+    g.hand(seat).get(idx).cloned()
 }
 
 fn seat_of(data: &serde_json::Value, key: &str) -> usize {
@@ -138,6 +154,11 @@ pub fn step_pindian(g: &mut Game, data: &serde_json::Value) -> Result<Step, Stri
     match step {
         "init" => {
             if a.is_none() {
+                if let Some(id) = forced_random_pick(g, initiator) {
+                    next["a"] = json!(id);
+                    next["step"] = json!("resp");
+                    return Ok(Step::Next(Stage::PindianResp, next));
+                }
                 if let Some(ans) = super::resolve::take_answer(g, "pindian") {
                     let id = ans
                         .strip_prefix("choose:")
@@ -183,6 +204,11 @@ pub fn step_pindian(g: &mut Game, data: &serde_json::Value) -> Result<Step, Stri
         }
         "resp" => {
             if b.is_none() {
+                if let Some(id) = forced_random_pick(g, target) {
+                    next["b"] = json!(id);
+                    next["step"] = json!("reveal");
+                    return Ok(Step::Next(Stage::PindianReveal, next));
+                }
                 if let Some(ans) = super::resolve::take_answer(g, "pindian") {
                     let id = ans
                         .strip_prefix("choose:")

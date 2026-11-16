@@ -82,7 +82,10 @@ pub enum Effect {
 impl Effect {
     /// 延时锦囊（进判定区，判定阶段按 LIFO 结算）。
     pub fn is_delayed(self) -> bool {
-        matches!(self, Effect::Indulgence | Effect::SupplyShortage | Effect::Lightning)
+        matches!(
+            self,
+            Effect::Indulgence | Effect::SupplyShortage | Effect::Lightning
+        )
     }
 
     /// 需要「无懈可击」窗口的效果（非延时锦囊的锦囊效果；延时锦囊在放置时也要无懈）。
@@ -133,6 +136,105 @@ pub enum ResponseKind {
 /// 牌定义查表（生成物 `cards_generated::DEFS`；内核不按牌名字面量判定，按 code 查表）。
 pub fn def(code: &str) -> Option<&'static CardDef> {
     crate::cards_generated::DEFS.iter().find(|d| d.code == code)
+}
+
+/// 卡牌属性（比较语义的唯一入口）：`None` = 该牌**没有**花色/点数。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Attrs {
+    pub suit: Option<Suit>,
+    pub rank: Option<u8>,
+}
+
+/// **卡牌属性读取（比较语义单入口）**。
+///
+/// 口径（2026-11-16 用户裁定）：
+/// - 实体牌 → 实体花色/点数；
+/// - **虚拟牌**（`Game.virtual_ids`）：0 张承载（纯视为使用）或 ≥2 张承载（长标/丈八）→ **无属性**；
+///   恰好 1 张承载（武圣/龙胆/禁酒 K 点杀/蛊惑单张）→ 继承该承载牌。
+///
+/// 无属性牌在**一切比较**中判否：颜色/花色判定恒 false（仁王盾「黑色【杀】无效」→ 无属性杀**有效**），
+/// 点数比较恒 0 / 不相等。
+pub fn attrs(g: &super::Game, id: &str) -> Attrs {
+    if g.virtual_ids.contains(id) {
+        let carriers = g.virtual_origins.get(id).map(|o| o.len()).unwrap_or(0);
+        if carriers == 1 {
+            // 单张承载：**读实例属性**（创建时已套用花色/点数覆盖：
+            // 红颜「黑桃→红桃」、禁酒「【酒】视为 K 点」），不要回头读承载牌原始值。
+            return match g.card_defs.get(id) {
+                Some(c) => Attrs {
+                    suit: Some(c.suit),
+                    rank: Some(c.rank),
+                },
+                None => Attrs::default(),
+            };
+        }
+        // 0 张（纯视为使用）/ ≥2 张（长标、丈八）→ 无属性。
+        return Attrs::default();
+    }
+    match g.card_defs.get(id) {
+        Some(c) => Attrs {
+            suit: Some(c.suit),
+            rank: Some(c.rank),
+        },
+        None => Attrs::default(),
+    }
+}
+
+/// 是否为红色（无属性 → false）。
+pub fn is_red(g: &super::Game, id: &str) -> bool {
+    attrs(g, id).suit.map(|s| s.is_red()).unwrap_or(false)
+}
+
+/// 是否为黑色（无属性 → false；**不是** `!is_red`）。
+pub fn is_black(g: &super::Game, id: &str) -> bool {
+    attrs(g, id).suit.map(|s| s.is_black()).unwrap_or(false)
+}
+
+/// 点数（无属性 → None；比较方按 0 / 不相等处理）。
+pub fn rank_of(g: &super::Game, id: &str) -> Option<u8> {
+    attrs(g, id).rank
+}
+
+/// 花色（无属性 → None）。
+pub fn suit_of(g: &super::Game, id: &str) -> Option<Suit> {
+    attrs(g, id).suit
+}
+
+/// 花色是否等于指定值（无属性 → false）。
+pub fn suit_is(g: &super::Game, id: &str, suit: Suit) -> bool {
+    attrs(g, id).suit == Some(suit)
+}
+
+/// 两张牌是否同色（任一无属性 → false，不是「都非红」）。
+pub fn same_color(g: &super::Game, a: &str, b: &str) -> bool {
+    match (attrs(g, a).suit, attrs(g, b).suit) {
+        (Some(x), Some(y)) => x.is_red() == y.is_red(),
+        _ => false,
+    }
+}
+
+/// 两张牌是否同花色（任一无属性 → false）。
+pub fn same_suit(g: &super::Game, a: &str, b: &str) -> bool {
+    match (attrs(g, a).suit, attrs(g, b).suit) {
+        (Some(x), Some(y)) => x == y,
+        _ => false,
+    }
+}
+
+/// 两张牌点数是否相同（任一无属性 → false；点数比较判否）。
+pub fn same_rank(g: &super::Game, a: &str, b: &str) -> bool {
+    match (attrs(g, a).rank, attrs(g, b).rank) {
+        (Some(x), Some(y)) => x == y,
+        _ => false,
+    }
+}
+
+/// 全量牌定义（**技能枚举「可选牌名」的唯一数据源**）。
+///
+/// 教训（2026-11-16 审计）：矫诏把 17 个牌 code 硬编码在技能里，
+/// 其中 `huogong` 与数据里的 `huo_gong` 不一致 → 【火攻】静默不可声明。
+pub fn all_defs() -> &'static [CardDef] {
+    crate::cards_generated::DEFS
 }
 
 /// 牌名（中文）→ 定义 code（生成物唯一来源；中台同步/回放对拍用）。

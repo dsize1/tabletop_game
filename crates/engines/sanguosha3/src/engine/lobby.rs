@@ -770,5 +770,6 @@ pub fn suit_key(suit: Suit) -> &'static str {
         Suit::Heart => "heart",
         Suit::Club => "club",
         Suit::Diamond => "diamond",
+        Suit::None => "none",
     }
 }

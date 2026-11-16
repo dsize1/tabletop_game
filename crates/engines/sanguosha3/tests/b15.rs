@@ -305,14 +305,34 @@ fn hanzhan_makes_target_use_random_card() {
     mk(&mut g, "b1", "tao", Suit::Heart, 2, Zone::Hand(1));
     use_active(&mut g, 0, "tianyi");
     submit(&mut g, "t:1");
-    submit(&mut g, "hanzhan");
+    // 酣战·拼点前：由参与者决定是否令对手随机拼点（独立窗口，不再内联天义）。
+    submit(&mut g, "use");
     // 发起者（太史慈）仍需自选；目标为随机牌（不会出现 choose:b1）。
     submit(&mut g, "choose:a1");
-    let opts = ids(&g);
-    assert!(
-        opts.iter().all(|o| o != "choose:b1"),
-        "酣战 → 目标随机牌，不应由其自选：{opts:?}"
-    );
+    // 拼点后窗口：点数最大的实体【杀】(a1=9) → 询问是否获得。
+    assert!(g.pending.is_some(), "拼点后应询问酣战是否获得【杀】");
+    submit(&mut g, "gain:a1");
+    assert!(g.hand(0).contains(&"a1".to_string()), "获得点数最大的拼点【杀】");
+}
+
+#[test]
+fn hanzhan_windows_apply_to_any_pindian_source() {
+    // 独立入口：非天义来源的拼点（驱虎/巧说等）同样触发酣战前后两段。
+    let mut g = test_game(2);
+    g.seats[0].skills = vec!["hanzhan".into()];
+    g.turn = 0;
+    mk(&mut g, "a1", "sha", Suit::Club, 9, Zone::Hand(0));
+    mk(&mut g, "b1", "sha", Suit::Heart, 5, Zone::Hand(1));
+    sanguosha3::kernel::pindian::start(&mut g, 0, 1, "测试拼点");
+    resolve::advance(&mut g).expect("advance");
+    // 前置窗口（持有者 0）
+    assert_eq!(g.pending.as_ref().map(|p| p.actor()), Some(0));
+    submit(&mut g, "use");
+    submit(&mut g, "choose:a1");
+    // 目标随机出牌 → 拼点结算 → 后置窗口（持有者 0）
+    assert!(g.pending.is_some(), "后置窗口应询问");
+    submit(&mut g, "gain:a1");
+    assert!(g.hand(0).contains(&"a1".to_string()));
 }
 
 // ------------------------------ 界邓艾 -------------------------------------
@@ -333,8 +353,12 @@ fn tuotian_gains_tian_out_of_turn_and_distance_shrinks() {
         data(&[("event", "CardLost".into()), ("seat", 0.into()), ("card", "h1".into())]),
     );
     submit(&mut g, "use");
-    assert_eq!(g.counter("tian.0"), 1, "非红桃 → 得「田」");
-    assert_eq!(g.cards.get("sp"), Some(&Zone::Void), "判定牌置为「田」（移出游戏）");
+    assert_eq!(
+        g.cards.get("sp"),
+        Some(&Zone::Mark(0, "tian".to_string())),
+        "非红桃 → 判定牌置于武将牌上为「田」"
+    );
+    assert_eq!(sanguosha3::kernel::skills::b15::tian_cards(&g, 0).len(), 1);
     assert_eq!(sanguosha3::kernel::gear::distance(&g, 0, 2), before.saturating_sub(1), "每田距离 -1");
     // 反例：红桃不得田。
     let mut g2 = test_game(2);
@@ -350,7 +374,7 @@ fn tuotian_gains_tian_out_of_turn_and_distance_shrinks() {
         data(&[("event", "CardLost".into()), ("seat", 0.into()), ("card", "h1".into())]),
     );
     submit(&mut g2, "use");
-    assert_eq!(g2.counter("tian.0"), 0);
+    assert!(sanguosha3::kernel::skills::b15::tian_cards(&g2, 0).is_empty(), "红桃不得田");
 }
 
 #[test]
@@ -360,7 +384,9 @@ fn zaoxian_awakens_at_three_tian_and_grants_jixi() {
     g.seats[0].hp = 4;
     g.turn = 0;
     g.phase = Phase::Prepare;
-    g.set_counter("tian.0", 3);
+    for i in 0..3 {
+        mk(&mut g, &format!("t{i}"), "sha", Suit::Club, 5, Zone::Mark(0, "tian".into()));
+    }
     trigger(&mut g, "zaoxian", 0, data(&[("event", "PhaseStart".into()), ("phase", "Prepare".into())]));
     assert_eq!(g.seats[0].max_hp, 3, "上限 -1");
     assert!(skills::active(&g, 0, "jixi"), "获得【急袭】");
@@ -370,7 +396,9 @@ fn zaoxian_awakens_at_three_tian_and_grants_jixi() {
     g2.seats[0].skills = vec!["zaoxian".into()];
     g2.turn = 0;
     g2.phase = Phase::Prepare;
-    g2.set_counter("tian.0", 2);
+    for i in 0..2 {
+        mk(&mut g2, &format!("t{i}"), "sha", Suit::Club, 5, Zone::Mark(0, "tian".into()));
+    }
     trigger(&mut g2, "zaoxian", 0, data(&[("event", "PhaseStart".into()), ("phase", "Prepare".into())]));
     assert_eq!(g2.seats[0].max_hp, 4);
 }
@@ -381,11 +409,15 @@ fn jixi_consumes_a_tian_as_snatch() {
     g.seats[0].skills = vec!["jixi".into()];
     g.turn = 0;
     g.phase = Phase::Play;
-    g.set_counter("tian.0", 1);
+    mk(&mut g, "t0", "sha", Suit::Club, 5, Zone::Mark(0, "tian".into()));
     mk(&mut g, "h1", "tao", Suit::Heart, 3, Zone::Hand(1));
     use_active(&mut g, 0, "jixi");
     submit(&mut g, "t:1");
-    assert_eq!(g.counter("tian.0"), 0, "消耗 1 枚「田」");
+    assert!(
+        sanguosha3::kernel::skills::b15::tian_cards(&g, 0).is_empty(),
+        "「田」作为承载牌被消耗"
+    );
+    assert!(!matches!(g.cards.get("t0"), Some(Zone::Mark(..))), "田不再是武将牌上的牌");
     assert!(g.pending.is_some(), "进入【顺手牵羊】结算");
     // 反例：无田不可发动。
     let mut g2 = test_game(2);
@@ -450,7 +482,7 @@ fn liereng_pindian_win_steals_a_card() {
 }
 
 #[test]
-fn changbiao_multi_card_slash_draws_x_when_damaging() {
+fn changbiao_slash_uses_kernel_targets_and_draws_at_end_phase() {
     let mut g = test_game(2);
     g.seats[0].skills = vec!["changbiao".into()];
     g.turn = 0;
@@ -462,14 +494,192 @@ fn changbiao_multi_card_slash_draws_x_when_damaging() {
     submit(&mut g, "c:c1");
     submit(&mut g, "c:c2");
     submit(&mut g, "confirm");
+    // 目标选择走内核单出口（`sgs3_target`），不再由长标自建目标列表。
+    assert_eq!(g.pending.as_ref().map(|p| p.kind()), Some("sgs3_target"));
     submit(&mut g, "t:1");
-    // 目标无【闪】→ 受伤 → 记录命中。
-    assert!(g.counter("turn.0.changbiao_hit") > 0, "造成伤害");
-    assert_eq!(g.counter("turn.0.changbiao_x"), 2, "X = 使用的牌数");
+    // 目标无【闪】→ 造成伤害 → 命中（伤害事件，非体力差）。
+    assert_eq!(g.counter("turn.0.changbiao_hit"), 1, "造成伤害 → 记录命中");
+    assert_eq!(g.counter("turn.0.changbiao_x"), 2, "X = 承载牌数");
+    // 时序（用户裁定）：出牌阶段结束 / 弃牌阶段开始 **不摸**；结束阶段开始才摸。
+    trigger(&mut g, "changbiao", 0, data(&[("event", "PhaseStart".into()), ("phase", "Play".into())]));
+    trigger(&mut g, "changbiao", 0, data(&[("event", "PhaseStart".into()), ("phase", "Discard".into())]));
+    assert_eq!(g.hand_size(0), 0, "弃牌阶段之前不摸牌");
+    let before = g.hand_size(0);
     trigger(&mut g, "changbiao", 0, data(&[("event", "PhaseStart".into()), ("phase", "End".into())]));
-    assert_eq!(g.hand_size(0), 2, "出牌阶段结束摸 X 张");
-    // 反例：本阶段已发动过 → 不可再发动。
-    assert!(!skills::active_actions(&g, 0).iter().any(|c| *c == "changbiao"));
+    assert_eq!(g.hand_size(0), before + 2, "结束阶段（弃牌之后）摸 X 张");
+    // 被【闪】抵消 → 不摸牌。
+    let mut g2 = test_game(2);
+    g2.seats[0].skills = vec!["changbiao".into()];
+    g2.turn = 0;
+    g2.phase = Phase::Play;
+    mk(&mut g2, "c1", "sha", Suit::Club, 5, Zone::Hand(0));
+    mk(&mut g2, "s1", "shan", Suit::Heart, 3, Zone::Hand(1));
+    add_deck2(&mut g2, 2);
+    use_active(&mut g2, 0, "changbiao");
+    submit(&mut g2, "c:c1");
+    submit(&mut g2, "confirm");
+    submit(&mut g2, "t:1");
+    submit(&mut g2, "s:s1");
+    trigger(&mut g2, "changbiao", 0, data(&[("event", "PhaseStart".into()), ("phase", "End".into())]));
+    assert_eq!(g2.hand_size(0), 0, "被闪抵消 → 不摸牌");
+}
+
+#[test]
+fn changbiao_virtual_slash_has_no_attributes() {
+    // 差异1：多张承载 → 无花色/点数；颜色判定恒否（仁王盾不拦）、点数比较判负。
+    let mut g = test_game(2);
+    g.seats[0].skills = vec!["changbiao".into()];
+    g.turn = 0;
+    g.phase = Phase::Play;
+    mk(&mut g, "c1", "sha", Suit::Spade, 5, Zone::Hand(0));
+    mk(&mut g, "c2", "tao", Suit::Heart, 6, Zone::Hand(0));
+    add_deck2(&mut g, 2);
+    use_active(&mut g, 0, "changbiao");
+    submit(&mut g, "c:c1");
+    submit(&mut g, "c:c2");
+    submit(&mut g, "confirm");
+    let vid = g
+        .mark("turn.0.changbiao_vid")
+        .expect("虚拟【杀】id 应登记");
+    assert_eq!(
+        sanguosha3::kernel::cards::suit_of(&g, vid),
+        None,
+        "多张承载 → 无花色（None）"
+    );
+    assert!(!sanguosha3::kernel::cards::is_black(&g, vid), "无属性 → 不是黑色");
+    assert!(!sanguosha3::kernel::cards::is_red(&g, vid), "无属性 → 不是红色");
+    assert_eq!(
+        sanguosha3::kernel::cards::rank_of(&g, vid),
+        None,
+        "无属性 → 无点数（比较方按 0 处理）"
+    );
+}
+
+#[test]
+fn changbiao_with_fangtian_can_pick_three_targets() {
+    // 差异4：承载牌离手后手牌为空 → 方天画戟「最后的手牌」→ 最多 3 名目标。
+    let mut g = test_game(4);
+    g.seats[0].skills = vec!["changbiao".into()];
+    g.turn = 0;
+    g.phase = Phase::Play;
+    mk(&mut g, "ft", "fangtian_huaji", Suit::Diamond, 12, Zone::Equip(0, sanguosha3::kernel::Slot::Weapon));
+    mk(&mut g, "c1", "sha", Suit::Club, 5, Zone::Hand(0));
+    add_deck2(&mut g, 4);
+    use_active(&mut g, 0, "changbiao");
+    submit(&mut g, "c:c1");
+    submit(&mut g, "confirm");
+    // 手牌已空 → 目标上限 3。
+    submit(&mut g, "t:1");
+    submit(&mut g, "t:2");
+    submit(&mut g, "t:3");
+    assert_eq!(g.counter("turn.0.changbiao_x"), 1);
+}
+
+#[test]
+fn changbiao_targets_respect_kernel_legality_filters() {
+    // 差异5：目标合法性走 `legal_targets_with`（陷阵没赢 → 不能对其使用【杀】）。
+    let mut g = test_game(2);
+    g.seats[0].skills = vec!["changbiao".into(), "xianzhen".into()];
+    g.turn = 0;
+    g.phase = Phase::Play;
+    g.set_counter("turn.0.xianzhen_block.1", 1);
+    mk(&mut g, "c1", "sha", Suit::Club, 5, Zone::Hand(0));
+    add_deck2(&mut g, 2);
+    use_active(&mut g, 0, "changbiao");
+    submit(&mut g, "c:c1");
+    submit(&mut g, "confirm");
+    let opts = ids(&g);
+    assert!(
+        opts.iter().all(|o| o != "t:1"),
+        "陷阵没赢 → 该角色不能成为【杀】目标：{opts:?}"
+    );
+}
+
+#[test]
+fn changbiao_cancel_returns_carriers_and_refunds_once_per_phase() {
+    // 差异8：目标阶段取消 → 承载牌回手 + 「本阶段一次」退还。
+    let mut g = test_game(2);
+    g.seats[0].skills = vec!["changbiao".into()];
+    g.turn = 0;
+    g.phase = Phase::Play;
+    mk(&mut g, "c1", "sha", Suit::Club, 5, Zone::Hand(0));
+    add_deck2(&mut g, 2);
+    use_active(&mut g, 0, "changbiao");
+    submit(&mut g, "c:c1");
+    submit(&mut g, "confirm");
+    submit(&mut g, "cancel");
+    assert!(g.hand(0).contains(&"c1".to_string()), "承载牌回手");
+    assert_eq!(g.counter("phase.0.changbiao"), 0, "限一次已退还");
+    assert!(skills::active_actions(&g, 0).iter().any(|c| *c == "changbiao"), "可再次发动");
+}
+
+#[test]
+fn changbiao_virtual_slash_is_not_blocked_by_renwang() {
+    // 差异1 语义：无属性【杀】不是黑色 → 仁王盾「黑色【杀】无效」不生效。
+    let mut g = test_game(2);
+    g.seats[0].skills = vec!["changbiao".into()];
+    g.turn = 0;
+    g.phase = Phase::Play;
+    mk(
+        &mut g,
+        "rw",
+        "renwang_dun",
+        Suit::Club,
+        2,
+        Zone::Equip(1, sanguosha3::kernel::Slot::Armor),
+    );
+    mk(&mut g, "c1", "sha", Suit::Spade, 5, Zone::Hand(0));
+    mk(&mut g, "c2", "sha", Suit::Spade, 6, Zone::Hand(0));
+    add_deck2(&mut g, 2);
+    let hp = g.seats[1].hp;
+    use_active(&mut g, 0, "changbiao");
+    submit(&mut g, "c:c1");
+    submit(&mut g, "c:c2");
+    submit(&mut g, "confirm");
+    submit(&mut g, "t:1");
+    assert_eq!(g.seats[1].hp, hp - 1, "无属性【杀】不被仁王盾拦截");
+}
+
+#[test]
+fn changbiao_carrier_candidates_exclude_frozen_cards() {
+    // 差异6：冻结/花色封锁/颜色封锁的牌不作为承载牌候选（legal ≡ execute）。
+    let mut g = test_game(2);
+    g.seats[0].skills = vec!["changbiao".into()];
+    g.turn = 0;
+    g.phase = Phase::Play;
+    mk(&mut g, "c1", "sha", Suit::Club, 5, Zone::Hand(0));
+    mk(&mut g, "c2", "sha", Suit::Club, 6, Zone::Hand(0));
+    g.freeze_cards(
+        0,
+        &["c1".to_string()],
+        sanguosha3::kernel::FreezeUntil::Turn,
+        "测试冻结",
+    );
+    use_active(&mut g, 0, "changbiao");
+    let opts = ids(&g);
+    assert!(opts.iter().all(|o| o != "c:c1"), "冻结牌不可选：{opts:?}");
+    assert!(opts.iter().any(|o| o == "c:c2"));
+}
+
+#[test]
+fn changbiao_armor_absorbed_damage_still_counts_as_hit() {
+    // 差异3：护甲吸收伤害后体力不变，但 `DamageAfter` 仍成立 → 仍算命中。
+    let mut g = test_game(2);
+    g.seats[0].skills = vec!["changbiao".into()];
+    g.turn = 0;
+    g.phase = Phase::Play;
+    g.seats[1].armor = 3;
+    mk(&mut g, "c1", "sha", Suit::Club, 5, Zone::Hand(0));
+    add_deck2(&mut g, 3);
+    use_active(&mut g, 0, "changbiao");
+    submit(&mut g, "c:c1");
+    submit(&mut g, "confirm");
+    submit(&mut g, "t:1");
+    assert_eq!(g.seats[1].hp, 4, "护甲吸收，体力不变");
+    assert_eq!(g.counter("turn.0.changbiao_hit"), 1, "仍算造成伤害");
+    let before = g.hand_size(0);
+    trigger(&mut g, "changbiao", 0, data(&[("event", "PhaseStart".into()), ("phase", "End".into())]));
+    assert_eq!(g.hand_size(0), before + 1, "按 X=1 摸牌");
 }
 
 // ------------------------------ 界贾诩 -------------------------------------

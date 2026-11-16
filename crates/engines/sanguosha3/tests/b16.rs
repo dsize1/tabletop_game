@@ -162,7 +162,8 @@ fn jiezi_skip_draw_grants_zai_or_draws_and_extra_draw_consumes_it() {
     sanguosha3::kernel::skills::b16::on_skip_draw(&mut g, 1);
     resolve::advance(&mut g).unwrap();
     assert_eq!(g.pending.as_ref().map(|p| p.actor()), Some(0));
-    submit(&mut g, "target:1");
+    // 目标固定为「跳过摸牌阶段的那名角色」（不再由徐晃另选）。
+    submit(&mut g, "use");
     assert_eq!(g.seats[1].counters.get("zai").copied(), Some(1), "手牌最少 → 获得辎");
     assert!(
         sanguosha3::kernel::skills::b16::take_extra_draw(&mut g, 1),
@@ -171,15 +172,18 @@ fn jiezi_skip_draw_grants_zai_or_draws_and_extra_draw_consumes_it() {
     assert_eq!(g.seats[1].counters.get("zai").copied(), None);
     assert!(!sanguosha3::kernel::skills::b16::take_extra_draw(&mut g, 1), "只执行一次");
 
-    // 反例：目标不是手牌最少 → 改为摸 1。
+    // 反例：跳过者不是手牌最少 → 改为摸 1（仍只指向跳过者）。
     let mut g2 = test_game(3);
     g2.seats[0].skills = vec!["jiezi".into()];
-    mk(&mut g2, "h2", "sha", Suit::Spade, Zone::Hand(2));
+    // 座位 0 手牌 0（全场最少），跳过者（座位 1）有 1 张 → 不符合「最少」→ 改为摸 1。
+    mk(&mut g2, "h1", "sha", Suit::Spade, Zone::Hand(1));
+    mk(&mut g2, "d0", "sha", Suit::Club, Zone::Draw);
+    g2.deck.push("d0".into());
     sanguosha3::kernel::skills::b16::on_skip_draw(&mut g2, 1);
     resolve::advance(&mut g2).unwrap();
-    submit(&mut g2, "target:2");
-    assert_eq!(g2.seats[2].counters.get("zai").copied(), None, "非最少 → 不给辎");
-    assert_eq!(g2.hand_size(2), 1, "改为摸 1");
+    submit(&mut g2, "use");
+    assert_eq!(g2.seats[1].counters.get("zai").copied(), None, "非最少 → 不给辎");
+    assert_eq!(g2.hand_size(1), 2, "改为摸 1（发给跳过者）");
 }
 
 #[test]

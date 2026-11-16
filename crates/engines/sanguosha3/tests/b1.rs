@@ -78,11 +78,15 @@ fn run_steps(
     let mut data = data;
     let mut step = call(g, skill, actor, data.clone());
     for ans in answers {
-        // 推进到下一个待办（Next/NeedWith 是「切阶段」，不是回答）。
+        // 推进到待办：`Next` 继续跑；`NeedWith` 自带新 data（同一 pending 直接回答）。
         loop {
             match &step {
                 Step::Need(_) | Step::NeedAt(_, _) => break,
-                Step::Next(_, d) | Step::NeedWith(_, d, _) => {
+                Step::NeedWith(_, d, _) => {
+                    data = d.clone();
+                    break;
+                }
+                Step::Next(_, d) => {
                     data = d.clone();
                     step = call(g, skill, actor, data.clone());
                 }
@@ -90,23 +94,27 @@ fn run_steps(
             }
         }
         let pending = match &step {
-            Step::Need(p) | Step::NeedAt(_, p) => p,
+            Step::Need(p) | Step::NeedAt(_, p) => p.clone(),
+            Step::NeedWith(_, _, p) => p.clone(),
             _ => unreachable!(),
         };
         let opts: Vec<String> = pending.options().iter().map(|o| o.id.clone()).collect();
         assert!(pending.has_option(ans), "选项 {ans} 不在 {opts:?}");
         g.answer = Some(ans.to_string());
         g.answer_skill = Some(skill.to_string());
+        // `Need`/`NeedAt` 不带 data：沿用 pending.data；`NeedWith` 已在上面更新 data。
+        if !matches!(step, Step::NeedWith(_, _, _)) {
+            data = pending.data().clone();
+        }
         step = call(g, skill, actor, data.clone());
     }
-    // 收尾：把最后的 Next/NeedWith 推进到 Done/Finish。
+    // 收尾：只推进 `Next`（`Need*` = 还需要玩家输入，直接返回）。
     loop {
         match &step {
-            Step::Next(_, d) | Step::NeedWith(_, d, _) => {
+            Step::Next(_, d) => {
                 data = d.clone();
                 step = call(g, skill, actor, data.clone());
             }
-            Step::Need(_) | Step::NeedAt(_, _) => break,
             _ => break,
         }
     }
@@ -199,7 +207,8 @@ fn yongsi_discard_phase_discards_x_and_counts_phase_discard() {
     for i in 0..5 {
         add_card(&mut g, &format!("h{i}"), "sha", Zone::Hand(0));
     }
-    run(&mut g, "yongsi", 0, b1::empty());
+    // 锁定技：必须弃 X=3 张，但**弃哪 3 张由持有者自选**（逐张询问）。
+    run_steps(&mut g, "yongsi", 0, b1::empty(), &["card:h0", "card:h1", "card:h2"]);
     assert_eq!(hand_size(&g, 0), 2, "先弃 X=3 张");
     assert_eq!(g.counter("phase.discarded.Discard"), 3, "计入本阶段弃牌数（溃诛 X）");
     // 只做一次
@@ -212,7 +221,7 @@ fn yongsi_discard_discards_all_when_short() {
     let mut g = game(&["yongsi"]);
     g.phase = Phase::Discard;
     add_card(&mut g, "h0", "sha", Zone::Hand(0));
-    run(&mut g, "yongsi", 0, b1::empty());
+    run_steps(&mut g, "yongsi", 0, b1::empty(), &["card:h0"]);
     assert_eq!(hand_size(&g, 0), 0, "不足则弃光");
 }
 
@@ -290,6 +299,12 @@ fn jinzou_draws_then_discards_down_to_x() {
     skills::use_active(&mut g, 0, "jinzou").unwrap();
     assert!(g.pending.is_some(), "可选技能须显式询问（I1）");
     resolve::submit(&mut g, 0, "use").unwrap();
+    // 弃至 X 张：弃哪几张由王基自选（逐张询问）。
+    while hand_size(&g, 0) > 2 {
+        let p = g.pending.clone().expect("应询问弃哪张");
+        let id = p.options().iter().find(|o| o.id.starts_with("card:")).unwrap().id.clone();
+        resolve::submit(&mut g, 0, &id).unwrap();
+    }
     assert_eq!(hand_size(&g, 0), 2, "摸 2 后弃至 X=2");
     assert_eq!(g.counter("phase.discarded.End"), 3, "弃 3 张（5→2）");
 }

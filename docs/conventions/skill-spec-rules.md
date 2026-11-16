@@ -419,3 +419,24 @@ M9 pending 身份（window id）——都按本模板落地（枚举 + 表 + 覆
   `cards::wuzhong_negated_by_wuxie`（无懈 root/layers）、`b5::dying_pending_carries_victim_and_hp`、
   `b14::zhiba_other_wu_may_challenge_and_lord_gains_when_challenger_loses`（拼点 target）、
   `cards::huogong_reveal_is_mandatory`（火攻 target/stage）。
+
+## 26. V3 机制回归（2026-11-16 审计整改，B0–B20 通用）
+
+> 起因：B16–B20 把机制缺省写成「已知边界」。以下为**唯一出口**，新技能只消费、不得自造。
+
+| 机制 | 单一出口 | 说明 |
+|---|---|---|
+| 回合/阶段/轮次级文本标记 | `Game::clear_marks(prefix)`（`turn::begin_turn` / 阶段切换 / 轮次 +1） | 与 `clear_counters` 成对；`turn./phase./round.` 前缀 marks 不得跨回合存活 |
+| 两张手牌当一张牌 | `card_play::begin_use_pair`（+ `play_pair_response` 响应通道） | 承载牌走 `use_as`；冻结/花色封锁/【杀】次数/禁用统一校验 |
+| 手牌颜色封锁 | `skills::hand_color_blocked`（`usable_hand`/`begin_use`/`use_as`/`played`/`recast_any`/`alias` 六处） | legal ≡ execute |
+| 置牌于武将牌上 | `flow::store_on_general`（发 `CardLost` + `CardIntoGame`） | 不得 `cards.insert(Zone::Mark)` 手搓 |
+| 亮出牌堆顶 / 取牌堆指定牌 | `flow::reveal_top` / `flow::gain_from_deck` | 不得 `deck.pop`/`deck.retain` |
+| 手牌装备置入他人装备区 | `gear::place_from_hand` / `move_equip` / `swap_zones` | 替换旧装备的失去/弃置钩子由出口负责 |
+| 「可选牌名」数据源 | `cards::all_defs()`（类别/标签派生） | 禁止技能里手抄牌 code 表 |
+| 可见计数标记 | `engine/view.rs::VISIBLE_COUNTER_MARKS` + `marks_count_view` | 未登记 = 端侧不可见（契约 C3） |
+| 「可以 / 自选」交互 | `PendingBuilder` + `Step::Need*` | align 答「询问/自选」的必须询问；随机走 `Game::rand_below` |
+| **虚拟牌无属性** | `Suit::None` + `cards::attrs/is_red/is_black/rank_of/same_color/same_rank`（`Game.virtual_ids` 登记） | 0 张承载（纯视为使用）或多张承载（长标/丈八）→ **无花色/点数**：颜色判定恒 false（仁王盾「黑色【杀】无效」→ 无属性杀**有效**）、点数比较恒 0/不相等；**恰 1 张承载**读实例属性（= 承载牌 + 花色/点数覆盖：红颜黑桃→红桃、禁酒【酒】视为 K 点）。禁止用 `!x.is_red()` 表达「黑色」 |
+| **目标选择** | `card_play::legal_targets_with` + `target_bounds` | 「将 X 当【杀】使用」类技能不得自建 `alive_others` 目标列表；无距离用 `declare_no_distance`（只免距离，不绕合法性/上限） |
+| **使用中状态回退** | `skills::on_use_cancelled`（`card_play::cancel_use` 唯一调用点） | 技能登记了「本次使用」状态（长标限一次/X）时，取消必须回退 |
+
+门禁：`npm run check:sgs3-conventions`（C1–C7）；审计记录见 `v3-parity-baseline.md §7.35`。

@@ -46,6 +46,9 @@ fn mieji_puts_trick_on_top_and_target_discards_two() {
     submit(&mut g, "pick:t1");
     submit(&mut g, "target:1");
     submit(&mut g, "two");
+    // B19 Q1=A：目标自选两张（逐张；手牌/装备区）。
+    submit(&mut g, "pick:h1");
+    submit(&mut g, "pick:h2");
     assert_eq!(g.hand_size(1), 0);
     assert_eq!(g.cards.get("t1"), Some(&Zone::Draw));
 }
@@ -75,6 +78,10 @@ fn jingce_counts_suits_types_and_draws_at_play_end() {
     mk(&mut g, "d1", "sha", Suit::Spade, Zone::Draw);
     g.deck.push("d1".into());
     skills::b19::on_phase_end(&mut g, 0, Phase::Play);
+    resolve::advance(&mut g).expect("advance");
+    assert_eq!(g.hand_size(0), 2, "未询问前不摸牌");
+    // B19 Q1=A：出牌阶段结束时询问（可放弃）。
+    submit(&mut g, "draw");
     assert_eq!(g.hand_size(0), 3, "原 2 张 + 摸类型数 1");
 }
 
@@ -218,10 +225,14 @@ fn danxin_draws_and_modifies_jiazhao_up_to_two() {
     g.seats[0].add_counter("jiazhao_mod", 1);
     mk(&mut g, "d1", "sha", Suit::Spade, Zone::Draw);
     g.deck.push("d1".into());
+    // B19 Q1=A：「可以」发动 → 先询问。
     trigger(&mut g, "danxin", 0, data(&[("event", "DamageAfter".into())]));
+    assert_eq!(g.seats[0].counter("jiazhao_mod"), 1, "未发动不修改");
+    submit(&mut g, "use");
     assert_eq!(g.hand_size(0), 1);
     assert_eq!(g.seats[0].counter("jiazhao_mod"), 2);
     trigger(&mut g, "danxin", 0, data(&[("event", "DamageAfter".into())]));
+    submit(&mut g, "use");
     assert_eq!(g.seats[0].counter("jiazhao_mod"), 2, "最多 2 次");
 }
 
@@ -237,6 +248,10 @@ fn jianying_draws_on_same_suit_and_inherits_suit() {
     g.deck.push("d1".into());
     skills::b19::on_use_start_jianying(&mut g, 0, "a");
     skills::b19::on_use_start_jianying(&mut g, 0, "b");
+    assert_eq!(g.hand_size(0), 2, "未询问前不摸牌");
+    // B19 Q1=A：同花色 → 询问是否摸一张。
+    trigger(&mut g, "jianying", 0, data(&[("event", "CardUsed".into()), ("card", json!("b"))]));
+    submit(&mut g, "draw");
     assert_eq!(g.hand_size(0), 3, "同花色摸 1");
     g.set_counter("turn.0.jianying_inherit", 1);
     assert_eq!(skills::b19::suit_for_use(&g, 0, Suit::Spade), Suit::Heart);

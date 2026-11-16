@@ -208,7 +208,13 @@ fn demo_triggers_and_applies() {
 - [ ] **跨阶段校验** 只经 `DeferredKind::TurnEndCheck`（未到结束阶段不派发）；不得用 `Game.marks` 代替；
 - [ ] **对拍口径**：v1 oracle 可比标量（开局标记数 / 首回合手牌数）0 差异；不可比项逐条断言对齐单「正例 + 反例」；
   - v1 全流程动作脚本对拍随 M5 补齐（2026-11-13 裁定 A）；
-- [ ] **门禁**：`npm run check:sgs3` 全绿（含 `gen:sgs-engine-data --check`：牌表 + 武将名录生成物）；
+- [ ] **交互不降级**：align 里答「询问 / 自选 / 由某人选」的，必须产生 `pending`（禁止「自动结算 + 登记为已知边界」）；
+  「不可预测的随机」（拆/顺手牌、弃他人随机手牌）走 `Game::rand_below`，不得固定取第一张；
+- [ ] **状态作用域**：`turn.`/`phase.`/`round.` 前缀状态只放 `counters`（`clear_counters` 自动清）或 `marks`（`clear_marks` 成对清理）；
+  跨阶段判定不得用 `Game.marks` 代替 `DeferredKind::TurnEndCheck`；
+- [ ] **单出口**：牌区移动走 `flow::*` / `gear::*`（禁止技能里 `cards.insert(Zone::Equip/Mark)`、`deck.retain`、`deck.pop`）；
+  视为使用/转化失败必须 `?` 冒泡（禁止 `let _ = use_as(…)`）；可见计数标记必须进 `VISIBLE_COUNTER_MARKS`；
+- [ ] **门禁**：`npm run check:sgs3` 全绿（`check:sgs3-conventions` C1–C7 + `check:sgs3-kernel` 47 条机制 + 生成物）；
 - [ ] **文档**：对齐单不改；`v3-parity-baseline.md` 补本批对拍表；口径变化同步 `rules-rulings.md`。
 
 ## 7. 界限突破批次（J*）check-list

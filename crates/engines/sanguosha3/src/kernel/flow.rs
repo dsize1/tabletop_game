@@ -57,7 +57,13 @@ pub fn damage(g: &mut Game, spec: DamageSpec, armor: ArmorKind, bonus: i32) -> V
 pub fn damage_apply(g: &mut Game, spec: DamageSpec, armor: ArmorKind, bonus: i32) -> Vec<Event> {
     // 绝情：即将造成的伤害视为失去体力（整次数值一次；保留来源用于死亡归属）。
     if super::skills::damage_to_hp_loss(g, spec.from, spec.target) {
-        let ev = lose_hp_by(g, spec.target, spec.amount + bonus, "伤害转失去体力", spec.from);
+        let ev = lose_hp_by(
+            g,
+            spec.target,
+            spec.amount + bonus,
+            "伤害转失去体力",
+            spec.from,
+        );
         return ev;
     }
     // 「造成伤害时」的数值加成（暗箭等）：与调用方传入的 bonus 相加。
@@ -485,7 +491,12 @@ pub fn draw(g: &mut Game, seat: usize, n: usize) -> Vec<CardId> {
         };
         let Some(id) = id else { break };
         g.cards.insert(id.clone(), super::Zone::Hand(seat));
-        let mut ev = Event::card(EventKind::CardDrawn, Some(seat), id.clone(), Some("摸牌".to_string()));
+        let mut ev = Event::card(
+            EventKind::CardDrawn,
+            Some(seat),
+            id.clone(),
+            Some("摸牌".to_string()),
+        );
         ev.by = Some(seat);
         ev.turn = g.turn;
         ev.phase = g.phase;
@@ -508,7 +519,12 @@ pub fn draw_bottom(g: &mut Game, seat: usize, n: usize) -> Vec<CardId> {
         }
         let id = g.deck.remove(0);
         g.cards.insert(id.clone(), super::Zone::Hand(seat));
-        let mut ev = Event::card(EventKind::CardDrawn, Some(seat), id.clone(), Some("摸牌（牌堆底）".to_string()));
+        let mut ev = Event::card(
+            EventKind::CardDrawn,
+            Some(seat),
+            id.clone(),
+            Some("摸牌（牌堆底）".to_string()),
+        );
         ev.by = Some(seat);
         ev.turn = g.turn;
         ev.phase = g.phase;
@@ -630,12 +646,7 @@ pub fn return_due_void(g: &mut Game) -> Vec<Event> {
 /// - 死亡弃牌由 `turn::death_cleanup` 调用，cause = `死亡`。
 ///
 /// 同时记 `turn.<turn>.red_to_discard`（再起：本回合红色实体牌进弃牌堆张数；花色按物理牌）。
-pub fn record_to_discard(
-    g: &mut Game,
-    id: &str,
-    cause: &str,
-    by: Option<usize>,
-) -> Event {
+pub fn record_to_discard(g: &mut Game, id: &str, cause: &str, by: Option<usize>) -> Event {
     let owner = g.cards.get(id).and_then(|z| z.seat());
     if let Some(c) = g.card_defs.get(id) {
         if c.suit.is_red() {
@@ -676,7 +687,12 @@ pub fn discard(g: &mut Game, by: usize, id: &str, cause: &str) -> Option<Event> 
     let key = format!("phase.discarded.{:?}", g.phase);
     g.bump(&key);
     // 失去牌事件（M105 教训：主体=失去者，施动者=弃置者）。
-    let mut lost = Event::card(EventKind::CardLost, Some(owner), id.to_string(), Some(cause.to_string()));
+    let mut lost = Event::card(
+        EventKind::CardLost,
+        Some(owner),
+        id.to_string(),
+        Some(cause.to_string()),
+    );
     lost.by = Some(by);
     lost.from = Some(owner);
     lost.turn = g.turn;
@@ -685,7 +701,12 @@ pub fn discard(g: &mut Game, by: usize, id: &str, cause: &str) -> Option<Event> 
     if matches!(zone, super::Zone::Equip(..)) {
         leave_equip(g, owner, id, cause);
     }
-    let mut ev = Event::card(EventKind::CardDiscarded, Some(owner), id.to_string(), Some(cause.to_string()));
+    let mut ev = Event::card(
+        EventKind::CardDiscarded,
+        Some(owner),
+        id.to_string(),
+        Some(cause.to_string()),
+    );
     ev.by = Some(by);
     ev.from = Some(owner);
     ev.turn = g.turn;
@@ -703,7 +724,12 @@ pub fn discard(g: &mut Game, by: usize, id: &str, cause: &str) -> Option<Event> 
         let key = format!("turn.{}.discard_suits", g.turn);
         let mut suits: Vec<String> = g
             .mark(&key)
-            .map(|s| s.split(',').filter(|x| !x.is_empty()).map(|x| x.to_string()).collect())
+            .map(|s| {
+                s.split(',')
+                    .filter(|x| !x.is_empty())
+                    .map(|x| x.to_string())
+                    .collect()
+            })
             .unwrap_or_default();
         if !suits.contains(&suit) {
             suits.push(suit);
@@ -740,7 +766,12 @@ pub fn gain(g: &mut Game, to: usize, id: &str, by: usize, cause: &str) -> Option
         if owner != to {
             g.gain_batch.push((to, owner, id.to_string()));
         }
-        let mut lost = Event::card(EventKind::CardLost, Some(owner), id.to_string(), Some(cause.to_string()));
+        let mut lost = Event::card(
+            EventKind::CardLost,
+            Some(owner),
+            id.to_string(),
+            Some(cause.to_string()),
+        );
         lost.by = Some(by);
         lost.from = Some(owner);
         lost.turn = g.turn;
@@ -750,7 +781,12 @@ pub fn gain(g: &mut Game, to: usize, id: &str, by: usize, cause: &str) -> Option
             leave_equip(g, owner, id, cause);
         }
     }
-    let mut ev = Event::card(EventKind::CardGained, Some(to), id.to_string(), Some(cause.to_string()));
+    let mut ev = Event::card(
+        EventKind::CardGained,
+        Some(to),
+        id.to_string(),
+        Some(cause.to_string()),
+    );
     ev.by = Some(by);
     ev.from = from;
     ev.turn = g.turn;
@@ -773,6 +809,137 @@ pub fn to_deck_top(g: &mut Game, id: &str) {
 pub fn to_deck_bottom(g: &mut Game, id: &str) {
     g.cards.insert(id.to_string(), super::Zone::Draw);
     g.deck.insert(0, id.to_string());
+}
+
+/// **从牌堆取指定牌**（搜索牌堆类技能单出口：当先/安国/怠宴）。
+///
+/// 直接从 `g.deck` 摘牌 = 绕过牌区事实；本函数摘牌后走 `gain`（CardGained + 守恒）。
+pub fn gain_from_deck(g: &mut Game, to: usize, id: &str, by: usize, cause: &str) -> bool {
+    if !g.deck.iter().any(|c| c == id) {
+        return false;
+    }
+    g.deck.retain(|c| c != id);
+    g.cards.insert(id.to_string(), super::Zone::Draw);
+    gain(g, to, id, by, cause).is_some()
+}
+
+/// **进处理区**（承载牌/改判牌等，结算后由调用方落盘）：手牌/装备区 → `Zone::Processing`。
+pub fn to_processing(g: &mut Game, owner: usize, id: &str, cause: &str) -> bool {
+    let Some(zone) = g.cards.get(id).cloned() else {
+        return false;
+    };
+    if !matches!(zone, super::Zone::Hand(s) | super::Zone::Equip(s, _) if s == owner) {
+        return false;
+    }
+    note_lost(g, owner, id, matches!(zone, super::Zone::Equip(..)));
+    if matches!(zone, super::Zone::Equip(..)) {
+        leave_equip(g, owner, id, cause);
+    }
+    g.cards.insert(id.to_string(), super::Zone::Processing);
+    true
+}
+
+/// **从牌堆取出指定牌**（搜索牌堆类；当先/安国/怠宴/观星回放）。
+///
+/// 只把该牌从 `deck` 摘出并登记为 `Zone::Draw`；后续由调用方走 `gain` / `to_deck_top`。
+pub fn take_from_deck(g: &mut Game, id: &str) -> bool {
+    if !g.deck.iter().any(|c| c == id) {
+        return false;
+    }
+    g.deck.retain(|c| c != id);
+    g.cards.insert(id.to_string(), super::Zone::Draw);
+    true
+}
+
+/// **搜索牌堆并亮出**（荐言/看牌类）：`deck` → `Zone::Processing` + `reveal`。
+pub fn reveal_from_deck(g: &mut Game, id: &str, cause: &str) -> bool {
+    if !take_from_deck(g, id) {
+        return false;
+    }
+    g.cards.insert(id.to_string(), super::Zone::Processing);
+    g.reveal(&[id.to_string()], cause);
+    true
+}
+
+/// **移出游戏（K18）**：任意区 → `Zone::Void` + `CardOutOfGame`（手牌/装备先记「失去」）。
+///
+/// 不屈（判定牌）、屯田（田）、谦逊（移出手牌到回合末）、破军类统一走这里。
+pub fn exile(g: &mut Game, id: &str, cause: &str) -> bool {
+    let Some(zone) = g.cards.get(id).cloned() else {
+        return false;
+    };
+    let from = zone.seat();
+    if let Some(from) = from {
+        if matches!(zone, super::Zone::Hand(_) | super::Zone::Equip(..)) {
+            note_lost(g, from, id, matches!(zone, super::Zone::Equip(..)));
+        }
+        if matches!(zone, super::Zone::Equip(..)) {
+            leave_equip(g, from, id, cause);
+        }
+    }
+    g.cards.insert(id.to_string(), super::Zone::Void);
+    let mut ev = Event::card(EventKind::CardOutOfGame, from, id.to_string(), Some(cause.to_string()));
+    ev.by = from;
+    let ev = ev.snapshot(g);
+    g.push_event(ev);
+    true
+}
+
+/// **亮出牌堆顶 N 张**（称象/五谷类）：进处理区 + `reveal`（立即公共可见）。
+///
+/// 返回亮出的牌；`cause` 进日志。收尾必须由调用方 `to_discard_with`（弃）或 `flow::gain`（得）。
+pub fn reveal_top(g: &mut Game, n: usize, cause: &str) -> Vec<CardId> {
+    let mut out = vec![];
+    for _ in 0..n {
+        if g.deck.is_empty() {
+            reshuffle(g);
+        }
+        let Some(id) = g.deck.pop() else { break };
+        g.cards.insert(id.clone(), super::Zone::Processing);
+        out.push(id);
+    }
+    if !out.is_empty() {
+        g.reveal(&out, cause);
+    }
+    out
+}
+
+/// **置于武将牌上**（醇醪「醇」类）：手牌/处理区 → `Zone::Mark`，并发 `CardLost`+`CardIntoGame`。
+///
+/// 单出口：不得在技能里 `cards.insert(Zone::Mark)` 手搭事件（否则丢失去钩子、事件不对称）。
+pub fn store_on_general(g: &mut Game, owner: usize, id: &str, mark: &str, cause: &str) -> bool {
+    let Some(zone) = g.cards.get(id).cloned() else {
+        return false;
+    };
+    let from = zone.seat();
+    if let Some(from) = from {
+        note_lost(g, from, id, matches!(zone, super::Zone::Equip(..)));
+        let mut lost = Event::card(
+            EventKind::CardLost,
+            Some(from),
+            id.to_string(),
+            Some(cause.to_string()),
+        );
+        lost.by = Some(owner);
+        lost.from = Some(from);
+        let e = lost.snapshot(g);
+        g.push_event(e);
+        if matches!(zone, super::Zone::Equip(..)) {
+            leave_equip(g, from, id, cause);
+        }
+    }
+    g.cards
+        .insert(id.to_string(), super::Zone::Mark(owner, mark.to_string()));
+    let mut ev = Event::card(
+        EventKind::CardIntoGame,
+        Some(owner),
+        id.to_string(),
+        Some(cause.to_string()),
+    );
+    ev.by = Some(owner);
+    let e = ev.snapshot(g);
+    g.push_event(e);
+    true
 }
 
 /// 手牌摸至 n 张（审时「摸至 4 张」）：只摸不弃（超过 n 不处理）。

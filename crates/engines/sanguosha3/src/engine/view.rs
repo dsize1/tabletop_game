@@ -165,7 +165,18 @@ fn marks_view(g: &Game, seat: usize) -> Value {
 }
 
 /// 可见计数标记白名单（技能接入后追加；`turn.*`/`phase.*` 内部计数不投影）。
-pub const VISIBLE_COUNTER_MARKS: &[&str] = &[];
+///
+/// 审计（2026-11-16）：V3 重建时这份名单被留成空数组 → 所有计数器标记（辎/护/巧…）
+/// 端侧完全不可见（契约 C3「标记必须进视图」形同虚设）。新增可见标记必须在此登记。
+pub const VISIBLE_COUNTER_MARKS: &[&str] = &[
+    "zai",          // 辎（界徐晃·截辎）
+    "jiazhao_mod",  // 矫诏修改次数（界郭皇后·殚心）
+    "ni",           // 逆（刘封·陷嗣）
+    "quan",         // 权（钟会）
+    "ju",           // 橘（陆绩）
+    "yi",           // 裔（界袁绍·血裔）
+    "bian",         // 变（界张郃·巧变）
+];
 
 fn marks_count_view(g: &Game, seat: usize) -> Value {
     let mut out = Map::new();
@@ -174,6 +185,17 @@ fn marks_count_view(g: &Game, seat: usize) -> Value {
             if VISIBLE_COUNTER_MARKS.contains(&code.as_str()) && *n > 0 {
                 out.insert(code.clone(), json!(n));
             }
+        }
+    }
+    // 「巧」（界简雍·巧说）：回合内累计，`turn.` 前缀计数（回合切换清空）。
+    let qiao = g.counter(&format!("turn.{seat}.qiao"));
+    if qiao > 0 {
+        out.insert("qiao".to_string(), json!(qiao));
+    }
+    // 护甲（矢北）：复用标记区显示「护N」。
+    if let Some(s) = g.seats.get(seat) {
+        if s.armor > 0 {
+            out.insert("hu".to_string(), json!(s.armor));
         }
     }
     Value::Object(out)

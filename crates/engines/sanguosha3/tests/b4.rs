@@ -38,17 +38,27 @@ fn run_steps(g: &mut Game, skill: &str, actor: usize, d: serde_json::Value, answ
     let mut data = d;
     let mut step = call(g, skill, actor, data.clone());
     for ans in answers {
+        // `NeedWith` = 切阶段 + 待办（自带新 data）；`Need`/`NeedAt` = 待办（data 在 pending.data）。
         loop {
             match &step {
                 Step::Need(_) | Step::NeedAt(_, _) => break,
-                Step::Next(_, next) | Step::NeedWith(_, next, _) => { data = next.clone(); step = call(g, skill, actor, data.clone()); }
+                Step::NeedWith(_, next, _) => { data = next.clone(); break; }
+                Step::Next(_, next) => { data = next.clone(); step = call(g, skill, actor, data.clone()); }
                 other => panic!("期望待办，实际 {other:?}"),
             }
         }
-        let p = match &step { Step::Need(p) | Step::NeedAt(_, p) => p, _ => unreachable!() };
+        let is_need_with = matches!(step, Step::NeedWith(_, _, _));
+        let p = match &step {
+            Step::Need(p) | Step::NeedAt(_, p) => p.clone(),
+            Step::NeedWith(_, _, p) => p.clone(),
+            _ => unreachable!(),
+        };
         assert!(p.has_option(ans), "选项 {ans} 不在 {:?}", p.options().iter().map(|o| o.id.clone()).collect::<Vec<_>>());
         g.answer = Some(ans.to_string());
         g.answer_skill = Some(skill.to_string());
+        if !is_need_with {
+            data = p.data().clone();
+        }
         step = call(g, skill, actor, data.clone());
     }
     step
@@ -225,9 +235,20 @@ fn zhongyong_gives_slash_to_another_character() {
     let mut g = game(3, &["zhongyong"]);
     g.turn = 0;
     add_suit(&mut g, "s", "sha", Zone::Discard, Suit::Heart, 7);
-    let step = run_steps(&mut g, "zhongyong", 0, data(&[("card", "s".into())]), &["seat:1"]);
+    // B4 Q1/Q2=A：交给其【杀】后，由接收者决定是否使用、并自选周仓攻击范围内的目标。
+    let step = run_steps(
+        &mut g,
+        "zhongyong",
+        0,
+        data(&[("card", "s".into())]),
+        &["seat:1", "use", "t:2"],
+    );
     assert!(matches!(step, Step::Finish(_)));
     assert!(g.hand(1).contains(&"s".to_string()), "交给其【杀】");
+    assert!(
+        g.virtual_origins.is_empty() || g.cards.values().any(|z| matches!(z, Zone::Processing)),
+        "视为使用的【杀】进入结算（不再自动挑目标）"
+    );
     // 反例：非【杀】不触发。
     let mut g = game(3, &["zhongyong"]);
     add(&mut g, "t", "tao", Zone::Discard);

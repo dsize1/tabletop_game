@@ -20,8 +20,9 @@ impl JudgeResult {
     pub fn is_red(&self) -> bool {
         self.suit.is_red()
     }
+    /// 是否黑色（无花色判定牌不存在；用 `is_black` 而非 `!is_red`，避免无花色被当成黑色）。
     pub fn is_black(&self) -> bool {
-        !self.suit.is_red()
+        self.suit.is_black()
     }
     pub fn is_heart(&self) -> bool {
         self.suit == Suit::Heart

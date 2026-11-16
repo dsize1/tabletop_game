@@ -269,7 +269,7 @@ fn to_mark(g: &mut Game, seat: usize, name: &str, id: &str, cause: &str) {
         let ev = lost.snapshot(g);
         g.push_event(ev);
     }
-    g.cards.insert(id.to_string(), Zone::Mark(seat, name.to_string()));
+    flow::store_on_general(g, seat, id, name, cause);
 }
 
 fn trigger_ask(actor: usize, skill: &'static str, label: &str, data: Value) -> Step {

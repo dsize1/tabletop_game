@@ -39,7 +39,9 @@ pub fn legal_uses(g: &Game, seat: usize, defs: &dyn Fn(&str) -> Option<CardDef>)
         if g.is_frozen(seat, id) {
             continue;
         }
-        let Some(c) = g.card_defs.get(id) else { continue };
+        let Some(c) = g.card_defs.get(id) else {
+            continue;
+        };
         let Some(d) = defs(&c.def) else { continue };
         if d.tags.shan || d.tags.wuxie {
             continue;
@@ -63,8 +65,12 @@ pub fn usable_hand(g: &Game, seat: usize) -> Vec<String> {
         {
             continue;
         }
-        let Some(c) = g.card_defs.get(&id) else { continue };
-        let Some(def) = cards::def(&c.def) else { continue };
+        let Some(c) = g.card_defs.get(&id) else {
+            continue;
+        };
+        let Some(def) = cards::def(&c.def) else {
+            continue;
+        };
         if !can_use_now(g, seat, def) {
             continue;
         }
@@ -91,7 +97,8 @@ pub fn can_use_now(g: &Game, seat: usize, def: &CardDef) -> bool {
         // 已废除的装备栏不可再装备（候选与执行同源）。
         return !g.slot_abolished(seat, slot) && !super::skills::deny_target(g, seat, seat);
     }
-    if matches!(def.target_mode, TargetMode::SelfOnly) && super::skills::deny_target(g, seat, seat) {
+    if matches!(def.target_mode, TargetMode::SelfOnly) && super::skills::deny_target(g, seat, seat)
+    {
         // 才识②「本回合不能对自己使用牌」：桃/酒/无中生有等同样被拦。
         return false;
     }
@@ -180,7 +187,13 @@ pub fn use_jiu(g: &mut Game) {
 
 /// 使用【杀】结算（同步版，技能/测试用）：`shan` = 目标是否打出【闪】。
 /// 【酒】加成在使用时消费（无论命中与否，「酒」已花费）。
-pub fn resolve_sha(g: &mut Game, from: usize, target: usize, shan: bool, armor: ArmorKind) -> ShaResult {
+pub fn resolve_sha(
+    g: &mut Game,
+    from: usize,
+    target: usize,
+    shan: bool,
+    armor: ArmorKind,
+) -> ShaResult {
     let bonus = g.sha_bonus;
     g.sha_bonus = 0;
     if shan {
@@ -217,11 +230,20 @@ pub fn resolve_guohe(g: &mut Game, target: usize, card: &str) -> bool {
 /// 延时锦囊进目标判定区（同名不可重复放）。
 pub fn place_delayed(g: &mut Game, target: usize, card: &str, def_code: &str) -> bool {
     // 判定区被废除（雄乱）：延时锦囊不可进入。
-    if g.seats.get(target).map(|s| s.judge_abolished).unwrap_or(false) {
+    if g.seats
+        .get(target)
+        .map(|s| s.judge_abolished)
+        .unwrap_or(false)
+    {
         return false;
     }
     let stack = g.judge_stacks.entry(target).or_default();
-    if stack.iter().any(|id| g.card_defs.get(id).map(|c| c.def == def_code).unwrap_or(false)) {
+    if stack.iter().any(|id| {
+        g.card_defs
+            .get(id)
+            .map(|c| c.def == def_code)
+            .unwrap_or(false)
+    }) {
         return false;
     }
     g.cards.insert(card.to_string(), Zone::Judge(target));
@@ -306,7 +328,12 @@ pub fn begin_use(g: &mut Game, actor: usize, card: &str, fire: bool) -> Result<(
 ///
 /// 用途：掣政①「攻击范围不含你的角色对你使用牌无效」这类**规则允许但越距**的使用（技能强制/测试）。
 /// 玩家主动出牌必须走 `begin_use`（受 `legal_targets` 约束）。
-pub fn use_on_targets(g: &mut Game, actor: usize, card: &str, targets: &[usize]) -> Result<(), String> {
+pub fn use_on_targets(
+    g: &mut Game,
+    actor: usize,
+    card: &str,
+    targets: &[usize],
+) -> Result<(), String> {
     use_start(g, actor, card)?;
     super::resolve::push_flow(
         g,
@@ -355,6 +382,9 @@ pub fn recast_any(g: &mut Game, actor: usize, id: &str) -> Result<(), String> {
     if g.is_frozen(actor, id) {
         return Err("该手牌已被冻结".into());
     }
+    if super::skills::hand_color_blocked(g, actor, id) {
+        return Err("本回合不能使用/打出该颜色的手牌".into());
+    }
     let lianhuan = g
         .card_defs
         .get(id)
@@ -372,6 +402,52 @@ pub fn recast_any(g: &mut Game, actor: usize, id: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// **两张手牌当一张牌使用（父魂/丈八共用入口）**：
+///
+/// 与 `begin_use_zhangba` 的差别：承载牌走 `use_as`（结算完成整组进弃牌堆），
+/// 因此**必须先过与普通使用相同的单出口校验**（冻结 / 花色封锁 / 【杀】次数与禁用）。
+pub fn begin_use_pair(
+    g: &mut Game,
+    actor: usize,
+    def_code: &str,
+    c1: &str,
+    c2: &str,
+) -> Result<(), String> {
+    if c1 == c2 {
+        return Err("不能重复选择同一张牌".into());
+    }
+    for c in [c1, c2] {
+        if !matches!(g.cards.get(c), Some(Zone::Hand(s)) if *s == actor) {
+            return Err(format!("{c} 不在座位 {actor} 的手牌"));
+        }
+        if g.is_frozen(actor, c) {
+            return Err(format!("{c} 已被冻结"));
+        }
+        if super::skills::card_locked(g, actor, c) || super::skills::hand_color_blocked(g, actor, c)
+        {
+            return Err(format!("{c} 本回合被封锁"));
+        }
+    }
+    let def = cards::def(def_code).ok_or_else(|| format!("牌定义不存在：{def_code}"))?;
+    if def.tags.sha {
+        if super::skills::sha_use_blocked(g, actor) {
+            return Err("本回合不能使用【杀】".into());
+        }
+        if sha_limit_reached(g, actor, Some(c1)) {
+            return Err("本阶段【杀】次数已用尽".into());
+        }
+    }
+    use_as(
+        g,
+        actor,
+        def_code,
+        &[c1.to_string(), c2.to_string()],
+        &[],
+        false,
+    )?;
+    Ok(())
+}
+
 /// 丈八蛇矛：两张手牌当【杀】（虚拟牌实例；守恒由「实例 + 区域」同时登记保证）。
 pub fn begin_use_zhangba(g: &mut Game, actor: usize, c1: &str, c2: &str) -> Result<(), String> {
     for c in [c1, c2] {
@@ -382,12 +458,18 @@ pub fn begin_use_zhangba(g: &mut Game, actor: usize, c1: &str, c2: &str) -> Resu
     if sha_limit_reached(g, actor, None) {
         return Err("本阶段【杀】次数已用尽".into());
     }
-    let suit = g.card_defs.get(c1).map(|c| c.suit).unwrap_or(super::Suit::Spade);
-    let rank = g.card_defs.get(c1).map(|c| c.rank).unwrap_or(7);
+    // 两张手牌当【杀】= 多张承载 → **无属性**（不存在「取第一张」的花色/点数）。
+    let suit = super::Suit::None;
+    let rank = 0u8;
     for c in [c1, c2] {
         flow::note_lost(g, actor, c, false);
         to_discard_with(g, c, "丈八蛇矛", Some(actor));
-        let mut lost = Event::card(EventKind::CardLost, Some(actor), c.to_string(), Some("丈八蛇矛".to_string()));
+        let mut lost = Event::card(
+            EventKind::CardLost,
+            Some(actor),
+            c.to_string(),
+            Some("丈八蛇矛".to_string()),
+        );
         lost.by = Some(actor);
         lost.from = Some(actor);
         let e = lost.snapshot(g);
@@ -404,9 +486,16 @@ pub fn begin_use_zhangba(g: &mut Game, actor: usize, c1: &str, c2: &str) -> Resu
         },
     );
     g.cards.insert(vid.clone(), Zone::Processing);
+    g.virtual_ids.insert(vid.clone());
+    g.damage_card = Some(vid.clone());
     g.bump(&format!("turn.{actor}.cards_used"));
     g.bump(&format!("phase.sha_used.{actor}"));
-    let mut used = Event::card(EventKind::CardUsed, Some(actor), vid.clone(), Some("丈八蛇矛".to_string()));
+    let mut used = Event::card(
+        EventKind::CardUsed,
+        Some(actor),
+        vid.clone(),
+        Some("丈八蛇矛".to_string()),
+    );
     used.by = Some(actor);
     used.from = Some(actor);
     let e = used.snapshot(g);
@@ -426,12 +515,7 @@ pub fn begin_use_zhangba(g: &mut Game, actor: usize, c1: &str, c2: &str) -> Resu
 // ---------------------------------------------------------------------------
 
 /// 流程帧 handler。`Card` 走 P3/P4 状态机；`Turn` 走回合驱动；`Dying` 走濒死救援。
-pub fn step_flow(
-    g: &mut Game,
-    kind: FlowKind,
-    data: &Value,
-    actor: usize,
-) -> Result<Step, String> {
+pub fn step_flow(g: &mut Game, kind: FlowKind, data: &Value, actor: usize) -> Result<Step, String> {
     match kind {
         FlowKind::Card => step_card(g, actor, data),
         FlowKind::Turn => super::turn::step_turn(g, data),
@@ -472,12 +556,20 @@ fn next(stage: Stage, d: Map<String, Value>) -> Step {
 fn targets_of(d: &Map<String, Value>) -> Vec<usize> {
     d.get("targets")
         .and_then(|v| v.as_array())
-        .map(|a| a.iter().filter_map(|x| x.as_u64().map(|v| v as usize)).collect())
+        .map(|a| {
+            a.iter()
+                .filter_map(|x| x.as_u64().map(|v| v as usize))
+                .collect()
+        })
         .unwrap_or_default()
 }
 
 fn step_card(g: &mut Game, actor: usize, data: &Value) -> Result<Step, String> {
-    let Some(card) = data.get("card").and_then(|v| v.as_str()).map(|s| s.to_string()) else {
+    let Some(card) = data
+        .get("card")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+    else {
         return Err("流程帧缺 card".into());
     };
     let mut d = match data {
@@ -555,12 +647,7 @@ pub fn legal_targets(g: &Game, actor: usize, def: &CardDef) -> Vec<usize> {
 }
 
 /// 合法目标集合（带**本次使用**的 `UseOpts`）：`no_distance` / `range_override` 只作用于本次。
-pub fn legal_targets_with(
-    g: &Game,
-    actor: usize,
-    card: Option<&str>,
-    def: &CardDef,
-) -> Vec<usize> {
+pub fn legal_targets_with(g: &Game, actor: usize, card: Option<&str>, def: &CardDef) -> Vec<usize> {
     let opts = card.map(|c| g.use_opts(c)).unwrap_or_default();
     let mut out = vec![];
     for s in 0..g.seats.len() {
@@ -682,7 +769,8 @@ fn target_bounds(g: &Game, actor: usize, def: &CardDef, card: Option<&str>) -> (
         Effect::Collateral => (2, 2),
         Effect::IronChain => (1, 2),
         Effect::Sha
-            if super::gear::weapon_of(g, actor) == WeaponKind::Fangtian && g.hand_size(actor) == 0 =>
+            if super::gear::weapon_of(g, actor) == WeaponKind::Fangtian
+                && g.hand_size(actor) == 0 =>
         {
             (1, 3)
         }
@@ -730,7 +818,11 @@ fn step_target(g: &mut Game, actor: usize, mut d: Map<String, Value>) -> Result<
             let seats: Vec<usize> = d
                 .get("targets")
                 .and_then(|v| v.as_array())
-                .map(|a| a.iter().filter_map(|v| v.as_u64().map(|n| n as usize)).collect())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|v| v.as_u64().map(|n| n as usize))
+                        .collect()
+                })
                 .unwrap_or_default();
             d.insert("multi_hooks_done".into(), json!(true));
             if seats.len() > 1 && super::skills::fire_multi_target(g, actor, &seats, &card) {
@@ -745,7 +837,11 @@ fn step_target(g: &mut Game, actor: usize, mut d: Map<String, Value>) -> Result<
                 d.insert("targets".into(), json!(kept));
             }
         }
-        let mut list = d.get("targets").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+        let mut list = d
+            .get("targets")
+            .and_then(|v| v.as_array())
+            .cloned()
+            .unwrap_or_default();
         // 求援：成为【杀】/伤害锦囊目标后，询问其他角色是否成为额外目标。
         if !flag(&d, "target_helper_done") {
             let seats: Vec<usize> = list
@@ -759,7 +855,10 @@ fn step_target(g: &mut Game, actor: usize, mut d: Map<String, Value>) -> Result<
         }
         // 求援等：结算前追加目标（去重、末尾）。
         if !flag(&d, "mid_targets_done") {
-            let mut seats: Vec<usize> = list.iter().filter_map(|v| v.as_u64().map(|n| n as usize)).collect();
+            let mut seats: Vec<usize> = list
+                .iter()
+                .filter_map(|v| v.as_u64().map(|n| n as usize))
+                .collect();
             for m in g.use_opts(&card).mid_targets.clone() {
                 if !seats.contains(&m) && g.seats.get(m).map(|s| s.alive).unwrap_or(false) {
                     seats.push(m);
@@ -812,7 +911,11 @@ fn step_target(g: &mut Game, actor: usize, mut d: Map<String, Value>) -> Result<
     let mut picked: Vec<usize> = d
         .get("picked")
         .and_then(|v| v.as_array())
-        .map(|a| a.iter().filter_map(|x| x.as_u64().map(|v| v as usize)).collect())
+        .map(|a| {
+            a.iter()
+                .filter_map(|x| x.as_u64().map(|v| v as usize))
+                .collect()
+        })
         .unwrap_or_default();
     let mut confirmed = false;
     if let Some(ans) = take_answer(g, "flow:card") {
@@ -830,7 +933,12 @@ fn step_target(g: &mut Game, actor: usize, mut d: Map<String, Value>) -> Result<
     }
     if picked.len() >= max || (confirmed && picked.len() >= min) {
         d.insert("targets".into(), json!(picked));
-        emit_targets(g, actor, &card, &d["targets"].as_array().cloned().unwrap_or_default());
+        emit_targets(
+            g,
+            actor,
+            &card,
+            &d["targets"].as_array().cloned().unwrap_or_default(),
+        );
         d.insert("sub".into(), json!("wuxie"));
         return Ok(next(Stage::WuxieAsk, d));
     }
@@ -860,7 +968,14 @@ fn step_target(g: &mut Game, actor: usize, mut d: Map<String, Value>) -> Result<
 }
 
 /// 追加选择是否合法（借刀：先选持武器者，再选另一个目标）。
-fn legal_pick(g: &Game, actor: usize, card: &str, def: &CardDef, picked: &[usize], t: usize) -> bool {
+fn legal_pick(
+    g: &Game,
+    actor: usize,
+    card: &str,
+    def: &CardDef,
+    picked: &[usize],
+    t: usize,
+) -> bool {
     if picked.contains(&t) || t == actor || !g.seats[t].alive {
         return false;
     }
@@ -907,6 +1022,7 @@ fn emit_targets(g: &mut Game, actor: usize, card: &str, targets: &[Value]) {
 /// 取消使用：牌回手牌，使用计数回退（未完成的「使用」不算一次使用）。
 /// 虚拟牌（丈八蛇矛 `v:`）不回手牌，落到 `Void`（避免合成牌混进手牌/牌堆）。
 fn cancel_use(g: &mut Game, actor: usize, card: &str) -> Step {
+    super::skills::on_use_cancelled(g, actor, card);
     g.clear_use_opts(card);
     if card.starts_with("v:") {
         // 取消转化使用：承载牌回手牌（未发生使用），虚拟牌落 Void。
@@ -945,7 +1061,11 @@ fn step_wuxie(g: &mut Game, actor: usize, mut d: Map<String, Value>) -> Result<S
     let card = sval(&d, "card").ok_or("流程帧缺 card")?;
     let def = def_of(g, &card)?;
     // 基本牌/装备/无懈本身不进无懈窗口；“本次不能被无懈”（no-wuxie）只关无懈窗口。
-    if !def.effect.is_trick() || def.tags.wuxie || flag(&d, "no_wuxie") || g.use_opts(&card).no_wuxie {
+    if !def.effect.is_trick()
+        || def.tags.wuxie
+        || flag(&d, "no_wuxie")
+        || g.use_opts(&card).no_wuxie
+    {
         d.insert("sub".into(), json!("effect"));
         d.insert("esub".into(), json!("start"));
         return Ok(next(Stage::CardResolve, d));
@@ -1045,7 +1165,9 @@ fn step_wuxie(g: &mut Game, actor: usize, mut d: Map<String, Value>) -> Result<S
         return Ok(next(Stage::WuxieAsk, d));
     }
     if d.get("alt_used").is_none() {
-        for (code, label) in super::skills::response_alternatives(g, asker, ResponseKind::Wuxie, "wuxie") {
+        for (code, label) in
+            super::skills::response_alternatives(g, asker, ResponseKind::Wuxie, "wuxie")
+        {
             b = b.option(format!("alt:{code}"), label);
         }
     }
@@ -1173,7 +1295,12 @@ fn step_effect(g: &mut Game, actor: usize, mut d: Map<String, Value>) -> Result<
     }
 }
 
-pub(crate) fn equip_card(g: &mut Game, actor: usize, card: &str, def: &CardDef) -> Result<Event, String> {
+pub(crate) fn equip_card(
+    g: &mut Game,
+    actor: usize,
+    card: &str,
+    def: &CardDef,
+) -> Result<Event, String> {
     if let Some(slot) = def.slot {
         if g.slot_abolished(actor, slot) {
             return Err("该装备栏已被废除，不可再装备".into());
@@ -1219,7 +1346,9 @@ pub(crate) fn equip_card(g: &mut Game, actor: usize, card: &str, def: &CardDef) 
 }
 
 fn toggle_chain(g: &mut Game, seat: usize, cause: &str) {
-    let Some(s) = g.seats.get_mut(seat) else { return };
+    let Some(s) = g.seats.get_mut(seat) else {
+        return;
+    };
     s.chained = !s.chained;
     let kind = if s.chained {
         EventKind::ChainedEnter
@@ -1243,7 +1372,9 @@ fn step_sha(
     d: &mut Map<String, Value>,
     esub: &str,
 ) -> Result<Step, String> {
-    let Some(target) = target else { return Ok(finish_and_done(g, card)) };
+    let Some(target) = target else {
+        return Ok(finish_and_done(g, card));
+    };
     let ti = uid(d, "ti");
     let advance_target = |d: &mut Map<String, Value>| {
         d.insert("ti".into(), json!(ti + 1));
@@ -1319,14 +1450,19 @@ fn step_sha(
             let need = g
                 .use_opts(card)
                 .multi_response
-                .max(super::skills::response_need(g, target, actor, ResponseKind::Shan));
+                .max(super::skills::response_need(
+                    g,
+                    target,
+                    actor,
+                    ResponseKind::Shan,
+                ));
             let got = d.get("resp_got").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
             // 仁王盾：黑色【杀】无效（不需要出闪）。
             if armor == ArmorKind::Renwang {
                 let black = g
                     .card_defs
                     .get(card)
-                    .map(|c| !c.suit.is_red())
+                    .map(|c| c.suit.is_black())
                     .unwrap_or(false);
                 if black {
                     return Ok(advance_target(d));
@@ -1352,7 +1488,11 @@ fn step_sha(
                     return Ok(next(Stage::CardResolve, d.clone()));
                 } else if let Some(id) = ans.strip_prefix("s:") {
                     let color_ok = match g.use_opts(card).response_color_lock {
-                        Some(red) => g.card_defs.get(id).map(|c| c.suit.is_red() == red).unwrap_or(false),
+                        Some(red) => g
+                            .card_defs
+                            .get(id)
+                            .map(|c| c.suit.is_red() == red)
+                            .unwrap_or(false),
                         None => true,
                     };
                     let ok = color_ok
@@ -1377,19 +1517,18 @@ fn step_sha(
             let shan: Vec<String> = response_cards(g, target, ResponseKind::Shan)
                 .into_iter()
                 .filter(|id| match g.use_opts(card).response_color_lock {
-                    Some(red) => g.card_defs.get(id).map(|c| c.suit.is_red() == red).unwrap_or(false),
+                    Some(red) => g
+                        .card_defs
+                        .get(id)
+                        .map(|c| c.suit.is_red() == red)
+                        .unwrap_or(false),
                     None => true,
                 })
                 .collect();
             let alts: Vec<(&'static str, String)> = if flag(d, "alt_used") {
                 vec![]
             } else {
-                super::skills::response_alternatives(
-                    g,
-                    target,
-                    ResponseKind::Shan,
-                    "sha",
-                )
+                super::skills::response_alternatives(g, target, ResponseKind::Shan, "sha")
             };
             let shan_blocked = super::skills::shan_blocked_for(g, actor, target, card);
             if (shan.is_empty() || super::skills::no_real_shan(g, actor, card) || shan_blocked)
@@ -1492,7 +1631,10 @@ fn step_sha(
             }
             let mut b = PendingBuilder::new(actor, "guanshi_pick").skill("flow:card");
             for id in own_cards(g, actor) {
-                b = b.option(format!("discard:{id}"), format!("弃置【{}】", card_name(g, &id)));
+                b = b.option(
+                    format!("discard:{id}"),
+                    format!("弃置【{}】", card_name(g, &id)),
+                );
             }
             Ok(Step::NeedAt(
                 Stage::CardPick,
@@ -1522,10 +1664,16 @@ fn step_sha(
             }
             let mut b = PendingBuilder::new(target, "cixiong").skill("flow:card");
             for id in g.hand(target) {
-                b = b.option(format!("discard:{id}"), format!("弃置【{}】", card_name(g, &id)));
+                b = b.option(
+                    format!("discard:{id}"),
+                    format!("弃置【{}】", card_name(g, &id)),
+                );
             }
             b = b.option("draw", "令使用者摸一张牌");
-            Ok(Step::NeedAt(Stage::CardOpt, b.escape_mandatory("选择一项").build()))
+            Ok(Step::NeedAt(
+                Stage::CardOpt,
+                b.escape_mandatory("选择一项").build(),
+            ))
         }
         "hanbing" => {
             let picked = uid(d, "picked");
@@ -1544,7 +1692,10 @@ fn step_sha(
             for id in target_cards(g, target) {
                 b = b.option(format!("c:{id}"), format!("弃置【{}】", card_name(g, &id)));
             }
-            Ok(Step::NeedAt(Stage::CardPick, b.escape_mandatory("弃牌").build()))
+            Ok(Step::NeedAt(
+                Stage::CardPick,
+                b.escape_mandatory("弃牌").build(),
+            ))
         }
         "qilin" => {
             if let Some(ans) = take_answer(g, "flow:card") {
@@ -1581,7 +1732,10 @@ fn step_sha(
                 }
                 let mut b = PendingBuilder::new(actor, "hanbing_opt").skill("flow:card");
                 b = b.option("hanbing", "寒冰剑：防止此伤害，改为弃其两张牌");
-                return Ok(Step::NeedAt(Stage::CardOpt, b.escape("继续造成伤害").build()));
+                return Ok(Step::NeedAt(
+                    Stage::CardOpt,
+                    b.escape("继续造成伤害").build(),
+                ));
             }
             d.insert("esub".into(), json!("hit"));
             Ok(next(Stage::CardResolve, d.clone()))
@@ -1592,7 +1746,9 @@ fn step_sha(
             g.sha_bonus = 0;
             let guding = super::gear::weapon_of(g, actor) == WeaponKind::Gudingdao
                 && g.hand_size(target) == 0;
-            let amount = 1 + jiu + if guding { 1 } else { 0 }
+            let amount = 1
+                + jiu
+                + if guding { 1 } else { 0 }
                 + super::skills::sha_damage_bonus(g, actor, target, card);
             let kind = if flag(d, "fire") {
                 DamageKind::Fire
@@ -1647,10 +1803,20 @@ fn step_duel(
     d: &mut Map<String, Value>,
     _esub: &str,
 ) -> Result<Step, String> {
-    let Some(target) = target else { return finish_done(g, d) };
+    let Some(target) = target else {
+        return finish_done(g, d);
+    };
     let card = sval(d, "card").unwrap_or_default();
-    let mut cur = d.get("duel_cur").and_then(|v| v.as_u64()).map(|v| v as usize).unwrap_or(target);
-    let other = d.get("duel_other").and_then(|v| v.as_u64()).map(|v| v as usize).unwrap_or(actor);
+    let mut cur = d
+        .get("duel_cur")
+        .and_then(|v| v.as_u64())
+        .map(|v| v as usize)
+        .unwrap_or(target);
+    let other = d
+        .get("duel_other")
+        .and_then(|v| v.as_u64())
+        .map(|v| v as usize)
+        .unwrap_or(actor);
     let hit = |g: &mut Game, from: usize, victim: usize| {
         let spec = DamageSpec {
             from: Some(from),
@@ -1665,9 +1831,7 @@ fn step_duel(
     if !g.seats[cur].alive {
         cur = other;
     }
-    if g.use_opts(&card).no_response
-        || super::skills::no_response_for(g, actor, cur)
-    {
+    if g.use_opts(&card).no_response || super::skills::no_response_for(g, actor, cur) {
         hit(g, other, cur);
         return finish_done(g, d);
     }
@@ -1687,7 +1851,12 @@ fn step_duel(
     let need = g
         .use_opts(&card)
         .multi_response
-        .max(super::skills::response_need(g, cur, other, ResponseKind::Sha));
+        .max(super::skills::response_need(
+            g,
+            cur,
+            other,
+            ResponseKind::Sha,
+        ));
     let got = d.get("resp_got").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
     if let Some(ans) = take_answer(g, "flow:card") {
         if let Some(code) = ans.strip_prefix("alt:") {
@@ -1755,7 +1924,8 @@ fn step_duel(
         b = b.option(id, label);
     }
     if d.get("alt_used").is_none() {
-        for (code, label) in super::skills::response_alternatives(g, cur, ResponseKind::Sha, "duel") {
+        for (code, label) in super::skills::response_alternatives(g, cur, ResponseKind::Sha, "duel")
+        {
             b = b.option(format!("alt:{code}"), label);
         }
     }
@@ -1771,7 +1941,9 @@ fn step_aoe(
     d: &mut Map<String, Value>,
     _esub: &str,
 ) -> Result<Step, String> {
-    let Some(target) = target else { return finish_done(g, d) };
+    let Some(target) = target else {
+        return finish_done(g, d);
+    };
     let card = sval(d, "card").unwrap_or_default();
     let need = g.use_opts(&card).multi_response.max(1);
     let ti = uid(d, "ti");
@@ -1824,7 +1996,11 @@ fn step_aoe(
                 Some(ResponseKind::Jiu) => "jiu",
                 None => "",
             };
-            let ctx = if def.effect == Effect::SavageAssault { "nanman" } else { "wanjian" };
+            let ctx = if def.effect == Effect::SavageAssault {
+                "nanman"
+            } else {
+                "wanjian"
+            };
             super::resolve::push_ask(
                 g,
                 code.to_string(),
@@ -1871,7 +2047,11 @@ fn step_aoe(
         Some(k) => response_cards(g, target, k),
         None => vec![],
     };
-    let ctx = if def.effect == Effect::SavageAssault { "nanman" } else { "wanjian" };
+    let ctx = if def.effect == Effect::SavageAssault {
+        "nanman"
+    } else {
+        "wanjian"
+    };
     let alts: Vec<(&'static str, String)> = if d.get("alt_used").is_none() {
         match expect {
             Some(kind) => super::skills::response_alternatives(g, target, kind, ctx),
@@ -1916,7 +2096,9 @@ fn step_steal(
     _esub: &str,
 ) -> Result<Step, String> {
     let card = sval(d, "card").unwrap_or_default();
-    let Some(target) = target else { return Ok(finish_and_done(g, &card)) };
+    let Some(target) = target else {
+        return Ok(finish_and_done(g, &card));
+    };
     if let Some(ans) = take_answer(g, "flow:card") {
         if let Some(id) = ans.strip_prefix("c:") {
             let ok = matches!(
@@ -1988,7 +2170,11 @@ fn step_harvest(
     let mut revealed: Vec<String> = d
         .get("revealed")
         .and_then(|v| v.as_array())
-        .map(|a| a.iter().filter_map(|x| x.as_str().map(|s| s.to_string())).collect())
+        .map(|a| {
+            a.iter()
+                .filter_map(|x| x.as_str().map(|s| s.to_string()))
+                .collect()
+        })
         .unwrap_or_default();
     if hidx >= order.len() || revealed.is_empty() {
         for id in revealed {
@@ -2041,7 +2227,9 @@ fn step_fire_attack(
     esub: &str,
 ) -> Result<Step, String> {
     let card = sval(d, "card").unwrap_or_default();
-    let Some(target) = target else { return Ok(finish_and_done(g, &card)) };
+    let Some(target) = target else {
+        return Ok(finish_and_done(g, &card));
+    };
     if esub != "discard" {
         if let Some(ans) = take_answer(g, "flow:card") {
             if let Some(id) = ans.strip_prefix("r:") {
@@ -2103,7 +2291,10 @@ fn step_fire_attack(
     }
     let mut b = PendingBuilder::new(actor, "fire_attack_discard").skill("flow:card");
     for id in cards {
-        b = b.option(format!("s:{id}"), format!("弃置【{}】造成火焰伤害", card_name(g, &id)));
+        b = b.option(
+            format!("s:{id}"),
+            format!("弃置【{}】造成火焰伤害", card_name(g, &id)),
+        );
     }
     Ok(Step::NeedAt(Stage::CardPick, b.escape("不弃牌").build()))
 }
@@ -2157,10 +2348,15 @@ fn step_collateral(
         for id in shas {
             p = p.option(format!("s:{id}"), format!("对 {} 号位使用【杀】", b + 1));
         }
-        for (code, label) in super::skills::response_alternatives(g, a, ResponseKind::Sha, "collateral") {
+        for (code, label) in
+            super::skills::response_alternatives(g, a, ResponseKind::Sha, "collateral")
+        {
             p = p.option(format!("alt:{code}"), label);
         }
-        return Ok(Step::NeedAt(Stage::CardAsk, p.escape("不出杀（交出武器）").build()));
+        return Ok(Step::NeedAt(
+            Stage::CardAsk,
+            p.escape("不出杀（交出武器）").build(),
+        ));
     }
     // esub == "hit"：B 出【闪】或受伤（来源 = A）。
     if let Some(ans) = take_answer(g, "flow:card") {
@@ -2204,7 +2400,9 @@ fn step_collateral(
     for id in shan {
         p = p.option(format!("s:{id}"), "打出【闪】");
     }
-    for (code, label) in super::skills::response_alternatives(g, b, ResponseKind::Shan, "collateral") {
+    for (code, label) in
+        super::skills::response_alternatives(g, b, ResponseKind::Shan, "collateral")
+    {
         p = p.option(format!("alt:{code}"), label);
     }
     Ok(Step::NeedAt(Stage::CardAsk, p.escape("不闪避").build()))
@@ -2215,7 +2413,10 @@ fn step_collateral(
 // ---------------------------------------------------------------------------
 
 fn step_dying(g: &mut Game, data: &Value) -> Result<Step, String> {
-    let target = data.get("target").and_then(|v| v.as_u64()).ok_or("濒死帧缺 target")? as usize;
+    let target = data
+        .get("target")
+        .and_then(|v| v.as_u64())
+        .ok_or("濒死帧缺 target")? as usize;
     let killer = data.get("by").and_then(|v| v.as_u64()).map(|v| v as usize);
     let idx = data.get("idx").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
     // 已脱险（被桃/酒/技能救回）：先执行「濒死结算结束后」的延后结算，再收口。
@@ -2482,14 +2683,27 @@ pub(crate) fn played(g: &mut Game, seat: usize, id: &str, cause: &str) -> Result
     if super::skills::card_locked(g, seat, id) {
         return Err(format!("{id} 本回合被花色封锁（讥谀）"));
     }
+    if super::skills::hand_color_blocked(g, seat, id) {
+        return Err(format!("{id} 本回合被颜色封锁"));
+    }
     g.cards.insert(id.to_string(), Zone::Discard);
     g.bump(&format!("turn.{seat}.cards_used"));
-    let mut lost = Event::card(EventKind::CardLost, Some(seat), id.to_string(), Some(cause.to_string()));
+    let mut lost = Event::card(
+        EventKind::CardLost,
+        Some(seat),
+        id.to_string(),
+        Some(cause.to_string()),
+    );
     lost.by = Some(seat);
     lost.from = Some(seat);
     let e = lost.snapshot(g);
     g.push_event(e);
-    let mut ev = Event::card(EventKind::CardPlayed, Some(seat), id.to_string(), Some(cause.to_string()));
+    let mut ev = Event::card(
+        EventKind::CardPlayed,
+        Some(seat),
+        id.to_string(),
+        Some(cause.to_string()),
+    );
     ev.by = Some(seat);
     ev.from = Some(seat);
     let e = ev.snapshot(g);
@@ -2538,13 +2752,23 @@ fn play_from_equip(g: &mut Game, seat: usize, id: &str, cause: &str) -> Result<(
     }
     flow::note_lost(g, seat, id, true);
     to_discard_with(g, id, cause, Some(seat));
-    let mut lost = Event::card(EventKind::CardLost, Some(seat), id.to_string(), Some(cause.to_string()));
+    let mut lost = Event::card(
+        EventKind::CardLost,
+        Some(seat),
+        id.to_string(),
+        Some(cause.to_string()),
+    );
     lost.by = Some(seat);
     lost.from = Some(seat);
     let e = lost.snapshot(g);
     g.push_event(e);
     flow::leave_equip(g, seat, id, cause);
-    let mut ev = Event::card(EventKind::CardPlayed, Some(seat), id.to_string(), Some(cause.to_string()));
+    let mut ev = Event::card(
+        EventKind::CardPlayed,
+        Some(seat),
+        id.to_string(),
+        Some(cause.to_string()),
+    );
     ev.by = Some(seat);
     ev.from = Some(seat);
     let e = ev.snapshot(g);
@@ -2656,7 +2880,10 @@ fn finish_card(g: &mut Game, card: &str) {
         super::skills::on_card_finished(g, card, owner);
         return;
     }
-    if matches!(g.cards.get(card), Some(Zone::Processing) | Some(Zone::Frame(_))) {
+    if matches!(
+        g.cards.get(card),
+        Some(Zone::Processing) | Some(Zone::Frame(_))
+    ) {
         to_discard_with(g, card, "使用落盘", Some(owner));
     }
     super::skills::on_card_finished(g, card, owner);
@@ -2671,7 +2898,6 @@ fn finish_done(g: &mut Game, d: &Map<String, Value>) -> Result<Step, String> {
     let card = sval(d, "card").unwrap_or_default();
     Ok(finish_and_done(g, &card))
 }
-
 
 // ---------------------------------------------------------------------------
 // 虚拟牌 / 转化牌 / 牌堆承载使用（mechanics `virtual-card` / `deck-carrier`）
@@ -2704,9 +2930,24 @@ pub fn use_as(
     if origin.is_empty() {
         return Err("转化牌必须声明承载牌（origin）".into());
     }
+    let def = cards::def(def_code).ok_or_else(|| format!("虚拟牌定义不存在：{def_code}"))?;
+    // 与 `begin_use` 同口径的单出口校验（legal ≡ execute）：冻结 / 花色封锁 / 【杀】次数与禁用 / 【酒】。
+    if def.tags.sha {
+        if super::skills::sha_use_blocked(g, actor) {
+            return Err("本回合不能使用【杀】".into());
+        }
+        if sha_limit_reached(g, actor, origin.first().map(|s| s.as_str())) {
+            return Err("本阶段【杀】次数已用尽".into());
+        }
+    }
+    if def.tags.jiu && (super::skills::jiu_blocked(g, actor) || jiu_limit_reached(g, actor)) {
+        return Err("本回合不能使用【酒】".into());
+    }
     for id in origin {
+        // 承载牌可以是手牌/装备区，也可以是**武将牌上的牌**（急袭：田）。
         let ok = matches!(g.cards.get(id), Some(Zone::Hand(s)) if *s == actor)
-            || matches!(g.cards.get(id), Some(Zone::Equip(s, _)) if *s == actor);
+            || matches!(g.cards.get(id), Some(Zone::Equip(s, _)) if *s == actor)
+            || matches!(g.cards.get(id), Some(Zone::Mark(s, _)) if *s == actor);
         if !ok {
             return Err(format!("承载牌 {id} 不属于座位 {actor}"));
         }
@@ -2715,6 +2956,9 @@ pub fn use_as(
         }
         if super::skills::card_locked(g, actor, id) {
             return Err(format!("承载牌 {id} 本回合被花色封锁"));
+        }
+        if super::skills::hand_color_blocked(g, actor, id) {
+            return Err(format!("承载牌 {id} 本回合被颜色封锁"));
         }
     }
     // 承载牌离开原区域（进处理区；结算完成落弃牌堆）：区域仍唯一归属。
@@ -2749,16 +2993,22 @@ fn push_virtual_use(
 ) -> Result<CardId, String> {
     let def = cards::def(def_code).ok_or_else(|| format!("虚拟牌定义不存在：{def_code}"))?;
     let first = origin.first().cloned();
-    let (suit, rank) = first
-        .as_ref()
-        .and_then(|id| g.card_defs.get(id).map(|c| (id, c)))
-        .map(|(id, c)| {
-            (
-                super::skills::suit_for_use(g, actor, c.suit),
-                super::skills::rank_for_use(g, actor, id, c.rank),
-            )
-        })
-        .unwrap_or((super::Suit::Spade, 1));
+    // 属性口径（2026-11-16 用户裁定）：**恰 1 张承载**继承实体花色/点数；
+    // 0 张（纯视为使用）或多张（长标/丈八）→ 无属性（`Suit::None` + 点数 0，比较恒判否）。
+    let (suit, rank) = if origin.len() == 1 {
+        first
+            .as_ref()
+            .and_then(|id| g.card_defs.get(id).map(|c| (id, c)))
+            .map(|(id, c)| {
+                (
+                    super::skills::suit_for_use(g, actor, c.suit),
+                    super::skills::rank_for_use(g, actor, id, c.rank),
+                )
+            })
+            .unwrap_or((super::Suit::None, 0))
+    } else {
+        (super::Suit::None, 0)
+    };
     let vid = format!("v:m{}", g.next_frame_id);
     g.next_frame_id += 1;
     g.damage_card = Some(vid.clone());
@@ -2772,6 +3022,7 @@ fn push_virtual_use(
         },
     );
     g.cards.insert(vid.clone(), Zone::Processing);
+    g.virtual_ids.insert(vid.clone());
     if !origin.is_empty() {
         g.virtual_origins.insert(vid.clone(), origin);
     }
@@ -2791,27 +3042,30 @@ fn push_virtual_use(
         EventKind::CardUsed,
         Some(actor),
         vid.clone(),
-        Some(if def_code.is_empty() { "视为使用".to_string() } else { "转化使用".to_string() }),
+        Some(if def_code.is_empty() {
+            "视为使用".to_string()
+        } else {
+            "转化使用".to_string()
+        }),
     );
     used.by = Some(actor);
     let e = used.snapshot(g);
     g.push_event(e);
     super::skills::on_use_start(g, actor, &vid);
     super::skills::fire_use_pre(g, actor, &vid);
-    super::resolve::push_flow(
-        g,
-        FlowKind::Card,
-        actor,
-        Stage::CardTarget,
-        json!({
-            "card": vid,
-            "actor": actor,
-            "fire": fire,
-            "started": true,
-            "sub": "target",
-            "targets": targets,
-        }),
-    );
+    // `targets` 为空 = **交给内核选目标**（`step_target` 的合法集/上限/拦截单出口）；
+    // 非空 = 技能已指定目标，直接进入无懈/结算（明策/求援等）。
+    let mut data = json!({
+        "card": vid,
+        "actor": actor,
+        "fire": fire,
+        "started": true,
+        "sub": "target",
+    });
+    if !targets.is_empty() {
+        data["targets"] = json!(targets);
+    }
+    super::resolve::push_flow(g, FlowKind::Card, actor, Stage::CardTarget, data);
     Ok(vid)
 }
 
@@ -2836,7 +3090,14 @@ pub fn use_from_pile_as(
     }
     g.deck.retain(|c| c != carrier);
     g.cards.insert(carrier.to_string(), Zone::Processing);
-    push_virtual_use(g, actor, def_code, vec![carrier.to_string()], targets, false)?;
+    push_virtual_use(
+        g,
+        actor,
+        def_code,
+        vec![carrier.to_string()],
+        targets,
+        false,
+    )?;
     Ok(())
 }
 

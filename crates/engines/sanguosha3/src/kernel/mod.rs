@@ -42,11 +42,18 @@ pub enum Suit {
     Heart,
     Club,
     Diamond,
+    /// **无花色**（虚拟牌：0 张承载或多张承载）。颜色/花色判定恒 false，点数按 0。
+    None,
 }
 
 impl Suit {
+    /// 是否红色（无花色 → false）。
     pub fn is_red(self) -> bool {
         matches!(self, Suit::Heart | Suit::Diamond)
+    }
+    /// 是否黑色（无花色 → false；**不要写 `!is_red()`**，那会把无花色当成黑色）。
+    pub fn is_black(self) -> bool {
+        matches!(self, Suit::Spade | Suit::Club)
     }
     pub fn label(self) -> &'static str {
         match self {
@@ -54,6 +61,7 @@ impl Suit {
             Suit::Heart => "红桃",
             Suit::Club => "梅花",
             Suit::Diamond => "方块",
+            Suit::None => "无花色",
         }
     }
 }
@@ -362,6 +370,10 @@ pub struct Game {
     pub cards: HashMap<CardId, Zone>,
     /// 牌定义 id → 牌实例（花色/点数/def）。牌实例数据与区域归属分离，避免「牌在区里但数据漂移」。
     pub card_defs: HashMap<CardId, Card>,
+    /// **虚拟牌实例集合**（`v:*`）：比较语义的唯一判据（见 `cards::attrs`）。
+    /// 0 张承载或多张承载 → 无花色/点数；恰好 1 张承载 → 继承承载牌。
+    #[serde(default)]
+    pub virtual_ids: BTreeSet<CardId>,
     pub turn: usize,
     pub phase: Phase,
     pub round: u32,
@@ -469,6 +481,10 @@ pub struct Game {
     /// 本动作内技能去重标记（`begin_action` 清空）。
     #[serde(default)]
     pub action_seen: BTreeSet<String>,
+    /// 「两张手牌当一张牌」选牌中间态（父魂/丈八共用；`(seat, 已选第一张)`）。
+    /// 阶段/回合切换即清空；不使用 `marks` 做状态机（宪法硬约束 A）。
+    #[serde(default)]
+    pub pair_pick: Option<(usize, Option<CardId>)>,
     /// **私密可见集合**（观看手牌）：viewer → 牌；不进入公共可见集合，`clear_private_reveals` 收回。
     #[serde(default)]
     pub private_reveals: HashMap<usize, BTreeSet<CardId>>,
@@ -676,7 +692,11 @@ impl Game {
         } else {
             Err(format!(
                 "栈空但仍有帧暂存牌：{}",
-                orphans.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(",")
+                orphans
+                    .iter()
+                    .map(|s| s.as_str())
+                    .collect::<Vec<_>>()
+                    .join(",")
             ))
         }
     }
@@ -776,6 +796,14 @@ impl Game {
         self.counters.retain(|k, _| !k.starts_with(prefix));
     }
 
+    /// 清掉某命名空间的文本标记（**与 `clear_counters` 成对**：`turn.`/`phase.`/`round.`）。
+    ///
+    /// 教训（2026-11-16 审计）：`turn.`/`phase.` 前缀的标记此前**从不清理**，
+    /// 「本回合」状态（双雄颜色/弓骑花色/潜袭牌/渐营花色/强识类别）会泄漏到后续回合。
+    pub fn clear_marks(&mut self, prefix: &str) {
+        self.marks.retain(|k, _| !k.starts_with(prefix));
+    }
+
     /// 文本标记读。
     pub fn mark(&self, key: &str) -> Option<&str> {
         self.marks.get(key).map(|s| s.as_str())
@@ -834,7 +862,11 @@ impl Game {
         if let Some(n) = skills::hand_limit_override(self, seat) {
             return n;
         }
-        let hp = self.seats.get(seat).map(|s| s.hp.max(0) as usize).unwrap_or(0);
+        let hp = self
+            .seats
+            .get(seat)
+            .map(|s| s.hp.max(0) as usize)
+            .unwrap_or(0);
         let limit = hp.saturating_add_signed(skills::hand_limit_bonus(self, seat) as isize);
         if self.hand_cap > 0 {
             limit.min(self.hand_cap)
@@ -904,7 +936,9 @@ impl Game {
     ///
     /// 冻结**不阻止**被弃置/被获得/被移出游戏（只挡主动使用/打出）。
     pub fn freeze_cards(&mut self, owner: usize, ids: &[CardId], until: FreezeUntil, cause: &str) {
-        let Some(s) = self.seats.get_mut(owner) else { return };
+        let Some(s) = self.seats.get_mut(owner) else {
+            return;
+        };
         for id in ids {
             match until {
                 FreezeUntil::Turn => s.frozen.insert(id.clone()),
@@ -987,12 +1021,18 @@ impl Game {
 
     /// 某座位的该延时锦囊判定是否反转。
     pub fn judge_reversed(&self, seat: usize, code: &str) -> bool {
-        self.judge_reverse.get(&seat).map(|c| c == code).unwrap_or(false)
+        self.judge_reverse
+            .get(&seat)
+            .map(|c| c == code)
+            .unwrap_or(false)
     }
 
     /// 该延时锦囊的反转目标（视图用；没有 = None）。
     pub fn judge_reverse_target(&self, code: &str) -> Option<usize> {
-        self.judge_reverse.iter().find(|(_, c)| c.as_str() == code).map(|(s, _)| *s)
+        self.judge_reverse
+            .iter()
+            .find(|(_, c)| c.as_str() == code)
+            .map(|(s, _)| *s)
     }
 
     /// 登记“濒死结算结束后”要执行的结算（mechanics `dying-aftermath`）。
@@ -1060,9 +1100,7 @@ impl Game {
 
     /// 当前化身的“性别/势力”覆盖（读化身时跟随展示武将；移去后恢复原值）。
     pub fn huashen_general(&self, seat: usize) -> Option<&str> {
-        self.huashen
-            .get(&seat)
-            .and_then(|h| h.current.as_deref())
+        self.huashen.get(&seat).and_then(|h| h.current.as_deref())
     }
 
     /// 废除一个装备栏（决堰/破势/雄乱；**永久**，不可再装备）。

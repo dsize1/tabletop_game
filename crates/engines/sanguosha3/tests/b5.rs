@@ -30,17 +30,27 @@ fn run_steps(g: &mut Game, skill: &str, actor: usize, d: serde_json::Value, answ
     let mut data = d;
     let mut step = call(g, skill, actor, data.clone());
     for ans in answers {
+        // `NeedWith` = 切阶段 + 待办（自带新 data）；`Need`/`NeedAt` = 待办（data 在 pending.data）。
         loop {
             match &step {
                 Step::Need(_) | Step::NeedAt(_, _) => break,
-                Step::Next(_, next) | Step::NeedWith(_, next, _) => { data = next.clone(); step = call(g, skill, actor, data.clone()); }
+                Step::NeedWith(_, next, _) => { data = next.clone(); break; }
+                Step::Next(_, next) => { data = next.clone(); step = call(g, skill, actor, data.clone()); }
                 other => panic!("期望待办，实际 {other:?}"),
             }
         }
-        let p = match &step { Step::Need(p) | Step::NeedAt(_, p) => p, _ => unreachable!() };
+        let is_need_with = matches!(step, Step::NeedWith(_, _, _));
+        let p = match &step {
+            Step::Need(p) | Step::NeedAt(_, p) => p.clone(),
+            Step::NeedWith(_, _, p) => p.clone(),
+            _ => unreachable!(),
+        };
         assert!(p.has_option(ans), "选项 {ans} 不在 {:?}", p.options().iter().map(|o| o.id.clone()).collect::<Vec<_>>());
         g.answer = Some(ans.to_string());
         g.answer_skill = Some(skill.to_string());
+        if !is_need_with {
+            data = p.data().clone();
+        }
         step = call(g, skill, actor, data.clone());
     }
     step

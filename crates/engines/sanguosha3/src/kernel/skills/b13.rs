@@ -8,67 +8,297 @@
 
 use serde_json::json;
 
+use super::super::cards;
 use super::super::event::{EventKind, Subject, Window};
 use super::super::flow;
 use super::super::gear;
 use super::super::pending::PendingBuilder;
 use super::super::resolve::{take_answer, Ask, Stage, Step};
-use super::super::{CardId, DamageKind, DamageSpec, Game, Phase, SourceKind, Zone};
+use super::super::{CardId, DamageKind, DamageSpec, Game, Phase, SourceKind, Suit, Zone};
 use super::common::{self, card_label, own_cards, phase_key, seat_name, turn_key};
 use super::{Face, Hook, SkillDef, SkillKind, Subscription};
 use crate::kernel::skills;
 
 pub static SKILLS: &[SkillDef] = &[
     // —— 界左慈 · 化身 / 新生 ——
-    SkillDef { code: "huashen", name: "化身", kind: SkillKind::Normal, grant_only: false, transform: false,
-        faces: &[Face { window: Window::OwnTurn, subscriptions: &[
-            // 「回合开始时」/「回合结束后」：内核 `turn::{begin_turn,end_turn}` 的唯一事件点。
-            Subscription { event: EventKind::TurnStart, subject: Subject::Any },
-            Subscription { event: EventKind::TurnEnd, subject: Subject::Any },
-        ], hooks: &[], can_active: false }] },
-    SkillDef { code: "xinsheng", name: "新生", kind: SkillKind::Normal, grant_only: false, transform: false,
-        faces: &[Face { window: Window::AnyTime, subscriptions: &[
-            Subscription { event: EventKind::DamageAfter, subject: Subject::Self_ },
-        ], hooks: &[], can_active: false }] },
+    SkillDef {
+        code: "huashen",
+        name: "化身",
+        kind: SkillKind::Normal,
+        grant_only: false,
+        transform: false,
+        faces: &[Face {
+            window: Window::OwnTurn,
+            subscriptions: &[
+                // 「回合开始时」/「回合结束后」：内核 `turn::{begin_turn,end_turn}` 的唯一事件点。
+                Subscription {
+                    event: EventKind::TurnStart,
+                    subject: Subject::Any,
+                },
+                Subscription {
+                    event: EventKind::TurnEnd,
+                    subject: Subject::Any,
+                },
+            ],
+            hooks: &[],
+            can_active: false,
+        }],
+    },
+    SkillDef {
+        code: "xinsheng",
+        name: "新生",
+        kind: SkillKind::Normal,
+        grant_only: false,
+        transform: false,
+        faces: &[Face {
+            window: Window::AnyTime,
+            subscriptions: &[Subscription {
+                event: EventKind::DamageAfter,
+                subject: Subject::Self_,
+            }],
+            hooks: &[],
+            can_active: false,
+        }],
+    },
     // —— 界黄忠 / 界徐庶 / 界华雄 ——
-    SkillDef { code: "liegong", name: "烈弓", kind: SkillKind::Normal, grant_only: false, transform: false,
-        faces: &[Face { window: Window::AnyTime, subscriptions: &[], hooks: &[Hook::ShaIntercept], can_active: false }] },
-    SkillDef { code: "zhuhai", name: "诛害", kind: SkillKind::Normal, grant_only: false, transform: false,
-        faces: &[Face { window: Window::OtherPhase(Phase::End), subscriptions: &[Subscription { event: EventKind::PhaseStart, subject: Subject::Any }], hooks: &[], can_active: false }] },
-    SkillDef { code: "qianxin", name: "潜心", kind: SkillKind::Awaken, grant_only: false, transform: false,
-        faces: &[Face { window: Window::AnyTime, subscriptions: &[Subscription { event: EventKind::DamageAfter, subject: Subject::By }], hooks: &[], can_active: false }] },
-    SkillDef { code: "jianyan", name: "荐言", kind: SkillKind::Normal, grant_only: true, transform: false,
-        faces: &[Face { window: Window::OwnPhase(Phase::Play), subscriptions: &[], hooks: &[], can_active: true }] },
-    SkillDef { code: "yaowu", name: "耀武", kind: SkillKind::Locked, grant_only: false, transform: false,
-        faces: &[Face { window: Window::AnyTime, subscriptions: &[Subscription { event: EventKind::DamageAfter, subject: Subject::Self_ }], hooks: &[], can_active: false }] },
-    SkillDef { code: "shizhan", name: "势斩", kind: SkillKind::Normal, grant_only: false, transform: false,
-        faces: &[Face { window: Window::OwnPhase(Phase::Play), subscriptions: &[], hooks: &[], can_active: true }] },
-    SkillDef { code: "huangtian", name: "黄天", kind: SkillKind::Lord, grant_only: false, transform: false,
-        faces: &[Face { window: Window::AnyTime, subscriptions: &[], hooks: &[], can_active: false }] },
+    SkillDef {
+        code: "liegong",
+        name: "烈弓",
+        kind: SkillKind::Normal,
+        grant_only: false,
+        transform: false,
+        faces: &[Face {
+            window: Window::AnyTime,
+            subscriptions: &[],
+            hooks: &[Hook::ShaIntercept],
+            can_active: false,
+        }],
+    },
+    SkillDef {
+        code: "zhuhai",
+        name: "诛害",
+        kind: SkillKind::Normal,
+        grant_only: false,
+        transform: false,
+        faces: &[Face {
+            window: Window::OtherPhase(Phase::End),
+            subscriptions: &[Subscription {
+                event: EventKind::PhaseStart,
+                subject: Subject::Any,
+            }],
+            hooks: &[],
+            can_active: false,
+        }],
+    },
+    SkillDef {
+        code: "qianxin",
+        name: "潜心",
+        kind: SkillKind::Awaken,
+        grant_only: false,
+        transform: false,
+        faces: &[Face {
+            window: Window::AnyTime,
+            subscriptions: &[Subscription {
+                event: EventKind::DamageAfter,
+                subject: Subject::By,
+            }],
+            hooks: &[],
+            can_active: false,
+        }],
+    },
+    SkillDef {
+        code: "jianyan",
+        name: "荐言",
+        kind: SkillKind::Normal,
+        grant_only: true,
+        transform: false,
+        faces: &[Face {
+            window: Window::OwnPhase(Phase::Play),
+            subscriptions: &[],
+            hooks: &[],
+            can_active: true,
+        }],
+    },
+    SkillDef {
+        code: "yaowu",
+        name: "耀武",
+        kind: SkillKind::Locked,
+        grant_only: false,
+        transform: false,
+        faces: &[Face {
+            window: Window::AnyTime,
+            subscriptions: &[Subscription {
+                event: EventKind::DamageAfter,
+                subject: Subject::Self_,
+            }],
+            hooks: &[],
+            can_active: false,
+        }],
+    },
+    SkillDef {
+        code: "shizhan",
+        name: "势斩",
+        kind: SkillKind::Normal,
+        grant_only: false,
+        transform: false,
+        faces: &[Face {
+            window: Window::OwnPhase(Phase::Play),
+            subscriptions: &[],
+            hooks: &[],
+            can_active: true,
+        }],
+    },
+    SkillDef {
+        code: "huangtian",
+        name: "黄天",
+        kind: SkillKind::Lord,
+        grant_only: false,
+        transform: false,
+        faces: &[Face {
+            window: Window::AnyTime,
+            subscriptions: &[],
+            hooks: &[],
+            can_active: false,
+        }],
+    },
     // —— 界袁绍 / 界刘禅 ——
-    SkillDef { code: "luanji", name: "乱击", kind: SkillKind::Normal, grant_only: false, transform: false,
-        faces: &[Face { window: Window::OwnPhase(Phase::Play), subscriptions: &[], hooks: &[], can_active: true }] },
-    SkillDef { code: "xueyi", name: "血裔", kind: SkillKind::Lord, grant_only: false, transform: false,
-        faces: &[Face { window: Window::AnyTime, subscriptions: &[Subscription { event: EventKind::PhaseStart, subject: Subject::Any }], hooks: &[Hook::GameStart], can_active: false }] },
-    SkillDef { code: "xiangle", name: "享乐", kind: SkillKind::Locked, grant_only: false, transform: false,
-        faces: &[Face { window: Window::AnyTime, subscriptions: &[], hooks: &[Hook::ShaIntercept], can_active: false }] },
-    SkillDef { code: "fangquan", name: "放权", kind: SkillKind::Normal, grant_only: false, transform: false,
-        faces: &[Face { window: Window::OwnTurn, subscriptions: &[Subscription { event: EventKind::PhaseStart, subject: Subject::Any }], hooks: &[], can_active: true }] },
-    SkillDef { code: "ruoyu", name: "若愚", kind: SkillKind::Awaken, grant_only: false, transform: false,
-        faces: &[Face { window: Window::OwnPhase(Phase::Prepare), subscriptions: &[Subscription { event: EventKind::PhaseStart, subject: Subject::Any }], hooks: &[], can_active: false }] },
-    SkillDef { code: "sishu", name: "思蜀", kind: SkillKind::Normal, grant_only: true, transform: false,
-        faces: &[Face { window: Window::OwnPhase(Phase::Play), subscriptions: &[], hooks: &[], can_active: true }] },
+    SkillDef {
+        code: "luanji",
+        name: "乱击",
+        kind: SkillKind::Normal,
+        grant_only: false,
+        transform: false,
+        faces: &[Face {
+            window: Window::OwnPhase(Phase::Play),
+            subscriptions: &[],
+            hooks: &[],
+            can_active: true,
+        }],
+    },
+    SkillDef {
+        code: "xueyi",
+        name: "血裔",
+        kind: SkillKind::Lord,
+        grant_only: false,
+        transform: false,
+        faces: &[Face {
+            window: Window::AnyTime,
+            subscriptions: &[Subscription {
+                event: EventKind::PhaseStart,
+                subject: Subject::Any,
+            }],
+            hooks: &[Hook::GameStart],
+            can_active: false,
+        }],
+    },
+    SkillDef {
+        code: "xiangle",
+        name: "享乐",
+        kind: SkillKind::Locked,
+        grant_only: false,
+        transform: false,
+        faces: &[Face {
+            window: Window::AnyTime,
+            subscriptions: &[],
+            hooks: &[Hook::ShaIntercept],
+            can_active: false,
+        }],
+    },
+    SkillDef {
+        code: "fangquan",
+        name: "放权",
+        kind: SkillKind::Normal,
+        grant_only: false,
+        transform: false,
+        faces: &[Face {
+            window: Window::OwnTurn,
+            subscriptions: &[Subscription {
+                event: EventKind::PhaseStart,
+                subject: Subject::Any,
+            }],
+            hooks: &[],
+            can_active: true,
+        }],
+    },
+    SkillDef {
+        code: "ruoyu",
+        name: "若愚",
+        kind: SkillKind::Awaken,
+        grant_only: false,
+        transform: false,
+        faces: &[Face {
+            window: Window::OwnPhase(Phase::Prepare),
+            subscriptions: &[Subscription {
+                event: EventKind::PhaseStart,
+                subject: Subject::Any,
+            }],
+            hooks: &[],
+            can_active: false,
+        }],
+    },
+    SkillDef {
+        code: "sishu",
+        name: "思蜀",
+        kind: SkillKind::Normal,
+        grant_only: true,
+        transform: false,
+        faces: &[Face {
+            window: Window::OwnPhase(Phase::Play),
+            subscriptions: &[],
+            hooks: &[],
+            can_active: true,
+        }],
+    },
     // —— 界于吉 · 蛊惑 ——
-    SkillDef { code: "guhuo", name: "蛊惑", kind: SkillKind::Normal, grant_only: false, transform: false,
-        faces: &[Face { window: Window::OwnPhase(Phase::Play), subscriptions: &[], hooks: &[], can_active: true }] },
+    SkillDef {
+        code: "guhuo",
+        name: "蛊惑",
+        kind: SkillKind::Normal,
+        grant_only: false,
+        transform: false,
+        faces: &[Face {
+            window: Window::OwnPhase(Phase::Play),
+            subscriptions: &[],
+            hooks: &[],
+            can_active: true,
+        }],
+    },
     // —— 界张角 · 鬼道 / 雷击 ——
-    SkillDef { code: "guidao", name: "鬼道", kind: SkillKind::Normal, grant_only: false, transform: false,
-        faces: &[Face { window: Window::AnyTime, subscriptions: &[], hooks: &[Hook::JudgeRewrite], can_active: false }] },
-    SkillDef { code: "leiji", name: "雷击", kind: SkillKind::Normal, grant_only: false, transform: false,
-        faces: &[Face { window: Window::AnyTime, subscriptions: &[
-            Subscription { event: EventKind::CardUsed, subject: Subject::Self_ },
-            Subscription { event: EventKind::CardPlayed, subject: Subject::Self_ },
-        ], hooks: &[], can_active: false }] },
+    SkillDef {
+        code: "guidao",
+        name: "鬼道",
+        kind: SkillKind::Normal,
+        grant_only: false,
+        transform: false,
+        faces: &[Face {
+            window: Window::AnyTime,
+            subscriptions: &[],
+            hooks: &[Hook::JudgeRewrite],
+            can_active: false,
+        }],
+    },
+    SkillDef {
+        code: "leiji",
+        name: "雷击",
+        kind: SkillKind::Normal,
+        grant_only: false,
+        transform: false,
+        faces: &[Face {
+            window: Window::AnyTime,
+            subscriptions: &[
+                Subscription {
+                    event: EventKind::CardUsed,
+                    subject: Subject::Self_,
+                },
+                Subscription {
+                    event: EventKind::CardPlayed,
+                    subject: Subject::Self_,
+                },
+            ],
+            hooks: &[],
+            can_active: false,
+        }],
+    },
 ];
 
 pub fn handler(code: &str) -> Option<fn(&mut Game, &Ask) -> Result<Step, String>> {
@@ -112,11 +342,17 @@ fn guhuo_available(g: &Game, seat: usize) -> bool {
 }
 
 fn step_of(ask: &Ask) -> &str {
-    ask.data.get("step").and_then(|v| v.as_str()).unwrap_or("ask")
+    ask.data
+        .get("step")
+        .and_then(|v| v.as_str())
+        .unwrap_or("ask")
 }
 
 fn pool(g: &Game, seat: usize) -> Vec<String> {
-    g.huashen.get(&seat).map(|h| h.pool.clone()).unwrap_or_default()
+    g.huashen
+        .get(&seat)
+        .map(|h| h.pool.clone())
+        .unwrap_or_default()
 }
 
 fn current(g: &Game, seat: usize) -> Option<String> {
@@ -258,7 +494,9 @@ fn huashen(g: &mut Game, ask: &Ask) -> Result<Step, String> {
                         b = b.option(format!("s:{code}"), format!("取得「{name}」"));
                     }
                     let data = json!({ "step": "skill_pick", "general": general });
-                    Ok(Step::Need(b.escape_mandatory("（必选一个技能）").data(data).build()))
+                    Ok(Step::Need(
+                        b.escape_mandatory("（必选一个技能）").data(data).build(),
+                    ))
                 }
                 Some(a) if a.starts_with("s:") => {
                     let code = a[2..].to_string();
@@ -320,7 +558,10 @@ fn huashen(g: &mut Game, ask: &Ask) -> Result<Step, String> {
                         let name = crate::kernel::generals::def(&code)
                             .map(|d| d.name)
                             .unwrap_or(code.as_str());
-                        return Ok(Step::Finish(format!("化身：移去 {} 张，获得新化身「{name}」", picked.len())));
+                        return Ok(Step::Finish(format!(
+                            "化身：移去 {} 张，获得新化身「{name}」",
+                            picked.len()
+                        )));
                     }
                     Ok(Step::Finish("化身：池空，未获得新化身".into()))
                 }
@@ -359,7 +600,12 @@ fn xinsheng(g: &mut Game, ask: &Ask) -> Result<Step, String> {
     let left = if step == "more" {
         ask.data.get("left").and_then(|v| v.as_u64()).unwrap_or(0) as usize
     } else {
-        let amount = ask.data.get("amount").and_then(|v| v.as_i64()).unwrap_or(1).max(1) as usize;
+        let amount = ask
+            .data
+            .get("amount")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(1)
+            .max(1) as usize;
         amount
     };
     if left == 0 {
@@ -406,7 +652,12 @@ fn xinsheng(g: &mut Game, ask: &Ask) -> Result<Step, String> {
 pub fn guidao_cards(g: &Game, seat: usize) -> Vec<CardId> {
     own_cards(g, seat)
         .into_iter()
-        .filter(|id| g.card_defs.get(id).map(|c| !c.suit.is_red()).unwrap_or(false))
+        .filter(|id| {
+            g.card_defs
+                .get(id)
+                .map(|c| c.suit.is_black())
+                .unwrap_or(false)
+        })
         .collect()
 }
 
@@ -416,7 +667,12 @@ fn guidao(g: &mut Game, ask: &Ask) -> Result<Step, String> {
         return Ok(Step::Done);
     }
     let judge_seat = common::seat_of(ask, "judge_seat");
-    let Some(judge_card) = ask.data.get("card").and_then(|v| v.as_str()).map(str::to_string) else {
+    let Some(judge_card) = ask
+        .data
+        .get("card")
+        .and_then(|v| v.as_str())
+        .map(str::to_string)
+    else {
         return Ok(Step::Done);
     };
     let cands = guidao_cards(g, owner);
@@ -441,15 +697,12 @@ fn guidao(g: &mut Game, ask: &Ask) -> Result<Step, String> {
             if !cands.contains(&id) {
                 return Err("鬼道：只能用黑色手牌/装备区的牌改判".into());
             }
-            if matches!(g.cards.get(&id), Some(Zone::Equip(..))) {
-                flow::leave_equip(g, owner, &id, "鬼道");
-            }
             let (suit, rank) = g
                 .card_defs
                 .get(&id)
                 .map(|c| (c.suit, c.rank))
                 .ok_or("鬼道：承载牌无定义")?;
-            g.cards.insert(id.clone(), Zone::Processing);
+            flow::to_processing(g, owner, &id, "鬼道");
             g.judge_rewrite = Some(id.clone());
             // 黑桃 2~9 → 立即摸一张。
             if suit == super::super::Suit::Spade && (2..=9).contains(&rank) {
@@ -459,7 +712,10 @@ fn guidao(g: &mut Game, ask: &Ask) -> Result<Step, String> {
             if judge_seat == Some(owner) {
                 g.bump(&turn_key(owner, "guidao_leiji"));
             }
-            Ok(Step::Finish(format!("鬼道：用黑色【{}】改判", card_label(g, &id))))
+            Ok(Step::Finish(format!(
+                "鬼道：用黑色【{}】改判",
+                card_label(g, &id)
+            )))
         }
         Some(o) => Err(format!("鬼道：未知选项 {o}")),
     }
@@ -509,9 +765,7 @@ fn leiji(g: &mut Game, ask: &Ask) -> Result<Step, String> {
     let step = step_of(ask);
     if step == "target" {
         let amount = ask.data.get("amount").and_then(|v| v.as_i64()).unwrap_or(1) as i32;
-        let cands: Vec<usize> = (0..g.seats.len())
-            .filter(|&s| g.seats[s].alive)
-            .collect();
+        let cands: Vec<usize> = (0..g.seats.len()).filter(|&s| g.seats[s].alive).collect();
         return match take_answer(g, "leiji") {
             None => {
                 let mut b = PendingBuilder::new(owner, "target").skill("leiji");
@@ -673,7 +927,11 @@ pub fn response_alternatives(
 
 /// 濒死救援的蛊惑声明（他人=【桃】；自己=【酒】）。
 /// 蛊惑·濒死救援选项（`Hook` 无专用钩子；由 `skills::dying_skill_options` 聚合）。
-pub fn dying_options(g: &Game, asker: usize, target: usize) -> Vec<(&'static str, String, &'static str)> {
+pub fn dying_options(
+    g: &Game,
+    asker: usize,
+    target: usize,
+) -> Vec<(&'static str, String, &'static str)> {
     if !skills::active(g, asker, "guhuo")
         || !skills::enabled("guhuo")
         || g.counter(&format!("turn.{asker}.guhuo_used")) > 0
@@ -682,7 +940,11 @@ pub fn dying_options(g: &Game, asker: usize, target: usize) -> Vec<(&'static str
         return vec![];
     }
     let _ = target;
-    vec![("guhuo", "蛊惑：扣置一张手牌当【桃】/【酒】".to_string(), "dying_pick")]
+    vec![(
+        "guhuo",
+        "蛊惑：扣置一张手牌当【桃】/【酒】".to_string(),
+        "dying_pick",
+    )]
 }
 
 pub fn dying_declared(asker: usize, target: usize) -> &'static str {
@@ -741,7 +1003,12 @@ fn guhuo(g: &mut Game, ask: &Ask) -> Result<Step, String> {
                 .and_then(|v| v.as_str())
                 .unwrap_or("sha")
                 .to_string();
-            let kind = ask.data.get("kind").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let kind = ask
+                .data
+                .get("kind")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
             g.bump(&turn_key(owner, "guhuo_used"));
             super::super::guhuo::start(g, owner, &carrier, &declared, "蛊惑")?;
             Ok(Step::Next(
@@ -754,7 +1021,11 @@ fn guhuo(g: &mut Game, ask: &Ask) -> Result<Step, String> {
             if truth {
                 let kind = ask.data.get("kind").and_then(|v| v.as_str()).unwrap_or("");
                 // 无懈窗口的结果通道用 `g.seats.len()`（与 step_wuxie 的 alt 分支同口径）。
-                let key = if kind == "wuxie" { g.seats.len() } else { owner };
+                let key = if kind == "wuxie" {
+                    g.seats.len()
+                } else {
+                    owner
+                };
                 g.set_mark(&format!("response.sub.{key}"), "1");
             }
             Ok(Step::Finish(if truth {
@@ -810,7 +1081,12 @@ fn guhuo(g: &mut Game, ask: &Ask) -> Result<Step, String> {
                 return Ok(Step::Done);
             }
             match take_answer(g, "guhuo") {
-                None => Ok(carrier_pending(g, owner, "guhuo", json!({ "step": "choose" }))),
+                None => Ok(carrier_pending(
+                    g,
+                    owner,
+                    "guhuo",
+                    json!({ "step": "choose" }),
+                )),
                 Some(a) if a == "pass" => Ok(Step::Done),
                 Some(a) if a.starts_with("c:") => Ok(Step::Next(
                     Stage::Choose,
@@ -986,11 +1262,14 @@ pub fn on_use_start(g: &mut Game, actor: usize, card: &str) {
     if !liegong_ready(g, actor) {
         return;
     }
-    let Some(def) = common::def_of(g, card) else { return };
+    let Some(def) = common::def_of(g, card) else {
+        return;
+    };
     if !def.tags.sha {
         return;
     }
-    let rank = g.card_defs.get(card).map(|c| c.rank).unwrap_or(1) as i32;
+    // 无属性【杀】（虚拟）点数 = 0 → 范围 0（比较判负）。
+    let rank = cards::rank_of(g, card).unwrap_or(0) as i32;
     super::super::card_play::declare_range_override(g, card, rank);
 }
 
@@ -1102,7 +1381,10 @@ fn zhuhai(g: &mut Game, ask: &Ask) -> Result<Step, String> {
     match take_answer(g, "zhuhai") {
         None => {
             let mut b = PendingBuilder::new(owner, "choose").skill("zhuhai");
-            b = b.option("use", format!("对其使用一张【杀】（{}）", seat_name(g, victim)));
+            b = b.option(
+                "use",
+                format!("对其使用一张【杀】（{}）", seat_name(g, victim)),
+            );
             Ok(Step::Need(
                 b.escape("不发动")
                     .data(json!({ "step": "ask", "victim": victim }))
@@ -1154,9 +1436,7 @@ fn jianyan_available(g: &Game, seat: usize) -> bool {
     g.phase == Phase::Play
         && skills::active(g, seat, "jianyan")
         && g.counter(&phase_key(seat, "jianyan")) == 0
-        && common::alive_seats(g)
-            .into_iter()
-            .any(|s| g.seats[s].male)
+        && common::alive_seats(g).into_iter().any(|s| g.seats[s].male)
 }
 
 fn jianyan(g: &mut Game, ask: &Ask) -> Result<Step, String> {
@@ -1182,7 +1462,11 @@ fn jianyan(g: &mut Game, ask: &Ask) -> Result<Step, String> {
                 ] {
                     b = b.option(id, label);
                 }
-                Ok(Step::Need(b.escape("不发动").data(json!({ "step": "declare" })).build()))
+                Ok(Step::Need(
+                    b.escape("不发动")
+                        .data(json!({ "step": "declare" }))
+                        .build(),
+                ))
             }
             Some(a) if a == "pass" => Ok(Step::Done),
             Some(a) => {
@@ -1196,16 +1480,26 @@ fn jianyan(g: &mut Game, ask: &Ask) -> Result<Step, String> {
                 while scanned < len {
                     let idx = g.deck.len() - 1 - scanned;
                     let id = g.deck[idx].clone();
-                    let ok = g.card_defs.get(&id).map(|c| {
-                        let d = super::super::cards::def(&c.def);
-                        match a.as_str() {
-                            "red" => c.suit.is_red(),
-                            "black" => !c.suit.is_red(),
-                            "basic" => d.map(|x| x.category == super::super::cards::Category::Basic).unwrap_or(false),
-                            "trick" => d.map(|x| x.category == super::super::cards::Category::Trick).unwrap_or(false),
-                            _ => d.map(|x| x.category == super::super::cards::Category::Equip).unwrap_or(false),
-                        }
-                    }).unwrap_or(false);
+                    let ok = g
+                        .card_defs
+                        .get(&id)
+                        .map(|c| {
+                            let d = super::super::cards::def(&c.def);
+                            match a.as_str() {
+                                "red" => c.suit.is_red(),
+                                "black" => c.suit.is_black(),
+                                "basic" => d
+                                    .map(|x| x.category == super::super::cards::Category::Basic)
+                                    .unwrap_or(false),
+                                "trick" => d
+                                    .map(|x| x.category == super::super::cards::Category::Trick)
+                                    .unwrap_or(false),
+                                _ => d
+                                    .map(|x| x.category == super::super::cards::Category::Equip)
+                                    .unwrap_or(false),
+                            }
+                        })
+                        .unwrap_or(false);
                     if ok {
                         found = Some(idx);
                         break;
@@ -1216,8 +1510,7 @@ fn jianyan(g: &mut Game, ask: &Ask) -> Result<Step, String> {
                     return Ok(Step::Finish("荐言：牌堆中无符合条件的牌".into()));
                 };
                 let id = g.deck.remove(idx);
-                g.cards.insert(id.clone(), Zone::Processing);
-                g.reveal(&[id.clone()], "荐言");
+                flow::reveal_from_deck(g, &id, "荐言");
                 g.bump(&phase_key(owner, "jianyan"));
                 Ok(Step::Next(
                     Stage::Target,
@@ -1308,9 +1601,14 @@ fn shizhan(g: &mut Game, ask: &Ask) -> Result<Step, String> {
         None => {
             let mut b = PendingBuilder::new(owner, "target").skill("shizhan");
             for t in &cands {
-                b = b.option(format!("t:{t}"), format!("令 {} 视为对你使用【决斗】", seat_name(g, *t)));
+                b = b.option(
+                    format!("t:{t}"),
+                    format!("令 {} 视为对你使用【决斗】", seat_name(g, *t)),
+                );
             }
-            Ok(Step::Need(b.escape("不发动").data(json!({ "step": "target" })).build()))
+            Ok(Step::Need(
+                b.escape("不发动").data(json!({ "step": "target" })).build(),
+            ))
         }
         Some(a) if a == "pass" => Ok(Step::Done),
         Some(a) if a.starts_with("t:") => {
@@ -1344,14 +1642,16 @@ fn huangtian_cards(g: &Game, seat: usize) -> Vec<CardId> {
         .into_iter()
         .filter(|id| {
             let shan = common::def_of(g, id).map(|d| d.tags.shan).unwrap_or(false);
-            let spade = g.card_defs.get(id).map(|c| c.suit == super::super::Suit::Spade).unwrap_or(false);
+            let spade = cards::suit_is(g, id, Suit::Spade);
             shan || spade
         })
         .collect()
 }
 
 pub fn other_side_actions(g: &Game, seat: usize) -> Vec<&'static str> {
-    let Some(lord) = huangtian_lord(g) else { return vec![] };
+    let Some(lord) = huangtian_lord(g) else {
+        return vec![];
+    };
     if seat == lord || g.turn != seat || g.phase != Phase::Play {
         return vec![];
     }
@@ -1391,9 +1691,14 @@ fn huangtian(g: &mut Game, ask: &Ask) -> Result<Step, String> {
         None => {
             let mut b = PendingBuilder::new(giver, "pick_own").skill("huangtian");
             for id in &cands {
-                b = b.option(format!("c:{id}"), format!("交给主公【{}】", card_label(g, id)));
+                b = b.option(
+                    format!("c:{id}"),
+                    format!("交给主公【{}】", card_label(g, id)),
+                );
             }
-            Ok(Step::Need(b.escape("不交").data(json!({ "step": "give" })).build()))
+            Ok(Step::Need(
+                b.escape("不交").data(json!({ "step": "give" })).build(),
+            ))
         }
         Some(a) if a == "pass" => Ok(Step::Done),
         Some(a) if a.starts_with("c:") => {
@@ -1444,7 +1749,12 @@ fn luanji(g: &mut Game, ask: &Ask) -> Result<Step, String> {
             .hand(owner)
             .into_iter()
             .filter(|id| *id != first)
-            .filter(|id| g.card_defs.get(id).map(|c| Some(c.suit) == suit).unwrap_or(false))
+            .filter(|id| {
+                g.card_defs
+                    .get(id)
+                    .map(|c| Some(c.suit) == suit)
+                    .unwrap_or(false)
+            })
             .collect();
         if cands.is_empty() {
             return Ok(Step::Finish("乱击：无同花色第二张".into()));
@@ -1453,7 +1763,10 @@ fn luanji(g: &mut Game, ask: &Ask) -> Result<Step, String> {
             None => {
                 let mut b = PendingBuilder::new(owner, "pick_own").skill("luanji");
                 for id in &cands {
-                    b = b.option(format!("c:{id}"), format!("第二张【{}】", card_label(g, id)));
+                    b = b.option(
+                        format!("c:{id}"),
+                        format!("第二张【{}】", card_label(g, id)),
+                    );
                 }
                 Ok(Step::Need(
                     b.escape("取消")
@@ -1491,11 +1804,7 @@ fn luanji(g: &mut Game, ask: &Ask) -> Result<Step, String> {
                 let mut b = PendingBuilder::new(owner, "choose").skill("luanji");
                 b = b.option("trim", "少选一个目标");
                 let data = json!({ "step": "trim", "first": first, "second": second });
-                Ok(Step::Need(
-                    b.escape("不少选")
-                        .data(data)
-                        .build(),
-                ))
+                Ok(Step::Need(b.escape("不少选").data(data).build()))
             }
             Some(a) if a == "pass" => Ok(Step::Next(
                 Stage::Choose,
@@ -1542,7 +1851,14 @@ fn luanji(g: &mut Game, ask: &Ask) -> Result<Step, String> {
         let first = common::card_of(ask, "first").ok_or("乱击：缺第一张牌")?;
         let second = common::card_of(ask, "second").ok_or("乱击：缺第二张牌")?;
         let targets = common::seats_of(ask, "targets");
-        super::super::card_play::use_as(g, owner, "wanjian_qifa", &[first, second], &targets, false)?;
+        super::super::card_play::use_as(
+            g,
+            owner,
+            "wanjian_qifa",
+            &[first, second],
+            &targets,
+            false,
+        )?;
         return Ok(Step::Finish("乱击：视为使用【万箭齐发】".into()));
     }
     // 首步：选第一张牌。
@@ -1554,9 +1870,14 @@ fn luanji(g: &mut Game, ask: &Ask) -> Result<Step, String> {
         None => {
             let mut b = PendingBuilder::new(owner, "pick_own").skill("luanji");
             for id in &hand {
-                b = b.option(format!("c:{id}"), format!("第一张【{}】", card_label(g, id)));
+                b = b.option(
+                    format!("c:{id}"),
+                    format!("第一张【{}】", card_label(g, id)),
+                );
             }
-            Ok(Step::Need(b.escape("不发动").data(json!({ "step": "pick1" })).build()))
+            Ok(Step::Need(
+                b.escape("不发动").data(json!({ "step": "pick1" })).build(),
+            ))
         }
         Some(a) if a == "pass" => Ok(Step::Done),
         Some(a) if a.starts_with("c:") => {
@@ -1607,14 +1928,15 @@ fn xueyi(g: &mut Game, ask: &Ask) -> Result<Step, String> {
             let mut b = PendingBuilder::new(owner, "choose").skill("xueyi");
             b = b.option("use", "移去 1 枚「裔」，摸一张牌");
             Ok(Step::Need(
-                b.escape("不发动")
-                    .data(json!({ "step": "ask" }))
-                    .build(),
+                b.escape("不发动").data(json!({ "step": "ask" })).build(),
             ))
         }
         Some(a) if a == "pass" => Ok(Step::Done),
         Some(_) => {
-            g.set_counter(&format!("yi.{owner}"), g.counter(&format!("yi.{owner}")) - 1);
+            g.set_counter(
+                &format!("yi.{owner}"),
+                g.counter(&format!("yi.{owner}")) - 1,
+            );
             g.bump(&phase_key(owner, "xueyi"));
             flow::draw(g, owner, 1);
             Ok(Step::Finish("血裔：移 1 枚「裔」摸一张".into()))
@@ -1666,13 +1988,15 @@ fn xiangle(g: &mut Game, ask: &Ask) -> Result<Step, String> {
                 b = b.option(format!("c:{id}"), format!("弃置【{}】", card_label(g, id)));
             }
             Ok(Step::Need(
-                b.escape("不弃（此【杀】对你无效）")
-                    .data(data)
-                    .build(),
+                b.escape("不弃（此【杀】对你无效）").data(data).build(),
             ))
         }
         Some(a) if a == "pass" => {
-            super::super::card_play::declare_intercept(g, &card, super::super::ShaIntercept::Immune);
+            super::super::card_play::declare_intercept(
+                g,
+                &card,
+                super::super::ShaIntercept::Immune,
+            );
             Ok(Step::Finish("享乐：未弃牌，此【杀】无效".into()))
         }
         Some(a) if a.starts_with("c:") => {
@@ -1681,7 +2005,11 @@ fn xiangle(g: &mut Game, ask: &Ask) -> Result<Step, String> {
                 return Err("享乐：只能弃置一张基本牌".into());
             }
             flow::discard(g, by, &id, "享乐");
-            super::super::card_play::declare_intercept(g, &card, super::super::ShaIntercept::Continue);
+            super::super::card_play::declare_intercept(
+                g,
+                &card,
+                super::super::ShaIntercept::Continue,
+            );
             Ok(Step::Finish("享乐：弃置基本牌，【杀】正常结算".into()))
         }
         Some(o) => Err(format!("享乐：未知选项 {o}")),
@@ -1766,7 +2094,10 @@ fn fangquan(g: &mut Game, ask: &Ask) -> Result<Step, String> {
             None => {
                 let mut b = PendingBuilder::new(owner, "target").skill("fangquan");
                 for t in &cands {
-                    b = b.option(format!("t:{t}"), format!("令 {} 执行额外回合", seat_name(g, *t)));
+                    b = b.option(
+                        format!("t:{t}"),
+                        format!("令 {} 执行额外回合", seat_name(g, *t)),
+                    );
                 }
                 Ok(Step::Need(
                     b.escape_mandatory("（必选一名其他角色）")
@@ -1832,7 +2163,9 @@ fn ruoyu(g: &mut Game, ask: &Ask) -> Result<Step, String> {
     flow::restore_hp(g, owner, 3, "若愚");
     skills::grant(g, owner, "jijiang");
     skills::grant(g, owner, "sishu");
-    Ok(Step::Finish("若愚：觉醒（体力上限+1，获得【激将】【思蜀】）".into()))
+    Ok(Step::Finish(
+        "若愚：觉醒（体力上限+1，获得【激将】【思蜀】）".into(),
+    ))
 }
 
 fn sishu_available(g: &Game, seat: usize) -> bool {
@@ -1859,7 +2192,9 @@ fn sishu(g: &mut Game, ask: &Ask) -> Result<Step, String> {
                 };
                 b = b.option(format!("t:{t}"), format!("{}（{state}）", seat_name(g, *t)));
             }
-            Ok(Step::Need(b.escape("不发动").data(json!({ "step": "target" })).build()))
+            Ok(Step::Need(
+                b.escape("不发动").data(json!({ "step": "target" })).build(),
+            ))
         }
         Some(a) if a == "pass" => Ok(Step::Done),
         Some(a) if a.starts_with("t:") => {
@@ -1875,7 +2210,10 @@ fn sishu(g: &mut Game, ask: &Ask) -> Result<Step, String> {
             } else {
                 // 未反转 → 反转（切换时旧目标自动清除，`reverse_judge` 单值语义）。
                 g.reverse_judge(t, "lebu_sishu");
-                Ok(Step::Finish(format!("思蜀：{} 的【乐不思蜀】判定反转", seat_name(g, t))))
+                Ok(Step::Finish(format!(
+                    "思蜀：{} 的【乐不思蜀】判定反转",
+                    seat_name(g, t)
+                )))
             }
         }
         Some(o) => Err(format!("思蜀：未知选项 {o}")),

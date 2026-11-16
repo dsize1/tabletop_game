@@ -1146,6 +1146,11 @@ pub fn aoe_excluded(g: &Game, user: usize, target: usize, def_code: &str) -> boo
 }
 
 /// 结算结束后钩子（巨象：获得他人使用的【南蛮】）。
+/// 使用被取消（`card_play::cancel_use` 唯一调用点）：技能回退自己登记的「本次使用」状态。
+pub fn on_use_cancelled(g: &mut Game, actor: usize, card: &str) {
+    b15::on_use_cancelled(g, actor, card);
+}
+
 pub fn on_card_finished(g: &mut Game, card: &str, user: usize) {
     b15::on_card_finished(g, card, user);
     b17::on_card_finished(g, card, user);
@@ -1872,8 +1877,14 @@ pub fn judge_gain_available(g: &Game, seat: usize) -> bool {
 /// 判定牌生效后可获得判定牌的技能（天妒）code；内核按 code 分发。
 
 
-/// 拼点后窗口（纵适）：由 `pindian` 在结果写入后调用。
+/// 拼点前窗口：由 `pindian` 在压入拼点帧后调用（内核零技能名；具体技能在批次文件里声明）。
+pub fn fire_pindian_pre(g: &mut Game, a: usize, b: usize) {
+    b15::fire_pindian_pre(g, a, b);
+}
+
+/// 拼点后窗口（纵适/酣战）：由 `pindian` 在结果写入后调用。
 pub fn pindian_after(g: &mut Game, r: &super::pindian::PindianResult) {
+    b15::pindian_after(g, r);
     b17::pindian_after(g, r);
 }
 pub fn judge_gain_owner(g: &Game, seat: usize) -> Option<&'static str> {

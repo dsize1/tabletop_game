@@ -80,7 +80,7 @@ fn yongsi_draws_bonus_and_discards_at_real_phases() {
     while g
         .pending
         .as_ref()
-        .map(|p| p.kind() == "discard_phase")
+        .map(|p| p.kind() == "discard_phase" || p.kind() == "yongsi_pick")
         .unwrap_or(false)
     {
         let hand = g.hand(0);

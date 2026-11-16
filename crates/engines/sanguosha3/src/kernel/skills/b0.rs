@@ -31,7 +31,10 @@ pub fn handler(code: &str) -> Option<fn(&mut Game, &Ask) -> Result<Step, String>
 }
 
 fn step_of(ask: &Ask) -> &str {
-    ask.data.get("step").and_then(|v| v.as_str()).unwrap_or("ask")
+    ask.data
+        .get("step")
+        .and_then(|v| v.as_str())
+        .unwrap_or("ask")
 }
 
 fn card_label(g: &Game, id: &str) -> String {
@@ -154,8 +157,8 @@ fn jiewei(g: &mut Game, ask: &Ask) -> Result<Step, String> {
     let seat = ask.actor;
     match step_of(ask) {
         "ask" => {
-            let has_cards = g.hand_size(seat) > 0
-                || !super::super::gear::equips_of(g, seat).is_empty();
+            let has_cards =
+                g.hand_size(seat) > 0 || !super::super::gear::equips_of(g, seat).is_empty();
             if !has_cards {
                 return Ok(Step::Done); // ③ 手牌与装备区都为空 → 不询问
             }
@@ -167,7 +170,10 @@ fn jiewei(g: &mut Game, ask: &Ask) -> Result<Step, String> {
             }
             let b = PendingBuilder::new(seat, "jiewei_ask")
                 .skill("jiewei")
-                .option("choose:jiewei", "发动【解围】：弃置一张牌，然后移动场上一张牌");
+                .option(
+                    "choose:jiewei",
+                    "发动【解围】：弃置一张牌，然后移动场上一张牌",
+                );
             Ok(Step::NeedAt(Stage::Choose, b.escape("不发动").build()))
         }
         "discard" => {
@@ -187,7 +193,10 @@ fn jiewei(g: &mut Game, ask: &Ask) -> Result<Step, String> {
                 b = b.option(format!("card:{id}"), card_label(g, &id));
             }
             for id in super::super::gear::equips_of(g, seat) {
-                b = b.option(format!("equip:{id}"), format!("装备区 {}", card_label(g, &id)));
+                b = b.option(
+                    format!("equip:{id}"),
+                    format!("装备区 {}", card_label(g, &id)),
+                );
             }
             Ok(Step::NeedAt(
                 Stage::PickOwn,
@@ -257,7 +266,11 @@ fn jiewei(g: &mut Game, ask: &Ask) -> Result<Step, String> {
         _ => {
             // "dest"
             let src = ask.data.get("src").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
-            let kind = ask.data.get("kind").and_then(|v| v.as_str()).unwrap_or("hand");
+            let kind = ask
+                .data
+                .get("kind")
+                .and_then(|v| v.as_str())
+                .unwrap_or("hand");
             let pick = ask
                 .data
                 .get("pick")
@@ -276,7 +289,11 @@ fn jiewei(g: &mut Game, ask: &Ask) -> Result<Step, String> {
                     }
                     "judge" => {
                         let id = pick.trim_start_matches("judge:").to_string();
-                        let code = g.card_defs.get(&id).map(|c| c.def.clone()).unwrap_or_default();
+                        let code = g
+                            .card_defs
+                            .get(&id)
+                            .map(|c| c.def.clone())
+                            .unwrap_or_default();
                         super::super::card_play::place_delayed(g, dest, &id, &code);
                     }
                     _ => {
@@ -303,11 +320,16 @@ fn jiewei(g: &mut Game, ask: &Ask) -> Result<Step, String> {
                             .get(id)
                             .and_then(|c| cards::def(&c.def))
                             .and_then(|d| d.slot);
-                        slot.map(|sl| super::super::gear::equip_in(g, s, sl).is_none()).unwrap_or(false)
+                        slot.map(|sl| super::super::gear::equip_in(g, s, sl).is_none())
+                            .unwrap_or(false)
                     }
                     "judge" => {
                         let id = pick.trim_start_matches("judge:");
-                        let code = g.card_defs.get(id).map(|c| c.def.clone()).unwrap_or_default();
+                        let code = g
+                            .card_defs
+                            .get(id)
+                            .map(|c| c.def.clone())
+                            .unwrap_or_default();
                         !g.judge_stacks
                             .get(&s)
                             .map(|stack| {
@@ -380,7 +402,12 @@ fn fenji(g: &mut Game, ask: &Ask) -> Result<Step, String> {
             if g.hand_size(victim) <= g.hand_limit(victim) {
                 return Ok(Step::Done);
             }
-            discard_to_limit(g, "fenji", victim, json!({ "step": "limit", "victim": victim }))
+            discard_to_limit(
+                g,
+                "fenji",
+                victim,
+                json!({ "step": "limit", "victim": victim }),
+            )
         }
     }
 }
@@ -413,7 +440,11 @@ fn xingshang(g: &mut Game, ask: &Ask) -> Result<Step, String> {
         .data
         .get("cards")
         .and_then(|v| v.as_array())
-        .map(|a| a.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect()
+        })
         .unwrap_or_else(|| {
             let mut v: Vec<String> = g
                 .cards
@@ -447,7 +478,11 @@ fn xingshang(g: &mut Game, ask: &Ask) -> Result<Step, String> {
                 .skill("xingshang")
                 .option(
                     "choose:xingshang",
-                    format!("发动【行殇】：获得 {} 的 {} 张牌（不含判定区）", seat_label(g, victim), cards.len()),
+                    format!(
+                        "发动【行殇】：获得 {} 的 {} 张牌（不含判定区）",
+                        seat_label(g, victim),
+                        cards.len()
+                    ),
                 );
             Ok(Step::NeedAt(Stage::Choose, b.escape("不发动").build()))
         }
@@ -536,11 +571,15 @@ fn songwei(g: &mut Game, ask: &Ask) -> Result<Step, String> {
     match step_of(ask) {
         "ask" => {
             // 条件：判定者魏势力、判定牌黑色、判定者不是主公本人、主公存活。
-            let wei = g.seats.get(judge_seat).map(|s| s.kingdom == "wei").unwrap_or(false);
+            let wei = g
+                .seats
+                .get(judge_seat)
+                .map(|s| s.kingdom == "wei")
+                .unwrap_or(false);
             let black = g
                 .card_defs
                 .get(&card)
-                .map(|c| !c.suit.is_red())
+                .map(|c| c.suit.is_black())
                 .unwrap_or(false);
             if !g.seats[lord].alive || judge_seat == lord || !wei || !black {
                 return Ok(Step::Done);
@@ -573,7 +612,11 @@ fn buqu(g: &mut Game, ask: &Ask) -> Result<Step, String> {
     use crate::kernel::resolve::FlowKind;
 
     let seat = ask.actor;
-    let by = ask.data.get("by").and_then(|v| v.as_u64()).map(|v| v as usize);
+    let by = ask
+        .data
+        .get("by")
+        .and_then(|v| v.as_u64())
+        .map(|v| v as usize);
     let Some(r) = g.judge_result.take() else {
         // 无判定牌（牌堆/弃牌堆皆空）：直接进入濒死求桃。
         flow::enter_dying_bypass_buqu(g, seat, by);
@@ -585,16 +628,7 @@ fn buqu(g: &mut Game, ask: &Ask) -> Result<Step, String> {
         flow::enter_dying_bypass_buqu(g, seat, by);
         return Ok(Step::Done);
     }
-    g.cards.insert(r.card.clone(), Zone::Void);
-    let mut ev = Event::card(
-        EventKind::CardOutOfGame,
-        Some(seat),
-        r.card.clone(),
-        Some("不屈·创".to_string()),
-    );
-    ev.by = Some(seat);
-    let e = ev.snapshot(g);
-    g.push_event(e);
+    flow::exile(g, &r.card, "不屈·创");
     g.bump(&key);
     g.bump(&format!("buqu_total.{seat}"));
     // 回复至 1（走统一回复出口；不触发救援改向）。
@@ -692,7 +726,10 @@ pub static SKILLS: &[SkillDef] = &[
         faces: &[Face {
             window: Window::AnyTime,
             // 行殇：订阅 `DeathDiscarded`（用户 2026-11-16 裁定：死亡弃牌事件驱动，不含判定区）。
-            subscriptions: &[Subscription { event: EventKind::DeathDiscarded, subject: Subject::Other }],
+            subscriptions: &[Subscription {
+                event: EventKind::DeathDiscarded,
+                subject: Subject::Other,
+            }],
             hooks: &[],
             can_active: false,
         }],
@@ -705,7 +742,10 @@ pub static SKILLS: &[SkillDef] = &[
         transform: false,
         faces: &[Face {
             window: Window::AnyTime,
-            subscriptions: &[Subscription { event: EventKind::DamageAfter, subject: Subject::Self_ }],
+            subscriptions: &[Subscription {
+                event: EventKind::DamageAfter,
+                subject: Subject::Self_,
+            }],
             hooks: &[],
             can_active: false,
         }],
@@ -719,7 +759,10 @@ pub static SKILLS: &[SkillDef] = &[
         faces: &[Face {
             window: Window::AnyTime,
             // 颂威：其他魏势力黑色判定生效 → subject = Other（主公技他人侧）。
-            subscriptions: &[Subscription { event: EventKind::JudgeEffective, subject: Subject::Other }],
+            subscriptions: &[Subscription {
+                event: EventKind::JudgeEffective,
+                subject: Subject::Other,
+            }],
             hooks: &[],
             can_active: false,
         }],

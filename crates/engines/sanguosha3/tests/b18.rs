@@ -269,3 +269,28 @@ fn fuli_dying_option_and_restore() {
     assert!(g.seats[0].hp >= 1);
     assert!(skills::limited_used(&g, 0, "fuli"));
 }
+
+#[test]
+fn shangshi_retriggers_each_time_hand_drops_below_lost_hp() {
+    // B18 Q4=A：每次手牌数跌破 X 都询问（不再「每回合一次」）。
+    let mut g = test_game(3);
+    g.seats[0].skills = vec!["shangshi".into()];
+    g.seats[0].hp = 2; // 已损失 2 点 → X=2
+    g.phase = Phase::Play;
+    for i in 0..2 {
+        mk(&mut g, &format!("d{i}"), "sha", Suit::Spade, Zone::Draw);
+        g.deck.push(format!("d{i}"));
+    }
+    mk(&mut g, "h1", "sha", Suit::Club, Zone::Hand(0));
+    // 第一次：手牌 1 < 2 → 询问并摸至 2。
+    skills::b18::on_hand_changed(&mut g, 0);
+    resolve::advance(&mut g).expect("advance");
+    submit(&mut g, "draw");
+    assert_eq!(g.hand_size(0), 2);
+    // 再次跌破 → 再次询问（同一回合内）。
+    let card = g.hand(0)[0].clone();
+    flow::discard(&mut g, 0, &card, "测试");
+    skills::b18::on_hand_changed(&mut g, 0);
+    resolve::advance(&mut g).expect("advance");
+    assert!(g.pending.is_some(), "同回合第二次跌破仍应询问");
+}

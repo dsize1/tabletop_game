@@ -173,8 +173,12 @@ fn qiaoshuo_win_gives_qiao_and_consumes_on_use() {
     trigger(&mut g, "qiaoshuo", 0, data(&[("stage", "wait".into()), ("target", json!(1))]));
     assert_eq!(g.counter("turn.0.qiao"), 1, "赢 → 获得 1 枚巧");
     mk(&mut g, "h1", "sha", Suit::Spade, Zone::Hand(0));
+    // B17 Q3=A：±1 由简雍在使用时选择（`Hook::UsePre` 询问），不再自动生效。
     sanguosha3::kernel::skills::b17::on_use_start(&mut g, 0, "h1");
-    assert_eq!(g.counter("turn.0.qiao"), 0, "使用手牌消耗 1 枚");
+    assert_eq!(g.use_opts("h1").extra_targets, 0, "未选择前不改目标数");
+    trigger(&mut g, "qiaoshuo", 0, data(&[("step", json!("use_pre")), ("card", json!("h1"))]));
+    submit(&mut g, "plus");
+    assert_eq!(g.counter("turn.0.qiao"), 0, "选择后消耗 1 枚");
     assert_eq!(g.use_opts("h1").extra_targets, 1);
 }
 
@@ -420,4 +424,35 @@ fn xuanhuo_gives_two_cards_then_watch_returns_two() {
     submit(&mut g, "take:a");
     submit(&mut g, "take:b");
     assert_eq!(g.hand_size(0), 2, "观看并获得其中两张");
+}
+
+#[test]
+fn chunlao_dying_moves_first_x_cards_in_insertion_order() {
+    // B17 Q5=B：濒死移去的 X 张按**置入顺序**，不由玩家挑。
+    let mut g = test_game(3);
+    g.seats[0].skills = vec!["chunlao".into()];
+    for (id, suit, seq) in [("c1", Suit::Spade, "chunlao.1"), ("c2", Suit::Heart, "chunlao.2")] {
+        mk(&mut g, id, "sha", suit, Zone::Mark(0, "chunlao".to_string()));
+        g.set_card_mark(id, seq);
+    }
+    trigger(
+        &mut g,
+        "chunlao",
+        0,
+        data(&[
+            ("stage", json!("dying")),
+            ("target", json!(1)),
+            ("left", json!(1)),
+            ("used", json!(0)),
+        ]),
+    );
+    let p = g.pending.clone().expect("应询问是否发动醇醪");
+    assert!(p.has_option("use"), "只提供整次发动（不逐张挑牌）");
+    submit(&mut g, "use");
+    assert_eq!(g.cards.get("c1"), Some(&Zone::Discard), "先移去置入最早的「醇」");
+    assert_eq!(
+        g.cards.get("c2"),
+        Some(&Zone::Mark(0, "chunlao".to_string())),
+        "第二张保留"
+    );
 }

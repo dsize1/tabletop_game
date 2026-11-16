@@ -1385,7 +1385,7 @@ fn huaiyi(g: &mut Game, ask: &Ask) -> Result<Step, String> {
                 .any(|id| g.card_defs.get(id).map(|c| c.suit.is_red()).unwrap_or(false));
             let has_black = hand
                 .iter()
-                .any(|id| g.card_defs.get(id).map(|c| !c.suit.is_red()).unwrap_or(false));
+                .any(|id| g.card_defs.get(id).map(|c| c.suit.is_black()).unwrap_or(false));
             match take_answer(g, "huaiyi") {
                 None => {
                     // 展示所有手牌（公共可见）。

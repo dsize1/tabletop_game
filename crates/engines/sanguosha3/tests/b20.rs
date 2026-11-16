@@ -83,7 +83,10 @@ fn qiangshi_reveals_and_draws_on_same_category() {
     submit(&mut g, "target:1");
     submit(&mut g, "pick:h1");
     assert_eq!(g.mark("turn.0.qiangshi_category"), Some("basic"));
+    // B20 Q2=A：同类别使用 → 询问是否摸一张（不代发动）。
     skills::b20::on_use_start(&mut g, 0, "a1");
+    trigger(&mut g, "qiangshi", 0, data(&[("event", "CardUsed".into()), ("card", json!("a1"))]));
+    submit(&mut g, "draw");
     assert_eq!(g.hand_size(0), 2, "同类别使用摸 1");
 }
 
@@ -150,8 +153,11 @@ fn anxu_takes_two_cards_then_gives_one_to_lower_hand() {
     assert!(skills::use_active(&mut g, 0, "anxu").is_ok());
     submit(&mut g, "a:1");
     submit(&mut g, "b:2");
-    // grab auto, then give
-    submit(&mut g, "give:a1");
+    // B20 Q1=A：各获得一张由安恤者选（随机手牌 / 装备区具体牌）。
+    submit(&mut g, "hand");
+    submit(&mut g, "hand");
+    // 手牌数相同 → 平局由安恤者选择交给谁（B20 Q3=A）：选项带目标。
+    submit(&mut g, "give:a1:1");
     assert_eq!(g.hand_size(0), 1, "另一张获得，交出一张");
 }
 
@@ -176,3 +182,4 @@ fn zhuixi_end_and_death_repeat() {
     trigger(&mut g, "zhuixi", 0, data(&[("event", "Death".into())]));
     assert_eq!(g.hand_size(1), 6, "死亡时再次摸三张");
 }
+
