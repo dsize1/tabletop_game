@@ -63,6 +63,7 @@
 | **下一任务：技能/标记/虚拟牌 抽象与解耦评估（B2 前置）** | `memory_palace/plan/next-skill-abstraction-audit.md`（含「技能文本歧义」台账与实现契约） |
 | **下一任务：引擎 v2 卡牌结算 + 整体替换 v1（M1–M4，含风险/干扰项）** | `memory_palace/plan/next-engine-replacement.md` |
 | **下一任务：V3 全量验收台账回落与复核（0 号动作，先文档后验证）** | `memory_palace/plan/next-v3-verification.md` |
+| **下一任务：V3 工作台沙盒/场景注入/preview drive 适配（机器证据前置）** | `memory_palace/plan/next-v3-workbench-sandbox.md` |
 | 全武将验证矩阵（人工列）/ 机器证据 / 批次表 / 批次走查单 | `docs/games/sanguosha/general-audit.md`、`general-audit-evidence.md`、`apps/scripts/lib/sgs-batches.mjs`、`docs/games/sanguosha/audit-sheets/<BATCH>.md`（`npm run sheet:sgs-audit B0`） |
 | 开发进度 / 里程碑 | `memory_palace/milestones.md` |
 | 工作区规则（rules） | `.pi/prompts/`（用 `/` 命令加载） |

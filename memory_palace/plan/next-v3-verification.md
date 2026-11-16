@@ -36,14 +36,16 @@
 - [x] `docs/games/sanguosha/legacy-retire.json`：新增 `b20_verified_at_note`＝「v2 口径（2026-11-10 用户签字）；v3 未复核」（其他字段未动）。
 - [x] 顺带：新门禁抓到 `B1`/`B2` 已收口但批次状态仍 `confirmed` → 同步为 `implemented`（避免同样的「台账没跟上 V3」）。
 
-### 步骤 B：align `current` 回写 V3（优先 B16–B20）— ✅ 已完成
+### 步骤 B：align `current` 回写 V3（B11–B20 已完成）
 
-- [x] `B16`–`B20` 共 **68 技能**（B16 14 / B17 14 / B18 17 / B19 15+马术 / B20 8）`current` 改为「v3：…」，
-      `impl` 改为 `sanguosha3::kernel::skills::bN::…`，`tests` 改为 `sanguosha3/tests/bN.rs` 的用例名，`confidence=verified`；
-      批次 `engine` 置 `v3`（B0–B15 暂为 `v2`，后续批次按同一流程推进）。
+- [x] `B16`–`B20` 共 **68 技能**（B16 14 / B17 14 / B18 17 / B19 15+马术 / B20 8）；
+- [x] `B11`–`B15` 共 **77 技能**（B11 14 / B12 8 / B13 16 / B14 20 / B15 19）；
+      `current` 改为「v3：…」，`impl` 改为 `sanguosha3::kernel::skills::bN::…`，`tests` 改为 `sanguosha3/tests/bN.rs` 的用例名，`confidence=verified`；
+      批次 `engine` 置 `v3`（B0–B10 仍为 `v2`，待后续按同一流程推进）。
 - [x] 覆盖近期整改口径：长标（目标单出口/无属性/结束阶段摸牌）、酣战（`fire_pindian_pre` + `pindian_after`）、
       屯田/急袭（田=实体牌）、虚拟牌无属性（`Suit::None` + `cards::attrs`）、「自动→询问」等。
-- [x] `node apps/scripts/sgs-align-sheet.mjs --batch B16…B20 --sync` → 重生成 `align/B*.md`。
+- [x] `sgs-align-sheet --batch --sync` → 重生成 `align/B*.md`；B11–B20 走查单同步重生。
+- [x] 待复核分歧已写入 `current`：`changbiao` 摸牌时机、`dimeng` 弃牌时机（V3 实现在结束阶段开始，`agreed` 写「出牌阶段结束」）。
 - 说明：`q.test`（775 条裁定用例锚点）仍指向 v2 用例库（历史语料），本轮未迁移；技能级 `impl`/`tests` 已按引擎分派校验。
 
 ### 步骤 C：门禁防再犯 — ✅ 已完成
