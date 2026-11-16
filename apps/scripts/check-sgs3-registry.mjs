@@ -34,7 +34,7 @@ const V3_STARTED_BATCHES = [
  * 缺口以 `⏳` 计数报告（不静默）：已注册的技能仍必须「已收口 + 有用例」。
  * 全部注册完成后，把该批从本表移到 `V3_STARTED_BATCHES`（此后按完整批次校验）。
  */
-const V3_IN_PROGRESS_BATCHES = [];
+const V3_IN_PROGRESS_BATCHES = ["B17"];
 
 const tag = "[check:sgs3-registry]";
 const problems = [];

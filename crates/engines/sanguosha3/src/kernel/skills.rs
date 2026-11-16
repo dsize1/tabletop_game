@@ -32,6 +32,7 @@ pub mod b13;
 pub mod b14;
 pub mod b15;
 pub mod b16;
+pub mod b17;
 pub mod common;
 
 /// 技能类型。
@@ -149,6 +150,7 @@ pub fn all() -> Vec<&'static SkillDef> {
         .chain(b14::SKILLS.iter())
         .chain(b15::SKILLS.iter())
         .chain(b16::SKILLS.iter())
+        .chain(b17::SKILLS.iter())
         .collect()
 }
 
@@ -214,6 +216,8 @@ pub const ENABLED_SKILLS: &[&str] = &[
     // B16 批次（J4：进行中，见 check:sgs3-registry 的 ⏳ 计数）
     "huoshou", "zaizhi", "duanliang", "jiezi", "duanchang", "quhu", "jieming",
     "qiangxi", "ninge", "zhijian", "guzheng", "shuangxiong", "pojun", "beige",
+    // B17 批次（J5：进行中，见 check:sgs3-registry 的 ⏳ 计数）
+    "xuanfeng", "zhichi", "jiangchi", "zongshi_jie", "qiaoshuo", "zongxuan", "zhiyan",
 ];
 
 /// 手牌变动类型（奋激口径）。
@@ -396,6 +400,7 @@ pub fn on_skip_draw(g: &mut Game, seat: usize) {
 /// 摸牌阶段结束（双雄/将驰/眩惑等）：可压询问；由 `turn::finish_phase` 调用。
 pub fn after_draw_phase(g: &mut Game, seat: usize) {
     b16::after_draw_phase(g, seat);
+    b17::after_draw_phase(g, seat);
 }
 
 /// 进入额外摸牌阶段前消费标记（K15；截辎）。返回 true = 重跑一次 Draw 阶段。
@@ -463,8 +468,7 @@ pub fn ignore_armor_for(g: &Game, user: usize, target: usize) -> bool {
 
 /// 本回合不能使用锦囊（巧说没赢）。
 pub fn trick_use_blocked(g: &Game, seat: usize, card: &str) -> bool {
-    let _ = (g, seat, card);
-    false
+    b17::trick_use_blocked(g, seat, card)
 }
 
 /// 本回合不能使用【酒】（禁酒：高顺回合内其他角色）。
@@ -481,8 +485,7 @@ pub fn rank_for_use(g: &Game, seat: usize, card: &str, rank: u8) -> u8 {
 
 /// 通用重铸（将驰/燕语）：该牌可重铸（手牌或装备区）。
 pub fn recast_allowed(g: &Game, seat: usize, id: &str) -> bool {
-    let _ = (g, seat, id);
-    false
+    b17::recast_allowed(g, seat, id)
 }
 
 /// 手牌颜色封锁（潜袭）：本回合不能使用/打出该颜色手牌。
@@ -665,6 +668,7 @@ pub fn handler(code: &str) -> Option<fn(&mut Game, &Ask) -> Result<Step, String>
         .or_else(|| b14::handler(code))
         .or_else(|| b15::handler(code))
         .or_else(|| b16::handler(code))
+        .or_else(|| b17::handler(code))
 }
 
 /// 主动技的**可用性判定**（声明之外的前置：手牌/目标/每阶段次数等）。
@@ -687,6 +691,7 @@ pub fn availability(code: &str) -> Option<fn(&Game, usize) -> bool> {
         .or_else(|| b14::availability(code))
         .or_else(|| b15::availability(code))
         .or_else(|| b16::availability(code))
+        .or_else(|| b17::availability(code))
 }
 
 /// **主动入口合法集**（唯一来源）：自带技能 ∩ 当前面 can_active ∩ 窗口允许 ∩ 可用性判定
@@ -1027,7 +1032,7 @@ pub fn prevent_damage(g: &mut Game, victim: usize) -> bool {
 
 /// 弃牌阶段手牌计数（藏拙：未使用锦囊时锦囊不计入）。
 pub fn hand_size_for_discard(g: &Game, seat: usize) -> usize {
-    b14::hand_size_for_discard(g, seat)
+    b17::hand_size_for_discard(g, seat).min(b14::hand_size_for_discard(g, seat))
 }
 
 /// 看破：转化的【无懈可击】不能被响应。
@@ -1064,6 +1069,7 @@ pub fn deny_target_instance(
     def: &super::cards::CardDef,
 ) -> bool {
     b15::deny_target_instance(g, user, target, card, def)
+        || b17::deny_target_instance(g, user, target, card, def)
 }
 
 /// 群体牌目标排除（巨象）。
@@ -1224,6 +1230,7 @@ pub fn sha_extra(g: &Game, seat: usize) -> i32 {
         + b10::sha_extra(g, seat)
         + b14::sha_extra(g, seat)
         + b15::sha_extra(g, seat)
+        + b17::sha_extra(g, seat)
 }
 
 /// 不能成为目标（掣政②/空城/帷幕…）。`card_play::legal_targets` 唯一调用点。
@@ -1264,7 +1271,7 @@ pub fn start_other(g: &mut Game, seat: usize, code: &str) -> Result<(), String> 
 }
 
 pub fn ignore_distance(g: &Game, seat: usize) -> bool {
-    b2::ignore_distance(g, seat)
+    b2::ignore_distance(g, seat) || b17::ignore_distance(g, seat)
 }
 
 /// 「对方不能响应」（雄乱）：本次使用对该目标整段跳过响应。
@@ -1447,6 +1454,7 @@ pub fn on_use_start(g: &mut Game, actor: usize, card: &str) {
     b10::on_use_start(g, actor, card);
     b13::on_use_start(g, actor, card);
     b15::on_use_start(g, actor, card);
+    b17::on_use_start(g, actor, card);
 }
 
 /// 克己：本回合出牌阶段未使用【杀】→ 跳过弃牌阶段（`turn::step_turn` 唯一调用点）。
@@ -1772,6 +1780,12 @@ pub fn judge_gain_available(g: &Game, seat: usize) -> bool {
 }
 
 /// 判定牌生效后可获得判定牌的技能（天妒）code；内核按 code 分发。
+
+
+/// 拼点后窗口（纵适）：由 `pindian` 在结果写入后调用。
+pub fn pindian_after(g: &mut Game, r: &super::pindian::PindianResult) {
+    b17::pindian_after(g, r);
+}
 pub fn judge_gain_owner(g: &Game, seat: usize) -> Option<&'static str> {
     b11::judge_gain_owner(g, seat)
 }

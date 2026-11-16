@@ -257,7 +257,7 @@ pub fn step_pindian(g: &mut Game, data: &serde_json::Value) -> Result<Step, Stri
                 g.push_event(e);
             }
             g.conceal(&[a.clone(), b.clone()], "拼点结算完成");
-            g.pindian_result = Some(PindianResult {
+            let result = PindianResult {
                 initiator,
                 target,
                 a,
@@ -265,7 +265,9 @@ pub fn step_pindian(g: &mut Game, data: &serde_json::Value) -> Result<Step, Stri
                 rank_a,
                 rank_b,
                 winner,
-            });
+            };
+            g.pindian_result = Some(result.clone());
+            super::skills::pindian_after(g, &result);
             Ok(Step::Done)
         }
         other => Err(format!("拼点：未知阶段 {other}")),
