@@ -386,3 +386,28 @@ M6 落地后把上表扩展为全 18 技能脚本对拍。
 - 连营的 X：谦逊移出 = 移出张数；使用/打出最后一张 = 1；弃置到 0 张按每次 1 计（细化「本次弃置张数」登记为边界）；
 - 救援为**同步重定向**（满足条件即改为令主公回复，并在结算中令原角色摸一张），未做二次询问（登记）；
 - 结姻的装备来源可为手牌或自己的装备区（后者经 `equip_to` 会触发枭姬）。
+
+### 7.14 B6–B10 登记缺口收口（2026-11-16，✅）
+
+> 口径（用户裁定）：**缺口必须在本批收口，不得拖到下一批开动。** 下表逐条对应 §7.9–§7.13 登记的缺口。
+
+| # | 来源批次 | 缺口 | 收口方式 | 用例 |
+|---|---|---|---|---|
+| 1 | B7 | 滔乱的「响应场景」未实现 | `skills::response_alternatives(g, seat, kind, ctx)` 统一响应替代入口；滔乱覆盖 `(无懈,wuxie)/(闪,wanjian)/(杀,nanman)` 三场景（每牌名整局限一次） | `tests/gaps.rs::taoluan_responds_as_sha_in_nanman` / `_shan_in_wanjian` |
+| 2 | B9 | 激将的「打出接力」缺失 | 同一入口：`Sha` 响应窗口提供 `alt:jijiang`（`relay::start(for_use=false)`，代出牌按「打出」消耗），并接入【决斗】/【南蛮】/【借刀】 | `tests/gaps.rs::jijiang_relays_sha_in_response_window` |
+| 3 | B6 | 饰非未接入【借刀杀人】的【闪】询问 | 替代入口改为统一入口（所有需要【闪】的上下文都查询） | `tests/gaps.rs::shifei_alternative_in_wanjian` |
+| 4 | B10 | 勤学的【攻心】未实现 | 注册 `gongxin`（grant_only）+ 实现（私密观看→展示红桃牌→弃置/置顶，出牌阶段限一次），勤学觉醒即 `grant` | `tests/gaps.rs::qinxue_grants_gongxin_and_it_discards_heart` |
+| 5 | B10 | 救援为同步重定向（未询问） | `flow::heal` 改为「命令式询问」：`skills::heal_ask` 压询问帧，由 `jiuyuan` handler 收口（opt1 为主公回复+其摸1 / opt2 照常回复），`jiuyuan.busy` 防递归 | `tests/b10.rs::jiuyuan_redirects_heal_to_lord` |
+| 6 | B10 | 连营「本次弃置张数」按 1 计 | 弃牌阶段在 `turn::step_discard` 按 `phase.discarded.Discard` 计数一次性触发；其余入口（使用/打出/谦逊）按 1 / 移出张数 | `tests/b10.rs::lianying_distributes_draws_after_hand_emptied` |
+| 7 | B10 | 谦逊未覆盖「延时锦囊判定生效时」 | `turn::judge_phase` 增加 `skills::on_delayed_judge` 单出口（判定生效前压询问帧） | `tests/gaps.rs::qianxun_triggers_on_delayed_judge` |
+| 8 | B9 | 观星不能任意排序 | 改为「每次任选一张剩余牌 → 顶/底」的交互，实现**任意顺序**（`top:<id>` / `bottom:<id>`） | `tests/b9.rs::guanxing_places_cards_and_repeats_at_end_if_all_bottom` |
+| 9 | B9 | 铁骑多目标只询问首个目标 | 逐目标循环判定/询问；`UseOpts.unresponsive: Vec<usize>` 记录「逐目标不能使用【闪】」并由 `step_sha` 读取 | `tests/b9.rs::tieqi_judges_and_blocks_shan_without_discard` |
+| 10 | B7 | 讥谀只冻结当前手牌，后续获得同花色仍可用 | 追加**花色封锁** `turn.<seat>.jiyu_lock.<花色>`，由 `skills::card_locked` 拦截使用/打出/响应/替代/`usable_hand` | `tests/gaps.rs::jiyu_suit_lock_blocks_use_and_response` |
+| 11 | B8 | 天辩无手牌时不能拼点 | `pindian::can_start` 允许「无手牌但有天辩且牌堆非空」的一方 | `tests/gaps.rs::tianbian_allows_pindian_without_hand` |
+| 12 | B8 | 问卦交牌无事件 | 交牌时 emit `CardLost`（原持有者/来源） | 复核于 `tests/b8.rs::wengua_other_side_places_card_and_draws` |
+
+**保留（非引擎缺口，UI 形态）**：
+- 通博的「任意张同时替换」引擎层已支持（逐张替换到放弃即任意张），差异仅在 Web 特殊交互区的展示形态（观星同源 UI 待 B11 之后统一实现）；
+- 复难不交换**虚拟牌**（`v:` 无物理承载，规则上不可表示；已在实际牌路径完整实现）。
+
+**门禁**：`cargo test -p sanguosha3` 全绿（新增 `tests/gaps.rs` 9 条）；`check:sgs3` 全绿；注册表 152 → **153**（+攻心）。

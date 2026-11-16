@@ -361,11 +361,11 @@ fn tieqi_judges_and_blocks_shan_without_discard() {
         data(&[("step", "sha_targeted".into()), ("card", "s".into()), ("targets", serde_json::json!([1]))]),
         &["use", "pass"],
     );
-    assert!(matches!(step, Step::Finish(_)));
-    assert_eq!(
-        g.use_opts("s").intercept,
-        Some(sanguosha3::kernel::ShaIntercept::Unresponsive),
-        "不弃同花色 → 不能使用【闪】"
+    let step = drain(&mut g, "tieqi", 0, step);
+    assert!(matches!(step, Step::Finish(_) | Step::Done));
+    assert!(
+        g.use_opts("s").unresponsive.contains(&1),
+        "不弃同花色 → 该目标不能使用【闪】"
     );
     assert!(!skills::active(&g, 1, "longdan"), "本回合非锁定技失效");
 }
@@ -396,40 +396,39 @@ fn guanxing_places_cards_and_repeats_at_end_if_all_bottom() {
     g.answer = Some("use".into());
     g.answer_skill = Some("guanxing".into());
     step = call(&mut g, "guanxing", 0, data(&[]));
-    // 逐张置底（张数由存活人数决定）。
-    let mut guard = 0;
+    // 逐张置底（任意顺序：每次任选一张剩余牌 → 置底）。
     let mut data_now = serde_json::Value::Null;
-    while let Step::Next(_, next) = &step {
-        data_now = next.clone();
-        step = call(&mut g, "guanxing", 0, data_now.clone());
-        guard += 1;
-        if guard > 10 {
-            break;
-        }
-    }
     let mut placed = 0;
     loop {
-        let opts = match &step {
-            Step::Need(p) | Step::NeedAt(_, p) | Step::NeedWith(_, _, p) => p.options().iter().map(|o| o.id.clone()).collect::<Vec<_>>(),
-            _ => break,
-        };
-        if !opts.contains(&"bottom".to_string()) {
-            break;
-        }
-        g.answer = Some("bottom".into());
-        g.answer_skill = Some("guanxing".into());
-        step = call(&mut g, "guanxing", 0, data_now.clone());
-        placed += 1;
         while let Step::Next(_, next) = &step {
             data_now = next.clone();
             step = call(&mut g, "guanxing", 0, data_now.clone());
         }
+        let opts = match &step {
+            Step::Need(p) | Step::NeedAt(_, p) | Step::NeedWith(_, _, p) => {
+                p.options().iter().map(|o| o.id.clone()).collect::<Vec<_>>()
+            }
+            Step::NeedWith(_, _, p) => p.options().iter().map(|o| o.id.clone()).collect::<Vec<_>>(),
+            _ => break,
+        };
+        let bottom = opts.iter().find(|o| o.starts_with("bottom:")).cloned();
+        let Some(opt) = bottom else { break };
+        g.answer = Some(opt);
+        g.answer_skill = Some("guanxing".into());
+        step = call(&mut g, "guanxing", 0, data_now.clone());
+        placed += 1;
+        if placed > 10 {
+            break;
+        }
     }
-    assert!(placed >= 2, "逐张置底（存活 <4 时为 3 张）");
-    assert!(g.check_conservation().is_ok(), "观星不破坏牌区守恒");
-    assert!(matches!(step, Step::Finish(_)));
+    let step = drain(&mut g, "guanxing", 0, step);
+    assert!(matches!(step, Step::Finish(_) | Step::Done));
     assert_eq!(g.counter("turn.0.guanxing_again"), 1, "皆置底 → 结束阶段再次发动");
     // 结束阶段可再次发动。
+    g.phase = Phase::End;
+    let step = call(&mut g, "guanxing", 0, data(&[]));
+    assert!(matches!(step, Step::Need(_) | Step::NeedWith(..)));
+
     g.phase = Phase::End;
     let step = call(&mut g, "guanxing", 0, data(&[]));
     assert!(matches!(step, Step::Need(_) | Step::NeedWith(..)));

@@ -712,6 +712,17 @@ fn wengua(g: &mut Game, ask: &Ask) -> Result<Step, String> {
                     if !hand.iter().any(|c| *c == id) {
                         return Err("问卦：只能交出自己的手牌".into());
                     }
+                    // 交牌事实（交给徐氏 → 随后置于牌堆）。
+                    let mut lost = super::super::event::Event::card(
+                        EventKind::CardLost,
+                        Some(actor),
+                        id.clone(),
+                        Some("问卦".to_string()),
+                    );
+                    lost.by = Some(actor);
+                    lost.from = Some(actor);
+                    let e = lost.snapshot(g);
+                    g.push_event(e);
                     Ok(Step::Next(
                         Stage::Choose,
                         json!({ "step": "place", "owner": owner, "card": id }),

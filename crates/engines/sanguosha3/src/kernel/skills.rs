@@ -1064,9 +1064,14 @@ pub fn take_multi_invalid(g: &mut Game, card: &str) -> Option<Vec<usize>> {
     b10::take_multi_invalid(g, card)
 }
 
-/// 回复体力前的目标重定向（救援）：`Some(new_target)` = 改为给该角色回复。
-pub fn heal_redirect(g: &mut Game, target: usize) -> Option<usize> {
-    b10::heal_redirect(g, target)
+/// 回复体力前的「救援」询问（返回 true = 已压询问帧，本次回复延后由技能结算）。
+pub fn heal_ask(g: &mut Game, target: usize, amount: i32, cause: &str) -> bool {
+    b10::heal_ask(g, target, amount, cause)
+}
+
+/// 延时锦囊判定生效时（谦逊）：`turn::judge_phase` 唯一调用点。
+pub fn on_delayed_judge(g: &mut Game, seat: usize, card: &str) {
+    b10::on_delayed_judge(g, seat, card);
 }
 
 /// 【杀】造成伤害时的技能加成（义绝红桃杀 / 咆哮抵消后下一杀）。
@@ -1168,6 +1173,9 @@ pub enum CardAs {
 
 /// 出牌阶段「将某张手牌当另一张牌使用」的替代定义（矢志/武圣/奇袭/国色…）。
 pub fn use_alias(g: &Game, seat: usize, id: &str) -> Option<&'static str> {
+    if card_locked(g, seat, id) {
+        return None;
+    }
     b6::use_alias(g, seat, id)
         .or_else(|| b9::use_alias(g, seat, id))
         .or_else(|| b10::use_alias(g, seat, id))
@@ -1190,6 +1198,9 @@ pub fn response_as(
             CardAs::NoOpinion => {}
         }
     }
+    if card_locked(g, seat, id) {
+        return None;
+    }
     let def = g.card_defs.get(id).and_then(|c| super::cards::def(&c.def))?;
     if def.responds_as(kind) {
         Some(def.code)
@@ -1198,9 +1209,26 @@ pub fn response_as(
     }
 }
 
-/// 需要【闪】时的替代入口（饰非）：技能 code + 选项文案。
-pub fn shan_alternatives(g: &Game, seat: usize) -> Vec<(&'static str, String)> {
-    b6::shan_alternatives(g, seat)
+/// 花色/牌封锁（讥谀：本回合不能使用与之相同花色的牌）——使用/打出/响应统一拦截。
+pub fn card_locked(g: &Game, seat: usize, id: &str) -> bool {
+    b7::card_locked(g, seat, id)
+}
+
+/// 响应替代入口（饰非【闪】/激将【杀】/滔乱三场景）：技能 code + 选项文案。
+///
+/// `ctx` 是当前响应上下文（`sha`/`duel`/`nanman`/`wanjian`/`collateral`/`wuxie`），
+/// 由牌结算流程给出；技能按（kind, ctx）声明自己覆盖哪些场景（滔乱只覆盖
+/// 「无懈链/万箭/南蛮」，不覆盖普通【杀】的【闪】）。
+pub fn response_alternatives(
+    g: &Game,
+    seat: usize,
+    kind: super::cards::ResponseKind,
+    ctx: &str,
+) -> Vec<(&'static str, String)> {
+    let mut out = b6::response_alternatives(g, seat, kind, ctx);
+    out.extend(b9::response_alternatives(g, seat, kind, ctx));
+    out.extend(b7::response_alternatives(g, seat, kind, ctx));
+    out
 }
 
 /// 「视为在攻击范围内」（诏缚）——`gear::within_attack_range` 的唯一技能来源。

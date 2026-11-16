@@ -58,6 +58,9 @@ pub static SKILLS: &[SkillDef] = &[
         faces: &[Face { window: Window::AnyTime, subscriptions: &[], hooks: &[], can_active: false }] },
     SkillDef { code: "jieyin", name: "结姻", kind: SkillKind::Normal, grant_only: false, transform: false,
         faces: &[Face { window: Window::OwnPhase(Phase::Play), subscriptions: &[], hooks: &[], can_active: true }] },
+    // —— 勤学授予：攻心（grant_only）——
+    SkillDef { code: "gongxin", name: "攻心", kind: SkillKind::Normal, grant_only: true, transform: false,
+        faces: &[Face { window: Window::OwnPhase(Phase::Play), subscriptions: &[], hooks: &[], can_active: true }] },
 ];
 
 pub fn handler(code: &str) -> Option<fn(&mut Game, &Ask) -> Result<Step, String>> {
@@ -74,6 +77,8 @@ pub fn handler(code: &str) -> Option<fn(&mut Game, &Ask) -> Result<Step, String>
         "zhiheng" => zhiheng,
         "xiaoji" => xiaoji,
         "jieyin" => jieyin,
+        "jiuyuan" => jiuyuan,
+        "gongxin" => gongxin,
         _ => return None,
     })
 }
@@ -85,6 +90,7 @@ pub fn availability(code: &str) -> Option<fn(&Game, usize) -> bool> {
         "guose" => can_guose,
         "zhiheng" => can_zhiheng,
         "jieyin" => can_jieyin,
+        "gongxin" => can_gongxin,
         _ => return None,
     })
 }
@@ -168,27 +174,72 @@ pub fn skip_discard(g: &Game, seat: usize) -> bool {
     skills::active(g, seat, "keji") && g.counter(&turn_key(seat, "sha_played")) == 0
 }
 
-/// 救援：吴势力角色于其回合内回复体力时可改为令主公回复（条件满足即重定向）。
-pub fn heal_redirect(g: &mut Game, target: usize) -> Option<usize> {
+/// 救援：吴势力角色于其回合内回复体力时可**选择**改为令主公回复。
+///
+/// 返回 true = 已压询问帧，本次回复由 `jiuyuan` handler 收口（不再走 `flow::heal`）。
+pub fn heal_ask(g: &mut Game, target: usize, amount: i32, cause: &str) -> bool {
     if g.seats.get(target).map(|s| s.kingdom.as_str()) != Some("wu") {
-        return None;
+        return false;
     }
-    if g.turn != target {
-        return None;
+    if g.turn != target || g.counter(&format!("jiuyuan.busy.{target}")) > 0 {
+        return false;
     }
-    let Some(lord) = g.current_lord() else { return None };
+    let Some(lord) = g.current_lord() else { return false };
     if lord == target || !skills::active(g, lord, "jiuyuan") {
-        return None;
+        return false;
     }
     if g.seats.get(lord).map(|s| s.hp >= s.max_hp).unwrap_or(true) {
-        return None;
+        return false;
     }
     if g.seats[target].hp < g.seats[lord].hp {
-        return None;
+        return false;
     }
-    // 「然后其摸一张牌」。
-    flow::draw(g, target, 1);
-    Some(lord)
+    g.set_counter(&format!("jiuyuan.busy.{target}"), 1);
+    super::super::resolve::push_ask(
+        g,
+        "jiuyuan",
+        Stage::Choose,
+        target,
+        json!({ "step": "ask", "target": target, "lord": lord, "amount": amount, "cause": cause }),
+    );
+    true
+}
+
+fn jiuyuan(g: &mut Game, ask: &Ask) -> Result<Step, String> {
+    let target = common::seat_of(ask, "target").unwrap_or(ask.actor);
+    let lord = common::seat_of(ask, "lord").unwrap_or(target);
+    let amount = ask.data.get("amount").and_then(|v| v.as_i64()).unwrap_or(1) as i32;
+    let cause = ask
+        .data
+        .get("cause")
+        .and_then(|v| v.as_str())
+        .unwrap_or("恢复")
+        .to_string();
+    match take_answer(g, "jiuyuan") {
+        None => {
+            let mut b = PendingBuilder::new(target, "choose").skill("jiuyuan");
+            b = b.option("use", "改为令主公回复 1 点体力，然后你摸一张牌");
+            Ok(Step::Need(
+                b.escape("照常自己回复")
+                    .data(json!({ "step": "ask", "target": target, "lord": lord, "amount": amount, "cause": cause }))
+                    .build(),
+            ))
+        }
+        Some(a) if a == "pass" => {
+            // 收口本次回复：先清 busy 再补上「正在结算」标记，避免再次触发 救援 询问。
+            g.set_counter(&format!("jiuyuan.busy.{target}"), 1);
+            flow::heal(g, target, amount, &cause);
+            g.set_counter(&format!("jiuyuan.busy.{target}"), 0);
+            Ok(Step::Finish("救援：照常自己回复".into()))
+        }
+        Some(a) if a == "use" => {
+            g.set_counter(&format!("jiuyuan.busy.{target}"), 0);
+            flow::heal(g, lord, 1, &cause);
+            flow::draw(g, target, 1);
+            Ok(Step::Finish("救援：改为令主公回复，其摸一张".into()))
+        }
+        Some(o) => Err(format!("救援：未知选项 {o}")),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -334,10 +385,29 @@ fn qinxue(g: &mut Game, ask: &Ask) -> Result<Step, String> {
             } else {
                 flow::draw(g, actor, 2);
             }
-            Ok(Step::Finish("勤学：觉醒（获得【攻心】留待后续批次）".into()))
+            skills::grant(g, actor, "gongxin");
+            Ok(Step::Finish("勤学：觉醒（获得【攻心】）".into()))
         }
         Some(o) => Err(format!("勤学：未知选项 {o}")),
     }
+}
+
+/// 谦逊：延时锦囊判定生效时（`turn::judge_phase` 唯一调用点）。
+pub fn on_delayed_judge(g: &mut Game, seat: usize, card: &str) {
+    if !skills::active(g, seat, "qianxun") {
+        return;
+    }
+    let delayed = def_of(g, card).map(|d| d.tags.delayed).unwrap_or(false);
+    if !delayed || g.hand(seat).is_empty() {
+        return;
+    }
+    super::super::resolve::push_ask(
+        g,
+        "qianxun",
+        Stage::Choose,
+        seat,
+        json!({ "step": "ask", "card": card, "delayed": true }),
+    );
 }
 
 pub fn on_turn_end(g: &mut Game, seat: usize) {
@@ -780,19 +850,31 @@ fn qianxun(g: &mut Game, ask: &Ask) -> Result<Step, String> {
     let Some(card) = common::card_of(ask, "card") else {
         return Ok(Step::Done);
     };
-    let Some(by) = common::seat_of(ask, "by") else {
-        return Ok(Step::Done);
-    };
-    if by == actor {
-        return Ok(Step::Done);
-    }
-    let Some(d) = def_of(g, &card) else { return Ok(Step::Done) };
-    let is_trick = d.effect.is_trick();
-    if !is_trick {
-        return Ok(Step::Done);
-    }
-    if g.use_targets.get(&card).map(|t| t.len()).unwrap_or(0) != 1 {
-        return Ok(Step::Done);
+    let delayed = ask.data.get("delayed").is_some();
+    if delayed {
+        // 延时锦囊：判定生效时，唯一目标是判定区持有者。
+        if !def_of(g, &card).map(|d| d.tags.delayed).unwrap_or(false) {
+            return Ok(Step::Done);
+        }
+        if g.judge_stacks.get(&actor).map(|s| s.is_empty()).unwrap_or(true)
+            && !g.cards.values().any(|z| *z == Zone::Processing)
+        {
+            // 判定牌已被移出判定区：不再依赖栈内状态，直接按触发处理。
+        }
+    } else {
+        let Some(by) = common::seat_of(ask, "by") else {
+            return Ok(Step::Done);
+        };
+        if by == actor {
+            return Ok(Step::Done);
+        }
+        let Some(d) = def_of(g, &card) else { return Ok(Step::Done) };
+        if !d.effect.is_trick() {
+            return Ok(Step::Done);
+        }
+        if g.use_targets.get(&card).map(|t| t.len()).unwrap_or(0) != 1 {
+            return Ok(Step::Done);
+        }
     }
     let hand = g.hand(actor);
     if hand.is_empty() {
@@ -965,6 +1047,98 @@ fn zhiheng_finish(g: &mut Game, actor: usize, picked: &[CardId]) -> Step {
     flow::draw(g, actor, if emptied { n + 1 } else { n });
     g.bump(&phase_key(actor, "zhiheng"));
     Step::Finish(format!("制衡：弃 {n} 张摸 {n} 张"))
+}
+
+// ---------------------------------------------------------------------------
+// 勤学授予 · 攻心（观看一名其他角色手牌，可展示其一张红桃牌并弃置/置顶）
+// ---------------------------------------------------------------------------
+
+fn can_gongxin(g: &Game, seat: usize) -> bool {
+    skills::active(g, seat, "gongxin")
+        && g.turn == seat
+        && g.phase == Phase::Play
+        && g.counter(&phase_key(seat, "gongxin")) == 0
+        && common::alive_others(g, seat)
+            .into_iter()
+            .any(|t| !g.hand(t).is_empty())
+}
+
+fn gongxin(g: &mut Game, ask: &Ask) -> Result<Step, String> {
+    let actor = ask.actor;
+    if !skills::active(g, actor, "gongxin") {
+        return Ok(Step::Done);
+    }
+    let step = ask.data.get("step").and_then(|v| v.as_str()).unwrap_or("target");
+    // 主动入口首帧（`active_actions` 压 `step=choose`）与目标选择同义。
+    let step = if step == "choose" { "target" } else { step };
+    match step {
+        "target" => {
+            if g.counter(&phase_key(actor, "gongxin")) > 0 {
+                return Ok(Step::Done);
+            }
+            let cands: Vec<usize> = common::alive_others(g, actor)
+                .into_iter()
+                .filter(|t| !g.hand(*t).is_empty())
+                .collect();
+            match take_answer(g, "gongxin") {
+                None => common::pick_seat(g, actor, "gongxin", "观看", &cands, json!({ "step": "target" })).into_step(),
+                Some(a) if a == "pass" => Ok(Step::Done),
+                Some(a) if a.starts_with("t:") => {
+                    let t: usize = a[2..].parse().map_err(|_| "攻心：目标不合法")?;
+                    if !cands.contains(&t) {
+                        return Err("攻心：目标不合法".into());
+                    }
+                    // 私密观看：pending 只发给发动者，选项文案即该角色的手牌信息。
+                    let hearts: Vec<CardId> = g
+                        .hand(t)
+                        .into_iter()
+                        .filter(|id| g.card_defs.get(id).map(|c| c.suit == Suit::Heart).unwrap_or(false))
+                        .collect();
+                    let mut b = PendingBuilder::new(actor, "choose").skill("gongxin");
+                    for id in &hearts {
+                        b = b.option(format!("discard:{id}"), format!("展示并弃置其【{}】", card_label(g, id)));
+                        b = b.option(format!("top:{id}"), format!("展示并将其【{}】置于牌堆顶", card_label(g, id)));
+                    }
+                    Ok(Step::NeedWith(
+                        Stage::Choose,
+                        json!({ "step": "pick", "target": t, "hearts": hearts }),
+                        b.escape("放弃（不展示红桃牌）")
+                            .data(json!({ "step": "pick", "target": t, "hearts": hearts }))
+                            .build(),
+                    ))
+                }
+                Some(o) => Err(format!("攻心：未知选项 {o}")),
+            }
+        }
+        "pick" => {
+            let t = common::seat_of(ask, "target").ok_or("攻心：缺目标")?;
+            match take_answer(g, "gongxin") {
+                None => Ok(Step::Done),
+                Some(a) if a == "pass" => {
+                    g.bump(&phase_key(actor, "gongxin"));
+                    Ok(Step::Finish("攻心：观看其手牌".into()))
+                }
+                Some(a) if a.starts_with("discard:") => {
+                    let id = a[8..].to_string();
+                    g.reveal(&[id.clone()], "攻心");
+                    flow::discard(g, t, &id, "攻心");
+                    g.bump(&phase_key(actor, "gongxin"));
+                    Ok(Step::Finish("攻心：展示并弃置其红桃牌".into()))
+                }
+                Some(a) if a.starts_with("top:") => {
+                    let id = a[4..].to_string();
+                    g.reveal(&[id.clone()], "攻心");
+                    if matches!(g.cards.get(&id), Some(Zone::Hand(s)) if *s == t) {
+                        flow::to_deck_top(g, &id);
+                    }
+                    g.bump(&phase_key(actor, "gongxin"));
+                    Ok(Step::Finish("攻心：展示并将其红桃牌置于牌堆顶".into()))
+                }
+                Some(o) => Err(format!("攻心：未知选项 {o}")),
+            }
+        }
+        other => Err(format!("攻心：未知阶段 {other}")),
+    }
 }
 
 // ---------------------------------------------------------------------------

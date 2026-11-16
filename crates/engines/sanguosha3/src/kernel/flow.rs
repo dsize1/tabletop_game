@@ -261,8 +261,11 @@ fn try_buqu(g: &mut Game, seat: usize) -> bool {
 
 /// 回复体力（唯一出口）：钳到 `max_hp`，满血不回（但不报错）。
 pub fn heal(g: &mut Game, target: usize, amount: i32, cause: &str) -> Vec<Event> {
-    // 救援：吴势力角色回合内回复时，可改为令主公回复（这里按**同步重定向**实现）。
-    let target = super::skills::heal_redirect(g, target).unwrap_or(target);
+    // 救援：吴势力角色回合内回复时**询问**是否改为令主公回复（询问帧由技能压入，
+    // 本次回复延后到技能结算里执行）。
+    if super::skills::heal_ask(g, target, amount, cause) {
+        return vec![];
+    }
     let seat = match g.seats.get_mut(target) {
         Some(s) => s,
         None => return vec![],
@@ -473,7 +476,8 @@ pub fn discard(g: &mut Game, by: usize, id: &str, cause: &str) -> Option<Event> 
     g.push_event(ev.clone());
     if matches!(zone, super::Zone::Hand(_)) {
         super::skills::on_hand_changed(g, owner, super::skills::HandChange::Discarded);
-        if g.hand(owner).is_empty() {
+        // 弃牌阶段按「本次弃置张数」在 `turn::step_discard` 统一结算（避免按张重复触发）。
+        if g.phase != super::Phase::Discard && g.hand(owner).is_empty() {
             super::skills::on_hand_empty(g, owner, 1);
         }
     }

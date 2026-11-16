@@ -279,9 +279,14 @@ pub fn response_as(g: &Game, seat: usize, id: &str, kind: super::super::cards::R
     }
 }
 
-/// 饰非：需要【闪】时可提供的替代（`card_play` 闪询问的唯一查询入口）。
-pub fn shan_alternatives(g: &Game, seat: usize) -> Vec<(&'static str, String)> {
-    if !skills::active(g, seat, "shifei") {
+/// 饰非：需要【闪】时的替代（覆盖所有需要【闪】的上下文）。
+pub fn response_alternatives(
+    g: &Game,
+    seat: usize,
+    kind: super::super::cards::ResponseKind,
+    _ctx: &str,
+) -> Vec<(&'static str, String)> {
+    if kind != super::super::cards::ResponseKind::Shan || !skills::active(g, seat, "shifei") {
         return Vec::new();
     }
     vec![(
@@ -1578,6 +1583,8 @@ fn shifei(g: &mut Game, ask: &Ask) -> Result<Step, String> {
     }
     let cur = g.turn;
     let step = ask.data.get("step").and_then(|v| v.as_str()).unwrap_or("draw");
+    // 统一响应替代窗口用 `step=alt`；保留旧的 `draw` 入口（历史用例/直接驱动）。
+    let step = if step == "alt" { "draw" } else { step };
     match step {
         "draw" => {
             flow::draw(g, cur, 1);

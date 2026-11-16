@@ -57,7 +57,7 @@ pub fn legal_uses(g: &Game, seat: usize, defs: &dyn Fn(&str) -> Option<CardDef>)
 pub fn usable_hand(g: &Game, seat: usize) -> Vec<String> {
     let mut out = vec![];
     for id in g.hand(seat) {
-        if g.is_frozen(seat, &id) {
+        if g.is_frozen(seat, &id) || super::skills::card_locked(g, seat, &id) {
             continue;
         }
         let Some(c) = g.card_defs.get(&id) else { continue };
@@ -240,6 +240,9 @@ pub fn begin_use(g: &mut Game, actor: usize, card: &str, fire: bool) -> Result<(
     }
     if g.is_frozen(actor, card) {
         return Err("该手牌已被冻结（本回合/本阶段不能使用）".into());
+    }
+    if super::skills::card_locked(g, actor, card) {
+        return Err("本回合不能使用该花色的牌（讥谀）".into());
     }
     let def = def_of(g, card)?;
     if def.tags.sha && sha_limit_reached(g, actor) {
@@ -808,6 +811,18 @@ fn step_wuxie(g: &mut Game, actor: usize, mut d: Map<String, Value>) -> Result<S
     }
     let layers = uid(&d, "layers");
     let idx = uid(&d, "widx");
+    if d.get("esub").and_then(|v| v.as_str()) == Some("alt") {
+        d.insert("esub".into(), json!(""));
+        if take_response_sub(g, g.seats.len()) {
+            d.insert("layers".into(), json!(layers + 1));
+            d.insert("widx".into(), json!(0));
+            d.insert("alt_used".into(), json!(true));
+        } else {
+            d.insert("alt_used".into(), json!(true));
+            d.insert("widx".into(), json!(idx + 1));
+        }
+        return Ok(next(Stage::WuxieAsk, d.clone()));
+    }
     let order: Vec<usize> = {
         let n = g.seats.len();
         (0..n)
@@ -823,6 +838,17 @@ fn step_wuxie(g: &mut Game, actor: usize, mut d: Map<String, Value>) -> Result<S
     }
     let asker = order[idx];
     if let Some(ans) = take_answer(g, "flow:card") {
+        if let Some(code) = ans.strip_prefix("alt:") {
+            super::resolve::push_ask(
+                g,
+                code.to_string(),
+                Stage::Choose,
+                asker,
+                json!({ "step": "alt", "kind": "wuxie", "ctx": "wuxie", "card": card }),
+            );
+            d.insert("esub".into(), json!("alt"));
+            return Ok(next(Stage::WuxieAsk, d.clone()));
+        }
         if let Some(id) = ans.strip_prefix("w:") {
             let ok = matches!(g.cards.get(id), Some(Zone::Hand(s)) if *s == asker)
                 && def_of(g, id).map(|c| c.tags.wuxie).unwrap_or(false);
@@ -868,6 +894,11 @@ fn step_wuxie(g: &mut Game, actor: usize, mut d: Map<String, Value>) -> Result<S
     if !any {
         d.insert("widx".into(), json!(idx + 1));
         return Ok(next(Stage::WuxieAsk, d));
+    }
+    if d.get("alt_used").is_none() {
+        for (code, label) in super::skills::response_alternatives(g, asker, ResponseKind::Wuxie, "wuxie") {
+            b = b.option(format!("alt:{code}"), label);
+        }
     }
     let _ = any;
     Ok(Step::NeedAt(Stage::WuxieAsk, b.escape("不无懈").build()))
@@ -1117,6 +1148,11 @@ fn step_sha(
                 }
                 _ => {}
             }
+            // 逐目标「不能使用【闪】」（铁骑）。
+            if g.use_opts(card).unresponsive.contains(&target) {
+                d.insert("esub".into(), json!("harm"));
+                return Ok(next(Stage::CardResolve, d.clone()));
+            }
             // 不能被响应（往烈/雄乱）：不等【闪】直接结算伤害。
             if g.use_opts(card).no_response {
                 d.insert("esub".into(), json!("harm"));
@@ -1151,7 +1187,7 @@ fn step_sha(
                         code.to_string(),
                         Stage::Choose,
                         target,
-                        json!({ "step": "draw", "card": card }),
+                        json!({ "step": "alt", "kind": "shan", "ctx": "sha", "card": card }),
                     );
                     d.insert("esub".into(), json!("alt"));
                     return Ok(next(Stage::CardResolve, d.clone()));
@@ -1178,7 +1214,12 @@ fn step_sha(
             let alts: Vec<(&'static str, String)> = if flag(d, "alt_used") {
                 vec![]
             } else {
-                super::skills::shan_alternatives(g, target)
+                super::skills::response_alternatives(
+                    g,
+                    target,
+                    ResponseKind::Shan,
+                    "sha",
+                )
             };
             if (shan.is_empty() || super::skills::no_real_shan(g, actor, card))
                 && !bagua
@@ -1454,8 +1495,31 @@ fn step_duel(
         hit(g, other, cur);
         return finish_done(g, d);
     }
+    if d.get("esub").and_then(|v| v.as_str()) == Some("alt") {
+        if take_response_sub(g, cur) {
+            d.insert("resp_got".into(), json!(0));
+            d.insert("duel_cur".into(), json!(other));
+            d.insert("duel_other".into(), json!(cur));
+            d.insert("esub".into(), json!(""));
+        } else {
+            d.insert("alt_used".into(), json!(true));
+            d.insert("esub".into(), json!(""));
+        }
+        return Ok(next(Stage::CardResolve, d.clone()));
+    }
     let got = d.get("resp_got").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
     if let Some(ans) = take_answer(g, "flow:card") {
+        if let Some(code) = ans.strip_prefix("alt:") {
+            super::resolve::push_ask(
+                g,
+                code.to_string(),
+                Stage::Choose,
+                cur,
+                json!({ "step": "alt", "kind": "sha", "ctx": "duel", "card": card }),
+            );
+            d.insert("esub".into(), json!("alt"));
+            return Ok(next(Stage::CardResolve, d.clone()));
+        }
         if let Some(id) = ans.strip_prefix("s:") {
             let ok = matches!(g.cards.get(id), Some(Zone::Hand(s)) if *s == cur)
                 && super::skills::response_as(g, cur, id, ResponseKind::Sha).is_some();
@@ -1491,6 +1555,11 @@ fn step_duel(
     let mut b = PendingBuilder::new(cur, "duel_ask").skill("flow:card");
     for id in shas {
         b = b.option(format!("s:{id}"), "打出【杀】");
+    }
+    if d.get("alt_used").is_none() {
+        for (code, label) in super::skills::response_alternatives(g, cur, ResponseKind::Sha, "duel") {
+            b = b.option(format!("alt:{code}"), label);
+        }
     }
     Ok(Step::NeedAt(Stage::CardAsk, b.escape("不出杀").build()))
 }
@@ -1548,12 +1617,21 @@ fn step_aoe(
     let got = d.get("resp_got").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
     if let Some(ans) = take_answer(g, "flow:card") {
         if let Some(code) = ans.strip_prefix("alt:") {
+            let kind = match expect {
+                Some(ResponseKind::Shan) => "shan",
+                Some(ResponseKind::Sha) => "sha",
+                Some(ResponseKind::Wuxie) => "wuxie",
+                Some(ResponseKind::Tao) => "tao",
+                Some(ResponseKind::Jiu) => "jiu",
+                None => "",
+            };
+            let ctx = if def.effect == Effect::SavageAssault { "nanman" } else { "wanjian" };
             super::resolve::push_ask(
                 g,
                 code.to_string(),
                 Stage::Choose,
                 target,
-                json!({ "step": "draw", "card": card }),
+                json!({ "step": "alt", "kind": kind, "ctx": ctx, "card": card }),
             );
             d.insert("esub".into(), json!("alt"));
             return Ok(next(Stage::CardResolve, d.clone()));
@@ -1580,10 +1658,12 @@ fn step_aoe(
         Some(k) => response_cards(g, target, k),
         None => vec![],
     };
-    let alts: Vec<(&'static str, String)> = if expect == Some(ResponseKind::Shan)
-        && d.get("alt_used").is_none()
-    {
-        super::skills::shan_alternatives(g, target)
+    let ctx = if def.effect == Effect::SavageAssault { "nanman" } else { "wanjian" };
+    let alts: Vec<(&'static str, String)> = if d.get("alt_used").is_none() {
+        match expect {
+            Some(kind) => super::skills::response_alternatives(g, target, kind, ctx),
+            None => vec![],
+        }
     } else {
         vec![]
     };
@@ -1861,6 +1941,9 @@ fn step_collateral(
         for id in shas {
             p = p.option(format!("s:{id}"), format!("对 {} 号位使用【杀】", b + 1));
         }
+        for (code, label) in super::skills::response_alternatives(g, a, ResponseKind::Sha, "collateral") {
+            p = p.option(format!("alt:{code}"), label);
+        }
         return Ok(Step::NeedAt(Stage::CardAsk, p.escape("不出杀（交出武器）").build()));
     }
     // esub == "hit"：B 出【闪】或受伤（来源 = A）。
@@ -1905,6 +1988,9 @@ fn step_collateral(
     for id in shan {
         p = p.option(format!("s:{id}"), "打出【闪】");
     }
+    for (code, label) in super::skills::response_alternatives(g, b, ResponseKind::Shan, "collateral") {
+        p = p.option(format!("alt:{code}"), label);
+    }
     Ok(Step::NeedAt(Stage::CardAsk, p.escape("不闪避").build()))
 }
 
@@ -1934,8 +2020,9 @@ fn step_dying(g: &mut Game, data: &Value) -> Result<Step, String> {
         if let Some(card) = ans.strip_prefix("card:") {
             let in_hand = matches!(g.cards.get(card), Some(Zone::Hand(s)) if *s == asker);
             let def = def_of(g, card).ok();
-            let is_tao = def.map(|d| d.tags.tao).unwrap_or(false);
-            let is_jiu = def.map(|d| d.tags.jiu).unwrap_or(false) && asker == target;
+            let is_tao = super::skills::response_as(g, asker, card, ResponseKind::Tao).is_some();
+            let is_jiu = super::skills::response_as(g, asker, card, ResponseKind::Jiu).is_some()
+                && asker == target;
             if !in_hand || !(is_tao || is_jiu) {
                 return Err("濒死救援：只能使用【桃】（濒死者本人可用【酒】）".into());
             }
@@ -2089,6 +2176,9 @@ pub(crate) fn played(g: &mut Game, seat: usize, id: &str, cause: &str) -> Result
     // 冻结 = 不能主动使用/打出（mechanics `hand-freeze`；单入口防御）。
     if g.is_frozen(seat, id) {
         return Err(format!("{id} 已被冻结，不能打出"));
+    }
+    if super::skills::card_locked(g, seat, id) {
+        return Err(format!("{id} 本回合被花色封锁（讥谀）"));
     }
     g.cards.insert(id.to_string(), Zone::Discard);
     g.bump(&format!("turn.{seat}.cards_used"));
@@ -2320,6 +2410,9 @@ pub fn use_as(
         }
         if g.is_frozen(actor, id) {
             return Err(format!("承载牌 {id} 已被冻结"));
+        }
+        if super::skills::card_locked(g, actor, id) {
+            return Err(format!("承载牌 {id} 本回合被花色封锁"));
         }
     }
     // 承载牌离开原区域（进处理区；结算完成落弃牌堆）：区域仍唯一归属。

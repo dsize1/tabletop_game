@@ -46,7 +46,11 @@ pub fn can_start(g: &Game, initiator: usize, target: usize) -> bool {
     let ok = |i: usize| {
         g.seats
             .get(i)
-            .map(|s| s.alive && !g.hand(i).is_empty())
+            .map(|s| {
+                s.alive
+                    && (!g.hand(i).is_empty()
+                        || (super::skills::pindian_deck_option(g, i) && !g.deck.is_empty()))
+            })
             .unwrap_or(false)
     };
     ok(initiator) && ok(target)

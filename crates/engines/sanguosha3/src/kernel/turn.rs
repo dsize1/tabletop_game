@@ -533,6 +533,13 @@ fn step_discard(g: &mut Game, seat: usize, pi: usize) -> Result<Step, String> {
         if let Some(id) = ans.strip_prefix("card:") {
             if g.hand(seat).iter().any(|c| c == id) {
                 flow::discard(g, seat, id, "弃牌阶段");
+                if g.hand(seat).is_empty() {
+                    // 连营：弃牌阶段弃到 0 张 → X = 本阶段弃置张数。
+                    let n = g
+                        .counter(&format!("phase.discarded.{:?}", Phase::Discard))
+                        .max(1) as usize;
+                    super::skills::on_hand_empty(g, seat, n);
+                }
             } else {
                 return Err(format!("弃牌阶段：{id} 不在手牌"));
             }
@@ -565,6 +572,8 @@ pub fn judge_phase(g: &mut Game, seat: usize) {
         left.turn = g.turn;
         left.phase = g.phase;
         g.push_event(left);
+        // 谦逊：延时锦囊判定生效时（技能只压询问帧，不阻塞判定流程）。
+        super::skills::on_delayed_judge(g, seat, &id);
         let effect = g
             .card_defs
             .get(&id)

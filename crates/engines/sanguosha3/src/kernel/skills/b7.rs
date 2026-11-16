@@ -321,6 +321,49 @@ fn huisheng_used_key(target: usize, from: usize) -> String {
     format!("huisheng.used.{target}.{from}")
 }
 
+/// 讥谀：本回合不能使用与之相同花色的牌（按花色封锁，立即对当前手牌与后续获得的牌生效）。
+pub fn card_locked(g: &Game, seat: usize, id: &str) -> bool {
+    let Some(suit) = g.card_defs.get(id).map(|c| c.suit.label()) else {
+        return false;
+    };
+    g.counter(&format!("turn.{seat}.jiyu_lock.{suit}")) > 0
+}
+
+/// 滔乱：响应场景替代（**只**覆盖「无懈链当无懈 / 万箭当闪 / 南蛮当杀」）。
+pub fn response_alternatives(
+    g: &Game,
+    seat: usize,
+    kind: super::super::cards::ResponseKind,
+    ctx: &str,
+) -> Vec<(&'static str, String)> {
+    use super::super::cards::ResponseKind;
+    if !skills::active(g, seat, "taoluan") || g.hand(seat).is_empty() {
+        return Vec::new();
+    }
+    if g.counter(&turn_key(seat, "taoluan_off")) > 0 {
+        return Vec::new();
+    }
+    if g.seats.iter().any(|s| flow::is_dying(s)) {
+        return Vec::new();
+    }
+    let def = match (kind, ctx) {
+        (ResponseKind::Wuxie, "wuxie") => "wuxie_keji",
+        (ResponseKind::Shan, "wanjian") => "shan",
+        (ResponseKind::Sha, "nanman") => "sha",
+        _ => return Vec::new(),
+    };
+    if g.counter(&format!("taoluan.used.{def}")) > 0 {
+        return Vec::new();
+    }
+    vec![(
+        "taoluan",
+        format!(
+            "滔乱：将一张牌当【{}】使用/打出",
+            super::super::cards::def(def).map(|d| d.name).unwrap_or(def)
+        ),
+    )]
+}
+
 /// 宗祚：开局按势力数 +体力上限并回复 1 体力（`Hook::GameStart` 同步结算）。
 pub fn on_game_start(g: &mut Game, seat: usize) {
     if !skills::active(g, seat, "zongzuo") {
@@ -1061,7 +1104,7 @@ fn jiyu(g: &mut Game, ask: &Ask) -> Result<Step, String> {
                         .map(|c| c.suit == super::super::Suit::Spade)
                         .unwrap_or(false);
                     flow::discard(g, t, &id, "讥谀");
-                    // 本回合不能使用与之相同花色的牌（手牌冻结）。
+                    // 本回合不能使用与之相同花色的牌：手牌冻结（可见性）+ 花色封锁（含后续获得）。
                     if let Some(suit) = g.card_defs.get(&id).map(|c| c.suit) {
                         let frozen: Vec<String> = g
                             .hand(actor)
@@ -1069,6 +1112,8 @@ fn jiyu(g: &mut Game, ask: &Ask) -> Result<Step, String> {
                             .filter(|c| g.card_defs.get(c).map(|x| x.suit == suit).unwrap_or(false))
                             .collect();
                         g.freeze_cards(actor, &frozen, FreezeUntil::Turn, "讥谀");
+                        let key = format!("turn.{actor}.jiyu_lock.{}", suit.label());
+                        g.set_counter(&key, 1);
                     }
                     g.bump(&turn_key(actor, &format!("jiyu.{t}")));
                     if spade {
@@ -1532,6 +1577,51 @@ fn taoluan(g: &mut Game, ask: &Ask) -> Result<Step, String> {
     let step = ask.data.get("step").and_then(|v| v.as_str()).unwrap_or("name");
     // 主动入口首帧（`active_actions` 压的 `step=choose`）与牌名选择同义。
     let step = if step == "choose" { "name" } else { step };
+    // 响应替代（无懈链 / 万箭 / 南蛮）：用一张手牌当对应响应牌。
+    if step == "alt" || step == "alt_pick" {
+        let kind = ask.data.get("kind").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let def = match kind.as_str() {
+            "wuxie" => "wuxie_keji",
+            "shan" => "shan",
+            "sha" => "sha",
+            _ => return Ok(Step::Done),
+        };
+        if step == "alt" {
+            let hand = g.hand(actor);
+            if hand.is_empty() {
+                return Ok(Step::Done);
+            }
+            let mut b = PendingBuilder::new(actor, "pick_own").skill("taoluan");
+            for id in &hand {
+                b = b.option(
+                    format!("card:{id}"),
+                    format!(
+                        "将【{}】当【{}】使用/打出",
+                        card_label(g, id),
+                        super::super::cards::def(def).map(|d| d.name).unwrap_or(def)
+                    ),
+                );
+            }
+            let data = json!({ "step": "alt_pick", "kind": kind, "card": ask.data.get("card").cloned().unwrap_or_default() });
+            return Ok(Step::NeedWith(
+                Stage::PickOwn,
+                data.clone(),
+                b.escape_mandatory("（必选一张）").data(data).build(),
+            ));
+        }
+        let Some(ans) = take_answer(g, "taoluan") else {
+            return Ok(Step::Done);
+        };
+        let id = ans.strip_prefix("card:").ok_or("滔乱：未知选项")?.to_string();
+        if !g.hand(actor).iter().any(|c| *c == id) {
+            return Err("滔乱：只能用自己的手牌".into());
+        }
+        // 响应牌一律按「打出/使用响应」消耗（无懈链由流程按层数继续）。
+        super::super::card_play::played(g, actor, &id, "滔乱")?;
+        g.bump(&format!("taoluan.used.{def}"));
+        g.set_mark(&format!("response.sub.{actor}"), "1");
+        return Ok(Step::Finish("滔乱：视为使用/打出响应牌".into()));
+    }
     // 牌结算后的收口（CardUsed 订阅）：令一名其他角色二选一。
     if step == "name" {
         if let Some(card) = ask.data.get("card").and_then(|v| v.as_str()) {

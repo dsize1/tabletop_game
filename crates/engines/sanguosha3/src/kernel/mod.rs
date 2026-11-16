@@ -523,6 +523,9 @@ pub struct UseOpts {
     /// 本次造成伤害后摸一张（奔袭）。
     #[serde(default)]
     pub draw_on_damage: bool,
+    /// 逐目标「不能使用/打出响应牌」（铁骑：不弃同花色则不能【闪】）。
+    #[serde(default)]
+    pub unresponsive: Vec<usize>,
 }
 
 /// 濒死结算后的延后结算项（mechanics `dying-aftermath`）。

@@ -360,9 +360,24 @@ fn jiuyuan_redirects_heal_to_lord() {
     g.turn = 1;
     add_deck(&mut g, 3);
     flow::heal(&mut g, 1, 1, "桃");
+    resolve::advance(&mut g).expect("救援询问");
+    assert_eq!(g.pending.as_ref().map(|p| p.actor()), Some(1), "由该吴势力角色选择");
+    resolve::submit(&mut g, 1, "use").expect("改为令主公回复");
     assert_eq!(g.seats[0].hp, 4, "改为令主公回复");
     assert_eq!(g.seats[1].hp, 3, "其自身未回复");
     assert_eq!(g.hand_size(1), 1, "其摸一张");
+    // 照常自己回复的分支。
+    let mut g3 = game(2, &["jiuyuan"]);
+    g3.seats[0].identity = Some(Identity::Lord);
+    g3.seats[1].kingdom = "wu".into();
+    g3.seats[1].hp = 3;
+    g3.seats[0].hp = 3;
+    g3.turn = 1;
+    flow::heal(&mut g3, 1, 1, "桃");
+    resolve::advance(&mut g3).expect("询问");
+    resolve::submit(&mut g3, 1, "pass").expect("照常自己回复");
+    assert_eq!(g3.seats[1].hp, 4);
+    assert_eq!(g3.seats[0].hp, 3);
     // 反例：非吴势力不触发。
     let mut g2 = game(2, &["jiuyuan"]);
     g2.seats[0].identity = Some(Identity::Lord);

@@ -377,6 +377,28 @@ fn rende(g: &mut Game, ask: &Ask) -> Result<Step, String> {
     }
 }
 
+/// 激将：需要打出/使用【杀】时的响应替代（由主公发动接力）。
+pub fn response_alternatives(
+    g: &Game,
+    seat: usize,
+    kind: ResponseKind,
+    _ctx: &str,
+) -> Vec<(&'static str, String)> {
+    if kind != ResponseKind::Sha {
+        return Vec::new();
+    }
+    if !skills::active(g, seat, "jijiang") || g.seats.get(seat).and_then(|s| s.identity) != Some(Identity::Lord) {
+        return Vec::new();
+    }
+    if relay::order(g, seat, "shu").is_empty() {
+        return Vec::new();
+    }
+    vec![(
+        "jijiang",
+        "激将：令蜀势力角色代你打出【杀】".to_string(),
+    )]
+}
+
 // ---------------------------------------------------------------------------
 // 界刘备 · 激将
 // ---------------------------------------------------------------------------
@@ -401,6 +423,32 @@ fn jijiang(g: &mut Game, ask: &Ask) -> Result<Step, String> {
         return Ok(Step::Done);
     }
     let step = ask.data.get("step").and_then(|v| v.as_str()).unwrap_or("choose");
+    // ③ 响应窗口替代（流程帧用统一 `alt:<code>` 选项压入本帧）。
+    if step == "alt" || step == "alt_wait" {
+        if let Some(r) = g.mark(&format!("relay.result.{actor}")).map(|s| s.to_string()) {
+            g.marks.remove(&format!("relay.result.{actor}"));
+            if r.starts_with("played:") {
+                g.set_mark(&format!("response.sub.{actor}"), "1");
+            }
+            return Ok(Step::Finish("激将：响应结算".into()));
+        }
+        if relay::order(g, actor, "shu").is_empty() {
+            return Ok(Step::Done);
+        }
+        let started = relay::start(
+            g,
+            actor,
+            relay::RelayOpts {
+                kingdom: "shu".to_string(),
+                for_use: false,
+                cause: "激将",
+            },
+        );
+        if !started {
+            return Ok(Step::Done);
+        }
+        return Ok(Step::Next(Stage::Choose, json!({ "step": "alt_wait" })));
+    }
     // ② 摸牌触发（其他蜀势力角色回合外使用/打出/代出【杀】）。
     if step == "draw" || (ask.data.get("event").is_some() && step != "target" && step != "relay") {
         let lord = common::seat_of(ask, "lord").or_else(|| {
@@ -863,20 +911,31 @@ fn tieqi(g: &mut Game, ask: &Ask) -> Result<Step, String> {
                     for t in &targets {
                         g.bump(&format!("suppress.{t}.{}", g.turn));
                     }
-                    let Some(t) = targets.first().copied() else {
-                        return Ok(Step::Done);
-                    };
-                    let r = judge::judge(g, actor, "铁骑").map(|r| r.suit);
                     Ok(Step::Next(
                         Stage::Choose,
-                        json!({ "step": "judged", "card": card, "target": t, "suit": format!("{:?}", r) }),
+                        json!({ "step": "judge", "card": card, "targets": targets, "idx": 0 }),
                     ))
                 }
                 Some(o) => Err(format!("铁骑：未知选项 {o}")),
             }
         }
+        "judge" => {
+            let targets = common::seats_of(ask, "targets");
+            let idx = ask.data.get("idx").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+            if idx >= targets.len() {
+                return Ok(Step::Finish("铁骑：结算完成".into()));
+            }
+            let t = targets[idx];
+            let r = judge::judge(g, actor, "铁骑").map(|r| r.suit);
+            Ok(Step::Next(
+                Stage::Choose,
+                json!({ "step": "judged", "card": card, "target": t, "idx": idx, "targets": targets, "suit": format!("{:?}", r) }),
+            ))
+        }
         "judged" => {
             let t = common::seat_of(ask, "target").ok_or("铁骑：缺目标")?;
+            let idx = ask.data.get("idx").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+            let targets = common::seats_of(ask, "targets");
             let suit = ask.data.get("suit").and_then(|v| v.as_str()).unwrap_or("Spade").to_string();
             let want = match suit.as_str() {
                 "Spade" => Suit::Spade,
@@ -888,25 +947,24 @@ fn tieqi(g: &mut Game, ask: &Ask) -> Result<Step, String> {
                 .into_iter()
                 .filter(|id| g.card_defs.get(id).map(|c| c.suit == want).unwrap_or(false))
                 .collect();
+            let next_data = json!({ "step": "judge", "card": card, "targets": targets, "idx": idx + 1 });
             match take_answer(g, "tieqi") {
                 None => {
                     let mut b = PendingBuilder::new(t, "pick_own").skill("tieqi");
                     for id in &cands {
                         b = b.option(format!("card:{id}"), format!("弃置【{}】抵消铁骑", card_label(g, id)));
                     }
-                    Ok(Step::Need(
-                        b.escape("不弃置（不能使用【闪】）")
-                            .data(json!({ "step": "judged", "card": card, "target": t, "suit": suit }))
-                            .build(),
+                    let data = json!({ "step": "judged", "card": card, "target": t, "idx": idx, "targets": targets, "suit": suit });
+                    Ok(Step::NeedWith(
+                        Stage::PickOwn,
+                        data.clone(),
+                        b.escape("不弃置（不能使用【闪】）").data(data).build(),
                     ))
                 }
                 Some(a) if a == "pass" => {
-                    super::super::card_play::declare_intercept(
-                        g,
-                        &card,
-                        super::super::ShaIntercept::Unresponsive,
-                    );
-                    Ok(Step::Finish("铁骑：其不弃置同花色牌，不能使用【闪】".into()))
+                    // 逐目标「不能使用【闪】」。
+                    g.use_opts_mut(&card).unresponsive.push(t);
+                    Ok(Step::Next(Stage::Choose, next_data))
                 }
                 Some(a) if a.starts_with("card:") => {
                     let id = a[5..].to_string();
@@ -914,7 +972,7 @@ fn tieqi(g: &mut Game, ask: &Ask) -> Result<Step, String> {
                         return Err("铁骑：只能弃置同花色的手牌/装备".into());
                     }
                     flow::discard(g, t, &id, "铁骑");
-                    Ok(Step::Finish("铁骑：其弃置同花色牌".into()))
+                    Ok(Step::Next(Stage::Choose, next_data))
                 }
                 Some(o) => Err(format!("铁骑：未知选项 {o}")),
             }
@@ -982,11 +1040,10 @@ fn guanxing(g: &mut Game, ask: &Ask) -> Result<Step, String> {
             Some(o) => Err(format!("观星：未知选项 {o}")),
         };
     }
-    // place：逐张置顶 / 置底。
+    // place：**任意顺序**——每次任选一张剩余牌，再决定置顶/置底。
     let mut cards = common::cards_of(ask, "cards");
-    let idx = ask.data.get("idx").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
     let mut all_bottom = ask.data.get("all_bottom").and_then(|v| v.as_bool()).unwrap_or(true);
-    if idx >= cards.len() {
+    if cards.is_empty() {
         if end_phase {
             g.set_counter(&turn_key(actor, "guanxing_again"), 0);
         } else if all_bottom {
@@ -994,33 +1051,43 @@ fn guanxing(g: &mut Game, ask: &Ask) -> Result<Step, String> {
         }
         return Ok(Step::Finish("观星：结算完成".into()));
     }
-    let card = cards[idx].clone();
     match take_answer(g, "guanxing") {
         None => {
             let mut b = PendingBuilder::new(actor, "choose").skill("guanxing");
-            b = b.option("top", format!("将【{}】置于牌堆顶", card_label(g, &card)));
-            b = b.option("bottom", format!("将【{}】置于牌堆底", card_label(g, &card)));
-            Ok(Step::Need(
-                b.escape_mandatory("（必选）")
-                    .data(json!({ "step": "place", "cards": cards, "idx": idx, "all_bottom": all_bottom }))
-                    .build(),
+            for id in &cards {
+                b = b.option(format!("top:{id}"), format!("【{}】置于牌堆顶", card_label(g, id)));
+                b = b.option(format!("bottom:{id}"), format!("【{}】置于牌堆底", card_label(g, id)));
+            }
+            let data = json!({ "step": "place", "cards": cards, "all_bottom": all_bottom });
+            Ok(Step::NeedWith(
+                Stage::Choose,
+                data.clone(),
+                b.escape_mandatory("（必选）").data(data).build(),
             ))
         }
-        Some(a) if a == "top" => {
-            g.deck.push(card.clone());
+        Some(a) if a.starts_with("top:") => {
+            let id = a[4..].to_string();
+            if !cards.iter().any(|c| *c == id) {
+                return Err("观星：牌不在观星区".into());
+            }
+            g.deck.push(id.clone());
             all_bottom = false;
-            cards.retain(|c| *c != card);
+            cards.retain(|c| *c != id);
             Ok(Step::Next(
                 Stage::Choose,
-                json!({ "step": "place", "cards": cards, "idx": idx, "all_bottom": all_bottom }),
+                json!({ "step": "place", "cards": cards, "all_bottom": all_bottom }),
             ))
         }
-        Some(a) if a == "bottom" => {
-            g.deck.insert(0, card.clone());
-            cards.retain(|c| *c != card);
+        Some(a) if a.starts_with("bottom:") => {
+            let id = a[7..].to_string();
+            if !cards.iter().any(|c| *c == id) {
+                return Err("观星：牌不在观星区".into());
+            }
+            g.deck.insert(0, id.clone());
+            cards.retain(|c| *c != id);
             Ok(Step::Next(
                 Stage::Choose,
-                json!({ "step": "place", "cards": cards, "idx": idx, "all_bottom": all_bottom }),
+                json!({ "step": "place", "cards": cards, "all_bottom": all_bottom }),
             ))
         }
         Some(o) => Err(format!("观星：未知选项 {o}")),
