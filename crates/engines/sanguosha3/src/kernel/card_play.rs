@@ -57,7 +57,10 @@ pub fn legal_uses(g: &Game, seat: usize, defs: &dyn Fn(&str) -> Option<CardDef>)
 pub fn usable_hand(g: &Game, seat: usize) -> Vec<String> {
     let mut out = vec![];
     for id in g.hand(seat) {
-        if g.is_frozen(seat, &id) || super::skills::card_locked(g, seat, &id) {
+        if g.is_frozen(seat, &id)
+            || super::skills::card_locked(g, seat, &id)
+            || super::skills::hand_color_blocked(g, seat, &id)
+        {
             continue;
         }
         let Some(c) = g.card_defs.get(&id) else { continue };
@@ -81,7 +84,7 @@ pub fn can_use_now(g: &Game, seat: usize, def: &CardDef) -> bool {
     if def.tags.jiu && jiu_limit_reached(g, seat) {
         return false;
     }
-    if def.tags.sha && sha_limit_reached(g, seat) {
+    if def.tags.sha && sha_limit_reached(g, seat, None) {
         return false;
     }
     if let Some(slot) = def.slot {
@@ -101,11 +104,15 @@ pub fn can_use_now(g: &Game, seat: usize, def: &CardDef) -> bool {
 }
 
 /// 本阶段【杀】次数是否已用尽（连弩/技能视为无限）。
-pub fn sha_limit_reached(g: &Game, seat: usize) -> bool {
+pub fn sha_limit_reached(g: &Game, seat: usize, card: Option<&str>) -> bool {
     let used = g.counter(&format!("phase.sha_used.{seat}"));
-    // 连弩（装备特效 = 特殊技能注入）+ 技能无限杀。
+    // 连弩（装备特效 = 特殊技能注入）+ 技能无限杀 + 目标/花色豁免。
     if super::gear::weapon_of(g, seat) == WeaponKind::Zhugeliannu
         || super::skills::sha_unlimited(g, seat)
+        || super::skills::sha_limit_exempt(g, seat)
+        || card
+            .map(|c| super::skills::sha_unlimited_card(g, seat, c))
+            .unwrap_or(false)
     {
         return false;
     }
@@ -258,15 +265,30 @@ pub fn begin_use(g: &mut Game, actor: usize, card: &str, fire: bool) -> Result<(
     if super::skills::card_locked(g, actor, card) {
         return Err("本回合不能使用该花色的牌（讥谀）".into());
     }
+    if super::skills::hand_color_blocked(g, actor, card) {
+        return Err("本回合不能使用/打出该颜色的手牌".into());
+    }
     let def = def_of(g, card)?;
     if def.tags.sha && super::skills::sha_use_blocked(g, actor) {
         return Err("本回合不能使用【杀】（天义没赢）".into());
     }
-    if def.tags.sha && sha_limit_reached(g, actor) {
+    if def.tags.sha && sha_limit_reached(g, actor, Some(card)) {
         return Err("本阶段【杀】次数已用尽".into());
     }
-    if def.tags.jiu && jiu_limit_reached(g, actor) {
-        return Err("本回合【酒】已使用".into());
+    if def.tags.jiu {
+        if super::skills::jiu_blocked(g, actor) {
+            return Err("本回合不能使用【酒】".into());
+        }
+        if jiu_limit_reached(g, actor) {
+            return Err("本回合【酒】已使用".into());
+        }
+    }
+    if matches!(
+        def.category,
+        super::cards::Category::Trick | super::cards::Category::DelayedTrick
+    ) && super::skills::trick_use_blocked(g, actor, card)
+    {
+        return Err("本回合不能使用锦囊牌".into());
     }
     g.damage_card = Some(card.to_string());
     use_start(g, actor, card)?;
@@ -321,6 +343,35 @@ pub fn recast(g: &mut Game, actor: usize, card: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// **通用重铸（K22；将驰/燕语）**：手牌或装备区一张牌 → 弃置 → 摸一张。
+///
+/// 与 `recast`（铁索重铸）区分：允许任意牌/装备区，合法性由 `skills::recast_allowed` 声明。
+pub fn recast_any(g: &mut Game, actor: usize, id: &str) -> Result<(), String> {
+    let own = matches!(g.cards.get(id), Some(Zone::Hand(s)) if *s == actor)
+        || matches!(g.cards.get(id), Some(Zone::Equip(s, _)) if *s == actor);
+    if !own {
+        return Err("重铸：该牌不在自己的手牌/装备区".into());
+    }
+    if g.is_frozen(actor, id) {
+        return Err("该手牌已被冻结".into());
+    }
+    let lianhuan = g
+        .card_defs
+        .get(id)
+        .and_then(|c| cards::def(&c.def))
+        .map(|d| d.tags.lianhuan)
+        .unwrap_or(false);
+    if !lianhuan && !super::skills::recast_allowed(g, actor, id) {
+        return Err("该牌当前不能重铸".into());
+    }
+    flow::discard(g, actor, id, "重铸");
+    flow::draw(g, actor, 1);
+    if lianhuan {
+        super::skills::on_recast(g, actor, id);
+    }
+    Ok(())
+}
+
 /// 丈八蛇矛：两张手牌当【杀】（虚拟牌实例；守恒由「实例 + 区域」同时登记保证）。
 pub fn begin_use_zhangba(g: &mut Game, actor: usize, c1: &str, c2: &str) -> Result<(), String> {
     for c in [c1, c2] {
@@ -328,7 +379,7 @@ pub fn begin_use_zhangba(g: &mut Game, actor: usize, c1: &str, c2: &str) -> Resu
             return Err(format!("{c} 不在座位 {actor} 的手牌"));
         }
     }
-    if sha_limit_reached(g, actor) {
+    if sha_limit_reached(g, actor, None) {
         return Err("本阶段【杀】次数已用尽".into());
     }
     let suit = g.card_defs.get(c1).map(|c| c.suit).unwrap_or(super::Suit::Spade);
@@ -469,6 +520,9 @@ fn use_start(g: &mut Game, actor: usize, card: &str) -> Result<(), String> {
         }
     }
     if def.tags.jiu {
+        if super::skills::jiu_blocked(g, actor) {
+            return Err("本回合不能使用【酒】".into());
+        }
         g.bump(&format!("phase.jiu_used.{actor}"));
     }
     g.set_mark(&format!("used_by.{card}"), actor.to_string());
@@ -515,6 +569,10 @@ pub fn legal_targets_with(
         if !cards::valid_target(def.target_mode, actor, s, true) {
             continue;
         }
+        // 惴恐：本回合不能对除自己以外的角色使用牌。
+        if s != actor && super::skills::others_use_blocked(g, actor) {
+            continue;
+        }
         // 实例级「不能成为目标」（帷幕：黑色锦囊）对所有目标模式生效。
         if super::skills::deny_target_instance(g, actor, s, card, def) {
             continue;
@@ -531,13 +589,18 @@ pub fn legal_targets_with(
         }
         match def.effect {
             Effect::Sha => {
-                // 本次无距离限制（往烈首张/陷嗣/慎断）：只跳过距离，不改其它目标规则。
+                // 陷阵没赢：不能对该角色使用【杀】。
+                if super::skills::sha_blocked_for(g, actor, s) {
+                    continue;
+                }
+                // 本次无距离限制（往烈首张/陷嗣/慎断/陷阵赢）：只跳过距离，不改其它目标规则。
                 let reach = opts
                     .range_override
                     .map(|r| r as usize)
                     .unwrap_or_else(|| super::gear::attack_range(g, actor) as usize);
                 if !opts.no_distance
                     && !super::skills::ignore_distance(g, actor)
+                    && !super::skills::target_no_distance(g, actor, s)
                     && !super::gear::within_attack_range(g, actor, s, reach)
                 {
                     continue;
@@ -1147,7 +1210,10 @@ fn step_sha(
     if super::skills::no_response_for(g, actor, target) {
         g.use_opts_mut(card).no_response = true;
     }
-    let ignore_armor = super::gear::ignores_armor(g, actor) || g.use_opts(card).ignore_armor;
+    let ignore_armor = super::gear::ignores_armor(g, actor)
+        || g.use_opts(card).ignore_armor
+        || g.use_opts(card).ignore_armor_for.contains(&target)
+        || super::skills::ignore_armor_for(g, actor, target);
     let armor = if ignore_armor {
         ArmorKind::None
     } else {
@@ -1263,14 +1329,15 @@ fn step_sha(
                     "sha",
                 )
             };
-            if (shan.is_empty() || super::skills::no_real_shan(g, actor, card))
-                && !bagua
-                && alts.is_empty()
+            let shan_blocked = super::skills::shan_blocked_for(g, actor, target, card);
+            if (shan.is_empty() || super::skills::no_real_shan(g, actor, card) || shan_blocked)
+                && (!bagua || shan_blocked)
+                && (alts.is_empty() || shan_blocked)
             {
                 d.insert("esub".into(), json!("harm"));
                 return Ok(next(Stage::CardResolve, d.clone()));
             }
-            let no_real_shan = super::skills::no_real_shan(g, actor, card);
+            let no_real_shan = super::skills::no_real_shan(g, actor, card) || shan_blocked;
             let mut b = PendingBuilder::new(target, "shan_ask").skill("flow:card");
             if !no_real_shan {
                 for id in shan {
@@ -2561,10 +2628,16 @@ fn push_virtual_use(
     fire: bool,
 ) -> Result<CardId, String> {
     let def = cards::def(def_code).ok_or_else(|| format!("虚拟牌定义不存在：{def_code}"))?;
-    let (suit, rank) = origin
-        .first()
-        .and_then(|id| g.card_defs.get(id))
-        .map(|c| (super::skills::suit_for_use(g, actor, c.suit), c.rank))
+    let first = origin.first().cloned();
+    let (suit, rank) = first
+        .as_ref()
+        .and_then(|id| g.card_defs.get(id).map(|c| (id, c)))
+        .map(|(id, c)| {
+            (
+                super::skills::suit_for_use(g, actor, c.suit),
+                super::skills::rank_for_use(g, actor, id, c.rank),
+            )
+        })
         .unwrap_or((super::Suit::Spade, 1));
     let vid = format!("v:m{}", g.next_frame_id);
     g.next_frame_id += 1;
@@ -2587,6 +2660,9 @@ fn push_virtual_use(
         g.bump(&format!("phase.sha_used.{actor}"));
     }
     if def.tags.jiu {
+        if super::skills::jiu_blocked(g, actor) {
+            return Err("本回合不能使用【酒】".into());
+        }
         g.bump(&format!("phase.jiu_used.{actor}"));
     }
     g.set_mark(&format!("used_by.{vid}"), actor.to_string());

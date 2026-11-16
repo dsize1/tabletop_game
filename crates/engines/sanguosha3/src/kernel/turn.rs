@@ -181,6 +181,8 @@ pub fn end_turn(g: &mut Game) -> Option<usize> {
         }
         if normal && next <= cursor {
             g.round += 1;
+            // K21：本轮级计数随轮次清空（矫诏/解烦/樵拾/醇醪）。
+            g.clear_counters("round.");
         }
         cursor = next;
         if g.seats[next].flipped {
@@ -571,6 +573,19 @@ fn build_play_pending(g: &Game, seat: usize) -> Option<super::pending::Pending> 
             .unwrap_or(false)
         {
             b = b.option(format!("recast:{id}"), format!("重铸【{}】", card_name(g, &id)));
+        }
+    }
+    // 通用重铸（K22；将驰/燕语）：手牌/装备区任意牌均可重铸。
+    for id in g.hand(seat) {
+        if super::skills::recast_allowed(g, seat, &id) {
+            b = b.option(format!("recast:{id}"), format!("重铸【{}】", card_name(g, &id)));
+            any = true;
+        }
+    }
+    for id in super::gear::equips_of(g, seat) {
+        if super::skills::recast_allowed(g, seat, &id) {
+            b = b.option(format!("recast:{id}"), format!("重铸装备【{}】", card_name(g, &id)));
+            any = true;
         }
     }
     // 丈八蛇矛：两张手牌当【杀】（装备特效 = 特殊技能注入）。

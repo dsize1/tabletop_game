@@ -347,7 +347,7 @@ fn rende(g: &mut Game, ask: &Ask) -> Result<Step, String> {
             .into_iter()
             .filter(|(code, _)| {
                 let Some(d) = cards::def(code) else { return false };
-                if d.tags.sha && super::super::card_play::sha_limit_reached(g, actor) {
+                if d.tags.sha && super::super::card_play::sha_limit_reached(g, actor, None) {
                     return false;
                 }
                 if d.tags.jiu && super::super::card_play::jiu_limit_reached(g, actor) {

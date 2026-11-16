@@ -290,7 +290,7 @@ fn paoxiao_unlimited_sha_and_bonus_after_dodge() {
     g.turn = 0;
     g.phase = Phase::Play;
     g.set_counter("phase.sha_used.0", 9);
-    assert!(!sanguosha3::kernel::card_play::sha_limit_reached(&g, 0), "【杀】无次数限制");
+    assert!(!sanguosha3::kernel::card_play::sha_limit_reached(&g, 0, None), "【杀】无次数限制");
     skills::on_sha_dodged(&mut g, 0);
     assert_eq!(g.counter("turn.0.paoxiao_bonus"), 1);
     add(&mut g, "s", "sha", Zone::Hand(0));

@@ -433,6 +433,88 @@ pub fn action_seen(g: &mut Game, key: impl Into<String>) -> bool {
     g.mark_action_seen(key)
 }
 
+// ---------------------------------------------------------------------------
+// K20/K21/K22 单一出口（B17+ 技能在此扩展；默认惰性）
+// ---------------------------------------------------------------------------
+
+/// 目标级无距离（陷阵赢）：仅本次对该目标跳过距离校验。
+pub fn target_no_distance(g: &Game, user: usize, target: usize) -> bool {
+    let _ = (g, user, target);
+    false
+}
+
+/// 【杀】次数豁免（陷阵赢/弓骑花色【杀】）：任意目标可发动时放行。
+pub fn sha_limit_exempt(g: &Game, seat: usize) -> bool {
+    let _ = (g, seat);
+    false
+}
+
+/// 【杀】不能对该目标使用（陷阵没赢）。
+pub fn sha_blocked_for(g: &Game, user: usize, target: usize) -> bool {
+    let _ = (g, user, target);
+    false
+}
+
+/// 目标级无视防具（陷阵赢）。
+pub fn ignore_armor_for(g: &Game, user: usize, target: usize) -> bool {
+    let _ = (g, user, target);
+    false
+}
+
+/// 本回合不能使用锦囊（巧说没赢）。
+pub fn trick_use_blocked(g: &Game, seat: usize, card: &str) -> bool {
+    let _ = (g, seat, card);
+    false
+}
+
+/// 本回合不能使用【酒】（禁酒：高顺回合内其他角色）。
+pub fn jiu_blocked(g: &Game, seat: usize) -> bool {
+    let _ = (g, seat);
+    false
+}
+
+/// 使用/打出时的有效点数覆盖（禁酒：酒视为 K）。
+pub fn rank_for_use(g: &Game, seat: usize, card: &str, rank: u8) -> u8 {
+    let _ = (g, seat, card);
+    rank
+}
+
+/// 通用重铸（将驰/燕语）：该牌可重铸（手牌或装备区）。
+pub fn recast_allowed(g: &Game, seat: usize, id: &str) -> bool {
+    let _ = (g, seat, id);
+    false
+}
+
+/// 手牌颜色封锁（潜袭）：本回合不能使用/打出该颜色手牌。
+pub fn hand_color_blocked(g: &Game, seat: usize, id: &str) -> bool {
+    let _ = (g, seat, id);
+    false
+}
+
+/// 不能对除自己以外的角色使用牌（惴恐赢）。
+pub fn others_use_blocked(g: &Game, seat: usize) -> bool {
+    let _ = (g, seat);
+    false
+}
+
+/// 攻击范围无限（弓骑）。
+pub fn infinite_range(g: &Game, seat: usize) -> bool {
+    let _ = (g, seat);
+    false
+}
+
+/// 花色【杀】不限次数（弓骑）。
+pub fn sha_unlimited_card(g: &Game, seat: usize, card: &str) -> bool {
+    let _ = (g, seat, card);
+    false
+}
+
+/// 无法使用/打出【闪】响应（毅重②）。
+pub fn shan_blocked_for(g: &Game, user: usize, target: usize, card: &str) -> bool {
+    let _ = (g, user, target, card);
+    false
+}
+
 /// 濒死前钩子（`Hook::Dying`）的持有者（唯一来源：不屈）。
 ///
 /// 泛化接线：内核不出现技能名；返回第一个已收口且生效的持有者 code。

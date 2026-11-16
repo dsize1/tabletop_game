@@ -795,3 +795,17 @@ B17 所需 K20（目标/响应限制）与 K21/K22 在 **B17 开工前**落地�
 - 悲歌梅花分支（来源弃 2）已实现但未纳入本批用例；后续抽检补。
 - 狞恶的「每回合第二次受伤」以 `turn.<victim>.ninge_hits` 计数；重复武将/多持有者不在本批范围。
 - 双雄取回范围 = 本回合对**你**造成过伤害的牌（`turn.<owner>.damage_card_taken.*`）；已不在弃牌堆/处理区/虚空的牌不取回。
+
+### 7.26d B17 内核前置（K20/K21/K22 单出口骨架，2026-11-16）
+
+> 口径：先落**单一出口 + 惰性默认**，B17 技能只在 `b17.rs` 提供行为；内核不出现技能名分支。
+
+| # | 出口 | 落点 |
+|---|---|---|
+| K20 | 目标级无距离 / 【杀】次数豁免 / 【杀】目标禁用 / 逐目标无视防具 | `skills::target_no_distance/sha_limit_exempt/sha_blocked_for/ignore_armor_for`；`card_play::legal_targets_with` / `step_sha` |
+| K20b | 手牌颜色封锁 / 不能对他人用牌 / 攻击范围无限 / 花色【杀】不限 / 无法响应【闪】 | `skills::hand_color_blocked/others_use_blocked/infinite_range/sha_unlimited_card/shan_blocked_for`；`usable_hand`/`begin_use`/`legal_targets_with`/`gear::within_attack_range`/`step_sha` |
+| K20c | 锦囊封锁 / 【酒】封锁 / 有效点数覆盖 | `skills::trick_use_blocked/jiu_blocked/rank_for_use`；`begin_use`/`push_virtual_use` |
+| K21 | 本轮级计数随 `round += 1` 清空 | `turn::end_turn` |
+| K22 | 通用重铸（手牌/装备区任意牌） | `card_play::recast_any` + `skills::recast_allowed` + `turn::build_play_pending` |
+
+**B17 技能只实现上述钩子函数 + handler，不得在 `card_play`/`turn` 再写技能名分支。**

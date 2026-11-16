@@ -274,7 +274,9 @@ pub fn within_attack_range(g: &Game, from: usize, to: usize, reach: usize) -> bo
     if from == to {
         return false;
     }
-    distance(g, from, to) <= reach || super::skills::in_attack_range(g, from, to)
+    distance(g, from, to) <= reach
+        || super::skills::in_attack_range(g, from, to)
+        || super::skills::infinite_range(g, from)
 }
 
 /// 使用【杀】是否无视目标防具（青釭剑）。
