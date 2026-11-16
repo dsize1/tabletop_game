@@ -156,7 +156,7 @@ pub fn use_jijiu(g: &mut Game, asker: usize, id: &str) -> Result<(), String> {
     if was_equip {
         flow::leave_equip(g, asker, id, "急救");
     }
-    g.cards.insert(id.to_string(), Zone::Discard);
+    super::super::card_play::to_discard_with(g, id, "急救", Some(asker));
     let mut ev = super::super::event::Event::card(
         EventKind::CardLost,
         Some(asker),

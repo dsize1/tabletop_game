@@ -1168,9 +1168,9 @@ fn paiyi(g: &mut Game, ask: &Ask) -> Result<Step, String> {
                 }
                 // 移去一张「权」（进弃牌堆）。
                 if let Some(quan) = mark_cards(g, actor, QUAN).first().cloned() {
-                    g.cards.insert(quan.clone(), Zone::Discard);
+                    super::super::card_play::to_discard_with(g, &quan, "排异", Some(actor));
                     let ev = super::super::event::Event::card(
-                        EventKind::CardDiscarded,
+                        EventKind::CardToDiscard,
                         Some(actor),
                         quan,
                         Some("排异".to_string()),

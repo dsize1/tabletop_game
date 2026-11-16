@@ -154,6 +154,8 @@ pub fn begin_turn(g: &mut Game, seat: usize) {
 /// 回合结束：发 `TurnEnd` → 计算下一个回合角色（额外回合 / 翻面跳过 / 轮数 +1）。
 /// 返回 `None` = 对局结束（无下一个回合）。
 pub fn end_turn(g: &mut Game) -> Option<usize> {
+    // 暂离牌回合末归还（破军；Q5：在 turn.* 清空前）。
+    let _ = flow::return_due_void(g);
     // 回合结束前技能窗口（博图额外回合 / 谦逊归还手牌）。
     super::skills::on_turn_end(g, g.turn);
     let seat = g.turn;
@@ -258,6 +260,10 @@ pub fn step_turn(g: &mut Game, data: &Value) -> Result<Step, String> {
     if !entered {
         // 跳阶段（乐不思蜀/兵粮寸断/技能）：不产生 PhaseStart/PhaseEnd（阶段未发生）。
         if g.skipped.contains(&phase) {
+            // 跳过摸牌阶段钩子（截辎：任意角色跳过摸牌阶段后询问）。
+            if phase == Phase::Draw {
+                super::skills::on_skip_draw(g, seat);
+            }
             g.skipped.retain(|p| *p != phase);
             return Ok(Step::Next(
                 Stage::PhaseStep,
@@ -369,6 +375,31 @@ fn finish_phase(g: &mut Game, seat: usize, pi: usize) -> Result<Step, String> {
     ev.turn = g.turn;
     ev.phase = phase;
     g.push_event(ev);
+    // K15：额外摸牌阶段（截辎）——移除「辎」后重跑一次 Draw 阶段（PhaseStart/End 齐全）。
+    if phase == Phase::Draw && super::skills::take_extra_draw(g, seat) {
+        return Ok(Step::Next(
+            Stage::PhaseStep,
+            json!({ "seat": seat, "pi": pi, "entered": false, "extra_draw": true }),
+        ));
+    }
+    // K15：当先——准备阶段后、判定阶段前的额外出牌阶段。
+    if phase == Phase::Prepare && super::skills::take_extra_play(g, seat) {
+        g.extra_play = Some(seat);
+        let play_pi = PHASES.iter().position(|p| *p == Phase::Play).unwrap_or(3);
+        return Ok(Step::Next(
+            Stage::PhaseStep,
+            json!({ "seat": seat, "pi": play_pi, "entered": false, "extra_play": true }),
+        ));
+    }
+    // 额外出牌阶段结束：回到判定阶段（不进入正常 Discard）。
+    if phase == Phase::Play && g.extra_play == Some(seat) {
+        g.extra_play = None;
+        let judge_pi = PHASES.iter().position(|p| *p == Phase::Judge).unwrap_or(1);
+        return Ok(Step::Next(
+            Stage::PhaseStep,
+            json!({ "seat": seat, "pi": judge_pi, "entered": false }),
+        ));
+    }
     Ok(Step::Next(
         Stage::PhaseStep,
         json!({ "seat": seat, "pi": pi + 1, "entered": false }),
@@ -694,9 +725,13 @@ pub fn die(g: &mut Game, seat: usize) -> Vec<Event> {
     settle_death(g, seat, None)
 }
 
-/// **通用死亡结算（唯一出口）**：弃所有牌 → 奖惩 → 胜负（constitution I2 / `death-penalty`）。
+/// **通用死亡结算（唯一出口）**：死亡确认 → 死亡时窗口 → 死亡弃牌事件 → 奖惩 → 胜负。
 ///
-/// 事件一律由本函数 emit 进 `g.events`（P2：不是测试手推）。
+/// 顺序（用户 2026-11-16 裁定，**不硬编码技能名**）：
+/// 1. 置 `alive=false`，发 `Death`（死亡时技能：断肠/节命/追忆 订阅它，先于死亡弃牌）；
+/// 2. 若存在死亡时/死亡弃牌订阅者，压 `DeathCleanup` 延迟项（等它们结算完）；
+/// 3. `death_cleanup`：手牌+装备进弃牌堆（`CardToDiscard(cause=死亡)`）→ `DeathDiscarded`
+///    （行殇订阅）→ 判定区只发 `JudgeZoneLeft` → 奖惩/胜负。
 pub fn settle_death(g: &mut Game, seat: usize, killer: Option<usize>) -> Vec<Event> {
     let Some(s) = g.seats.get_mut(seat) else {
         return vec![];
@@ -705,64 +740,71 @@ pub fn settle_death(g: &mut Game, seat: usize, killer: Option<usize>) -> Vec<Eve
         return vec![];
     }
     s.alive = false;
-    // 行殇（`align/B0.json` QQ1=B）：其他角色死亡时、**清理前**询问获得其手牌+装备（不含判定区）。
-    // 有持有者 → 延后清理（死亡事件/奖惩/胜负在 `finish_death` 里收口）。
-    if let Some(holder) = (0..g.seats.len()).find(|&i| {
-        i != seat
-            && g.seats[i].alive
-            && super::skills::active(g, i, "xingshang")
-            && super::skills::enabled("xingshang")
-    }) {
-        let has_cards = g.cards.iter().any(|(_, z)| {
-            z.seat() == Some(seat) && matches!(z, Zone::Hand(_) | Zone::Equip(..))
+    let mut death = Event::simple(EventKind::Death, Some(seat), killer.map(|_| "死亡"));
+    death.by = killer;
+    death.from = Some(seat);
+    let death = death.snapshot(g);
+    g.push_event(death.clone());
+    // 只在死亡确认后同步执行的死亡钩子（宗祚等：不产生 pending 的事实类效果）。
+    super::skills::on_death(g, seat);
+    // 有死亡时订阅（Death）或死亡弃牌订阅（DeathDiscarded）→ 延后清理，等事件路由/玩家回答。
+    let needs_window = super::skills::any_active_subscriber(g, EventKind::Death)
+        || super::skills::any_active_subscriber(g, EventKind::DeathDiscarded);
+    if needs_window {
+        g.deferred.push(super::deferred::Deferred {
+            kind: super::deferred::DeferredKind::DeathCleanup,
+            payload: super::deferred::Payload::DeathCleanup { dead: seat, killer },
         });
-        if has_cards {
-            super::resolve::push_ask(
-                g,
-                "xingshang",
-                super::resolve::Stage::Choose,
-                holder,
-                serde_json::json!({ "step": "ask", "victim": seat, "killer": killer }),
-            );
-            return vec![];
-        }
+        return vec![death];
     }
-    finish_death(g, seat, killer)
+    let mut events = vec![death];
+    events.extend(death_cleanup(g, seat, killer));
+    events
 }
 
-/// 死亡清理收口（弃所有牌 → Death 事件 → 奖惩 → 胜负）。
-///
-/// 由 `settle_death`（无行殇持有者时）或 `xingshang` 技能结束时调用（唯一收口）。
-pub fn finish_death(g: &mut Game, seat: usize, killer: Option<usize>) -> Vec<Event> {
-    // 死亡钩子（宗祚：某势力最后一名角色死亡 → 减体力上限）。
-    super::skills::on_death(g, seat);
+/// 死亡清理（`DeathCleanup` 延迟项）：手牌+装备进弃牌堆 → `DeathDiscarded`（行殇订阅）
+/// → 判定区清理（`JudgeZoneLeft`，不算弃置/不进 `CardToDiscard`）→ 奖惩/胜负。
+pub fn death_cleanup(g: &mut Game, seat: usize, killer: Option<usize>) -> Vec<Event> {
     let victim_identity = g.seats.get(seat).and_then(|s| s.identity);
     let mut events = vec![];
-    // 弃所有牌：手牌/装备/判定区（判定区栈一并清空）。
-    let owned: Vec<String> = g
+    // 手牌 + 装备区：进弃牌堆（含 `CardToDiscard(cause=死亡)`；**不**发 CardDiscarded）。
+    let mut cards: Vec<String> = g
         .cards
         .iter()
         .filter(|(_, z)| {
-            z.seat() == Some(seat) && matches!(z, Zone::Hand(_) | Zone::Equip(..) | Zone::Judge(_))
+            z.seat() == Some(seat) && matches!(z, Zone::Hand(_) | Zone::Equip(..))
         })
         .map(|(id, _)| id.clone())
         .collect();
-    for id in owned {
-        g.cards.insert(id.clone(), Zone::Discard);
-        let mut ev = Event::card(
-            EventKind::CardDiscarded,
-            Some(seat),
-            id.clone(),
-            Some("死亡弃牌".to_string()),
-        );
-        ev.by = Some(seat);
+    cards.sort();
+    for id in &cards {
+        let was_equip = matches!(g.cards.get(id), Some(Zone::Equip(..)));
+        super::card_play::to_discard_with(g, id, "死亡", Some(seat));
+        if was_equip {
+            flow::leave_equip(g, seat, id, "死亡");
+        }
+    }
+    if !cards.is_empty() {
+        let mut ev = Event::simple(EventKind::DeathDiscarded, Some(seat), Some("死亡"));
+        ev.amount = Some(cards.len() as i32);
+        ev.cards = cards.clone();
+        ev.by = killer;
         ev.from = Some(seat);
         events.push(ev.snapshot(g).emit(g));
     }
-    g.judge_stacks.remove(&seat);
-    let mut death = Event::simple(EventKind::Death, Some(seat), killer.map(|_| "伤害"));
-    death.by = killer;
-    events.push(death.snapshot(g).emit(g));
+    // 判定区：只发 JudgeZoneLeft（行殇/再起都不把它当死亡弃牌）。
+    let judge: Vec<String> = g.judge_stacks.remove(&seat).unwrap_or_default();
+    for id in judge {
+        g.cards.insert(id.clone(), Zone::Discard);
+        let mut ev = Event::card(
+            EventKind::JudgeZoneLeft,
+            Some(seat),
+            id,
+            Some("死亡".to_string()),
+        );
+        ev.by = Some(seat);
+        events.push(ev.snapshot(g).emit(g));
+    }
     // 奖惩：只在击杀者存活且不是自己时结算。
     if let Some(k) = killer.filter(|&k| k != seat && g.seats.get(k).map(|s| s.alive).unwrap_or(false)) {
         match victim_identity {
@@ -790,6 +832,11 @@ pub fn finish_death(g: &mut Game, seat: usize, killer: Option<usize>) -> Vec<Eve
     // 胜负检查（单一入口）。
     g.winner = super::identity::check_winner(&g.seats);
     events
+}
+
+/// 兼容旧调用点：死亡清理收口（新代码请走 `settle_death`/`death_cleanup`）。
+pub fn finish_death(g: &mut Game, seat: usize, killer: Option<usize>) -> Vec<Event> {
+    death_cleanup(g, seat, killer)
 }
 
 /// 检查胜负并置位（每死亡/结算后调用）。

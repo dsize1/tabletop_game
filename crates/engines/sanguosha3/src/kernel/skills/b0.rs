@@ -388,62 +388,70 @@ fn fenji(g: &mut Game, ask: &Ask) -> Result<Step, String> {
 /// 行殇：其他角色死亡时（清理前）→ 询问获得其手牌+装备（**不含判定区**）→ 收口死亡结算。
 fn xingshang(g: &mut Game, ask: &Ask) -> Result<Step, String> {
     let holder = ask.actor;
+    if !g.seats.get(holder).map(|s| s.alive).unwrap_or(false) {
+        return Ok(Step::Done);
+    }
+    let step = step_of(ask);
+    if step != "ask" {
+        let _ = take_limit_discard(g, "xingshang", holder);
+        if g.hand_size(holder) > g.hand_limit(holder) {
+            return discard_to_limit(g, "xingshang", holder, json!({ "step": "limit" }));
+        }
+        return Ok(Step::Done);
+    }
     let victim = ask
         .data
         .get("victim")
         .and_then(|v| v.as_u64())
         .ok_or("行殇缺少 victim")? as usize;
-    let killer = ask
+    if victim == holder {
+        return Ok(Step::Done);
+    }
+    let from_event = ask.data.get("cards").is_some();
+    // 死亡弃牌批次携带的牌（事件 `DeathDiscarded.cards`）；旧存档/直接调用时回退到死者区域。
+    let cards: Vec<String> = ask
         .data
-        .get("killer")
-        .and_then(|v| v.as_u64())
-        .map(|v| v as usize);
-    match step_of(ask) {
+        .get("cards")
+        .and_then(|v| v.as_array())
+        .map(|a| a.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+        .unwrap_or_else(|| {
+            let mut v: Vec<String> = g
+                .cards
+                .iter()
+                .filter(|(_, z)| {
+                    z.seat() == Some(victim) && matches!(z, Zone::Hand(_) | Zone::Equip(..))
+                })
+                .map(|(id, _)| id.clone())
+                .collect();
+            v.sort();
+            v
+        });
+    match step {
         "ask" => {
             if let Some(ans) = take_answer(g, "xingshang") {
                 if ans == "choose:xingshang" {
-                    let mut owned: Vec<String> = g
-                        .cards
-                        .iter()
-                        .filter(|(_, z)| {
-                            z.seat() == Some(victim)
-                                && matches!(z, Zone::Hand(_) | Zone::Equip(..))
-                        })
-                        .map(|(id, _)| id.clone())
-                        .collect();
-                    owned.sort();
-                    for id in owned {
-                        flow::gain(g, holder, &id, holder, "行殇");
+                    for id in &cards {
+                        // 死亡弃牌已在弃牌堆；行殇从弃牌堆获得（事件驱动，不再由 settle_death 预取）。
+                        if !from_event || matches!(g.cards.get(id), Some(Zone::Discard)) {
+                            flow::gain(g, holder, id, holder, "行殇");
+                        }
                     }
-                    return Ok(Step::Next(
-                        Stage::DiscardPick,
-                        json!({ "step": "limit", "victim": victim, "killer": killer }),
-                    ));
+                    return Ok(Step::Next(Stage::DiscardPick, json!({ "step": "limit" })));
                 }
-                super::super::turn::finish_death(g, victim, killer);
+                return Ok(Step::Done);
+            }
+            if cards.is_empty() {
                 return Ok(Step::Done);
             }
             let b = PendingBuilder::new(holder, "xingshang_ask")
                 .skill("xingshang")
                 .option(
                     "choose:xingshang",
-                    format!("发动【行殇】：获得 {} 的所有牌（不含判定区）", seat_label(g, victim)),
+                    format!("发动【行殇】：获得 {} 的 {} 张牌（不含判定区）", seat_label(g, victim), cards.len()),
                 );
             Ok(Step::NeedAt(Stage::Choose, b.escape("不发动").build()))
         }
-        _ => {
-            let _ = take_limit_discard(g, "xingshang", holder);
-            if g.hand_size(holder) > g.hand_limit(holder) {
-                return discard_to_limit(
-                    g,
-                    "xingshang",
-                    holder,
-                    json!({ "step": "limit", "victim": victim, "killer": killer }),
-                );
-            }
-            super::super::turn::finish_death(g, victim, killer);
-            Ok(Step::Done)
-        }
+        _ => Ok(Step::Done),
     }
 }
 
@@ -589,11 +597,19 @@ fn buqu(g: &mut Game, ask: &Ask) -> Result<Step, String> {
     g.push_event(e);
     g.bump(&key);
     g.bump(&format!("buqu_total.{seat}"));
-    if let Some(s) = g.seats.get_mut(seat) {
-        s.hp = 1;
-    }
+    // 回复至 1（走统一回复出口；不触发救援改向）。
+    flow::restore_hp(g, seat, 1, "不屈");
     let _ = FlowKind::Dying;
     Ok(Step::Finish("不屈：翻「创」成功，回复至 1".into()))
+}
+
+/// 不屈：有「创」时手牌上限 = 创数（覆盖体力值；`skills::hand_limit_override` 分发）。
+pub fn hand_limit_override(g: &Game, seat: usize) -> Option<usize> {
+    if !super::active(g, seat, "buqu") {
+        return None;
+    }
+    let n = g.counter(&format!("buqu_total.{seat}"));
+    (n > 0).then_some(n as usize)
 }
 
 /// B0 声明（7 技能）。
@@ -675,8 +691,8 @@ pub static SKILLS: &[SkillDef] = &[
         transform: false,
         faces: &[Face {
             window: Window::AnyTime,
-            // 行殇：由 `turn::settle_death` 在**死亡清理前**延后询问（不含判定区）。
-            subscriptions: &[],
+            // 行殇：订阅 `DeathDiscarded`（用户 2026-11-16 裁定：死亡弃牌事件驱动，不含判定区）。
+            subscriptions: &[Subscription { event: EventKind::DeathDiscarded, subject: Subject::Other }],
             hooks: &[],
             can_active: false,
         }],

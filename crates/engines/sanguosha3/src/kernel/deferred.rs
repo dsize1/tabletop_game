@@ -71,6 +71,12 @@ pub enum Payload {
     JudgePhase {
         seat: usize,
     },
+    /// **死亡清理**（在死亡时技能/死亡弃牌订阅都结算完之后）：
+    /// 手牌+装备进弃牌堆 → `DeathDiscarded`（行殇订阅）→ 判定区清理 → 奖惩/胜负。
+    DeathCleanup {
+        dead: usize,
+        killer: Option<usize>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

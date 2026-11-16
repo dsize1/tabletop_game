@@ -27,6 +27,12 @@ pub enum EventKind {
     /// 不得触发「他人获得牌」类订阅（奋激教训）。
     CardDrawn,
     CardDiscarded,
+    /// **进入弃牌堆**（任意方式：弃置 / 使用后落盘 / 判定 / 死亡清理 / 转化牌结算）。
+    /// 与 `CardDiscarded`（弃置）区分：判定区移出**不**发本事件，死亡弃牌**不**发 `CardDiscarded`。
+    CardToDiscard,
+    /// **死亡弃牌完成**（一批）：`seat`=死者，`cards`=死者手牌+装备（不含判定区）。
+    /// 行殇订阅此事件（用户 2026-11-16 裁定：由死亡弃牌事件触发，而不是硬编码在 `settle_death`）。
+    DeathDiscarded,
     /// 失去牌：牌离开**手牌或装备区**（含被获得/弃置/使用/打出）。与 `CardDiscarded` 区别：
     /// 弃置只是失去的一种原因；与 `CardGained` 区别：获得只说明「谁拿到」，不说明「谁失去」。
     CardLost,
@@ -99,6 +105,9 @@ pub struct Event {
     /// 伤害事件的二维（属性 × 来源），仅 `DamageAfter` 用；非伤害事件为 None。
     #[serde(default)]
     pub damage: Option<super::DamageSpec>,
+    /// 批量事件的牌列表（仅 `DeathDiscarded` 等使用；普通事件为空）。
+    #[serde(default)]
+    pub cards: Vec<CardId>,
 }
 
 impl Event {
@@ -116,6 +125,7 @@ impl Event {
             by: None,
             from: None,
             damage: None,
+            cards: Vec::new(),
         }
     }
 
@@ -133,6 +143,7 @@ impl Event {
             by: None,
             from: None,
             damage: None,
+            cards: Vec::new(),
         }
     }
 

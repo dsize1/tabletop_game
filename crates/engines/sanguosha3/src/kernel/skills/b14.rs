@@ -761,6 +761,10 @@ fn niepan(g: &mut Game, ask: &Ask) -> Result<Step, String> {
     if !has(g, owner, "niepan") || (step != "grant" && skills::limited_used(g, owner, "niepan")) {
         return Ok(Step::Done);
     }
+    // 通用途经（`ds:` 濒死技能选项）直接执行，不二次询问；旧的 `step="use"` 入口保持兼容。
+    if step == "ds_use" {
+        return niepan_use(g, owner);
+    }
     if step == "grant" {
         let cands = ["bazhen", "huoji", "kanpo"];
         return match take_answer(g, "niepan") {
@@ -796,7 +800,13 @@ fn niepan(g: &mut Game, ask: &Ask) -> Result<Step, String> {
             ))
         }
         Some(a) if a == "pass" => Ok(Step::Done),
-        Some(_) => {
+        Some(_) => niepan_use(g, owner),
+    }
+}
+
+fn niepan_use(g: &mut Game, owner: usize) -> Result<Step, String> {
+    {
+        {
             skills::mark_limited_used(g, owner, "niepan");
             // 弃置区域内所有牌（手牌/装备/判定区）。
             let mut ids = g.hand(owner);
@@ -808,16 +818,21 @@ fn niepan(g: &mut Game, ask: &Ask) -> Result<Step, String> {
                     .map(|(id, _)| id.clone()),
             );
             for id in ids {
-                g.cards.insert(id.clone(), Zone::Discard);
-                let mut ev = Event::card(
-                    EventKind::CardDiscarded,
-                    Some(owner),
-                    id.clone(),
-                    Some("涅槃".to_string()),
-                );
-                ev.by = Some(owner);
-                let e = ev.snapshot(g);
-                g.push_event(e);
+                let judge = matches!(g.cards.get(&id), Some(Zone::Judge(s)) if *s == owner);
+                if judge {
+                    g.cards.insert(id.clone(), Zone::Discard);
+                    let mut ev = Event::card(
+                        EventKind::JudgeZoneLeft,
+                        Some(owner),
+                        id.clone(),
+                        Some("涅槃".to_string()),
+                    );
+                    ev.by = Some(owner);
+                    let e = ev.snapshot(g);
+                    g.push_event(e);
+                } else {
+                    super::super::card_play::to_discard_with(g, &id, "涅槃", Some(owner));
+                }
             }
             if let Some(s) = g.seats.get_mut(owner) {
                 s.chained = false;
@@ -826,10 +841,7 @@ fn niepan(g: &mut Game, ask: &Ask) -> Result<Step, String> {
             g.judge_stacks.insert(owner, vec![]);
             let max_hp = g.seats.get(owner).map(|s| s.max_hp).unwrap_or(3);
             flow::draw(g, owner, 3);
-            let target_hp = 3.min(max_hp);
-            if let Some(s) = g.seats.get_mut(owner) {
-                s.hp = target_hp;
-            }
+            flow::restore_hp(g, owner, 3.min(max_hp), "涅槃");
             // 濒死帧回传：hp 已复原（≥1），濒死帧据此收口。
             g.set_mark(&format!("dying.niepan.{owner}"), "ok");
             Ok(Step::Next(Stage::Choose, json!({ "step": "grant" })))
@@ -920,14 +932,15 @@ fn qimou(g: &mut Game, ask: &Ask) -> Result<Step, String> {
 }
 
 /// 涅槃：濒死窗口的可用技能（`card_play::step_dying` 唯一调用点）。
-pub fn dying_options(g: &Game, asker: usize, target: usize) -> Vec<(&'static str, String)> {
+pub fn dying_options(g: &Game, asker: usize, target: usize) -> Vec<(&'static str, String, &'static str)> {
     if asker != target || !has(g, asker, "niepan") || skills::limited_used(g, asker, "niepan") {
         return vec![];
     }
     if g.deck.is_empty() && g.cards.values().all(|z| *z != Zone::Discard) {
         return vec![];
     }
-    vec![("niepan", "涅槃".to_string())]
+    // (code, label, handler 起始 step)；内核只按 code 分发，不写技能名分支。
+    vec![("niepan", "涅槃".to_string(), "ds_use")]
 }
 
 /// 奇谋：本回合计算与其他角色的距离 -X。

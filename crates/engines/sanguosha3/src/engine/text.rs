@@ -86,6 +86,14 @@ pub fn text_of(g: &Game, ev: &Event) -> String {
         EventKind::Death => format!("{who} 阵亡"),
         EventKind::HandFrozen => String::new(),
         EventKind::HandUnfrozen => String::new(),
+        EventKind::CardToDiscard => {
+            let who = ev.seat.map(|s| format!("{} ", seat_name(g, s))).unwrap_or_default();
+            format!("{who}【{}】进入弃牌堆", card())
+        }
+        EventKind::DeathDiscarded => {
+            let who = ev.seat.map(|s| seat_name(g, s)).unwrap_or_default();
+            format!("{who} 死亡弃牌（{} 张）", ev.amount.unwrap_or(0))
+        }
     }
 }
 

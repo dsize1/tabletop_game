@@ -429,7 +429,12 @@ pub fn judge_rewrite_cards(g: &Game, seat: usize) -> Vec<CardId> {
 
 /// 天妒：判定牌生效后是否可获得。
 pub fn judge_gain_available(g: &Game, seat: usize) -> bool {
-    skills::active(g, seat, "tiandu") && skills::enabled("tiandu")
+    judge_gain_owner(g, seat).is_some()
+}
+
+/// 判定牌生效后可以获得判定牌的技能（天妒）code：内核按 code 压询问，不写技能名。
+pub fn judge_gain_owner(g: &Game, seat: usize) -> Option<&'static str> {
+    (skills::active(g, seat, "tiandu") && skills::enabled("tiandu")).then_some("tiandu")
 }
 
 fn tiandu(g: &mut Game, ask: &Ask) -> Result<Step, String> {

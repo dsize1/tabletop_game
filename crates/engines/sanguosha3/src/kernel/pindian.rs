@@ -246,6 +246,7 @@ pub fn step_pindian(g: &mut Game, data: &serde_json::Value) -> Result<Step, Stri
             // 拼点牌进弃牌堆（唯一出口：进区 + 落盘事件）。
             for id in [&a, &b] {
                 g.cards.insert(id.clone(), Zone::Discard);
+                super::flow::record_to_discard(g, id, "拼点", None);
                 let ev = super::event::Event::card(
                     super::event::EventKind::CardDiscarded,
                     None,

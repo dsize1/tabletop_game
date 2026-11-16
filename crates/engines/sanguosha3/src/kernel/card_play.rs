@@ -136,9 +136,17 @@ pub fn can_target(def: &CardDef, self_seat: usize, target: usize, alive: bool) -
     cards::valid_target(def.target_mode, self_seat, target, alive)
 }
 
-/// 牌进弃牌堆（唯一出口，`lose-vs-discard`：弃置是离开手牌/装备区进弃牌堆）。
+/// 牌进弃牌堆（通用出口）：移动 + 发 `CardToDiscard`（K14；与 `CardDiscarded` 弃置契约区分）。
+///
+/// 需要区分原因的调用方用 `to_discard_with`；本函数默认 cause = `落盘`。
 pub fn to_discard(g: &mut Game, id: &str) {
+    to_discard_with(g, id, "落盘", None);
+}
+
+/// 带原因/施动者的进弃牌堆出口（判定/死亡/使用落盘等）。
+pub fn to_discard_with(g: &mut Game, id: &str, cause: &str, by: Option<usize>) {
     g.cards.insert(id.to_string(), Zone::Discard);
+    super::flow::record_to_discard(g, id, cause, by);
 }
 
 /// 响应牌判定：读标签，不按牌名。
@@ -226,7 +234,7 @@ pub fn place_delayed(g: &mut Game, target: usize, card: &str, def_code: &str) ->
 /// 判定区 LIFO：后置先判。返回下一个要判定的牌（栈顶），并移出判定区。
 pub fn judge_zone_lifo(g: &mut Game, seat: usize) -> Option<String> {
     let id = g.judge_stacks.get_mut(&seat)?.pop()?;
-    g.cards.insert(id.clone(), Zone::Discard);
+    to_discard_with(g, &id, "判定", None);
     Some(id)
 }
 
@@ -260,6 +268,7 @@ pub fn begin_use(g: &mut Game, actor: usize, card: &str, fire: bool) -> Result<(
     if def.tags.jiu && jiu_limit_reached(g, actor) {
         return Err("本回合【酒】已使用".into());
     }
+    g.damage_card = Some(card.to_string());
     use_start(g, actor, card)?;
     super::resolve::push_flow(
         g,
@@ -325,7 +334,8 @@ pub fn begin_use_zhangba(g: &mut Game, actor: usize, c1: &str, c2: &str) -> Resu
     let suit = g.card_defs.get(c1).map(|c| c.suit).unwrap_or(super::Suit::Spade);
     let rank = g.card_defs.get(c1).map(|c| c.rank).unwrap_or(7);
     for c in [c1, c2] {
-        g.cards.insert(c.to_string(), Zone::Discard);
+        flow::note_lost(g, actor, c, false);
+        to_discard_with(g, c, "丈八蛇矛", Some(actor));
         let mut lost = Event::card(EventKind::CardLost, Some(actor), c.to_string(), Some("丈八蛇矛".to_string()));
         lost.by = Some(actor);
         lost.from = Some(actor);
@@ -893,8 +903,7 @@ fn step_wuxie(g: &mut Game, actor: usize, mut d: Map<String, Value>) -> Result<S
         } else if let Some(id) = ans.strip_prefix("equip:") {
             // 解围①：装备区牌当【无懈可击】。
             let ok = matches!(g.cards.get(id), Some(Zone::Equip(s, _)) if *s == asker)
-                && super::skills::active(g, asker, "jiewei")
-                && super::skills::enabled("jiewei");
+                && super::skills::wuxie_equip_owner(g, asker);
             if !ok {
                 return Err("解围：只能以自己装备区的牌当【无懈可击】".into());
             }
@@ -915,12 +924,10 @@ fn step_wuxie(g: &mut Game, actor: usize, mut d: Map<String, Value>) -> Result<S
             any = true;
         }
     }
-    // 解围①：装备区牌当【无懈可击】。
-    if super::skills::active(g, asker, "jiewei") && super::skills::enabled("jiewei") {
-        for id in super::gear::equips_of(g, asker) {
-            b = b.option(format!("equip:{id}"), "解围：以装备牌当【无懈可击】");
-            any = true;
-        }
+    // `Hook::WuxieOpt`：装备区牌当【无懈可击】（解围①；技能名不进内核）。
+    for id in super::skills::wuxie_equip_options(g, asker) {
+        b = b.option(format!("equip:{id}"), "以装备牌当【无懈可击】");
+        any = true;
     }
     if !any {
         d.insert("widx".into(), json!(idx + 1));
@@ -1080,6 +1087,7 @@ pub(crate) fn equip_card(g: &mut Game, actor: usize, card: &str, def: &CardDef) 
         discarded.from = Some(actor);
         let e = discarded.snapshot(g);
         g.push_event(e);
+        flow::record_to_discard(g, &old_id, "装备被替换", Some(actor));
         flow::leave_equip(g, actor, &old_id, "装备被替换");
     }
     if def.slot == Some(Slot::Armor) {
@@ -1641,8 +1649,9 @@ fn step_aoe(
         SourceKind::Wanjian
     };
     let damage = |g: &mut Game, d: &mut Map<String, Value>| -> Result<Step, String> {
+        let from = super::skills::aoe_damage_source(g, actor, &card).unwrap_or(actor);
         let spec = DamageSpec {
-            from: Some(actor),
+            from: Some(from),
             target,
             amount: 1,
             kind: DamageKind::Normal,
@@ -2055,9 +2064,10 @@ fn step_dying(g: &mut Game, data: &Value) -> Result<Step, String> {
         return Ok(Step::Done);
     }
     let asker = order[idx];
-    // 涅槃回传：技能已复原体力（写 mark），濒死帧据此收口。
-    if data.get("niepan_wait").and_then(|v| v.as_bool()).unwrap_or(false) {
-        let key = format!("dying.niepan.{asker}");
+    // 濒死技能回传（涅槃/蛊惑等）：handler 写 `dying.<code>.<asker>` mark，本帧读取后清空。
+    if let Some(code) = data.get("ds_wait").and_then(|v| v.as_str()) {
+        let code = code.to_string();
+        let key = format!("dying.{code}.{asker}");
         let ok = g.mark(&key).is_some();
         g.marks.remove(&key);
         if ok && !flow::is_dying(&g.seats[target]) {
@@ -2068,47 +2078,21 @@ fn step_dying(g: &mut Game, data: &Value) -> Result<Step, String> {
             json!({ "target": target, "by": killer, "idx": idx + 1 }),
         ));
     }
-    // 蛊惑·濒死救援结算回传（技能帧写 mark，濒死帧读后清空）。
-    if data.get("guhuo_wait").and_then(|v| v.as_bool()).unwrap_or(false) {
-        let key = format!("dying.guhuo.{asker}");
-        let ok = g.mark(&key).is_some();
-        g.marks.remove(&key);
-        if ok {
-            flow::rescue(g, target, 1, "蛊惑");
-            if !flow::is_dying(&g.seats[target]) {
-                return Ok(Step::Done);
-            }
-        }
-        return Ok(Step::Next(
-            Stage::DyingAsk,
-            json!({ "target": target, "by": killer, "idx": idx + 1 }),
-        ));
-    }
     if let Some(ans) = take_answer(g, "dying") {
-        if ans == "niepan" {
+        if let Some(code) = ans.strip_prefix("ds:") {
+            let Some(entry) = super::skills::dying_skill_entry(g, asker, target, code) else {
+                return Err(format!("濒死技能 {code} 当前不可用"));
+            };
             super::resolve::push_ask(
                 g,
-                "niepan",
+                code,
                 Stage::Choose,
                 asker,
-                json!({ "step": "use", "target": target }),
+                json!({ "step": entry, "target": target }),
             );
             return Ok(Step::Next(
                 Stage::DyingAsk,
-                json!({ "target": target, "by": killer, "idx": idx, "niepan_wait": true }),
-            ));
-        }
-        if ans == "guhuo" {
-            super::resolve::push_ask(
-                g,
-                "guhuo",
-                Stage::Choose,
-                asker,
-                json!({ "step": "dying_pick", "target": target }),
-            );
-            return Ok(Step::Next(
-                Stage::DyingAsk,
-                json!({ "target": target, "by": killer, "idx": idx, "guhuo_wait": true }),
+                json!({ "target": target, "by": killer, "idx": idx, "ds_wait": code }),
             ));
         }
         if let Some(card) = ans.strip_prefix("ji:") {
@@ -2168,18 +2152,9 @@ fn step_dying(g: &mut Game, data: &Value) -> Result<Step, String> {
             any = true;
         }
     }
-    // 涅槃（庞统）：濒死时可用。
-    for (id, label) in super::skills::dying_skill_options(g, asker, target) {
-        b = b.option(id, label);
-        any = true;
-    }
-    // 蛊惑：扣置一张手牌声明为【桃】/【酒】（Q5 影响链）。
-    if super::skills::active(g, asker, "guhuo")
-        && super::skills::enabled("guhuo")
-        && g.counter(&format!("turn.{asker}.guhuo_used")) == 0
-        && !g.hand(asker).is_empty()
-    {
-        b = b.option("guhuo", "蛊惑：扣置一张手牌当【桃】/【酒】");
+    // 濒死技能（涅槃/蛊惑等）：技能模块声明 (code,label,entry)，内核只加 `ds:` 选项。
+    for (code, label, _) in super::skills::dying_skill_options(g, asker, target) {
+        b = b.option(format!("ds:{code}"), label);
         any = true;
     }
     // 技能转化（急救：回合外红色牌当【桃】）。
@@ -2340,7 +2315,7 @@ pub(crate) fn played(g: &mut Game, seat: usize, id: &str, cause: &str) -> Result
 
 /// 处理区的牌进弃牌堆并 emit `CardDiscarded`（五谷剩余牌等「非弃置来源」的公开落盘）。
 fn discard_processed(g: &mut Game, id: &str, cause: &str) {
-    to_discard(g, id);
+    to_discard_with(g, id, cause, None);
     let ev = Event::card(
         EventKind::CardDiscarded,
         None,
@@ -2374,7 +2349,8 @@ fn play_from_equip(g: &mut Game, seat: usize, id: &str, cause: &str) -> Result<(
     if !matches!(g.cards.get(id), Some(Zone::Equip(s, _)) if *s == seat) {
         return Err(format!("{id} 不在座位 {seat} 的装备区"));
     }
-    g.cards.insert(id.to_string(), Zone::Discard);
+    flow::note_lost(g, seat, id, true);
+    to_discard_with(g, id, cause, Some(seat));
     let mut lost = Event::card(EventKind::CardLost, Some(seat), id.to_string(), Some(cause.to_string()));
     lost.by = Some(seat);
     lost.from = Some(seat);
@@ -2486,15 +2462,7 @@ fn finish_card(g: &mut Game, card: &str) {
         // 转化牌：承载牌（origin）随结算完成整组进弃牌堆（不得提前逐张弃置）。
         if let Some(origins) = g.virtual_origins.remove(card) {
             for id in origins {
-                g.cards.insert(id.clone(), Zone::Discard);
-                let ev = Event::card(
-                    EventKind::CardDiscarded,
-                    None,
-                    id,
-                    Some("转化牌结算完成".to_string()),
-                );
-                let e = ev.snapshot(g);
-                g.push_event(e);
+                to_discard_with(g, &id, "转化牌结算完成", Some(owner));
             }
         }
         // 虚拟牌实例保留（区域 = Void）：守恒要求「实例 ↔ 区域」同时存在。
@@ -2502,7 +2470,7 @@ fn finish_card(g: &mut Game, card: &str) {
         return;
     }
     if matches!(g.cards.get(card), Some(Zone::Processing) | Some(Zone::Frame(_))) {
-        g.cards.insert(card.to_string(), Zone::Discard);
+        to_discard_with(g, card, "使用落盘", Some(owner));
     }
     super::skills::on_card_finished(g, card, owner);
 }
@@ -2565,6 +2533,7 @@ pub fn use_as(
     // 承载牌离开原区域（进处理区；结算完成落弃牌堆）：区域仍唯一归属。
     for id in origin {
         let was_equip = matches!(g.cards.get(id), Some(Zone::Equip(..)));
+        flow::note_lost(g, actor, id, was_equip);
         g.cards.insert(id.clone(), Zone::Processing);
         let mut lost = Event::card(
             EventKind::CardLost,
@@ -2599,6 +2568,7 @@ fn push_virtual_use(
         .unwrap_or((super::Suit::Spade, 1));
     let vid = format!("v:m{}", g.next_frame_id);
     g.next_frame_id += 1;
+    g.damage_card = Some(vid.clone());
     g.card_defs.insert(
         vid.clone(),
         super::Card {

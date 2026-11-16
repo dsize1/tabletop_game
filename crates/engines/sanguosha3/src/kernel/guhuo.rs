@@ -130,6 +130,7 @@ pub fn step_guhuo(g: &mut Game, data: &serde_json::Value) -> Result<Step, String
             // 假：此牌作废（进弃牌堆），质疑者各摸一张。
             if !truth {
                 g.cards.insert(carrier.clone(), Zone::Discard);
+                super::flow::record_to_discard(g, &carrier, "扣置声明为假", Some(user));
                 let ev = super::event::Event::card(
                     super::event::EventKind::CardDiscarded,
                     Some(user),

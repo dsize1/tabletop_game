@@ -672,6 +672,19 @@ pub fn response_alternatives(
 }
 
 /// 濒死救援的蛊惑声明（他人=【桃】；自己=【酒】）。
+/// 蛊惑·濒死救援选项（`Hook` 无专用钩子；由 `skills::dying_skill_options` 聚合）。
+pub fn dying_options(g: &Game, asker: usize, target: usize) -> Vec<(&'static str, String, &'static str)> {
+    if !skills::active(g, asker, "guhuo")
+        || !skills::enabled("guhuo")
+        || g.counter(&format!("turn.{asker}.guhuo_used")) > 0
+        || g.hand(asker).is_empty()
+    {
+        return vec![];
+    }
+    let _ = target;
+    vec![("guhuo", "蛊惑：扣置一张手牌当【桃】/【酒】".to_string(), "dying_pick")]
+}
+
 pub fn dying_declared(asker: usize, target: usize) -> &'static str {
     if asker == target {
         "jiu"
@@ -785,6 +798,8 @@ fn guhuo(g: &mut Game, ask: &Ask) -> Result<Step, String> {
         "dying_wait" => {
             let truth = g.guhuo_result.take().map(|r| r.truth).unwrap_or(false);
             if truth {
+                let target = common::seat_of(ask, "target").unwrap_or(owner);
+                flow::rescue(g, target, 1, "蛊惑");
                 g.set_mark(&format!("dying.guhuo.{owner}"), "ok");
             }
             Ok(Step::Finish("蛊惑：濒死救援结算".into()))
@@ -1813,20 +1828,8 @@ fn ruoyu(g: &mut Game, ask: &Ask) -> Result<Step, String> {
         return Ok(Step::Done);
     }
     g.set_counter(&format!("awaken.{owner}.ruoyu"), 1);
-    if let Some(s) = g.seats.get_mut(owner) {
-        s.max_hp += 1;
-        if s.hp < 3 {
-            s.hp = 3;
-        }
-    }
-    let mut ev = super::super::event::Event::simple(
-        EventKind::MaxHpChanged,
-        Some(owner),
-        Some("若愚"),
-    );
-    ev.amount = Some(1);
-    let e = ev.snapshot(g);
-    g.push_event(e);
+    flow::gain_max_hp(g, owner, 1, "若愚");
+    flow::restore_hp(g, owner, 3, "若愚");
     skills::grant(g, owner, "jijiang");
     skills::grant(g, owner, "sishu");
     Ok(Step::Finish("若愚：觉醒（体力上限+1，获得【激将】【思蜀】）".into()))

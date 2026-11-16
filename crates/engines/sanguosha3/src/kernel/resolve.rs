@@ -248,19 +248,23 @@ pub fn next_ready_deferred_index(g: &super::Game) -> Option<usize> {
 ///
 /// 不变量（constitution I1）：提交非法选项/他人待办/强制选择的占位出口 → 报错且**不改状态**。
 pub fn submit(g: &mut super::Game, seat: usize, option: &str) -> Result<(), String> {
-    let Some(p) = g.pending.as_ref() else {
-        return Err("当前没有待办".into());
+    let skill = {
+        let Some(p) = g.pending.as_ref() else {
+            return Err("当前没有待办".into());
+        };
+        if p.actor() != seat {
+            return Err(format!("待办不属于座位 {seat}"));
+        }
+        if !p.has_option(option) {
+            return Err(format!("非法选项：{option}"));
+        }
+        if p.escape_hidden() && p.escape_id() == option {
+            return Err("强制选择不接受出口".into());
+        }
+        p.skill().map(|s| s.to_string())
     };
-    if p.actor() != seat {
-        return Err(format!("待办不属于座位 {seat}"));
-    }
-    if !p.has_option(option) {
-        return Err(format!("非法选项：{option}"));
-    }
-    if p.escape_hidden() && p.escape_id() == option {
-        return Err("强制选择不接受出口".into());
-    }
-    let skill = p.skill().map(|s| s.to_string());
+    // K13：每个玩家提交 = 一个动作；批次字段在动作开始时清空。
+    g.begin_action_as(seat);
     g.pending = None;
     g.answer = Some(option.to_string());
     g.answer_skill = skill;
@@ -335,8 +339,14 @@ pub fn advance(g: &mut super::Game) -> Result<(), String> {
         });
         if let Some(i) = next_ready_deferred_index(g) {
             let d = g.deferred.remove(i);
-            if let crate::kernel::deferred::Payload::Ask { skill, stage, actor, data } = d.payload {
-                push_ask(g, skill, stage, actor, data);
+            match d.payload {
+                crate::kernel::deferred::Payload::Ask { skill, stage, actor, data } => {
+                    push_ask(g, skill, stage, actor, data);
+                }
+                crate::kernel::deferred::Payload::DeathCleanup { dead, killer } => {
+                    let _ = crate::kernel::turn::death_cleanup(g, dead, killer);
+                }
+                _ => {}
             }
             continue;
         }

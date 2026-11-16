@@ -25,7 +25,7 @@ use super::{CardId, Game, Zone};
 pub const STEP_REVEAL: &str = "reveal";
 pub const STEP_REWRITE: &str = "rewrite";
 pub const STEP_EFFECTIVE: &str = "effective";
-pub const STEP_TIANDU: &str = "tiandu";
+pub const STEP_AFTER_EFFECTIVE: &str = "after_effective";
 
 /// 开始一次「带改判/天妒窗口」的判定。
 ///
@@ -51,7 +51,7 @@ pub fn start(
             "step": STEP_REVEAL,
             "card": Value::Null,
             "cursor": 0,
-            "tiandu": false,
+            "gain_asked": false,
             "resume": resume,
         }),
     );
@@ -130,26 +130,25 @@ pub fn step(g: &mut Game, data: &Value) -> Result<Step, String> {
             let r = super::judge::effective(g, seat, &cause, &card)
                 .ok_or_else(|| "判定：判定牌实例缺失".to_string())?;
             g.judge_result = Some(r);
-            d["step"] = json!(STEP_TIANDU);
+            d["step"] = json!(STEP_AFTER_EFFECTIVE);
             Ok(Step::Next(Stage::QuickJudge, d))
         }
         _ => {
             // 天妒：判定牌生效后，判定者可以获得**生效的这张**判定牌。
             let card = card_of(&d);
-            let asked = d.get("tiandu").and_then(|v| v.as_bool()).unwrap_or(false);
-            if !asked
-                && skills::judge_gain_available(g, seat)
-                && matches!(g.cards.get(&card), Some(Zone::Processing))
-            {
-                d["tiandu"] = json!(true);
-                super::resolve::push_ask(
-                    g,
-                    "tiandu",
-                    Stage::Choose,
-                    seat,
-                    json!({ "card": card, "cause": cause }),
-                );
-                return Ok(Step::Next(Stage::QuickJudge, d));
+            let asked = d.get("gain_asked").and_then(|v| v.as_bool()).unwrap_or(false);
+            if !asked && matches!(g.cards.get(&card), Some(Zone::Processing)) {
+                if let Some(code) = skills::judge_gain_owner(g, seat) {
+                    d["gain_asked"] = json!(true);
+                    super::resolve::push_ask(
+                        g,
+                        code,
+                        Stage::Choose,
+                        seat,
+                        json!({ "card": card, "cause": cause }),
+                    );
+                    return Ok(Step::Next(Stage::QuickJudge, d));
+                }
             }
             // 判定生效后的统一钩子（雷击：鬼道改判自己的判定后仍可发动）。
             if !d.get("post").and_then(|v| v.as_bool()).unwrap_or(false) {

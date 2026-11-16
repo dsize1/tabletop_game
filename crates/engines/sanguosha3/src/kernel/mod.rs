@@ -21,7 +21,7 @@ pub mod skills;
 pub mod turn;
 pub mod view;
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use event::{Event, EventKind};
 
@@ -206,6 +206,9 @@ pub struct Seat {
     /// **手牌冻结（本阶段到期）**：阶段切换时由 `Game::unfreeze_phase` 清空。
     #[serde(default)]
     pub frozen_phase: BTreeSet<CardId>,
+    /// **永久失去所有技能**（断肠：杀死者失去所有技能，含锁定技/主公技；本局永久）。
+    #[serde(default)]
+    pub skills_lost: bool,
     /// **已废除的装备栏**（mechanics `hand-limit` 之外的区域状态；决堰逐槽 / 破势全槽 / 雄乱装备区）：
     /// 永久废除，不可再装备。
     #[serde(default)]
@@ -237,6 +240,7 @@ impl Default for Seat {
             armor: 0,
             frozen: BTreeSet::new(),
             frozen_phase: BTreeSet::new(),
+            skills_lost: false,
             abolished_slots: BTreeSet::new(),
             judge_abolished: false,
         }
@@ -429,6 +433,42 @@ pub struct Game {
     /// 事件序号（单调；`Event.seq` 的来源）。
     #[serde(default)]
     pub log_seq: u64,
+    /// **本次动作造成伤害的牌（K19）**：`card_play` / 技能在造成伤害前设置；
+    /// `flow::damage_one` 写入 `DamageAfter.card` 与 `turn/phase.damage_card.<card>`；动作开始清空。
+    #[serde(default)]
+    pub damage_card: Option<CardId>,
+    /// **牌级标记（K18）**：手牌上的标记（酒诗「落英牌」等）；离开手牌即清除。
+    /// 与 `Seat.counters`（座位级）区分：这里按牌实例 id 记录。
+    #[serde(default)]
+    pub card_marks: HashMap<CardId, String>,
+    /// **暂离游戏、回合末归还（K18；破军）**：`(牌, 原所有者, due_turn_seq)`。
+    #[serde(default)]
+    pub void_return: Vec<(CardId, usize, u64)>,
+    /// **当先额外 Play 阶段**（K15）：`Some(seat)` = 当前正在执行该座位的额外出牌阶段；
+    /// 结束时不进入正常 Discard，而是回到判定阶段（`turn::finish_phase` 读取）。
+    #[serde(default)]
+    pub extra_play: Option<usize>,
+    /// **动作序号**（K13）：每次玩家提交动作 +1；批次字段按它清空（`begin_action_as`）。
+    #[serde(default)]
+    pub action_seq: u64,
+    /// 当前动作的施动者（`begin_action_as` 打点）。
+    #[serde(default)]
+    pub action_actor: Option<usize>,
+    /// 本动作内「失去牌」批次（owner → 牌）。旋风：单次失去 ≥2 张。
+    #[serde(default)]
+    pub lost_batch: BTreeMap<usize, Vec<CardId>>,
+    /// 本动作内「失去装备区牌」批次（owner, 牌）。
+    #[serde(default)]
+    pub equip_lost_batch: Vec<(usize, CardId)>,
+    /// 本动作内「获得牌」批次（获得者, 来源, 牌）。恩怨：单次获得他人 ≥2 张。
+    #[serde(default)]
+    pub gain_batch: Vec<(usize, usize, CardId)>,
+    /// 本动作内「弃置牌」批次（弃置者 → 牌）。固政：单次弃置 ≥2 张。
+    #[serde(default)]
+    pub discard_batch: BTreeMap<usize, Vec<CardId>>,
+    /// 本动作内技能去重标记（`begin_action` 清空）。
+    #[serde(default)]
+    pub action_seen: BTreeSet<String>,
     /// **公共可见集合**（mechanics `reveal`）：`show` 后进入、`conceal` 收回；
     /// 依赖牌面的技能必须读这里（只写日志不算展示）。
     #[serde(default)]
@@ -669,6 +709,38 @@ impl Game {
         } else {
             self.counters.insert(key.to_string(), v);
         }
+    }
+
+    /// 动作开始（K13）：序号 +1、记录施动者、清空所有「单动作批次」。
+    pub fn begin_action_as(&mut self, actor: usize) {
+        self.action_seq += 1;
+        self.action_actor = Some(actor);
+        self.damage_card = None;
+        self.lost_batch.clear();
+        self.equip_lost_batch.clear();
+        self.gain_batch.clear();
+        self.discard_batch.clear();
+        self.action_seen.clear();
+    }
+
+    /// 动作内去重：首次出现返回 true 并登记（`begin_action_as` 清空）。
+    pub fn mark_action_seen(&mut self, key: impl Into<String>) -> bool {
+        self.action_seen.insert(key.into())
+    }
+
+    /// 牌级标记（K18）：设置。
+    pub fn set_card_mark(&mut self, id: &str, mark: impl Into<String>) {
+        self.card_marks.insert(id.to_string(), mark.into());
+    }
+
+    /// 牌级标记（K18）：读取。
+    pub fn card_mark(&self, id: &str) -> Option<&str> {
+        self.card_marks.get(id).map(|s| s.as_str())
+    }
+
+    /// 牌级标记（K18）：清除（离开手牌时由 `flow::note_lost` 统一调用）。
+    pub fn clear_card_mark(&mut self, id: &str) {
+        self.card_marks.remove(id);
     }
 
     /// 清掉某命名空间的计数器（回合切换 `turn.` / 阶段切换 `phase.` 用）。

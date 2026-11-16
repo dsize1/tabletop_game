@@ -83,7 +83,7 @@ pub fn effective(g: &mut Game, seat: usize, cause: &str, card: &CardId) -> Optio
 pub fn judge(g: &mut Game, seat: usize, cause: &str) -> Option<JudgeResult> {
     let r = reveal(g, seat, cause)?;
     let r = effective(g, seat, cause, &r.card)?;
-    g.cards.insert(r.card.clone(), Zone::Discard);
+    super::card_play::to_discard_with(g, &r.card, "判定", None);
     Some(r)
 }
 

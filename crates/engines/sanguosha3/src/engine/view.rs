@@ -102,6 +102,7 @@ pub fn card_view(g: &Game, id: &str) -> Value {
         "target_mode": target_mode_key(def.map(|d| d.target_mode).unwrap_or(cards::TargetMode::Chosen)),
         "delayed": def.map(|d| d.is_delayed()).unwrap_or(false),
         "revealed": false,
+        "marks": g.card_mark(id).map(|m| json!([m])).unwrap_or_else(|| json!([])),
     })
 }
 

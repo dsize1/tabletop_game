@@ -287,11 +287,8 @@ pub fn hand_limit_override(g: &Game, seat: usize) -> Option<usize> {
     if let Some(n) = b14::hand_limit_override(g, seat) {
         return Some(n);
     }
-    if active(g, seat, "buqu") && enabled("buqu") {
-        let n = g.counter(&format!("buqu_total.{seat}"));
-        if n > 0 {
-            return Some(n as usize);
-        }
+    if let Some(n) = b0::hand_limit_override(g, seat) {
+        return Some(n);
     }
     None
 }
@@ -355,6 +352,116 @@ pub fn def(code: &str) -> Option<&'static SkillDef> {
     all().into_iter().find(|s| s.code == code)
 }
 
+/// `Hook::WuxieOpt` 持有者（解围①：装备区牌当【无懈可击】）。
+pub fn wuxie_equip_owner(g: &Game, seat: usize) -> bool {
+    all().into_iter().any(|skill| {
+        enabled(skill.code)
+            && active(g, seat, skill.code)
+            && skill
+                .faces
+                .iter()
+                .any(|f| f.hooks.iter().any(|h| *h == Hook::WuxieOpt))
+    })
+}
+
+/// 可作为【无懈可击】打出的装备区牌（`Hook::WuxieOpt` 单出口）。
+pub fn wuxie_equip_options(g: &Game, seat: usize) -> Vec<super::CardId> {
+    if !wuxie_equip_owner(g, seat) {
+        return Vec::new();
+    }
+    super::gear::equips_of(g, seat)
+}
+
+/// 伤害转失去体力（K19；绝情）。默认 false；B18 接入。
+pub fn damage_to_hp_loss(g: &Game, source: Option<usize>, victim: usize) -> bool {
+    let _ = (g, source, victim);
+    false
+}
+
+/// AOE 伤害来源替换（K19；祸首）。默认 None；B16 接入。
+pub fn aoe_damage_source(g: &Game, actor: usize, card: &str) -> Option<usize> {
+    let _ = (g, actor, card);
+    None
+}
+
+/// 跳过摸牌阶段后钩子（K15；截辎）。默认无技能；B16 接入。
+pub fn on_skip_draw(g: &mut Game, seat: usize) {
+    let _ = (g, seat);
+}
+
+/// 进入额外摸牌阶段前消费标记（K15；截辎）。返回 true = 重跑一次 Draw 阶段。
+pub fn take_extra_draw(g: &mut Game, seat: usize) -> bool {
+    let _ = (g, seat);
+    false
+}
+
+/// 准备阶段后是否插入额外出牌阶段（K15；当先）。返回 true 时由 `turn::finish_phase` 插队。
+pub fn take_extra_play(g: &mut Game, seat: usize) -> bool {
+    let _ = (g, seat);
+    false
+}
+
+/// 本动作内失去的牌（K13；旋风/恩怨）。批次由 `Game::begin_action_as` 清空。
+pub fn lost_batch(g: &Game, seat: usize) -> &[super::CardId] {
+    g.lost_batch.get(&seat).map(|v| v.as_slice()).unwrap_or(&[])
+}
+
+/// 本动作内获得的牌（获得者 → [(来源, 牌)]；恩怨）。
+pub fn gain_batch(g: &Game, to: usize) -> Vec<(usize, super::CardId)> {
+    g.gain_batch
+        .iter()
+        .filter(|(t, _, _)| *t == to)
+        .map(|(_, from, id)| (*from, id.clone()))
+        .collect()
+}
+
+/// 本动作内弃置的牌（弃置者 → 牌；固政）。
+pub fn discard_batch(g: &Game, by: usize) -> &[super::CardId] {
+    g.discard_batch.get(&by).map(|v| v.as_slice()).unwrap_or(&[])
+}
+
+/// 本动作内去重（首次 true）。
+pub fn action_seen(g: &mut Game, key: impl Into<String>) -> bool {
+    g.mark_action_seen(key)
+}
+
+/// 濒死前钩子（`Hook::Dying`）的持有者（唯一来源：不屈）。
+///
+/// 泛化接线：内核不出现技能名；返回第一个已收口且生效的持有者 code。
+pub fn dying_hook_owner(g: &Game, seat: usize) -> Option<&'static str> {
+    all().into_iter().find_map(|skill| {
+        if !enabled(skill.code) || !active(g, seat, skill.code) {
+            return None;
+        }
+        skill
+            .faces
+            .iter()
+            .any(|f| f.hooks.iter().any(|h| *h == Hook::Dying))
+            .then_some(skill.code)
+    })
+}
+
+/// 是否存在**已收口且当前生效**的技能订阅某事件（用于死亡生命周期决定是否延后清理）。
+///
+/// 只读注册表 + `active` 单一状态源；不含技能名分支。
+pub fn any_active_subscriber(g: &Game, kind: EventKind) -> bool {
+    for seat in 0..g.seats.len() {
+        for skill in all() {
+            if !enabled(skill.code) || !active(g, seat, skill.code) {
+                continue;
+            }
+            if skill
+                .faces
+                .iter()
+                .any(|f| f.subscriptions.iter().any(|sub| sub.event == kind))
+            {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 /// 自带 ∪ granted（**不含**伪帝借用）。
 fn owned(g: &Game, seat: usize, code: &str) -> bool {
     let Some(s) = g.seats.get(seat) else {
@@ -367,6 +474,10 @@ fn owned(g: &Game, seat: usize, code: &str) -> bool {
 ///
 /// 借用 = 伪帝（B1）：「视为拥有当前主公的主公技」，只参与联动判定，不能主动使用（见 `can_active`）。
 pub fn active(g: &Game, seat: usize, code: &str) -> bool {
+    // 断肠：永久失去所有技能（含锁定技/主公技；本局不可恢复）。
+    if g.seats.get(seat).map(|s| s.skills_lost).unwrap_or(false) {
+        return false;
+    }
     // 缠怨（Q6 裁定）：体力值为 1 时**所有技能**失效（含锁定技/装备特效）。
     // 独立闸门（持续整局），不复用回合制 `suppress.*`。
     if g.counter(&format!("chanyuan.{seat}")) > 0
@@ -699,6 +810,9 @@ pub fn event_payload(ev: &Event, face: usize) -> Value {
     if let Some(c) = &ev.card {
         m.insert("card".into(), json!(c));
     }
+    if !ev.cards.is_empty() {
+        m.insert("cards".into(), json!(ev.cards));
+    }
     if let Some(c) = &ev.cause {
         m.insert("cause".into(), json!(c));
     }
@@ -882,8 +996,27 @@ pub fn sha_use_blocked(g: &Game, seat: usize) -> bool {
 }
 
 /// 濒死窗口的技能选项（涅槃）。
-pub fn dying_skill_options(g: &Game, asker: usize, target: usize) -> Vec<(&'static str, String)> {
-    b14::dying_options(g, asker, target)
+pub fn dying_skill_options(
+    g: &Game,
+    asker: usize,
+    target: usize,
+) -> Vec<(&'static str, String, &'static str)> {
+    let mut out = b14::dying_options(g, asker, target);
+    out.extend(b13::dying_options(g, asker, target));
+    out
+}
+
+/// 濒死技能选项的 handler 起始 step（code → step）；由技能模块声明，内核不写技能名分支。
+pub fn dying_skill_entry(
+    g: &Game,
+    asker: usize,
+    target: usize,
+    code: &str,
+) -> Option<&'static str> {
+    dying_skill_options(g, asker, target)
+        .into_iter()
+        .find(|(c, _, _)| *c == code)
+        .map(|(_, _, step)| step)
 }
 
 /// 手牌上限修正（`Hook::HandLimit`，唯一调用点 `Game::hand_limit`）。
@@ -1320,6 +1453,15 @@ pub fn revoke(g: &mut Game, seat: usize, code: &str) {
     }
 }
 
+/// **永久失去所有技能（唯一出口；断肠）**：清空自带+授予，并置 `skills_lost` 永久闸门。
+pub fn revoke_all(g: &mut Game, seat: usize) {
+    if let Some(s) = g.seats.get_mut(seat) {
+        s.skills.clear();
+        s.granted.clear();
+        s.skills_lost = true;
+    }
+}
+
 /// 使用牌之前询问（`Hook::UsePre`）：把技能帧压到牌结算帧之上，回答后牌继续结算。
 pub fn fire_use_pre(g: &mut Game, actor: usize, card: &str) {
     let mut codes: Vec<&'static str> = Vec::new();
@@ -1525,6 +1667,11 @@ pub fn on_judge_effective(g: &mut Game, judge_seat: usize) -> bool {
 /// 天妒：判定牌生效后是否可获得。
 pub fn judge_gain_available(g: &Game, seat: usize) -> bool {
     b11::judge_gain_available(g, seat)
+}
+
+/// 判定牌生效后可获得判定牌的技能（天妒）code；内核按 code 分发。
+pub fn judge_gain_owner(g: &Game, seat: usize) -> Option<&'static str> {
+    b11::judge_gain_owner(g, seat)
 }
 
 /// 花色/牌封锁（讥谀：本回合不能使用与之相同花色的牌）——使用/打出/响应统一拦截。

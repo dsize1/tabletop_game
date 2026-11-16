@@ -55,6 +55,11 @@ pub fn damage(g: &mut Game, spec: DamageSpec, armor: ArmorKind, bonus: i32) -> V
 
 /// 实际结算伤害（技能防伤拒绝后调用；**跳过 DamageBefore 询问**，防递归）。
 pub fn damage_apply(g: &mut Game, spec: DamageSpec, armor: ArmorKind, bonus: i32) -> Vec<Event> {
+    // 绝情：即将造成的伤害视为失去体力（整次数值一次；保留来源用于死亡归属）。
+    if super::skills::damage_to_hp_loss(g, spec.from, spec.target) {
+        let ev = lose_hp_by(g, spec.target, spec.amount + bonus, "伤害转失去体力", spec.from);
+        return ev;
+    }
     // 「造成伤害时」的数值加成（暗箭等）：与调用方传入的 bonus 相加。
     let bonus = bonus + super::skills::damage_bonus(g, &spec);
     // 链祸（锁定的属性加成）：火焰 + 自己是传导起点 → +1，且该 +1 随传导继续。
@@ -99,6 +104,13 @@ fn damage_one(g: &mut Game, spec: DamageSpec, armor: ArmorKind, bonus: i32) -> V
             let mut ev = Event::simple(EventKind::DamageAfter, Some(spec.target), None);
             ev.amount = Some(n);
             ev.by = spec.from;
+            if let Some(card) = g.damage_card.clone() {
+                ev.card = Some(card.clone());
+                if let Some(from) = spec.from {
+                    g.bump(&format!("turn.{from}.damage_card.{card}"));
+                    g.bump(&format!("phase.{from}.damage_card.{card}"));
+                }
+            }
             ev.turn = g.turn;
             ev.phase = g.phase;
             ev.damage = Some(DamageSpec {
@@ -190,6 +202,29 @@ pub fn lose_hp(g: &mut Game, target: usize, amount: i32, cause: &str) -> Vec<Eve
     vec![ev]
 }
 
+/// **失去体力（带来源）**：绝情/恩怨等「伤害转失去体力」保留来源用于死亡归属。
+pub fn lose_hp_by(
+    g: &mut Game,
+    target: usize,
+    amount: i32,
+    cause: &str,
+    by: Option<usize>,
+) -> Vec<Event> {
+    let seat = match g.seats.get_mut(target) {
+        Some(s) => s,
+        None => return vec![],
+    };
+    seat.hp = (seat.hp - amount).max(0);
+    let mut ev = Event::simple(EventKind::HpLost, Some(target), Some(cause));
+    ev.amount = Some(amount);
+    ev.by = by;
+    ev.turn = g.turn;
+    ev.phase = g.phase;
+    g.push_event(ev.clone());
+    enter_dying(g, target, by);
+    vec![ev]
+}
+
 /// **濒死入口（唯一）**：hp ≤ 0 且存活 → 压入通用 `FlowKind::Dying` 帧。
 ///
 /// 同一座位同时只允许一个濒死帧（重复伤害/多段结算不得叠帧）。
@@ -213,21 +248,22 @@ pub fn enter_dying(g: &mut Game, seat: usize, by: Option<usize>) {
     if already {
         return;
     }
-    // 不屈（锁定，`align/B0.json`）：濒死自动翻「创」判定；点数不重复 → 回复至 1，脱离濒死。
+    // 濒死前钩子（`Hook::Dying`，唯一来源：不屈）：泛化接线，内核不出现技能名。
     //
-    // 判定走 `quick_judge`（含鬼才改判 / 天妒窗口），结果由 `buqu` handler 在 `step="result"` 收口：
+    // 判定走 `quick_judge`（含鬼才改判 / 天妒窗口），结果由持有者 handler 在 `step="result"` 收口：
     // 未脱离濒死时由 handler 再压濒死帧（濒死求桃顺序不变）。
-    if super::skills::active(g, seat, "buqu")
-        && super::skills::enabled("buqu")
-        && (!g.deck.is_empty() || g.cards.values().any(|z| matches!(z, super::Zone::Discard)))
-    {
-        super::quick_judge::start(
-            g,
-            seat,
-            "不屈",
-            Some(("buqu", seat, serde_json::json!({ "by": by }))),
-        );
-        return;
+    let has_draw_pile =
+        !g.deck.is_empty() || g.cards.values().any(|z| matches!(z, super::Zone::Discard));
+    if has_draw_pile {
+        if let Some(code) = super::skills::dying_hook_owner(g, seat) {
+            super::quick_judge::start(
+                g,
+                seat,
+                "濒死前钩子",
+                Some((code, seat, serde_json::json!({ "by": by }))),
+            );
+            return;
+        }
     }
     enter_dying_bypass_buqu(g, seat, by);
 }
@@ -282,6 +318,42 @@ pub fn heal(g: &mut Game, target: usize, amount: i32, cause: &str) -> Vec<Event>
     seat.hp = (seat.hp + healed).min(seat.max_hp);
     let mut ev = Event::simple(EventKind::Healed, Some(target), Some(cause));
     ev.amount = Some(healed);
+    ev.turn = g.turn;
+    ev.phase = g.phase;
+    g.push_event(ev.clone());
+    vec![ev]
+}
+
+/// **回复到指定体力值（单一出口）**：不屈/涅槃/若愚/伏枥/仁心等「回复至 X」。
+///
+/// 与 `heal` 的区别：不触发救援（救援只针对「回复」量），直接把 hp 设为 `to`（钳到上限）；
+/// 只发 `Healed` 事件（amount = 实际回复量）。
+pub fn restore_hp(g: &mut Game, target: usize, to: i32, cause: &str) -> Vec<Event> {
+    let Some(seat) = g.seats.get_mut(target) else {
+        return vec![];
+    };
+    let to = to.min(seat.max_hp);
+    if to <= seat.hp {
+        return vec![];
+    }
+    let amount = to - seat.hp;
+    seat.hp = to;
+    let mut ev = Event::simple(EventKind::Healed, Some(target), Some(cause));
+    ev.amount = Some(amount);
+    ev.turn = g.turn;
+    ev.phase = g.phase;
+    g.push_event(ev.clone());
+    vec![ev]
+}
+
+/// **增加体力上限（单一出口）**：宗祚/若愚等；不自动回复体力（调用方按需 restore/heal）。
+pub fn gain_max_hp(g: &mut Game, target: usize, amount: i32, cause: &str) -> Vec<Event> {
+    let Some(seat) = g.seats.get_mut(target) else {
+        return vec![];
+    };
+    seat.max_hp += amount;
+    let mut ev = Event::simple(EventKind::MaxHpChanged, Some(target), Some(cause));
+    ev.amount = Some(amount);
     ev.turn = g.turn;
     ev.phase = g.phase;
     g.push_event(ev.clone());
@@ -435,6 +507,14 @@ pub fn draw_phase(g: &mut Game, seat: usize) -> Vec<CardId> {
 
 /// 牌离开装备区（P5）：白银狮子 → 原持有者回 1 体力（离开装备区的唯一钩子）。
 pub fn leave_equip(g: &mut Game, owner: usize, id: &str, cause: &str) -> Vec<Event> {
+    // K13：失去装备区牌批次（旋风）。
+    if !g
+        .equip_lost_batch
+        .iter()
+        .any(|(o, c)| *o == owner && c == id)
+    {
+        g.equip_lost_batch.push((owner, id.to_string()));
+    }
     // 枭姬：失去装备区的牌（唯一钩子；含弃置/替换/交出/转化使用）。
     super::skills::on_equip_lost(g, owner, id);
     let is_baiyin = g
@@ -450,6 +530,108 @@ pub fn leave_equip(g: &mut Game, owner: usize, id: &str, cause: &str) -> Vec<Eve
     }
 }
 
+/// 记录「失去牌」到本动作批次（K13；旋风/恩怨等）。`was_equip` = 离开装备区。
+pub fn note_lost(g: &mut Game, owner: usize, id: &str, was_equip: bool) {
+    // 牌级标记只对手牌有效：一旦离开手牌即清除（酒诗·落英牌）。
+    g.clear_card_mark(id);
+    g.lost_batch.entry(owner).or_default().push(id.to_string());
+    if was_equip {
+        g.equip_lost_batch.push((owner, id.to_string()));
+    }
+}
+
+/// **移出游戏直到回合结束（K18；破军）**：进 `Zone::Void` + `CardOutOfGame`，
+/// 记入 `void_return`；`turn::end_turn` 统一归还。
+pub fn exile_until_turn_end(
+    g: &mut Game,
+    owner: usize,
+    id: &str,
+    cause: &str,
+) -> Result<(), String> {
+    let zone = g
+        .cards
+        .get(id)
+        .cloned()
+        .ok_or_else(|| format!("牌 {id} 不存在"))?;
+    if !matches!(zone, super::Zone::Hand(s) | super::Zone::Equip(s, _) if s == owner) {
+        return Err("只能移出该角色的手牌/装备区牌".into());
+    }
+    note_lost(g, owner, id, matches!(zone, super::Zone::Equip(..)));
+    g.cards.insert(id.to_string(), super::Zone::Void);
+    let mut ev = Event::card(
+        EventKind::CardOutOfGame,
+        Some(owner),
+        id.to_string(),
+        Some(cause.to_string()),
+    );
+    ev.by = Some(owner);
+    ev.from = Some(owner);
+    let ev = ev.snapshot(g);
+    g.push_event(ev);
+    g.void_return.push((id.to_string(), owner, g.turn_seq));
+    Ok(())
+}
+
+/// **回合末归还**（K18）：归还所有 `due <= 当前 turn_seq` 的暂离牌（唯一出口）。
+pub fn return_due_void(g: &mut Game) -> Vec<Event> {
+    let due: Vec<(super::CardId, usize, u64)> = g
+        .void_return
+        .iter()
+        .filter(|(_, _, t)| *t <= g.turn_seq)
+        .cloned()
+        .collect();
+    g.void_return.retain(|(_, _, t)| *t > g.turn_seq);
+    let mut events = vec![];
+    for (id, owner, _) in due {
+        g.cards.insert(id.clone(), super::Zone::Hand(owner));
+        let mut ev = Event::card(
+            EventKind::CardIntoGame,
+            Some(owner),
+            id.clone(),
+            Some("回合末归还".to_string()),
+        );
+        ev.by = Some(owner);
+        ev.from = Some(owner);
+        let ev = ev.snapshot(g);
+        g.push_event(ev.clone());
+        events.push(ev);
+    }
+    events
+}
+
+/// **进入弃牌堆事实（唯一出口，K14）**：牌已在 `Zone::Discard` 后调用。
+///
+/// 与 `CardDiscarded`（弃置）区分：
+/// - 本事件覆盖任意方式（弃置/使用落盘/判定/死亡清理/转化牌结算）；
+/// - 判定区移出**不发**本事件（只发 `JudgeZoneLeft`）；
+/// - 死亡弃牌由 `turn::death_cleanup` 调用，cause = `死亡`。
+///
+/// 同时记 `turn.<turn>.red_to_discard`（再起：本回合红色实体牌进弃牌堆张数；花色按物理牌）。
+pub fn record_to_discard(
+    g: &mut Game,
+    id: &str,
+    cause: &str,
+    by: Option<usize>,
+) -> Event {
+    let owner = g.cards.get(id).and_then(|z| z.seat());
+    if let Some(c) = g.card_defs.get(id) {
+        if c.suit.is_red() {
+            g.bump(&format!("turn.{}.red_to_discard", g.turn));
+        }
+    }
+    let mut ev = Event::card(
+        EventKind::CardToDiscard,
+        owner,
+        id.to_string(),
+        Some(cause.to_string()),
+    );
+    ev.by = by;
+    ev.from = owner;
+    let ev = ev.snapshot(g);
+    g.push_event(ev.clone());
+    ev
+}
+
 /// 弃置（唯一出口，`lose-vs-discard`）：只能从手牌/装备区弃置（判定区离开**不算弃置**）。
 ///
 /// 记账：进弃牌堆 + 本阶段弃牌计数（`phase.discarded.<Phase>`，溃诛 X 的唯一来源）+ 事件（供订阅路由）。
@@ -463,7 +645,11 @@ pub fn discard(g: &mut Game, by: usize, id: &str, cause: &str) -> Option<Event> 
     if super::skills::prevent_discard(g, by, owner, id) {
         return None;
     }
+    let was_equip = matches!(zone, super::Zone::Equip(..));
     g.cards.insert(id.to_string(), super::Zone::Discard);
+    note_lost(g, owner, id, was_equip);
+    g.discard_batch.entry(by).or_default().push(id.to_string());
+    record_to_discard(g, id, cause, Some(by));
     let key = format!("phase.discarded.{:?}", g.phase);
     g.bump(&key);
     // 失去牌事件（M105 教训：主体=失去者，施动者=弃置者）。
@@ -527,6 +713,10 @@ pub fn gain(g: &mut Game, to: usize, id: &str, by: usize, cause: &str) -> Option
     let from = from_zone.seat();
     g.cards.insert(id.to_string(), super::Zone::Hand(to));
     if let Some(owner) = from {
+        note_lost(g, owner, id, matches!(from_zone, super::Zone::Equip(..)));
+        if owner != to {
+            g.gain_batch.push((to, owner, id.to_string()));
+        }
         let mut lost = Event::card(EventKind::CardLost, Some(owner), id.to_string(), Some(cause.to_string()));
         lost.by = Some(by);
         lost.from = Some(owner);

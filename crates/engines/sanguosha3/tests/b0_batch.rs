@@ -192,10 +192,15 @@ fn xingshang_on_death_gains_cards_and_finishes_death() {
     assert_eq!(
         g.pending.as_ref().map(|p| p.kind().to_string()),
         Some("xingshang_ask".into()),
-        "行殇在死亡清理前询问"
+        "行殇在死亡弃牌事件后询问"
     );
     assert_eq!(pending_actor(&g), Some(0));
-    assert!(g.log.iter().all(|e| e.kind != EventKind::Death), "死亡事件尚未收口");
+    assert!(g.log.iter().any(|e| e.kind == EventKind::Death), "死亡事件（死亡时窗口）已发出");
+    assert!(
+        g.log.iter().any(|e| e.kind == EventKind::DeathDiscarded),
+        "死亡弃牌事件已发出"
+    );
+    assert_eq!(g.cards.get("h1"), Some(&Zone::Discard), "死亡弃牌先入弃牌堆");
     submit(&mut g, 0, "choose:xingshang").unwrap();
     assert_eq!(g.cards.get("h1"), Some(&Zone::Hand(0)), "获得手牌");
     assert_eq!(g.cards.get("e1"), Some(&Zone::Hand(0)), "获得装备");

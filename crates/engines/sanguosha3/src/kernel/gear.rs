@@ -126,6 +126,122 @@ pub fn move_equip(g: &mut Game, from: usize, card: &str, to: usize) -> Result<()
     Ok(())
 }
 
+/// **手牌装备置入他人装备区（K17；直谏/窃听）**：替换旧装备（进弃牌堆 + 失去装备钩子）。
+///
+/// 与 `move_equip` 区别：来源是**手牌**、目标槽位**可被替换**（旧装备进弃牌堆）。
+/// 返回被替换的旧装备 id（无则 None）。
+pub fn place_from_hand(
+    g: &mut Game,
+    by: usize,
+    card: &str,
+    to: usize,
+) -> Result<Option<String>, String> {
+    let zone = g
+        .cards
+        .get(card)
+        .cloned()
+        .ok_or_else(|| format!("牌 {card} 不存在"))?;
+    if !matches!(zone, Zone::Hand(s) if s == by) {
+        return Err("只能把该角色手牌中的装备置入装备区".into());
+    }
+    let def = g
+        .card_defs
+        .get(card)
+        .and_then(|c| cards::def(&c.def))
+        .ok_or_else(|| format!("牌 {card} 无定义"))?;
+    let Some(slot) = def.slot else {
+        return Err("该牌不是装备牌".into());
+    };
+    if g.slot_abolished(to, slot) {
+        return Err("目标装备栏已被废除".into());
+    }
+    super::flow::note_lost(g, by, card, false);
+    let mut lost = super::event::Event::card(
+        super::event::EventKind::CardLost,
+        Some(by),
+        card.to_string(),
+        Some("置入装备区".to_string()),
+    );
+    lost.by = Some(by);
+    lost.from = Some(by);
+    let ev = lost.snapshot(g);
+    g.push_event(ev);
+    let old = equip(g, to, card);
+    if let Some(o) = &old {
+        super::flow::note_lost(g, to, o, true);
+        super::flow::record_to_discard(g, o, "装备被替换", Some(by));
+        let mut lost = super::event::Event::card(
+            super::event::EventKind::CardLost,
+            Some(to),
+            o.clone(),
+            Some("装备被替换".to_string()),
+        );
+        lost.by = Some(by);
+        lost.from = Some(to);
+        let ev = lost.snapshot(g);
+        g.push_event(ev);
+        let mut discarded = super::event::Event::card(
+            super::event::EventKind::CardDiscarded,
+            Some(to),
+            o.clone(),
+            Some("装备被替换".to_string()),
+        );
+        discarded.by = Some(by);
+        discarded.from = Some(to);
+        let ev = discarded.snapshot(g);
+        g.push_event(ev);
+        let _ = super::flow::leave_equip(g, to, o, "装备被替换");
+    }
+    Ok(old)
+}
+
+/// **交换两名角色的装备区（K17；甘露）**：逐槽交换；双方都触发失去装备钩子。
+pub fn swap_zones(g: &mut Game, a: usize, b: usize) -> Result<(), String> {
+    if a == b {
+        return Err("不能与自己交换装备区".into());
+    }
+    let ea = equips_of(g, a);
+    let eb = equips_of(g, b);
+    // 先快照槽位，再逐张移动（避免边遍历边改）。
+    let mut moves: Vec<(String, usize, Slot)> = Vec::new();
+    for id in &ea {
+        if let Some(Zone::Equip(_, slot)) = g.cards.get(id) {
+            moves.push((id.clone(), b, *slot));
+        }
+    }
+    for id in &eb {
+        if let Some(Zone::Equip(_, slot)) = g.cards.get(id) {
+            moves.push((id.clone(), a, *slot));
+        }
+    }
+    for (id, to, slot) in moves {
+        let owner = g.cards.get(&id).and_then(|z| z.seat()).unwrap_or(a);
+        g.cards.insert(id.clone(), Zone::Equip(to, slot));
+        let mut lost = super::event::Event::card(
+            super::event::EventKind::CardLost,
+            Some(owner),
+            id.clone(),
+            Some("装备区交换".to_string()),
+        );
+        lost.by = Some(owner);
+        lost.from = Some(owner);
+        let ev = lost.snapshot(g);
+        g.push_event(ev);
+        let _ = super::flow::leave_equip(g, owner, &id, "装备区交换");
+        let mut gained = super::event::Event::card(
+            super::event::EventKind::CardGained,
+            Some(to),
+            id,
+            Some("装备区交换".to_string()),
+        );
+        gained.by = Some(to);
+        gained.from = Some(owner);
+        let ev = gained.snapshot(g);
+        g.push_event(ev);
+    }
+    Ok(())
+}
+
 /// 某座位是否有某坐骑。
 fn has_horse(g: &Game, seat: usize, slot: Slot) -> bool {
     equip_in(g, seat, slot).is_some()

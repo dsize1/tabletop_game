@@ -379,10 +379,8 @@ pub fn on_game_start(g: &mut Game, seat: usize) {
     if n <= 0 {
         return;
     }
-    if let Some(s) = g.seats.get_mut(seat) {
-        s.max_hp += n;
-        s.hp = (s.hp + n).min(s.max_hp);
-    }
+    // 体力上限 +X（统一出口），然后每势力回复 1 点（align B7：回复 1 点/势力）。
+    flow::gain_max_hp(g, seat, n, "宗祚");
     for _ in 0..n {
         flow::heal(g, seat, 1, "宗祚");
     }

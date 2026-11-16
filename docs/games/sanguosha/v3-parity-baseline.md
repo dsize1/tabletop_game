@@ -727,3 +727,40 @@ M6 落地后把上表扩展为全 18 技能脚本对拍。
 
 **已知/表示性边界**（勿当缺陷修）：田=计数（急袭消耗 1）、长标多张转化无花色（占位值）、
 酣战接在天义流程、蛊惑不可被无懈响应自身、红颜仅 4 个出口。
+
+### 7.26 B16–B20 内核前置第一批（K13/K14/K16/K23，2026-11-16）
+
+> 用户裁定：**机制优先**；行殇等不得在内核硬编码。Q2=A（不进 mechanics.json，回归旧批次）；Q5=A（`on_turn_end` 在 `turn.*` 清空前）。
+
+| # | 内核能力 | 落点 | 用例 |
+|---|---|---|---|
+| K13 | 单动作批次（action_seq / begin_action_as / lost_batch / gain_batch / discard_batch / action_seen） | `kernel/mod.rs`、`resolve::submit`、`flow::note_lost` | `tests/prereq_b16_20.rs::action_batches_are_cleared_between_actions` |
+| K14 | 进入弃牌堆事实（CardToDiscard，cause 区分；红色实体牌计数 `turn.red_to_discard`） | `flow::record_to_discard` / `card_play::to_discard_with` / `judge` / `pindian` / `guhuo` | `tests/prereq_b16_20.rs::card_to_discard_is_emitted_for_discard_and_red_counter_tracks_physical_suit` |
+| K16a | 死亡生命周期：`Death`（死亡时窗口）→ 死亡弃牌 `CardToDiscard(cause=死亡)` → `DeathDiscarded`（行殇订阅）→ 判定区 `JudgeZoneLeft` → 奖惩/胜负；`DeathCleanup` 延迟项 | `turn::settle_death/death_cleanup`、`deferred::Payload::DeathCleanup`、`b0::xingshang` | `tests/prereq_b16_20.rs::death_order_is_death_then_discard_then_death_discarded_and_xingshang_gains_from_discard`；`tests/b0_batch.rs`、`tests/route.rs` |
+| K23 | 机制偏离整改：不屈走 `Hook::Dying`、解围走 `Hook::WuxieOpt`、涅槃/蛊惑并入通用濒死选项（`ds:` + handler 起始 step）、天妒走 `judge_gain_owner`、hp/max_hp 直写改 `flow::restore_hp/gain_max_hp` | `flow`/`card_play`/`quick_judge`/`skills`/`b0`/`b3`/`b7`/`b11`/`b12`/`b13`/`b14` | `npm run check:sgs3-conventions` + B0–B15 全量回归 |
+
+**口径**：
+- 死亡弃牌**不发** `CardDiscarded`（弃置契约不变）；行殇只处理 `DeathDiscarded.cards`（手牌+装备，不含判定区）。
+- 不屈/涅槃/仁心/伏枥等「回复至 X」走 `flow::restore_hp`（不触发救援改向）；体力上限变化走 `flow::gain_max_hp`。
+- `guhuo.rs` 作为 hidden-declaration 机制专用流程保留（C3 门禁白名单，理由：蛊惑机制子系统；后续若通用化再移除）。
+
+### 7.26b 机制偏离审计（用户 2026-11-16 指出「严重偏离」）
+
+- 事实：行殇在 V3 **B0 收口**（commit `197c28b`）被写成 `settle_death` 硬编码预询问；`60d50f8` 的 46/46 内核门禁只校验 47 条机制锚点存在，未校验「内核零技能名分支」，故未拦住。
+- 整改：已移除 `xingshang`/`buqu`/`jiewei`/`niepan`/`guhuo` 的内核硬编码分支；新增 `check:sgs3-conventions` 门禁（C1 技能名分支 / C2 直写 hp / C3 内核技能 code 字面量 / C4 绕过弃牌堆单出口），并接入 `check:sgs3`。
+- 回归：`cargo test -p sanguosha3` 全绿（B0–B15 全部既有用例）；`npm run check:sgs3` 全绿。
+- 剩余（后续 P0）：K15 额外阶段/跳过摸牌、K17 装备区单出口、K18 牌标记/回合末归还、K19 伤害事实扩展、K20 目标/响应限制、K21 数值与计数域、K22 回合外/重铸/两牌打出。
+
+### 7.26c B16–B20 内核前置第二批（K15/K17/K18/K19，2026-11-16）
+
+| # | 内核能力 | 落点 | 用例 |
+|---|---|---|---|
+| K15 | 额外摸牌阶段（截辎）/ 额外出牌阶段（当先）骨架 + 跳过摸牌钩子；`Game.extra_play` | `turn::finish_phase`、`skills::on_skip_draw/take_extra_draw/take_extra_play` | 由 B16/B18 技能接入时补驱动用例 |
+| K17 | 手牌装备置入他人装备区（替换）/ 两角色装备区交换 | `gear::place_from_hand` / `gear::swap_zones` | `tests/prereq_b16_20.rs::gear_*` |
+| K18 | 牌级标记（离开手牌清除）+ 移出游戏至回合末归还 | `Game.card_marks/void_return`、`flow::exile_until_turn_end/return_due_void`、`turn::end_turn` | `tests/prereq_b16_20.rs::card_mark_*` / `void_return_*` |
+| K19 | 伤害事件携带牌 id（`turn/phase.damage_card.<card>`）、伤害转失去体力、AOE 伤害来源替换 | `Game.damage_card`、`flow::damage_one/lose_hp_by`、`skills::damage_to_hp_loss/aoe_damage_source` | `tests/prereq_b16_20.rs::damage_event_carries_card_and_counters` |
+| K16b | 永久失去所有技能（断肠） | `Seat.skills_lost` + `skills::revoke_all` + `active` 闸门 | 由 B16 断肠接入时补用例 |
+
+**执行顺序调整（机制优先按批次）**：B16 所需前置（K13/K14/K16a/K16b/K17/K18/K19）已落地；
+B17 所需 K20（目标/响应限制）与 K21/K22 在 **B17 开工前**落地，不阻塞 B16。该拆分不降低门槛：
+每批开工前仍要求「本批所需机制 + 门禁 + 用例」全绿。
