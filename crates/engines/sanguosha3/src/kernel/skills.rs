@@ -21,6 +21,8 @@ pub mod b2;
 pub mod b3;
 pub mod b4;
 pub mod b5;
+pub mod b6;
+pub mod common;
 
 /// 技能类型。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -122,6 +124,7 @@ pub fn all() -> Vec<&'static SkillDef> {
         .chain(b3::SKILLS.iter())
         .chain(b4::SKILLS.iter())
         .chain(b5::SKILLS.iter())
+        .chain(b6::SKILLS.iter())
         .collect()
 }
 
@@ -149,6 +152,9 @@ pub const ENABLED_SKILLS: &[&str] = &[
     // B5 批次（6 将 / 13 技能，2026-11-15 收口）
     "zanhui", "jiaojin", "fenli", "pingkou", "shenxing", "bingyi", "huituo", "mingjian",
     "xingshuai", "qianju", "qingxi", "huomo", "zuoding",
+    // B6 批次（7 将 / 12 技能，2026-11-16 收口）
+    "zhanjue", "qinwang", "wurong", "shizhi", "yanzhu", "xingxue", "zhaofu", "anguo",
+    "yaoming", "huaiyi", "jigong", "shifei",
 ];
 
 /// 手牌变动类型（奋激口径）。
@@ -217,6 +223,10 @@ pub fn fire_hook(g: &mut Game, seat: usize, hook: Hook) {
 
 /// 手牌上限**覆盖**（不屈：「创」存在时 = 创数，取代体力值）。`None` = 用默认口径。
 pub fn hand_limit_override(g: &Game, seat: usize) -> Option<usize> {
+    // 赋值型（急攻：本回合上限 = 造成的伤害值）。
+    if let Some(n) = b6::hand_limit_override(g, seat) {
+        return Some(n);
+    }
     if active(g, seat, "buqu") && enabled("buqu") {
         let n = g.counter(&format!("buqu_total.{seat}"));
         if n > 0 {
@@ -352,6 +362,7 @@ pub fn handler(code: &str) -> Option<fn(&mut Game, &Ask) -> Result<Step, String>
         .or_else(|| b3::handler(code))
         .or_else(|| b4::handler(code))
         .or_else(|| b5::handler(code))
+        .or_else(|| b6::handler(code))
 }
 
 /// 主动技的**可用性判定**（声明之外的前置：手牌/目标/每阶段次数等）。
@@ -363,6 +374,7 @@ pub fn availability(code: &str) -> Option<fn(&Game, usize) -> bool> {
         .or_else(|| b3::availability(code))
         .or_else(|| b4::availability(code))
         .or_else(|| b5::availability(code))
+        .or_else(|| b6::availability(code))
 }
 
 /// **主动入口合法集**（唯一来源）：自带技能 ∩ 当前面 can_active ∩ 窗口允许 ∩ 可用性判定
@@ -965,6 +977,60 @@ pub fn fire_use_pre(g: &mut Game, actor: usize, card: &str) {
             json!({ "step": "use_pre", "card": card }),
         );
     }
+}
+
+// ---------------------------------------------------------------------------
+// 牌面替代（转化技）与响应/使用单入口（武圣/龙胆/矢志…）
+// ---------------------------------------------------------------------------
+
+/// 一张牌在某语义下的「生效定义」（`As(code)` / 明确不可用 `Deny` / 无意见 `NoOpinion`）。
+///
+/// `Deny` 用于**替代型**技能（矢志：体力 1 时【闪】不能再当【闪】）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CardAs {
+    As(&'static str),
+    Deny,
+    NoOpinion,
+}
+
+/// 出牌阶段「将某张手牌当另一张牌使用」的替代定义（矢志/武圣/奇袭/国色…）。
+pub fn use_alias(g: &Game, seat: usize, id: &str) -> Option<&'static str> {
+    b6::use_alias(g, seat, id)
+}
+
+/// 响应语义下的生效定义：先问替代型技能（矢志/武圣/龙胆），再看牌自身标签。
+pub fn response_as(
+    g: &Game,
+    seat: usize,
+    id: &str,
+    kind: super::cards::ResponseKind,
+) -> Option<&'static str> {
+    match b6::response_as(g, seat, id, kind) {
+        CardAs::As(code) => return Some(code),
+        CardAs::Deny => return None,
+        CardAs::NoOpinion => {}
+    }
+    let def = g.card_defs.get(id).and_then(|c| super::cards::def(&c.def))?;
+    if def.responds_as(kind) {
+        Some(def.code)
+    } else {
+        None
+    }
+}
+
+/// 需要【闪】时的替代入口（饰非）：技能 code + 选项文案。
+pub fn shan_alternatives(g: &Game, seat: usize) -> Vec<(&'static str, String)> {
+    b6::shan_alternatives(g, seat)
+}
+
+/// 「视为在攻击范围内」（诏缚）——`gear::within_attack_range` 的唯一技能来源。
+pub fn in_attack_range(g: &Game, from: usize, to: usize) -> bool {
+    b6::in_attack_range(g, from, to)
+}
+
+/// 决斗伤害后的技能回调（战绝：与受伤者各摸一张）。
+pub fn on_duel_damage(g: &mut Game, card: &str, from: Option<usize>, victim: usize) {
+    b6::on_duel_damage(g, card, from, victim);
 }
 
 /// 门禁自检：注册表不得出现重复 code。

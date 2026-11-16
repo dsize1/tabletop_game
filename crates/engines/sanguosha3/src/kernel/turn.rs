@@ -389,6 +389,16 @@ fn step_play(g: &mut Game, seat: usize, pi: usize) -> Result<Step, String> {
                     ));
                 }
             }
+        } else if let Some(id) = ans.strip_prefix("alias:") {
+            let id = id.to_string();
+            let Some(code) = super::skills::use_alias(g, seat, &id) else {
+                return Err("该牌当前不能转化使用".into());
+            };
+            super::card_play::use_as(g, seat, code, &[id], &[], false)?;
+            return Ok(Step::Next(
+                Stage::PlayAct,
+                json!({ "seat": seat, "pi": pi, "entered": true }),
+            ));
         } else if let Some(id) = ans.strip_prefix("recast:") {
             super::card_play::recast(g, seat, id)?;
             return Ok(Step::Next(
@@ -458,6 +468,17 @@ fn build_play_pending(g: &Game, seat: usize) -> Option<super::pending::Pending> 
         let name = super::skills::def(code).map(|d| d.name).unwrap_or(code);
         b = b.option(format!("skill:{code}"), format!("发动【{name}】"));
         any = true;
+    }
+    // 转化/替代使用（矢志：体力 1 时【闪】当【杀】；武圣/奇袭/国色…）。
+    for id in g.hand(seat) {
+        if let Some(code) = super::skills::use_alias(g, seat, &id) {
+            let name = cards::def(code).map(|d| d.name).unwrap_or(code);
+            b = b.option(
+                format!("alias:{id}"),
+                format!("将【{}】当【{}】使用", card_name(g, &id), name),
+            );
+            any = true;
+        }
     }
     // 铁索连环重铸（弃此牌摸一张；不是「使用」，故单独入口）。
     for id in g.hand(seat) {

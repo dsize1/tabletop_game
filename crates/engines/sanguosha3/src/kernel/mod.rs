@@ -14,6 +14,7 @@ pub mod identity;
 pub mod judge;
 pub mod pending;
 pub mod pindian;
+pub mod relay;
 pub mod resolve;
 pub mod skills;
 pub mod turn;

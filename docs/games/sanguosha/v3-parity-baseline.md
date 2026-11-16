@@ -271,3 +271,25 @@ M6 落地后把上表扩展为全 18 技能脚本对拍。
 - 平寇/佐定等按回合日志判定（与事件快照一致）。
 
 **验证批次状态**：B0–B5 全部收口（77 个注册技能）；后续批次（B6–B20）按同一 DoD 推进。
+
+### 7.9 B6 收口记录（2026-11-16，✅）
+
+> 批次：一将成名·Y5（7 将 / 12 技能）。
+
+| 项 | 结果 |
+|---|---|
+| 技能 | `kernel/skills/b6.rs`：战绝/勤王/怃戎/矢志/宴诛/兴学/诏缚/安国/邀名/怀异/急攻/饰非 |
+| 内核新增 | `kernel/relay.rs` + `FlowKind::Relay`（激将/勤王代出接力，结果走 `relay.result.<owner>` 标记）；`card_play::use_relay`（代出牌视为发起者使用、伤害来源=发起者）；`card_play::equip_from_pile`（安国：牌堆/弃牌堆装备直接置入装备区）；`skills::use_alias` / `skills::response_as` + `CardAs`（矢志的**替代**语义，出牌阶段 `alias:<id>` 入口 + 响应窗口统一过滤）；`skills::shan_alternatives`（饰非替代响应，`response.sub.<seat>` 成功标记）；`gear::within_attack_range`（诏缚统一「能否打到」入口）；`flow::damage_one` 伤害记账（`turn/phase/total.damage_dealt`，急攻赋值手牌上限的唯一来源） |
+| 共同件 | `kernel/skills/common.rs`（b6+ 共享选牌/文案工具，b0–b5 不动） |
+| 用例 | `tests/b6.rs` 20 条；`tests/skills.rs` 注册表 77 → **89** |
+| 挂载 | `ENABLED_SKILLS` +12 |
+
+**已知边界（登记）**：
+- 勤王/激将的代出接力只接受**实际【杀】**（`skills::response_as`）；转化技（武圣/龙胆）在 B9/B10 接入后自动生效；
+- 勤王取消使用目标时，代出牌留在代出者手牌（未消耗），与「激将未成立」一致；
+- 怃戎的双方选牌期间不公开（帧数据保存己方牌），结算时 `Game::reveal` 一起亮牌、随后 `conceal`；
+- 宴诛 opt1 的「修改兴学」用 `xingxue.modified.<seat>` 计数表达，兴学结算次数=1；
+- 诏缚用 `zhaofu.<chosen>` 计数持久到本局结束（主公技效果不依赖技能持有者存活）；
+- 安国「随机使用装备牌」按牌堆顶第一件装备（无则弃牌堆首张）确定性取牌；
+- 急攻手牌上限为**赋值型**，覆盖其他 +N 修正（`skills::hand_limit_override` 先问 b6）；
+- 饰非覆盖【杀】与【万箭齐发】的【闪】询问；【借刀杀人】的闪询问暂未接入替代入口（登记）。

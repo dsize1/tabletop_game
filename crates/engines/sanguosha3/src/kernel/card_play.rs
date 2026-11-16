@@ -358,6 +358,7 @@ pub fn step_flow(
         FlowKind::Card => step_card(g, actor, data),
         FlowKind::Turn => super::turn::step_turn(g, data),
         FlowKind::Dying => step_dying(g, data),
+        FlowKind::Relay => super::relay::step_relay(g, data),
         FlowKind::Pindian => super::pindian::step_pindian(g, data),
         FlowKind::Guhuo => super::guhuo::step_guhuo(g, data),
         _ => Ok(Step::Done),
@@ -492,7 +493,7 @@ pub fn legal_targets_with(
                     .unwrap_or_else(|| super::gear::attack_range(g, actor) as usize);
                 if !opts.no_distance
                     && !super::skills::ignore_distance(g, actor)
-                    && super::gear::distance(g, actor, s) > reach
+                    && !super::gear::within_attack_range(g, actor, s, reach)
                 {
                     continue;
                 }
@@ -1075,10 +1076,19 @@ fn step_sha(
                     d.insert("bagua_used".into(), json!(true));
                     d.insert("esub".into(), json!(if red { "blocked" } else { "ask" }));
                     return Ok(next(Stage::CardResolve, d.clone()));
+                } else if let Some(code) = ans.strip_prefix("alt:") {
+                    super::resolve::push_ask(
+                        g,
+                        code.to_string(),
+                        Stage::Choose,
+                        target,
+                        json!({ "step": "draw", "card": card }),
+                    );
+                    d.insert("esub".into(), json!("alt"));
+                    return Ok(next(Stage::CardResolve, d.clone()));
                 } else if let Some(id) = ans.strip_prefix("s:") {
                     let ok = matches!(g.cards.get(id), Some(Zone::Hand(s)) if *s == target)
-                        && def_of(g, id).map(|c| c.tags.shan).unwrap_or(false)
-                        && !g.is_frozen(target, id);
+                        && super::skills::response_as(g, target, id, ResponseKind::Shan).is_some();
                     if !ok {
                         return Err("【杀】：只能打出【闪】".into());
                     }
@@ -1095,13 +1105,13 @@ fn step_sha(
                     return Ok(next(Stage::CardResolve, d.clone()));
                 }
             }
-            let shan: Vec<String> = g
-                .hand(target)
-                .into_iter()
-                .filter(|id| def_of(g, id).map(|c| c.tags.shan).unwrap_or(false))
-                .filter(|id| !g.is_frozen(target, id))
-                .collect();
-            if shan.is_empty() && !bagua {
+            let shan = response_cards(g, target, ResponseKind::Shan);
+            let alts: Vec<(&'static str, String)> = if flag(d, "alt_used") {
+                vec![]
+            } else {
+                super::skills::shan_alternatives(g, target)
+            };
+            if shan.is_empty() && !bagua && alts.is_empty() {
                 d.insert("esub".into(), json!("harm"));
                 return Ok(next(Stage::CardResolve, d.clone()));
             }
@@ -1112,7 +1122,20 @@ fn step_sha(
             if bagua {
                 b = b.option("bagua", "发动【八卦阵】判定");
             }
+            for (code, label) in alts {
+                b = b.option(format!("alt:{code}"), label);
+            }
             Ok(Step::NeedAt(Stage::CardAsk, b.escape("不闪避").build()))
+        }
+        "alt" => {
+            // 替代响应（饰非）：技能帧已结算，读成功标记。
+            if take_response_sub(g, target) {
+                d.insert("esub".into(), json!("blocked"));
+            } else {
+                d.insert("esub".into(), json!("ask"));
+                d.insert("alt_used".into(), json!(true));
+            }
+            Ok(next(Stage::CardResolve, d.clone()))
         }
         "blocked" => {
             // 被闪抵消：青龙偃月刀（再杀）/ 贯石斧（弃两张牌强命中）。
@@ -1333,28 +1356,31 @@ fn step_duel(
     let need = g.use_opts(&card).multi_response.max(1);
     let mut cur = d.get("duel_cur").and_then(|v| v.as_u64()).map(|v| v as usize).unwrap_or(target);
     let other = d.get("duel_other").and_then(|v| v.as_u64()).map(|v| v as usize).unwrap_or(actor);
+    let hit = |g: &mut Game, from: usize, victim: usize| {
+        let spec = DamageSpec {
+            from: Some(from),
+            target: victim,
+            amount: 1,
+            kind: DamageKind::Normal,
+            source: SourceKind::Duel,
+        };
+        flow::damage(g, spec, super::gear::armor_of(g, victim), 0);
+        super::skills::on_duel_damage(g, &card, Some(from), victim);
+    };
     if !g.seats[cur].alive {
         cur = other;
     }
     if g.use_opts(&card).no_response
         || super::skills::no_response_for(g, actor, cur)
     {
-        let spec = DamageSpec {
-            from: Some(other),
-            target: cur,
-            amount: 1,
-            kind: DamageKind::Normal,
-            source: SourceKind::Duel,
-        };
-        flow::damage(g, spec, super::gear::armor_of(g, cur), 0);
+        hit(g, other, cur);
         return finish_done(g, d);
     }
     let got = d.get("resp_got").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
     if let Some(ans) = take_answer(g, "flow:card") {
         if let Some(id) = ans.strip_prefix("s:") {
             let ok = matches!(g.cards.get(id), Some(Zone::Hand(s)) if *s == cur)
-                && def_of(g, id).map(|c| c.tags.sha).unwrap_or(false)
-                && !g.is_frozen(cur, id);
+                && super::skills::response_as(g, cur, id, ResponseKind::Sha).is_some();
             if !ok {
                 return Err("决斗：只能打出【杀】".into());
             }
@@ -1379,21 +1405,9 @@ fn step_duel(
             return finish_done(g, d);
         }
     }
-    let shas: Vec<String> = g
-        .hand(cur)
-        .into_iter()
-        .filter(|id| def_of(g, id).map(|c| c.tags.sha).unwrap_or(false))
-        .filter(|id| !g.is_frozen(cur, id))
-        .collect();
+    let shas = response_cards(g, cur, ResponseKind::Sha);
     if shas.is_empty() {
-        let spec = DamageSpec {
-            from: Some(other),
-            target: cur,
-            amount: 1,
-            kind: DamageKind::Normal,
-            source: SourceKind::Duel,
-        };
-        flow::damage(g, spec, super::gear::armor_of(g, cur), 0);
+        hit(g, other, cur);
         return finish_done(g, d);
     }
     let mut b = PendingBuilder::new(cur, "duel_ask").skill("flow:card");
@@ -1421,6 +1435,14 @@ fn step_aoe(
         d.insert("resp_got".into(), json!(0));
         next(Stage::CardResolve, d.clone())
     };
+    if d.get("esub").and_then(|v| v.as_str()) == Some("alt") {
+        if take_response_sub(g, target) {
+            return Ok(next_target(d));
+        }
+        d.insert("alt_used".into(), json!(true));
+        d.insert("esub".into(), json!(""));
+        return Ok(next(Stage::CardResolve, d.clone()));
+    }
     let expect = def.respond;
     let source = if def.effect == Effect::SavageAssault {
         SourceKind::Nanman
@@ -1447,12 +1469,22 @@ fn step_aoe(
     }
     let got = d.get("resp_got").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
     if let Some(ans) = take_answer(g, "flow:card") {
+        if let Some(code) = ans.strip_prefix("alt:") {
+            super::resolve::push_ask(
+                g,
+                code.to_string(),
+                Stage::Choose,
+                target,
+                json!({ "step": "draw", "card": card }),
+            );
+            d.insert("esub".into(), json!("alt"));
+            return Ok(next(Stage::CardResolve, d.clone()));
+        }
         if let Some(id) = ans.strip_prefix("p:") {
             let ok = matches!(g.cards.get(id), Some(Zone::Hand(s)) if *s == target)
                 && expect
-                    .map(|k| def_of(g, id).map(|c| c.responds_as(k)).unwrap_or(false))
-                    .unwrap_or(false)
-                && !g.is_frozen(target, id);
+                    .map(|k| super::skills::response_as(g, target, id, k).is_some())
+                    .unwrap_or(false);
             if !ok {
                 return Err("响应牌不符合要求".into());
             }
@@ -1467,15 +1499,17 @@ fn step_aoe(
         }
     }
     let cards: Vec<String> = match expect {
-        Some(k) => g
-            .hand(target)
-            .into_iter()
-            .filter(|id| def_of(g, id).map(|c| c.responds_as(k)).unwrap_or(false))
-            .filter(|id| !g.is_frozen(target, id))
-            .collect(),
+        Some(k) => response_cards(g, target, k),
         None => vec![],
     };
-    if cards.is_empty() {
+    let alts: Vec<(&'static str, String)> = if expect == Some(ResponseKind::Shan)
+        && d.get("alt_used").is_none()
+    {
+        super::skills::shan_alternatives(g, target)
+    } else {
+        vec![]
+    };
+    if cards.is_empty() && alts.is_empty() {
         return damage(g, d);
     }
     let mut b = PendingBuilder::new(target, "aoe_ask").skill("flow:card");
@@ -1486,6 +1520,9 @@ fn step_aoe(
     };
     for id in cards {
         b = b.option(format!("p:{id}"), label);
+    }
+    for (code, label) in alts {
+        b = b.option(format!("alt:{code}"), label);
     }
     Ok(Step::NeedAt(Stage::CardAsk, b.escape("不响应").build()))
 }
@@ -1918,6 +1955,26 @@ fn own_cards(g: &Game, seat: usize) -> Vec<String> {
 }
 
 /// 把目标区域的一张牌移出（弃置/获得/弃置判定区牌）：走事件 + 判定区栈维护。
+/// 响应候选（统一入口）：替代型技能（矢志/武圣/龙胆）与牌自身标签都走 `skills::response_as`。
+fn response_cards(g: &Game, seat: usize, kind: ResponseKind) -> Vec<String> {
+    g.hand(seat)
+        .into_iter()
+        .filter(|id| super::skills::response_as(g, seat, id, kind).is_some())
+        .filter(|id| !g.is_frozen(seat, id))
+        .collect()
+}
+
+/// 替代响应（饰非）：读技能写下的成功标记，读完清除。
+fn take_response_sub(g: &mut Game, seat: usize) -> bool {
+    let key = format!("response.sub.{seat}");
+    if g.mark(&key).is_some() {
+        g.marks.remove(&key);
+        true
+    } else {
+        false
+    }
+}
+
 pub fn remove_card(g: &mut Game, owner: usize, id: &str, cause: &str) {
     let zone = g.cards.get(id).cloned();
     match zone {
@@ -1944,7 +2001,7 @@ pub fn remove_card(g: &mut Game, owner: usize, id: &str, cause: &str) {
 }
 
 /// 「打出」：手牌 → 弃牌堆 + `CardPlayed` 事件（不计入使用次数，但计入掣政「使用过的牌数」）。
-fn played(g: &mut Game, seat: usize, id: &str, cause: &str) -> Result<(), String> {
+pub(crate) fn played(g: &mut Game, seat: usize, id: &str, cause: &str) -> Result<(), String> {
     if !matches!(g.cards.get(id), Some(Zone::Hand(s)) if *s == seat) {
         return Err(format!("{id} 不在座位 {seat} 的手牌"));
     }
@@ -2034,6 +2091,71 @@ pub fn equip_from_hand(g: &mut Game, actor: usize, card: &str) -> Result<(), Str
     Ok(())
 }
 
+/// 从牌堆/弃牌堆**直接置入装备区**（技能驱动：安国「随机使用一张装备牌」）。
+pub fn equip_from_pile(g: &mut Game, actor: usize, card: &str) -> Result<(), String> {
+    let zone = g
+        .cards
+        .get(card)
+        .cloned()
+        .ok_or_else(|| format!("牌 {card} 不存在"))?;
+    if !matches!(zone, Zone::Draw | Zone::Discard) {
+        return Err("只能用牌堆/弃牌堆中的装备牌".into());
+    }
+    let def = def_of(g, card)?;
+    if def.slot.is_none() {
+        return Err("不是装备牌".into());
+    }
+    if let Some(slot) = def.slot {
+        if g.slot_abolished(actor, slot) {
+            return Err("该装备栏已被废除，不可再装备".into());
+        }
+    }
+    g.deck.retain(|c| c != card);
+    g.cards.insert(card.to_string(), Zone::Processing);
+    equip_card(g, actor, card, &def)?;
+    finish_card(g, card);
+    Ok(())
+}
+
+/// 代出牌使用（激将/勤王）：承载牌来自**其他角色**手牌，视为 `actor` 使用。
+///
+/// 不变量：承载牌仍在代出者手牌 → 移入处理区并 emit `CardLost`；结算完成后整组进弃牌堆；
+/// 伤害来源 / 次数统计按 `actor`（不是代出者）。
+pub fn use_relay(
+    g: &mut Game,
+    actor: usize,
+    def_code: &str,
+    origin: &[CardId],
+    targets: &[usize],
+    source_seat: usize,
+) -> Result<CardId, String> {
+    if origin.is_empty() {
+        return Err("代出牌必须声明承载牌".into());
+    }
+    for id in origin {
+        if !matches!(g.cards.get(id), Some(Zone::Hand(s)) if *s == source_seat) {
+            return Err(format!("承载牌 {id} 不在代出者手牌"));
+        }
+        if g.is_frozen(source_seat, id) {
+            return Err(format!("承载牌 {id} 已被冻结"));
+        }
+    }
+    for id in origin {
+        g.cards.insert(id.clone(), Zone::Processing);
+        let mut lost = Event::card(
+            EventKind::CardLost,
+            Some(source_seat),
+            id.clone(),
+            Some("代出".to_string()),
+        );
+        lost.by = Some(actor);
+        lost.from = Some(source_seat);
+        let e = lost.snapshot(g);
+        g.push_event(e);
+    }
+    push_virtual_use(g, actor, def_code, origin.to_vec(), targets, false)
+}
+
 /// 结算收尾：牌从处理区落盘（虚拟牌进 `Void`；装备/判定区已落位则不动）。
 fn finish_card(g: &mut Game, card: &str) {
     // 本次使用事实只作用于本次（禁止跨牌残留）。
@@ -2086,7 +2208,7 @@ pub fn use_virtual(
     def_code: &str,
     targets: &[usize],
     fire: bool,
-) -> Result<(), String> {
+) -> Result<CardId, String> {
     push_virtual_use(g, actor, def_code, Vec::new(), targets, fire)
 }
 
@@ -2100,7 +2222,7 @@ pub fn use_as(
     origin: &[CardId],
     targets: &[usize],
     fire: bool,
-) -> Result<(), String> {
+) -> Result<CardId, String> {
     if origin.is_empty() {
         return Err("转化牌必须声明承载牌（origin）".into());
     }
@@ -2136,7 +2258,7 @@ fn push_virtual_use(
     origin: Vec<CardId>,
     targets: &[usize],
     fire: bool,
-) -> Result<(), String> {
+) -> Result<CardId, String> {
     let def = cards::def(def_code).ok_or_else(|| format!("虚拟牌定义不存在：{def_code}"))?;
     let (suit, rank) = origin
         .first()
@@ -2189,7 +2311,7 @@ fn push_virtual_use(
             "targets": targets,
         }),
     );
-    Ok(())
+    Ok(vid)
 }
 
 /// 以牌堆/弃牌堆中的一张牌为**承载牌**、按另一张牌的定义使用（慎断：黑色基本牌当【兵粮寸断】）。
@@ -2213,7 +2335,8 @@ pub fn use_from_pile_as(
     }
     g.deck.retain(|c| c != carrier);
     g.cards.insert(carrier.to_string(), Zone::Processing);
-    push_virtual_use(g, actor, def_code, vec![carrier.to_string()], targets, false)
+    push_virtual_use(g, actor, def_code, vec![carrier.to_string()], targets, false)?;
+    Ok(())
 }
 
 /// 使用牌堆/弃牌堆中的一张牌（mechanics `deck-carrier`）。

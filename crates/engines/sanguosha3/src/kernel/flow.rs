@@ -102,6 +102,13 @@ fn damage_one(g: &mut Game, spec: DamageSpec, armor: ArmorKind, bonus: i32) -> V
                 source: spec.source,
             });
             g.push_event(ev.clone());
+            // 伤害记账（唯一写点）：本回合/本阶段/全局「造成伤害值」。
+            // 急攻（本阶段手牌上限 = 造成伤害值）等只读这些计数器，不各自记账。
+            if let Some(from) = spec.from {
+                g.bump(&format!("turn.{from}.damage_dealt"));
+                g.bump(&format!("phase.{from}.damage_dealt"));
+                g.bump(&format!("total.damage_dealt.{from}"));
+            }
             enter_dying(g, spec.target, spec.from);
             vec![ev]
         }

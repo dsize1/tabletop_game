@@ -140,10 +140,11 @@
 | **回放工具 V3 感知** | ✅ | `sgs-replay` 按快照形态分派 v3/v2 + v3 digest（单测）；道具中台仍读 v2（待口径确认） |
 | **B0 技能（7/7 ✅）** | ✅ | 据守/解围/不屈/奋激/行殇/放逐/颂威 全部按 `align/B0.json` 收口并挂载；`tests/{b0_real,b0_batch,b0}.rs`（22）；挂载开关 `skills::ENABLED_SKILLS` |
 | **B5 收口（6 将 / 13 技能 · B0–B5 收官）** | ✅ 2026-11-15 | `skills/b5.rs` + `tests/b5.rs`(13)；受害者伤害钩子（骄矜）/濒死进入钩子（兴衰）/千驹距离；注册表 77 |
+| **B6 收口（7 将 / 12 技能）** | ✅ 2026-11-16 | `skills/b6.rs` + `tests/b6.rs`(20)；`relay` 代出接力 / `CardAs` 替代语义 / 饰非替代响应 / 诏缚攻击范围 / 急攻赋值手牌上限；注册表 89 |
 | **B4 收口（8 将 / 11 技能）** | ✅ 2026-11-15 | `skills/b4.rs` + `tests/b4.rs`(11)；`Flipped`/`chain_enter`/`damage_bonus`/他人侧入口；注册表 64 |
 | **B3 收口（5 将 / 9 技能 + 授予排异）** | ✅ 2026-11-15 | `skills/b3.rs` + `tests/b3.rs`(10)；`Hook::DamageBefore`（制蛮）；权计动态手牌上限；注册表 53 |
 | **B2 收口（8 将 / 15 技能 + 授予 2 + 临时 1）** | ✅ 2026-11-15 | `skills/b2.rs` + `tests/b2.rs`(20)；`Hook::UsePre`/`use_targets`/`revoke` 单出口；破势按原文补齐；`v3-parity-baseline §7.5` |
 | **B1 收口（18 技能）** | ✅ 2026-11-15 | 8 个 handler 重写为真实待办（不再 `cands.first()` 代选）；`tests/b1_real.rs`(7)+`b1_real_more.rs`(9)；`ENABLED_SKILLS` 挂载 18 个 code；`v3-parity-baseline §7.4` |
 | **K 内核机制完备（46 条词表）** | ✅ 2026-11-15 | `v3-kernel-audit.md`（46/46）+ `tests/kernel_mechanics.rs`（25）+ `check:sgs3-kernel` 门禁；补 18 条缺口（pindian / virtual-card / hand-freeze / armor-points / reveal / no-wuxie / target-extra / multi-response / deck-carrier / aoe-target-trim / sha-intercept / judge-reversal / range-override / virtual-equip / equip-move / limit-skill / dying-aftermath / hidden-declaration） |
-| **下一片** | ⬜ | B6–B20（按同一 DoD 推进）；真机抽检 R1–R7 待人工 |
+| **下一片** | ⬜ | B7–B20（按同一 DoD 推进）；真机抽检 R1–R7 待人工 |
 | B2–B20 批量迁移 | ⬜ | — |

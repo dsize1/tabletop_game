@@ -151,6 +151,14 @@ pub fn distance(g: &Game, from: usize, to: usize) -> usize {
     d.max(1) as usize
 }
 
+/// 「能否打到」单入口（距离 ≤ 攻击范围，或技能声明视为在范围内：诏缚）。
+pub fn within_attack_range(g: &Game, from: usize, to: usize, reach: usize) -> bool {
+    if from == to {
+        return false;
+    }
+    distance(g, from, to) <= reach || super::skills::in_attack_range(g, from, to)
+}
+
 /// 使用【杀】是否无视目标防具（青釭剑）。
 pub fn ignores_armor(g: &Game, seat: usize) -> bool {
     weapon_of(g, seat) == WeaponKind::Qinggang

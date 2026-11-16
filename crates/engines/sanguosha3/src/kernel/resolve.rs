@@ -64,6 +64,8 @@ pub enum FlowKind {
     Guhuo,
     QuickJudge,
     Discard,
+    /// 代出/代响应接力（激将/勤王）。
+    Relay,
 }
 
 /// 技能帧。
