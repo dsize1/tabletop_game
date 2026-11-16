@@ -39,6 +39,20 @@ pub fn seats_of(ask: &super::super::resolve::Ask, key: &str) -> Vec<usize> {
         .unwrap_or_default()
 }
 
+/// 帧数据里的牌 id 数组（`Step::Next` 整份替换 data 时用于携带中间状态）。
+pub fn cards_of(ask: &super::super::resolve::Ask, key: &str) -> Vec<CardId> {
+    ask.data
+        .get(key)
+        .and_then(|v| v.as_array())
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str())
+                .map(|s| s.to_string())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 /// 自己可控的牌（手牌 + 装备区，按牌 id 排序 = 确定性）。
 pub fn own_cards(g: &Game, seat: usize) -> Vec<CardId> {
     let mut ids = g.hand(seat);

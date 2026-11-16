@@ -293,3 +293,24 @@ M6 落地后把上表扩展为全 18 技能脚本对拍。
 - 安国「随机使用装备牌」按牌堆顶第一件装备（无则弃牌堆首张）确定性取牌；
 - 急攻手牌上限为**赋值型**，覆盖其他 +N 修正（`skills::hand_limit_override` 先问 b6）；
 - 饰非覆盖【杀】与【万箭齐发】的【闪】询问；【借刀杀人】的闪询问暂未接入替代入口（登记）。
+
+### 7.10 B7 收口记录（2026-11-16，✅）
+
+> 批次：一将成名·Y6（7 将 / 12 技能）。
+
+| 项 | 结果 |
+|---|---|
+| 技能 | `kernel/skills/b7.rs`：督粮/腹鳞/匡弼/止戈/宗祚/极奢/链祸/瑰藻/讥谀/寝情/贿生/滔乱 |
+| 内核新增 | `skills::on_death`（`turn::finish_death` 唯一调用点，宗祚）；`skills::lianhuo_bonus` + `flow::propagate_chain(extra)`（链祸加伤随传导）；`flow::gain` 增加 `turn.<seat>.gained_cards` 记账（腹鳞）；`skills::draw_bonus` 改 `&mut`（督粮下回合 +1 消费）；`event_payload` 增加 `event` 字段（声明式订阅外的种类判定） |
+| 用例 | `tests/b7.rs` 20 条；注册表 89 → **101** |
+| 挂载 | `ENABLED_SKILLS` +12 |
+
+**已知边界（登记）**：
+- 督粮的「私密观看牌堆顶两张」用「只发给该角色的 pending」实现（公共区不 `reveal`），基本牌自动获得、其余按原顺序留在牌堆顶；
+- 匡弼的「匡弼」牌进 `Zone::Mark(seat,"kuangbi")`（`CardOutOfGame`/`CardIntoGame`），放置者用 `kuangbi.src.<card>` 标记，回合开始 `TurnStart` 订阅收口；
+- 宗祚按**开局快照**势力数 +体力上限/回复；势力最后一人死亡由 `finish_death → on_death` 触发（`flow::lose_max_hp`）；
+- 链祸按伤害事件属性字段判定（不按牌名），+1 随传导生效，白银狮子仍最后结算；
+- 讥谀的同花色封锁用 `Game::freeze_cards(FreezeUntil::Turn)`（只冻结当前手牌，后续获得的同花色牌不补冻，登记）；
+- 寝情的手牌弃置为随机（`rand_below`），装备区由黄皓指定；
+- 贿生的 opt1 用 `huisheng.used.<victim>.<source>` 每回合计数（回合结束自然失效）；
+- 滔乱的「响应场景」（无懈链/万箭/南蛮只能当对应响应牌）**未实现**，当前只支持出牌阶段主动转化（登记为下一批次前补齐的缺口）。

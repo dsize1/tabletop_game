@@ -22,6 +22,7 @@ pub mod b3;
 pub mod b4;
 pub mod b5;
 pub mod b6;
+pub mod b7;
 pub mod common;
 
 /// 技能类型。
@@ -125,6 +126,7 @@ pub fn all() -> Vec<&'static SkillDef> {
         .chain(b4::SKILLS.iter())
         .chain(b5::SKILLS.iter())
         .chain(b6::SKILLS.iter())
+        .chain(b7::SKILLS.iter())
         .collect()
 }
 
@@ -155,6 +157,9 @@ pub const ENABLED_SKILLS: &[&str] = &[
     // B6 批次（7 将 / 12 技能，2026-11-16 收口）
     "zhanjue", "qinwang", "wurong", "shizhi", "yanzhu", "xingxue", "zhaofu", "anguo",
     "yaoming", "huaiyi", "jigong", "shifei",
+    // B7 批次（7 将 / 12 技能，2026-11-16 收口）
+    "duliang", "fulin", "kuangbi", "zhige", "zongzuo", "jishe", "lianhuo", "guizao",
+    "jiyu", "qinqing", "huisheng", "taoluan",
 ];
 
 /// 手牌变动类型（奋激口径）。
@@ -363,6 +368,7 @@ pub fn handler(code: &str) -> Option<fn(&mut Game, &Ask) -> Result<Step, String>
         .or_else(|| b4::handler(code))
         .or_else(|| b5::handler(code))
         .or_else(|| b6::handler(code))
+        .or_else(|| b7::handler(code))
 }
 
 /// 主动技的**可用性判定**（声明之外的前置：手牌/目标/每阶段次数等）。
@@ -375,6 +381,7 @@ pub fn availability(code: &str) -> Option<fn(&Game, usize) -> bool> {
         .or_else(|| b4::availability(code))
         .or_else(|| b5::availability(code))
         .or_else(|| b6::availability(code))
+        .or_else(|| b7::availability(code))
 }
 
 /// **主动入口合法集**（唯一来源）：自带技能 ∩ 当前面 can_active ∩ 窗口允许 ∩ 可用性判定
@@ -574,6 +581,8 @@ pub fn start_active(g: &mut Game, seat: usize, code: &str) -> Result<(), String>
 /// 事件快照 → handler 上下文（`data`）。**只读快照**，不读 live 状态。
 pub fn event_payload(ev: &Event, face: usize) -> Value {
     let mut m = serde_json::Map::new();
+    // 事件类型（声明式订阅之外，handler 需要区分事件种类时读它；不写技能名/牌名）。
+    m.insert("event".into(), json!(format!("{:?}", ev.kind)));
     if let Some(s) = ev.seat {
         m.insert("victim".into(), json!(s));
     }
@@ -682,8 +691,8 @@ pub fn fire_game_start(g: &mut Game) {
 // ---------------------------------------------------------------------------
 
 /// 摸牌阶段摸牌数加成（庸肆 +X / 怀橘 +1…）。`flow::draw_phase` 唯一调用点。
-pub fn draw_bonus(g: &Game, seat: usize) -> usize {
-    b1::draw_bonus(g, seat)
+pub fn draw_bonus(g: &mut Game, seat: usize) -> usize {
+    b1::draw_bonus(g, seat) + b7::draw_bonus(g, seat)
 }
 
 /// 摸牌方向：true = 从牌堆底摸（寸目）。`flow::draw` 唯一调用点。
@@ -705,7 +714,8 @@ pub fn prevent_damage(g: &mut Game, victim: usize) -> bool {
 pub fn hand_limit_bonus(g: &Game, seat: usize) -> i32 {
     let mut total = b2::hand_limit_bonus(g, seat)
         + b3::hand_limit_bonus(g, seat)
-        + b5::hand_limit_bonus(g, seat);
+        + b5::hand_limit_bonus(g, seat)
+        + b7::hand_limit_bonus(g, seat);
     for skill in all() {
         if !active(g, seat, skill.code) {
             continue;
@@ -884,7 +894,9 @@ pub fn ask_damage_before_victim(
     let Some(from) = spec.from else {
         return false;
     };
-    if !b5::should_ask_damage_before_victim(g, from, spec.target) {
+    if !b5::should_ask_damage_before_victim(g, from, spec.target)
+        && !b7::should_ask_damage_before_victim(g, from, spec.target)
+    {
         return false;
     }
     let mut codes: Vec<&'static str> = Vec::new();
@@ -944,6 +956,18 @@ pub fn fire_dying_enter(g: &mut Game, seat: usize) -> bool {
         }
     }
     pushed
+}
+
+/// 角色死亡后的技能钩子（宗祚：某势力最后一名角色死亡 → 减体力上限）。
+///
+/// 唯一调用点：`turn::finish_death`（死亡清理开始前）。handler 只允许同步结算（不得产生 pending）。
+pub fn on_death(g: &mut Game, dead: usize) {
+    b7::on_death(g, dead);
+}
+
+/// 链祸：火焰伤害的连环传导加成（`flow::damage_apply` 唯一调用点）。
+pub fn lianhuo_bonus(g: &Game, spec: &super::DamageSpec) -> i32 {
+    b7::lianhuo_bonus(g, spec)
 }
 
 /// 撤销技能（觉醒失去技能 / 临时授予到期；只动 owned，不碰 granted 的其它来源）。

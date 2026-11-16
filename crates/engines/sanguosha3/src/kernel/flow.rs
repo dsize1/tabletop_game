@@ -57,10 +57,12 @@ pub fn damage(g: &mut Game, spec: DamageSpec, armor: ArmorKind, bonus: i32) -> V
 pub fn damage_apply(g: &mut Game, spec: DamageSpec, armor: ArmorKind, bonus: i32) -> Vec<Event> {
     // 「造成伤害时」的数值加成（暗箭等）：与调用方传入的 bonus 相加。
     let bonus = bonus + super::skills::damage_bonus(g, &spec);
-    let mut events = damage_one(g, spec, armor, bonus);
+    // 链祸（锁定的属性加成）：火焰 + 自己是传导起点 → +1，且该 +1 随传导继续。
+    let chain_extra = super::skills::lianhuo_bonus(g, &spec).max(0);
+    let mut events = damage_one(g, spec, armor, bonus + chain_extra);
     // 铁索连环：属性伤害传导（传导后所有横置角色重置）。
     if spec.kind != DamageKind::Normal && !events.is_empty() {
-        events.extend(propagate_chain(g, spec, armor));
+        events.extend(propagate_chain(g, spec, armor, chain_extra));
     }
     events
 }
@@ -116,7 +118,7 @@ fn damage_one(g: &mut Game, spec: DamageSpec, armor: ArmorKind, bonus: i32) -> V
 }
 
 /// 铁索传导：其他横置角色各受同属性同点数伤害，然后全部解除横置。
-fn propagate_chain(g: &mut Game, spec: DamageSpec, _armor: ArmorKind) -> Vec<Event> {
+fn propagate_chain(g: &mut Game, spec: DamageSpec, _armor: ArmorKind, extra: i32) -> Vec<Event> {
     let chained: Vec<usize> = g
         .seats
         .iter()
@@ -146,7 +148,7 @@ fn propagate_chain(g: &mut Game, spec: DamageSpec, _armor: ArmorKind) -> Vec<Eve
     for t in chained {
         let armor = super::gear::armor_of(g, t);
         let sub = DamageSpec { target: t, ..spec };
-        events.extend(damage_one(g, sub, armor, 0));
+        events.extend(damage_one(g, sub, armor, extra));
     }
     events
 }
@@ -458,6 +460,9 @@ pub fn gain(g: &mut Game, to: usize, id: &str, by: usize, cause: &str) -> Option
     ev.turn = g.turn;
     ev.phase = g.phase;
     g.push_event(ev.clone());
+    // 本回合「获得的牌」张数（腹鳞：弃牌阶段不计入手牌上限）。
+    // 摸牌不经过这里（`CardDrawn`），因此天然排除摸牌阶段的摸牌。
+    g.bump(&format!("turn.{to}.gained_cards"));
     super::skills::on_hand_changed(g, to, super::skills::HandChange::Gained);
     Some(ev)
 }

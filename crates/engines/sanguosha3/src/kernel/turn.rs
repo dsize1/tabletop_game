@@ -643,6 +643,8 @@ pub fn settle_death(g: &mut Game, seat: usize, killer: Option<usize>) -> Vec<Eve
 ///
 /// 由 `settle_death`（无行殇持有者时）或 `xingshang` 技能结束时调用（唯一收口）。
 pub fn finish_death(g: &mut Game, seat: usize, killer: Option<usize>) -> Vec<Event> {
+    // 死亡钩子（宗祚：某势力最后一名角色死亡 → 减体力上限）。
+    super::skills::on_death(g, seat);
     let victim_identity = g.seats.get(seat).and_then(|s| s.identity);
     let mut events = vec![];
     // 弃所有牌：手牌/装备/判定区（判定区栈一并清空）。
