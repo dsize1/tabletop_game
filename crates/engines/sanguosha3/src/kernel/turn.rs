@@ -382,6 +382,10 @@ fn finish_phase(g: &mut Game, seat: usize, pi: usize) -> Result<Step, String> {
             json!({ "seat": seat, "pi": pi, "entered": false, "extra_draw": true }),
         ));
     }
+    // 摸牌阶段结束钩子（双雄/将驰/眩惑）：可压询问；随后正常进入下一阶段。
+    if phase == Phase::Draw {
+        super::skills::after_draw_phase(g, seat);
+    }
     // K15：当先——准备阶段后、判定阶段前的额外出牌阶段。
     if phase == Phase::Prepare && super::skills::take_extra_play(g, seat) {
         g.extra_play = Some(seat);

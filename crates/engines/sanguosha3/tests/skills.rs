@@ -113,10 +113,16 @@ fn registry_has_all_batches() {
     ] {
         assert!(codes.contains(&c), "B13 技能 {c} 应注册");
     }
+    for c in [
+        "huoshou", "zaizhi", "duanliang", "jiezi", "duanchang", "beige", "quhu", "jieming",
+        "qiangxi", "ninge", "shuangxiong", "zhijian", "guzheng", "pojun",
+    ] {
+        assert!(codes.contains(&c), "B16 技能 {c} 应注册");
+    }
     assert_eq!(
         skills::all().len(),
-        232,
-        "B0–B15：B0–B14 212 + B15 20（19 技能 + 授予技 急袭；马术复用 B9）"
+        246,
+        "B0–B16：B0–B14 212 + B15 20 + B16 14"
     );
     assert!(skills::check_unique_codes().is_ok(), "技能 code 不得重复");
 }

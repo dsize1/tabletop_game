@@ -31,6 +31,7 @@ pub mod b12;
 pub mod b13;
 pub mod b14;
 pub mod b15;
+pub mod b16;
 pub mod common;
 
 /// 技能类型。
@@ -147,6 +148,7 @@ pub fn all() -> Vec<&'static SkillDef> {
         .chain(b13::SKILLS.iter())
         .chain(b14::SKILLS.iter())
         .chain(b15::SKILLS.iter())
+        .chain(b16::SKILLS.iter())
         .collect()
 }
 
@@ -209,6 +211,9 @@ pub const ENABLED_SKILLS: &[&str] = &[
     "roulin", "bengkuai", "jiuchi", "baonue", "tiaoxin", "zhiji",
     "tianyi", "hanzhan", "tuotian", "zaoxian", "jixi", "juxiang", "liereng", "changbiao",
     "weimu", "luanwu", "wansha", "haoshi", "dimeng", "qiaobian",
+    // B16 批次（J4：进行中，见 check:sgs3-registry 的 ⏳ 计数）
+    "huoshou", "zaizhi", "duanliang", "jiezi", "duanchang", "quhu", "jieming",
+    "qiangxi", "ninge", "zhijian", "guzheng", "shuangxiong", "pojun", "beige",
 ];
 
 /// 手牌变动类型（奋激口径）。
@@ -380,19 +385,22 @@ pub fn damage_to_hp_loss(g: &Game, source: Option<usize>, victim: usize) -> bool
 
 /// AOE 伤害来源替换（K19；祸首）。默认 None；B16 接入。
 pub fn aoe_damage_source(g: &Game, actor: usize, card: &str) -> Option<usize> {
-    let _ = (g, actor, card);
-    None
+    b16::aoe_damage_source(g, actor, card)
 }
 
 /// 跳过摸牌阶段后钩子（K15；截辎）。默认无技能；B16 接入。
 pub fn on_skip_draw(g: &mut Game, seat: usize) {
-    let _ = (g, seat);
+    b16::on_skip_draw(g, seat);
+}
+
+/// 摸牌阶段结束（双雄/将驰/眩惑等）：可压询问；由 `turn::finish_phase` 调用。
+pub fn after_draw_phase(g: &mut Game, seat: usize) {
+    b16::after_draw_phase(g, seat);
 }
 
 /// 进入额外摸牌阶段前消费标记（K15；截辎）。返回 true = 重跑一次 Draw 阶段。
 pub fn take_extra_draw(g: &mut Game, seat: usize) -> bool {
-    let _ = (g, seat);
-    false
+    b16::take_extra_draw(g, seat)
 }
 
 /// 准备阶段后是否插入额外出牌阶段（K15；当先）。返回 true 时由 `turn::finish_phase` 插队。
@@ -574,6 +582,7 @@ pub fn handler(code: &str) -> Option<fn(&mut Game, &Ask) -> Result<Step, String>
         .or_else(|| b13::handler(code))
         .or_else(|| b14::handler(code))
         .or_else(|| b15::handler(code))
+        .or_else(|| b16::handler(code))
 }
 
 /// 主动技的**可用性判定**（声明之外的前置：手牌/目标/每阶段次数等）。
@@ -595,6 +604,7 @@ pub fn availability(code: &str) -> Option<fn(&Game, usize) -> bool> {
         .or_else(|| b13::availability(code))
         .or_else(|| b14::availability(code))
         .or_else(|| b15::availability(code))
+        .or_else(|| b16::availability(code))
 }
 
 /// **主动入口合法集**（唯一来源）：自带技能 ∩ 当前面 can_active ∩ 窗口允许 ∩ 可用性判定
@@ -816,6 +826,10 @@ pub fn event_payload(ev: &Event, face: usize) -> Value {
     if let Some(c) = &ev.cause {
         m.insert("cause".into(), json!(c));
     }
+    if let Some(d) = &ev.damage {
+        m.insert("damage_source".into(), json!(format!("{:?}", d.source)));
+        m.insert("damage_kind".into(), json!(format!("{:?}", d.kind)));
+    }
     if let Some(a) = ev.amount {
         m.insert("amount".into(), json!(a));
     }
@@ -972,7 +986,7 @@ pub fn deny_target_instance(
 
 /// 群体牌目标排除（巨象）。
 pub fn aoe_excluded(g: &Game, user: usize, target: usize, def_code: &str) -> bool {
-    b15::aoe_excluded(g, user, target, def_code)
+    b15::aoe_excluded(g, user, target, def_code) || b16::aoe_excluded(g, user, target, def_code)
 }
 
 /// 结算结束后钩子（巨象：获得他人使用的【南蛮】）。
@@ -1138,7 +1152,10 @@ pub fn deny_target(g: &Game, user: usize, target: usize) -> bool {
 /// 距离/范围是否被技能覆盖（决堰·坐骑 / 雄乱）：本次使用跳过距离校验。
 /// 造成伤害时的数值加成（暗箭：不在其攻击范围内 +1）。
 pub fn damage_bonus(g: &Game, spec: &super::DamageSpec) -> i32 {
-    b4::damage_bonus(g, spec) + b11::damage_bonus(g, spec) + b13::damage_bonus(g, spec)
+    b4::damage_bonus(g, spec)
+        + b11::damage_bonus(g, spec)
+        + b13::damage_bonus(g, spec)
+        + b16::damage_bonus(g, spec)
 }
 
 /// 他人侧主动技（陷嗣：其他角色移去两张「逆」出【杀】）。
@@ -1411,8 +1428,8 @@ pub fn on_relay_sha(g: &mut Game, actor: usize, source: usize) {
 }
 
 /// 锦囊无距离限制（奇才）。
-pub fn trick_no_distance(g: &Game, actor: usize) -> bool {
-    b9::trick_no_distance(g, actor)
+pub fn trick_no_distance(g: &Game, actor: usize, card: &str) -> bool {
+    b9::trick_no_distance(g, actor, card) || b16::trick_no_distance(g, actor, card)
 }
 
 /// 防止弃置（奇才：他人弃置你的防具/宝物）。
@@ -1422,7 +1439,9 @@ pub fn prevent_discard(g: &Game, by: usize, owner: usize, id: &str) -> bool {
 
 /// 【杀】指定目标之后的技能询问（谏征/专对）：返回是否压入了询问帧。
 pub fn fire_sha_targeted(g: &mut Game, user: usize, targets: &[usize], card: &str) -> bool {
-    b8::fire_sha_targeted(g, user, targets, card)
+    let a = b8::fire_sha_targeted(g, user, targets, card);
+    let b = b16::fire_sha_targeted(g, user, targets, card);
+    a || b
 }
 
 /// 取走「目标列表重写」结果（读完清空；`None` = 未改写）。
@@ -1511,6 +1530,7 @@ pub fn use_alias(g: &Game, seat: usize, id: &str) -> Option<&'static str> {
         .or_else(|| b10::use_alias(g, seat, id))
         .or_else(|| b14::use_alias(g, seat, id))
         .or_else(|| b15::use_alias(g, seat, id))
+        .or_else(|| b16::use_alias(g, seat, id))
 }
 
 /// 响应语义下的生效定义：先问替代型技能（矢志/武圣/龙胆），再看牌自身标签。

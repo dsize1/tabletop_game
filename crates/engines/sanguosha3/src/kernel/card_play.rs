@@ -544,7 +544,7 @@ pub fn legal_targets_with(
                 }
             }
             Effect::Snatch => {
-                if !super::skills::trick_no_distance(g, actor)
+                if !super::skills::trick_no_distance(g, actor, card.unwrap_or(""))
                     && super::gear::distance(g, actor, s) > 1
                 {
                     continue;
@@ -564,7 +564,7 @@ pub fn legal_targets_with(
                 }
                 // 兵粮寸断：只能对距离 1 以内的角色使用（乐不思蜀无距离限制）。
                 if def.effect == Effect::SupplyShortage
-                    && !super::skills::trick_no_distance(g, actor)
+                    && !super::skills::trick_no_distance(g, actor, card.unwrap_or(""))
                     && super::gear::distance(g, actor, s) > 1
                 {
                     continue;

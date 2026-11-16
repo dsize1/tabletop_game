@@ -463,7 +463,7 @@ fn jizhi_non_transform_trick_draws_and_basic_raises_limit() {
 #[test]
 fn qicai_no_trick_distance_and_prevents_armor_discard() {
     let mut g = game(2, &["qicai"]);
-    assert!(b9::trick_no_distance(&g, 0));
+    assert!(b9::trick_no_distance(&g, 0, ""));
     add(&mut g, "armor", "bagua_zhen", Zone::Equip(0, Slot::Armor));
     add(&mut g, "weapon", "qinggang_jian", Zone::Equip(0, Slot::Weapon));
     // 他人弃置防具被防止；武器不受保护。

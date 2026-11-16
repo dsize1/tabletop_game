@@ -26,7 +26,7 @@ const ALIGN_DIR = path.join(root, "docs/games/sanguosha/align");
 
 /** 已开工批次（连续，从 B0 起）。新批次开工时追加；**不得**跳过。 */
 const V3_STARTED_BATCHES = [
-  "B0", "B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8", "B9", "B10", "B11", "B12", "B13", "B14", "B15",
+  "B0", "B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8", "B9", "B10", "B11", "B12", "B13", "B14", "B15", "B16",
 ];
 
 /**

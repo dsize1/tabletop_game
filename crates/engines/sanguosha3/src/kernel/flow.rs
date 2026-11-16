@@ -110,6 +110,8 @@ fn damage_one(g: &mut Game, spec: DamageSpec, armor: ArmorKind, bonus: i32) -> V
                     g.bump(&format!("turn.{from}.damage_card.{card}"));
                     g.bump(&format!("phase.{from}.damage_card.{card}"));
                 }
+                // 双雄：本回合对受害者造成过伤害的牌（结束阶段取回）。
+                g.bump(&format!("turn.{}.damage_card_taken.{card}", spec.target));
             }
             ev.turn = g.turn;
             ev.phase = g.phase;

@@ -211,7 +211,7 @@ pub fn on_relay_sha(g: &mut Game, actor: usize, source: usize) {
     }
 }
 
-pub fn trick_no_distance(g: &Game, actor: usize) -> bool {
+pub fn trick_no_distance(g: &Game, actor: usize, _card: &str) -> bool {
     skills::active(g, actor, "qicai")
 }
 
