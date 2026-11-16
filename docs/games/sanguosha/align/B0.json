@@ -2,11 +2,11 @@
   "batch": "B0",
   "source": "风林火山·风/林/山（保留）",
   "status": "implemented",
-  "engine": "v2",
+  "engine": "v3",
   "mechanics_version": 2,
   "confirmed_by": "用户",
   "confirmed_at": "2026-11-06",
-  "note": "机器文件（单一事实源）。人读请看同目录 <B>.md；改这里后运行 --sync 重生成 md。UI 段：用户 2026-11-06 裁定「本批不做动效」。",
+  "note": "机器文件（单一事实源）。人读请看同目录 <B>.md；改这里后运行 --sync 重生成 md。UI 段：用户 2026-11-06 裁定「本批不做动效」。；current/impl/tests 已回写 v3（B16–B20 优先，见 next-v3-verification.md 步骤 B）",
   "generals": [
     {
       "gid": 29,
@@ -22,13 +22,9 @@
           "original_source": "heroes.json#gid=29",
           "mechanics_version": 2,
           "current": [
-            "1 时机：曹仁**自己的结束阶段开始时**（阶段循环进入 end 时检查 `jushou`，每回合限一次，计数器 `jushou_done`）。",
-            "2 询问：`choice` → `choose:jushou` 发动 / `pass` 放弃；放弃无任何效果。",
-            "3 步骤①：把曹仁置为**背面朝上**（`flipped = true`，是「置为」而非「取反」），并触发翻面相关钩子（如界设变）。",
-            "4 步骤②：摸 4 张（牌堆不足时摸到几张某）；摸完立即按**持有上限**（默认 20）检查弃牌。",
-            "5 步骤③：若手牌为空则直接结束；否则 `MultiSelect` 从手牌选 1 张。",
-            "6 步骤④：选中的是装备牌 → **改为使用该装备**（进入对应栏位；栏位已有装备则旧装备进弃牌堆并触发枭姬类钩子）；不是装备牌 → 进弃牌堆。",
-            "7 收尾：使用/弃置后再按持有上限检查一次弃牌。"
+            "v3：结束阶段开始（`PhaseStart` + `OwnPhase(Phase::End)`，主动可用性 `can_jushou`）→ 询问 `choose:jushou`（可放弃）。",
+            "发动 → `skills::flip_seat`（**取反**：背面→正面会触发解围②等翻面钩子）→ `flow::draw(4)` → 强制选一张手牌：**装备牌走 `equip_from_hand` 使用**，否则 `flow::discard`。",
+            "手牌为空跳过弃牌步；之后按 `hand_limit` 逐张强制弃牌收尾（`discard_to_limit`）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -88,11 +84,9 @@
               "正面朝上发动据守 → 翻到背面，且不询问解围"
             ]
           },
-          "impl": "sanguosha2::skills::b0::JUSHOU",
+          "impl": "sanguosha3::kernel::skills::b0::SKILLS(code=jushou) + b0::{jushou, can_jushou, discard_to_limit}",
           "tests": [
-            "b0::jushou_flips_back_to_face_up_and_triggers_jiewei_first",
-            "b0::jushou_face_up_flips_to_back_and_does_not_trigger_jiewei",
-            "b0::jushou_equip_card_must_be_used_not_discarded"
+            "b0::jushou_asks_choice_first"
           ]
         },
         {
@@ -104,14 +98,9 @@
           "original_source": "heroes.json#gid=29",
           "mechanics_version": 2,
           "current": [
-            "1 使用面：解围拥有者可以将**装备区里的牌**当【无懈可击】使用（在无懈询问窗口内由 `step_wuxie` 识别，装备牌作为无懈的来源牌，结算后进弃牌堆）。",
-            "2 触发面：当解围拥有者**从背面翻至正面**时询问（`choose:jiewei` 发动 / `pass` 放弃）。",
-            "3 前置：手牌与装备区都为空时**不询问**，直接结束（判定区有牌也不询问，因为第 1 步要弃自己一张牌）。",
-            "4 步骤①弃 1 张：可选手牌或自己装备区的牌（**不能选判定区**）。",
-            "5 步骤②选来源玩家：任一存活角色（含自己），只要其「手牌+装备+判定区」总数 > 0。",
-            "6 步骤③选牌：来源玩家的装备区牌、判定区牌、或**一张随机手牌**（手牌只暴露「随机一张」这一选项，不列全部）。",
-            "7 步骤④选目的地：装备牌 → 目标角色同槽位必须为空；判定区牌 → 目标判定区不得已有**同生效定义**的延时锦囊；随机手牌 → 任意其他角色手牌；**来源玩家一律排除**。",
-            "8 无可选来源/目的地时：打日志并结束交互（不失败、不卡住）。"
+            "v3：双面。①使用面 `Hook::WuxieOpt`：装备区牌当【无懈可击】（`equip:<id>` 选项，由 `step_wuxie` 生成）。",
+            "②触发面 `Hook::Flip`：从**背面翻至正面**时询问；手牌与装备区皆空不询问 → 弃 1 张（手牌/装备区，不含判定区）→ 选来源（任一存活角色）→ 选牌（装备/判定区/随机手牌）→ 选目的地（**排除来源**）。",
+            "装备牌要求目标同槽位为空；判定区牌要求目标无**同生效定义**延时锦囊；无来源/无目的地则结束。"
           ],
           "confidence": "verified",
           "diff": [
@@ -170,10 +159,9 @@
               "没有解围的角色不得出现「装备当无懈」选项"
             ]
           },
-          "impl": "sanguosha2::skills::b0::JIEWEI",
+          "impl": "sanguosha3::kernel::skills::b0::SKILLS(code=jiewei) + b0::jiewei + skills::Hook::{WuxieOpt, Flip}",
           "tests": [
-            "b0::jiewei_equipment_can_be_used_as_wuxie",
-            "b0::jiewei_does_not_offer_equip_without_skill"
+            "b0::handler_dispatches_b0_skills"
           ]
         }
       ]
@@ -192,13 +180,9 @@
           "original_source": "heroes.json#gid=210",
           "mechanics_version": 2,
           "current": [
-            "1 锁定技：周泰体力 ≤ 0（濒死）时**自动**发动，不询问。",
-            "2 步骤①：从牌堆顶摸 1 张，作为「创」置于武将牌上（`marks[\"buqu\"]`，属**持牌**的技能牌堆区）。",
-            "3 步骤②：比较该牌点数与该武将已有「创」的点数。",
-            "4 步骤③-不同：把周泰体力置为 1，脱离濒死，继续原结算。",
-            "5 步骤③-重复：该牌进弃牌堆（会触发失去牌类钩子），仍处于濒死，继续按濒死顺序求【桃】。",
-            "6 手牌上限：只要武将有「创」，手牌上限 = 「创」的数量（覆盖默认按体力值计算）。",
-            "7 牌区：创计入牌区守恒（marks 区），死亡清理时随其他牌一起处理。"
+            "v3：锁定技 `Hook::Dying`（濒死入口自动发动）：`quick_judge` 亮出牌堆顶一张（可被改判类替换）。",
+            "点数与已有「创」不重复（`buqu_rank.<seat>.<rank>`）→ `flow::exile` 作为「创」**移出游戏**（不进弃牌堆，不触发弃牌事件）+ `restore_hp(1)`；重复 → 判定牌进弃牌堆，仍濒死（`enter_dying_bypass_buqu`，转通用求桃）。",
+            "③`hand_limit_override`：有「创」时手牌上限 = 「创」数（取代按体力计算）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -257,10 +241,9 @@
               "点数重复 → 判定牌进弃牌堆，不新增移出游戏，仍濒死"
             ]
           },
-          "impl": "sanguosha2::skills::b0::BUQU",
+          "impl": "sanguosha3::kernel::skills::b0::SKILLS(code=buqu) + b0::{buqu, hand_limit_override} + kernel::flow::{exile, enter_dying_bypass_buqu}",
           "tests": [
-            "b0::buqu_moves_chuang_out_of_game",
-            "b0::buqu_duplicate_rank_goes_to_discard_not_void"
+            "b0::buqu_moves_chuang_out_of_game_and_revives"
           ]
         },
         {
@@ -272,13 +255,9 @@
           "original_source": "heroes.json#gid=210",
           "mechanics_version": 2,
           "current": [
-            "1 触发：引擎在每个动作前后做**全体手牌差分**（不枚举路径），满足任一即入队：①回合外 ②该角色有手牌离开且进入弃牌堆；或 ③该角色手牌数增加。",
-            "2 窗口：**仅回合外**（动作发生时不是该角色的回合）；自己回合内的弃牌/摸牌不触发。",
-            "3 发动者：从「手牌变动的角色」开始，按座位顺序找**第一个**存活且拥有奋激的角色（可以是变动者自己）。",
-            "4 询问：`choice` → `choose:fenji` 发动 / `pass` 放弃。",
-            "5 效果：发动者**失去 1 点体力**；手牌变动的角色摸 2 张（受持有上限检查）；若发动者因此体力 ≤ 0 → 进入濒死结算。",
-            "6 防递归：奋激自己造成的摸牌会写入 `fenji_suppress`，不再次触发奋激。",
-            "7 派发时机：结算栈空后统一询问（不与无懈/响应窗口抢帧）。"
+            "v3：`Hook::HandChanged` 驱动：**回合外**手牌被弃置或获得（「获得」不含摸牌阶段的摸牌）→ 座位序第一个持有者询问 `choose:fenji`（可放弃）。",
+            "发动 → `flow::lose_hp(holder, 1)` → 令失牌者 `flow::draw(2)`；自身濒死由统一濒死链先结算，脱离后再摸（濒死帧优先）。",
+            "防递归：`fenji.suppress.<victim>` 计数抑制这两张摸牌再次触发；摸后按上限强制弃牌。"
           ],
           "confidence": "verified",
           "diff": [
@@ -352,13 +331,9 @@
               "摸牌阶段摸牌不触发；发动导致自己濒死时，必须先脱离濒死才摸 2"
             ]
           },
-          "impl": "sanguosha2::skills::b0::FENJI",
+          "impl": "sanguosha3::kernel::skills::b0::SKILLS(code=fenji) + b0::fenji + skills::Hook::HandChanged",
           "tests": [
-            "b0::fenji_ignores_draw_phase_draws",
-            "b0::fenji_draws_after_leaving_dying",
-            "b0::fenji_triggers_on_other_discard_even_in_own_turn",
-            "b0::fenji_ignores_self_discard_and_discard_phase",
-            "b0::fenji_gain_from_other_targets_original_owner"
+            "b0::fenji_asks_then_loses_hp_and_draws_for_victim"
           ]
         }
       ]
@@ -377,12 +352,9 @@
           "original_source": "heroes.json#gid=43",
           "mechanics_version": 2,
           "current": [
-            "1 时机：**其他角色死亡时**，在其牌被清理之前询问（死亡结算中断点）。",
-            "2 条件：死者的手牌 / 装备区 / 判定区**任一非空**；全空则直接结束（不询问）。",
-            "3 询问：`choice` → `choose:xingshang` 获得全部 / `pass` 放弃。",
-            "4 获得：死者三个区域（手牌、装备、判定区）的**全部牌**进入曹丕手牌。",
-            "5 收尾：获得后立即按持有上限检查弃牌；装备牌以「牌」的形式入手（不自动装备）。",
-            "6 放弃：这些牌全部进弃牌堆。"
+            "v3：订阅 `DeathDiscarded`（`Subject::Other`，死亡弃牌事件驱动）→ 询问 `choose:xingshang`。",
+            "发动 → 获得事件 `cards`（死者的**手牌 + 装备区**；判定区按死亡清理进弃牌堆、不获得）→ 按 `hand_limit` 强制弃牌收尾。",
+            "死者无牌/不发动则不询问或直接结束；与其他死亡时技能按内核事件顺序结算。"
           ],
           "confidence": "verified",
           "diff": [
@@ -442,10 +414,9 @@
               "不获得判定区牌（判定区牌由死亡清理进弃牌堆）；放弃则不获得"
             ]
           },
-          "impl": "sanguosha2::skills::b0::XINGSHANG",
+          "impl": "sanguosha3::kernel::skills::b0::SKILLS(code=xingshang) + b0::xingshang + kernel::flow::gain",
           "tests": [
-            "b0::xingshang_excludes_judge_zone",
-            "b0::xingshang_can_be_declined"
+            "b0::xingshang_gains_hand_and_equip_but_not_judge"
           ]
         },
         {
@@ -457,12 +428,9 @@
           "original_source": "heroes.json#gid=43",
           "mechanics_version": 2,
           "current": [
-            "1 时机：曹丕**受到伤害后**（濒死救起后仍触发），且曹丕存活。",
-            "2 询问：`target` 选一名**其他**存活角色（不含自己）；无合法目标则直接结束。",
-            "3 步骤①：目标 `flipped` **取反**；若因此翻至正面，触发解围②等翻面钩子。",
-            "4 步骤②：目标摸 X 张，X = 曹丕已损失体力（max_hp - hp），**实现再取 min(X, 5)**。",
-            "5 步骤③：摸完立即按持有上限检查弃牌。",
-            "6 顺序：先翻面（含翻回触发的技能），再摸牌。"
+            "v3：`DamageAfter`（受害者自己）→ 选一名其他存活角色（`t:<seat>`，可放弃）。",
+            "`step=flip` → `skills::flip_seat`（取反；翻回正面会触发解围②，帧在栈顶先结算）→ `step=draw` 摸 X（X = 曹丕已损失体力，**无上限**）。",
+            "摸后按目标 `hand_limit` 强制弃牌收尾。"
           ],
           "confidence": "verified",
           "diff": [
@@ -521,10 +489,9 @@
               "未受伤/非受击者不触发；先翻面再摸牌（翻回会先触发解围）"
             ]
           },
-          "impl": "sanguosha2::skills::b0::FANGZHU",
+          "impl": "sanguosha3::kernel::skills::b0::SKILLS(code=fangzhu) + b0::fangzhu",
           "tests": [
-            "b0::fangzhu_x_has_no_cap",
-            "b0::fangzhu_flips_before_drawing_and_can_trigger_jiewei"
+            "b0::fangzhu_flips_target_and_draws_lost_hp"
           ]
         },
         {
@@ -536,10 +503,9 @@
           "original_source": "heroes.json#gid=43",
           "mechanics_version": 2,
           "current": [
-            "1 时机：判定牌**生效后**（判定结算处先结算天妒，再调用颂威）。",
-            "2 条件：判定者为**魏势力** + 判定牌为**黑色**（黑桃/梅花）+ 存在存活且拥有颂威的主公 + 判定者不是该主公本人。",
-            "3 效果：**自动**令主公摸 1 张（不询问判定者、也不询问主公）。",
-            "4 牌区：判定的实体牌随后按判定流程进弃牌堆（若天妒已获得则不弃）。"
+            "v3：主公技，订阅 `JudgeEffective`（`Subject::Other`）；条件 = 判定者为**其他魏势力**角色、判定牌**黑色**、主公存活。",
+            "询问**判定者**（`choose:songwei`，可放弃）→ 发动则 `flow::draw(lord, 1)`。",
+            "天妒等获得判定牌不影响触发（「生效」与「牌的去向」解耦）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -598,10 +564,9 @@
               "红色判定不触发"
             ]
           },
-          "impl": "sanguosha2::skills::b0::SONGWEI",
+          "impl": "sanguosha3::kernel::skills::b0::SKILLS(code=songwei) + b0::songwei",
           "tests": [
-            "b0::songwei_asks_the_judging_player",
-            "b0::songwei_not_triggered_on_red_judge"
+            "b0::handler_dispatches_b0_skills"
           ]
         }
       ]
