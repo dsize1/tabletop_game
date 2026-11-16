@@ -475,6 +475,14 @@ fn funan_plus_only_gains_response_card() {
 }
 
 #[test]
+fn funan_plus_renames_skill_display() {
+    let mut g = game(2, &["funan"]);
+    assert_eq!(skills::display_name(&g, 0, "funan"), "复难");
+    g.bump("funan.plus.0");
+    assert_eq!(skills::display_name(&g, 0, "funan"), "复难plus", "升级后显示名同步");
+}
+
+#[test]
 fn jiexun_draws_diamonds_and_upgrades_funan_when_target_empties() {
     let mut g = game(2, &["jiexun", "funan"]);
     g.turn = 0;
@@ -506,24 +514,59 @@ fn bizhuan_puts_spade_top_card_as_book_and_raises_hand_limit() {
 }
 
 #[test]
-fn tongbo_replaces_books_and_gives_them_away_with_four_suits() {
+fn tongbo_swaps_with_hand_and_gives_books_away_with_four_suits() {
     let mut g = game(2, &["tongbo"]);
     g.turn = 0;
     g.phase = Phase::Draw;
-    // 四张「书」覆盖四花色。
+    // 四张「书」覆盖四花色；手牌一张黑桃。
     for (i, suit) in [Suit::Spade, Suit::Heart, Suit::Club, Suit::Diamond].iter().enumerate() {
         let id = format!("b{i}");
         add_suit(&mut g, &id, "tao", Zone::Mark(0, "shu".to_string()), *suit, 3);
     }
     add_suit(&mut g, "h", "sha", Zone::Hand(0), Suit::Spade, 9);
+    // ①发动 → ②左右交换一对 → 确认 → ③四花色齐必须交出。
     let step = run_steps(
         &mut g,
         "tongbo",
         0,
         data(&[]),
-        &["use", "card:h", "card:b0", "pass", "t:1"],
+        &["use", "swap:b0:h", "pass", "t:1"],
     );
     let step = drain(&mut g, "tongbo", 0, step);
     assert!(matches!(step, Step::Finish(_)));
     assert_eq!(g.hand_size(1), 4, "所有「书」交给其");
+    assert_eq!(g.hand_size(0), 1, "交换得到的书进入手牌");
+    assert!(g.check_conservation().is_ok(), "牌区守恒");
+}
+
+#[test]
+fn tongbo_ends_without_give_when_not_four_suits() {
+    let mut g = game(2, &["tongbo"]);
+    g.turn = 0;
+    g.phase = Phase::Draw;
+    for (i, suit) in [Suit::Spade, Suit::Heart, Suit::Club].iter().enumerate() {
+        let id = format!("b{i}");
+        add_suit(&mut g, &id, "tao", Zone::Mark(0, "shu".to_string()), *suit, 3);
+    }
+    add_suit(&mut g, "h", "sha", Zone::Hand(0), Suit::Diamond, 9);
+    let step = run_steps(&mut g, "tongbo", 0, data(&[]), &["use", "pass"]);
+    let step = drain(&mut g, "tongbo", 0, step);
+    assert!(matches!(step, Step::Finish(_)), "花色不齐 → 直接结束（不询问交出）");
+    assert_eq!(g.hand_size(1), 0);
+}
+
+#[test]
+fn tongbo_swap_is_hand_only() {
+    let mut g = game(2, &["tongbo"]);
+    g.turn = 0;
+    g.phase = Phase::Draw;
+    add(&mut g, "b0", "tao", Zone::Mark(0, "shu".to_string()));
+    add(&mut g, "eq", "qinggang_jian", Zone::Equip(0, Slot::Weapon));
+    add(&mut g, "h", "sha", Zone::Hand(0));
+    // 装备区牌不进入交换候选：只提供「书 × 手牌」的 swap 选项。
+    let step = call(&mut g, "tongbo", 0, data(&[("step", "swap".into())]));
+    let p = pending_of(&step);
+    let ids: Vec<String> = p.options().iter().map(|o| o.id.clone()).collect();
+    assert!(ids.iter().any(|o| o == "swap:b0:h"));
+    assert!(!ids.iter().any(|o| o.contains("eq")), "装备区不参与：{ids:?}");
 }

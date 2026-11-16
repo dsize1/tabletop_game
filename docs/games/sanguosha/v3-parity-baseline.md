@@ -411,3 +411,15 @@ M6 落地后把上表扩展为全 18 技能脚本对拍。
 - 复难不交换**虚拟牌**（`v:` 无物理承载，规则上不可表示；已在实际牌路径完整实现）。
 
 **门禁**：`cargo test -p sanguosha3` 全绿（新增 `tests/gaps.rs` 9 条）；`check:sgs3` 全绿；注册表 152 → **153**（+攻心）。
+
+### 7.15 通博交互区 + 复难plus 收口（2026-11-16，✅）
+
+| 项 | 结果 |
+|---|---|
+| 通博引擎 | `b8::tongbo` 重写为**两段式**：①`tongbo_swap`（左「书」/右「手牌」逐对交换，`swap:<book>:<hand>`，可反复，出口 `pass`=确认）→ ②四花色齐则 `target` **强制**交出所有「书」（不可放弃），否则结束；**装备区不参与**（候选仅手牌）；pending data 附带 `books/hand/labels` 供端侧渲染 |
+| 通博端侧 | 新增 `apps/web/src/view/sgs/tongbo.ts`（纯函数：`tongboSwapAction` / `tongboColumns` / `renderTongboOverlay` / `tongboDropTarget`）+ `client/sgs.ts::initTongboDrag`（长按拖拽跨列交换、点击配对降级、确认按钮）；`pending.ts` 将 `tongbo_swap` 纳入阻断型与浮层分派 |
+| 复难plus | 行为早已实现（诫训触发的 `funan.plus`：仅获得响应牌）；本次补**显示名同步** `skills::display_name`（复难 → 复难plus）并接入 V3 视图 `skills_view`（返回自带∪授予技能 + 显示名） |
+| 用例 | `tests/b8.rs` 通博 3 条 + 复难plus 显示名 1 条；`apps/web/test-sgs.mts` 通博纯函数/渲染 1 组 |
+| 文档 | `ui-spec.md §10`（通博交互规格）、本表 |
+
+**门禁**：`cargo test -p sanguosha3` 全绿；`check:sgs3` 全绿；`tsc -p apps/web/tsconfig.json --noEmit` 通过；`tsx test-sgs.mts` 全绿；`build:client` 成功。

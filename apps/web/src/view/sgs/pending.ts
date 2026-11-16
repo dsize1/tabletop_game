@@ -341,6 +341,7 @@ export function overlayKindFor(
   | "fire_attack"
   | "collateral"
   | "qinwang_sha"
+  | "tongbo_swap"
   | null {
   switch (p.kind) {
     case "wuxie":
@@ -350,6 +351,9 @@ export function overlayKindFor(
     case "target":
     case "choose_many":
     case "arrange":
+      return p.kind;
+    // 通博：两列「书 / 手牌」交换（专用浮层）。
+    case "tongbo_swap":
       return p.kind;
     // v2：五谷丰登的逐人取牌（`harvest`）复用 v1 wugu 浮层（`special_zones.wugu` 已由引擎投影）。
     case "harvest":
@@ -381,7 +385,8 @@ export function isBlockingPending(kind: string): boolean {
     kind === "card_pick" ||
     kind === "card_target" ||
     kind === "pindian" ||
-    kind === "arrange"
+    kind === "arrange" ||
+    kind === "tongbo_swap"
   );
 }
 

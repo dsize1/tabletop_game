@@ -303,6 +303,14 @@ pub fn enabled(code: &str) -> bool {
     ENABLED_SKILLS.contains(&code)
 }
 
+/// 技能**显示名**（升级技改名：复难 → 复难plus；未升级时同注册名）。
+pub fn display_name(g: &Game, seat: usize, code: &str) -> String {
+    if let Some(name) = b8::display_name(g, seat, code) {
+        return name.to_string();
+    }
+    def(code).map(|d| d.name.to_string()).unwrap_or_else(|| code.to_string())
+}
+
 /// 技能中文名 → code（只查**已注册**技能；未接入批次的武将技能名返回 None）。
 pub fn code_by_name(name: &str) -> Option<&'static str> {
     all().into_iter().find(|s| s.name == name).map(|s| s.code)

@@ -1432,3 +1432,58 @@ const pickOverlay = renderPickCardOverlay(
 assert.ok(pickOverlay.includes('data-action="pick:w1"'), "取牌浮层必须渲染实体牌按钮");
 assert.ok(!pickOverlay.includes("没有可选牌"), "取牌浮层不得退化成空列表");
 console.log("[sgs-web] 取牌浮层回退单测通过 ✅");
+
+// ---------------------------------------------------------------------------
+// 通博（两列交换）：纯函数契约（`view/sgs/tongbo.js`）
+// ---------------------------------------------------------------------------
+import {
+  TB_KIND,
+  TB_ZONE,
+  tongboColumns,
+  tongboDropTarget,
+  tongboSwapAction,
+  renderTongboOverlay,
+} from "./src/view/sgs/tongbo.js";
+
+assert.equal(TB_KIND, "tongbo_swap");
+assert.equal(TB_ZONE, "tongbo");
+// 一次拖拽 = 一对跨列交换（左书/右手牌，方向无关）。
+assert.equal(
+  tongboSwapAction({ col: "book", id: "b0" }, { col: "hand", id: "h0" }),
+  "swap:b0:h0",
+);
+assert.equal(
+  tongboSwapAction({ col: "hand", id: "h0" }, { col: "book", id: "b0" }),
+  "swap:b0:h0",
+  "反向拖拽同样成立",
+);
+assert.equal(
+  tongboSwapAction({ col: "book", id: "b0" }, { col: "book", id: "b1" }),
+  null,
+  "同列不成立（张数必须不变）",
+);
+assert.equal(
+  tongboSwapAction({ col: "book", id: "b0" }, { col: "hand", id: "" }),
+  null,
+  "落空不成立",
+);
+const tbCols = tongboColumns({
+  books: ["b0", "b1"],
+  hand: ["h0"],
+  labels: { b0: "【桃】", b1: "【杀】", h0: "【闪】" },
+});
+assert.deepEqual(tbCols.books, ["b0", "b1"]);
+assert.deepEqual(tbCols.hand, ["h0"]);
+const tbHtml = renderTongboOverlay(tbCols);
+assert.ok(tbHtml.includes('data-zone="tongbo"'), "两列容器");
+assert.ok(tbHtml.includes('data-tb-col="book" data-tb-card="b0"'), "左列=书");
+assert.ok(tbHtml.includes('data-tb-col="hand" data-tb-card="h0"'), "右列=手牌");
+assert.ok(tbHtml.includes('data-action="pass"'), "确认按钮");
+assert.ok(!tbHtml.includes("data-action=\"cancel\""), "不可取消（仅确认）");
+// 落点解析：只有带列与牌 id 的元素才算有效目标。
+assert.deepEqual(
+  tongboDropTarget({ getAttribute: (n: string) => (n === "data-tb-col" ? "hand" : n === "data-tb-card" ? "h0" : null) }),
+  { col: "hand", id: "h0" },
+);
+assert.equal(tongboDropTarget({ getAttribute: () => null }), null);
+console.log("[sgs-web] 通博两列交换单测通过 ✅");

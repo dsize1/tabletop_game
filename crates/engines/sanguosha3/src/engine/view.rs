@@ -191,9 +191,26 @@ fn general_gid(code: &str) -> Option<u32> {
     generals::def(code).map(|g| g.gid)
 }
 
-/// 技能列表（V3 技能按批次接入；未接入 = 空数组，Web 显示「无」）。
-fn skills_view(_g: &Game, _seat: usize) -> Value {
-    json!([])
+/// 技能列表：自带 ∪ 授予（显示名含升级技，如「复难plus」）。
+fn skills_view(g: &Game, seat: usize) -> Value {
+    let Some(s) = g.seats.get(seat) else {
+        return json!([]);
+    };
+    let mut codes: Vec<&str> = s.skills.iter().map(|c| c.as_str()).collect();
+    codes.extend(s.granted.iter().map(|c| c.as_str()));
+    let mut out: Vec<Value> = codes
+        .into_iter()
+        .filter(|c| crate::kernel::skills::def(c).is_some())
+        .map(|c| {
+            json!({
+                "code": c,
+                "name": crate::kernel::skills::display_name(g, seat, c),
+            })
+        })
+        .collect();
+    out.sort_by_key(|v| v.get("code").and_then(|c| c.as_str()).unwrap_or("").to_string());
+    out.dedup();
+    json!(out)
 }
 
 fn public_general(g: &Game, setup: Option<&Setup>, seat: usize) -> Option<String> {

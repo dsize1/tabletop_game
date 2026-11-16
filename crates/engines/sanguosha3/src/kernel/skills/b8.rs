@@ -1531,6 +1531,14 @@ pub fn pindian_rank(g: &Game, seat: usize, card: &str) -> u8 {
     }
 }
 
+/// 复难plus：诫训升级后技能显示名改为「复难plus」（界面名与描述同步）。
+pub fn display_name(g: &Game, seat: usize, code: &str) -> Option<&'static str> {
+    if code == "funan" && g.counter(&format!("funan.plus.{seat}")) > 0 {
+        return Some("复难plus");
+    }
+    None
+}
+
 // ---------------------------------------------------------------------------
 // 薛综 · 复难 / 诫训
 // ---------------------------------------------------------------------------
@@ -1717,105 +1725,157 @@ fn tongbo(g: &mut Game, ask: &Ask) -> Result<Step, String> {
     }
     let step = ask.data.get("step").and_then(|v| v.as_str()).unwrap_or("ask");
     match step {
+        // ① 摸牌阶段结束时询问是否发动。
         "ask" => {
-            if books(g, actor).is_empty() || own_cards(g, actor).is_empty() {
+            if books(g, actor).is_empty() || g.hand(actor).is_empty() {
                 return Ok(Step::Done);
             }
             match take_answer(g, "tongbo") {
                 None => {
                     let mut b = PendingBuilder::new(actor, "choose").skill("tongbo");
-                    b = b.option("use", "通博：用牌替换「书」");
+                    b = b.option("use", "通博：与手牌交换任意张「书」");
                     Ok(Step::Need(b.escape("不发动").data(json!({ "step": "ask" })).build()))
                 }
                 Some(a) if a == "pass" => Ok(Step::Done),
-                Some(a) if a == "use" => Ok(Step::Next(Stage::PickOwn, json!({ "step": "mine" }))),
+                Some(a) if a == "use" => Ok(Step::Next(Stage::Choose, json!({ "step": "swap" }))),
                 Some(o) => Err(format!("通博：未知选项 {o}")),
             }
         }
-        "mine" => {
-            let cands = own_cards(g, actor);
-            if cands.is_empty() || books(g, actor).is_empty() {
-                return Ok(tongbo_finish(g, actor));
-            }
-            match take_answer(g, "tongbo") {
-                None => {
-                    let mut b = PendingBuilder::new(actor, "pick_own").skill("tongbo");
-                    for id in &cands {
-                        b = b.option(format!("card:{id}"), format!("用【{}】替换一张「书」", card_label(g, id)));
-                    }
-                    Ok(Step::Need(
-                        b.escape("结束替换")
-                            .data(json!({ "step": "mine" }))
-                            .build(),
-                    ))
-                }
-                Some(a) if a == "pass" => Ok(tongbo_finish(g, actor)),
-                Some(a) if a.starts_with("card:") => {
-                    let id = a[5..].to_string();
-                    if !cands.iter().any(|c| *c == id) {
-                        return Err("通博：只能用自己的牌替换".into());
-                    }
-                    Ok(Step::Next(
-                        Stage::PickOther,
-                        json!({ "step": "book", "mine": id }),
-                    ))
-                }
-                Some(o) => Err(format!("通博：未知选项 {o}")),
-            }
-        }
-        "book" => {
-            let mine = common::card_of(ask, "mine").ok_or("通博：缺己方牌")?;
+        // ② 第一段：左右两列「书 / 手牌」交换（每次一对，可反复；「确认交换」进入下一段）。
+        "swap" => {
             let bs = books(g, actor);
-            if bs.is_empty() {
-                return Ok(tongbo_finish(g, actor));
+            let hand = g.hand(actor);
+            if bs.is_empty() || hand.is_empty() {
+                return Ok(tongbo_after_swap(g, actor));
             }
             match take_answer(g, "tongbo") {
                 None => {
-                    let mut b = PendingBuilder::new(actor, "pick_other").skill("tongbo");
-                    for id in &bs {
-                        b = b.option(format!("card:{id}"), format!("替换「书」【{}】", card_label(g, id)));
+                    // 两列槽位（供端侧渲染）：左列=书、右列=手牌；`swap:<book>:<hand>` 即一次左右交换。
+                    let mut b = PendingBuilder::new(actor, "tongbo_swap").skill("tongbo");
+                    for book in &bs {
+                        for h in &hand {
+                            b = b.option(
+                                format!("swap:{book}:{h}"),
+                                format!(
+                                    "交换「书」【{}】与手牌【{}】",
+                                    card_label(g, book),
+                                    card_label(g, h)
+                                ),
+                            );
+                        }
                     }
-                    Ok(Step::Need(
-                        b.escape_mandatory("（必选一张）")
-                            .data(json!({ "step": "book", "mine": mine }))
-                            .build(),
+                    // `books/hand` 给 handler 读；`labels` 给端侧渲染两列牌面（左书/右手牌）。
+                    let mut labels = serde_json::Map::new();
+                    for id in bs.iter().chain(hand.iter()) {
+                        labels.insert(id.clone(), json!(card_label(g, id)));
+                    }
+                    let data = json!({
+                        "step": "swap",
+                        "books": bs,
+                        "hand": hand,
+                        "labels": serde_json::Value::Object(labels),
+                    });
+                    Ok(Step::NeedWith(
+                        Stage::Choose,
+                        data.clone(),
+                        b.escape("确认交换").data(data).build(),
                     ))
                 }
-                Some(a) if a.starts_with("card:") => {
-                    let book = a[5..].to_string();
-                    if !bs.iter().any(|c| *c == book) {
-                        return Err("通博：只能替换「书」".into());
+                Some(a) if a == "pass" => Ok(tongbo_after_swap(g, actor)),
+                Some(a) if a.starts_with("swap:") => {
+                    let rest = &a[5..];
+                    let mut it = rest.splitn(2, ':');
+                    let book = it.next().unwrap_or_default().to_string();
+                    let hand_card = it.next().unwrap_or_default().to_string();
+                    if !bs.iter().any(|c| *c == book) || !hand.iter().any(|c| *c == hand_card) {
+                        return Err("通博：只能交换「书」与手牌（装备区不参与）".into());
                     }
-                    let was_equip = matches!(g.cards.get(&mine), Some(Zone::Equip(..)));
-                    // 书 → 手牌（获得语义）
-                    flow::gain(g, actor, &book, actor, "通博");
-                    // 己方牌 → 书（移出游戏：离开原区域）
-                    let mut lost = super::super::event::Event::card(
-                        EventKind::CardLost,
-                        Some(actor),
-                        mine.clone(),
-                        Some("通博".to_string()),
-                    );
-                    lost.by = Some(actor);
-                    lost.from = Some(actor);
-                    let e = lost.snapshot(g);
-                    g.push_event(e);
-                    if was_equip {
-                        flow::leave_equip(g, actor, &mine, "通博");
-                    }
-                    g.cards.insert(mine.clone(), Zone::Mark(actor, BOOK.to_string()));
-                    g.reveal(&[mine.clone()], "通博");
-                    Ok(Step::Next(Stage::PickOwn, json!({ "step": "mine" })))
+                    tongbo_swap_one(g, actor, &book, &hand_card);
+                    Ok(Step::Next(Stage::Choose, json!({ "step": "swap" })))
                 }
                 Some(o) => Err(format!("通博：未知选项 {o}")),
             }
         }
-        "give" => _tongbo_give(g, ask),
+        // ③ 第二段：四花色齐 → **必须**交给一名其他角色（不能放弃）；否则结束。
+        "give" => {
+            let bs = if common::cards_of(ask, "books").is_empty() {
+                books(g, actor)
+            } else {
+                common::cards_of(ask, "books")
+            };
+            let cands = common::alive_others(g, actor);
+            match take_answer(g, "tongbo") {
+                None => {
+                    if cands.is_empty() || bs.is_empty() {
+                        return Ok(Step::Done);
+                    }
+                    let mut b = PendingBuilder::new(actor, "target").skill("tongbo");
+                    for s in &cands {
+                        b = b.option(
+                            format!("t:{s}"),
+                            format!("将所有「书」交给{}", common::seat_name(g, *s)),
+                        );
+                    }
+                    let data = json!({ "step": "give", "books": bs });
+                    Ok(Step::NeedWith(
+                        Stage::Target,
+                        data.clone(),
+                        b.escape_mandatory("（必须交给一名其他角色）").data(data).build(),
+                    ))
+                }
+                Some(a) if a.starts_with("t:") => {
+                    let t: usize = a[2..].parse().map_err(|_| "通博：目标不合法")?;
+                    if !cands.contains(&t) {
+                        return Err("通博：目标不合法".into());
+                    }
+                    for id in &bs {
+                        if matches!(g.cards.get(id), Some(Zone::Mark(s, _)) if *s == actor) {
+                            flow::gain(g, t, id, actor, "通博");
+                        }
+                    }
+                    Ok(Step::Finish(format!(
+                        "通博：所有「书」交给{}",
+                        common::seat_name(g, t)
+                    )))
+                }
+                Some(o) => Err(format!("通博：未知选项 {o}")),
+            }
+        }
         other => Err(format!("通博：未知阶段 {other}")),
     }
 }
 
-fn tongbo_finish(g: &mut Game, actor: usize) -> Step {
+/// 交换一对：「书」→ 手牌（获得语义）、手牌 → 「书」（移出游戏，公共可见）。
+fn tongbo_swap_one(g: &mut Game, actor: usize, book: &str, hand: &str) {
+    // 书 → 手牌
+    g.cards.insert(book.to_string(), Zone::Hand(actor));
+    let mut into = super::super::event::Event::card(
+        EventKind::CardIntoGame,
+        Some(actor),
+        book.to_string(),
+        Some("通博".to_string()),
+    );
+    into.by = Some(actor);
+    let e = into.snapshot(g);
+    g.push_event(e);
+    g.conceal(&[book.to_string()], "通博");
+    // 手牌 → 书
+    let mut lost = super::super::event::Event::card(
+        EventKind::CardLost,
+        Some(actor),
+        hand.to_string(),
+        Some("通博".to_string()),
+    );
+    lost.by = Some(actor);
+    lost.from = Some(actor);
+    let e = lost.snapshot(g);
+    g.push_event(e);
+    g.cards.insert(hand.to_string(), Zone::Mark(actor, BOOK.to_string()));
+    g.reveal(&[hand.to_string()], "通博");
+}
+
+/// 第二段判定：四花色齐 → 必须交出；否则结束。
+fn tongbo_after_swap(g: &mut Game, actor: usize) -> Step {
     let bs = books(g, actor);
     let suits: std::collections::BTreeSet<String> = bs
         .iter()
@@ -1826,34 +1886,20 @@ fn tongbo_finish(g: &mut Game, actor: usize) -> Step {
     }
     let cands = common::alive_others(g, actor);
     if cands.is_empty() {
-        return Step::Finish("通博：无其他角色".into());
+        return Step::Finish("通博：无其他角色，无法交出".into());
     }
     let mut b = PendingBuilder::new(actor, "target").skill("tongbo");
     for s in &cands {
-        b = b.option(format!("t:{s}"), format!("将所有「书」交给{}", common::seat_name(g, *s)));
+        b = b.option(
+            format!("t:{s}"),
+            format!("将所有「书」交给{}", common::seat_name(g, *s)),
+        );
     }
     let data = json!({ "step": "give", "books": bs });
     Step::NeedWith(
         Stage::Target,
         data.clone(),
-        b.escape("不交出").data(data).build(),
+        b.escape_mandatory("（必须交给一名其他角色）").data(data).build(),
     )
 }
 
-// `tongbo` 的 give 阶段（放在同一 handler 末尾以免再拆文件）。
-fn _tongbo_give(g: &mut Game, ask: &Ask) -> Result<Step, String> {
-    let actor = ask.actor;
-    let bs = common::cards_of(ask, "books");
-    match take_answer(g, "tongbo") {
-        None => Ok(Step::Done),
-        Some(a) if a == "pass" => Ok(Step::Finish("通博：不交出".into())),
-        Some(a) if a.starts_with("t:") => {
-            let t: usize = a[2..].parse().map_err(|_| "通博：目标不合法")?;
-            for id in bs {
-                flow::gain(g, t, &id, actor, "通博");
-            }
-            Ok(Step::Finish("通博：所有「书」交给其".into()))
-        }
-        Some(o) => Err(format!("通博：未知选项 {o}")),
-    }
-}

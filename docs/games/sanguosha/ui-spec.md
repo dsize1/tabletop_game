@@ -301,3 +301,40 @@
 - 公共区仍只显示进度（`public_board.setup`），**不泄漏**他人候选。
 - **主公武将公示**：主公选将完成即对外公开（`public_board.seats[lord].general/general_name` 非空），
   公共区回合行显示「选将中 x/y · 主公 <武将>」；其他人的武将要等选将全部完成才亮明。
+
+## 10. 通博（`tongbo`）交互规格（2026-11-16 用户裁定）
+
+> 关联：V3 引擎 `kernel/skills/b8.rs::tongbo`；端侧 `apps/web/src/view/sgs/tongbo.ts` + `client/sgs.ts::initTongboDrag`。
+
+### 10.1 时机与段数
+
+1. **自己回合摸牌阶段结束时**询问是否发动（`PhaseEnd(Draw)` → 询问 `use/pass`）；
+2. 发动后**两段**交互：
+   - 第一段：左右两列槽位 + **确认按钮**；左列=当前所有「书」，右列=当前手牌；
+   - 第二段：确认后判断「书」花色是否含**四种花色**：满足 → 必须将所有「书」交给**任意一名其他角色**（不可放弃）；不满足 → 结束。
+
+### 10.2 第一段（两列交换）
+
+- 布局：与观星同源的 2 列浮层（复用 `.sgs-gx*` 槽位样式），左列表头「书（武将牌上）」、右列表头「手牌」；
+- 手势：**长按 ~380ms 激活拖拽**（与观星一致），拖到**另一列的一张牌**上松手 = 一次交换；落到空处/同列 = 回原位；
+- 降级（触屏/无指针）：第一次点击一张牌 = 选中；再点另一列的一张牌 = 一次交换；
+- 每次交换都是一对左右交换，因此**「书」数与手牌数恒不变**（不提供「移到空槽」，避免破坏等量）；
+- **装备区不参与**：右列只显示手牌，引擎侧候选也只含手牌；
+- 可反复交换；点「确认交换」提交出口 `pass`（**确认语义，不是取消**），进入第二段。
+
+### 10.3 引擎协议（pending）
+
+| 阶段 | kind | 关键 data | 交互 id |
+|---|---|---|---|
+| 询问发动 | `choose`（skill=tongbo） | `{step:"ask"}` | `use` / `pass`（不发动） |
+| 第一段 | `tongbo_swap` | `{step:"swap", books:[id], hand:[id], labels:{id:名}}` | `swap:<bookId>:<handId>`；出口 `pass`=确认 |
+| 第二段 | `target`（skill=tongbo） | `{step:"give", books:[id]}` | `t:<seat>`（**强制选择**，出口为占位） |
+
+- `tongbo_swap` 视为**阻断型 pending**（不可误关）；
+- 交换落盘：书→手牌（`CardIntoGame`，取消展示），手牌→书（`CardLost` + 公共展示）；
+- 第二段交出后「书」按「获得」语义进入目标手牌。
+
+### 10.4 验收
+
+- 引擎：`tests/b8.rs::tongbo_swaps_with_hand_and_gives_books_away_with_four_suits` / `tongbo_ends_without_give_when_not_four_suits` / `tongbo_swap_is_hand_only`；
+- 端侧：`apps/web/test-sgs.mts`「通博两列交换单测」（跨列成立、同列/落空不成立、两列渲染、确认按钮、落点解析）。

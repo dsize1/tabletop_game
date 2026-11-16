@@ -30,6 +30,13 @@ import {
   setOverlayClosedHandler,
 } from "./sgs-overlay.js";
 import {
+  TB_KIND,
+  tongboColumns,
+  tongboDropTarget,
+  tongboSwapAction,
+  renderTongboOverlay,
+} from "../view/sgs/tongbo.js";
+import {
   GX_ROWS,
   applyDrop,
   applyMoveWithinColumn,
@@ -101,6 +108,9 @@ let gxInitial: GxSlots | null = null;
 /** 当前观星草稿对应的特殊区指纹（新一次观星/重置时必须重建草稿）。 */
 let gxSig = "";
 let gxSuppressClickUntil = 0;
+/** 通博：点击式配对（拖拽为主，点击作为降级/触屏备选）。 */
+let tbPick: { col: "book" | "hand"; id: string } | null = null;
+let tbSuppressClickUntil = 0;
 /** 整页刷新/重新进入时恢复的滚动位置（页面 + 历史列表）。 */
 let restoreScroll: { page: number; hist: number } | null = null;
 let scrollKey = "";
@@ -509,10 +519,17 @@ function syncPendingOverlay(): void {
       });
       break;
     }
+    // 通博：两列「书 / 手牌」交换（数据由引擎 pending.data 提供）。
+    case TB_KIND:
+      body = renderTongboOverlay(tongboColumns(p.data));
+      break;
   }
   openOverlay(pendingTitle(p.kind), body, {
     blocking,
-    size: kind === "choose_many" || kind === "pick_card" || kind === "arrange" ? "wide" : "normal",
+    size:
+      kind === "choose_many" || kind === "pick_card" || kind === "arrange" || kind === TB_KIND
+        ? "wide"
+        : "normal",
   });
 }
 
@@ -606,6 +623,83 @@ function initGuanxingDrag(): void {
       gxSlots = applyDrop(gxSlots, current.slot, to);
       redrawGuanxingOverlay();
     }
+  };
+  root.addEventListener("pointerup", finish);
+  root.addEventListener("pointercancel", finish);
+}
+
+/**
+ * 通博拖拽：长按激活后拖到另一列的牌上 = 一次左右交换（`swap:<book>:<hand>`）。
+ * 规则：跨列 + 两端都有牌才成立（左右交换张数不变）；落空/同列回原位。
+ */
+function initTongboDrag(): void {
+  const root = document.getElementById("sgs-overlay");
+  if (!root) return;
+  let drag: {
+    col: "book" | "hand";
+    id: string;
+    el: HTMLElement;
+    x: number;
+    y: number;
+    active: boolean;
+    pointerId: number;
+    timer: number;
+  } | null = null;
+  const clearTimer = (): void => {
+    if (drag) window.clearTimeout(drag.timer);
+  };
+  root.addEventListener("pointerdown", (ev) => {
+    const target = ev.target as HTMLElement | null;
+    if (!target?.closest(`[data-zone="tongbo"]`)) return;
+    const cell = target.closest<HTMLElement>("[data-tb-card]");
+    const col = cell?.dataset.tbCol as "book" | "hand" | undefined;
+    const id = cell?.dataset.tbCard;
+    if (!cell || !col || !id) return;
+    const current = {
+      col,
+      id,
+      el: cell,
+      x: ev.clientX,
+      y: ev.clientY,
+      active: false,
+      pointerId: ev.pointerId,
+      timer: 0,
+    };
+    drag = current;
+    current.timer = window.setTimeout(() => {
+      if (!drag || drag !== current) return;
+      current.active = true;
+      current.el.classList.add("dragging");
+      try {
+        current.el.setPointerCapture(ev.pointerId);
+      } catch {
+        /* 合成指针可能不支持捕获 */
+      }
+    }, 380);
+  });
+  root.addEventListener("pointermove", (ev) => {
+    if (!drag || ev.pointerId !== drag.pointerId) return;
+    if (!drag.active) {
+      if (Math.hypot(ev.clientX - drag.x, ev.clientY - drag.y) > 8) clearTimer();
+      return;
+    }
+    ev.preventDefault();
+    drag.el.style.transform = `translate(${ev.clientX - drag.x}px, ${ev.clientY - drag.y}px)`;
+  });
+  const finish = (ev: PointerEvent): void => {
+    if (!drag || ev.pointerId !== drag.pointerId) return;
+    const current = drag;
+    drag = null;
+    clearTimer();
+    current.el.classList.remove("dragging");
+    current.el.style.transform = "";
+    if (!current.active) return;
+    tbSuppressClickUntil = performance.now() + 300;
+    const el = document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null;
+    const to = tongboDropTarget(el?.closest("[data-tb-card]") as HTMLElement | null);
+    if (!to) return;
+    const action = tongboSwapAction({ col: current.col, id: current.id }, to);
+    if (action) void submitAction(action);
   };
   root.addEventListener("pointerup", finish);
   root.addEventListener("pointercancel", finish);
@@ -818,6 +912,24 @@ function onClick(ev: MouseEvent): void {
     }
     redrawGuanxingOverlay();
     return;
+  }
+  // 通博：点击两张跨列牌 = 一次交换（拖拽不可用时的降级路径）。
+  const tbEl = target?.closest?.("[data-tb-card]") as HTMLElement | null;
+  if (tbEl) {
+    if (performance.now() < tbSuppressClickUntil) return;
+    const col = tbEl.dataset.tbCol as "book" | "hand" | undefined;
+    const id = tbEl.dataset.tbCard;
+    if (col && id) {
+      if (!tbPick) {
+        tbPick = { col, id };
+        return;
+      }
+      const from = tbPick;
+      tbPick = null;
+      const action = tongboSwapAction(from, { col, id });
+      if (action) void submitAction(action);
+      return;
+    }
   }
   const actionEl = target?.closest?.("[data-action]") as HTMLElement | null;
   const action = actionEl?.dataset.action;
@@ -1058,6 +1170,7 @@ function start(): void {
   // 点击/拖拽委托只绑一次（容器元素不变，innerHTML 重渲染不影响）
   q<HTMLElement>("#sgs-app")?.addEventListener("click", onClick);
   initGuanxingDrag();
+  initTongboDrag();
   q<HTMLElement>("#sgs-overlay")?.addEventListener("click", onClick);
 
   const basePollMs = bootstrap.pollMs ?? DEFAULT_POLL_MS;
