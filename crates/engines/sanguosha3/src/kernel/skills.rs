@@ -25,6 +25,7 @@ pub mod b6;
 pub mod b7;
 pub mod b8;
 pub mod b9;
+pub mod b10;
 pub mod common;
 
 /// 技能类型。
@@ -133,6 +134,7 @@ pub fn all() -> Vec<&'static SkillDef> {
         .chain(b7::SKILLS.iter())
         .chain(b8::SKILLS.iter())
         .chain(b9::SKILLS.iter())
+        .chain(b10::SKILLS.iter())
         .collect()
 }
 
@@ -173,6 +175,9 @@ pub const ENABLED_SKILLS: &[&str] = &[
     // B9 批次（界标·蜀：7 将 / 14 技能，2026-11-16 收口）
     "rende", "jijiang", "yijue", "wusheng", "tishen", "paoxiao", "yajiao", "longdan",
     "mashu", "tieqi", "kongcheng", "guanxing", "qicai",
+    // B10 批次（界标·吴：8 将 / 17 技能，2026-11-16 收口）
+    "qixi", "fenwei", "keji", "qinxue", "botu", "kurou", "zhaxiang", "yingzi", "fanjian",
+    "liuli", "guose", "qianxun", "lianying", "zhiheng", "jiuyuan", "xiaoji", "jieyin",
 ];
 
 /// 手牌变动类型（奋激口径）。
@@ -243,6 +248,9 @@ pub fn fire_hook(g: &mut Game, seat: usize, hook: Hook) {
 pub fn hand_limit_override(g: &Game, seat: usize) -> Option<usize> {
     // 赋值型（急攻：本回合上限 = 造成的伤害值）。
     if let Some(n) = b6::hand_limit_override(g, seat) {
+        return Some(n);
+    }
+    if let Some(n) = b10::hand_limit_override(g, seat) {
         return Some(n);
     }
     if active(g, seat, "buqu") && enabled("buqu") {
@@ -392,6 +400,7 @@ pub fn handler(code: &str) -> Option<fn(&mut Game, &Ask) -> Result<Step, String>
         .or_else(|| b7::handler(code))
         .or_else(|| b8::handler(code))
         .or_else(|| b9::handler(code))
+        .or_else(|| b10::handler(code))
 }
 
 /// 主动技的**可用性判定**（声明之外的前置：手牌/目标/每阶段次数等）。
@@ -407,6 +416,7 @@ pub fn availability(code: &str) -> Option<fn(&Game, usize) -> bool> {
         .or_else(|| b7::availability(code))
         .or_else(|| b8::availability(code))
         .or_else(|| b9::availability(code))
+        .or_else(|| b10::availability(code))
 }
 
 /// **主动入口合法集**（唯一来源）：自带技能 ∩ 当前面 can_active ∩ 窗口允许 ∩ 可用性判定
@@ -717,7 +727,10 @@ pub fn fire_game_start(g: &mut Game) {
 
 /// 摸牌阶段摸牌数加成（庸肆 +X / 怀橘 +1…）。`flow::draw_phase` 唯一调用点。
 pub fn draw_bonus(g: &mut Game, seat: usize) -> usize {
-    b1::draw_bonus(g, seat) + b7::draw_bonus(g, seat) + b8::draw_bonus(g, seat)
+    b1::draw_bonus(g, seat)
+        + b7::draw_bonus(g, seat)
+        + b8::draw_bonus(g, seat)
+        + b10::draw_bonus(g, seat)
 }
 
 /// 摸牌方向：true = 从牌堆底摸（寸目）。`flow::draw` 唯一调用点。
@@ -801,7 +814,10 @@ pub fn card_ineffective(g: &Game, user: usize, target: usize) -> bool {
 
 /// 【杀】次数加成（`ShaLimit` 之外：咆哮/成略等 +N）。`card_play::sha_limit` 唯一调用点。
 pub fn sha_extra(g: &Game, seat: usize) -> i32 {
-    b1::sha_extra(g, seat) + b2::sha_extra(g, seat) + b5::sha_extra(g, seat)
+    b1::sha_extra(g, seat)
+        + b2::sha_extra(g, seat)
+        + b5::sha_extra(g, seat)
+        + b10::sha_extra(g, seat)
 }
 
 /// 不能成为目标（掣政②/空城/帷幕…）。`card_play::legal_targets` 唯一调用点。
@@ -1010,6 +1026,47 @@ pub fn on_turn_start(g: &mut Game, seat: usize) {
 pub fn on_use_start(g: &mut Game, actor: usize, card: &str) {
     b8::on_use_start(g, actor, card);
     b9::on_use_start(g, actor, card);
+    b10::on_use_start(g, actor, card);
+}
+
+/// 克己：本回合出牌阶段未使用【杀】→ 跳过弃牌阶段（`turn::step_turn` 唯一调用点）。
+pub fn skip_discard(g: &Game, seat: usize) -> bool {
+    b10::skip_discard(g, seat)
+}
+
+/// 诈降：红色【杀】不能被**真实打出**的【闪】抵消（八卦/技能视为闪仍可）。
+pub fn no_real_shan(g: &Game, user: usize, card: &str) -> bool {
+    b10::no_real_shan(g, user, card)
+}
+
+/// 失去全部手牌后的技能窗口（连营）：`x` = 本次失去的手牌数（部分场景按 1 计，见 docs）。
+pub fn on_hand_empty(g: &mut Game, seat: usize, x: usize) {
+    b10::on_hand_empty(g, seat, x);
+}
+
+/// 装备区失去牌（枭姬）：`flow::leave_equip` 唯一调用点。
+pub fn on_equip_lost(g: &mut Game, owner: usize, id: &str) {
+    b10::on_equip_lost(g, owner, id);
+}
+
+/// 回合结束前的技能窗口（博图额外回合 / 谦逊归还手牌）。
+pub fn on_turn_end(g: &mut Game, seat: usize) {
+    b10::on_turn_end(g, seat);
+}
+
+/// 多目标牌结算前（奋威）：返回是否压入询问帧。
+pub fn fire_multi_target(g: &mut Game, user: usize, targets: &[usize], card: &str) -> bool {
+    b10::fire_multi_target(g, user, targets, card)
+}
+
+/// 取走「此牌对哪些目标无效」结果（奋威；读完清空）。
+pub fn take_multi_invalid(g: &mut Game, card: &str) -> Option<Vec<usize>> {
+    b10::take_multi_invalid(g, card)
+}
+
+/// 回复体力前的目标重定向（救援）：`Some(new_target)` = 改为给该角色回复。
+pub fn heal_redirect(g: &mut Game, target: usize) -> Option<usize> {
+    b10::heal_redirect(g, target)
 }
 
 /// 【杀】造成伤害时的技能加成（义绝红桃杀 / 咆哮抵消后下一杀）。
@@ -1111,7 +1168,9 @@ pub enum CardAs {
 
 /// 出牌阶段「将某张手牌当另一张牌使用」的替代定义（矢志/武圣/奇袭/国色…）。
 pub fn use_alias(g: &Game, seat: usize, id: &str) -> Option<&'static str> {
-    b6::use_alias(g, seat, id).or_else(|| b9::use_alias(g, seat, id))
+    b6::use_alias(g, seat, id)
+        .or_else(|| b9::use_alias(g, seat, id))
+        .or_else(|| b10::use_alias(g, seat, id))
 }
 
 /// 响应语义下的生效定义：先问替代型技能（矢志/武圣/龙胆），再看牌自身标签。

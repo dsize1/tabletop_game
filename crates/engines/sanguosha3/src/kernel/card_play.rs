@@ -439,6 +439,9 @@ fn use_start(g: &mut Game, actor: usize, card: &str) -> Result<(), String> {
     g.bump(&format!("turn.{actor}.cards_used"));
     if def.tags.sha {
         g.bump(&format!("phase.sha_used.{actor}"));
+        if g.phase == crate::kernel::Phase::Play {
+            g.bump(&format!("turn.{actor}.sha_played"));
+        }
     }
     if def.tags.jiu {
         g.bump(&format!("phase.jiu_used.{actor}"));
@@ -456,6 +459,9 @@ fn use_start(g: &mut Game, actor: usize, card: &str) -> Result<(), String> {
     // 使用前技能窗口（往烈：首张无距离 / 不能响应 + 手牌冻结）：压帧到牌结算帧之上。
     super::skills::on_use_start(g, actor, card);
     super::skills::fire_use_pre(g, actor, card);
+    if g.hand(actor).is_empty() {
+        super::skills::on_hand_empty(g, actor, 1);
+    }
     Ok(())
 }
 
@@ -621,6 +627,26 @@ fn step_target(g: &mut Game, actor: usize, mut d: Map<String, Value>) -> Result<
         if let Some(new_targets) = super::skills::take_sha_targets(g, &card) {
             let vals: Vec<Value> = new_targets.iter().map(|t| json!(t)).collect();
             d.insert("targets".into(), json!(vals));
+        }
+        // 多目标牌（任意类型）：奋威窗口（目标确认后、无懈之前）。
+        if !flag(&d, "multi_hooks_done") {
+            let seats: Vec<usize> = d
+                .get("targets")
+                .and_then(|v| v.as_array())
+                .map(|a| a.iter().filter_map(|v| v.as_u64().map(|n| n as usize)).collect())
+                .unwrap_or_default();
+            d.insert("multi_hooks_done".into(), json!(true));
+            if seats.len() > 1 && super::skills::fire_multi_target(g, actor, &seats, &card) {
+                return Ok(next(Stage::CardTarget, d.clone()));
+            }
+            if let Some(invalid) = super::skills::take_multi_invalid(g, &card) {
+                let kept: Vec<Value> = seats
+                    .iter()
+                    .filter(|t| !invalid.contains(t))
+                    .map(|t| json!(t))
+                    .collect();
+                d.insert("targets".into(), json!(kept));
+            }
         }
         let list = d.get("targets").and_then(|v| v.as_array()).cloned().unwrap_or_default();
         emit_targets(g, actor, &card, &list);
@@ -1154,13 +1180,19 @@ fn step_sha(
             } else {
                 super::skills::shan_alternatives(g, target)
             };
-            if shan.is_empty() && !bagua && alts.is_empty() {
+            if (shan.is_empty() || super::skills::no_real_shan(g, actor, card))
+                && !bagua
+                && alts.is_empty()
+            {
                 d.insert("esub".into(), json!("harm"));
                 return Ok(next(Stage::CardResolve, d.clone()));
             }
+            let no_real_shan = super::skills::no_real_shan(g, actor, card);
             let mut b = PendingBuilder::new(target, "shan_ask").skill("flow:card");
-            for id in shan {
-                b = b.option(format!("s:{id}"), "打出【闪】");
+            if !no_real_shan {
+                for id in shan {
+                    b = b.option(format!("s:{id}"), "打出【闪】");
+                }
             }
             if bagua {
                 b = b.option("bagua", "发动【八卦阵】判定");
@@ -2070,6 +2102,9 @@ pub(crate) fn played(g: &mut Game, seat: usize, id: &str, cause: &str) -> Result
     ev.from = Some(seat);
     let e = ev.snapshot(g);
     g.push_event(e);
+    if g.hand(seat).is_empty() {
+        super::skills::on_hand_empty(g, seat, 1);
+    }
     Ok(())
 }
 
@@ -2278,15 +2313,18 @@ pub fn use_as(
         return Err("转化牌必须声明承载牌（origin）".into());
     }
     for id in origin {
-        if !matches!(g.cards.get(id), Some(Zone::Hand(s)) if *s == actor) {
-            return Err(format!("承载牌 {id} 不在座位 {actor} 的手牌"));
+        let ok = matches!(g.cards.get(id), Some(Zone::Hand(s)) if *s == actor)
+            || matches!(g.cards.get(id), Some(Zone::Equip(s, _)) if *s == actor);
+        if !ok {
+            return Err(format!("承载牌 {id} 不属于座位 {actor}"));
         }
         if g.is_frozen(actor, id) {
             return Err(format!("承载牌 {id} 已被冻结"));
         }
     }
-    // 承载牌离开手牌（进处理区；结算完成落弃牌堆）：区域仍唯一归属。
+    // 承载牌离开原区域（进处理区；结算完成落弃牌堆）：区域仍唯一归属。
     for id in origin {
+        let was_equip = matches!(g.cards.get(id), Some(Zone::Equip(..)));
         g.cards.insert(id.clone(), Zone::Processing);
         let mut lost = Event::card(
             EventKind::CardLost,
@@ -2298,6 +2336,9 @@ pub fn use_as(
         lost.from = Some(actor);
         let e = lost.snapshot(g);
         g.push_event(e);
+        if was_equip {
+            flow::leave_equip(g, actor, id, "转化使用");
+        }
     }
     push_virtual_use(g, actor, def_code, origin.to_vec(), targets, fire)
 }

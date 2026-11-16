@@ -261,6 +261,8 @@ fn try_buqu(g: &mut Game, seat: usize) -> bool {
 
 /// 回复体力（唯一出口）：钳到 `max_hp`，满血不回（但不报错）。
 pub fn heal(g: &mut Game, target: usize, amount: i32, cause: &str) -> Vec<Event> {
+    // 救援：吴势力角色回合内回复时，可改为令主公回复（这里按**同步重定向**实现）。
+    let target = super::skills::heal_redirect(g, target).unwrap_or(target);
     let seat = match g.seats.get_mut(target) {
         Some(s) => s,
         None => return vec![],
@@ -422,6 +424,8 @@ pub fn draw_phase(g: &mut Game, seat: usize) -> Vec<CardId> {
 
 /// 牌离开装备区（P5）：白银狮子 → 原持有者回 1 体力（离开装备区的唯一钩子）。
 pub fn leave_equip(g: &mut Game, owner: usize, id: &str, cause: &str) -> Vec<Event> {
+    // 枭姬：失去装备区的牌（唯一钩子；含弃置/替换/交出/转化使用）。
+    super::skills::on_equip_lost(g, owner, id);
     let is_baiyin = g
         .card_defs
         .get(id)
@@ -469,6 +473,21 @@ pub fn discard(g: &mut Game, by: usize, id: &str, cause: &str) -> Option<Event> 
     g.push_event(ev.clone());
     if matches!(zone, super::Zone::Hand(_)) {
         super::skills::on_hand_changed(g, owner, super::skills::HandChange::Discarded);
+        if g.hand(owner).is_empty() {
+            super::skills::on_hand_empty(g, owner, 1);
+        }
+    }
+    // 本回合置入弃牌堆的牌花色（博图：四花色齐 → 额外回合）。
+    if let Some(suit) = g.card_defs.get(id).map(|c| format!("{:?}", c.suit)) {
+        let key = format!("turn.{}.discard_suits", g.turn);
+        let mut suits: Vec<String> = g
+            .mark(&key)
+            .map(|s| s.split(',').filter(|x| !x.is_empty()).map(|x| x.to_string()).collect())
+            .unwrap_or_default();
+        if !suits.contains(&suit) {
+            suits.push(suit);
+            g.set_mark(&key, suits.join(","));
+        }
     }
     Some(ev)
 }

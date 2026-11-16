@@ -144,10 +144,11 @@
 | **B7 收口（7 将 / 12 技能）** | ✅ 2026-11-16 | `skills/b7.rs` + `tests/b7.rs`(20)；死亡钩子（宗祚）/链祸传导加伤/腹鳞获得记账/督粮摸牌加成/贿生伤害前替代/滔乱转化；注册表 101 |
 | **B8 收口（8 将 / 17 技能 + 4 弦技）** | ✅ 2026-11-16 | `skills/b8.rs` + `tests/b8.rs`(22)；`ShaTargeted` 目标窗口（谏征/专对）/天辩拼点钩子/绝响保护/福绵使用前声明/复难事实链；注册表 122 |
 | **B9 收口（界标·蜀 7 将 / 14 技能）** | ✅ 2026-11-16 | `skills/b9.rs` + `tests/b9.rs`(19)；非锁定技失效抑制 / 替代链（武圣/龙胆）/ 激将接力+摸牌 / 奇才防拆 / 观星；`b2::jizhi` 升级界版；注册表 135 |
+| **B10 收口（界标·吴 8 将 / 17 技能 · B5–B10 收官）** | ✅ 2026-11-16 | `skills/b10.rs` + `tests/b10.rs`(18)；多目标无效/跳弃牌/枭姬失去装备/连营失去全部手牌/博图额外回合/诈降红杀/救援重定向/装备承载转化；注册表 152 |
 | **B4 收口（8 将 / 11 技能）** | ✅ 2026-11-15 | `skills/b4.rs` + `tests/b4.rs`(11)；`Flipped`/`chain_enter`/`damage_bonus`/他人侧入口；注册表 64 |
 | **B3 收口（5 将 / 9 技能 + 授予排异）** | ✅ 2026-11-15 | `skills/b3.rs` + `tests/b3.rs`(10)；`Hook::DamageBefore`（制蛮）；权计动态手牌上限；注册表 53 |
 | **B2 收口（8 将 / 15 技能 + 授予 2 + 临时 1）** | ✅ 2026-11-15 | `skills/b2.rs` + `tests/b2.rs`(20)；`Hook::UsePre`/`use_targets`/`revoke` 单出口；破势按原文补齐；`v3-parity-baseline §7.5` |
 | **B1 收口（18 技能）** | ✅ 2026-11-15 | 8 个 handler 重写为真实待办（不再 `cands.first()` 代选）；`tests/b1_real.rs`(7)+`b1_real_more.rs`(9)；`ENABLED_SKILLS` 挂载 18 个 code；`v3-parity-baseline §7.4` |
 | **K 内核机制完备（46 条词表）** | ✅ 2026-11-15 | `v3-kernel-audit.md`（46/46）+ `tests/kernel_mechanics.rs`（25）+ `check:sgs3-kernel` 门禁；补 18 条缺口（pindian / virtual-card / hand-freeze / armor-points / reveal / no-wuxie / target-extra / multi-response / deck-carrier / aoe-target-trim / sha-intercept / judge-reversal / range-override / virtual-equip / equip-move / limit-skill / dying-aftermath / hidden-declaration） |
-| **下一片** | ⬜ | B7–B20（按同一 DoD 推进）；真机抽检 R1–R7 待人工 |
+| **下一片** | ⬜ | B11–B20（按同一 DoD 推进）；真机抽检 R1–R7 待人工 |
 | B2–B20 批量迁移 | ⬜ | — |

@@ -154,6 +154,8 @@ pub fn begin_turn(g: &mut Game, seat: usize) {
 /// 回合结束：发 `TurnEnd` → 计算下一个回合角色（额外回合 / 翻面跳过 / 轮数 +1）。
 /// 返回 `None` = 对局结束（无下一个回合）。
 pub fn end_turn(g: &mut Game) -> Option<usize> {
+    // 回合结束前技能窗口（博图额外回合 / 谦逊归还手牌）。
+    super::skills::on_turn_end(g, g.turn);
     let seat = g.turn;
     // 回合级手牌冻结到期（往烈“本阶段不能再使用牌”按回合结束口径）。
     g.unfreeze_turn();
@@ -256,6 +258,17 @@ pub fn step_turn(g: &mut Game, data: &Value) -> Result<Step, String> {
             return Ok(Step::Next(
                 Stage::PhaseStep,
                 json!({ "seat": seat, "pi": pi + 1, "entered": false }),
+            ));
+        }
+        // 克己：本回合未使用【杀】→ 显式跳过弃牌阶段（仍发 PhaseStart/PhaseEnd 播报）。
+        if phase == Phase::Discard && super::skills::skip_discard(g, seat) {
+            let mut ev = Event::simple(EventKind::PhaseStart, Some(seat), Some("克己跳过弃牌阶段"));
+            ev.turn = g.turn;
+            ev.phase = phase;
+            g.push_event(ev);
+            return Ok(Step::Next(
+                Stage::PhaseStep,
+                json!({ "seat": seat, "pi": pi + 1, "entered": false, "skip_discard": true }),
             ));
         }
         g.phase = phase;
@@ -478,6 +491,17 @@ fn build_play_pending(g: &Game, seat: usize) -> Option<super::pending::Pending> 
             b = b.option(
                 format!("alias:{id}"),
                 format!("将【{}】当【{}】使用", card_name(g, &id), name),
+            );
+            any = true;
+        }
+    }
+    // 转化/替代使用（装备区承载：奇袭/国色可用装备牌）。
+    for id in super::gear::equips_of(g, seat) {
+        if let Some(code) = super::skills::use_alias(g, seat, &id) {
+            let name = cards::def(code).map(|d| d.name).unwrap_or(code);
+            b = b.option(
+                format!("alias:{id}"),
+                format!("将装备【{}】当【{}】使用", card_name(g, &id), name),
             );
             any = true;
         }

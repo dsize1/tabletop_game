@@ -186,8 +186,8 @@ fn skill_mounting_only_enables_aligned_skills() {
     for (i, s) in g.seats.iter_mut().enumerate() {
         s.name = format!("p{i}");
     }
-    // 未收口武将用 B10+ 的界甘宁（305）占位（刘备已在 B9 收口）。
-    let codes = ["sgs_hero_29", "sgs_hero_402", "sgs_hero_100", "sgs_hero_305", "sgs_hero_53"];
+    // 未收口武将用 B11+ 的界曹操（311）占位（刘备/B10 已收口）。
+    let codes = ["sgs_hero_29", "sgs_hero_402", "sgs_hero_100", "sgs_hero_311", "sgs_hero_53"];
     let mut setup = Some(Setup {
         lord: 0,
         offers: BTreeMap::new(),
