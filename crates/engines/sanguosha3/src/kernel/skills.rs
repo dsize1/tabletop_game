@@ -33,6 +33,7 @@ pub mod b14;
 pub mod b15;
 pub mod b16;
 pub mod b17;
+pub mod b18;
 pub mod common;
 
 /// 技能类型。
@@ -151,6 +152,7 @@ pub fn all() -> Vec<&'static SkillDef> {
         .chain(b15::SKILLS.iter())
         .chain(b16::SKILLS.iter())
         .chain(b17::SKILLS.iter())
+        .chain(b18::SKILLS.iter())
         .collect()
 }
 
@@ -219,6 +221,8 @@ pub const ENABLED_SKILLS: &[&str] = &[
     // B17 批次（J5：进行中，见 check:sgs3-registry 的 ⏳ 计数）
     "xuanfeng", "zhichi", "jiangchi", "zongshi_jie", "qiaoshuo", "zongxuan", "zhiyan",
     "jinjiu", "enyuan", "lihuo", "xianzhen", "chunlao", "mingce", "xuanhuo",
+    // B18 批次（J6：进行中，见 check:sgs3-registry 的 ⏳ 计数）
+    "jueqing", "zishou", "luoying", "shangshi",
 ];
 
 /// 手牌变动类型（奋激口径）。
@@ -306,6 +310,7 @@ pub fn hand_limit_override(g: &Game, seat: usize) -> Option<usize> {
 /// 手牌变动钩子（奋激）：满足「回合外 + 手牌离开进弃牌堆 / 手牌增加」时，
 /// 从变动者开始按座位顺序找**第一个**拥有奋激的存活角色并询问。
 pub fn on_hand_changed(g: &mut Game, seat: usize, change: HandChange) {
+    b18::on_hand_changed(g, seat);
     if !enabled("fenji") || !g.started {
         return;
     }
@@ -384,8 +389,7 @@ pub fn wuxie_equip_options(g: &Game, seat: usize) -> Vec<super::CardId> {
 
 /// 伤害转失去体力（K19；绝情）。默认 false；B18 接入。
 pub fn damage_to_hp_loss(g: &Game, source: Option<usize>, victim: usize) -> bool {
-    let _ = (g, source, victim);
-    false
+    b18::damage_to_hp_loss(g, source, victim)
 }
 
 /// AOE 伤害来源替换（K19；祸首）。默认 None；B16 接入。
@@ -411,8 +415,12 @@ pub fn take_extra_draw(g: &mut Game, seat: usize) -> bool {
 
 /// 准备阶段后是否插入额外出牌阶段（K15；当先）。返回 true 时由 `turn::finish_phase` 插队。
 pub fn take_extra_play(g: &mut Game, seat: usize) -> bool {
-    let _ = (g, seat);
-    false
+    b18::take_extra_play(g, seat)
+}
+
+/// 额外出牌阶段结束（当先自伤）：由 `turn::finish_phase` 调用。
+pub fn on_extra_play_end(g: &mut Game, seat: usize) {
+    b18::on_extra_play_end(g, seat);
 }
 
 /// 本动作内失去的牌（K13；旋风/恩怨）。批次由 `Game::begin_action_as` 清空。
@@ -463,6 +471,17 @@ pub fn ignore_armor_for(g: &Game, user: usize, target: usize) -> bool {
     b17::ignore_armor_for(g, user, target)
 }
 
+/// 成为目标后的可选「令此牌无效」窗口（贞烈）：返回是否压入询问。
+pub fn fire_target_ineffective(
+    g: &mut Game,
+    user: usize,
+    targets: &[usize],
+    card: &str,
+) -> bool {
+    let _ = (g, user, targets, card);
+    false
+}
+
 /// 本回合不能使用锦囊（巧说没赢）。
 pub fn trick_use_blocked(g: &Game, seat: usize, card: &str) -> bool {
     b17::trick_use_blocked(g, seat, card)
@@ -511,6 +530,11 @@ pub fn sha_unlimited_card(g: &Game, seat: usize, card: &str) -> bool {
 pub fn shan_blocked_for(g: &Game, user: usize, target: usize, card: &str) -> bool {
     let _ = (g, user, target, card);
     false
+}
+
+/// 第三方濒死钩子（补益/仁心）：返回 (持有者, 技能 code)。
+pub fn dying_helper_seats(g: &Game, dying: usize) -> Vec<(usize, &'static str)> {
+    b18::dying_helper_seats(g, dying)
 }
 
 /// 濒死前钩子（`Hook::Dying`）的持有者（唯一来源：不屈）。
@@ -664,6 +688,7 @@ pub fn handler(code: &str) -> Option<fn(&mut Game, &Ask) -> Result<Step, String>
         .or_else(|| b15::handler(code))
         .or_else(|| b16::handler(code))
         .or_else(|| b17::handler(code))
+        .or_else(|| b18::handler(code))
 }
 
 /// 主动技的**可用性判定**（声明之外的前置：手牌/目标/每阶段次数等）。
@@ -687,6 +712,7 @@ pub fn availability(code: &str) -> Option<fn(&Game, usize) -> bool> {
         .or_else(|| b15::availability(code))
         .or_else(|| b16::availability(code))
         .or_else(|| b17::availability(code))
+        .or_else(|| b18::availability(code))
 }
 
 /// **主动入口合法集**（唯一来源）：自带技能 ∩ 当前面 can_active ∩ 窗口允许 ∩ 可用性判定
@@ -1008,6 +1034,7 @@ pub fn draw_bonus(g: &mut Game, seat: usize) -> usize {
         + b7::draw_bonus(g, seat)
         + b8::draw_bonus(g, seat)
         + b10::draw_bonus(g, seat)
+        + b18::draw_bonus(g, seat)
 }
 
 /// 摸牌方向：true = 从牌堆底摸（寸目）。`flow::draw` 唯一调用点。
@@ -1078,6 +1105,11 @@ pub fn on_card_finished(g: &mut Game, card: &str, user: usize) {
     b17::on_card_finished(g, card, user);
 }
 
+/// 阶段结束钩子（伤逝：弃牌阶段结束补一次判定）。
+pub fn on_phase_end(g: &mut Game, seat: usize, phase: Phase) {
+    b18::on_phase_end(g, seat, phase);
+}
+
 /// 回合内全防伤（帷幕）：返回被防止的点数；`flow::damage_one` 唯一调用点。
 pub fn try_full_prevent(g: &mut Game, target: usize, amount: i32) -> Option<i32> {
     b15::try_full_prevent(g, target, amount)
@@ -1102,6 +1134,7 @@ pub fn dying_skill_options(
     let mut out = b14::dying_options(g, asker, target);
     out.extend(b13::dying_options(g, asker, target));
     out.extend(b17::dying_options(g, asker, target));
+    out.extend(b18::dying_options(g, asker, target));
     out
 }
 
@@ -1452,6 +1485,7 @@ pub fn on_use_start(g: &mut Game, actor: usize, card: &str) {
     b13::on_use_start(g, actor, card);
     b15::on_use_start(g, actor, card);
     b17::on_use_start(g, actor, card);
+    b18::on_use_start(g, actor, card);
 }
 
 /// 克己：本回合出牌阶段未使用【杀】→ 跳过弃牌阶段（`turn::step_turn` 唯一调用点）。

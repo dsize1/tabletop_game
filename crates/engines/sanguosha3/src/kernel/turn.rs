@@ -377,6 +377,7 @@ fn finish_phase(g: &mut Game, seat: usize, pi: usize) -> Result<Step, String> {
     ev.turn = g.turn;
     ev.phase = phase;
     g.push_event(ev);
+    super::skills::on_phase_end(g, seat, phase);
     // K15：额外摸牌阶段（截辎）——移除「辎」后重跑一次 Draw 阶段（PhaseStart/End 齐全）。
     if phase == Phase::Draw && super::skills::take_extra_draw(g, seat) {
         return Ok(Step::Next(
@@ -400,6 +401,7 @@ fn finish_phase(g: &mut Game, seat: usize, pi: usize) -> Result<Step, String> {
     // 额外出牌阶段结束：回到判定阶段（不进入正常 Discard）。
     if phase == Phase::Play && g.extra_play == Some(seat) {
         g.extra_play = None;
+        super::skills::on_extra_play_end(g, seat);
         let judge_pi = PHASES.iter().position(|p| *p == Phase::Judge).unwrap_or(1);
         return Ok(Step::Next(
             Stage::PhaseStep,

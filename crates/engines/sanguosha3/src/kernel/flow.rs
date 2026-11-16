@@ -292,10 +292,31 @@ pub fn enter_dying_bypass_buqu(g: &mut Game, seat: usize, by: Option<usize>) {
     if already {
         return;
     }
+    // 濒死前钩子（补益/仁心/兴衰）：先压濒死帧**在底部**，再压技能询问（LIFO → 技能先结算）。
+    let helpers = super::skills::dying_helper_seats(g, seat);
+    if !helpers.is_empty() {
+        push_dying_frame(g, seat, by);
+        let _ = super::skills::fire_dying_enter(g, seat);
+        for (holder, code) in helpers {
+            super::resolve::push_ask(
+                g,
+                code,
+                super::resolve::Stage::Choose,
+                holder,
+                serde_json::json!({ "step": "ask", "target": seat }),
+            );
+        }
+        return;
+    }
     // 兴衰（主公技+限定技）：先由其他魏势力逐个支援，再收口濒死。
     if super::skills::fire_dying_enter(g, seat) {
         return;
     }
+    push_dying_frame(g, seat, by);
+}
+
+/// 压入濒死流程帧（**唯一入口**；不发任何技能询问）。
+pub fn push_dying_frame(g: &mut Game, seat: usize, by: Option<usize>) {
     super::resolve::push_flow(
         g,
         super::resolve::FlowKind::Dying,

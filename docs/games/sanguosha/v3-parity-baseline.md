@@ -840,3 +840,9 @@ B17 所需 K20（目标/响应限制）与 K21/K22 在 **B17 开工前**落地�
 - 陷阵赢的「可多指定其为目标」通过 `UseOpts.extra_targets` 全局 +1 实现，未做「只对该目标」的逐目标限制。
 - 醇醪濒死 X 口径为「本轮以此法使用次数 +1」；边界张数用例待真机抽检。
 - 明策/眩惑的虚拟【杀】不获得「无距离」（按牌自身距离规则）。
+
+### 7.29 B18 进行中（4/17，2026-11-16）
+
+- 已收口：绝情（伤害转失去体力）、自守（摸牌加成 + 结束阶段弃 X）、落英（CardToDiscard 梅花）、伤逝（手牌补至已损失体力；弃牌阶段结束补判定）。
+- 内核前置：`UseOpts.target_ineffective` + `fire_target_ineffective`（贞烈）、第三方濒死钩子 `dying_helper_seats`、额外出牌阶段钩子 `take_extra_play/on_extra_play_end`、`on_phase_end`（伤逝）、`death` 帧协调。
+- 待注册：zhenlie/miji/jianmie/zongshi/xianzhou/qieting/chengxiang/renxin/jiushi/ganlu/buyi/dangxian/fuli。

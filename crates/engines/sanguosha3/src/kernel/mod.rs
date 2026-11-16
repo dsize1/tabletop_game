@@ -571,6 +571,9 @@ pub struct UseOpts {
     /// 本次对指定目标无视防具（陷阵：只对拼点目标）。
     #[serde(default)]
     pub ignore_armor_for: Vec<usize>,
+    /// 本次对指定目标无效（贞烈：失去体力令此牌无效）。
+    #[serde(default)]
+    pub target_ineffective: Vec<usize>,
     /// 本次造成伤害后摸一张（奔袭）。
     #[serde(default)]
     pub draw_on_damage: bool,

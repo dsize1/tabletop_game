@@ -745,6 +745,16 @@ fn step_target(g: &mut Game, actor: usize, mut d: Map<String, Value>) -> Result<
             }
         }
         let list = d.get("targets").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+        if !flag(&d, "target_ineffective_done") {
+            let seats: Vec<usize> = list
+                .iter()
+                .filter_map(|v| v.as_u64().map(|n| n as usize))
+                .collect();
+            d.insert("target_ineffective_done".into(), json!(true));
+            if super::skills::fire_target_ineffective(g, actor, &seats, &card) {
+                return Ok(next(Stage::CardTarget, d.clone()));
+            }
+        }
         emit_targets(g, actor, &card, &list);
         d.insert("sub".into(), json!("wuxie"));
         return Ok(next(Stage::WuxieAsk, d));
@@ -759,7 +769,18 @@ fn step_target(g: &mut Game, actor: usize, mut d: Map<String, Value>) -> Result<
     };
     if let Some(list) = auto {
         d.insert("targets".into(), json!(list));
-        emit_targets(g, actor, &card, &d["targets"].as_array().cloned().unwrap_or_default());
+        let targets = d["targets"].as_array().cloned().unwrap_or_default();
+        if !flag(&d, "target_ineffective_done") {
+            let seats: Vec<usize> = targets
+                .iter()
+                .filter_map(|v| v.as_u64().map(|n| n as usize))
+                .collect();
+            d.insert("target_ineffective_done".into(), json!(true));
+            if super::skills::fire_target_ineffective(g, actor, &seats, &card) {
+                return Ok(next(Stage::CardTarget, d.clone()));
+            }
+        }
+        emit_targets(g, actor, &card, &targets);
         d.insert("sub".into(), json!("wuxie"));
         return Ok(next(Stage::WuxieAsk, d));
     }
@@ -1024,7 +1045,10 @@ fn step_effect(g: &mut Game, actor: usize, mut d: Map<String, Value>) -> Result<
                 .iter()
                 .filter(|v| {
                     v.as_u64()
-                        .map(|t| !super::skills::card_ineffective_for(g, actor, t as usize, &card))
+                        .map(|t| {
+                            !super::skills::card_ineffective_for(g, actor, t as usize, &card)
+                                && !g.use_opts(&card).target_ineffective.contains(&(t as usize))
+                        })
                         .unwrap_or(true)
                 })
                 .cloned()
@@ -2784,6 +2808,16 @@ pub fn declare_no_response(g: &mut Game, card: &str) {
 }
 
 /// 声明「本次无距离限制」。
+/// 令本次牌对指定目标无效（贞烈）。
+pub fn declare_target_ineffective(g: &mut Game, card: &str, target: usize) {
+    let mut v = g.use_opts(card);
+    if !v.target_ineffective.contains(&target) {
+        v.target_ineffective.push(target);
+    }
+    let opts = g.use_opts_mut(card);
+    *opts = v;
+}
+
 pub fn declare_no_distance(g: &mut Game, card: &str) {
     g.use_opts_mut(card).no_distance = true;
 }
