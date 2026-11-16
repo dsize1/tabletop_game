@@ -2,11 +2,11 @@
   "batch": "B1",
   "source": "风林火山·SP-1",
   "status": "implemented",
-  "engine": "v2",
+  "engine": "v3",
   "mechanics_version": 2,
   "confirmed_by": "用户",
   "confirmed_at": "2026-11-06",
-  "note": "B1 18/18 已实现（2026-11-06）。UI：本期不做动效。；V3 已收口，批次状态同步为 implemented（v3 待复核）",
+  "note": "B1 18/18 已实现（2026-11-06）。UI：本期不做动效。；V3 已收口，批次状态同步为 implemented（v3 待复核）；current/impl/tests 已回写 v3（B16–B20 优先，见 next-v3-verification.md 步骤 B）",
   "generals": [
     {
       "gid": 100,
@@ -22,10 +22,9 @@
           "original_source": "heroes.json#gid=100",
           "mechanics_version": 2,
           "current": [
-            "1 锁定技，分两段：摸牌阶段与弃牌阶段。",
-            "2 摸牌阶段：先按基础 2 张 + 其他加成计算，再 **+X** 张（X = 全场存活角色中不同势力数，`kingdom_count`）。",
-            "3 弃牌阶段开始时：先按 X 张额外弃牌（不足则弃光），本轮只做一次（`yongsi_discard_done`）。",
-            "4 额外弃的牌进入弃牌堆，并计入本阶段弃牌记录（会影响溃诛等『本阶段弃牌数』）。"
+            "v3：①`draw_bonus`：摸牌阶段额外摸 X（X = `g.kingdom_count()` 存活角色不同势力数，同势力只算 1）。",
+            "②弃牌阶段开始（`PhaseStart` + `Discard`，每回合一次 `phase.<seat>.yongsi`）：X = 势力数，逐张**自选**弃置（`card:<id>`，强制；不足弃光）。",
+            "额外弃置计入 `phase.discarded.<Discard>`（影响溃诛等）；两段均不询问「是否发动」。"
           ],
           "confidence": "verified",
           "diff": [
@@ -82,10 +81,10 @@
               "X=0（无存活势力）时不额外弃牌"
             ]
           },
-          "impl": "sanguosha2::skills::b1::YONGSI",
+          "impl": "sanguosha3::kernel::skills::b1::SKILLS(code=yongsi) + b1::{yongsi, draw_bonus}",
           "tests": [
-            "b1::yongsi_draws_2_plus_kingdom_count",
-            "b1::yongsi_discard_phase_discards_x_and_counts_them"
+            "b1::yongsi_draw_bonus_equals_kingdom_count",
+            "b1::yongsi_discard_phase_discards_x_and_counts_phase_discard"
           ]
         },
         {
@@ -97,9 +96,9 @@
           "original_source": "heroes.json#gid=100",
           "mechanics_version": 2,
           "current": [
-            "1 锁定技：袁术被视为拥有**当前主公的主公技**。",
-            "2 现实现只借**已实现**的主公技，且不借觉醒/限定技（`skills::has` 里合并判定）。",
-            "3 主公死亡或不存在主公时，不借。"
+            "v3：锁定技，不挂 handler；`skills::active` 在 `owned(seat, code)` 失败后，若 `code` 是主公技且本人拥有伪帝 → 借**当前主公实际拥有**的主公技（`current_lord`，已死亡/不存在不借）。",
+            "借来的技能**不能主动使用**：`skills::can_active` 只认 `owned`，主动技入口不暴露。",
+            "「借」只影响 `active` 联动判定；不写入 `Seat.skills`/`granted`。"
           ],
           "confidence": "verified",
           "diff": [
@@ -140,9 +139,9 @@
               "借来的主公技不可主动使用（legal 不出现 skill: 项）"
             ]
           },
-          "impl": "sanguosha2::skills::b1b::WEIDI",
+          "impl": "sanguosha3::kernel::skills::b1::SKILLS(code=weidi) + skills::{active, can_active}（主公技借用分支）",
           "tests": [
-            "b1b::weidi_sees_lord_skill_but_is_not_usable"
+            "b1::weidi_sees_lord_skill_but_is_not_usable"
           ]
         }
       ]
@@ -161,11 +160,9 @@
           "original_source": "heroes.json#gid=362",
           "mechanics_version": 2,
           "current": [
-            "1 触发：**自己的回合内**使用**非装备牌**后（`qizhi_trigger`）——现实现**未校验是否指定了目标**（旧引擎差异）。",
-            "2 条件：存在其他存活角色，且其手牌/装备/判定区至少有一张牌。",
-            "3 步骤：询问发动 → 选目标 → 选该目标一张牌弃置 → 目标摸 1 张。",
-            "4 计数：每次结算 `qizhi_count += 1`（供进趋使用）。",
-            "5 次数：实现**没有次数上限**（每张非装备牌都可触发）。"
+            "v3：统一「目标指定事件」驱动（回合内使用**非装备牌**指定目标后）；目标须为其他存活角色且有牌（手牌/装备/判定区任一，`target_any_cards`）。",
+            "询问 `use`（可放弃）→ 强制选目标一张牌（`card:<id>`）→ `flow::discard` + `flow::draw(target, 1)`。",
+            "不限次数（只累计 `turn.<seat>.qizhi` 供进趋用）；响应打出不产生目标事件，不触发。"
           ],
           "confidence": "verified",
           "diff": [
@@ -222,7 +219,7 @@
               "无目标牌（use_card 无 targets）不触发"
             ]
           },
-          "impl": "sanguosha2::skills::b1::QIZHI",
+          "impl": "sanguosha3::kernel::skills::b1::SKILLS(code=qizhi) + b1::qizhi",
           "tests": [
             "b1::qizhi_triggers_on_targeted_card_use",
             "b1::qizhi_does_not_trigger_without_target"
@@ -237,9 +234,9 @@
           "original_source": "heroes.json#gid=362",
           "mechanics_version": 2,
           "current": [
-            "1 时机：**结束阶段**（每回合一次，`jinzou_done`）。",
-            "2 效果：摸 2 张，然后把**手牌弃至本回合奇制次数**（`qizhi_count`）。",
-            "3 若手牌数 ≤ 奇制次数，则不弃牌。"
+            "v3：结束阶段（`PhaseStart` + `End`）；X = 本回合奇制次数（`turn.<seat>.qizhi`）；**X=0 不提供入口**；每阶段一次（`phase.<seat>.jinzou`）。",
+            "发动 → `flow::draw(2)` → 若手牌 > X 则逐张自选弃至 X 张（`card:<id>`，强制）。",
+            "可放弃；弃牌不触发奇制。"
           ],
           "confidence": "verified",
           "diff": [
@@ -281,7 +278,7 @@
               "X=0 时不允许发动"
             ]
           },
-          "impl": "sanguosha2::skills::b1::JINZOU",
+          "impl": "sanguosha3::kernel::skills::b1::SKILLS(code=jinzou) + b1::{can_jinzou, jinzou}",
           "tests": [
             "b1::jinzou_not_allowed_when_qizhi_count_is_zero",
             "b1::jinzou_draws_then_discards_down_to_x"
@@ -303,10 +300,9 @@
           "original_source": "heroes.json#gid=400",
           "mechanics_version": 2,
           "current": [
-            "1 转换技，两面各自绑定窗口（实现里由触发点隐式决定，不是显式声明）：",
-            "2 阳（触发于**他人回合**，即严颜回合外）：其他角色使用【杀】指定你为目标后 → 询问；你与其各摸 1 张，然后其本回合不能再对你使用牌（`deny_target` 禁止标记）。",
-            "3 阴（触发于**严颜自己的回合**）：你使用【杀】指定目标后 → 询问；你获得该目标一张牌（现实现可选判定区），然后你本回合不能再对其使用牌。",
-            "4 每次发动后阳/阴互换。"
+            "v3：转换技，两面各自绑定窗口（`faces` 拆分）。**阳**（回合外）：其他角色使用【杀】指定严颜为目标 → 询问；发动 → 双方各摸 1 + `forbid_target(src, actor)`（其本回合不能对严颜使用牌）→ `flip_face`。",
+            "**阴**（自己回合内）：使用【杀】指定目标后 → 询问；发动 → 获得其一张牌（**仅手牌/装备区**，判定区不算）→ `forbid_target(actor, target)` → `flip_face`。",
+            "「不能再使用牌」= `deny.<turn>.<user>.<target>` 标记（`deny_target` 单点读取）；目标无牌不询问。"
           ],
           "confidence": "verified",
           "diff": [
@@ -366,10 +362,10 @@
               "错误窗口不触发（阳面不在自己回合内）"
             ]
           },
-          "impl": "sanguosha2::skills::b1b::JUZHAN",
+          "impl": "sanguosha3::kernel::skills::b1::SKILLS(code=juzhan) + b1::{juzhan, forbid_target, deny_target}",
           "tests": [
-            "b1b::juzhan_yang_only_on_others_turn",
-            "b1b::juzhan_yin_only_on_own_turn"
+            "b1::juzhan_yang_only_on_others_turn",
+            "b1::juzhan_yin_takes_card_but_not_judge_zone"
           ]
         }
       ]
@@ -388,10 +384,9 @@
           "original_source": "heroes.json#gid=401",
           "mechanics_version": 2,
           "current": [
-            "1 主动技（出牌阶段，每回合限一次 `feijun_used`）：弃 1 张牌，二选一：",
-            "2 选项①：令**手牌数大于你**的一名角色交给你一张牌（随机一张手牌）。",
-            "3 选项②：令**装备区牌数大于你**的一名角色弃置一张装备。",
-            "4 若两选项都无合法目标，或自己没有手牌，则不提供发动。"
+            "v3：出牌阶段限一次（`turn.<seat>.feijun`），需自己有牌；两选项仅在合法目标存在时出现：①手牌数 > 你的其他角色；②装备数 > 你的其他角色。",
+            "先弃自己一张牌（`card:<id>`）→ 选目标 → `pick`：①由**目标自选**一张手牌交给你（pending 归属 = 目标，`flow::gain`）；②由**王平**选其一件装备弃置。",
+            "结算完成 `binglue_on_feijun`：首次对某角色发动 → 摸 2（`binglue.<actor>.<target>` 永久每目标一次）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -447,9 +442,10 @@
               "无合法目标或没有手牌时不提供发动"
             ]
           },
-          "impl": "sanguosha2::skills::b1b::FEIJUN",
+          "impl": "sanguosha3::kernel::skills::b1::SKILLS(code=feijun) + b1::{can_feijun, feijun, feijun_finish, binglue_on_feijun}",
           "tests": [
-            "b1b::feijun_takes_card_and_binglue_draws_two"
+            "b1::feijun_takes_card_and_binglue_draws_two_once",
+            "b1::feijun_opt2_discards_target_equip_chosen_by_wangping"
           ]
         },
         {
@@ -461,9 +457,9 @@
           "original_source": "heroes.json#gid=401",
           "mechanics_version": 2,
           "current": [
-            "1 锁定技：**每个目标各一次**——首次对某名角色发动飞军时，摸 2 张（`flags[feijun:<target>]`）。",
-            "2 判定在飞军结算完成时进行。",
-            "3 若本回合已对同一目标摸过（flags 命中），不再摸。"
+            "v3：锁定技，事件面 `binglue` 与 `feijun_finish` 共用 `binglue_on_feijun`：**本局内每个目标各一次**（`binglue.<actor>.<target>`，不随回合清空）→ `flow::draw(actor, 2)`。",
+            "无主动面/无询问；飞军对同一目标再次发动不会再摸。",
+            "飞军未对目标结算（中途取消/无目标）不计数；不同王平实例按 `actor` 分别记录。"
           ],
           "confidence": "verified",
           "diff": [
@@ -504,9 +500,9 @@
               "同一目标第二次不再摸"
             ]
           },
-          "impl": "sanguosha2::skills::b1b::BINGLUE",
+          "impl": "sanguosha3::kernel::skills::b1::SKILLS(code=binglue) + b1::{binglue_used, binglue_on_feijun, binglue}",
           "tests": [
-            "b1b::feijun_takes_card_and_binglue_draws_two"
+            "b1::feijun_takes_card_and_binglue_draws_two_once"
           ]
         }
       ]
@@ -525,9 +521,9 @@
           "original_source": "heroes.json#gid=402",
           "mechanics_version": 2,
           "current": [
-            "1 锁定技：游戏开始时获得 3 枚「橘」（计数标记 `mark_counts`，**不持牌**）。",
-            "2 有「橘」的角色摸牌阶段多摸 1 张。",
-            "3 受到伤害时：自动移除 1 枚「橘」，**防止该次伤害**（不进入伤害结算）。"
+            "v3：锁定技三段。①`GameStart` 钩子 `add_ju(3)`：「橘」= `Seat.counters` 计数标记（不是牌，不能被拆/顺/弃）。",
+            "②`draw_bonus`：有「橘」→ 摸牌阶段额外摸 1。③`prevent_damage`：受到伤害时**自动**移除 1 枚「橘」并整体防止该次伤害（锁定，不询问）。",
+            "「橘」归属可被遗礼转移；上限不设。"
           ],
           "confidence": "verified",
           "diff": [
@@ -583,9 +579,9 @@
               "橘为 0 时不再防伤（结算伤害）"
             ]
           },
-          "impl": "sanguosha2::skills::b1::HUAJU",
+          "impl": "sanguosha3::kernel::skills::b1::SKILLS(code=huaiju) + b1::{huaiju, ju, add_ju, draw_bonus, prevent_damage}",
           "tests": [
-            "b1::huaiju_gives_three_ju_and_extra_draw_and_prevents_damage"
+            "b1::huaiju_game_start_three_ju_extra_draw_and_prevent_damage"
           ]
         },
         {
@@ -597,10 +593,9 @@
           "original_source": "heroes.json#gid=402",
           "mechanics_version": 2,
           "current": [
-            "1 时机：**出牌阶段开始时**询问（每阶段一次）。",
-            "2 代价二选一：失去 1 点体力 / 移除 1 枚「橘」（无橘时只有失去体力）。",
-            "3 然后选一名其他角色，令其获得 1 枚「橘」。",
-            "4 若失去体力导致 ≤ 0 → 进入濒死。"
+            "v3：出牌阶段开始时（每阶段一次 `phase.<seat>.yili`）询问。",
+            "代价二选一：`cost:hp` 失去 1 点体力 / `cost:ju` 移除 1 枚「橘」（无橘只提供 hp）→ 选一名其他存活角色（`seat:<t>`）→ `add_ju(target, 1)`。",
+            "若失去体力导致濒死：`flow::is_dying` → 挂 `DeferredKind::SkillTrigger`（`hook=grant_if_rescued`），**救回后**才发放「橘」；未救回不发放。"
           ],
           "confidence": "verified",
           "diff": [
@@ -642,9 +637,10 @@
               "代价致濒死时必须先救回，之后才给橘"
             ]
           },
-          "impl": "sanguosha2::skills::b1b::YILI",
+          "impl": "sanguosha3::kernel::skills::b1::SKILLS(code=yili) + b1::{can_yili, yili, yili_finish, add_ju}",
           "tests": [
-            "b1b::yili_gives_ju_only_after_leaving_dying"
+            "b1::yili_gives_ju_only_after_leaving_dying",
+            "b1::yili_can_pay_with_ju"
           ]
         },
         {
@@ -656,9 +652,9 @@
           "original_source": "heroes.json#gid=402",
           "mechanics_version": 2,
           "current": [
-            "1 时机：摸牌阶段（无「橘」时）询问是否发动。",
-            "2 发动：跳过本回合摸牌阶段，获得 1 枚「橘」。",
-            "3 不发动：正常摸牌。"
+            "v3：摸牌阶段开始；**有「橘」时不询问**。",
+            "询问 `use`（可放弃=正常摸牌）→ `turn.<seat>.skip_draw` + `add_ju(1)`：跳过**整段**摸牌阶段（所有摸牌与加成都不结算）。",
+            "只获得 1 枚「橘」，不加手牌。"
           ],
           "confidence": "verified",
           "diff": [
@@ -699,9 +695,9 @@
               "有橘时不询问"
             ]
           },
-          "impl": "sanguosha2::skills::b1b::ZHENGLUN",
+          "impl": "sanguosha3::kernel::skills::b1::SKILLS(code=zhenglun) + b1::{can_zhenglun, zhenglun, skip_draw}",
           "tests": [
-            "b1b::zhenglun_skips_draw_phase"
+            "b1::zhenglun_skips_whole_draw_phase"
           ]
         }
       ]
@@ -720,10 +716,9 @@
           "original_source": "heroes.json#gid=403",
           "mechanics_version": 2,
           "current": [
-            "1 时机：**弃牌阶段结束时**，若本阶段有弃牌（`phase_discarded` 非空）→ 询问。",
-            "2 X = 本阶段弃牌数。",
-            "3 二选一：①令至多 X 名角色各摸 1 张；②对**体力值之和等于 X** 的任意名角色各造成 1 点伤害。",
-            "4 伤害选项由系统枚举所有满足「体力和 == X」的组合供选，无满足组合则不提供。"
+            "v3：弃牌阶段结束时（`PhaseStart` + `End`）；X = `phase.discarded.<Discard>`（只算弃牌阶段）；X≤0 不询问。",
+            "二选一：①至多 X 名角色各摸 1（`t:<seat>` 多选 + `ok`）；②对体力值之和 **= X** 的任意名角色各 1 点伤害（`kuizhu_combos` 枚举组合，≤64 个；无组合不提供）。",
+            "②伤害来源孙亮、`SourceKind::Skill`、按目标防具。"
           ],
           "confidence": "verified",
           "diff": [
@@ -766,9 +761,10 @@
               "出牌阶段结束不触发"
             ]
           },
-          "impl": "sanguosha2::skills::b1b::KUIZHU",
+          "impl": "sanguosha3::kernel::skills::b1::SKILLS(code=kuizhu) + b1::{kuizhu, kuizhu_combos}",
           "tests": [
-            "b1b::kuizhu_only_on_discard_phase"
+            "b1::kuizhu_draw_mode_uses_phase_discard_count",
+            "b1::kuizhu_damage_mode_requires_hp_sum_equal_x"
           ]
         },
         {
@@ -780,9 +776,9 @@
           "original_source": "heroes.json#gid=403",
           "mechanics_version": 2,
           "current": [
-            "1 锁定效果一：你的**出牌阶段**内，攻击范围不含你的其他角色，对你使用牌时**无效**（`chezheng_blocks`）。",
-            "2 锁定效果二：出牌阶段结束时，若本阶段**使用牌数 < 攻击范围不含你的角色数** → 弃置其中一名角色一张牌。",
-            "3 「攻击范围不含你」按距离与武器范围修正计算（含马术等）。"
+            "v3：锁定技两段。①`card_ineffective`：孙亮出牌阶段内，攻击范围不含他的其他角色对孙亮使用牌 → 无效。",
+            "②出牌阶段结束（`PhaseStart` + `End`）：比较本回合使用牌数（`turn.<seat>.cards_used`，含装备与响应打出）与「攻击范围不含孙亮的其他角色数」；严格小于才询问 → 选其中一名（`seat:<t>`）→ 强制弃其一张牌（手牌/装备/判定区，`target_any_cards`）。",
+            "牌数足够或无人满足 → 不询问。"
           ],
           "confidence": "verified",
           "diff": [
@@ -824,10 +820,10 @@
               "使用牌数足够时不触发"
             ]
           },
-          "impl": "sanguosha2::skills::b1b::CHEZHENG",
+          "impl": "sanguosha3::kernel::skills::b1::SKILLS(code=chezheng) + b1::{card_ineffective, in_attack_range, chezheng}",
           "tests": [
-            "b1b::chezheng_triggers_when_few_cards_used",
-            "b1b::chezheng_skips_when_enough_cards_used"
+            "b1::chezheng_makes_short_range_cards_ineffective",
+            "b1::chezheng_skips_when_enough_cards_used"
           ]
         },
         {
@@ -839,10 +835,9 @@
           "original_source": "heroes.json#gid=403",
           "mechanics_version": 2,
           "current": [
-            "1 主公技，每回合限一次（`lijun_used`）。",
-            "2 触发：**其他吴势力角色**在自己的出牌阶段使用【杀】后。",
-            "3 询问该角色：是否把这张【杀】交给孙亮；若是 → 【杀】进孙亮手牌，该角色摸 1 张，本回合【杀】次数 +1。",
-            "4 若该【杀】已不在处理区（结算完毕），则不能发动。"
+            "v3：主公技，两处独立「可以」（每回合一次 `turn.<user>.lijun`）：其他**吴势力**角色出牌阶段使用【杀】后。",
+            "①询问该吴角色是否把【杀】交给孙亮（`use`/放弃）→ ②询问孙亮是否令其摸 1 且本回合【杀】次数 +1（`use`/放弃）。",
+            "①②均发动才 `flow::gain(lord, card)` + `flow::draw(user,1)` + `turn.<user>.sha_limit`；只①发动则仅获得牌。"
           ],
           "confidence": "verified",
           "diff": [
@@ -884,9 +879,9 @@
               "交牌后不会自动给摸牌加成"
             ]
           },
-          "impl": "sanguosha2::skills::b1b::LIJUN",
+          "impl": "sanguosha3::kernel::skills::b1::SKILLS(code=lijun) + b1::{lijun, sha_extra}",
           "tests": [
-            "b1b::lijun_requires_second_choice_by_lord"
+            "b1::lijun_other_wu_slash_gives_card_then_lord_may_bonus"
           ]
         }
       ]
@@ -905,9 +900,9 @@
           "original_source": "heroes.json#gid=404",
           "mechanics_version": 2,
           "current": [
-            "1 触发：**成为其他角色使用牌的目标后**。",
-            "2 询问是否发动：令**手牌数最少**的一名角色摸 1 张。",
-            "3 手牌最少者多人并列时，**随机**选一名（`next_index`）。"
+            "v3：成为**其他角色**使用牌的目标后（统一目标指定事件；`by == actor` 不触发）→ 询问 `use`（可放弃）。",
+            "候选 = 存活角色中手牌数**最少**者（并列全部可选，由蒯越蒯良选 `seat:<t>`）→ `flow::draw(t, 1)`。",
+            "唯一候选直接执行；不重复询问。"
           ],
           "confidence": "verified",
           "diff": [
@@ -950,9 +945,10 @@
               "不是目标时不触发"
             ]
           },
-          "impl": "sanguosha2::skills::b1b::JIANXIANG",
+          "impl": "sanguosha3::kernel::skills::b1::SKILLS(code=jianxiang) + b1::jianxiang",
           "tests": [
-            "b1b::jianxiang_triggers_only_when_becoming_target"
+            "b1::jianxiang_targets_min_hand_and_owner_breaks_tie",
+            "b1::jianxiang_not_triggered_by_own_card"
           ]
         },
         {
@@ -964,12 +960,9 @@
           "original_source": "heroes.json#gid=404",
           "mechanics_version": 2,
           "current": [
-            "1 转换技。",
-            "2 阳（出牌阶段限一次）：交给**手牌最多**的其他角色一张牌，然后对其造成 1 点伤害。",
-            "3 阴（其他角色对你造成伤害后）：观看其手牌，然后交给其一张牌。",
-            "4 每次发动后阳/阴互换。",
-            "5 阳面：若目标**因该伤害死亡** → 可令一名角色将手牌摸至 4 张（YangFill）。",
-            "6 阴面：交给其一张牌后记录该牌，**当前回合结束阶段**若其仍未失去此牌 → 你把手牌摸至 4 张（shenshi_marks 校验）。"
+            "v3：转换技。**阳**（出牌阶段每阶段一次）：选**手牌最多**的其他角色（并列全部可选）→ 交给其一张自己的牌 → 对其 1 点伤害（`SourceKind::Skill`，按防具）→ `flip_face`；若其因此死亡 → 挂 `DeferredKind::DeathCleanup` 询问令一名角色 `fill_hand(4)`。",
+            "**阴**（回合外、被其他角色伤害后）：观看其手牌 → 交给其一张自己的牌 → 记录 `DeferredKind::TurnEndCheck`（当前回合结束阶段校验）→ `flip_face`。",
+            "结束阶段校验 `shenshi_end_check`：该牌仍在其手牌 → 自己 `fill_hand(4)`；已失去则跳过。"
           ],
           "confidence": "verified",
           "diff": [
@@ -1027,9 +1020,11 @@
               "阴面不在自己回合内触发"
             ]
           },
-          "impl": "sanguosha2::skills::b1b::SHENSHI",
+          "impl": "sanguosha3::kernel::skills::b1::SKILLS(code=shenshi) + b1::{shenshi, shenshi_yang_finish, shenshi_after_damage, shenshi_end_check}",
           "tests": [
-            "b1b::shenshi_yang_gives_card_then_damages"
+            "b1::shenshi_yang_gives_card_then_damages_and_flips",
+            "b1::shenshi_yin_records_card_and_end_check_fills_to_four",
+            "b1::shenshi_end_check_skips_when_card_lost"
           ]
         }
       ]
@@ -1048,10 +1043,9 @@
           "original_source": "heroes.json#gid=406",
           "mechanics_version": 2,
           "current": [
-            "1 转换技，出牌阶段限一次。",
-            "2 阳：摸 1 张，然后弃 2 张手牌；阴：摸 2 张，然后弃 1 张手牌。",
-            "3 弃置的牌的花色记为「自由花色」（`cl_spade/heart/club/diamond`）：本阶段这些花色的牌**无距离与次数限制**。",
-            "4 发动后阳/阴互换。"
+            "v3：转换技，出牌阶段限一次（`phase.<seat>.chenglue`），阴阳两面都在出牌阶段。",
+            "**阳**：摸 1 + 弃 2 张手牌；**阴**：摸 2 + 弃 1 张手牌（`discard` 逐张自选，凑够后确认）。",
+            "结算：弃置牌的花色写入 `free.<seat>.<suit>`（本回合本阶段有效）→ `chenglue_free` 供使用牌时免距离/免次数；`flip_face` 换面。"
           ],
           "confidence": "verified",
           "diff": [
@@ -1095,9 +1089,9 @@
               "每阶段限一次（第二次 legal 不再提供）"
             ]
           },
-          "impl": "sanguosha2::skills::b1b::CHENGLUE",
+          "impl": "sanguosha3::kernel::skills::b1::SKILLS(code=chenglue) + b1::{can_chenglue, chenglue, chenglue_finish, chenglue_free}",
           "tests": [
-            "b1b::chenglue_discard_suits_become_free"
+            "b1::chenglue_faces_draw_discard_and_free_suits"
           ]
         },
         {
@@ -1109,9 +1103,9 @@
           "original_source": "heroes.json#gid=406",
           "mechanics_version": 2,
           "current": [
-            "1 锁定技：**每回合每类型一次**（`shicai:basic` / `shicai:trick`）。",
-            "2 触发：使用基本牌或锦囊牌后，该牌仍在处理区时，将其**置于牌堆顶**，然后摸 1 张。",
-            "3 装备牌不触发。"
+            "v3：使用牌后事件驱动；每回合对**基本牌**/**锦囊牌**两类各限一次（`turn.<seat>.shicai.<kind>`；装备牌不触发）。",
+            "询问 `use`（可放弃）→ `flow::to_deck_top(card)` + `flow::draw(actor, 1)`。",
+            "「置顶」的牌即刚使用的牌；同类型再次使用不再询问。"
           ],
           "confidence": "verified",
           "diff": [
@@ -1154,9 +1148,10 @@
               "放弃时有「pass」出口且牌不被置顶"
             ]
           },
-          "impl": "sanguosha2::skills::b1b::SHICAI",
+          "impl": "sanguosha3::kernel::skills::b1::SKILLS(code=shicai) + b1::shicai",
           "tests": [
-            "b1b::shicai_is_optional_and_puts_card_on_top"
+            "b1::shicai_puts_card_on_top_then_draws_it",
+            "b1::shicai_is_optional_with_pass_exit"
           ]
         },
         {
@@ -1168,9 +1163,9 @@
           "original_source": "heroes.json#gid=406",
           "mechanics_version": 2,
           "current": [
-            "1 锁定技：你的**摸牌改为从牌堆底摸**（`draw_one_bottom`）。",
-            "2 影响所有来源的摸牌（含技能摸牌）。",
-            "3 与恃才（置于牌堆顶）互动时：底摸与顶放互不影响。"
+            "v3：锁定技，唯一出口 `draw_from_bottom`：`flow::draw` 对所有摸牌（含摸牌阶段与技能摸牌）改为从牌堆**底**取牌。",
+            "无 handler/无询问；不影响弃牌堆洗回等其它路径。",
+            "从底部取牌同样走 `flow::draw` 的 `CardDrawn` 事件与手牌归属，不改变牌数守恒。"
           ],
           "confidence": "verified",
           "diff": [
@@ -1211,7 +1206,7 @@
               "未拥有寸目时从牌堆顶摸"
             ]
           },
-          "impl": "sanguosha2::skills::b1::CUNMU",
+          "impl": "sanguosha3::kernel::skills::b1::SKILLS(code=cunmu) + b1::draw_from_bottom",
           "tests": [
             "b1::cunmu_draws_from_bottom_of_deck"
           ]
