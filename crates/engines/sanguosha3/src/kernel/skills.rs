@@ -228,6 +228,7 @@ pub const ENABLED_SKILLS: &[&str] = &[
     "xianzhou", "qieting", "chengxiang", "renxin", "jiushi", "ganlu", "buyi", "dangxian", "fuli",
     // B19 批次（J7：进行中）
     "mieji", "juece", "jingce", "shibei", "qianxi",
+    "fencheng", "zhuikong", "qiuyuan", "gongqi", "jiefan", "fuhen", "jiazhao", "danxin", "jianying",
 ];
 
 /// 手牌变动类型（奋激口径）。
@@ -359,6 +360,9 @@ pub fn display_name(g: &Game, seat: usize, code: &str) -> String {
     if let Some(name) = b8::display_name(g, seat, code) {
         return name.to_string();
     }
+    if let Some(name) = b19::display_name(g, seat, code) {
+        return name.to_string();
+    }
     def(code).map(|d| d.name.to_string()).unwrap_or_else(|| code.to_string())
 }
 
@@ -476,6 +480,11 @@ pub fn ignore_armor_for(g: &Game, user: usize, target: usize) -> bool {
     b17::ignore_armor_for(g, user, target)
 }
 
+/// 成为目标后的额外目标窗口（求援）：返回是否压入询问。
+pub fn fire_target_helper(g: &mut Game, user: usize, targets: &[usize], card: &str) -> bool {
+    b19::fire_target_helper(g, user, targets, card)
+}
+
 /// 成为目标后的可选「令此牌无效」窗口（贞烈）：返回是否压入询问。
 pub fn fire_target_ineffective(
     g: &mut Game,
@@ -501,6 +510,21 @@ pub fn rank_for_use(g: &Game, seat: usize, card: &str, rank: u8) -> u8 {
     b17::rank_for_use(g, seat, card, rank)
 }
 
+/// 两张手牌当【杀】的可用性（父魂）。
+pub fn pair_sha_available(g: &Game, seat: usize) -> bool {
+    b19::pair_sha_available(g, seat)
+}
+
+/// 回合外主动技（矫诏修改 1 起）。
+pub fn out_of_turn_actions(g: &Game, seat: usize) -> Vec<&'static str> {
+    b19::out_of_turn_actions(g, seat)
+}
+
+/// 回合外发动主动技（引擎 `skill:` 路由）。
+pub fn start_out_of_turn(g: &mut Game, seat: usize, code: &str) -> Result<(), String> {
+    b19::start_out_of_turn(g, seat, code)
+}
+
 /// 通用重铸（将驰/燕语）：该牌可重铸（手牌或装备区）。
 pub fn recast_allowed(g: &Game, seat: usize, id: &str) -> bool {
     b17::recast_allowed(g, seat, id)
@@ -513,20 +537,17 @@ pub fn hand_color_blocked(g: &Game, seat: usize, id: &str) -> bool {
 
 /// 不能对除自己以外的角色使用牌（惴恐赢）。
 pub fn others_use_blocked(g: &Game, seat: usize) -> bool {
-    let _ = (g, seat);
-    false
+    b19::others_use_blocked(g, seat)
 }
 
 /// 攻击范围无限（弓骑）。
 pub fn infinite_range(g: &Game, seat: usize) -> bool {
-    let _ = (g, seat);
-    false
+    b19::infinite_range(g, seat)
 }
 
 /// 花色【杀】不限次数（弓骑）。
 pub fn sha_unlimited_card(g: &Game, seat: usize, card: &str) -> bool {
-    let _ = (g, seat, card);
-    false
+    b19::sha_unlimited_card(g, seat, card)
 }
 
 /// 无法使用/打出【闪】响应（毅重②）。
@@ -1074,7 +1095,8 @@ pub fn on_recast(g: &mut Game, seat: usize, card: &str) {
 
 /// 红颜：使用/打出时虚拟牌的花色（`card_play::push_virtual_use` 唯一调用点）。
 pub fn suit_for_use(g: &Game, seat: usize, physical: super::Suit) -> super::Suit {
-    b14::suit_for_use(g, seat, physical)
+    let s = b14::suit_for_use(g, seat, physical);
+    b19::suit_for_use(g, seat, s)
 }
 
 /// 红颜：判定牌花色（`judge::reveal/effective` 唯一调用点）。
@@ -1495,6 +1517,8 @@ pub fn on_use_start(g: &mut Game, actor: usize, card: &str) {
     b17::on_use_start(g, actor, card);
     b18::on_use_start(g, actor, card);
     b19::on_use_start(g, actor, card);
+    b19::on_use_start_fuhen(g, actor, card);
+    b19::on_use_start_jianying(g, actor, card);
 }
 
 /// 克己：本回合出牌阶段未使用【杀】→ 跳过弃牌阶段（`turn::step_turn` 唯一调用点）。
@@ -1521,6 +1545,7 @@ pub fn on_equip_lost(g: &mut Game, owner: usize, id: &str) {
 pub fn on_turn_end(g: &mut Game, seat: usize) {
     b10::on_turn_end(g, seat);
     b18::on_turn_end(g, seat);
+    b19::on_turn_end(g, seat);
 }
 
 /// 多目标牌结算前（奋威）：返回是否压入询问帧。

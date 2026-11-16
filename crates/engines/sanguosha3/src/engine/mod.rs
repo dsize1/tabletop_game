@@ -187,6 +187,19 @@ impl EnginePlugin for SanguoshaEngine {
                     .collect();
             }
         }
+        // 回合外主动技（矫诏修改 1 起）：无 pending 时向该玩家暴露。
+        if es.kernel.pending.is_none() {
+            return crate::kernel::skills::out_of_turn_actions(&es.kernel, seat)
+                .into_iter()
+                .map(|code| {
+                    let name = crate::kernel::skills::display_name(&es.kernel, seat, code);
+                    Action {
+                        id: format!("skill:{code}"),
+                        description: format!("发动【{name}】（回合外）"),
+                    }
+                })
+                .collect();
+        }
         Vec::new()
     }
 
@@ -223,6 +236,27 @@ impl EnginePlugin for SanguoshaEngine {
                 .kernel
                 .seat_of(player_id)
                 .ok_or_else(|| EngineError::PermissionDenied("不在座".into()))?;
+            if es.kernel.pending.is_none() {
+                if let Some(code) = action.strip_prefix("skill:") {
+                    if crate::kernel::skills::out_of_turn_actions(&es.kernel, seat)
+                        .contains(&code)
+                    {
+                        crate::kernel::skills::start_out_of_turn(&mut es.kernel, seat, code)
+                            .map_err(EngineError::IllegalAction)?;
+                        crate::kernel::resolve::advance(&mut es.kernel)
+                            .map_err(EngineError::IllegalAction)?;
+                        es.kernel
+                            .check_conservation()
+                            .map_err(EngineError::Internal)?;
+                        return Ok(ActionResult {
+                            state: es.to_state(&state.room_id, &state.group_id),
+                            message: "回合外发动技能".to_string(),
+                            finished: es.finished(),
+                            events: engine_events(&es.kernel.log, log_before),
+                        });
+                    }
+                }
+            }
             crate::kernel::resolve::submit(&mut es.kernel, seat, action)
                 .map_err(EngineError::IllegalAction)?;
             // 文案：本动作产生的最后一条有效历史。

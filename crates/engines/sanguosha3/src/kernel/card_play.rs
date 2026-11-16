@@ -746,6 +746,17 @@ fn step_target(g: &mut Game, actor: usize, mut d: Map<String, Value>) -> Result<
             }
         }
         let mut list = d.get("targets").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+        // 求援：成为【杀】/伤害锦囊目标后，询问其他角色是否成为额外目标。
+        if !flag(&d, "target_helper_done") {
+            let seats: Vec<usize> = list
+                .iter()
+                .filter_map(|v| v.as_u64().map(|n| n as usize))
+                .collect();
+            d.insert("target_helper_done".into(), json!(true));
+            if super::skills::fire_target_helper(g, actor, &seats, &card) {
+                return Ok(next(Stage::CardTarget, d.clone()));
+            }
+        }
         // 求援等：结算前追加目标（去重、末尾）。
         if !flag(&d, "mid_targets_done") {
             let mut seats: Vec<usize> = list.iter().filter_map(|v| v.as_u64().map(|n| n as usize)).collect();

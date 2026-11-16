@@ -474,6 +474,28 @@ fn step_play(g: &mut Game, seat: usize, pi: usize) -> Result<Step, String> {
                 Stage::PlayAct,
                 json!({ "seat": seat, "pi": pi, "entered": true }),
             ));
+        } else if ans == "pair_sha" {
+            g.set_mark("play.pair", "1");
+            return Ok(Step::Next(
+                Stage::PlayAct,
+                json!({ "seat": seat, "pi": pi, "entered": true }),
+            ));
+        } else if let Some(id) = ans.strip_prefix("pair1:") {
+            g.set_mark("play.pair", "2");
+            g.set_mark("play.pair.first", id);
+            return Ok(Step::Next(
+                Stage::PlayAct,
+                json!({ "seat": seat, "pi": pi, "entered": true }),
+            ));
+        } else if let Some(id) = ans.strip_prefix("pair2:") {
+            let first = g.mark("play.pair.first").map(|s| s.to_string()).unwrap_or_default();
+            g.marks.remove("play.pair");
+            g.marks.remove("play.pair.first");
+            super::card_play::use_as(g, seat, "sha", &[first, id.to_string()], &[], false)?;
+            return Ok(Step::Next(
+                Stage::PlayAct,
+                json!({ "seat": seat, "pi": pi, "entered": true }),
+            ));
         } else if let Some(id) = ans.strip_prefix("recast:") {
             super::card_play::recast(g, seat, id)?;
             return Ok(Step::Next(
@@ -519,6 +541,25 @@ fn card_name(g: &Game, id: &str) -> String {
 }
 
 fn build_play_pending(g: &Game, seat: usize) -> Option<super::pending::Pending> {
+    // 父魂：两张手牌当【杀】（两步选牌）。
+    if g.mark("play.pair") == Some("1") {
+        let mut b = PendingBuilder::new(seat, "pair_sha_first").skill("flow:play");
+        for id in g.hand(seat) {
+            b = b.option(format!("pair1:{id}"), format!("父魂：选择第一张【{}】", card_name(g, &id)));
+        }
+        return Some(b.escape("取消父魂").build());
+    }
+    if g.mark("play.pair") == Some("2") {
+        let first = g.mark("play.pair.first").map(|s| s.to_string());
+        let mut b = PendingBuilder::new(seat, "pair_sha_second").skill("flow:play");
+        for id in g.hand(seat) {
+            if Some(&id) == first.as_ref() {
+                continue;
+            }
+            b = b.option(format!("pair2:{id}"), format!("父魂：选择第二张【{}】", card_name(g, &id)));
+        }
+        return Some(b.escape("取消父魂").build());
+    }
     let mut b = PendingBuilder::new(seat, "play_act").skill("flow:play");
     let mut any = false;
     for id in super::card_play::usable_hand(g, seat) {
@@ -589,6 +630,10 @@ fn build_play_pending(g: &Game, seat: usize) -> Option<super::pending::Pending> 
             b = b.option(format!("recast:{id}"), format!("重铸装备【{}】", card_name(g, &id)));
             any = true;
         }
+    }
+    if super::skills::pair_sha_available(g, seat) {
+        b = b.option("pair_sha", "父魂：两张手牌当【杀】使用");
+        any = true;
     }
     // 丈八蛇矛：两张手牌当【杀】（装备特效 = 特殊技能注入）。
     if super::gear::weapon_of(g, seat) == super::WeaponKind::Zhangba && g.hand_size(seat) >= 2 {
