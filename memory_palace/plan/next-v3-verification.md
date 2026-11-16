@@ -40,8 +40,9 @@
 
 - [x] `B16`–`B20` 共 **68 技能**（B16 14 / B17 14 / B18 17 / B19 15+马术 / B20 8）；
 - [x] `B11`–`B15` 共 **77 技能**（B11 14 / B12 8 / B13 16 / B14 20 / B15 19）；
+- [x] `B0`–`B1` 共 **25 技能**（B0 7 / B1 18）已完成；**B2–B10 共 105 技能待回写**；
       `current` 改为「v3：…」，`impl` 改为 `sanguosha3::kernel::skills::bN::…`，`tests` 改为 `sanguosha3/tests/bN.rs` 的用例名，`confidence=verified`；
-      批次 `engine` 置 `v3`（B0–B10 仍为 `v2`，待后续按同一流程推进）。
+      批次 `engine` 置 `v3`（B0、B1 已完成；B2–B10 仍为 `v2`）。
 - [x] 覆盖近期整改口径：长标（目标单出口/无属性/结束阶段摸牌）、酣战（`fire_pindian_pre` + `pindian_after`）、
       屯田/急袭（田=实体牌）、虚拟牌无属性（`Suit::None` + `cards::attrs`）、「自动→询问」等。
 - [x] `sgs-align-sheet --batch --sync` → 重生成 `align/B*.md`；B11–B20 走查单同步重生。
