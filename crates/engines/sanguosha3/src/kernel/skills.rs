@@ -35,6 +35,7 @@ pub mod b16;
 pub mod b17;
 pub mod b18;
 pub mod b19;
+pub mod b20;
 pub mod common;
 
 /// 技能类型。
@@ -155,6 +156,7 @@ pub fn all() -> Vec<&'static SkillDef> {
         .chain(b17::SKILLS.iter())
         .chain(b18::SKILLS.iter())
         .chain(b19::SKILLS.iter())
+        .chain(b20::SKILLS.iter())
         .collect()
 }
 
@@ -229,6 +231,8 @@ pub const ENABLED_SKILLS: &[&str] = &[
     // B19 批次（J7：进行中）
     "mieji", "juece", "jingce", "shibei", "qianxi",
     "fencheng", "zhuikong", "qiuyuan", "gongqi", "jiefan", "fuhen", "jiazhao", "danxin", "jianying",
+    // B20 批次（J8：进行中）
+    "qiaoshi", "yanyu", "qiangshi", "xiantu", "zhenjun", "yizhong", "anxu", "zhuixi",
 ];
 
 /// 手牌变动类型（奋激口径）。
@@ -527,7 +531,7 @@ pub fn start_out_of_turn(g: &mut Game, seat: usize, code: &str) -> Result<(), St
 
 /// 通用重铸（将驰/燕语）：该牌可重铸（手牌或装备区）。
 pub fn recast_allowed(g: &Game, seat: usize, id: &str) -> bool {
-    b17::recast_allowed(g, seat, id)
+    b17::recast_allowed(g, seat, id) || b20::recast_allowed(g, seat, id)
 }
 
 /// 手牌颜色封锁（潜袭）：本回合不能使用/打出该颜色手牌。
@@ -552,8 +556,7 @@ pub fn sha_unlimited_card(g: &Game, seat: usize, card: &str) -> bool {
 
 /// 无法使用/打出【闪】响应（毅重②）。
 pub fn shan_blocked_for(g: &Game, user: usize, target: usize, card: &str) -> bool {
-    let _ = (g, user, target, card);
-    false
+    b20::shan_blocked_for(g, user, target, card)
 }
 
 /// 第三方濒死钩子（补益/仁心）：返回 (持有者, 技能 code)。
@@ -714,6 +717,7 @@ pub fn handler(code: &str) -> Option<fn(&mut Game, &Ask) -> Result<Step, String>
         .or_else(|| b17::handler(code))
         .or_else(|| b18::handler(code))
         .or_else(|| b19::handler(code))
+        .or_else(|| b20::handler(code))
 }
 
 /// 主动技的**可用性判定**（声明之外的前置：手牌/目标/每阶段次数等）。
@@ -739,6 +743,7 @@ pub fn availability(code: &str) -> Option<fn(&Game, usize) -> bool> {
         .or_else(|| b17::availability(code))
         .or_else(|| b18::availability(code))
         .or_else(|| b19::availability(code))
+        .or_else(|| b20::availability(code))
 }
 
 /// **主动入口合法集**（唯一来源）：自带技能 ∩ 当前面 can_active ∩ 窗口允许 ∩ 可用性判定
@@ -1136,6 +1141,7 @@ pub fn on_card_finished(g: &mut Game, card: &str, user: usize) {
 pub fn on_phase_end(g: &mut Game, seat: usize, phase: Phase) {
     b18::on_phase_end(g, seat, phase);
     b19::on_phase_end(g, seat, phase);
+    b20::on_phase_end(g, seat, phase);
 }
 
 /// 回合内全防伤（帷幕）：返回被防止的点数；`flow::damage_one` 唯一调用点。
@@ -1352,7 +1358,9 @@ pub fn deny_pindian(g: &Game, target: usize) -> bool {
 
 /// 「此牌对目标无效」（父荫）：按牌逐目标判定。
 pub fn card_ineffective_for(g: &mut Game, user: usize, target: usize, card: &str) -> bool {
-    b2::card_ineffective_for(g, user, target, card) || b8::card_ineffective_for(g, user, target, card)
+    b2::card_ineffective_for(g, user, target, card)
+        || b8::card_ineffective_for(g, user, target, card)
+        || b20::card_ineffective_for(g, user, target, card)
 }
 
 /// 造成伤害前询问（`Hook::DamageBefore`）：把技能帧压到伤害之前，由 handler 决定防伤或继续。
@@ -1519,6 +1527,7 @@ pub fn on_use_start(g: &mut Game, actor: usize, card: &str) {
     b19::on_use_start(g, actor, card);
     b19::on_use_start_fuhen(g, actor, card);
     b19::on_use_start_jianying(g, actor, card);
+    b20::on_use_start(g, actor, card);
 }
 
 /// 克己：本回合出牌阶段未使用【杀】→ 跳过弃牌阶段（`turn::step_turn` 唯一调用点）。

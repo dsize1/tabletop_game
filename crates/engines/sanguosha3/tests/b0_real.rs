@@ -210,7 +210,7 @@ fn skill_mounting_only_enables_aligned_skills() {
         vec!["yongsi".to_string(), "weidi".to_string()],
         "袁术挂庸肆/伪帝（B1 收口）"
     );
-    assert!(g.seats[3].skills.is_empty(), "未接入批次的武将不挂载（界夏侯氏 B20）");
+    assert_eq!(g.seats[3].skills, vec!["qiaoshi".to_string(), "yanyu".to_string()], "B20 已收口：界夏侯氏挂载樵拾/燕语");
 
     // 曹丕（行殇/放逐/颂威）目前不挂载任何技能。
     let mut g2 = turn::new_game(5);

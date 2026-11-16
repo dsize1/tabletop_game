@@ -137,10 +137,13 @@ fn registry_has_all_batches() {
     ] {
         assert!(codes.contains(&c), "B19 技能 {c} 应注册");
     }
+    for c in ["qiaoshi", "yanyu", "qiangshi", "xiantu", "zhenjun", "yizhong", "anxu", "zhuixi"] {
+        assert!(codes.contains(&c), "B20 技能 {c} 应注册");
+    }
     assert_eq!(
         skills::all().len(),
-        291,
-        "B0–B18 277 + B19 14 新 + 马术复用（已在 B9 计入）"
+        299,
+        "B0–B19 291 + B20 8（验证批次收官）"
     );
     assert!(skills::check_unique_codes().is_ok(), "技能 code 不得重复");
 }
