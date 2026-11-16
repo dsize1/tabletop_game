@@ -24,6 +24,7 @@ pub mod b5;
 pub mod b6;
 pub mod b7;
 pub mod b8;
+pub mod b9;
 pub mod common;
 
 /// 技能类型。
@@ -131,6 +132,7 @@ pub fn all() -> Vec<&'static SkillDef> {
         .chain(b6::SKILLS.iter())
         .chain(b7::SKILLS.iter())
         .chain(b8::SKILLS.iter())
+        .chain(b9::SKILLS.iter())
         .collect()
 }
 
@@ -168,6 +170,9 @@ pub const ENABLED_SKILLS: &[&str] = &[
     "zhongjian", "caishi", "fumian", "daiyan", "wengua", "fuzhu", "shouxi", "huimin",
     "qingxian", "juexiang", "hexian", "rouxian", "liexian", "jixian", "jianzheng",
     "zhuandui", "tianbian", "funan", "jiexun", "bizhuan", "tongbo",
+    // B9 批次（界标·蜀：7 将 / 14 技能，2026-11-16 收口）
+    "rende", "jijiang", "yijue", "wusheng", "tishen", "paoxiao", "yajiao", "longdan",
+    "mashu", "tieqi", "kongcheng", "guanxing", "qicai",
 ];
 
 /// 手牌变动类型（奋激口径）。
@@ -312,6 +317,14 @@ fn owned(g: &Game, seat: usize, code: &str) -> bool {
 ///
 /// 借用 = 伪帝（B1）：「视为拥有当前主公的主公技」，只参与联动判定，不能主动使用（见 `can_active`）。
 pub fn active(g: &Game, seat: usize, code: &str) -> bool {
+    // 义绝/铁骑：「本回合非锁定技失效」——锁定技与装备特效不受影响。
+    if g.counter(&format!("suppress.{seat}.{}", g.turn)) > 0 {
+        if let Some(d) = def(code) {
+            if !matches!(d.kind, SkillKind::Locked | SkillKind::Equip) {
+                return false;
+            }
+        }
+    }
     if owned(g, seat, code) {
         return true;
     }
@@ -378,6 +391,7 @@ pub fn handler(code: &str) -> Option<fn(&mut Game, &Ask) -> Result<Step, String>
         .or_else(|| b6::handler(code))
         .or_else(|| b7::handler(code))
         .or_else(|| b8::handler(code))
+        .or_else(|| b9::handler(code))
 }
 
 /// 主动技的**可用性判定**（声明之外的前置：手牌/目标/每阶段次数等）。
@@ -392,6 +406,7 @@ pub fn availability(code: &str) -> Option<fn(&Game, usize) -> bool> {
         .or_else(|| b6::availability(code))
         .or_else(|| b7::availability(code))
         .or_else(|| b8::availability(code))
+        .or_else(|| b9::availability(code))
 }
 
 /// **主动入口合法集**（唯一来源）：自带技能 ∩ 当前面 can_active ∩ 窗口允许 ∩ 可用性判定
@@ -826,7 +841,9 @@ pub fn no_response_for(g: &Game, user: usize, target: usize) -> bool {
 
 /// 目标拦截（谦节：延时锦囊 / 铁索连环）：按牌定义判定，legal 与 execute 同源。
 pub fn deny_target_card(g: &Game, user: usize, target: usize, code: &str) -> bool {
-    b2::deny_target_card(g, user, target, code) || b8::deny_target_card(g, user, target, code)
+    b2::deny_target_card(g, user, target, code)
+        || b8::deny_target_card(g, user, target, code)
+        || b9::deny_target_card(g, user, target, code)
 }
 
 /// 拼点目标拦截（谦节）。
@@ -992,6 +1009,32 @@ pub fn on_turn_start(g: &mut Game, seat: usize) {
 /// 唯一调用点：`card_play::use_start` / `push_virtual_use`（**在目标选择之前**）。
 pub fn on_use_start(g: &mut Game, actor: usize, card: &str) {
     b8::on_use_start(g, actor, card);
+    b9::on_use_start(g, actor, card);
+}
+
+/// 【杀】造成伤害时的技能加成（义绝红桃杀 / 咆哮抵消后下一杀）。
+pub fn sha_damage_bonus(g: &mut Game, actor: usize, target: usize, card: &str) -> i32 {
+    b9::sha_damage_bonus(g, actor, target, card)
+}
+
+/// 【杀】被抵消后（八卦/技能视为闪也算）的技能回调（咆哮）。
+pub fn on_sha_dodged(g: &mut Game, actor: usize) {
+    b9::on_sha_dodged(g, actor);
+}
+
+/// 代出【杀】的接力完成（激将：代出者回合外可令主公摸一张）。
+pub fn on_relay_sha(g: &mut Game, actor: usize, source: usize) {
+    b9::on_relay_sha(g, actor, source);
+}
+
+/// 锦囊无距离限制（奇才）。
+pub fn trick_no_distance(g: &Game, actor: usize) -> bool {
+    b9::trick_no_distance(g, actor)
+}
+
+/// 防止弃置（奇才：他人弃置你的防具/宝物）。
+pub fn prevent_discard(g: &Game, by: usize, owner: usize, id: &str) -> bool {
+    b9::prevent_discard(g, by, owner, id)
 }
 
 /// 【杀】指定目标之后的技能询问（谏征/专对）：返回是否压入了询问帧。
@@ -1068,7 +1111,7 @@ pub enum CardAs {
 
 /// 出牌阶段「将某张手牌当另一张牌使用」的替代定义（矢志/武圣/奇袭/国色…）。
 pub fn use_alias(g: &Game, seat: usize, id: &str) -> Option<&'static str> {
-    b6::use_alias(g, seat, id)
+    b6::use_alias(g, seat, id).or_else(|| b9::use_alias(g, seat, id))
 }
 
 /// 响应语义下的生效定义：先问替代型技能（矢志/武圣/龙胆），再看牌自身标签。
@@ -1078,10 +1121,15 @@ pub fn response_as(
     id: &str,
     kind: super::cards::ResponseKind,
 ) -> Option<&'static str> {
-    match b6::response_as(g, seat, id, kind) {
-        CardAs::As(code) => return Some(code),
-        CardAs::Deny => return None,
-        CardAs::NoOpinion => {}
+    for opinion in [
+        b6::response_as(g, seat, id, kind),
+        b9::response_as(g, seat, id, kind),
+    ] {
+        match opinion {
+            CardAs::As(code) => return Some(code),
+            CardAs::Deny => return None,
+            CardAs::NoOpinion => {}
+        }
     }
     let def = g.card_defs.get(id).and_then(|c| super::cards::def(&c.def))?;
     if def.responds_as(kind) {

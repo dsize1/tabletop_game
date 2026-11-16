@@ -78,10 +78,16 @@ fn registry_has_all_batches() {
     ] {
         assert!(codes.contains(&c), "B8 技能 {c} 应注册");
     }
+    for c in [
+        "rende", "jijiang", "yijue", "wusheng", "tishen", "paoxiao", "yajiao", "longdan",
+        "mashu", "tieqi", "kongcheng", "guanxing", "qicai",
+    ] {
+        assert!(codes.contains(&c), "B9 技能 {c} 应注册");
+    }
     assert_eq!(
         skills::all().len(),
-        122,
-        "B0 7 + B1 18 + B2 18 + B3 10 + B4 11 + B5 13 + B6 12 + B7 12 + B8 21"
+        135,
+        "B0 7 + B1 18 + B2 18 + B3 10 + B4 11 + B5 13 + B6 12 + B7 12 + B8 21 + B9 13"
     );
     assert!(skills::check_unique_codes().is_ok(), "技能 code 不得重复");
 }

@@ -277,15 +277,15 @@ pub static SKILLS: &[SkillDef] = &[
             can_active: true,
         }],
     },
-    // —— 临时技（决堰·宝物：本回合获得「集智」）——
+    // —— 集智（界黄月英自带；决堰·宝物也能授予）——
     SkillDef {
         code: "jizhi",
         name: "集智",
         kind: SkillKind::Normal,
-        grant_only: true,
+        grant_only: false,
         transform: false,
         faces: &[Face {
-            window: Window::OwnTurn,
+            window: Window::AnyTime,
             subscriptions: &[Subscription { event: EventKind::CardUsed, subject: Subject::By }],
             hooks: &[],
             can_active: false,
@@ -887,6 +887,8 @@ fn jueyan(g: &mut Game, ask: &Ask) -> Result<Step, String> {
                     g.set_counter(&turn_key(actor, "jueyan_no_distance"), 1);
                 }
                 super::super::Slot::Treasure => {
+                    // 宝物栏：本局获得「集智」（授予统一入口；计数保留给旧用例）。
+                    crate::kernel::skills::grant(g, actor, "jizhi");
                     g.set_counter(&turn_key(actor, "jizhi"), 1);
                 }
             }
@@ -1101,7 +1103,7 @@ fn qingce(g: &mut Game, ask: &Ask) -> Result<Step, String> {
 
 fn jizhi(g: &mut Game, ask: &Ask) -> Result<Step, String> {
     let actor = ask.actor;
-    if g.counter(&turn_key(actor, "jizhi")) == 0 {
+    if !crate::kernel::skills::active(g, actor, "jizhi") {
         return Ok(Step::Done);
     }
     let Some(card) = card_of(ask, "card") else {
@@ -1113,19 +1115,60 @@ fn jizhi(g: &mut Game, ask: &Ask) -> Result<Step, String> {
     if def.category != cards::Category::Trick {
         return Ok(Step::Done);
     }
-    match take_answer(g, "jizhi") {
-        None => Ok(trigger_ask(
-            actor,
-            "jizhi",
-            "集智：摸一张牌",
-            json!({ "step": "ask", "card": card }),
-        )),
-        Some(a) if a == "pass" => Ok(Step::Done),
-        Some(a) if a == "use" => {
-            flow::draw(g, actor, 1);
-            Ok(Step::Finish("集智：摸一张".into()))
+    // 界集智：只对**非转化**锦囊生效（`cause` 区分真实使用 / 转化 / 视为）。
+    let cause = ask.data.get("cause").and_then(|v| v.as_str()).unwrap_or("使用");
+    if cause != "使用" {
+        return Ok(Step::Done);
+    }
+    let step = ask.data.get("step").and_then(|v| v.as_str()).unwrap_or("ask");
+    if step == "hand_limit" {
+        let drawn = ask.data.get("drawn").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        match take_answer(g, "jizhi") {
+            None => {
+                let mut b = super::super::pending::PendingBuilder::new(actor, "choose").skill("jizhi");
+                b = b.option("discard", format!("弃置【{}】，本回合手牌上限 +1", card_label(g, &drawn)));
+                Ok(Step::Need(
+                    b.escape("保留该牌")
+                        .data(json!({ "step": "hand_limit", "drawn": drawn }))
+                        .build(),
+                ))
+            }
+            Some(a) if a == "pass" => Ok(Step::Finish("集智：保留摸到的牌".into())),
+            Some(a) if a == "discard" => {
+                flow::discard(g, actor, &drawn, "集智");
+                g.bump(&turn_key(actor, "hand_limit_extra"));
+                Ok(Step::Finish("集智：弃置基本牌，本回合手牌上限 +1".into()))
+            }
+            Some(o) => Err(format!("集智：未知选项 {o}")),
         }
-        Some(o) => Err(format!("集智：未知选项 {o}")),
+    } else {
+        match take_answer(g, "jizhi") {
+            None => Ok(trigger_ask(
+                actor,
+                "jizhi",
+                "集智：摸一张牌",
+                json!({ "step": "ask", "card": card }),
+            )),
+            Some(a) if a == "pass" => Ok(Step::Done),
+            Some(a) if a == "use" => {
+                let drawn = flow::draw(g, actor, 1);
+                let basic = drawn
+                    .first()
+                    .and_then(|id| g.card_defs.get(id))
+                    .and_then(|c| cards::def(&c.def))
+                    .map(|d| d.category == cards::Category::Basic)
+                    .unwrap_or(false);
+                if basic {
+                    let id = drawn[0].clone();
+                    return Ok(Step::Next(
+                        super::super::resolve::Stage::Choose,
+                        json!({ "step": "hand_limit", "drawn": id, "card": card }),
+                    ));
+                }
+                Ok(Step::Finish("集智：摸一张".into()))
+            }
+            Some(o) => Err(format!("集智：未知选项 {o}")),
+        }
     }
 }
 

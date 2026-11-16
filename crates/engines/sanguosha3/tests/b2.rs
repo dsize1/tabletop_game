@@ -535,12 +535,13 @@ fn jizhi_draws_on_trick_when_flag_set() {
     g.set_counter("turn.0.jizhi", 1);
     add(&mut g, "t", "wuzhong_shengyou", Zone::Processing);
     add_deck(&mut g, &["d0"]);
+    // 界集智：摸到基本牌（d0=闪）时可弃置换手牌上限；这里选择保留。
     let step = run_steps(
         &mut g,
         "jizhi",
         0,
         data(&[("card", "t".into())]),
-        &["use"],
+        &["use", "pass"],
     );
     assert!(matches!(step, Step::Finish(_)));
     assert_eq!(g.hand_size(0), 1);

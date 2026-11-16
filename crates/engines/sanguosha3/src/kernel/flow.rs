@@ -444,6 +444,10 @@ pub fn discard(g: &mut Game, by: usize, id: &str, cause: &str) -> Option<Event> 
     if !matches!(zone, super::Zone::Hand(_) | super::Zone::Equip(..)) {
         return None;
     }
+    // 奇才：防止**其他角色**弃置你的防具/宝物（「获得」不受影响）。
+    if super::skills::prevent_discard(g, by, owner, id) {
+        return None;
+    }
     g.cards.insert(id.to_string(), super::Zone::Discard);
     let key = format!("phase.discarded.{:?}", g.phase);
     g.bump(&key);

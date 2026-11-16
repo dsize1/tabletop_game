@@ -505,7 +505,9 @@ pub fn legal_targets_with(
                 }
             }
             Effect::Snatch => {
-                if super::gear::distance(g, actor, s) > 1 {
+                if !super::skills::trick_no_distance(g, actor)
+                    && super::gear::distance(g, actor, s) > 1
+                {
                     continue;
                 }
                 if target_cards(g, s).is_empty() {
@@ -523,6 +525,7 @@ pub fn legal_targets_with(
                 }
                 // 兵粮寸断：只能对距离 1 以内的角色使用（乐不思蜀无距离限制）。
                 if def.effect == Effect::SupplyShortage
+                    && !super::skills::trick_no_distance(g, actor)
                     && super::gear::distance(g, actor, s) > 1
                 {
                     continue;
@@ -1178,6 +1181,8 @@ fn step_sha(
             Ok(next(Stage::CardResolve, d.clone()))
         }
         "blocked" => {
+            // 被闪抵消（含八卦/技能视为闪）：咆哮回调。
+            super::skills::on_sha_dodged(g, target);
             // 被闪抵消：青龙偃月刀（再杀）/ 贯石斧（弃两张牌强命中）。
             let weapon = super::gear::weapon_of(g, actor);
             if let Some(ans) = take_answer(g, "flow:card") {
@@ -1337,7 +1342,8 @@ fn step_sha(
             g.sha_bonus = 0;
             let guding = super::gear::weapon_of(g, actor) == WeaponKind::Gudingdao
                 && g.hand_size(target) == 0;
-            let amount = 1 + jiu + if guding { 1 } else { 0 };
+            let amount = 1 + jiu + if guding { 1 } else { 0 }
+                + super::skills::sha_damage_bonus(g, actor, target, card);
             let kind = if flag(d, "fire") {
                 DamageKind::Fire
             } else {
@@ -2196,7 +2202,9 @@ pub fn use_relay(
         let e = lost.snapshot(g);
         g.push_event(e);
     }
-    push_virtual_use(g, actor, def_code, origin.to_vec(), targets, false)
+    let vid = push_virtual_use(g, actor, def_code, origin.to_vec(), targets, false)?;
+    super::skills::on_relay_sha(g, actor, source_seat);
+    Ok(vid)
 }
 
 /// 结算收尾：牌从处理区落盘（虚拟牌进 `Void`；装备/判定区已落位则不动）。

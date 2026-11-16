@@ -1351,6 +1351,17 @@ pub fn fire_sha_targeted(g: &mut Game, user: usize, targets: &[usize], card: &st
             owners.push((*t, "target"));
         }
     }
+    // 铁骑（界马超）：使用者侧（指定目标后）询问。
+    if g.seats.get(user).map(|s| s.alive).unwrap_or(false) && skills::active(g, user, "tieqi") {
+        super::super::resolve::push_ask(
+            g,
+            "tieqi",
+            Stage::Choose,
+            user,
+            json!({ "step": "sha_targeted", "role": "user", "user": user, "targets": targets, "card": card }),
+        );
+        pushed = true;
+    }
     for (owner, role) in owners {
         super::super::resolve::push_ask(
             g,
