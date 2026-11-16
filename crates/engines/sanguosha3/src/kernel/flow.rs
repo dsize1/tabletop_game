@@ -324,6 +324,14 @@ pub fn settle_after_dying(g: &mut Game) -> Vec<Event> {
     events
 }
 
+/// 洗牌（伏诛结算后）：只重排牌堆顺序（确定性 Fisher-Yates；不改变区域归属）。
+pub fn shuffle_deck(g: &mut Game) {
+    for i in (1..g.deck.len()).rev() {
+        let j = g.rand_below(i + 1);
+        g.deck.swap(i, j);
+    }
+}
+
 /// 摸牌：从牌堆顶抽 n 张进手牌（牌堆不足时摸到几张某）。
 ///
 /// 弃牌堆洗回牌堆（牌堆耗尽时唯一入口；**不是弃置/获得**，不产生牌移动事件）。
@@ -370,6 +378,29 @@ pub fn draw(g: &mut Game, seat: usize, n: usize) -> Vec<CardId> {
         let Some(id) = id else { break };
         g.cards.insert(id.clone(), super::Zone::Hand(seat));
         let mut ev = Event::card(EventKind::CardDrawn, Some(seat), id.clone(), Some("摸牌".to_string()));
+        ev.by = Some(seat);
+        ev.turn = g.turn;
+        ev.phase = g.phase;
+        g.push_event(ev);
+        drawn.push(id);
+        super::skills::on_hand_changed(g, seat, super::skills::HandChange::Drawn);
+    }
+    drawn
+}
+
+/// 从牌堆**底**摸牌（问卦：置顶后双方各从牌堆底摸一张；不改变寸目等其它规则）。
+pub fn draw_bottom(g: &mut Game, seat: usize, n: usize) -> Vec<CardId> {
+    if g.deck.is_empty() {
+        reshuffle(g);
+    }
+    let mut drawn = vec![];
+    for _ in 0..n {
+        if g.deck.is_empty() {
+            break;
+        }
+        let id = g.deck.remove(0);
+        g.cards.insert(id.clone(), super::Zone::Hand(seat));
+        let mut ev = Event::card(EventKind::CardDrawn, Some(seat), id.clone(), Some("摸牌（牌堆底）".to_string()));
         ev.by = Some(seat);
         ev.turn = g.turn;
         ev.phase = g.phase;

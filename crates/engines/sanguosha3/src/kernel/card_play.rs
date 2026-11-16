@@ -86,7 +86,11 @@ pub fn can_use_now(g: &Game, seat: usize, def: &CardDef) -> bool {
     }
     if let Some(slot) = def.slot {
         // 已废除的装备栏不可再装备（候选与执行同源）。
-        return !g.slot_abolished(seat, slot);
+        return !g.slot_abolished(seat, slot) && !super::skills::deny_target(g, seat, seat);
+    }
+    if matches!(def.target_mode, TargetMode::SelfOnly) && super::skills::deny_target(g, seat, seat) {
+        // 才识②「本回合不能对自己使用牌」：桃/酒/无中生有等同样被拦。
+        return false;
     }
     match def.effect {
         Effect::ExNihilo | Effect::PeachGarden | Effect::None => true,
@@ -439,6 +443,7 @@ fn use_start(g: &mut Game, actor: usize, card: &str) -> Result<(), String> {
     if def.tags.jiu {
         g.bump(&format!("phase.jiu_used.{actor}"));
     }
+    g.set_mark(&format!("used_by.{card}"), actor.to_string());
     let mut used = Event::card(
         EventKind::CardUsed,
         Some(actor),
@@ -449,6 +454,7 @@ fn use_start(g: &mut Game, actor: usize, card: &str) -> Result<(), String> {
     let e = used.snapshot(g);
     g.push_event(e);
     // 使用前技能窗口（往烈：首张无距离 / 不能响应 + 手牌冻结）：压帧到牌结算帧之上。
+    super::skills::on_use_start(g, actor, card);
     super::skills::fire_use_pre(g, actor, card);
     Ok(())
 }
@@ -598,6 +604,22 @@ fn step_target(g: &mut Game, actor: usize, mut d: Map<String, Value>) -> Result<
         }
     }
     if let Some(list) = d.get("targets").and_then(|v| v.as_array()).cloned() {
+        // 【杀】指定目标之后（守玺/专对/谏征之外的目标级技能）：先让技能重写目标列表。
+        if def.effect == Effect::Sha && !flag(&d, "targeted_hooks_done") {
+            let seats: Vec<usize> = list
+                .iter()
+                .filter_map(|v| v.as_u64().map(|n| n as usize))
+                .collect();
+            d.insert("targeted_hooks_done".into(), json!(true));
+            if super::skills::fire_sha_targeted(g, actor, &seats, &card) {
+                return Ok(next(Stage::CardTarget, d.clone()));
+            }
+        }
+        if let Some(new_targets) = super::skills::take_sha_targets(g, &card) {
+            let vals: Vec<Value> = new_targets.iter().map(|t| json!(t)).collect();
+            d.insert("targets".into(), json!(vals));
+        }
+        let list = d.get("targets").and_then(|v| v.as_array()).cloned().unwrap_or_default();
         emit_targets(g, actor, &card, &list);
         d.insert("sub".into(), json!("wuxie"));
         return Ok(next(Stage::WuxieAsk, d));
@@ -832,6 +854,24 @@ fn step_effect(g: &mut Game, actor: usize, mut d: Map<String, Value>) -> Result<
     if flag(&d, "cancelled") {
         finish_card(g, &card);
         return Ok(Step::Done);
+    }
+    g.set_mark("flow.card", &card);
+    // 牌对目标无效（绝响：梅花保护）：效果结算前逐目标剔除（按牌实例花色判定）。
+    if sval(&d, "esub").as_deref() == Some("start") || d.get("esub").is_none() {
+        if let Some(list) = d.get("targets").and_then(|v| v.as_array()).cloned() {
+            let kept: Vec<Value> = list
+                .iter()
+                .filter(|v| {
+                    v.as_u64()
+                        .map(|t| !super::skills::card_ineffective_for(g, actor, t as usize, &card))
+                        .unwrap_or(true)
+                })
+                .cloned()
+                .collect();
+            if kept.len() != list.len() {
+                d.insert("targets".into(), json!(kept));
+            }
+        }
     }
     let mut esub = sval(&d, "esub").unwrap_or_else(|| "start".into());
     if esub == "start" {
@@ -2002,6 +2042,9 @@ pub fn remove_card(g: &mut Game, owner: usize, id: &str, cause: &str) {
 
 /// 「打出」：手牌 → 弃牌堆 + `CardPlayed` 事件（不计入使用次数，但计入掣政「使用过的牌数」）。
 pub(crate) fn played(g: &mut Game, seat: usize, id: &str, cause: &str) -> Result<(), String> {
+    if let Some(responding) = g.mark("flow.card").map(|s| s.to_string()) {
+        g.set_mark(&format!("responds.{id}"), responding);
+    }
     if !matches!(g.cards.get(id), Some(Zone::Hand(s)) if *s == seat) {
         return Err(format!("{id} 不在座位 {seat} 的手牌"));
     }
@@ -2287,6 +2330,7 @@ fn push_virtual_use(
     if def.tags.jiu {
         g.bump(&format!("phase.jiu_used.{actor}"));
     }
+    g.set_mark(&format!("used_by.{vid}"), actor.to_string());
     let mut used = Event::card(
         EventKind::CardUsed,
         Some(actor),
@@ -2296,6 +2340,7 @@ fn push_virtual_use(
     used.by = Some(actor);
     let e = used.snapshot(g);
     g.push_event(e);
+    super::skills::on_use_start(g, actor, &vid);
     super::skills::fire_use_pre(g, actor, &vid);
     super::resolve::push_flow(
         g,

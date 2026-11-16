@@ -147,6 +147,8 @@ pub fn begin_turn(g: &mut Game, seat: usize) {
     g.clear_counters("turn.");
     g.clear_counters("phase.");
     Event::simple(EventKind::TurnStart, Some(seat), None).emit(g);
+    // 回合开始钩子（绝响保护到期）。
+    super::skills::on_turn_start(g, seat);
 }
 
 /// 回合结束：发 `TurnEnd` → 计算下一个回合角色（额外回合 / 翻面跳过 / 轮数 +1）。

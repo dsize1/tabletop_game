@@ -98,8 +98,8 @@ impl PendingBuilder<NoEscape> {
 }
 
 impl<S> PendingBuilder<S> {
-    pub fn skill(mut self, skill: &'static str) -> Self {
-        self.skill = Some(skill.to_string());
+    pub fn skill(mut self, skill: impl Into<String>) -> Self {
+        self.skill = Some(skill.into());
         self
     }
 

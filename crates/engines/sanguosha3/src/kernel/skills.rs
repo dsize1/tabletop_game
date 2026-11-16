@@ -23,6 +23,7 @@ pub mod b4;
 pub mod b5;
 pub mod b6;
 pub mod b7;
+pub mod b8;
 pub mod common;
 
 /// 技能类型。
@@ -63,6 +64,8 @@ pub enum Hook {
     DamagePrevent,
     /// 牌对你无效（掣政①：攻击范围不含你的角色对你使用牌无效）。
     CardIneffective,
+    /// 【杀】指定目标之后（谏征/专对：目标列表重写 / 不能响应）。
+    ShaTargeted,
     /// 手牌变动（奋激：回合外 手牌离开进弃牌堆 / 手牌增加）。
     HandChanged,
     /// 虚拟装备（八阵：无防具时视为装备【八卦阵】）：槽位 + 视为的牌定义 code。
@@ -127,6 +130,7 @@ pub fn all() -> Vec<&'static SkillDef> {
         .chain(b5::SKILLS.iter())
         .chain(b6::SKILLS.iter())
         .chain(b7::SKILLS.iter())
+        .chain(b8::SKILLS.iter())
         .collect()
 }
 
@@ -160,6 +164,10 @@ pub const ENABLED_SKILLS: &[&str] = &[
     // B7 批次（7 将 / 12 技能，2026-11-16 收口）
     "duliang", "fulin", "kuangbi", "zhige", "zongzuo", "jishe", "lianhuo", "guizao",
     "jiyu", "qinqing", "huisheng", "taoluan",
+    // B8 批次（8 将 / 17 技能，2026-11-16 收口）
+    "zhongjian", "caishi", "fumian", "daiyan", "wengua", "fuzhu", "shouxi", "huimin",
+    "qingxian", "juexiang", "hexian", "rouxian", "liexian", "jixian", "jianzheng",
+    "zhuandui", "tianbian", "funan", "jiexun", "bizhuan", "tongbo",
 ];
 
 /// 手牌变动类型（奋激口径）。
@@ -369,6 +377,7 @@ pub fn handler(code: &str) -> Option<fn(&mut Game, &Ask) -> Result<Step, String>
         .or_else(|| b5::handler(code))
         .or_else(|| b6::handler(code))
         .or_else(|| b7::handler(code))
+        .or_else(|| b8::handler(code))
 }
 
 /// 主动技的**可用性判定**（声明之外的前置：手牌/目标/每阶段次数等）。
@@ -382,6 +391,7 @@ pub fn availability(code: &str) -> Option<fn(&Game, usize) -> bool> {
         .or_else(|| b5::availability(code))
         .or_else(|| b6::availability(code))
         .or_else(|| b7::availability(code))
+        .or_else(|| b8::availability(code))
 }
 
 /// **主动入口合法集**（唯一来源）：自带技能 ∩ 当前面 can_active ∩ 窗口允许 ∩ 可用性判定
@@ -692,7 +702,7 @@ pub fn fire_game_start(g: &mut Game) {
 
 /// 摸牌阶段摸牌数加成（庸肆 +X / 怀橘 +1…）。`flow::draw_phase` 唯一调用点。
 pub fn draw_bonus(g: &mut Game, seat: usize) -> usize {
-    b1::draw_bonus(g, seat) + b7::draw_bonus(g, seat)
+    b1::draw_bonus(g, seat) + b7::draw_bonus(g, seat) + b8::draw_bonus(g, seat)
 }
 
 /// 摸牌方向：true = 从牌堆底摸（寸目）。`flow::draw` 唯一调用点。
@@ -715,7 +725,8 @@ pub fn hand_limit_bonus(g: &Game, seat: usize) -> i32 {
     let mut total = b2::hand_limit_bonus(g, seat)
         + b3::hand_limit_bonus(g, seat)
         + b5::hand_limit_bonus(g, seat)
-        + b7::hand_limit_bonus(g, seat);
+        + b7::hand_limit_bonus(g, seat)
+        + b8::hand_limit_bonus(g, seat);
     for skill in all() {
         if !active(g, seat, skill.code) {
             continue;
@@ -780,7 +791,7 @@ pub fn sha_extra(g: &Game, seat: usize) -> i32 {
 
 /// 不能成为目标（掣政②/空城/帷幕…）。`card_play::legal_targets` 唯一调用点。
 pub fn deny_target(g: &Game, user: usize, target: usize) -> bool {
-    b1::deny_target(g, user, target)
+    b1::deny_target(g, user, target) || b8::deny_target(g, user, target)
 }
 
 /// 距离/范围是否被技能覆盖（决堰·坐骑 / 雄乱）：本次使用跳过距离校验。
@@ -791,11 +802,16 @@ pub fn damage_bonus(g: &Game, spec: &super::DamageSpec) -> i32 {
 
 /// 他人侧主动技（陷嗣：其他角色移去两张「逆」出【杀】）。
 pub fn other_side_actions(g: &Game, seat: usize) -> Vec<&'static str> {
-    b4::other_side_actions(g, seat)
+    let mut v = b4::other_side_actions(g, seat);
+    v.extend(b8::other_side_actions(g, seat));
+    v
 }
 
 /// 发动他人侧技能（唯一入口：回合帧的 `skill:<code>` 在自有技能不可用时回退到这里）。
 pub fn start_other(g: &mut Game, seat: usize, code: &str) -> Result<(), String> {
+    if b8::other_side_actions(g, seat).contains(&code) {
+        return b8::start_other(g, seat, code);
+    }
     b4::start_other(g, seat, code)
 }
 
@@ -810,7 +826,7 @@ pub fn no_response_for(g: &Game, user: usize, target: usize) -> bool {
 
 /// 目标拦截（谦节：延时锦囊 / 铁索连环）：按牌定义判定，legal 与 execute 同源。
 pub fn deny_target_card(g: &Game, user: usize, target: usize, code: &str) -> bool {
-    b2::deny_target_card(g, user, target, code)
+    b2::deny_target_card(g, user, target, code) || b8::deny_target_card(g, user, target, code)
 }
 
 /// 拼点目标拦截（谦节）。
@@ -820,7 +836,7 @@ pub fn deny_pindian(g: &Game, target: usize) -> bool {
 
 /// 「此牌对目标无效」（父荫）：按牌逐目标判定。
 pub fn card_ineffective_for(g: &mut Game, user: usize, target: usize, card: &str) -> bool {
-    b2::card_ineffective_for(g, user, target, card)
+    b2::card_ineffective_for(g, user, target, card) || b8::card_ineffective_for(g, user, target, card)
 }
 
 /// 造成伤害前询问（`Hook::DamageBefore`）：把技能帧压到伤害之前，由 handler 决定防伤或继续。
@@ -963,6 +979,39 @@ pub fn fire_dying_enter(g: &mut Game, seat: usize) -> bool {
 /// 唯一调用点：`turn::finish_death`（死亡清理开始前）。handler 只允许同步结算（不得产生 pending）。
 pub fn on_death(g: &mut Game, dead: usize) {
     b7::on_death(g, dead);
+    b8::on_death(g, dead);
+}
+
+/// 回合开始钩子（绝响：「直到其下回合开始」的花色保护到期）。
+/// 唯一调用点：`turn::begin_turn`。
+pub fn on_turn_start(g: &mut Game, seat: usize) {
+    b8::on_turn_start(g, seat);
+}
+
+/// 使用牌起步时的同步声明（福绵：红色牌可多指定 N 个目标 / 无距离）。
+/// 唯一调用点：`card_play::use_start` / `push_virtual_use`（**在目标选择之前**）。
+pub fn on_use_start(g: &mut Game, actor: usize, card: &str) {
+    b8::on_use_start(g, actor, card);
+}
+
+/// 【杀】指定目标之后的技能询问（谏征/专对）：返回是否压入了询问帧。
+pub fn fire_sha_targeted(g: &mut Game, user: usize, targets: &[usize], card: &str) -> bool {
+    b8::fire_sha_targeted(g, user, targets, card)
+}
+
+/// 取走「目标列表重写」结果（读完清空；`None` = 未改写）。
+pub fn take_sha_targets(g: &mut Game, card: &str) -> Option<Vec<usize>> {
+    b8::take_sha_targets(g, card)
+}
+
+/// 拼点：是否提供「用牌堆顶的牌拼点」选项（天辩）。
+pub fn pindian_deck_option(g: &Game, seat: usize) -> bool {
+    b8::pindian_deck_option(g, seat)
+}
+
+/// 拼点：有效点数修正（天辩红桃视为 K）。
+pub fn pindian_rank(g: &Game, seat: usize, card: &str) -> u8 {
+    b8::pindian_rank(g, seat, card)
 }
 
 /// 链祸：火焰伤害的连环传导加成（`flow::damage_apply` 唯一调用点）。

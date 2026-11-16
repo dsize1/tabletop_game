@@ -117,7 +117,17 @@ pub fn step_pindian(g: &mut Game, data: &serde_json::Value) -> Result<Step, Stri
                     let id = ans
                         .strip_prefix("choose:")
                         .ok_or_else(|| format!("拼点：未知选项 {ans}"))?;
-                    if !matches!(g.cards.get(id), Some(Zone::Hand(s)) if *s == initiator) {
+                    let id = if id == "__deck" {
+                        let top = g.deck.pop().ok_or("拼点：牌堆为空")?;
+                        g.cards.insert(top.clone(), Zone::Processing);
+                        top
+                    } else {
+                        id.to_string()
+                    };
+                    let id = id.as_str();
+                    if !matches!(g.cards.get(id), Some(Zone::Hand(s)) if *s == initiator)
+                        && !matches!(g.cards.get(id), Some(Zone::Processing))
+                    {
                         return Err("拼点：只能用手牌拼点".into());
                     }
                     next["a"] = json!(id);
@@ -138,6 +148,9 @@ pub fn step_pindian(g: &mut Game, data: &serde_json::Value) -> Result<Step, Stri
                         ),
                     );
                 }
+                if super::skills::pindian_deck_option(g, initiator) {
+                    b_ = b_.option("choose:__deck", "用牌堆顶的牌拼点（天辩）");
+                }
                 return Ok(Step::NeedAt(Stage::PindianInit, b_.build()));
             }
             next["step"] = json!("resp");
@@ -149,7 +162,17 @@ pub fn step_pindian(g: &mut Game, data: &serde_json::Value) -> Result<Step, Stri
                     let id = ans
                         .strip_prefix("choose:")
                         .ok_or_else(|| format!("拼点：未知选项 {ans}"))?;
-                    if !matches!(g.cards.get(id), Some(Zone::Hand(s)) if *s == target) {
+                    let id = if id == "__deck" {
+                        let top = g.deck.pop().ok_or("拼点：牌堆为空")?;
+                        g.cards.insert(top.clone(), Zone::Processing);
+                        top
+                    } else {
+                        id.to_string()
+                    };
+                    let id = id.as_str();
+                    if !matches!(g.cards.get(id), Some(Zone::Hand(s)) if *s == target)
+                        && !matches!(g.cards.get(id), Some(Zone::Processing))
+                    {
                         return Err("拼点：只能用手牌拼点".into());
                     }
                     next["b"] = json!(id);
@@ -170,6 +193,9 @@ pub fn step_pindian(g: &mut Game, data: &serde_json::Value) -> Result<Step, Stri
                         ),
                     );
                 }
+                if super::skills::pindian_deck_option(g, target) {
+                    b_ = b_.option("choose:__deck", "用牌堆顶的牌拼点（天辩）");
+                }
                 return Ok(Step::NeedAt(Stage::PindianResp, b_.build()));
             }
             next["step"] = json!("reveal");
@@ -183,8 +209,8 @@ pub fn step_pindian(g: &mut Game, data: &serde_json::Value) -> Result<Step, Stri
             ok_in_hand_or_processing(g, target, &b)?;
             // 同时亮牌（选择期结束才公开）。
             g.reveal(&[a.clone(), b.clone()], "拼点亮牌");
-            let rank_a = g.card_defs.get(&a).map(|c| c.rank).unwrap_or(0);
-            let rank_b = g.card_defs.get(&b).map(|c| c.rank).unwrap_or(0);
+            let rank_a = super::skills::pindian_rank(g, initiator, &a);
+            let rank_b = super::skills::pindian_rank(g, target, &b);
             let winner = if rank_a > rank_b {
                 Some(initiator)
             } else if rank_b > rank_a {
