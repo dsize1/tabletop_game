@@ -574,6 +574,12 @@ pub struct UseOpts {
     /// 本次对指定目标无效（贞烈：失去体力令此牌无效）。
     #[serde(default)]
     pub target_ineffective: Vec<usize>,
+    /// 结算前追加目标（求援）：目标列表末尾。
+    #[serde(default)]
+    pub mid_targets: Vec<usize>,
+    /// 本张【杀】的【闪】响应颜色限制（父魂：同色手牌；true=红）。
+    #[serde(default)]
+    pub response_color_lock: Option<bool>,
     /// 本次造成伤害后摸一张（奔袭）。
     #[serde(default)]
     pub draw_on_damage: bool,

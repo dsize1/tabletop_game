@@ -879,3 +879,10 @@ B17 所需 K20（目标/响应限制）与 K21/K22 在 **B17 开工前**落地�
 - 酒诗「回合外累计获得 X 张落英牌后翻回」仅实现「受伤后翻回」；累计阈值翻回未接（待 B19 抽检补）。
 - 当先获得的【杀】自动获得（未做「可以」询问）。
 - 贞烈/秘计的提示按单次选择实现；多次贞烈授权同一结束阶段只保留一次。
+
+### 7.31 B19 进行中（5/15 + 马术复用，2026-11-16）
+
+- 已收口：灭计、绝策、精策、矢北、潜袭（马术 B9 复用）。
+- 前置：`UseOpts.mid_targets`（求援）、`response_color_lock`（父魂）、`round.used.<card>`（矫诏）、
+  `hand_color_blocked`/`damage_bonus`/`hand_limit_bonus`/`on_phase_end` 组合（b19）。
+- 待注册：fencheng/zhuikong/qiuyuan/gongqi/jiefan/fuhen/jiazhao/danxin/jianying。

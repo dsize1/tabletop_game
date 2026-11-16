@@ -513,6 +513,7 @@ fn use_start(g: &mut Game, actor: usize, card: &str) -> Result<(), String> {
     }
     g.cards.insert(card.to_string(), Zone::Processing);
     g.bump(&format!("turn.{actor}.cards_used"));
+    g.bump(&format!("round.used.{}", def.code));
     if def.tags.sha {
         g.bump(&format!("phase.sha_used.{actor}"));
         if g.phase == crate::kernel::Phase::Play {
@@ -744,7 +745,19 @@ fn step_target(g: &mut Game, actor: usize, mut d: Map<String, Value>) -> Result<
                 d.insert("targets".into(), json!(kept));
             }
         }
-        let list = d.get("targets").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+        let mut list = d.get("targets").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+        // 求援等：结算前追加目标（去重、末尾）。
+        if !flag(&d, "mid_targets_done") {
+            let mut seats: Vec<usize> = list.iter().filter_map(|v| v.as_u64().map(|n| n as usize)).collect();
+            for m in g.use_opts(&card).mid_targets.clone() {
+                if !seats.contains(&m) && g.seats.get(m).map(|s| s.alive).unwrap_or(false) {
+                    seats.push(m);
+                    list.push(json!(m));
+                }
+            }
+            d.insert("targets".into(), json!(list));
+            d.insert("mid_targets_done".into(), json!(true));
+        }
         if !flag(&d, "target_ineffective_done") {
             let seats: Vec<usize> = list
                 .iter()
@@ -1327,7 +1340,12 @@ fn step_sha(
                     d.insert("esub".into(), json!("alt"));
                     return Ok(next(Stage::CardResolve, d.clone()));
                 } else if let Some(id) = ans.strip_prefix("s:") {
-                    let ok = matches!(g.cards.get(id), Some(Zone::Hand(s)) if *s == target)
+                    let color_ok = match g.use_opts(card).response_color_lock {
+                        Some(red) => g.card_defs.get(id).map(|c| c.suit.is_red() == red).unwrap_or(false),
+                        None => true,
+                    };
+                    let ok = color_ok
+                        && matches!(g.cards.get(id), Some(Zone::Hand(s)) if *s == target)
                         && super::skills::response_as(g, target, id, ResponseKind::Shan).is_some();
                     if !ok {
                         return Err("【杀】：只能打出【闪】".into());
@@ -1345,7 +1363,13 @@ fn step_sha(
                     return Ok(next(Stage::CardResolve, d.clone()));
                 }
             }
-            let shan = response_cards(g, target, ResponseKind::Shan);
+            let shan: Vec<String> = response_cards(g, target, ResponseKind::Shan)
+                .into_iter()
+                .filter(|id| match g.use_opts(card).response_color_lock {
+                    Some(red) => g.card_defs.get(id).map(|c| c.suit.is_red() == red).unwrap_or(false),
+                    None => true,
+                })
+                .collect();
             let alts: Vec<(&'static str, String)> = if flag(d, "alt_used") {
                 vec![]
             } else {
@@ -2683,6 +2707,7 @@ fn push_virtual_use(
         g.virtual_origins.insert(vid.clone(), origin);
     }
     g.bump(&format!("turn.{actor}.cards_used"));
+    g.bump(&format!("round.used.{}", def.code));
     if def.tags.sha {
         g.bump(&format!("phase.sha_used.{actor}"));
     }
@@ -2812,6 +2837,20 @@ pub fn declare_no_response(g: &mut Game, card: &str) {
 
 /// 声明「本次无距离限制」。
 /// 令本次牌对指定目标无效（贞烈）。
+/// 追加本次牌的额外目标（求援）。
+pub fn declare_mid_target(g: &mut Game, card: &str, target: usize) {
+    let mut v = g.use_opts(card);
+    if !v.mid_targets.contains(&target) {
+        v.mid_targets.push(target);
+    }
+    *g.use_opts_mut(card) = v;
+}
+
+/// 设置本张【杀】的【闪】响应颜色限制（true=红）。
+pub fn declare_response_color_lock(g: &mut Game, card: &str, red: bool) {
+    g.use_opts_mut(card).response_color_lock = Some(red);
+}
+
 pub fn declare_target_ineffective(g: &mut Game, card: &str, target: usize) {
     let mut v = g.use_opts(card);
     if !v.target_ineffective.contains(&target) {

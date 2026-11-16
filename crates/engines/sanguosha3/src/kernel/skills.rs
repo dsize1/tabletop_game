@@ -34,6 +34,7 @@ pub mod b15;
 pub mod b16;
 pub mod b17;
 pub mod b18;
+pub mod b19;
 pub mod common;
 
 /// 技能类型。
@@ -153,6 +154,7 @@ pub fn all() -> Vec<&'static SkillDef> {
         .chain(b16::SKILLS.iter())
         .chain(b17::SKILLS.iter())
         .chain(b18::SKILLS.iter())
+        .chain(b19::SKILLS.iter())
         .collect()
 }
 
@@ -224,6 +226,8 @@ pub const ENABLED_SKILLS: &[&str] = &[
     // B18 批次（J6：进行中，见 check:sgs3-registry 的 ⏳ 计数）
     "jueqing", "zishou", "luoying", "shangshi", "zhenlie", "miji", "jianmie", "zongshi",
     "xianzhou", "qieting", "chengxiang", "renxin", "jiushi", "ganlu", "buyi", "dangxian", "fuli",
+    // B19 批次（J7：进行中）
+    "mieji", "juece", "jingce", "shibei", "qianxi",
 ];
 
 /// 手牌变动类型（奋激口径）。
@@ -504,8 +508,7 @@ pub fn recast_allowed(g: &Game, seat: usize, id: &str) -> bool {
 
 /// 手牌颜色封锁（潜袭）：本回合不能使用/打出该颜色手牌。
 pub fn hand_color_blocked(g: &Game, seat: usize, id: &str) -> bool {
-    let _ = (g, seat, id);
-    false
+    b19::hand_color_blocked(g, seat, id)
 }
 
 /// 不能对除自己以外的角色使用牌（惴恐赢）。
@@ -689,6 +692,7 @@ pub fn handler(code: &str) -> Option<fn(&mut Game, &Ask) -> Result<Step, String>
         .or_else(|| b16::handler(code))
         .or_else(|| b17::handler(code))
         .or_else(|| b18::handler(code))
+        .or_else(|| b19::handler(code))
 }
 
 /// 主动技的**可用性判定**（声明之外的前置：手牌/目标/每阶段次数等）。
@@ -713,6 +717,7 @@ pub fn availability(code: &str) -> Option<fn(&Game, usize) -> bool> {
         .or_else(|| b16::availability(code))
         .or_else(|| b17::availability(code))
         .or_else(|| b18::availability(code))
+        .or_else(|| b19::availability(code))
 }
 
 /// **主动入口合法集**（唯一来源）：自带技能 ∩ 当前面 can_active ∩ 窗口允许 ∩ 可用性判定
@@ -1108,6 +1113,7 @@ pub fn on_card_finished(g: &mut Game, card: &str, user: usize) {
 /// 阶段结束钩子（伤逝：弃牌阶段结束补一次判定）。
 pub fn on_phase_end(g: &mut Game, seat: usize, phase: Phase) {
     b18::on_phase_end(g, seat, phase);
+    b19::on_phase_end(g, seat, phase);
 }
 
 /// 回合内全防伤（帷幕）：返回被防止的点数；`flow::damage_one` 唯一调用点。
@@ -1275,6 +1281,7 @@ pub fn damage_bonus(g: &Game, spec: &super::DamageSpec) -> i32 {
         + b11::damage_bonus(g, spec)
         + b13::damage_bonus(g, spec)
         + b16::damage_bonus(g, spec)
+        + b19::damage_bonus(g, spec)
 }
 
 /// 他人侧主动技（陷嗣：其他角色移去两张「逆」出【杀】）。
@@ -1487,6 +1494,7 @@ pub fn on_use_start(g: &mut Game, actor: usize, card: &str) {
     b15::on_use_start(g, actor, card);
     b17::on_use_start(g, actor, card);
     b18::on_use_start(g, actor, card);
+    b19::on_use_start(g, actor, card);
 }
 
 /// 克己：本回合出牌阶段未使用【杀】→ 跳过弃牌阶段（`turn::step_turn` 唯一调用点）。

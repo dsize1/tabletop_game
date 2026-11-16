@@ -186,8 +186,8 @@ fn skill_mounting_only_enables_aligned_skills() {
     for (i, s) in g.seats.iter_mut().enumerate() {
         s.name = format!("p{i}");
     }
-    // 未收口武将用 B19 的界李儒（642）占位（B0–B17 均已收口；B18 收口中）。
-    let codes = ["sgs_hero_29", "sgs_hero_402", "sgs_hero_100", "sgs_hero_642", "sgs_hero_53"];
+    // 未收口武将用 B20 的界夏侯氏（752）占位（B0–B18 均已收口；B19 进行中）。
+    let codes = ["sgs_hero_29", "sgs_hero_402", "sgs_hero_100", "sgs_hero_752", "sgs_hero_53"];
     let mut setup = Some(Setup {
         lord: 0,
         offers: BTreeMap::new(),
@@ -210,7 +210,7 @@ fn skill_mounting_only_enables_aligned_skills() {
         vec!["yongsi".to_string(), "weidi".to_string()],
         "袁术挂庸肆/伪帝（B1 收口）"
     );
-    assert!(g.seats[3].skills.is_empty(), "未接入批次的武将不挂载（界李儒 B19）");
+    assert!(g.seats[3].skills.is_empty(), "未接入批次的武将不挂载（界夏侯氏 B20）");
 
     // 曹丕（行殇/放逐/颂威）目前不挂载任何技能。
     let mut g2 = turn::new_game(5);
