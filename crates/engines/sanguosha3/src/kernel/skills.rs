@@ -218,6 +218,7 @@ pub const ENABLED_SKILLS: &[&str] = &[
     "qiangxi", "ninge", "zhijian", "guzheng", "shuangxiong", "pojun", "beige",
     // B17 批次（J5：进行中，见 check:sgs3-registry 的 ⏳ 计数）
     "xuanfeng", "zhichi", "jiangchi", "zongshi_jie", "qiaoshuo", "zongxuan", "zhiyan",
+    "jinjiu", "enyuan", "lihuo", "xianzhen", "chunlao", "mingce", "xuanhuo",
 ];
 
 /// 手牌变动类型（奋激口径）。
@@ -444,26 +445,22 @@ pub fn action_seen(g: &mut Game, key: impl Into<String>) -> bool {
 
 /// 目标级无距离（陷阵赢）：仅本次对该目标跳过距离校验。
 pub fn target_no_distance(g: &Game, user: usize, target: usize) -> bool {
-    let _ = (g, user, target);
-    false
+    b17::target_no_distance(g, user, target)
 }
 
 /// 【杀】次数豁免（陷阵赢/弓骑花色【杀】）：任意目标可发动时放行。
 pub fn sha_limit_exempt(g: &Game, seat: usize) -> bool {
-    let _ = (g, seat);
-    false
+    b17::sha_limit_exempt(g, seat)
 }
 
 /// 【杀】不能对该目标使用（陷阵没赢）。
 pub fn sha_blocked_for(g: &Game, user: usize, target: usize) -> bool {
-    let _ = (g, user, target);
-    false
+    b17::sha_blocked_for(g, user, target)
 }
 
 /// 目标级无视防具（陷阵赢）。
 pub fn ignore_armor_for(g: &Game, user: usize, target: usize) -> bool {
-    let _ = (g, user, target);
-    false
+    b17::ignore_armor_for(g, user, target)
 }
 
 /// 本回合不能使用锦囊（巧说没赢）。
@@ -473,14 +470,12 @@ pub fn trick_use_blocked(g: &Game, seat: usize, card: &str) -> bool {
 
 /// 本回合不能使用【酒】（禁酒：高顺回合内其他角色）。
 pub fn jiu_blocked(g: &Game, seat: usize) -> bool {
-    let _ = (g, seat);
-    false
+    b17::jiu_blocked(g, seat)
 }
 
 /// 使用/打出时的有效点数覆盖（禁酒：酒视为 K）。
 pub fn rank_for_use(g: &Game, seat: usize, card: &str, rank: u8) -> u8 {
-    let _ = (g, seat, card);
-    rank
+    b17::rank_for_use(g, seat, card, rank)
 }
 
 /// 通用重铸（将驰/燕语）：该牌可重铸（手牌或装备区）。
@@ -1080,6 +1075,7 @@ pub fn aoe_excluded(g: &Game, user: usize, target: usize, def_code: &str) -> boo
 /// 结算结束后钩子（巨象：获得他人使用的【南蛮】）。
 pub fn on_card_finished(g: &mut Game, card: &str, user: usize) {
     b15::on_card_finished(g, card, user);
+    b17::on_card_finished(g, card, user);
 }
 
 /// 回合内全防伤（帷幕）：返回被防止的点数；`flow::damage_one` 唯一调用点。
@@ -1105,6 +1101,7 @@ pub fn dying_skill_options(
 ) -> Vec<(&'static str, String, &'static str)> {
     let mut out = b14::dying_options(g, asker, target);
     out.extend(b13::dying_options(g, asker, target));
+    out.extend(b17::dying_options(g, asker, target));
     out
 }
 
@@ -1621,6 +1618,7 @@ pub fn use_alias(g: &Game, seat: usize, id: &str) -> Option<&'static str> {
         .or_else(|| b14::use_alias(g, seat, id))
         .or_else(|| b15::use_alias(g, seat, id))
         .or_else(|| b16::use_alias(g, seat, id))
+        .or_else(|| b17::use_alias(g, seat, id))
 }
 
 /// 响应语义下的生效定义：先问替代型技能（矢志/武圣/龙胆），再看牌自身标签。

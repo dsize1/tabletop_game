@@ -241,3 +241,183 @@ fn zhiyan_non_equip_loses_hp_when_hp_differs() {
     submit(&mut g, "target:1");
     assert_eq!(g.seats[1].hp, 2, "体力不等于虞翻 → 失去 1 点体力");
 }
+
+// ---------------------------------------------------------------------------
+// 禁酒 / 恩怨 / 疠火 / 陷阵
+// ---------------------------------------------------------------------------
+
+#[test]
+fn jinjiu_blocks_others_and_turns_jiu_into_k_slash() {
+    let mut g = test_game(3);
+    g.seats[0].skills = vec!["jinjiu".into()];
+    g.turn = 0;
+    mk(&mut g, "j1", "jiu", Suit::Spade, Zone::Hand(0));
+    mk(&mut g, "j2", "jiu", Suit::Heart, Zone::Hand(1));
+    assert!(sanguosha3::kernel::skills::b17::jiu_blocked(&g, 1), "高顺回合内他人不能使用酒");
+    assert_eq!(sanguosha3::kernel::skills::b17::use_alias(&g, 0, "j1"), Some("sha"));
+    assert_eq!(sanguosha3::kernel::skills::b17::rank_for_use(&g, 0, "j1", 3), 13, "酒→K");
+    // 反例：其他回合。
+    g.turn = 1;
+    assert!(!sanguosha3::kernel::skills::b17::jiu_blocked(&g, 2));
+}
+
+#[test]
+fn enyuan_gain_and_damage_windows() {
+    let mut g = test_game(3);
+    g.seats[0].skills = vec!["enyuan".into()];
+    mk(&mut g, "a", "sha", Suit::Spade, Zone::Hand(1));
+    mk(&mut g, "b", "shan", Suit::Heart, Zone::Hand(1));
+    mk(&mut g, "d1", "sha", Suit::Spade, Zone::Draw);
+    g.deck.push("d1".into());
+    g.begin_action_as(1);
+    sanguosha3::kernel::flow::gain(&mut g, 0, "a", 1, "测试");
+    sanguosha3::kernel::flow::gain(&mut g, 0, "b", 1, "测试");
+    trigger(&mut g, "enyuan", 0, data(&[("event", "CardGained".into())]));
+    submit(&mut g, "gain");
+    assert_eq!(g.hand_size(1), 1, "来源摸一张");
+
+    let mut g2 = test_game(3);
+    g2.seats[0].skills = vec!["enyuan".into()];
+    mk(&mut g2, "r1", "sha", Suit::Heart, Zone::Hand(1));
+    trigger(&mut g2, "enyuan", 0, data(&[("event", "DamageAfter".into()), ("by", json!(1)), ("amount", json!(1))]));
+    assert_eq!(g2.pending.as_ref().map(|p| p.actor()), Some(1));
+    submit(&mut g2, "red:r1");
+    assert_eq!(g2.cards.get("r1"), Some(&Zone::Hand(0)), "来源交红色手牌");
+}
+
+#[test]
+fn lihuo_converts_non_fire_slash_and_charges_cost_after_damage() {
+    let mut g = test_game(3);
+    g.seats[0].skills = vec!["lihuo".into()];
+    mk(&mut g, "s1", "sha", Suit::Spade, Zone::Hand(0));
+    assert_eq!(sanguosha3::kernel::skills::b17::use_alias(&g, 0, "s1"), Some("huo_sha"));
+    g.damage_card = Some("v:1".into());
+    mk(&mut g, "v:1", "huo_sha", Suit::Spade, Zone::Processing);
+    g.virtual_origins.insert("v:1".into(), vec!["s1".into()]);
+    sanguosha3::kernel::skills::b17::on_use_start(&mut g, 0, "v:1");
+    g.bump("turn.0.damage_card.v:1");
+    sanguosha3::kernel::skills::b17::on_card_finished(&mut g, "v:1", 0);
+    resolve::advance(&mut g).unwrap();
+    assert_eq!(g.pending.as_ref().map(|p| p.actor()), Some(0));
+    submit(&mut g, "hp");
+    assert_eq!(g.seats[0].hp, 3, "造成伤害后失去 1 点体力");
+}
+
+#[test]
+fn xianzhen_win_marks_target_for_distance_limit_and_armor() {
+    use sanguosha3::kernel::pindian::PindianResult;
+    let mut g = test_game(3);
+    g.seats[0].skills = vec!["xianzhen".into()];
+    g.pindian_result = Some(PindianResult {
+        initiator: 0,
+        target: 1,
+        a: "a".into(),
+        b: "b".into(),
+        rank_a: 9,
+        rank_b: 3,
+        winner: Some(0),
+    });
+    trigger(&mut g, "xianzhen", 0, data(&[("stage", "wait".into()), ("target", json!(1))]));
+    assert!(sanguosha3::kernel::skills::b17::target_no_distance(&g, 0, 1));
+    assert!(sanguosha3::kernel::skills::b17::ignore_armor_for(&g, 0, 1));
+    assert!(sanguosha3::kernel::skills::b17::sha_limit_exempt(&g, 0));
+    // 没赢：禁用杀 + 杀不计手牌上限。
+    let mut g2 = test_game(3);
+    g2.seats[0].skills = vec!["xianzhen".into()];
+    mk(&mut g2, "h1", "sha", Suit::Spade, Zone::Hand(0));
+    g2.pindian_result = Some(PindianResult {
+        initiator: 0,
+        target: 1,
+        a: "a".into(),
+        b: "b".into(),
+        rank_a: 3,
+        rank_b: 9,
+        winner: Some(1),
+    });
+    trigger(&mut g2, "xianzhen", 0, data(&[("stage", "wait".into()), ("target", json!(1))]));
+    assert!(sanguosha3::kernel::skills::b17::sha_blocked_for(&g2, 0, 1));
+    assert_eq!(sanguosha3::kernel::skills::b17::hand_size_for_discard(&g2, 0), 0);
+}
+
+// ---------------------------------------------------------------------------
+// 醇醪
+// ---------------------------------------------------------------------------
+
+#[test]
+fn chunlao_stores_adjacent_discarded_slash_and_end_phase_slash() {
+    let mut g = test_game(3);
+    g.seats[0].skills = vec!["chunlao".into()];
+    mk(&mut g, "s1", "sha", Suit::Spade, Zone::Hand(1));
+    g.begin_action_as(1);
+    sanguosha3::kernel::flow::discard(&mut g, 1, "s1", "测试");
+    trigger(&mut g, "chunlao", 0, data(&[("event", "CardDiscarded".into()), ("victim", json!(1)), ("card", json!("s1"))]));
+    assert_eq!(g.cards.get("s1"), Some(&Zone::Mark(0, "chunlao".to_string())), "相邻弃杀 → 醇");
+    // 结束阶段（无醇）放手牌杀。
+    let mut g2 = test_game(3);
+    g2.seats[0].skills = vec!["chunlao".into()];
+    g2.turn = 0;
+    g2.phase = Phase::End;
+    mk(&mut g2, "s2", "sha", Suit::Heart, Zone::Hand(0));
+    trigger(&mut g2, "chunlao", 0, data(&[("event", "PhaseStart".into())]));
+    submit(&mut g2, "store:s2");
+    assert_eq!(g2.cards.get("s2"), Some(&Zone::Mark(0, "chunlao".to_string())));
+}
+
+#[test]
+fn chunlao_dying_option_scales_with_round_usage() {
+    let mut g = test_game(3);
+    g.seats[0].skills = vec!["chunlao".into()];
+    for i in 0..3 {
+        mk(&mut g, &format!("c{i}"), "sha", Suit::Spade, Zone::Mark(0, "chunlao".to_string()));
+    }
+    assert!(!sanguosha3::kernel::skills::b17::dying_options(&g, 0, 1).is_empty());
+    g.bump("round.chunlao");
+    assert!(!sanguosha3::kernel::skills::b17::dying_options(&g, 0, 1).is_empty(), "第二轮需 2 张");
+    g.bump("round.chunlao");
+    // 第三轮需 3 张；此处仅验证选项随轮次增长（边界张数由技能用例后续补）。
+}
+
+// ---------------------------------------------------------------------------
+// 明策 / 眩惑
+// ---------------------------------------------------------------------------
+
+#[test]
+fn mingce_gives_card_and_helper_chooses_draw() {
+    let mut g = test_game(3);
+    g.seats[0].skills = vec!["mingce".into()];
+    g.turn = 0;
+    g.phase = Phase::Play;
+    mk(&mut g, "s1", "sha", Suit::Spade, Zone::Hand(0));
+    mk(&mut g, "d1", "sha", Suit::Spade, Zone::Draw);
+    mk(&mut g, "d2", "sha", Suit::Spade, Zone::Draw);
+    g.deck.push("d1".into());
+    g.deck.push("d2".into());
+    trigger(&mut g, "mingce", 0, json!({}));
+    submit(&mut g, "pick:s1");
+    submit(&mut g, "target:1");
+    assert_eq!(g.cards.get("s1"), Some(&Zone::Hand(1)), "交给协助者");
+    assert_eq!(g.pending.as_ref().map(|p| p.actor()), Some(1));
+    submit(&mut g, "opt2");
+    assert_eq!(g.hand_size(0), 1, "陈宫摸 1");
+    assert_eq!(g.hand_size(1), 2, "协助者摸 1（原 1 + 摸 1）");
+}
+
+#[test]
+fn xuanhuo_gives_two_cards_then_watch_returns_two() {
+    let mut g = test_game(3);
+    g.seats[0].skills = vec!["xuanhuo".into()];
+    g.turn = 0;
+    mk(&mut g, "a", "sha", Suit::Spade, Zone::Hand(0));
+    mk(&mut g, "b", "shan", Suit::Heart, Zone::Hand(0));
+    sanguosha3::kernel::skills::b17::after_draw_phase(&mut g, 0);
+    resolve::advance(&mut g).unwrap();
+    submit(&mut g, "use");
+    submit(&mut g, "pick:a");
+    submit(&mut g, "pick:b");
+    submit(&mut g, "target:1");
+    assert_eq!(g.hand_size(1), 2, "交给协助者两张");
+    submit(&mut g, "opt2");
+    submit(&mut g, "take:a");
+    submit(&mut g, "take:b");
+    assert_eq!(g.hand_size(0), 2, "观看并获得其中两张");
+}

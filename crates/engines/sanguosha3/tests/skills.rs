@@ -119,13 +119,16 @@ fn registry_has_all_batches() {
     ] {
         assert!(codes.contains(&c), "B16 技能 {c} 应注册");
     }
-    for c in ["xuanfeng", "zhichi", "jiangchi", "zongshi_jie", "qiaoshuo", "zongxuan", "zhiyan"] {
-        assert!(codes.contains(&c), "B17 进行中技能 {c} 应注册");
+    for c in [
+        "xuanfeng", "zhichi", "mingce", "jiangchi", "zongshi_jie", "qiaoshuo", "zongxuan",
+        "zhiyan", "xianzhen", "jinjiu", "xuanhuo", "enyuan", "lihuo", "chunlao",
+    ] {
+        assert!(codes.contains(&c), "B17 技能 {c} 应注册");
     }
     assert_eq!(
         skills::all().len(),
-        253,
-        "B0–B16 246 + B17 进行中 7（收口后更新为 260）"
+        260,
+        "B0–B16 246 + B17 14"
     );
     assert!(skills::check_unique_codes().is_ok(), "技能 code 不得重复");
 }
