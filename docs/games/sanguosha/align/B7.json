@@ -2,11 +2,11 @@
   "batch": "B7",
   "source": "一将成名·Y6（保留）",
   "status": "implemented",
-  "engine": "v2",
+  "engine": "v3",
   "mechanics_version": 2,
   "confirmed_by": "用户",
   "confirmed_at": "2026-11-06",
-  "note": "B7 12/12 已在 `crates/engines/sanguosha2` 实现（2026-11-06）。跨批新增内核能力：① **伤害属性字段化**（`cards::DamageKind` + `flow::damage_typed` 的「连环传导起点」标记），链祸只按属性/起点判定；② **响应牌机制**（`cards::ResponseKind` + `Game.response_context` + `responds_as`），滔乱在无懈链/万箭/南蛮只提供对应响应牌；③ **私密展示**（`Game::reveal_private`，督粮/贿生）；④「本回合获得的牌」计数（`turn.gained`，排除摸牌阶段摸牌，腹鳞）；⑤ 阶段弃牌列表（`phase_discard_cards`，瑰藻）；⑥ 匡弼牌按移出/移入游戏（`void_tags`）；⑦ 讥谀花色封锁走手牌冻结。已知收口项：① 讪乱/督粮等仍需【杀】/锦囊结算引擎接入（v2 只做状态与选项）；② 宴诛/匡弼的「获得」链已走 `gain`；③ 白银狮子/藤甲的数值链在 v2 尚未实现，链祸只保证「技能加成在终局修正之前」。",
+  "note": "B7 12/12 已在 `crates/engines/sanguosha2` 实现（2026-11-06）。跨批新增内核能力：① **伤害属性字段化**（`cards::DamageKind` + `flow::damage_typed` 的「连环传导起点」标记），链祸只按属性/起点判定；② **响应牌机制**（`cards::ResponseKind` + `Game.response_context` + `responds_as`），滔乱在无懈链/万箭/南蛮只提供对应响应牌；③ **私密展示**（`Game::reveal_private`，督粮/贿生）；④「本回合获得的牌」计数（`turn.gained`，排除摸牌阶段摸牌，腹鳞）；⑤ 阶段弃牌列表（`phase_discard_cards`，瑰藻）；⑥ 匡弼牌按移出/移入游戏（`void_tags`）；⑦ 讥谀花色封锁走手牌冻结。已知收口项：① 讪乱/督粮等仍需【杀】/锦囊结算引擎接入（v2 只做状态与选项）；② 宴诛/匡弼的「获得」链已走 `gain`；③ 白银狮子/藤甲的数值链在 v2 尚未实现，链祸只保证「技能加成在终局修正之前」。；current/impl/tests 已回写 v3（B16–B20 优先，见 next-v3-verification.md 步骤 B）",
   "generals": [
     {
       "gid": 381,
@@ -22,11 +22,9 @@
           "original_source": "heroes.json#gid=381",
           "mechanics_version": 2,
           "current": [
-            "出牌阶段限一次（`duliang_used`，回合计数器）：选一名**手牌非空**的其他角色 → 从其手牌**随机**取 1 张加入李严手牌（同时 `fulin_gain += 1`，供腹鳞计算）。",
-            "然后二选一：`opt1` 令其观看牌堆顶两张牌 → 其中**基本牌自动**进其手牌，非基本牌放回牌堆顶；`opt2` 置 `duliang` flag → 其**下回合摸牌阶段多摸 1 张**（该 flag 在其摸牌阶段开始时读取并移除）。",
-            "opt1 的「观看」没有交互：实现直接按牌类型分发（基本牌给目标，非基本牌置顶）。",
-            "获得手牌后做手牌上限检查（`cap_hand`）。",
-            "「攻击范围内」等条件不涉及；只要目标有手牌即可选。"
+            "v3：出牌阶段限一次（`phase.<seat>.duliang`）；选一名有手牌的其他角色（`t:<seat>`）→ **随机**获得其一张手牌。",
+            "二选一：`opt1` → `duliang_view_top`：`reveal_top(2)`，其中**基本牌**归其（`flow::gain`），非基本牌按原顺序 `to_deck_top` 放回。",
+            "`opt2` → `duliang.extra.<target>` +1；`draw_bonus` 在其真正摸牌阶段消耗（跳过摸牌阶段则保留到下次）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -98,9 +96,10 @@
               "目标没有手牌时不可选"
             ]
           },
-          "impl": "sanguosha2::skills::b7::DULIANG",
+          "impl": "sanguosha3::kernel::skills::b7::SKILLS(code=duliang) + b7::{can_duliang, duliang, duliang_view_top, draw_bonus}",
           "tests": [
-            "b7::duliang_gains_hidden_hand_then_lets_target_watch_top_two"
+            "b7::duliang_gains_random_card_then_opt2_draw_bonus",
+            "b7::duliang_opt1_keeps_non_basic_on_top"
           ]
         },
         {
@@ -112,10 +111,9 @@
           "original_source": "heroes.json#gid=381",
           "mechanics_version": 2,
           "current": [
-            "锁定技：手牌上限计算里 `+= fulin_gain`（本回合获得的牌数，回合计数器）。",
-            "`fulin_gain` 只在**督粮**获得牌时 +1（`bump_counter(\"fulin_gain\")`）。",
-            "回合结束随回合计数器清空。",
-            "无询问、无日志。"
+            "v3：锁定技，唯一出口 `hand_limit_bonus`：**弃牌阶段**把 `turn.<seat>.gained_cards`（本回合获得的牌，按获得事件累计，不含摸牌阶段摸牌）加回手牌上限。",
+            "非弃牌阶段不生效；摸牌（`CardDrawn`）不计入。",
+            "无 handler/无询问。"
           ],
           "confidence": "verified",
           "diff": [
@@ -159,9 +157,9 @@
               "摸牌阶段摸的牌不计入（不强加上限）"
             ]
           },
-          "impl": "sanguosha2::skills::b7::FULIN（`Game::hand_limit` 读 `turn.gained`）",
+          "impl": "sanguosha3::kernel::skills::b7::SKILLS(code=fulin) + b7::hand_limit_bonus",
           "tests": [
-            "b7::fulin_counts_gained_but_not_draw_phase"
+            "b7::fulin_excludes_gained_cards_from_hand_limit_in_discard_phase"
           ]
         }
       ]
@@ -180,10 +178,9 @@
           "original_source": "heroes.json#gid=382",
           "mechanics_version": 2,
           "current": [
-            "出牌阶段限一次：选一名手牌非空的其他角色 → 其选**至多 3 张手牌**（可勾选/确认，也可不放置）→ 置于孙登武将牌上为「匡弼」（mark 区持牌）。",
-            "记录 `kuangbi_helper`（目标座位 +1）。",
-            "孙登**下个回合开始时**（Prepare 段）：获得所有「匡弼」牌（直接从 mark 区取出进手牌），随后目标摸**等量**张牌。",
-            "目标 pass 则本次不放置牌（技能已发动但不产生效果）。"
+            "v3：出牌阶段限一次（`phase.<seat>.kuangbi`）；选一名有牌的其他角色（`t:<seat>`）→ 由其自选**至多三张**自己的牌（手牌/装备，`card:<id>`）`flow::store_on_general` 为「匡弼」（移出游戏，事件 `CardOutOfGame`）。",
+            "每张记录来源 `kuangbi.src.<id>`；放满三张或主动结束即结算；**一张都没放**视为未发动（不消耗本阶段次数，可再选别人）。",
+            "自己回合开始（`TurnStart`）`kuangbi_collect`：获得全部「匡弼」牌（`CardIntoGame` 事件），放置者各摸等量张。"
           ],
           "confidence": "verified",
           "diff": [
@@ -255,9 +252,10 @@
               "未放置任何牌 → 本次不算已发动（可再选别人）"
             ]
           },
-          "impl": "sanguosha2::skills::b7::KUANGBI",
+          "impl": "sanguosha3::kernel::skills::b7::SKILLS(code=kuangbi) + b7::{can_kuangbi, kuangbi, kuangbi_collect}",
           "tests": [
-            "b7::kuangbi_moves_cards_out_of_game_then_returns_next_turn"
+            "b7::kuangbi_places_cards_and_collects_next_turn",
+            "b7::kuangbi_zero_cards_not_counted_as_activation"
           ]
         }
       ]
@@ -276,10 +274,9 @@
           "original_source": "heroes.json#gid=383",
           "mechanics_version": 2,
           "current": [
-            "出牌阶段限一次；前置 = 刘虞**手牌数 > 体力值** && 存在「攻击范围包含刘虞」的其他角色。",
-            "选目标 → 由目标二选一：`opt1`（其有【杀】时）对其（刘虞）使用一张【杀】（自动取其第一张【杀】）；`opt2`（其装备区有牌时）交给刘虞一张装备区的牌。",
-            "两个选项都不满足 → 帧直接弹出（不产生效果）。",
-            "使用【杀】时直接指定刘虞为唯一目标（无距离限制）。"
+            "v3：出牌阶段限一次；条件 = 自己手牌数 > 体力值，且存在攻击范围含刘虞、且有【杀】或装备牌的角色（`zhige_targets`）。",
+            "选目标（`t:<seat>`）→ **由目标**二选一：`opt1` 使用一张手牌【杀】对刘虞（`use_on_targets`，目标自选）；`opt2` 交给刘虞一张**装备区**牌（`flow::gain`）。",
+            "无可用选项不提供；可放弃。"
           ],
           "confidence": "verified",
           "diff": [
@@ -339,9 +336,10 @@
               "没有【杀】也不给「使用杀」选项"
             ]
           },
-          "impl": "sanguosha2::skills::b7::ZHIGE",
+          "impl": "sanguosha3::kernel::skills::b7::SKILLS(code=zhige) + b7::{can_zhige, zhige_targets, zhige}",
           "tests": [
-            "b7::zhige_requires_hand_over_hp_and_target_with_sha_or_equip"
+            "b7::zhige_requires_more_hand_than_hp",
+            "b7::zhige_target_gives_equip_card"
           ]
         },
         {
@@ -353,10 +351,9 @@
           "original_source": "heroes.json#gid=383",
           "mechanics_version": 2,
           "current": [
-            "锁定技，**游戏开始时**（`lib.rs` 调 `init_zongzuo`）：按全场**势力数 X**（开局快照）→ 刘虞体力上限 +X（封顶 `MAX_HP_LIMIT`）并回复 1 点体力。",
-            "某势力**最后一名角色死亡**后（`zongzuo_on_death`）：所有拥有宗祚的角色 -1 体力上限（下限 1）并把 hp 压到上限。",
-            "无询问；写日志说明势力数与上限变化。",
-            "同一势力多人同时死亡时只按「该势力是否还有存活」判定一次。"
+            "v3：锁定技 `GameStart` 钩子 `on_game_start`：按**开局快照**的存活势力数 X → `gain_max_hp(X)` + 循环 X 次 `heal(1)`；记录 `zongzuo.kingdoms.<seat>`。",
+            "`on_death`：某势力最后一名角色死亡 → 每个存活宗祚持有者 `lose_max_hp(1)`（统一体力上限变化事件）。",
+            "无主动面/无询问。"
           ],
           "confidence": "verified",
           "diff": [
@@ -414,9 +411,9 @@
               "某势力还有存活时不减上限"
             ]
           },
-          "impl": "sanguosha2::skills::b7::ZONGZUO（`init_zongzuo` + Death 触发）",
+          "impl": "sanguosha3::kernel::skills::b7::SKILLS(code=zongzuo) + b7::{on_game_start, on_death, zongzuo}",
           "tests": [
-            "b7::zongzuo_adds_max_hp_by_kingdoms_and_drops_on_last_death"
+            "b7::zongzuo_adds_max_hp_on_setup_and_loses_on_kingdom_death"
           ]
         }
       ]
@@ -435,10 +432,9 @@
           "original_source": "heroes.json#gid=384",
           "mechanics_version": 2,
           "current": [
-            "出牌阶段：可**反复**发动（不限次），前置 = `jishe_used < hp`（近似「手牌上限 > 0」）；每次摸 1 张并 `jishe_used += 1` → 手牌上限 = `hp - jishe_used`。",
-            "结束阶段：若**没有手牌**且 hp > 0 → 「当前每有 1 点体力」可依次令一名角色进入连环状态（每次选一名**尚未横置**的角色）。",
-            "每次令角色横置后触发法恩钩子（`faen_trigger(target)`）。",
-            "横置次数 = hp（剩余次数递减）；无人可横置则提前结束。"
+            "v3：出牌阶段**可反复发动**（`can_jishe`：实际手牌上限 > 0）→ `flow::draw(1)` + `turn.<seat>.jishe` +1；`hand_limit_bonus` 按其负值扣减本回合手牌上限。",
+            "结束阶段：若**没有手牌** → 按当前体力值逐次选一名未横置角色（`t:<seat>`）`flow::chain_enter`，次数用完为止（可放弃）。",
+            "出牌阶段与结束阶段两种形态共用同一 code，按阶段分流。"
           ],
           "confidence": "verified",
           "diff": [
@@ -497,9 +493,10 @@
               "实际手牌上限为 0 时不可发动"
             ]
           },
-          "impl": "sanguosha2::skills::b7::JISHE（`Game::hand_limit` 极奢分支）",
+          "impl": "sanguosha3::kernel::skills::b7::SKILLS(code=jishe) + b7::{can_jishe, jishe, hand_limit_bonus}",
           "tests": [
-            "b7::jishe_draws_and_reduces_hand_limit"
+            "b7::jishe_draws_and_reduces_hand_limit_until_zero",
+            "b7::jishe_end_phase_chains_once_per_hp_without_hand"
           ]
         },
         {
@@ -511,9 +508,9 @@
           "original_source": "heroes.json#gid=384",
           "mechanics_version": 2,
           "current": [
-            "锁定技：受到**火焰**伤害且自己处于**连环状态**时，伤害 +1（`lianhuo_bonus`，并入伤害数值链）。",
-            "未校验「是传导伤害的起点」。",
-            "无询问、无日志（加成只体现在最终伤害值）。"
+            "v3：锁定技，唯一出口 `lianhuo_bonus`：`spec.kind == Fire` 且受害者**横置**且持有链祸 → +1（随连环继续传导，各受害者按自身判定）。",
+            "**与 agreed 不一致（待人工复核）**：agreed 要求「是本次传导伤害的**起点**」才 +1，V3 只判横置 + 持有，未区分起点。",
+            "数值链：与藤甲叠加，白银狮子最后压回 1；无 handler/询问。"
           ],
           "confidence": "verified",
           "diff": [
@@ -572,10 +569,9 @@
               "普通伤害不加"
             ]
           },
-          "impl": "sanguosha2::skills::b7::LIANHUO（`skills::damage_bonus_typed`）",
+          "impl": "sanguosha3::kernel::skills::b7::SKILLS(code=lianhuo) + b7::lianhuo_bonus",
           "tests": [
-            "b7::lianhuo_bonus_only_when_fire_and_chain_origin",
-            "b7::damage_attributes_are_data_driven"
+            "b7::lianhuo_adds_one_to_fire_damage_and_propagates"
           ]
         }
       ]
@@ -594,9 +590,9 @@
           "original_source": "heroes.json#gid=385",
           "mechanics_version": 2,
           "current": [
-            "弃牌阶段结束（`turn.rs`）：若本阶段弃置过 **≥2 张**牌且这些牌**花色均不相同** → 询问：回复 1 点体力 / 摸 1 张 / 不发动。",
-            "只统计**弃牌阶段**的弃置（`phase_discarded` 集合）。",
-            "文字用花色（黑桃/红桃/梅花/方块）去重比较。"
+            "v3：弃牌阶段逐张弃置时记录花色（`guizao.suits.<seat>`，含该阶段内被技能弃置的牌）；阶段结束结算。",
+            "条件 = 弃置 ≥2 张且**花色全部不同**（`BTreeSet` 去重后长度 == 张数）→ 询问 `heal`/`draw`（可放弃）。",
+            "不足两张或花色重复不询问；结算后清空记录。"
           ],
           "confidence": "verified",
           "diff": [
@@ -640,10 +636,10 @@
               "只弃 1 张不触发"
             ]
           },
-          "impl": "sanguosha2::skills::b7::GUIZAO",
+          "impl": "sanguosha3::kernel::skills::b7::SKILLS(code=guizao) + b7::guizao",
           "tests": [
-            "b7::guizao_triggers_with_two_distinct_suit_discards",
-            "b7::guizao_not_triggered_with_single_discard"
+            "b7::guizao_triggers_with_two_distinct_suits",
+            "b7::guizao_ignores_single_card_or_same_suit"
           ]
         },
         {
@@ -655,10 +651,9 @@
           "original_source": "heroes.json#gid=385",
           "mechanics_version": 2,
           "current": [
-            "出牌阶段可反复发动（**每名角色限一次**：`jiyu_target:{i}`）；前置 = 自己有手牌 && 存在未被选过且有手牌的其他角色。",
-            "选目标 → 从其手牌**随机**弃 1 张 → 把该牌花色记入 `jiyu_banned`（本回合不能**使用**该花色的牌，在出牌入口校验）。",
-            "若弃置的是**黑桃**：目标失去 1 点体力（直接 `hp -= 1`）+ 孙资刘放翻面（触发翻面钩子）。",
-            "「每名角色限一次」按目标计数（同一目标本回合只能被选一次）。"
+            "v3：出牌阶段；**每名角色每回合限一次**（`turn.<seat>.jiyu.<t>`）；需自己有用得出手牌、目标有手牌。",
+            "选目标（`t:<seat>`）→ 由**目标自选**弃一张手牌（`card:<id>`）→ 该花色 `freeze_cards(actor, FreezeUntil::Turn)` + `turn.<seat>.jiyu_lock.<suit>`（`card_locked` 对后续获得牌也生效）。",
+            "若该牌为**黑桃** → 目标 `flow::lose_hp(1)` + 孙资刘放 `flip_seat` 翻面。"
           ],
           "confidence": "verified",
           "diff": [
@@ -731,9 +726,9 @@
               "其它花色不受冻结影响"
             ]
           },
-          "impl": "sanguosha2::skills::b7::JIYU",
+          "impl": "sanguosha3::kernel::skills::b7::SKILLS(code=jiyu) + b7::{can_jiyu, jiyu, card_locked}",
           "tests": [
-            "b7::jiyu_target_chooses_card_and_suit_gets_frozen"
+            "b7::jiyu_freezes_same_suit_and_spade_costs_hp"
           ]
         }
       ]
@@ -752,10 +747,9 @@
           "original_source": "heroes.json#gid=386",
           "mechanics_version": 2,
           "current": [
-            "结束阶段：选**任意名**「攻击范围内含主公」的其他角色（多选，需 ≥1）→ 依次弃置其**一张牌** → 令其各摸 1 张。",
-            "结算后统计「手牌数比主公多」的角色数 X → 黄皓摸 X 张；比较用的是**主公手牌数快照**（结算前）。",
-            "弃牌用 `take_one_from_region`（判定区 → 装备区 → 手牌随机）。",
-            "无主公（无 lord 身份）→ 不发动。"
+            "v3：结束阶段（`PhaseStart` + `End`）；候选 = 攻击范围含**主公**、有牌、未被选过的其他角色（`chosen` 累积，逐个结算）。",
+            "选目标（`t:<seat>`）→ 黄皓指定弃其装备区具体牌，或 `random_hand` 随机手牌 → `qinqing_after`：其摸 1；若结算后其手牌数 > 主公**当前**手牌数 → 黄皓摸 1。",
+            "可 `pass` 结束；已选角色从候选剔除。"
           ],
           "confidence": "verified",
           "diff": [
@@ -827,9 +821,9 @@
               "每次选过的角色从候选剔除（不能重复）"
             ]
           },
-          "impl": "sanguosha2::skills::b7::QINQING",
+          "impl": "sanguosha3::kernel::skills::b7::SKILLS(code=qinqing) + b7::{qinqing, qinqing_after}",
           "tests": [
-            "b7::qinqing_discards_then_draws_and_rewards_extra"
+            "b7::qinqing_discards_draws_and_compares_with_lord"
           ]
         },
         {
@@ -841,10 +835,9 @@
           "original_source": "heroes.json#gid=386",
           "mechanics_version": 2,
           "current": [
-            "受到**其他角色**造成的伤害**时**（扣血前，`allow_tianxiang` 段）：若本局未对该来源发动过（`huisheng_no:{source}`）→ **随机展示黄皓一张牌**（写日志）→ 由来源二选一：",
-            "`opt1` 获得该牌 + 防止此伤害 + 本局不能再对该来源发动贿生。",
-            "`opt2` 弃置**一张手牌**（随机）+ 伤害照常结算。",
-            "来源无手牌时 opt2 仍提供（不弃牌直接结算）。"
+            "v3：`Hook::DamageBefore`（受到其他角色伤害前）；门控 = 自己有牌、本回合未对该来源发动过 opt1（`huisheng.used.<victim>.<from>`）。",
+            "`use` → 由黄皓自选展示**任意张**自己的牌 → 来源二选一：`opt1` 从展示牌中选一张获得（`flow::gain`）+ **防止此伤害** + 记录本回合已用；`opt2` 弃置等量张自己的手牌（不足不可选），伤害照常 `damage_apply`。",
+            "不发动/未展示 → 按原伤害结算；展示牌结算后回收。"
           ],
           "confidence": "verified",
           "diff": [
@@ -916,10 +909,10 @@
               "来源手牌不足等量时「弃等量」不可选"
             ]
           },
-          "impl": "sanguosha2::skills::b7::HUISHENG（`skills::damage_before` 受害者侧）",
+          "impl": "sanguosha3::kernel::skills::b7::SKILLS(code=huisheng) + b7::{should_ask_damage_before_victim, huisheng}",
           "tests": [
-            "b7::huisheng_privately_shows_cards_and_source_chooses",
-            "b7::huisheng_opt2_requires_enough_hand"
+            "b7::huisheng_prevents_damage_after_source_gains_a_card",
+            "b7::huisheng_opt2_discards_equal_cards_and_damage_applies"
           ]
         }
       ]
@@ -938,10 +931,9 @@
           "original_source": "heroes.json#gid=387",
           "mechanics_version": 2,
           "current": [
-            "出牌阶段：列出手牌 × 可声明牌名（【杀】/【桃】/【酒】+ **6 个锦囊白名单**：无中生有/过河拆桥/顺手牵羊/决斗/南蛮入侵/万箭齐发），每种牌名**整局限一次**（`taoluan_used:{code}` flag）；【桃】仅受伤时、【酒】每回合一次；自己处于濒死时不可用。",
-            "结算：按声明牌名走对应流程（杀 → Sha 帧；桃 → 回血；酒 → 置酒标记；锦囊 → 虚拟锦囊）。",
-            "随后令一名其他角色二选一：`opt1` 交出一张**类型不同**的手牌（自动取其第一张符合条件的牌）；`opt2` 张让失去 1 点体力 + `taoluan_disabled`（**本回合**失效）。",
-            "目标没有类型不同的牌 → 只提供 opt2。"
+            "v3：出牌阶段主动；条件 = 无角色濒死、有手牌、有他人、存在本局未用过的牌名（`taoluan_defs`：基本牌 + 非延时锦囊，按属性过滤）。",
+            "选牌名（`use:<code>`）→ 选一张手牌承载 `use_as`（打 `vskill.<vid>=taoluan`）→ 每种牌名整局限一次（`taoluan.used.<code>`）。",
+            "牌结算后（`CardUsed` 订阅）`taoluan_pick_target`：令一名其他角色二选一：`opt1` 交一张**类型不同**的牌；`opt2` 张让 `flow::lose_hp(1)` + 本回合本技能失效（`taoluan_off`）。响应窗口 `response_alternatives`：无懈链当【无懈】、万箭当【闪】、南蛮当【杀】。"
           ],
           "confidence": "verified",
           "diff": [
@@ -1015,11 +1007,11 @@
               "全场有人濒死时不可发动"
             ]
           },
-          "impl": "sanguosha2::skills::b7::TAOLUAN（`cards::ResponseKind` + `Game.response_context`）",
+          "impl": "sanguosha3::kernel::skills::b7::SKILLS(code=taoluan) + b7::{can_taoluan, taoluan_defs, taoluan, taoluan_pick_target, response_alternatives}",
           "tests": [
-            "b7::taoluan_uses_card_as_trick_and_each_name_once",
-            "b7::taoluan_response_context_only_offers_response_card",
-            "b7::taoluan_blocked_while_someone_is_dying"
+            "b7::taoluan_uses_card_as_named_card_and_limits_each_name",
+            "b7::taoluan_target_gives_card_of_different_type",
+            "b7::taoluan_blocked_while_someone_dying"
           ]
         }
       ]
