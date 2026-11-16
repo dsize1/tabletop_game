@@ -2,11 +2,11 @@
   "batch": "B15",
   "source": "界限突破·J3",
   "status": "implemented",
-  "engine": "v2",
+  "engine": "v3",
   "mechanics_version": 2,
   "confirmed_by": "用户",
   "confirmed_at": "2026-11-09",
-  "note": "机器文件（单一事实源）。人读请看同目录 B15.md；改这里后运行 --sync 重生成 md。 2026-11-09：63 条疑点经用户逐条裁定（含 13 条在 B15.md 上直接改写），第 6/7 段已落；同日实现 `crates/engines/sanguosha2/src/skills/b15.rs`（19 技能）+ `tests/b15.rs`（39 条），注册 SKILLS + V2_BATCHES=15，状态置 implemented。",
+  "note": "机器文件（单一事实源）。人读请看同目录 B15.md；改这里后运行 --sync 重生成 md。 2026-11-09：63 条疑点经用户逐条裁定（含 13 条在 B15.md 上直接改写），第 6/7 段已落；同日实现 `crates/engines/sanguosha2/src/skills/b15.rs`（19 技能）+ `tests/b15.rs`（39 条），注册 SKILLS + V2_BATCHES=15，状态置 implemented。；current/impl/tests 已回写 v3（B16–B20 优先，见 next-v3-verification.md 步骤 B）",
   "generals": [
     {
       "gid": 463,
@@ -22,10 +22,9 @@
           "original_source": "heroes.json#gid=463",
           "mechanics_version": 2,
           "current": [
-            "v2 主动技：出牌阶段限一次（`turn.tianyi_used`），选一名手牌非空的角色拼点（`kernel::pindian::start`）。",
-            "赢 → `turn.tianyi=1`：`skills::sha_limit_bonus` +1、`skills::sha_no_distance` 无距离、`skills::extra_targets` +1（仅【杀】/出牌阶段）。",
-            "没赢 → `turn.tianyi_lose=1`：`skills::sha_limit_override` 返回 0（禁止**使用**【杀】），响应打出不受限。",
-            "视为使用的【杀】（长标/乱武）同样享受加成（长标的目标数上限读 `extra_targets`）。"
+            "v3：出牌阶段限一次（`phase.<seat>.tianyi`）；需场上有手牌非空且可拼点的角色 → 选目标拼点（酣战前置由 `pindian::start` 统一压询问）。",
+            "赢（`winner == owner`）→ `tianyi_won`：`sha_extra` +1（【杀】次数）、`on_use_start` 对【杀】（含「视为使用」）`declare_no_distance` + `declare_extra_targets(1)`（第二名目标同样无距离）。",
+            "没赢 → `tianyi_lost`：`sha_use_blocked` 本回合不能**使用**【杀】（响应窗口仍可**打出**）；标记按回合清零。"
           ],
           "confidence": "verified",
           "diff": [
@@ -102,10 +101,9 @@
               "没赢时不得阻止响应打出【杀】"
             ]
           },
-          "impl": "sanguosha2::skills::b15::TIANYI + kernel::pindian",
+          "impl": "sanguosha3::kernel::skills::b15::SKILLS(code=tianyi) + b15::{can_tianyi, tianyi, sha_use_blocked, sha_extra, on_use_start}",
           "tests": [
-            "b15::tianyi_win_grants_bonus_and_extra_target",
-            "b15::tianyi_lose_blocks_sha_use"
+            "b15::tianyi_wins_boost_and_loses_block_sha"
           ]
         },
         {
@@ -117,10 +115,9 @@
           "original_source": "heroes.json#gid=463",
           "mechanics_version": 2,
           "current": [
-            "v2：拼点流程新增 `pre` 阶段（`kernel::pindian`），逐个询问拥有「拼点前」技能的参与者（`skills::pindian_pre_owners`）。",
-            "发动后给对手置 `pindian.random:<seat>`；对手选牌阶段跳过询问，直接随机一张手牌（`skills::pindian_random_forced`）。",
-            "拼点结算后由 `skills::pindian_after` 给持有者压入询问：获得两张拼点牌中**点数最大**的实体【杀】（须仍在弃牌堆，同点数由玩家选）。",
-            "「获得」走 `Game::gain`（`CardGained` 事件链）。"
+            "v3：独立拼点窗口，不内联在任何拼点技能里。**拼点前** `fire_pindian_pre`：对每个持有酣战的参与者压询问，`use` → `pindian.random.<other>`（对手只能随机一张手牌拼点）。",
+            "**拼点后** `pindian_after`：取两张拼点牌中**点数最大**的**实体【杀】**（`def.tags.sha`；只认实体牌，需仍在弃牌堆），对每个持有酣战的参与者询问 `gain:<id>`（同最大点数由持有者选）。",
+            "适用于任意拼点来源（天义/烈刃/驱虎/陷阵/巧说…）；可放弃。"
           ],
           "confidence": "verified",
           "diff": [
@@ -197,10 +194,10 @@
               "两张拼点牌都不是【杀】或已被取走 → 不获得"
             ]
           },
-          "impl": "sanguosha2::skills::b15::HANZHAN + kernel::pindian（pre/after 钩子）",
+          "impl": "sanguosha3::kernel::skills::b15::SKILLS(code=hanzhan) + b15::{fire_pindian_pre, pindian_after, hanzhan}",
           "tests": [
-            "b15::hanzhan_forces_random_and_gains_biggest_sha",
-            "b15::hanzhan_without_skill_lets_opponent_choose"
+            "b15::hanzhan_makes_target_use_random_card",
+            "b15::hanzhan_windows_apply_to_any_pindian_source"
           ]
         }
       ]
@@ -219,9 +216,9 @@
           "original_source": "heroes.json#gid=470",
           "mechanics_version": 2,
           "current": [
-            "v2 锁定技（纯钩子）：`skills::response_need` = `b12::response_need`（无双）+ `b15::response_need_bonus`（肉林），**相加**。",
-            "条件：攻击者或目标之一有肉林，且另一方为女性（`Seat.male == false`，含化身性别覆盖）。",
-            "【杀】响应窗口按 `need` 连续要求 N 张【闪】；虚拟【闪】可各计一张。"
+            "v3：锁定技，唯一出口 `response_bonus`（响应张数追加）：①董卓（男）对**女性**使用【杀】；②**女性**对董卓（男）使用【杀】→ 各需额外 1 张【闪】。",
+            "与【无双】（`response_need`）**相加**：同时成立共 3 张；同一响应窗口连续打出。",
+            "虚拟【闪】（八卦阵判定/龙胆/倾国等）各计一张；无 handler/询问。"
           ],
           "confidence": "verified",
           "diff": [
@@ -295,9 +292,9 @@
               "【闪】张数不足时【杀】不被抵消"
             ]
           },
-          "impl": "sanguosha2::skills::b15::ROULIN + skills::response_need",
+          "impl": "sanguosha3::kernel::skills::b15::SKILLS(code=roulin) + b15::response_bonus",
           "tests": [
-            "b15::roulin_adds_flash_requirement_and_stacks_with_wushuang"
+            "b15::roulin_adds_one_shan_need_and_stacks_with_wushuang"
           ]
         },
         {
@@ -309,9 +306,9 @@
           "original_source": "heroes.json#gid=470",
           "mechanics_version": 2,
           "current": [
-            "v2 锁定技：`PhaseStart(End)` 时若存在其他角色体力 **≤** 你（并列最小也触发）→ 二选一。",
-            "失去体力走 `flow::lose_hp`（非伤害、可濒死）；减少上限走 `flow::lose_max_hp`（最低 1，体力随之压到上限）。",
-            "`turn.bengkuai_off`（界酒池）时整段跳过；`turn.bengkuai_done` 保证每回合一次。"
+            "v3：锁定技，结束阶段（`PhaseStart` + `Phase::End`，`g.turn == owner`）。",
+            "若本回合「酒【杀】」已造成伤害（`turn.<seat>.jiu_sha_hit > 0`）→ 本回合崩坏失效（直接结束）。",
+            "否则若有其他存活角色体力 **≤** 董卓（并列也算；自己是唯一最小者不触发）→ 强制二选一：`lose_hp`（`flow::lose_hp`，可进入濒死）或 `lose_max`（`flow::lose_max_hp`，上限最低 1）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -386,10 +383,9 @@
               "本回合酒【杀】造成伤害后 → 本回合崩坏失效"
             ]
           },
-          "impl": "sanguosha2::skills::b15::BENGKUAI + flow::lose_hp / flow::lose_max_hp",
+          "impl": "sanguosha3::kernel::skills::b15::SKILLS(code=bengkuai) + b15::bengkuai",
           "tests": [
-            "b15::bengkuai_triggers_and_loses_hp",
-            "b15::bengkuai_tie_triggers_unique_minimum_skips"
+            "b15::bengkuai_triggers_when_others_not_higher_and_skips_after_jiu_sha"
           ]
         },
         {
@@ -401,10 +397,9 @@
           "original_source": "heroes.json#gid=470",
           "mechanics_version": 2,
           "current": [
-            "v2 转化：黑桃**手牌**当【酒】（`skills::conversions` → `convert:` 动作）；濒死自救由 `skills::dying_self_jiu` 提供。",
-            "`skills::jiu_unlimited` 令【酒】不限次数（`Effect::Jiu` 的次数校验放行）。",
-            "`jiu_take_bonus` 一次取走全部层数 → 连喝多杯伤害叠加；伤害时写 `turn.jiu_boost:<victim>`。",
-            "酒【杀】造成伤害后（`DamageAfter` + `jiu_boost` 标记）置 `turn.bengkuai_off`，使本回合崩坏失效。"
+            "v3：转化技 `use_alias`：**黑桃手牌**当【酒】（已是【酒】的牌不重复转化）；出牌阶段可用，濒死时也可当【酒】自救。",
+            "`jiu_unlimited`：董卓使用【酒】无次数限制，同回合连喝**叠加**伤害（内核 `jiu_used` 计数，每杯 +1，【杀】结算后清）。",
+            "`on_damage_after`：酒【杀】造成伤害后置 `turn.<seat>.jiu_sha_hit` → 本回合崩坏失效。"
           ],
           "confidence": "verified",
           "diff": [
@@ -481,10 +476,9 @@
               "非酒【杀】造成伤害不触发崩坏失效"
             ]
           },
-          "impl": "sanguosha2::skills::b15::JIUCHI + card_play::apply_jiu / jiu_take_bonus",
+          "impl": "sanguosha3::kernel::skills::b15::SKILLS(code=jiuchi) + b15::{use_alias, jiu_unlimited, on_damage_after}",
           "tests": [
-            "b15::jiuchi_converts_and_stacks",
-            "b15::jiuchi_does_not_convert_heart"
+            "b15::jiuchi_spade_as_jiu_unlimited_and_stacks"
           ]
         },
         {
@@ -496,9 +490,9 @@
           "original_source": "heroes.json#gid=470",
           "mechanics_version": 2,
           "current": [
-            "v2 主公技：订阅 `DamageAfter`；来源须为**其他**群势力角色；按 `amount` **逐点**依次询问（每点可独立放弃）。",
-            "判定走 `card_play::start_quick_judge`（可被鬼才/鬼道改判）；黑桃 → `flow::heal` +1 并 `Game::gain` 判定牌。",
-            "非黑桃只记录历史，不回复不获得。"
+            "v3：主公技；其他**群势力**角色造成伤害后（`DamageAfter`，`by` 为群势力且非董卓），按伤害点数逐点询问（`amount` / `left`）。",
+            "每次 `use` → `quick_judge::start`；判定为**黑桃** → `flow::heal` 1 并获得该判定牌（`flow::gain`，统一获得入口）；其他花色无事。",
+            "可逐次放弃；判定可被改判。"
           ],
           "confidence": "verified",
           "diff": [
@@ -575,10 +569,9 @@
               "判定非黑桃 → 不回复也不获得"
             ]
           },
-          "impl": "sanguosha2::skills::b15::BAONUE + card_play::start_quick_judge",
+          "impl": "sanguosha3::kernel::skills::b15::SKILLS(code=baonue) + b15::baonue + kernel::quick_judge::start",
           "tests": [
-            "b15::baonue_triggers_per_point_for_qun_damage",
-            "b15::baonue_ignores_non_qun_or_self"
+            "b15::baonue_judges_per_damage_point_and_spade_heals"
           ]
         }
       ]
@@ -597,10 +590,9 @@
           "original_source": "heroes.json#gid=471",
           "mechanics_version": 2,
           "current": [
-            "v2：内核新增 `EventKind::CardLost`（牌离开手牌/装备区，cause=`to:<区域>`），屯田订阅它。",
-            "回合外：任何失去手牌/装备区牌都询问判定（判定区不算失去）；回合内：仅 `to:Discard` 且牌为【杀】。",
-            "判定非红桃 → `Game::to_mark(card, seat, \"tian\")`；红桃弃置。",
-            "`skills::distance_delta` = 「田」张数（距离入口统一下限 1）。"
+            "v3：触发条件（`step=ask` 校验）：①**回合外**失去牌（`CardLost`，手牌/装备区；判定区不算）；②**回合内弃置【杀】**（`CardDiscarded` + `g.turn == owner` + `def.tags.sha`，含弃牌阶段因上限弃置）。",
+            "询问 `use` → `quick_judge::start`；判定**非红桃** → `flow::store_on_general(..., \"tian\")`：判定牌作为实体「田」置于武将牌上。",
+            "「田」= `Zone::Mark(seat, \"tian\")` 实体牌（`tian_cards`）；`distance_bonus` = -田数（距离下限 1）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -676,10 +668,9 @@
               "回合外失去判定区牌不触发（用户裁定 C）"
             ]
           },
-          "impl": "sanguosha2::skills::b15::TUOTIAN + kernel::event::CardLost",
+          "impl": "sanguosha3::kernel::skills::b15::SKILLS(code=tuotian) + b15::{tuotian, tian_cards, distance_bonus} + kernel::flow::store_on_general",
           "tests": [
-            "b15::tuotian_judges_after_losing_card_outside_turn",
-            "b15::tuotian_own_turn_only_counts_discarded_sha"
+            "b15::tuotian_gains_tian_out_of_turn_and_distance_shrinks"
           ]
         },
         {
@@ -691,9 +682,9 @@
           "original_source": "heroes.json#gid=471",
           "mechanics_version": 2,
           "current": [
-            "v2 觉醒技：`PhaseStart(Prepare)` 时「田」≥3 → `flow::lose_max_hp(1)` + `grant_skill(\"jixi\")` + 置 `zaoxian_extra`。",
-            "`PhaseStart(End)` 消费 `zaoxian_extra` → `Game.extra_turn = Some(seat)`；驱动器在回合结束后插入额外回合。",
-            "额外回合按新回合处理：清 `turn.*`、`used_this_turn`、`uncounted`，并递增 `turn_seq`、发 `TurnStart`。"
+            "v3：觉醒技（`awaken.<seat>.zaoxian` 终身一次）：准备阶段（`PhaseStart` + `Phase::Prepare`）且「田」≥ 3 → `flow::lose_max_hp(1)`（体力压到上限）+ 授予「急袭」+ `turn::extra_turn(owner)`（本回合结束后额外回合）。",
+            "「急袭」（授予技）：出牌阶段限一次（`phase.<seat>.jixi`），消耗一张实体「田」作承载 → `use_as(\"shunshou_qianyang\")` 对合法目标使用（目标校验走内核）。",
+            "觉醒后「田」保留。"
           ],
           "confidence": "verified",
           "diff": [
@@ -766,10 +757,10 @@
               "已觉醒 → 不再触发"
             ]
           },
-          "impl": "sanguosha2::skills::b15::ZAOXIAN + turn::tick（额外回合）",
+          "impl": "sanguosha3::kernel::skills::b15::SKILLS(code=zaoxian) + b15::{zaoxian, tian_cards, can_jixi, jixi} + kernel::turn::extra_turn",
           "tests": [
-            "b15::zaoxian_awaken_and_extra_turn",
-            "b15::zaoxian_needs_three_tian"
+            "b15::zaoxian_awakens_at_three_tian_and_grants_jixi",
+            "b15::jixi_consumes_a_tian_as_snatch"
           ]
         }
       ]
@@ -788,9 +779,9 @@
           "original_source": "heroes.json#gid=479",
           "mechanics_version": 2,
           "current": [
-            "v2 锁定技：`target_blocker` 拦截牌名「南蛮入侵」（AOE 目标枚举处 `skills::can_target` 过滤）。",
-            "牌结算结束钩子 `skills::on_card_finished`（`card_play::aoe` 收尾）→ 座位序最先的巨象持有者获得该【南蛮入侵】（被无懈也获得）。",
-            "自己使用的【南蛮入侵】不获得；牌已不在弃牌堆则不获得。"
+            "v3：锁定技两出口。①`aoe_excluded`：【南蛮入侵】目标枚举排除巨象持有者（不能成为目标）。",
+            "②`on_card_finished`：其他角色使用的【南蛮入侵】结算结束后（即使被无懈抵消；牌仍在处理区/弃牌堆）→ 座位序**最先**的巨象持有者 `flow::gain` 获得之。",
+            "牌已不在处理区则不获得；无 handler/询问。"
           ],
           "confidence": "verified",
           "diff": [
@@ -865,10 +856,9 @@
               "牌已不在处理区 → 不获得"
             ]
           },
-          "impl": "sanguosha2::skills::b15::JUXIANG + skills::on_card_finished",
+          "impl": "sanguosha3::kernel::skills::b15::SKILLS(code=juxiang) + b15::{aoe_excluded, on_card_finished}",
           "tests": [
-            "b15::juxiang_immune_and_gains_after_other_nanman",
-            "b15::juxiang_does_not_gain_own_nanman"
+            "b15::juxiang_blocks_nanman_and_steals_it_after_resolution"
           ]
         },
         {
@@ -880,9 +870,9 @@
           "original_source": "heroes.json#gid=479",
           "mechanics_version": 2,
           "current": [
-            "v2：保留独立 code `liereng`；`DamageAfter` 触发（来源=持有者、牌为实体【杀】、目标存活），询问是否拼点。",
-            "拼点后赢 → 从其**随机手牌或装备区**获得一张牌（不含判定区）；每名受伤目标各触发一次（`turn.liereng_asked` 去重）。",
-            "与标准 `liewen` 共用交互形状（`take_one_options`/`take_one`），后续若迁入标准祝融可复用同一实现。"
+            "v3：`DamageAfter` + `Subject::By`（自己使用【杀】造成伤害后，目标存活）；每个受伤目标各触发一次（多目标【杀】各一次）。",
+            "询问 `use` → `pindian::start(owner, victim)`；赢 → 从受害者 `own_cards`（手牌+装备区）随机获得一张（判定区不算）。",
+            "须双方可拼点（`pindian::can_start`）；可放弃。"
           ],
           "confidence": "verified",
           "diff": [
@@ -956,10 +946,9 @@
               "目标既无手牌也无装备 → 无可获得（不报错）"
             ]
           },
-          "impl": "sanguosha2::skills::b15::LIERENG",
+          "impl": "sanguosha3::kernel::skills::b15::SKILLS(code=liereng) + b15::liereng + kernel::pindian::start",
           "tests": [
-            "b15::liereng_pindian_and_gain_card",
-            "b15::liereng_ignores_non_sha_damage"
+            "b15::liereng_pindian_win_steals_a_card"
           ]
         },
         {
@@ -971,9 +960,9 @@
           "original_source": "heroes.json#gid=479",
           "mechanics_version": 2,
           "current": [
-            "v2 主动技：出牌阶段限一次；逐张选择手牌（≥1）→ 选择目标（1 + 天义加成）→ 全部选中牌进弃牌堆并 `use_virtual(\"杀\")`（纯虚拟：**无花色无点数**、无距离、计入次数）。",
-            "伤害事件（来源=持有者）置 `turn.changbiao_hit`；`PhaseStart(Discard)` 时按 `turn.changbiao_x`（= 使用的牌数）摸牌。",
-            "被【闪】抵消则 `changbiao_hit=0`，不摸牌。"
+            "v3：出牌阶段限一次（`phase.<seat>.changbiao`）；逐张选**任意张手牌**为承载（`changbiao_carriers` 过滤冻结/花色封锁/颜色封锁）→ 确认后 `use_as(\"sha\", picked, 目标)`。",
+            "多张承载 → 该【杀】**无花色、无点数**（`Suit::None`）；目标合法性/数量走内核 `legal_targets_with` + `target_bounds`，`declare_no_distance` 只免距离；计入本回合【杀】次数。",
+            "命中判定 = **伤害事件**（护甲吸收仍算）；若造成伤害 → **结束阶段开始时**摸 X（X = 承载张数）。**注意：与 `agreed` 的「出牌阶段结束时」不同（V3 按用户后续裁定放在弃牌阶段之后的结束阶段开始），待人工复核**。"
           ],
           "confidence": "verified",
           "diff": [
@@ -1062,10 +1051,10 @@
               "本阶段已发动过 → 不能再发动"
             ]
           },
-          "impl": "sanguosha2::skills::b15::CHANGBIAO + Game::use_virtual",
+          "impl": "sanguosha3::kernel::skills::b15::SKILLS(code=changbiao) + b15::{changbiao_carriers, can_changbiao, changbiao, on_use_cancelled}",
           "tests": [
-            "b15::changbiao_uses_cards_as_no_distance_sha_and_draws_x",
-            "b15::changbiao_once_per_phase"
+            "b15::changbiao_slash_uses_kernel_targets_and_draws_at_end_phase",
+            "b15::changbiao_virtual_slash_has_no_attributes"
           ]
         }
       ]
@@ -1084,9 +1073,9 @@
           "original_source": "heroes.json#gid=480",
           "mechanics_version": 2,
           "current": [
-            "v2 主动技：`can_active` 与执行同源（`turn.tiaoxin_used < 2`、`turn.tiaoxin_block == 0`、目标攻击范围内含你且有牌）。",
-            "目标有【杀】→ 询问是否对其使用；造成伤害时用 `turn.tiaoxin_expect:<sha>` + `turn.tiaoxin_wait` 校验**来自这张【杀】**。",
-            "成功造成伤害 → 置 `turn.tiaoxin_block`（本阶段不能再发动）；否则由姜维选其随机手牌/装备区一张弃置（不含判定区）。"
+            "v3：出牌阶段最多两次（`phase.<seat>.tiaoxin` < 2）；首次若已令其出【杀】并**造成伤害**（`tiaoxin_hit`）→ 不能再次发动；目标须在其攻击范围内。",
+            "目标二选一：`s:<id>` 对姜维使用一张手牌【杀】（`use_on_targets`）；或 `pass` 不出。",
+            "`wait` 阶段用体力差判定是否造成伤害（`tiaoxin.hp_before`）：命中 → 结束；未命中/不出 → 姜维**强制**弃其一张牌（手牌/装备区，判定区不算）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -1161,10 +1150,9 @@
               "不能弃置判定区牌"
             ]
           },
-          "impl": "sanguosha2::skills::b15::TIAOXIN",
+          "impl": "sanguosha3::kernel::skills::b15::SKILLS(code=tiaoxin) + b15::{can_tiaoxin, tiaoxin}",
           "tests": [
-            "b15::tiaoxin_target_declines_discards_card",
-            "b15::tiaoxin_requires_range"
+            "b15::tiaoxin_punishes_target_who_does_not_slash"
           ]
         },
         {
@@ -1176,9 +1164,9 @@
           "original_source": "heroes.json#gid=480",
           "mechanics_version": 2,
           "current": [
-            "v2 觉醒技：`PhaseStart` 在**准备/结束**两处检查；无手牌 → 回复 1 或摸 2（满体力只给摸 2 选项）。",
-            "然后 `flow::lose_max_hp(1)` + `grant_skill(\"guanxing\")`（观星复用 B9 实现）。",
-            "觉醒后 `flags.awaken_zhiji` 保证每局一次；`guanxing` 进入 `granted`（`skills::active` 统一查询）。"
+            "v3：觉醒技（`awaken.<seat>.zhiji` 终身一次）：准备阶段或结束阶段（`phase` ∈ Prepare/End）且**没有手牌**。",
+            "强制二选一：`heal` 回复 1（体力已满时不提供该选项）或 `draw` 摸 2 → `flow::lose_max_hp(1)`（最低 1，体力压到上限）+ 授予「观星」。",
+            "有手牌/已觉醒不触发。"
           ],
           "confidence": "verified",
           "diff": [
@@ -1253,10 +1241,10 @@
               "满体力时不提供「回复 1 点」选项"
             ]
           },
-          "impl": "sanguosha2::skills::b15::ZHIJI + grant_skill(guanxing)",
+          "impl": "sanguosha3::kernel::skills::b15::SKILLS(code=zhiji) + b15::zhiji",
           "tests": [
-            "b15::zhiji_awaken_at_end_phase_without_hand",
-            "b15::zhiji_requires_empty_hand"
+            "b15::zhiji_awakens_when_hand_is_empty",
+            "b15::zhiji_offers_only_draw_when_full_hp"
           ]
         }
       ]
@@ -1275,9 +1263,9 @@
           "original_source": "heroes.json#gid=484",
           "mechanics_version": 2,
           "current": [
-            "v2 锁定技：`target_blocker` 收到**承载牌**（新签名 `(g,target,source,牌名,carrier)`），按实体牌花色拦截黑色锦囊（含延时/借刀）。",
-            "`skills::damage_before_victim` 链首调用 `b15::weimu_prevent`：仅 `g.turn == victim` 时防止并摸 2×点数。",
-            "失去体力（`flow::lose_hp`）不经伤害入口，不受影响。"
+            "v3：锁定技两出口。①`deny_target_instance`：**黑色锦囊**（`Category::Trick|DelayedTrick`，按实体牌花色；含延时与借刀两段目标）不能以贾诩为目标。",
+            "②`try_full_prevent`：**自己的回合内**受到的伤害整体防止（一次防止全部点数）→ `flow::draw(伤害值 × 2)`。",
+            "失去体力不是伤害，不受影响；无 handler/询问。"
           ],
           "confidence": "verified",
           "diff": [
@@ -1367,10 +1355,9 @@
               "红色锦囊可正常指定贾诩"
             ]
           },
-          "impl": "sanguosha2::skills::b15::WEIMU + skills::damage_before_victim",
+          "impl": "sanguosha3::kernel::skills::b15::SKILLS(code=weimu) + b15::{deny_target_instance, try_full_prevent}",
           "tests": [
-            "b15::weimu_blocks_black_trick_and_prevents_own_turn_damage",
-            "b15::weimu_does_not_prevent_other_turn_damage"
+            "b15::weimu_blocks_black_trick_and_prevents_own_turn_damage"
           ]
         },
         {
@@ -1382,9 +1369,9 @@
           "original_source": "heroes.json#gid=484",
           "mechanics_version": 2,
           "current": [
-            "v2 限定技：`flags.luanwu_used` 每局一次；按下家起的存活其他角色逐个询问（状态机 `seq`/`final`/`final_target`）。",
-            "每人二选一：对**距离最小**的角色使用手牌【杀】（并列时列出全部距离最小目标，由该角色选）/ 失去 1 体力（`flow::lose_hp`，可濒死）。",
-            "结算完毕询问是否视为使用无距离【杀】（`use_virtual`，不计次数、可被响应）。"
+            "v3：限定技，出牌阶段主动（`can_luanwu`）；从下家起按座位顺序（`order`）逐个询问其他存活角色，二选一：①`sha` 对**距离最小**的另一名角色使用一张手牌【杀】（并列由该角色选目标）；②`lose_hp` 失去 1 点体力（可进入濒死）。",
+            "无【杀】或无最近目标时不提供 `sha`；必选一项。",
+            "全部结算后，贾诩可选 `use` 视为使用一张**无距离**虚拟【杀】（`declare_no_distance` + `declare_sha_not_counted`，不计本回合【杀】次数，可被【闪】响应）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -1476,10 +1463,9 @@
               "贾诩本人不在「其他角色」序列中"
             ]
           },
-          "impl": "sanguosha2::skills::b15::LUANWU",
+          "impl": "sanguosha3::kernel::skills::b15::SKILLS(code=luanwu) + b15::{can_luanwu, nearest_others, luanwu}",
           "tests": [
-            "b15::luanwu_each_other_chooses_then_final_sha",
-            "b15::luanwu_once_per_game"
+            "b15::luanwu_sequence_and_final_virtual_slash"
           ]
         },
         {
@@ -1491,9 +1477,9 @@
           "original_source": "heroes.json#gid=484",
           "mechanics_version": 2,
           "current": [
-            "v2 锁定技：`flow::start_dying` 调 `skills::entering_dying` 置 `dying.wansha_owner/victim`，`die`/救起时清理。",
-            "`skills::nonlocked_lost` 扩展：濒死锁定期间，除贾诩与濒死者外其他角色**非锁定技失效**（`skills::active` 统一判定）。",
-            "濒死求桃：`skills::dying_peach_blocked` 令非濒死者（含贾诩本人）不能用【桃】；濒死者可用【酒】自救。"
+            "v3：锁定技，仅**贾诩的回合内**（`wansha_owner` 按当前回合座位）。",
+            "①`dying_allow_tao`：濒死救援时只有贾诩本人与濒死者可以使用【桃】（濒死者仍可用【酒】自救）。",
+            "②`suppressed_in_dying`：任意角色濒死结算中（栈中存在 Dying 帧），除贾诩与濒死者外的角色**非锁定技**失效（`owns` 避免递归 `active`）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -1568,10 +1554,9 @@
               "濒死者本人可用【酒】自救，不受完杀限制"
             ]
           },
-          "impl": "sanguosha2::skills::b15::WANSHA + flow::step_dying + skills::nonlocked_lost",
+          "impl": "sanguosha3::kernel::skills::b15::SKILLS(code=wansha) + b15::{dying_allow_tao, suppressed_in_dying, wansha_owner, owns}",
           "tests": [
-            "b15::wansha_blocks_others_tao_and_nonlocked_skills",
-            "b15::wansha_not_active_outside_own_turn"
+            "b15::wansha_restricts_tao_and_suppresses_non_locked_skills"
           ]
         }
       ]
@@ -1590,9 +1575,9 @@
           "original_source": "heroes.json#gid=485",
           "mechanics_version": 2,
           "current": [
-            "v2：`PhaseStart(Draw)` 询问是否多摸 2（`turn.haoshi` → `skills::draw_bonus`）；`turn::tick` 在摸牌后调用 `skills::after_draw_phase`。",
-            "手牌 >5 → 逐张选「一半（当前手牌 ÷2 下取整）」→ 交给手牌最少的其他角色；记录 `haoshi_back:<seat>`（覆盖）。",
-            "`TargetChosen` 事件：鲁肃成为【杀】/普通锦囊目标后询问回礼者是否交一张手牌；`TurnStart` 时清除回礼者。"
+            "v3：摸牌阶段（`PhaseStart` + `Phase::Draw`）询问；发动 `flow::draw(2)`，若手牌 > 5 → 交出一半（`hand_size / 2` 向下取整）给**手牌最少**的一名其他角色（并列可选），记 `haoshi.giver`（覆盖上一名）。",
+            "`TargetChosen`：鲁肃成为【杀】/普通锦囊目标后，回礼者可 `c:<id>` 交给鲁肃一张手牌（无手牌/已死/放弃则不交）。",
+            "`TurnStart`（鲁肃回合开始）清空回礼者标记；手牌 ≤5 不交牌。"
           ],
           "confidence": "verified",
           "diff": [
@@ -1682,10 +1667,9 @@
               "手牌 ≤5 → 不交牌"
             ]
           },
-          "impl": "sanguosha2::skills::b15::HAOSHI + turn::tick（after_draw_phase）",
+          "impl": "sanguosha3::kernel::skills::b15::SKILLS(code=haoshi) + b15::haoshi",
           "tests": [
-            "b15::haoshi_draws_two_more_and_gives_half",
-            "b15::haoshi_no_give_when_five_or_less"
+            "b15::haoshi_draws_two_and_gives_half_to_poorest"
           ]
         },
         {
@@ -1697,9 +1681,9 @@
           "original_source": "heroes.json#gid=485",
           "mechanics_version": 2,
           "current": [
-            "v2 主动技：出牌阶段限一次；依次选两名其他角色（第二名候选按「手牌差 ≤ 自己手牌数」过滤）。",
-            "交换：先取双方手牌快照，再双向 `Game::gain`（触发获得/失去事件）；X = 手牌差写入 `turn.dimeng_discard`。",
-            "`PhaseStart(Discard)` 逐张弃置 X 张（不足则弃光）。"
+            "v3：出牌阶段限一次（`phase.<seat>.dimeng`）；选两名**其他**角色（`t:` 两段，不能相同），要求手牌数之差 ≤ 鲁肃手牌数。",
+            "`flow::swap_hands` 交换手牌（双方同时失去并重新获得，触发获得/失去事件）；置 `turn.<seat>.dimeng_x = 差值`。",
+            "**结束阶段开始**（`PhaseStart` + `Phase::End`）强制弃 X 张手牌（X = 差值，不足弃光）—— `agreed` 写「出牌阶段结束时」，V3 实现在结束阶段开始，**待人工复核**。"
           ],
           "confidence": "verified",
           "diff": [
@@ -1788,10 +1772,9 @@
               "费用不在发动时支付，而在出牌阶段结束时结算"
             ]
           },
-          "impl": "sanguosha2::skills::b15::DIMENG",
+          "impl": "sanguosha3::kernel::skills::b15::SKILLS(code=dimeng) + b15::{can_dimeng, dimeng} + kernel::flow::swap_hands",
           "tests": [
-            "b15::dimeng_swaps_hands_and_pays_at_play_end",
-            "b15::dimeng_excludes_unaffordable_second_target"
+            "b15::dimeng_swaps_hands_and_pays_at_play_end"
           ]
         }
       ]
@@ -1810,10 +1793,9 @@
           "original_source": "heroes.json#gid=486",
           "mechanics_version": 2,
           "current": [
-            "v2：开局 `skills::on_game_start` 给 2 枚「变」；`resolve::begin_phase` 在切换阶段前调用 `skills::before_phase`（可暂停切换，返回后驱动器重试）。",
-            "`before_phase` 在判定/摸牌/出牌/弃牌阶段各问一次（`turn.qiaobian_asked:<phase>`）；支付=弃一张手牌/装备区牌或移除 1 枚「变」。",
-            "跳过摸牌 → 逐名获得至多两名角色各一张**随机**手牌；跳过出牌 → 选场上（含自己）装备/判定区牌移动到任意其他角色的合理区域（`move_equip` / `move_judge_to`）。",
-            "结束阶段：当前手牌数与历史结束阶段手牌数均不同 → `bian+1`。"
+            "v3：开局钩子（无 event）→ `bian.<seat>` = 2；判定/摸牌/出牌/弃牌阶段开始（`PhaseStart`，排除准备/结束）分别询问：`bian` 移除 1 枚「变」或 `card` 弃一张牌（手牌/装备区）跳过该阶段。",
+            "跳过判定：`skip_phase(Judge)`，**判定区牌保留**；跳过摸牌 → `draw_pick` 获得至多两名角色各一张**随机**手牌；跳过出牌 → `move_pick` 把场上（装备/判定区，含自己）一张牌 `move_field_card` 移到其他角色合理区域（装备同槽为空否则进手牌；判定区同名去重）。",
+            "结束阶段：本回合手牌数与「此前每回合结束阶段手牌数」均不相等 → `bian` +1（`qiaobian_last` 记录历史）。"
           ],
           "confidence": "verified",
           "diff": [
@@ -1905,12 +1887,10 @@
               "支付不足（无牌可弃且无「变」）→ 不能发动"
             ]
           },
-          "impl": "sanguosha2::skills::b15::QIAOBIAN + kernel::resolve::begin_phase（before_phase）",
+          "impl": "sanguosha3::kernel::skills::b15::SKILLS(code=qiaobian) + b15::{qiaobian, qiaobian_skip, move_field_card}",
           "tests": [
-            "b15::qiaobian_starts_with_two_marks",
-            "b15::qiaobian_asks_at_phase_start_and_skips",
-            "b15::qiaobian_no_ask_without_payment",
-            "b15::qiaobian_skip_judge_keeps_judge_zone"
+            "b15::qiaobian_starts_with_two_bian_and_skips_phase_by_paying",
+            "b15::qiaobian_end_phase_grants_bian_for_new_hand_count"
           ]
         }
       ]
